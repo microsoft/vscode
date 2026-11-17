@@ -207,6 +207,18 @@ export interface INamedLayoutParticipant {
 	capture(): unknown;
 
 	/**
+	 * Fires when the state that {@link capture} returns may have changed. Used to detect
+	 * the changes made to a locked layout.
+	 */
+	readonly onDidChange?: Event<unknown>;
+
+	/**
+	 * Returns whether the current state differs from the given snapshot that {@link capture}
+	 * returned earlier. The snapshots are compared for participants that do not implement this.
+	 */
+	hasChangedSince?(state: unknown): boolean;
+
+	/**
 	 * Applies a snapshot previously returned by {@link capture}. Snapshots are
 	 * persisted, so participants must validate them before applying them.
 	 */
@@ -251,6 +263,11 @@ export interface INamedLayoutsService {
 	readonly onDidChangeActiveLayout: Event<INamedLayout>;
 
 	/**
+	 * Fires when {@link isActiveLayoutModified} changed.
+	 */
+	readonly onDidChangeActiveLayoutModified: Event<void>;
+
+	/**
 	 * The default layout followed by all named layouts sorted by name and the
 	 * layouts contributed by extensions sorted by extension and name.
 	 */
@@ -260,6 +277,13 @@ export interface INamedLayoutsService {
 	 * The layout that is active in this window.
 	 */
 	readonly activeLayout: INamedLayout;
+
+	/**
+	 * Whether the active layout is locked and was changed since it was applied, locked or
+	 * reverted, so that {@link revertLayout} has changes to discard. Changes are detected
+	 * shortly after they are made.
+	 */
+	readonly isActiveLayoutModified: boolean;
 
 	/**
 	 * Registers a participant that captures and applies one aspect of named layouts.

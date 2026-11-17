@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
@@ -44,6 +47,9 @@ class TestParticipant implements INamedLayoutParticipant {
 
 	readonly id = 'test';
 
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
 	state = 'initial';
 
 	capture(): string {
@@ -54,6 +60,11 @@ class TestParticipant implements INamedLayoutParticipant {
 		if (typeof state === 'string') {
 			this.state = state;
 		}
+	}
+
+	change(state: string): void {
+		this.state = state;
+		this._onDidChange.fire();
 	}
 }
 
@@ -311,6 +322,43 @@ suite('NamedLayoutsService', () => {
 			lockDefaultError: 'The default layout cannot be locked.'
 		});
 	});
+
+	test('detects the changes made to a locked layout until they are undone or reverted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const participant = new TestParticipant();
+		const testObject = createService(participant);
+		await testObject.createLayout('Debug');
+		participant.change('debug state');
+		await testObject.setLayoutLocked(testObject.activeLayout, true);
+		await timeout(1000);
+		const afterLock = testObject.isActiveLayoutModified;
+
+		participant.change('changed state');
+		await timeout(1000);
+		const afterChange = testObject.isActiveLayoutModified;
+
+		participant.change('debug state');
+		await timeout(1000);
+		const afterUndo = testObject.isActiveLayoutModified;
+
+		participant.change('changed state');
+		await timeout(1000);
+		await testObject.revertLayout();
+		await timeout(1000);
+		const afterRevert = { modified: testObject.isActiveLayoutModified, state: participant.state };
+
+		await testObject.setLayoutLocked(testObject.activeLayout, false);
+		participant.change('changed state');
+		await timeout(1000);
+		const afterUnlock = testObject.isActiveLayoutModified;
+
+		assert.deepStrictEqual({ afterLock, afterChange, afterUndo, afterRevert, afterUnlock }, {
+			afterLock: false,
+			afterChange: true,
+			afterUndo: false,
+			afterRevert: { modified: false, state: 'debug state' },
+			afterUnlock: false
+		});
+	}));
 
 	test('restores the saved state of a locked layout when the window is restored', async () => {
 		const first = createService(new TestParticipant());

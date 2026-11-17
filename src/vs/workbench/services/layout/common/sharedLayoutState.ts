@@ -29,6 +29,13 @@ export interface ISharedLayoutStateService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Fires with the key whose value changed, for the keys in use in this window, in this
+	 * window or in another window, or because this window switched between the shared
+	 * state and a local copy.
+	 */
+	readonly onDidChange: Event<string>;
+
+	/**
 	 * Fires when the value of the given key changes, in this window or in another
 	 * window, or because this window switched between the shared state and a local copy.
 	 */
@@ -76,6 +83,7 @@ export class SharedLayoutStateService extends Disposable implements ISharedLayou
 	private static readonly LOCAL_STATE_STORAGE_KEY = 'workbench.sharedLayoutState.local';
 
 	private readonly _onDidChangeValue = this._register(new Emitter<string>());
+	readonly onDidChange = Event.filter(this._onDidChangeValue.event, key => this.keys.has(key) || !!this.localState?.has(key), this._store);
 
 	/**
 	 * Keys in use in this window. Only these keys are part of {@link getState}.

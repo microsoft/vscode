@@ -74,6 +74,7 @@ const ActiveNamedLayoutLockedContext = new RawContextKey<boolean>('activeNamedLa
 const ActiveNamedLayoutLockableContext = new RawContextKey<boolean>('activeNamedLayoutLockable', false, localize('activeNamedLayoutLockable', "Whether the active layout can be locked and unlocked."));
 const ActiveNamedLayoutResettableContext = new RawContextKey<boolean>('activeNamedLayoutResettable', false, localize('activeNamedLayoutResettable', "Whether the active layout is contributed by an extension and has changes that can be reset."));
 const ActiveNamedLayoutDeletableContext = new RawContextKey<boolean>('activeNamedLayoutDeletable', false, localize('activeNamedLayoutDeletable', "Whether the active layout can be deleted."));
+const ActiveNamedLayoutModifiedContext = new RawContextKey<boolean>('activeNamedLayoutModified', false, localize('activeNamedLayoutModified', "Whether the active layout is locked and has changes that can be reverted."));
 
 const NEW_LAYOUT_COMMAND_ID = 'workbench.action.newLayout';
 const SWITCH_LAYOUT_COMMAND_ID = 'workbench.action.switchLayout';
@@ -139,7 +140,7 @@ MenuRegistry.appendMenuItems([
 				title: localize('customizeLayout', "Customize Layout...")
 			},
 			group: NamedLayoutsMenuGroup.Manage,
-			order: 2,
+			order: 1,
 			when: NamedLayoutsEnabledContext
 		}
 	}, {
@@ -149,7 +150,7 @@ MenuRegistry.appendMenuItems([
 			title: localize('layoutDensity', "Layout Density"),
 			submenu: LayoutDensityMenu,
 			group: NamedLayoutsMenuGroup.Manage,
-			order: 3,
+			order: 2,
 			when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true))
 		}
 	}
@@ -216,6 +217,7 @@ class NamedLayoutsMenuContribution extends Disposable implements IWorkbenchContr
 	private readonly activeLayoutLockable: IContextKey<boolean>;
 	private readonly activeLayoutResettable: IContextKey<boolean>;
 	private readonly activeLayoutDeletable: IContextKey<boolean>;
+	private readonly activeLayoutModified: IContextKey<boolean>;
 
 	constructor(
 		@INamedLayoutsService private readonly namedLayoutsService: INamedLayoutsService,
@@ -228,10 +230,12 @@ class NamedLayoutsMenuContribution extends Disposable implements IWorkbenchContr
 		this.activeLayoutLockable = ActiveNamedLayoutLockableContext.bindTo(contextKeyService);
 		this.activeLayoutResettable = ActiveNamedLayoutResettableContext.bindTo(contextKeyService);
 		this.activeLayoutDeletable = ActiveNamedLayoutDeletableContext.bindTo(contextKeyService);
+		this.activeLayoutModified = ActiveNamedLayoutModifiedContext.bindTo(contextKeyService);
 
 		this.updateActiveLayout();
 		this.registerLayoutEntries();
 		this._register(namedLayoutsService.onDidChangeActiveLayout(() => this.updateActiveLayout()));
+		this._register(namedLayoutsService.onDidChangeActiveLayoutModified(() => this.activeLayoutModified.set(namedLayoutsService.isActiveLayoutModified)));
 		this._register(namedLayoutsService.onDidChangeLayouts(() => {
 			this.updateActiveLayout();
 			this.registerLayoutEntries();
@@ -245,6 +249,7 @@ class NamedLayoutsMenuContribution extends Disposable implements IWorkbenchContr
 		this.activeLayoutLockable.set(isLockable(activeLayout));
 		this.activeLayoutResettable.set(!!activeLayout.contribution?.canReset);
 		this.activeLayoutDeletable.set(isDeletable(activeLayout));
+		this.activeLayoutModified.set(this.namedLayoutsService.isActiveLayoutModified);
 
 		// The title of the button is its hover and accessible name
 		const title = activeLayout.locked ? localize('activeLockedLayoutTitle', "Layout: {0} (Locked)", activeLayout.name) : localize('activeLayoutTitle', "Layout: {0}", activeLayout.name);
@@ -355,7 +360,7 @@ registerAction2(class NewLayoutAction extends Action2 {
 			menu: {
 				id: MenuId.NamedLayoutsSubmenu,
 				group: NamedLayoutsMenuGroup.Manage,
-				order: 1,
+				order: 3,
 				when: NamedLayoutsEnabledContext
 			}
 		});
@@ -419,7 +424,7 @@ registerAction2(class SwitchLayoutAction extends Action2 {
 		const newLayoutItem: ILayoutSwitcherQuickPickItem = { label: localize('newLayoutItem', "New Layout..."), iconClass: ThemeIcon.asClassName(Codicon.blank) };
 		const getButtons = (layout: INamedLayout): IQuickInputButton[] => {
 			const buttons: IQuickInputButton[] = [];
-			if (layout.locked && layout.id === namedLayoutsService.activeLayout.id) {
+			if (layout.locked && layout.id === namedLayoutsService.activeLayout.id && namedLayoutsService.isActiveLayoutModified) {
 				buttons.push(revertButton);
 			}
 			if (isLockable(layout)) {
@@ -454,6 +459,7 @@ registerAction2(class SwitchLayoutAction extends Action2 {
 		updateItems();
 		disposables.add(namedLayoutsService.onDidChangeLayouts(() => updateItems()));
 		disposables.add(namedLayoutsService.onDidChangeActiveLayout(() => updateItems()));
+		disposables.add(namedLayoutsService.onDidChangeActiveLayoutModified(() => updateItems()));
 		disposables.add(picker.onDidTriggerItemButton(({ item, button }) => {
 			if (!item.layout) {
 				return;
@@ -669,13 +675,13 @@ registerAction2(class RevertLayoutAction extends Action2 {
 				description: localize2('revertLayout.description', "Discards the changes made to the active locked layout."),
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockedContext),
+			precondition: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockedContext, ActiveNamedLayoutModifiedContext),
 			f1: true,
 			menu: {
 				id: MenuId.NamedLayoutsSubmenu,
 				group: NamedLayoutsMenuGroup.State,
 				order: 2,
-				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockedContext)
+				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockedContext, ActiveNamedLayoutModifiedContext)
 			}
 		});
 	}

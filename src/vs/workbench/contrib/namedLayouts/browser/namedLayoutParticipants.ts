@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Event } from '../../../../base/common/event.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { isObject } from '../../../../base/common/types.js';
+import { isObject, isString } from '../../../../base/common/types.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, isHorizontal, PanelAlignment, Parts, positionFromString, positionToString, SINGLE_WINDOW_PARTS } from '../../../services/layout/browser/layoutService.js';
@@ -78,6 +81,14 @@ function toPanelPositionDefinition(position: string): INamedLayoutPanelDefinitio
 }
 
 /**
+ * Fires when sizes may have changed without an event: dragging a sash ends with
+ * a mouse up in the window, and commands can resize parts and editor groups.
+ */
+function onDidResizeWithoutEvent(commandService: ICommandService): Event<unknown> {
+	return Event.any<unknown>(Event.fromDOMEventEmitter(mainWindow, 'mouseup'), commandService.onDidExecuteCommand);
+}
+
+/**
  * Captures and applies the visibility, position, size and maximized state of
  * the side bar, the panel and the secondary side bar, the view container that
  * is active in each of them, and whether the editor layout is centered.
@@ -89,10 +100,24 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 
 	readonly id = 'workbench.parts';
 
+	readonly onDidChange: Event<unknown>;
+
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService
-	) { }
+		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
+		@ICommandService commandService: ICommandService
+	) {
+		this.onDidChange = Event.any<unknown>(
+			layoutService.onDidChangePartVisibility,
+			layoutService.onDidChangePanelPosition,
+			layoutService.onDidChangePanelAlignment,
+			layoutService.onDidChangeAuxiliaryBarMaximized,
+			layoutService.onDidChangeMainEditorCenteredLayout,
+			layoutService.onDidLayoutMainContainer,
+			paneCompositePartService.onDidPaneCompositeOpen,
+			onDidResizeWithoutEvent(commandService)
+		);
+	}
 
 	capture(): IWorkbenchPartsLayoutState {
 		const panelPosition = this.layoutService.getPanelPosition();
@@ -257,6 +282,31 @@ function isSharedLayoutState(candidate: unknown): candidate is IStringDictionary
 	return isObject(candidate) && Object.values(candidate).every(value => typeof value === 'string' || value === null);
 }
 
+/**
+ * Whether the given value of the shared layout state only adds entries to the previous value.
+ * The state of views and view containers is stored as lists of entries with identifiers. Views
+ * and view containers that are registered later add entries with their initial state.
+ */
+function addsEntriesOnly(previousValue: string | null, value: string | null): boolean {
+	const previousEntries = previousValue === null ? [] : parseEntries(previousValue);
+	const entries = value === null ? undefined : parseEntries(value);
+	if (!previousEntries || !entries) {
+		return false;
+	}
+
+	const previousIds = new Set(previousEntries.map(entry => entry.id));
+	return equals(entries.filter(entry => previousIds.has(entry.id)), previousEntries);
+}
+
+function parseEntries(value: string): { readonly id: string }[] | undefined {
+	try {
+		const entries: unknown = JSON.parse(value);
+		return Array.isArray(entries) && entries.every(entry => isObject(entry) && isString((entry as { id?: unknown }).id)) ? entries : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 const VIEW_CONTAINER_LOCATIONS: readonly (readonly [NamedLayoutViewContainerLocation, ViewContainerLocation])[] = [
 	['sideBar', ViewContainerLocation.Sidebar],
 	['panel', ViewContainerLocation.Panel],
@@ -289,14 +339,31 @@ export class SharedLayoutStateParticipant implements INamedLayoutParticipant {
 
 	readonly id = 'workbench.sharedLayoutState';
 
+	readonly onDidChange: Event<unknown>;
+
 	constructor(
 		@ISharedLayoutStateService private readonly sharedLayoutStateService: ISharedLayoutStateService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService
-	) { }
+	) {
+		this.onDidChange = sharedLayoutStateService.onDidChange;
+	}
 
 	capture(): IStringDictionary<string | null> {
 		return this.sharedLayoutStateService.getState();
+	}
+
+	hasChangedSince(state: unknown): boolean {
+		if (!isSharedLayoutState(state)) {
+			return true;
+		}
+
+		const sharedState = this.sharedLayoutStateService.getSharedState();
+		return Object.entries(this.sharedLayoutStateService.getState()).some(([key, value]) => {
+			// Keys that came into use later have their shared value until they are changed
+			const previousValue = Object.hasOwn(state, key) ? state[key] : sharedState[key];
+			return value !== previousValue && !addsEntriesOnly(previousValue, value);
+		});
 	}
 
 	async apply(state: unknown): Promise<void> {
@@ -464,12 +531,31 @@ export class EditorGroupsLayoutParticipant implements INamedLayoutParticipant {
 
 	readonly id = 'workbench.editorGroups';
 
+	readonly onDidChange: Event<unknown>;
+
 	constructor(
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService
-	) { }
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@ICommandService commandService: ICommandService
+	) {
+		const mainPart = editorGroupsService.mainPart;
+		this.onDidChange = Event.any<unknown>(
+			mainPart.onDidAddGroup,
+			mainPart.onDidRemoveGroup,
+			mainPart.onDidMoveGroup,
+			mainPart.onDidChangeGroupMaximized,
+			mainPart.onDidLayout,
+			onDidResizeWithoutEvent(commandService)
+		);
+	}
 
 	capture(): EditorGroupLayout {
 		return this.editorGroupsService.mainPart.getLayout();
+	}
+
+	hasChangedSince(state: unknown): boolean {
+		// The sizes of the groups are pixels, resizing the window changes them but not their proportions
+		const layout = this.capture();
+		return !isEditorGroupLayout(state) || layout.orientation !== state.orientation || !haveSameProportions(layout.groups, state.groups);
 	}
 
 	async apply(state: unknown): Promise<void> {
@@ -514,6 +600,33 @@ function toEditorGroupDefinitions(groups: readonly GroupLayoutArgument[]): IName
 		...(group.size !== undefined && totalSize > 0 ? { size: roundFraction(group.size / totalSize) } : {}),
 		...(group.groups ? { groups: toEditorGroupDefinitions(group.groups) } : {})
 	}));
+}
+
+/**
+ * The largest difference between two fractions of the size of a level that is not a
+ * change. Sizes in pixels are rounded when the window is resized.
+ */
+const PROPORTION_TOLERANCE = 0.01;
+
+/**
+ * Whether the given groups are arranged alike and have the same sizes as fractions of their level.
+ */
+function haveSameProportions(groups: readonly GroupLayoutArgument[], otherGroups: readonly GroupLayoutArgument[]): boolean {
+	if (groups.length !== otherGroups.length) {
+		return false;
+	}
+
+	const totalSize = groups.reduce((sum, group) => sum + (group.size ?? 0), 0);
+	const otherTotalSize = otherGroups.reduce((sum, group) => sum + (group.size ?? 0), 0);
+	return groups.every((group, index) => {
+		const other = otherGroups[index];
+		const fraction = totalSize > 0 ? (group.size ?? 0) / totalSize : 0;
+		const otherFraction = otherTotalSize > 0 ? (other.size ?? 0) / otherTotalSize : 0;
+		if (Math.abs(fraction - otherFraction) > PROPORTION_TOLERANCE) {
+			return false;
+		}
+		return group.groups?.length || other.groups?.length ? haveSameProportions(group.groups ?? [], other.groups ?? []) : true;
+	});
 }
 
 function toGroupLayoutArguments(groups: readonly INamedLayoutEditorGroupDefinition[]): GroupLayoutArgument[] {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../base/common/async.js';
+import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -59,6 +59,14 @@ function getContributedLayoutId(extensionId: string, id: string): string {
 }
 
 /**
+ * The settings and the state of the participants of a layout at some point in time.
+ */
+interface ILayoutSnapshot {
+	readonly settings: IStringDictionary<unknown>;
+	readonly state: IStringDictionary<unknown>;
+}
+
+/**
  * Named layouts are stored in the profile so that they are available in every
  * workspace. The active layout and the state of the default layout are stored
  * per workspace.
@@ -76,7 +84,9 @@ function getContributedLayoutId(extensionId: string, id: string): string {
  * Changes made to a locked layout are not saved. They are discarded when another
  * layout becomes active, and the saved state of a locked layout is applied again
  * after the window reloads. A layout that its extension locked always starts from
- * its definition when it becomes active.
+ * its definition when it becomes active. Changes made to the active locked layout
+ * are detected against its state once the window settled after it was applied,
+ * locked or reverted.
  */
 export class NamedLayoutsService extends Disposable implements INamedLayoutsService {
 
@@ -87,11 +97,20 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private static readonly ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.active';
 	private static readonly DEFAULT_LAYOUT_STATE_STORAGE_KEY = 'workbench.namedLayouts.defaultState';
 
+	/**
+	 * How long the window must not change before its state is taken as the state of
+	 * an applied locked layout, and before changes to that state are detected.
+	 */
+	private static readonly CHANGE_DETECTION_DELAY = 200;
+
 	private readonly _onDidChangeLayouts = this._register(new Emitter<void>());
 	readonly onDidChangeLayouts = this._onDidChangeLayouts.event;
 
 	private readonly _onDidChangeActiveLayout = this._register(new Emitter<INamedLayout>());
 	readonly onDidChangeActiveLayout = this._onDidChangeActiveLayout.event;
+
+	private readonly _onDidChangeActiveLayoutModified = this._register(new Emitter<void>());
+	readonly onDidChangeActiveLayoutModified = this._onDidChangeActiveLayoutModified.event;
 
 	private readonly defaultLayout: INamedLayout = { id: DEFAULT_NAMED_LAYOUT_ID, name: localize('defaultLayout', "Default") };
 	private readonly participants: INamedLayoutParticipant[] = [];
@@ -113,6 +132,15 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	 * layout that refers to a contribution represents the contributed layout.
 	 */
 	private contributedLayoutsKnown = false;
+
+	/**
+	 * The snapshot that changes to the active locked layout are detected against. It is
+	 * taken once the window settled after the layout was applied, locked or reverted, and
+	 * is `pending` until then. `undefined` while the active layout is not locked.
+	 */
+	private changeBaseline: ILayoutSnapshot | 'pending' | undefined;
+	private activeLayoutModified = false;
+	private readonly changeDetector = this._register(new RunOnceScheduler(() => this.detectChanges(), NamedLayoutsService.CHANGE_DETECTION_DELAY));
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -146,6 +174,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			if (e.affectsConfiguration(NAMED_LAYOUTS_ENABLED_SETTING) && !this.isEnabled()) {
 				this.queueSwitchToDefaultLayout(true);
 			}
+			if (getLayoutOverridableSettings().some(key => e.affectsConfiguration(key))) {
+				this.scheduleChangeDetection();
+			}
 		}));
 	}
 
@@ -166,12 +197,17 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		return this.getLayout(this.activeLayoutId) ?? this.defaultLayout;
 	}
 
+	get isActiveLayoutModified(): boolean {
+		return this.activeLayoutModified;
+	}
+
 	registerParticipant(participant: INamedLayoutParticipant): IDisposable {
 		if (this.participants.some(candidate => candidate.id === participant.id)) {
 			throw new Error(`A named layout participant with the id '${participant.id}' is already registered.`);
 		}
 
 		this.participants.push(participant);
+		const changeListener = participant.onDidChange?.(() => this.scheduleChangeDetection());
 
 		// A participant that shares its state with the default layout may still use the
 		// local copy of a named layout that no longer exists, or may not use a local copy
@@ -185,6 +221,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		return toDisposable(() => {
+			changeListener?.dispose();
 			const index = this.participants.indexOf(participant);
 			if (index !== -1) {
 				this.participants.splice(index, 1);
@@ -295,6 +332,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 			this.storeLockedLayoutIds();
 			this._onDidChangeLayouts.fire();
+
+			// A layout that is locked now keeps its current state, its changes are detected against it
+			if (this.activeLayoutId === layout.id) {
+				this.resetChangeTracking();
+			}
 		});
 	}
 
@@ -617,6 +659,63 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		} finally {
 			this.isApplying = false;
 		}
+
+		this.resetChangeTracking();
+	}
+
+	private scheduleChangeDetection(): void {
+		if (this.changeBaseline) {
+			this.changeDetector.schedule();
+		}
+	}
+
+	/**
+	 * Starts to detect the changes made to the active layout from its current state if it
+	 * is locked, otherwise stops detecting changes.
+	 */
+	private resetChangeTracking(): void {
+		this.setActiveLayoutModified(false);
+		if (this.isLocked(this.activeLayoutId)) {
+			this.changeBaseline = 'pending';
+			this.changeDetector.schedule();
+		} else {
+			this.changeBaseline = undefined;
+			this.changeDetector.cancel();
+		}
+	}
+
+	private detectChanges(): void {
+		if (!this.changeBaseline || this.isApplying) {
+			return; // change tracking starts again once the layout is applied
+		}
+
+		const settings = this.configurationService.getLayoutConfiguration();
+		if (this.changeBaseline === 'pending') {
+			this.changeBaseline = { settings, state: this.captureState() };
+			return;
+		}
+
+		const baseline = this.changeBaseline;
+		this.setActiveLayoutModified(!equals(settings, baseline.settings) || this.participants.some(participant => {
+			const state = baseline.state[participant.id];
+			if (state === undefined) {
+				return false; // registered after the baseline was taken
+			}
+
+			try {
+				return participant.hasChangedSince ? participant.hasChangedSince(state) : !equals(participant.capture(), state);
+			} catch (error) {
+				this.logService.error(`[named layouts] Failed to detect the changes of participant '${participant.id}'.`, error);
+				return false;
+			}
+		}));
+	}
+
+	private setActiveLayoutModified(modified: boolean): void {
+		if (this.activeLayoutModified !== modified) {
+			this.activeLayoutModified = modified;
+			this._onDidChangeActiveLayoutModified.fire();
+		}
 	}
 
 	private onDidChangeStoredLayouts(): void {
@@ -690,8 +789,12 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		// Changes made to the active layout while another window locked it are not saved
+		const activeLayoutWasLocked = this.isLocked(this.activeLayoutId);
 		this.lockedLayoutIds = lockedLayoutIds;
 		this._onDidChangeLayouts.fire();
+		if (this.isLocked(this.activeLayoutId) !== activeLayoutWasLocked) {
+			this.resetChangeTracking();
+		}
 	}
 
 	private loadLockedLayoutIds(): Set<string> {
