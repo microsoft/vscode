@@ -23,7 +23,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -33,8 +33,9 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, DesktopEditorHeaderLayoutContext } from '../../../../common/agentsWindowContextKeys.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
@@ -52,7 +53,7 @@ import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../../../workbench/contrib/se
 import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import '../../../changes/browser/changesActions.js';
 import '../../../changes/browser/changesView.contribution.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../../../../workbench/contrib/files/common/files.js';
+import { SESSIONS_FILES_CONTAINER_ID, TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -2046,6 +2047,41 @@ suite('DesktopLayoutController', () => {
 			gatedOnMultiDiffEditorFileList: true,
 			visibleByMode: [true, false],
 			commandAvailable: true,
+		});
+	});
+
+	test('[D7 desktop] with the editor header layout, Toggle Details also shows for the Changes tab, including during a session switch', () => {
+		createDesktopController();
+
+		const [toggleDetails] = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
+		const isShown = (activeEditor: string, editorHeaderLayout: boolean, options: { hasDockedDetails?: boolean; transition?: boolean } = {}) => {
+			const values: Record<string, ContextKeyValue> = {
+				[DesktopEditorHeaderLayoutContext.key]: editorHeaderLayout,
+				[IsSessionsWindowContext.key]: true,
+				[IsAuxiliaryWindowContext.key]: false,
+				[IsTopRightEditorGroupContext.key]: true,
+				[DesktopLayoutContext.key]: true,
+				[MainEditorAreaVisibleContext.key]: true,
+				[HasDockedDetailsContext.key]: options.hasDockedDetails ?? false,
+				[ActiveEditorContext.key]: activeEditor,
+				[DesktopChangesEditorTransitionContext.key]: options.transition ?? false,
+			};
+			const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
+			return toggleDetails.when?.evaluate(context) ?? false;
+		};
+		// The Changes tab keeps the toggle even before the detail target is published.
+		const snapshot = (editorHeaderLayout: boolean) => ({
+			changes: isShown(SessionChangesEditorInput.EDITOR_ID, editorHeaderLayout),
+			changesTransition: isShown('', editorHeaderLayout, { transition: true }),
+			textFileWithDockedDetails: isShown(TEXT_FILE_EDITOR_ID, editorHeaderLayout, { hasDockedDetails: true }),
+			withoutDockedDetails: isShown('test.browserEditor', editorHeaderLayout),
+		});
+
+		assert.deepStrictEqual({ classic: snapshot(false), editorHeaderLayout: snapshot(true) }, {
+			classic: { changes: false, changesTransition: false, textFileWithDockedDetails: true, withoutDockedDetails: false },
+			editorHeaderLayout: { changes: true, changesTransition: true, textFileWithDockedDetails: true, withoutDockedDetails: false },
 		});
 	});
 
