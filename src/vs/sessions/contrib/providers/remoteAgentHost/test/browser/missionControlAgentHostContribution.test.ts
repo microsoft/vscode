@@ -432,9 +432,10 @@ suite('Mission Control native provider inventory', () => {
 		});
 	});
 
-	test('points a shared remote\'s environment at its direct connection while connected, mapping only the environment\'s folders', () => {
+	test('points a shared remote\'s environment at its direct connection while connected, mapping only the environment\'s folders, also when another address shares it', () => {
 		const { hosts, sharedRemoteEnvironmentIds, shares, created, providersService, setAddressStatus } = fixture();
-		shares.set(new Map([['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
+		// The remote added again under another address shares the same environment.
+		shares.set(new Map([['ssh:old', { state: 'enabled', environmentId: 'kept' }], ['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
 		hosts.set([{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' }], undefined);
 		const folder = URI.from({ scheme: 'file', path: '/home/project' });
 		const environmentFolder = toAgentHostUri(folder, agentHostAuthority('cloudsandbox:kept'));

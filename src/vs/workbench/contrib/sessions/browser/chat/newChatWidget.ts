@@ -2867,6 +2867,9 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		const extUri = this.uriIdentityService.extUri;
+		const host = this._draftHost;
+		// Read before the environment changes: the picker returns only a pick for the composer's current provider.
+		const userPick = host ? undefined : this._newChatInput.sessionTypePicker.getUserPickedSessionType();
 		const sessionProvider = session ? this.sessionsProvidersService.getProvider(session.providerId, session.sessionId) : undefined;
 		const preferDevContainer = this._environment.get()?.kind === 'container'
 			|| extUri.isEqual(this._preferredDevContainerFolderUri, folderUri)
@@ -2877,7 +2880,6 @@ export class NewChatWidget extends Disposable {
 		this._newSessionCreation.clear();
 		this._reconcileWorkspaceEnvironment({ providerId: successorProviderId, preferDevContainer });
 		this._preferredDevContainerFolderUri = preferDevContainer ? successorFolderUri : undefined;
-		const host = this._draftHost;
 		const target = host?.requestedTarget?.get();
 		if (host?.setRequestedTarget && target && extUri.isEqual(target.folderUri, folderUri)) {
 			host.setRequestedTarget({ ...target, folderUri: successorFolderUri, providerId: target.providerId === providerId ? successorProviderId : target.providerId }, 'background');
@@ -2887,7 +2889,7 @@ export class NewChatWidget extends Disposable {
 		// The agent the draft waits for, such as one its host requests or the user picked that the shared host did not
 		// offer, goes before the one it fell back to. The new provider can advertise its agents only later: an explicit
 		// pick upgrades the draft once it does.
-		const requested = target && extUri.isEqual(target.folderUri, folderUri) ? target : !host ? this._newChatInput.sessionTypePicker.getUserPickedSessionType() : undefined;
+		const requested = target && extUri.isEqual(target.folderUri, folderUri) ? target : userPick;
 		const sessionTypeId = (requested && (!requested.providerId || requested.providerId === providerId) ? requested.sessionTypeId : undefined) ?? session?.sessionType;
 		const pick = sessionTypeId ? { providerId: successorProviderId, sessionTypeId } : undefined;
 		await this._onWorkspaceSelected(successorFolderUri, pick, true);

@@ -329,17 +329,21 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		if (!this._remoteSharing.environmentIds.read(reader).has(environmentId)) {
 			return undefined;
 		}
-		const address = [...this._remoteSharing.shares.read(reader)].find(([, share]) => share.environmentId === environmentId)?.[0];
-		if (address === undefined) {
-			return undefined;
-		}
 		this._connectionsChanged.read(reader);
-		if (!RemoteAgentHostConnectionStatus.isConnected(this._remoteAgentHostService.connections.find(connection => connection.address === address)?.status)) {
-			return undefined;
-		}
 		this._providersChanged.read(reader);
-		const direct = this._findDirectProvider(address);
-		if (!direct) {
+		// Several addresses can share the environment, such as a remote added again under another address.
+		let address: string | undefined;
+		let direct: IAgentHostSessionsProvider | undefined;
+		for (const [candidate, share] of this._remoteSharing.shares.read(reader)) {
+			if (share.environmentId === environmentId && RemoteAgentHostConnectionStatus.isConnected(this._remoteAgentHostService.connections.find(connection => connection.address === candidate)?.status)) {
+				direct = this._findDirectProvider(candidate);
+				if (direct) {
+					address = candidate;
+					break;
+				}
+			}
+		}
+		if (address === undefined || !direct) {
 			return undefined;
 		}
 		const environmentUris = createAgentHostResourceUriMapper(agentHostAuthority(cloudSandboxAddress(environmentId)));
