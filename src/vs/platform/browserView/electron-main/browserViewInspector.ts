@@ -138,6 +138,8 @@ export class BrowserViewInspector extends Disposable {
 				senderFrame.postMessage('vscode:browserView:setTheme', this._theme);
 				senderFrame.postMessage('vscode:browserView:setLocalizedStrings', localizedStrings);
 
+				// A new document gets its own chance to adopt.
+				this._adoptionTimedOut.delete(senderFrame);
 				this._registry.notifyFrameReady(senderFrame, frameToken);
 
 				// If area selection was activated before the main-frame preload
