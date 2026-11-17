@@ -25,24 +25,32 @@ import { menuBackground, menuForeground, menuSelectionBackground, menuSelectionB
 import { quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusHighlightForeground, quickInputListFocusIconForeground } from '../../../../platform/theme/common/colors/quickpickColors.js';
 import { ColorScheme, isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
-import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from '../../../../workbench/common/theme.js';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from '../../../../workbench/contrib/terminal/common/terminalColorRegistry.js';
-import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IColorMap, IWorkbenchThemeService } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
-import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputFocusBorder, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsGradientTintColor, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../../workbench/contrib/sessions/common/theme.js';
-import { ISessionsChatBackgroundService } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { InAgentsChatPartContext } from './agentsView/agentsChatPartContext.js';
+import { EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from '../../../common/theme.js';
+import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from '../../terminal/common/terminalColorRegistry.js';
+import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IColorMap, IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import { Menus } from './menus.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../common/contextkeys.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputFocusBorder, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsGradientTintColor, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../common/theme.js';
+import { ISessionsChatBackgroundService } from './chatBackgroundService.js';
 
 export const AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING = 'chat.agentSessions.backgroundImageTint';
+
+/**
+ * The context menu of a chat's background that shows over the chat background: in the Agents window, or in the chat area
+ * of an editor window, not in another chat of that window, such as the Chat view's.
+ */
+export const CHAT_BACKGROUND_CHAT_CONTEXT_MENU_WHEN = ContextKeyExpr.and(ChatContextKeys.contextMenuIsBackground, ContextKeyExpr.or(IsSessionsWindowContext, InAgentsChatPartContext));
 
 export class ToggleChatBackgroundTintAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.toggleAgentSessionsBackgroundTint';
 
 	constructor() {
+		// Only the Agents window tints its theme to the background: an editor window shows the image without a tint
 		const when = ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext);
 		super({
 			id: ToggleChatBackgroundTintAction.ID,
@@ -60,7 +68,7 @@ export class ToggleChatBackgroundTintAction extends Action2 {
 				id: MenuId.ChatContext,
 				group: 'zz_background',
 				order: 3,
-				when: ContextKeyExpr.and(when, ChatContextKeys.contextMenuIsBackground),
+				when: ContextKeyExpr.and(when, CHAT_BACKGROUND_CHAT_CONTEXT_MENU_WHEN),
 			}],
 		});
 	}

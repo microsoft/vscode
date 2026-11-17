@@ -8,6 +8,8 @@
  * register it: the difference between loading what they import and also loading them. See agentsWindowRegistrations.test.ts.
  */
 export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
+	'command _sessionsList.markRead',
+	'command _sessionsList.markUnread',
 	'command sessionsViewPane.archiveSessionsWithUndo',
 	'command sessionsViewPane.deleteSessionGroupWithUndo',
 	'command sessionsViewPane.closeSession',

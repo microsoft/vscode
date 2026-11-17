@@ -387,6 +387,23 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('the auxiliary bar hides Maximize while any claim is held, and tells only as it starts and stops', () => {
+		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+		const events: boolean[] = [];
+		store.add(layout.onDidChangeAuxiliaryBarMaximizeHidden(hidden => events.push(hidden)));
+		const steps: Record<string, unknown> = { initial: layout.isAuxiliaryBarMaximizeHidden() };
+		const first = layout.hideAuxiliaryBarMaximize();
+		steps.claimed = layout.isAuxiliaryBarMaximizeHidden();
+		const second = layout.hideAuxiliaryBarMaximize();
+		first.dispose();
+		first.dispose();
+		steps.oneLeft = layout.isAuxiliaryBarMaximizeHidden();
+		second.dispose();
+		steps.released = layout.isAuxiliaryBarMaximizeHidden();
+		steps.events = events;
+		assert.deepStrictEqual(steps, { initial: false, claimed: true, oneLeft: true, released: false, events: [true, false] });
+	});
+
 	test('hides the chat part with the editor for a maximized panel and shows it again with the editor, as showing the chat part does', () => {
 		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
 		const visible = () => ({ chat: layout.isVisible(Parts.CHAT_PART), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), panel: layout.isVisible(Parts.PANEL_PART) });
@@ -693,9 +710,22 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('listens to the views only while it has an anchor view to follow', () => {
+		const { layout, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+		const listening = () => viewEvents.location.hasListeners();
+
+		const withoutAnchor = listening();
+		layout.setChatPartAnchor({ viewId: 'sessions' });
+		const anchored = listening();
+		layout.setChatPartAnchor({ viewId: 'sessions' });
+		const anchoredAgain = listening();
+		layout.setChatPartAnchor(undefined);
+
+		assert.deepStrictEqual({ withoutAnchor, anchored, anchoredAgain, cleared: listening() }, { withoutAnchor: false, anchored: true, anchoredAgain: true, cleared: false });
+	});
+
 	test('follows its anchor view through the events of the views as they move, deregister and register again', () => {
-		const { layout, middle, anchor, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
-		store.add((Reflect.get(layout, 'followChatPartAnchor') as () => { dispose(): void }).call(layout));
+		const { middle, anchor, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		const container = upcastPartial<ViewContainer>({ id: 'test.chatPartAnchor' });
 		const view = upcastPartial<IViewDescriptor>({ id: 'sessions', name: { value: 'Sessions', original: 'Sessions' } });

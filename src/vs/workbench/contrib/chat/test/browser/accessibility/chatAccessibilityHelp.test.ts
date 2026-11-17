@@ -941,7 +941,7 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
-			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Artifact Options'),
 			pullRequestChangesInSessions: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Open Pull Request Changes row action'),
 			pullRequestChangesInEditor: getAccessibilityHelpText('agentView', keybindingService, true).includes('Open Pull Request Changes row action'),
 			copyActions: getAccessibilityHelpText('agentView', keybindingService, true).includes('its context menu offers the item\'s copy actions'),

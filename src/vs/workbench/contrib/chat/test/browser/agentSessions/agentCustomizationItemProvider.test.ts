@@ -36,6 +36,7 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/service
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { withCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
+import { withCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { AICustomizationItemNormalizer, expandHookFileItems, ICustomizationSkillItem, ItemProviderItemSource } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
@@ -324,6 +325,29 @@ suite('AgentCustomizationItemProvider', () => {
 			{ key: 'hook-0', organizationControl: { requiredEnabled: true } },
 			{ key: 'hook-1', organizationControl: {} },
 			{ key: 'hook-2', organizationControl: undefined },
+		]);
+	});
+
+	test('marks plugins the host reports as provided by a GitHub Team, and no others', async () => {
+		const customizations: PluginCustomization[] = ([['assigned', true, undefined], ['assigned-and-required', true, { requiredEnabled: true }], ['unmarked', undefined, undefined]] as const).map(([name, team, organization]) => {
+			const meta = withCustomizationTeamProvided(organization ? withCustomizationOrganizationMeta(undefined, organization) : undefined, team);
+			return { type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name, ...(meta ? { _meta: meta } : {}) };
+		});
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			// The host's metadata reaches the client as JSON.
+			override getCustomizations(): readonly Customization[] {
+				return JSON.parse(JSON.stringify(customizations));
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ key: item.itemKey ?? item.name, teamProvided: item.teamProvided, organizationControl: item.organizationControl })), [
+			{ key: 'assigned', teamProvided: true, organizationControl: undefined },
+			{ key: 'assigned-and-required', teamProvided: true, organizationControl: { requiredEnabled: true } },
+			{ key: 'unmarked', teamProvided: undefined, organizationControl: undefined },
 		]);
 	});
 
