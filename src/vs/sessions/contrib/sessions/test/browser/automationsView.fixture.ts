@@ -627,6 +627,7 @@ function createRepositoryOnlyData(): IAutomationsFixtureData {
 		automations: createPopulatedData().automations.slice(0, 2).map(automation => ({
 			...automation,
 			ownership: 'repository',
+			isCreatedByCurrentUser: true,
 			targetDisplay: { label: 'example/private-project', icon: Codicon.cloud },
 		})),
 		runs: [],

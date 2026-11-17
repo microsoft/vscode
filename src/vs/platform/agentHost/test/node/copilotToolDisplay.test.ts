@@ -581,6 +581,23 @@ suite('getPermissionDisplay — MCP tool confirmation', () => {
 			toolName: 'issue_read',
 		});
 	});
+
+	test('labels a Connector server by its display name while keeping the server identity', () => {
+		const serverName = 'github-copilot-connector-9839aae413778b24b512';
+		const display = getPermissionDisplay({
+			kind: 'mcp',
+			serverName,
+			serverDisplayName: 'Slack',
+			toolName: 'slack_read_thread',
+			toolTitle: 'Read thread messages',
+			readOnly: true,
+		});
+		assert.deepStrictEqual({ confirmationTitle: display.confirmationTitle, invocationMessage: display.invocationMessage, mcpServerName: display.mcpServerName }, {
+			confirmationTitle: 'Allow tool from Slack?',
+			invocationMessage: 'Slack: Read thread messages',
+			mcpServerName: serverName,
+		});
+	});
 });
 
 suite('getPermissionDisplay — workflow confirmation', () => {

@@ -29,6 +29,8 @@ export interface IDockedAuxiliaryBarHost {
 	/** Height of the editor tabs above the optional header. */
 	getTabsHeight(): number;
 	getEditorContentTop(): number;
+	/** Whether the editor header spans details docked beside the editor content, which then start below the header rather than below the tabs. */
+	headerSpansDetails?(): boolean;
 }
 
 /** Positions and resizes desktop details beside, above, or below editor content. */
@@ -122,6 +124,10 @@ export class DockedAuxiliaryBarController extends Disposable {
 		if (editorContentHidden) {
 			this._layoutState = undefined;
 		}
+
+		// Applying the insets relayouts the editor group, which can change the header that
+		// spanning details sit below, so measure the top only afterwards.
+		this.host.setEditorContentInsets(position === 'right' ? auxWidth : 0, 0, 0, position === 'left' ? auxWidth : 0);
 		const top = this._getTop();
 		const height = Math.max(0, editorRect.height - top);
 
@@ -133,7 +139,6 @@ export class DockedAuxiliaryBarController extends Disposable {
 		auxiliaryBarContainer.style.width = `${auxWidth}px`;
 		auxiliaryBarContainer.style.height = `${height}px`;
 
-		this.host.setEditorContentInsets(position === 'right' ? auxWidth : 0, 0, 0, position === 'left' ? auxWidth : 0);
 		this.auxiliaryBarPart.layout(auxWidth, height, top, position === 'left' ? 0 : editorRect.width - auxWidth);
 
 		this._ensureSash();
@@ -168,7 +173,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 		const width = this.editorPartContainer.clientWidth;
 		const frameHeight = this.editorPartContainer.clientHeight;
 		const editorVisible = this.host.isEditorVisible();
-		const contentTop = editorVisible ? this.host.getEditorContentTop() : this._getTop();
+		const contentTop = editorVisible ? this.host.getEditorContentTop() : this.host.getTabsHeight();
 		const availableHeight = Math.max(0, frameHeight - contentTop);
 		const height = editorVisible ? DockedAuxiliaryBarController.getEffectiveHeight(this.host.getHeight(), availableHeight) : availableHeight;
 		const top = position === 'top' ? contentTop : frameHeight - height;
@@ -314,7 +319,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 		}));
 	}
 
+	/** Top of the details docked beside the editor content. */
 	private _getTop(): number {
-		return this.host.getTabsHeight();
+		return this.host.headerSpansDetails?.() ? this.host.getEditorContentTop() : this.host.getTabsHeight();
 	}
 }

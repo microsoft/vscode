@@ -22168,6 +22168,28 @@ Use the attached image as context.
 			});
 		});
 
+		test('MCP tool start carries the server display name without replacing the server identity', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-mcp-display-name');
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-mcp-display-name',
+				toolName: `${serverName}-slack_read_thread`,
+				toolTitle: 'Read thread messages',
+				mcpServerName: serverName,
+				mcpServerDisplayName: 'Slack',
+				mcpToolName: 'slack_read_thread',
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallStart));
+
+			const start = getActions(signals).find(action => action.type === ActionType.ChatToolCallStart);
+			assert.deepStrictEqual(start && readToolCallMeta(start), {
+				mcpServerName: serverName,
+				'vscode.mcpServerDisplayName': 'Slack',
+				mcpToolName: 'slack_read_thread',
+			});
+		});
+
 		test('full assistant message does not duplicate markdown emitted before a tool delta', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-stream-dedup');

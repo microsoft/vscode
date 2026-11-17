@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatSubmitRequestOutcome } from '../../../../chat/browser/chatSubmitRequestHandlerService.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationError, errorHandler } from '../../../../../../base/common/errors.js';
@@ -105,7 +106,8 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			_modelRef: { value: undefined },
 			options: { session: constObservable(h.session), inputVisible: h.sourceVisible, hostVisible: h.hostVisible, sendRequest, confirmSend },
 			instantiationService: h.instantiationService,
-			chatSubmitRequestHandlerService: { tryHandle },
+			// As the service answers for a handler: `true` handled the request, `false` went on
+			chatSubmitRequestHandlerService: { tryHandle: async () => ({ outcome: await tryHandle() ? ChatSubmitRequestOutcome.Handled : ChatSubmitRequestOutcome.Continue }) },
 			storageService: { store: () => { } },
 			logService: { error: () => { } },
 		});
