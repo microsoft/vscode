@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ISessionWorktreeCleanupService, ISessionWorktreeCleanupSuggestion } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 import { SessionStorageCleanupNotice } from '../../../browser/views/sessionStorageCleanupNotice.js';
 import '../../../browser/media/sessionsViewPane.css';
@@ -35,6 +36,7 @@ suite('SessionStorageCleanupNotice', () => {
 			new NullLogService(),
 			upcastPartial<INotificationService>({}),
 			upcastPartial<IHoverService>({ setupManagedHover: () => upcastPartial<IManagedHover>({ dispose: () => { } }) }),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
 		));
 		const container = document.createElement('div');
 		container.className = 'agent-sessions-viewpane';
@@ -104,6 +106,7 @@ suite('SessionStorageCleanupNotice', () => {
 			new NullLogService(),
 			upcastPartial<INotificationService>({}),
 			upcastPartial<IHoverService>({ setupManagedHover: () => upcastPartial<IManagedHover>({ dispose: () => { } }) }),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
 		));
 		document.body.appendChild(notice.domNode);
 		disposables.add(toDisposable(() => notice.domNode.remove()));
@@ -168,5 +171,33 @@ suite('SessionStorageCleanupNotice', () => {
 			dismissCount: 2,
 			focusCount: 3,
 		});
+	});
+
+	test('only Agents windows render, announce and activate cleanup suggestions', () => {
+		const results = [];
+		for (const isSessionsWindow of [false, true]) {
+			let scans = 0;
+			let announcements = 0;
+			const notice = disposables.add(new SessionStorageCleanupNotice(
+				() => { },
+				() => { announcements++; },
+				upcastPartial<ISessionWorktreeCleanupService>({
+					suggestion: observableValue<ISessionWorktreeCleanupSuggestion | undefined>('suggestion', {
+						description: 'Old worktrees are using storage.',
+						manage: async () => { }, disable: async () => { }, dismiss: () => { },
+					}),
+					activate: async () => { scans++; },
+				}),
+				new NullLogService(),
+				upcastPartial<INotificationService>({}),
+				upcastPartial<IHoverService>({ setupManagedHover: () => upcastPartial<IManagedHover>({ dispose: () => { } }) }),
+				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow }),
+			));
+			results.push({ visible: notice.domNode.classList.contains('visible'), scans, announcements });
+		}
+		assert.deepStrictEqual(results, [
+			{ visible: false, scans: 0, announcements: 0 },
+			{ visible: true, scans: 1, announcements: 1 },
+		]);
 	});
 });

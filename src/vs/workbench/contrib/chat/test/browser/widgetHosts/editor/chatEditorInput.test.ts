@@ -677,62 +677,69 @@ suite('ChatEditorInput', () => {
 		assert.deepStrictEqual({ model: resolved?.model, acquiredReason }, { model, acquiredReason: 'copilotPreference' });
 	});
 
-	test('unavailable Agent Host session falls back to Local with its selection reason', async () => {
-		const unavailableResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-unavailable' });
-		const localResource = LocalChatSessionUri.forSession('agent-host-unavailable-fallback');
-		const model = {
-			onDidDispose: Event.None,
-			onDidChange: Event.None,
-			sessionResource: localResource,
-		} as Partial<IChatModel> as IChatModel;
+	for (const localHidden of [false, true]) {
+		test(`unavailable Agent Host session ${localHidden ? 'reports an error instead of falling back to Local while Local chats are hidden' : 'falls back to Local with its selection reason'}`, async () => {
+			const unavailableResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-unavailable' });
+			const localResource = LocalChatSessionUri.forSession('agent-host-unavailable-fallback');
+			const model = {
+				onDidDispose: Event.None,
+				onDidChange: Event.None,
+				sessionResource: localResource,
+			} as Partial<IChatModel> as IChatModel;
 
-		let startCall: { location: ChatAgentLocation; options: IChatSessionStartOptions | undefined } | undefined;
-		const chatService = {
-			async acquireOrLoadSession() {
-				return undefined;
-			},
-			startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions) {
-				startCall = { location, options };
-				return { object: model, dispose: () => { } };
-			},
-		} as Partial<IChatService> as IChatService;
+			let startCall: { location: ChatAgentLocation; options: IChatSessionStartOptions | undefined } | undefined;
+			const chatService = {
+				async acquireOrLoadSession() {
+					return undefined;
+				},
+				startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions) {
+					startCall = { location, options };
+					return { object: model, dispose: () => { } };
+				},
+			} as Partial<IChatService> as IChatService;
 
-		const input = disposables.add(new ChatEditorInput(
-			unavailableResource,
-			{ sessionTypeSelectionReason: 'explicitOverride' },
-			chatService,
-			{} as IDialogService,
-			new TestConfigurationService(),
-			new MockChatSessionsService(),
-			{} as IInstantiationService,
-			{} as IStorageService,
-			new NullLogService(),
-			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
-			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
-			NullTelemetryService,
-			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
-			new NullManagedSettingsService(),
-			settledPolicyGate,
-			upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
-		));
+			const input = disposables.add(new ChatEditorInput(
+				unavailableResource,
+				{ sessionTypeSelectionReason: 'explicitOverride' },
+				chatService,
+				{} as IDialogService,
+				new TestConfigurationService(),
+				new MockChatSessionsService(),
+				{} as IInstantiationService,
+				{} as IStorageService,
+				new NullLogService(),
+				new TestContextService(),
+				{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
+				{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
+				NullTelemetryService,
+				{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
+				new NullManagedSettingsService(),
+				settledPolicyGate,
+				upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(localHidden) }),
+			));
 
-		const resolved = await input.resolve();
+			if (localHidden) {
+				await assert.rejects(input.resolve(), /The chat could not start\. Try again or choose another available agent\./);
+				assert.strictEqual(startCall, undefined);
+				return;
+			}
+			const resolved = await input.resolve();
 
-		assert.deepStrictEqual({
-			model: resolved?.model,
-			sessionResource: input.sessionResource,
-			startLocation: startCall?.location,
-			debugOwner: startCall?.options?.debugOwner,
-			selectionReason: startCall?.options?.sessionTypeSelectionReason,
-		}, {
-			model,
-			sessionResource: localResource,
-			startLocation: ChatAgentLocation.Chat,
-			debugOwner: 'ChatEditorInput#resolveUntitledFallback',
-			selectionReason: 'agentHostUnavailable',
+			assert.deepStrictEqual({
+				model: resolved?.model,
+				sessionResource: input.sessionResource,
+				startLocation: startCall?.location,
+				debugOwner: startCall?.options?.debugOwner,
+				selectionReason: startCall?.options?.sessionTypeSelectionReason,
+			}, {
+				model,
+				sessionResource: localResource,
+				startLocation: ChatAgentLocation.Chat,
+				debugOwner: 'ChatEditorInput#resolveUntitledFallback',
+				selectionReason: 'agentHostUnavailable',
+			});
 		});
-	});
+	}
 
 	test('restored empty draft of a harness disabled by policy opens the default new chat', async () => {
 		const draftResource = URI.from({ scheme: SessionType.AgentHostClaude, path: '/untitled-disabled' });

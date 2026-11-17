@@ -553,6 +553,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._groupsView.splitActiveChat(direction);
 	}
 
+	/** Saves the layout of the chats of the session shown, which another view restores when it shows the session. */
+	saveLayout(): void {
+		this._groupsView.saveLayout();
+	}
+
 	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void {
 		this._groupsView.moveActiveChatToAdjacentGroup(direction);
 	}
