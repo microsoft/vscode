@@ -15,6 +15,7 @@ const categorizedConnectionErrorCodes = {
 	AgentHostFileSystem: 'fileSystem',
 	AgentHostInvalidResponse: 'invalidResponse',
 	AgentHostUnavailable: 'unavailable',
+	AgentHostThrottled: 'throttled',
 	MissionControlOwnerMismatch: 'conflict',
 } as const satisfies Record<string, ConnectionTelemetryErrorCategory>;
 
@@ -23,6 +24,8 @@ export type CategorizedConnectionErrorCode = keyof typeof categorizedConnectionE
 /**
  * A failure whose structured `code` maps to a telemetry category. The code survives
  * diagnostics and IPC, unlike class names (minified) and messages (never reported).
+ * Its category takes precedence over ones derived from protocol codes or HTTP statuses
+ * elsewhere in the cause chain, so it can also refine a wrapping error's status.
  */
 export class CategorizedConnectionError extends Error {
 	constructor(readonly code: CategorizedConnectionErrorCode, message: string, options?: ErrorOptions) {
@@ -75,16 +78,19 @@ export function getConnectionTelemetryError(error: IConnectionDiagnosticError | 
 	}
 	let errorCode: number | undefined;
 	let statusCode: number | undefined;
-	let errorCategory: ConnectionTelemetryErrorCategory = 'unknown';
+	let sourceCategory: ConnectionTelemetryErrorCategory | undefined;
+	let derivedCategory: ConnectionTelemetryErrorCategory | undefined;
 	for (let current: IConnectionDiagnosticError | undefined = error, depth = 0; current && depth < 3; current = current.cause, depth++) {
 		const code = knownProtocolCodes.find(code => String(code) === current?.code);
 		const status = isHttpStatus(current.status) ? current.status : undefined;
 		errorCode ??= code;
 		statusCode ??= status;
-		let category: ConnectionTelemetryErrorCategory | undefined;
 		if (current.code !== undefined && Object.hasOwn(categorizedConnectionErrorCodes, current.code)) {
-			category = categorizedConnectionErrorCodes[current.code as CategorizedConnectionErrorCode];
-		} else if (code === AhpErrorCodes.AuthRequired || status === 401) {
+			sourceCategory ??= categorizedConnectionErrorCodes[current.code as CategorizedConnectionErrorCode];
+			continue;
+		}
+		let category: ConnectionTelemetryErrorCategory | undefined;
+		if (code === AhpErrorCodes.AuthRequired || status === 401) {
 			category = 'authentication';
 		} else if (code === AhpErrorCodes.PermissionDenied || status === 403) {
 			category = 'authorization';
@@ -110,10 +116,9 @@ export function getConnectionTelemetryError(error: IConnectionDiagnosticError | 
 		} else if (status !== undefined && status >= 400 && status <= 499) {
 			category = 'httpClient';
 		}
-		if (errorCategory === 'unknown' && category) {
-			errorCategory = category;
-		}
+		derivedCategory ??= category;
 	}
+	let errorCategory: ConnectionTelemetryErrorCategory = sourceCategory ?? derivedCategory ?? 'unknown';
 	if (errorCategory === 'unknown' && (error.name === 'InitialAuthenticationError' || error.name === 'CloudSandboxAuthenticationRequiredError')) {
 		errorCategory = 'authentication';
 	} else if (errorCategory === 'unknown' && error.name === 'CloudSandboxNetworkError') {

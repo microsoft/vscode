@@ -180,8 +180,9 @@ function parseMissionControlExpiration(expiration: string): number {
 
 /** Keeps the HTTP status for local diagnostics; JSON-RPC responses serialize only code, message, and data. */
 class GitHubIdentityError extends ProtocolError {
-	constructor(code: number, message: string, readonly status: number) {
+	constructor(code: number, message: string, readonly status: number, cause?: Error) {
 		super(code, message);
+		this.cause = cause;
 	}
 }
 
@@ -195,9 +196,10 @@ export async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOr
 		signal: AbortSignal.timeout(15_000),
 	});
 	if (!response.ok) {
-		const denied = response.status === 401 || (response.status === 403
-			&& !response.headers.has('Retry-After') && response.headers.get('X-RateLimit-Remaining') !== '0');
-		throw new GitHubIdentityError(denied ? JsonRpcErrorCodes.InvalidParams : JsonRpcErrorCodes.InternalError, `GitHub identity validation failed (${response.status})`, response.status);
+		const rateLimited = response.status === 403 && (response.headers.has('Retry-After') || response.headers.get('X-RateLimit-Remaining') === '0');
+		const denied = response.status === 401 || (response.status === 403 && !rateLimited);
+		throw new GitHubIdentityError(denied ? JsonRpcErrorCodes.InvalidParams : JsonRpcErrorCodes.InternalError, `GitHub identity validation failed (${response.status})`, response.status,
+			rateLimited ? new CategorizedConnectionError('AgentHostThrottled', 'GitHub rate limit exceeded') : undefined);
 	}
 	let user: unknown;
 	try {

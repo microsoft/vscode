@@ -383,10 +383,12 @@ suite('Mission Control sealed authentication', () => {
 		await assert.rejects(resolveMissionControlOwner(async () => Response.json({ id: 123, type: 'Bot' }), resource, 'test'), /user identity/);
 	});
 
-	test('identity failures keep their HTTP status and response validity for connection telemetry', async () => {
+	test('identity failures keep their HTTP status, rate limits and response validity for connection telemetry', async () => {
 		const responses = [
 			new Response('', { status: 401 }),
 			new Response('', { status: 403 }),
+			new Response('', { status: 403, headers: { 'Retry-After': '10' } }),
+			new Response('', { status: 403, headers: { 'X-RateLimit-Remaining': '0' } }),
 			new Response('', { status: 503 }),
 			new Response('not json'),
 		];
@@ -397,6 +399,8 @@ suite('Mission Control sealed authentication', () => {
 		assert.deepStrictEqual(errors, [
 			{ errorCategory: 'authentication', errorCode: JsonRpcErrorCodes.InvalidParams, statusCode: 401 },
 			{ errorCategory: 'authorization', errorCode: JsonRpcErrorCodes.InvalidParams, statusCode: 403 },
+			{ errorCategory: 'throttled', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 403 },
+			{ errorCategory: 'throttled', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 403 },
 			{ errorCategory: 'httpServer', errorCode: JsonRpcErrorCodes.InternalError, statusCode: 503 },
 			{ errorCategory: 'invalidResponse' },
 		]);
