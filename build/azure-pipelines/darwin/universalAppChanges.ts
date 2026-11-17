@@ -18,8 +18,12 @@ const affectingFiles = [
 	/^build\/darwin\//,
 	/^build\/azure-pipelines\/darwin\//,
 	/^build\/\.moduleignore/,
-	/^(?:build\/)?(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc)$/,
-	/^\.pnpmfile\.mjs$/,
+	/^(?:build\/)?(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.pnpmfile\.mjs)$/,
+	// The Node.js version of the build
+	/^\.nvmrc$/,
+	// How the built-in extensions are bundled and which of their files ship (build/lib/extensions.ts)
+	/^extensions\/[^/]+\/(?:\.?esbuild[\w.]*\.mts|\.vscodeignore)$/,
+	/^extensions\/esbuild-[\w-]+\.mts$/,
 ];
 
 /**
