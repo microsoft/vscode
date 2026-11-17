@@ -380,7 +380,7 @@ describe('CopilotCLI permissionHelpers', () => {
 		});
 
 		it('requires confirmation when a workspace link resolves outside the workspace', async () => {
-			const tempRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-read-symlink-')));
+			const tempRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-read-symlink-')));
 			const workspaceRoot = path.join(tempRoot, 'workspace');
 			const outsideRoot = path.join(tempRoot, 'outside');
 			fs.mkdirSync(workspaceRoot);
@@ -580,7 +580,7 @@ describe('CopilotCLI permissionHelpers', () => {
 		});
 
 		it('requires confirmation when a write resolves outside its trusted folder', async () => {
-			const tempRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-write-symlink-')));
+			const tempRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-write-symlink-')));
 			const linkType = process.platform === 'win32' ? 'junction' : 'dir';
 			const makeDir = (...segments: string[]) => {
 				const dir = path.join(tempRoot, ...segments);
@@ -681,7 +681,7 @@ describe('CopilotCLI permissionHelpers', () => {
 		});
 
 		it('approves and tracks a write through a workspace link when the user confirms', async () => {
-			const tempRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-write-symlink-')));
+			const tempRoot = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-cli-write-symlink-')));
 			const workspaceRoot = path.join(tempRoot, 'workspace');
 			const outsideRoot = path.join(tempRoot, 'outside');
 			fs.mkdirSync(workspaceRoot);
