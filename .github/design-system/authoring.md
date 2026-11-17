@@ -177,7 +177,7 @@ Check a product specimen against the real product before changing its motion. Re
 ## Verify the change
 
 1. Check the owning source and its guidance for consistency.
-2. Validate page bindings, topic identities, and source references.
+2. Validate page bindings, topic identities, and source references with the [branch-aware validation command](README.md#preview-and-validate-before-pushing). Run its rendering check when changing chapter composition or the viewer.
 3. Run focused content or reader tests for changed extraction and failure behavior.
 4. Open the affected chapter and inspect its actual intended state.
 5. Exercise changed interactions, including keyboard and reduced-motion behavior when relevant.

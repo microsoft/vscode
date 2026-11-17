@@ -21,6 +21,45 @@ Edit the owning document once. Pages reference its sections through `$text` or `
 
 Follow [authoring conventions](authoring.md), [component qualification](components.md), and [token qualification](foundations.md). Discovery and visualization don't make draft or implementation-specific material a product-wide rule.
 
+## Preview and validate before pushing
+
+The viewer and the content checkout are independent. Use an up-to-date clone of the [viewer repository](https://github.com/chryw/vscode-design-system), or the locally installed viewer, with an explicit checkout path. Nothing needs to be pushed for a preview to include saved working changes.
+
+From the VS Code checkout, run:
+
+```bash
+# Fast check: resolve every chapter and its source bindings.
+node .github/design-system/scripts/validate.mts --sources-only
+
+# Rendering check: build an offline book and open every chapter in Chromium.
+# The output directory must not already exist.
+node .github/design-system/scripts/validate.mts --output /tmp/design-system-review
+```
+
+The rendering check requires this checkout's existing dependencies and Playwright Chromium (`pnpm exec playwright install chromium` if the browser is missing). It fails on broken bindings, empty chapters, reported rendering failures, browser errors, failed requests, or unavailable started examples. Open the generated `design-system.html` to inspect appearance and interactions; `validation.json` records the checked checkout, Git revision, viewer version, and chapter count. Without `--output`, generated files are temporary.
+
+To check the latest viewer against another branch, keep that branch in a separate local checkout or worktree and select both inputs:
+
+```bash
+node .github/design-system/scripts/validate.mts \
+  --viewer /absolute/path/to/vscode-design-system \
+  --root /absolute/path/to/vscode-checkout \
+  --output /tmp/other-branch-review
+```
+
+Use your normal Git update workflow to update the viewer clone before checking it. The command does not fetch, switch branches, install dependencies, or publish anything. It reads the selected checkout's book and product sources, not content bundled with the viewer. A branch without compatible book data fails explicitly; update or bring the exploration content into that branch rather than falling back to another checkout.
+
+For a live browser preview, run the viewer CLI against the same checkout and open the printed loopback URL:
+
+```bash
+node /absolute/path/to/vscode-design-system/scripts/book.mjs serve \
+  --root /absolute/path/to/vscode-checkout
+```
+
+Stop it with Ctrl+C. For the actual canvas, install or update the independent viewer through the native plugin manager and reuse the worktree's existing canvas in its owning chat. Use **Change checkout** to browse another clone or worktree in that same panel; do not create a new instance for another branch or validation pass. Follow the viewer's [setup and migration guidance](https://github.com/chryw/vscode-design-system/blob/main/docs/setup.md) if a legacy workspace installation exists.
+
+This is a portable-rendering smoke check, not pixel comparison or native canvas-host validation. It does not cover live-server refresh, every theme or fixture variant, lazy examples that were not started, keyboard behavior, or visual quality. Inspect the affected chapter and exercise changed interactions before pushing. Viewer implementation tests belong in the viewer repository; this checkout's installed copy does not include that test suite.
+
 ```mermaid
 flowchart LR
 	Book["Book and component curation"] --> Reader["Deterministic adapters"]
