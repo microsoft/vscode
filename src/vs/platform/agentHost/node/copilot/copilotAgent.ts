@@ -9554,18 +9554,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const [events, metadata] = await Promise.all([
 				this._withChatStorageClient(context.chatKey, client => readCopilotSessionEvents(cursor =>
 					client.rpc.sessions.readPersistedEvents({ sessionId: sdkSessionId, cursor, max: 1000, direction: 'backward' }), CancellationToken.None), true).catch(async error => {
-					if (!isCopilotJournalCorruptionError(error)) {
-						throw error;
-					}
-					if (this._readOnlyChatInputErrors.get(context.chatKey)?.errorType !== 'sessionAdoptionPending') {
-						this._readOnlyChatInputErrors.set(context.chatKey, getReadOnlyHistoryError(error)!);
-					}
-					this._logService.warn(`[Copilot:${context.ownerSessionId}] Persisted journal is invalid; attempting read-only transcript recovery`);
-					if (!/^[a-zA-Z0-9_-]+$/.test(sdkSessionId)) {
-						throw new Error('Invalid Copilot session ID for transcript recovery');
-					}
-					return recoverCopilotSessionHistory(resourceJoinPath(this._copilotHomeService.home, 'session-state', sdkSessionId, 'events.jsonl').fsPath, this._logService);
-				}),
+						if (!isCopilotJournalCorruptionError(error)) {
+							throw error;
+						}
+						if (this._readOnlyChatInputErrors.get(context.chatKey)?.errorType !== 'sessionAdoptionPending') {
+							this._readOnlyChatInputErrors.set(context.chatKey, getReadOnlyHistoryError(error)!);
+						}
+						this._logService.warn(`[Copilot:${context.ownerSessionId}] Persisted journal is invalid; attempting read-only transcript recovery`);
+						if (!/^[a-zA-Z0-9_-]+$/.test(sdkSessionId)) {
+							throw new Error('Invalid Copilot session ID for transcript recovery');
+						}
+						return recoverCopilotSessionHistory(resourceJoinPath(this._copilotHomeService.home, 'session-state', sdkSessionId, 'events.jsonl').fsPath, this._logService);
+					}),
 				this._readSessionMetadata({ storage: context.resource, owner: context.ownerSession }, context.workspaceless),
 			]);
 			if (this._isShuttingDown) {
