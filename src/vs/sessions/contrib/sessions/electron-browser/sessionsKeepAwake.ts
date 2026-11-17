@@ -37,8 +37,8 @@ export class SessionsKeepAwake extends Disposable implements IWorkbenchContribut
 
 	static readonly ID = 'workbench.contrib.sessionsKeepAwake';
 
-	/** How long to keep holding after the last agent stops working. */
-	static readonly RELEASE_DELAY = 60 * 1000;
+	/** How long to keep holding after the last agent stops working, matching Copilot Chat's request blocker. */
+	static readonly RELEASE_DELAY = 2 * 60 * 1000;
 
 	private readonly _hold = this._register(new MutableDisposable());
 	private readonly _releaseScheduler = this._register(new RunOnceScheduler(() => this._hold.clear(), SessionsKeepAwake.RELEASE_DELAY));
