@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
-import { basename, dirname, normalize, sep, relative } from 'path';
+import { basename, dirname, normalize, parse, sep, relative, PlatformPath } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -305,42 +305,55 @@ export function subject(value: string): string {
 	return index === -1 ? value : truncate(value, index, false);
 }
 
-function normalizePath(path: string): string {
+/**
+ * The path flavour used to compare paths. Tests pass `path.win32` or
+ * `path.posix` to check another platform's paths.
+ */
+export interface PathPlatform {
+	readonly path: Pick<PlatformPath, 'normalize' | 'parse' | 'sep'>;
+	readonly ignoreCase: boolean;
+}
+
+const currentPathPlatform: PathPlatform = {
+	path: { normalize, parse, sep },
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
-	if (isWindows || isMacintosh) {
+	ignoreCase: isWindows || isMacintosh
+};
+
+function normalizePath(path: string, platform: PathPlatform): string {
+	if (platform.ignoreCase) {
 		path = path.toLowerCase();
 	}
 
-	// Trailing separator
-	if (/[/\\]$/.test(path)) {
-		// Remove trailing separator
+	// Remove the trailing separator, unless the path is a root
+	// (ex: "c:\", "\\server\share\" or "/") which keeps it
+	if (/[/\\]$/.test(path) && path.length > platform.path.parse(path).root.length) {
 		path = path.substring(0, path.length - 1);
 	}
 
-	// Normalize the path
-	return normalize(path);
+	return platform.path.normalize(path);
 }
 
-export function isDescendant(parent: string, descendant: string): boolean {
+export function isDescendant(parent: string, descendant: string, platform: PathPlatform = currentPathPlatform): boolean {
 	if (parent === descendant) {
 		return true;
 	}
 
 	// Normalize the paths
-	parent = normalizePath(parent);
-	descendant = normalizePath(descendant);
+	parent = normalizePath(parent, platform);
+	descendant = normalizePath(descendant, platform);
 
 	// Ensure parent ends with separator
-	if (parent.charAt(parent.length - 1) !== sep) {
-		parent += sep;
+	if (parent.charAt(parent.length - 1) !== platform.path.sep) {
+		parent += platform.path.sep;
 	}
 
 	return descendant.startsWith(parent);
 }
 
-export function pathEquals(a: string, b: string): boolean {
-	return normalizePath(a) === normalizePath(b);
+export function pathEquals(a: string, b: string, platform: PathPlatform = currentPathPlatform): boolean {
+	return normalizePath(a, platform) === normalizePath(b, platform);
 }
 
 /**

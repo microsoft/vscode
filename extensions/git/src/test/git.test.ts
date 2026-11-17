@@ -8,7 +8,7 @@ import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseG
 import * as assert from 'assert';
 import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
-import { splitInChunks } from '../util';
+import { isDescendant, pathEquals, splitInChunks } from '../util';
 
 suite('git', () => {
 	suite('Git process input', () => {
@@ -810,6 +810,49 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('path helpers', () => {
+		const windows = { path: path.win32, ignoreCase: true };
+		const posix = { path: path.posix, ignoreCase: false };
+
+		test('isDescendant keeps roots as roots', () => {
+			assert.deepStrictEqual([
+				isDescendant('C:\\', 'C:\\Repo', windows),
+				isDescendant('c:\\', 'C:\\Repo\\src', windows),
+				isDescendant('C:/', 'c:\\repo', windows),
+				isDescendant('\\\\server\\share\\', '\\\\Server\\Share\\Repo', windows),
+				isDescendant('\\\\server\\share', '\\\\server\\share\\repo', windows),
+				isDescendant('/', '/repo', posix),
+				isDescendant('C:\\', 'D:\\Repo', windows),
+				isDescendant('\\\\server\\share\\', '\\\\server\\other\\repo', windows),
+			], [true, true, true, true, true, true, false, false]);
+		});
+
+		test('isDescendant is unchanged for other paths', () => {
+			assert.deepStrictEqual([
+				isDescendant('C:\\Repo\\', 'c:\\repo\\src', windows),
+				isDescendant('c:\\repo', 'C:/Repo/src/', windows),
+				isDescendant('C:\\Repo', 'C:\\Repository', windows),
+				isDescendant('/repo/', '/repo/src', posix),
+				isDescendant('/repo', '/Repo/src', posix),
+				isDescendant('/repo', '/repository', posix),
+			], [true, true, false, true, false, false]);
+		});
+
+		test('pathEquals', () => {
+			assert.deepStrictEqual([
+				pathEquals('C:\\', 'c:\\', windows),
+				pathEquals('C:\\', 'c:/', windows),
+				pathEquals('\\\\server\\share\\', '\\\\Server\\Share', windows),
+				pathEquals('C:\\Repo\\', 'c:\\repo', windows),
+				pathEquals('C:\\', 'D:\\', windows),
+				pathEquals('/', '/', posix),
+				pathEquals('/repo/', '/repo', posix),
+				pathEquals('/', '/repo', posix),
+				pathEquals('/Repo', '/repo', posix),
+			], [true, true, true, true, false, true, true, false, false]);
 		});
 	});
 });
