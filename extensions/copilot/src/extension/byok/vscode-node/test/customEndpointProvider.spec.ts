@@ -1097,7 +1097,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 			const messages = body.messages as any[];
 			expect(messages[0].reasoning_content).toBe('I should read the README before answering.');
-			expect(messages[0].reasoning).toBe('I should read the README before answering.');
+			expect(messages[0].reasoning).toBeUndefined();
 			expect(messages[0].cot_summary).toBe('I should read the README before answering.');
 		});
 	});
