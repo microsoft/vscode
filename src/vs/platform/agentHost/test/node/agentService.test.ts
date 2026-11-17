@@ -25542,6 +25542,24 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('restoreSession', () => {
 
+		for (const persistedArchived of [undefined, 'false', 'true']) {
+			test(`restores provider archive status with persisted override ${persistedArchived}`, async () => {
+				const db = new TestSessionDatabase();
+				if (persistedArchived !== undefined) {
+					await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, persistedArchived);
+				}
+				const agent = disposables.add(new MockAgent('copilot'));
+				agent.sessionMetadataOverrides = { status: SessionStatus.IsArchived };
+				const { session } = await createAgentSession(agent);
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(svc, agent);
+
+				await svc.restoreSession(session);
+
+				assert.strictEqual(isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())!.status), persistedArchived !== 'false');
+			});
+		}
+
 		test('surviving cold subscriber installs summary interest when the restoring subscriber is cancelled', async () => {
 			const db = new TestSessionDatabase();
 			const workingDirectory = URI.file('/concurrent-folder-summary');
