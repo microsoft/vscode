@@ -508,14 +508,6 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 		const part = this._ensurePart();
 		const active = chats[Math.min(Math.max(stored?.active ?? 0, 0), chats.length - 1)];
-		// In Single, only the chat it showed, and the composers that closing would lose something of
-		if (this._isSingle()) {
-			const dropped = chats.filter(chat => chat !== active && !this._keepsComposer(chat.input));
-			for (const chat of dropped) {
-				this._chats.deleteAndDispose(chat.input);
-			}
-			chats.splice(0, chats.length, ...chats.filter(chat => !dropped.includes(chat)));
-		}
 		for (const chat of chats) {
 			this._restoringTabs.add(chat.input);
 		}
@@ -570,7 +562,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// Only an open that showed its chat, and that no later open superseded, replaces the others: a superseded one, which can
 		// still resolve after the later one showed its chat, would close that
 		if (this._isSingle() && pane && isCurrentOpen()) {
-			await this._replaceOthers(group, chat.input, isCurrentOpen);
+			await this._closeUntouchedComposers(group, chat.input, isCurrentOpen);
 		}
 		this.composers.didOpen([chat.chat.get()]);
 		// Opened again while it is the active tab, such as a tab the user picks in a sessions list: reported again
@@ -588,11 +580,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	/**
-	 * In Single, it shows one chat at a time, as a preview: the chat it opens replaces the others of its group, but a
-	 * new-session composer that closing would lose something of, as a chat window replaces only a composer that is untouched.
+	 * In Single, it shows one chat at a time, and keeps the others it opened, as an editor group does, to show again as the
+	 * chat it shows closes: the chat it opens replaces only the untouched new-session composers of its group.
 	 */
-	private async _replaceOthers(group: IEditorGroup, input: EditorInput, isCurrent: () => boolean): Promise<void> {
-		for (const editor of group.editors.filter(editor => editor !== input && !this._keepsComposer(editor))) {
+	private async _closeUntouchedComposers(group: IEditorGroup, input: EditorInput, isCurrent: () => boolean): Promise<void> {
+		for (const editor of group.editors.filter(editor => editor !== input && !!this._chats.get(editor)?.isComposer && !this._keepsComposer(editor))) {
 			// Until a later open supersedes it, also while it closes the others
 			if (!isCurrent()) {
 				return;
@@ -751,11 +743,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	/**
-	 * Closing the last chat closes the chat part, but in Single, where it shows one chat at a time, closing the chat it shows
-	 * shows a new-session composer, as a new session: closing that closes the chat part.
+	 * Closing a chat shows the chat opened before it, as an editor group does; closing the last chat shows a new-session
+	 * composer, as a new session, and closing that closes the chat part.
 	 */
 	private _didCloseTab(closedChat: boolean): void {
-		if (closedChat && this._isSingle() && !this._closingAll && !this._lifecycleService.willShutdown && this._part?.groups.every(group => group.isEmpty)) {
+		if (closedChat && !this._closingAll && !this._lifecycleService.willShutdown && this._part?.groups.every(group => group.isEmpty)) {
 			this.openComposer(getEditorWindowComposerTarget(this._workspaceContextService, this._editorService)).catch(onUnexpectedError);
 			return;
 		}

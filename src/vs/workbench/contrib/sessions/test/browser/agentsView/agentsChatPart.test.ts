@@ -398,8 +398,11 @@ suite('AgentsChatPartService', () => {
 		const backToComposer = hostShows();
 		status.set(SessionStatus.InProgress, undefined);
 		const sent = hostShows();
+		// The composer that shows once the last chat closes has no draft yet
+		newSession.set(undefined, undefined);
 		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
 		await service.closeChat(other.mainChat.chat.resource);
+		await timeout(0);
 
 		assert.deepStrictEqual({ noDraftYet, composing, otherTab, backToComposer, sent, closed: hostShows() }, {
 			noDraftYet: { session: 'none', chat: 'none', active: 'none' },
@@ -765,7 +768,7 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(asItsTabDisposes, { liveSlots: 0, reentered: 0, disposed: true });
 	});
 
-	test('closing the last chat closes the chat part, which closing a chat it does not show leaves as it is', async () => {
+	test('closing the last chat shows a new-session composer, which closing a chat it does not show leaves as it is', async () => {
 		const { service, layout } = createService();
 		await service.openChat(session, chatA);
 		await service.openChat(session, chatB);
@@ -774,12 +777,37 @@ suite('AgentsChatPartService', () => {
 		await service.closeChat(chatA);
 		const oneLeft = layout();
 		await service.closeChat(chatB);
+		await timeout(0);
 
 		assert.deepStrictEqual({ oneLeft, none: layout() }, {
 			oneLeft: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
-			none: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
+			none: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
 		});
 	});
+
+	for (const chatTabs of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+		test(`closes as an editor group does (${chatTabs}): closing the chat it shows shows the one opened before it, closing the last chat shows a new-session composer, and closing that closes the chat part`, async () => {
+			const { service, part, layout } = createService({ chatTabs });
+			await service.openChat(session, chatA);
+			await service.openChat(session, chatB);
+			const bothOpen = layout();
+			await service.closeChat(chatB);
+			await timeout(0);
+			const closedB = layout();
+			await service.closeChat(chatA);
+			await timeout(0);
+			const closedA = layout();
+			await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
+			await timeout(0);
+
+			assert.deepStrictEqual({ bothOpen, closedB, closedA, closedComposer: layout() }, {
+				bothOpen: { groups: [{ tabs: ['/a', '/b'], active: '/b' }], activeGroup: 0, visible: true },
+				closedB: { groups: [{ tabs: ['/a'], active: '/a' }], activeGroup: 0, visible: true },
+				closedA: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
+				closedComposer: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
+			});
+		});
+	}
 
 	test('closing all its chats closes every tab, in each of its groups, which closes the chat part', async () => {
 		const { service, layout } = createService();
@@ -797,23 +825,23 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('in Single, it shows one chat at a time, as a preview: a chat it opens replaces the one it showed, also an untouched composer, without tabs left behind', async () => {
+	test('in Single, it shows one chat at a time and keeps the others it opened, as an editor group does: a chat it opens replaces only an untouched composer', async () => {
 		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
 		await service.openChat(session, chatA);
 		await service.openChat(session, chatB);
-		const replaced = layout();
+		const kept = layout();
 		await service.openComposer(undefined, { newComposer: true });
 		const composer = layout();
 		await service.openChat(session, chatC);
 
-		assert.deepStrictEqual({ replaced, composer, untouchedComposerReplaced: layout() }, {
-			replaced: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
-			composer: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
-			untouchedComposerReplaced: { groups: [{ tabs: ['/c'], active: '/c' }], activeGroup: 0, visible: true },
+		assert.deepStrictEqual({ kept, composer, untouchedComposerReplaced: layout() }, {
+			kept: { groups: [{ tabs: ['/a', '/b'], active: '/b' }], activeGroup: 0, visible: true },
+			composer: { groups: [{ tabs: ['/a', '/b', 'composer'], active: 'composer' }], activeGroup: 0, visible: true },
+			untouchedComposerReplaced: { groups: [{ tabs: ['/a', '/b', '/c'], active: '/c' }], activeGroup: 0, visible: true },
 		});
 	});
 
-	test('in Single, an open that a later one superseded replaces nothing as it resolves after that one: the later chat stays, the only tab', async () => {
+	test('in Single, an open that a later one superseded shows nothing as it resolves after that one: the later chat stays the one it shows', async () => {
 		let held: DeferredPromise<void> | undefined;
 		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single, holdOpen: () => held?.p ?? Promise.resolve() });
 		await service.openChat(session, chatC);
@@ -829,8 +857,8 @@ suite('AgentsChatPartService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ afterB, afterA: layout() }, {
-			afterB: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
-			afterA: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
+			afterB: { groups: [{ tabs: ['/c', '/a', '/b'], active: '/b' }], activeGroup: 0, visible: true },
+			afterA: { groups: [{ tabs: ['/c', '/a', '/b'], active: '/b' }], activeGroup: 0, visible: true },
 		});
 	});
 
@@ -853,12 +881,12 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('in Single, restoring shows only the chat it showed, not the others it stored', async () => {
+	test('in Single, restoring shows the chat it showed and keeps the others it stored, to show again as it closes', async () => {
 		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, stored: JSON.stringify({ chats: [chatA.toString(), chatB.toString(), chatC.toString()], active: 1 }) });
 
 		await service.restore();
 
-		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true });
+		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/a', '/b', '/c'], active: '/b' }], activeGroup: 0, visible: true });
 	});
 
 	test('the chat part stores its chats and the active one as the window saves, and shows them again in that order once restored', async () => {
@@ -933,6 +961,9 @@ suite('AgentsChatPartService', () => {
 		const first = createService({ stored: JSON.stringify({ chats: ['test:/a'], active: 0 }) });
 		await first.service.openChat(session, chatA);
 		await first.service.closeChat(chatA);
+		await timeout(0);
+		// And the new-session composer that showed in its place
+		await first.part.activeGroup.closeEditor(first.part.activeGroup.activeEditor!);
 		const stored = first.save();
 
 		const unreadable = createService({ stored: 'not json', visible: true });
