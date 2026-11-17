@@ -206,7 +206,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				webviewInput.webview.origin = this._webviewOriginStore.getOrigin(viewType, extension.id);
 
 				const handle = this.getOrAddWebviewInput(webviewInput, serializeBuffersForPostMessage);
-				webviewInput.webview.options = options;
+				// Only the core declares webviews restorable: the text document of a custom text editor is backed up
+				// and restored like that of any text editor
+				webviewInput.webview.options = { ...options, restorable: modelType === CustomEditorModelType.Text };
 				webviewInput.webview.extension = extension;
 
 				const resource = webviewInput instanceof CustomEditorDiffInput ? webviewInput.modifiedResource : webviewInput.resource;

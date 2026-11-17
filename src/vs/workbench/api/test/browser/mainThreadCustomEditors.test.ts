@@ -48,7 +48,7 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { MainThreadCustomEditors } from '../../browser/mainThreadCustomEditors.js';
 import { MainThreadWebviewPanels } from '../../browser/mainThreadWebviewPanels.js';
 import { MainThreadWebviews } from '../../browser/mainThreadWebviews.js';
-import { CustomEditorProviderCapabilities, ExtHostCustomEditorsShape } from '../../common/extHost.protocol.js';
+import { CustomEditorProviderCapabilities, ExtHostCustomEditorsShape, IWebviewPanelOptions } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { WebviewEditor } from '../../../contrib/webviewPanel/browser/webviewEditor.js';
 import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
@@ -85,6 +85,7 @@ suite('MainThreadCustomEditors', () => {
 		resolveCustomEditor?: () => Promise<void>;
 		capabilities?: CustomEditorProviderCapabilities;
 		textEditor?: boolean;
+		webviewOptions?: IWebviewPanelOptions;
 		resolveNavigation?: (handle: string, token: CancellationToken) => Promise<{ selection: undefined } | undefined>;
 	}) {
 		const calls: string[] = [];
@@ -202,9 +203,9 @@ suite('MainThreadCustomEditors', () => {
 		const customEditors = store.add(instantiationService.createInstance(MainThreadCustomEditors, SingleProxyRPCProtocol(proxy), mainThreadWebviews, mainThreadWebviewPanels));
 		const extension = { id: new ExtensionIdentifier('test.extension'), location: URI.file('/extensions/test') };
 		if (extHost.textEditor) {
-			customEditors.$registerTextEditorProvider(extension, viewType, {}, extHost.capabilities ?? {}, false);
+			customEditors.$registerTextEditorProvider(extension, viewType, extHost.webviewOptions ?? {}, extHost.capabilities ?? {}, false);
 		} else {
-			customEditors.$registerCustomEditorProvider(extension, viewType, {}, extHost.capabilities ?? {}, false, false);
+			customEditors.$registerCustomEditorProvider(extension, viewType, extHost.webviewOptions ?? {}, extHost.capabilities ?? {}, false, false);
 		}
 
 		function createWebview() {
@@ -412,6 +413,28 @@ suite('MainThreadCustomEditors', () => {
 				'$resolveCustomEditor(/workspace/file.custom, webview#1)',
 				'$disposeCustomDocument(/workspace/file.custom)',
 			],
+			unexpectedErrors: [],
+		});
+	});
+
+	test('declares only the webviews of custom text editors restorable', async () => {
+		const textEditor = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, webviewOptions: { retainContextWhenHidden: true } }).createInput();
+		// Extensions pass their webview options unchecked, but cannot declare a webview restorable themselves
+		const customEditorOptions = { retainContextWhenHidden: true, restorable: true };
+		const customEditor = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), webviewOptions: customEditorOptions }).createInput();
+
+		await textEditor.input.resolve();
+		await customEditor.input.resolve();
+		const options = { textEditor: textEditor.webview.options, customEditor: customEditor.webview.options };
+		textEditor.input.dispose();
+		customEditor.input.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ options, unexpectedErrors }, {
+			options: {
+				textEditor: { retainContextWhenHidden: true, restorable: true },
+				customEditor: { retainContextWhenHidden: true, restorable: false },
+			},
 			unexpectedErrors: [],
 		});
 	});

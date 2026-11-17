@@ -108,6 +108,13 @@ export interface WebviewOptions {
 
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+
+	/**
+	 * Whether the webview can be recreated without losing anything even when it retains its context,
+	 * because what it shows is saved and restored elsewhere, like the text document of a custom text editor.
+	 */
+	readonly restorable?: boolean;
+
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 
 	/** Host-owned actions prepended to this webview's context menu. */
