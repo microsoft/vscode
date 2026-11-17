@@ -12,7 +12,7 @@ import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -44,6 +44,7 @@ import { IScheduledChatsService } from '../../../../../../workbench/contrib/sess
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING } from '../../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -62,6 +63,8 @@ const reconciliationMessage = 'The automation request may have been accepted. Re
 
 class TestApi extends mock<IAutomationsClient>() {
 	readonly historyOptions: (TaskListOptions | undefined)[] = [];
+	readonly historyRequests: string[] = [];
+	readonly taskRequests: string[] = [];
 	readonly calls: string[] = [];
 	readonly configurationRepositories: string[] = [];
 	activeConfigurations = 0;
@@ -118,6 +121,7 @@ class TestApi extends mock<IAutomationsClient>() {
 		return { data: { automations: this.definitions, total_count: this.definitions.length } };
 	}
 	override async listRuns(id: string, _signal: CancellationToken, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+		this.historyRequests.push(id);
 		this.historyOptions.push(options);
 		this.calls.push('history');
 		await this.pendingHistory;
@@ -226,7 +230,7 @@ suite('CloudAutomationStore', () => {
 				},
 			});
 			override readonly tasks = new class extends mock<ITasksClient>() {
-				override async get() { return api.tasks[0]; }
+				override async get(id: string) { api.taskRequests.push(id); return api.tasks[0]; }
 				override async abort() { api.calls.push('stop'); }
 			}();
 		}();
@@ -1566,6 +1570,72 @@ suite('CloudAutomationStore', () => {
 		});
 	});
 
+	test('creator visibility filters history requests and published runs without filtering the catalogue', async () => {
+		const { provider, service, api, set } = setupTools();
+		api.definitions = [
+			{ ...definition, id: 'mine', ownership: 'repository', created_by: { login: 'UsEr' } },
+			{ ...definition, id: 'other', owner_type: 'repository', created_by: { login: 'teammate' } },
+			{ ...definition, id: 'unknown', ownership: 'repository', created_by: { login: '' } },
+			{ ...definition, id: 'personal', ownership: 'user' },
+		];
+		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const snapshot = () => ({
+			requested: [...api.historyRequests],
+			details: api.taskRequests.length,
+			published: service.runs.get().map(run => JSON.parse(run.automationId).at(-1)),
+			catalogue: service.automations.get().map(automation => JSON.parse(automation.id).at(-1)),
+		});
+		const hidden = snapshot();
+		api.historyRequests.length = 0;
+		api.taskRequests.length = 0;
+		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		await waitForState(provider.isRefreshing, refreshing => !refreshing);
+		const shown = snapshot();
+		api.historyRequests.length = 0;
+		api.taskRequests.length = 0;
+		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, false);
+		const immediatelyHidden = service.runs.get().map(run => JSON.parse(run.automationId).at(-1));
+		await waitForState(provider.isRefreshing, refreshing => !refreshing);
+		assert.deepStrictEqual({ hidden, shown, immediatelyHidden, hiddenAgain: snapshot() }, {
+			hidden: { requested: ['mine', 'personal'], details: 2, published: ['mine', 'personal'], catalogue: ['mine', 'other', 'unknown', 'personal'] },
+			shown: { requested: ['mine', 'other', 'unknown', 'personal'], details: 4, published: ['mine', 'other', 'unknown', 'personal'], catalogue: ['mine', 'other', 'unknown', 'personal'] },
+			immediatelyHidden: ['mine', 'personal'],
+			hiddenAgain: { requested: ['mine', 'personal'], details: 2, published: ['mine', 'personal'], catalogue: ['mine', 'other', 'unknown', 'personal'] },
+		});
+	});
+
+	test('hiding shared automations during history loading skips queued requests and active polling', async () => {
+		const clock = useFakeTimers();
+		disposables.add(toDisposable(() => clock.restore()));
+		const { provider, api, set } = setup();
+		api.definitions = Array.from({ length: 6 }, (_, index) => ({ ...definition, id: `other-${index}`, ownership: 'repository' as const, created_by: { login: 'teammate' } }));
+		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.historyRequests.length = 0;
+		api.taskRequests.length = 0;
+		const pending = new DeferredPromise<void>();
+		api.pendingHistory = pending.p;
+		const refresh = provider.refresh();
+		await clock.tickAsync(0);
+		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, false);
+		const immediatelyHidden = provider.runs.get();
+		await pending.complete();
+		await refresh;
+		await waitForState(provider.isRefreshing, refreshing => !refreshing);
+		await clock.tickAsync(60_000);
+		assert.deepStrictEqual({
+			immediatelyHidden, runs: provider.runs.get(), requested: api.historyRequests,
+			details: api.taskRequests, definitions: provider.automations.get().length,
+		}, {
+			immediatelyHidden: [], runs: [], requested: ['other-0', 'other-1', 'other-2', 'other-3'],
+			details: [], definitions: 6,
+		});
+	});
+
 	test('catalogue lookups reuse descriptors and update after publication', async () => {
 		const { provider, api, set } = setup();
 		let idReads = 0;
@@ -1646,6 +1716,7 @@ suite('CloudAutomationStore', () => {
 
 	test('unavailable collaborator history does not remove its Repository automation or block healthy history', async () => {
 		const { provider, api, set } = setup();
+		await set(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
 		api.definitions = [
 			{ ...definition, id: 'shared', ownership: 'repository', created_by: { login: 'teammate' } },
 			{ ...definition, id: 'owned', ownership: 'repository' },

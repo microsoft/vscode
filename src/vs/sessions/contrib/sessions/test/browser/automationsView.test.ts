@@ -12,6 +12,7 @@ import { Action } from '../../../../../base/common/actions.js';
 import '../../../../../base/browser/ui/codicons/codicon/codicon-modifiers.css';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
@@ -73,7 +74,7 @@ import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemServi
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
@@ -1596,6 +1597,12 @@ suite('AutomationsCardsWidget', () => {
 			await configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			await timeout(0);
 			automationService.setCatalogueState('ready');
+			const ariaHost = document.createElement('div');
+			document.body.appendChild(ariaHost);
+			disposables.add(toDisposable(() => ariaHost.remove()));
+			setARIAContainer(ariaHost);
+			const progress = stub(instantiationService.get(IProgressService), 'withProgress').callThrough();
+			disposables.add(toDisposable(() => progress.restore()));
 			const execute = stub(commandService, 'executeCommand').callsFake(async commandId => {
 				const command = CommandsRegistry.getCommand(commandId)!;
 				await instantiationService.invokeFunction(accessor => command.handler(accessor));
@@ -1603,13 +1610,26 @@ suite('AutomationsCardsWidget', () => {
 			});
 			disposables.add(toDisposable(() => execute.restore()));
 			automationService.refreshFailure = fails ? new Error('Offline') : undefined;
+			const pending = new DeferredPromise<void>();
+			automationService.pendingRefresh = pending.p;
 			const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.AutomationsMoreActions, contextKeyService)
 				.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
-			await action.run();
+			const request = action.run();
+			const started = ariaHost.textContent;
+			await pending.complete();
+			await request;
 			assert.deepStrictEqual({
 				calls: execute.callCount,
 				errors: refreshErrors,
-			}, { calls: 1, errors: fails ? ['Could not refresh automations: Offline'] : [] });
+				progress: progress.firstCall.args[0],
+				started,
+				finished: ariaHost.textContent,
+			}, {
+				calls: 1, errors: fails ? ['Could not refresh automations: Offline'] : [],
+				progress: { location: ProgressLocation.Notification, title: 'Refreshing cloud automations...', delay: 500 },
+				started: 'Refreshing cloud automations...',
+				finished: fails ? 'Refreshing cloud automations...' : 'Cloud automations refreshed.',
+			});
 		});
 	}
 
@@ -1840,6 +1860,20 @@ suite('AutomationsCardsWidget', () => {
 		}, { label: 'Cron: */15 * * * *', accessible: true });
 	});
 
+	test('run updates do not rerender catalogue cards', () => {
+		const { automationService } = setup();
+		automationService.setAutomations([
+			automation(),
+			automation({ id: 'hidden', ownership: 'repository', isCreatedByCurrentUser: false }),
+		]);
+		const capability = stub(automationService, 'canUpdateAutomation').callThrough();
+		disposables.add(toDisposable(() => capability.restore()));
+		automationService.setRuns([run({ automationId: 'hidden', status: 'running' })]);
+		automationService.setRuns([run({ automationId: 'hidden', status: 'completed' })]);
+		automationService.setRuns([run({ status: 'running' })]);
+		assert.strictEqual(capability.callCount, 0);
+	});
+
 	test('shared creator preference filters cards, history and accessible content without changing the catalogue', async () => {
 		const { widget, automationService, configurationService, instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
@@ -1869,11 +1903,11 @@ suite('AutomationsCardsWidget', () => {
 		};
 		const before = snapshot();
 		const setPreference = async (value: boolean) => {
-			await configurationService.setUserConfiguration(SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, value);
+			await configurationService.setUserConfiguration(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value);
 			configurationService.onDidChangeConfigurationEmitter.fire({
-				affectsConfiguration: key => key === SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING,
-				affectedKeys: new Set([SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING]),
-				change: { keys: [SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING,
+				affectedKeys: new Set([SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING]),
+				change: { keys: [SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING], overrides: [] },
 				source: ConfigurationTarget.USER,
 			});
 		};
@@ -1971,9 +2005,9 @@ suite('AutomationsCardsWidget', () => {
 		catalogueStates.push(discovered());
 		automationService.setAutomations([automation({ ownership: 'repository', isCreatedByCurrentUser: false })]);
 		const withCloud = menu().map(action => action.id);
-		const checked = () => menu().find(action => action.id === 'sessions.automations.toggleShowOthers')!.checked;
+		const checked = () => menu().find(action => action.id === 'sessions.automations.toggleShowSharedByOthers')!.checked;
 		const before = checked();
-		const command = CommandsRegistry.getCommand('sessions.automations.toggleShowOthers')!;
+		const command = CommandsRegistry.getCommand('sessions.automations.toggleShowSharedByOthers')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		const afterOn = checked();
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
@@ -1992,21 +2026,21 @@ suite('AutomationsCardsWidget', () => {
 			states: [before, afterOn, afterOff], hiddenWithAI: !moreActions(), writes,
 		}, {
 			withoutCloud: [], hiddenWithoutCloud: true,
-			withCloud: ['sessions.automations.refresh', 'sessions.automations.toggleShowOthers'],
+			withCloud: ['sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers'],
 			catalogueStates: [
 				['sessions.automations.refresh'],
 				['sessions.automations.refresh'],
 				['sessions.automations.refresh'],
-				['sessions.automations.refresh', 'sessions.automations.toggleShowOthers'],
-				['sessions.automations.refresh', 'sessions.automations.toggleShowOthers'],
+				['sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers'],
+				['sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers'],
 				['sessions.automations.refresh'],
 			],
 			disabledCloud: { hidden: true, actions: [] },
-			menuIsLast: true, refreshInHeader: false, label: 'More Actions',
+			menuIsLast: true, refreshInHeader: false, label: 'View options',
 			states: [false, true, false], hiddenWithAI: true,
 			writes: [
-				{ key: SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, value: true, target: ConfigurationTarget.USER },
-				{ key: SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, value: false, target: ConfigurationTarget.USER },
+				{ key: SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value: true, target: ConfigurationTarget.USER },
+				{ key: SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value: false, target: ConfigurationTarget.USER },
 			],
 		});
 	});

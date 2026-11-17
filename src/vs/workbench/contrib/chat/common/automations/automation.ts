@@ -173,6 +173,10 @@ export interface IAutomationDescriptor {
  */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+export function isAutomationVisible(automation: Pick<IAutomationDescriptor, 'ownership' | 'isCreatedByCurrentUser'>, showSharedByOthers: boolean): boolean {
+	return showSharedByOthers || automation.ownership !== 'repository' || automation.isCreatedByCurrentUser === true;
+}
+
 /**
  * What kicked off a run. `catch_up` reflects the host's misfire policy for a
  * due-time that passed while the host was not running.

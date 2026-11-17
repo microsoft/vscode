@@ -66,11 +66,12 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 
@@ -277,13 +278,16 @@ export class AutomationsCardsWidget extends Disposable {
 			return getAutomationsViewContent(
 				this.automationService.automations.read(reader),
 				this.automationService.runs.read(reader),
-				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING) === true,
+				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
 			);
 		});
 		const visibleAutomations = derived(this, reader => {
 			configurationChanged.read(reader);
 			const sendLaterEnabled = configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true;
-			return visibleContent.read(reader).automations.filter(automation =>
+			return getAutomationsViewContent(
+				this.automationService.automations.read(reader), [],
+				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+			).automations.filter(automation =>
 				!sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined);
 		});
 		this.element = $('.automations-cards-widget');
@@ -2452,7 +2456,7 @@ async function markAllAutomationRunsRead(
 	try {
 		const { runs } = getAutomationsViewContent(
 			automationService.automations.get(), automationService.runs.get(),
-			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING) === true,
+			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
 		);
 		const models = [...chatModels];
 		const sessionsByResource = new Map(sessionsManagementService.getSessions().map(session => [
@@ -2859,7 +2863,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 			hasOthersContext.set(automations.some(automation => automation.ownership === 'repository' && automation.isCreatedByCurrentUser !== true));
 			hasItemsContext.set(getAutomationsViewContent(
 				automations, [],
-				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING) === true,
+				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
 			).automations.length > 0);
 		}));
 
@@ -3139,14 +3143,16 @@ class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 	}
 }
 
-async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService, options?: IAutomationRefreshOptions): Promise<void> {
+async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService, options?: IAutomationRefreshOptions): Promise<boolean> {
 	try {
 		await automationService.refresh?.(options);
+		return true;
 	} catch (error) {
 		if (!isCancellationError(error)) {
 			logService.error('[Automations] Failed to refresh', error);
 			notificationService?.error(localize('automationsRefreshFailed', "Could not refresh automations: {0}", getErrorMessage(error)));
 		}
+		return false;
 	}
 }
 
@@ -3174,7 +3180,7 @@ registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
 	submenu: AgentsWindowMenus.AutomationsMoreActions,
-	title: localize('automationsMoreActions', "More Actions"),
+	title: localize('automationsViewOptions', "View options"),
 	icon: Codicon.more,
 	group: 'navigation',
 	order: 4,
@@ -3184,10 +3190,10 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
 registerAction2(class ToggleOtherSharedAutomationsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.automations.toggleShowOthers',
+			id: 'sessions.automations.toggleShowSharedByOthers',
 			title: localize2('showOtherSharedAutomations', "Show automations created by others"),
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
-			toggled: ContextKeyExpr.equals(`config.${SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING}`, true),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING}`, true),
 			menu: {
 				id: AgentsWindowMenus.AutomationsMoreActions, group: '1_state', order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true), AutomationsHasOthersContext),
@@ -3198,8 +3204,8 @@ registerAction2(class ToggleOtherSharedAutomationsAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		await configurationService.updateValue(
-			SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING,
-			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING) !== true,
+			SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING,
+			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) !== true,
 			ConfigurationTarget.USER,
 		);
 	}
@@ -3209,7 +3215,7 @@ registerAction2(class RefreshAutomationsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.refresh',
-			title: localize2('refreshAutomations', "Refresh"),
+			title: localize2('refreshAutomations', "Refresh cloud automations"),
 			icon: Codicon.refresh,
 			precondition: ChatAutomationsEnabledContext,
 			menu: [{
@@ -3220,7 +3226,19 @@ registerAction2(class RefreshAutomationsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await refreshAutomations(accessor.get(IAutomationService), accessor.get(ILogService), accessor.get(INotificationService));
+		const automationService = accessor.get(IAutomationService);
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
+		const title = localize('refreshingCloudAutomations', "Refreshing cloud automations...");
+		status(title);
+		const refreshed = await accessor.get(IProgressService).withProgress({
+			location: ProgressLocation.Notification,
+			title,
+			delay: 500,
+		}, () => refreshAutomations(automationService, logService, notificationService));
+		if (refreshed) {
+			status(localize('cloudAutomationsRefreshed', "Cloud automations refreshed."));
+		}
 	}
 });
 

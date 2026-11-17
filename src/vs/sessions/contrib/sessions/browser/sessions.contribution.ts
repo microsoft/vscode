@@ -33,7 +33,7 @@ import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
 import '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
-import { SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsSidebarCustomizationsCategories, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsSidebarCustomizationsCategories, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { sessionsListConfigurationProperties } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
@@ -145,11 +145,11 @@ export const sessionsConfiguration = {
 		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING],
 		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING],
 		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING],
-		[SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING]: {
+		[SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING]: {
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.automations.showOthers', "Controls whether the Automations view includes shared automations created by other users and their run history. This does not change automation execution or access permissions."),
+			description: localize('sessions.automations.showSharedByOthers', "Controls whether the Automations view includes shared automations created by other users and their run history. This does not change automation execution or access permissions."),
 		},
 		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INDENT_ITEMS_SETTING],
 		[SESSIONS_CHAT_TABS_SETTING]: {

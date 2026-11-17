@@ -8,12 +8,12 @@ import { localize } from '../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostEntry, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import type { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { type IAutomationDescriptor, type IAutomationRun, isAutomationVisible } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 export function getAutomationsViewContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], showOthers: boolean) {
 	const hiddenIds = new Set(automations
-		.filter(automation => !showOthers && automation.ownership === 'repository' && automation.isCreatedByCurrentUser !== true)
+		.filter(automation => !isAutomationVisible(automation, showOthers))
 		.map(automation => automation.id));
 	return {
 		automations: automations.filter(automation => !hiddenIds.has(automation.id)),
