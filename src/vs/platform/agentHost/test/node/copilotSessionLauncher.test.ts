@@ -2328,6 +2328,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		const available = URI.joinPath(testWorkingDirectory, 'available');
 		const missing = URI.joinPath(testWorkingDirectory, 'missing');
 		const file = URI.joinPath(testWorkingDirectory, 'file');
+		const blockedByFile = URI.joinPath(file, 'plugin');
 		const launcher = createTestLauncher(undefined, {}, logService, undefined, undefined, undefined, upcastPartial<IFileService>({
 			resolve: async resource => {
 				if (denied) {
@@ -2335,6 +2336,9 @@ suite('CopilotSessionLauncher shared session config', () => {
 				}
 				if (isEqual(resource, missing)) {
 					throw new FileOperationError('Missing', FileOperationResult.FILE_NOT_FOUND);
+				}
+				if (isEqual(resource, blockedByFile)) {
+					throw new FileOperationError('Ancestor is a file', FileOperationResult.FILE_NOT_DIRECTORY);
 				}
 				return upcastPartial<IFileStatWithMetadata>({ resource, isDirectory: isEqual(resource, available) });
 			},
@@ -2348,7 +2352,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'plugins', workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
 			snapshot: {
 				discoveredAgents: [], additionalRootInstructions: [], tools: [], mcpServers: {},
-				plugins: [available, missing, file, URI.parse('virtual:/plugin')].map(pluginDir => ({
+				plugins: [available, missing, file, blockedByFile, URI.parse('virtual:/plugin')].map(pluginDir => ({
 					format: PluginFormat.Copilot, pluginDir, hooks: [], mcpServers: [], agents: [], skills: [], instructions: [],
 				})),
 			},
@@ -2368,7 +2372,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			warnings: logService.warnings.filter(warning => warning.message.includes('Skipping unavailable plugin directory')).map(warning => warning.message),
 		}, {
 			directories: [[available.fsPath], [available.fsPath]],
-			warnings: [missing, file, missing, file].map(directory => `[Copilot:plugins] Skipping unavailable plugin directory: ${directory.fsPath}`),
+			warnings: [missing, file, blockedByFile, missing, file, blockedByFile].map(directory => `[Copilot:plugins] Skipping unavailable plugin directory: ${directory.fsPath}`),
 		});
 	});
 

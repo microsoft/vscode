@@ -7869,6 +7869,40 @@ suite('CopilotAgentSession', () => {
 		}
 	});
 
+	test('damaged journal recovery preserves host-sent turn boundaries and omits runtime injections', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'copilot-history-recovery-'));
+		const path = join(directory, 'events.jsonl');
+		const events = toSessionEvents([
+			{ type: 'user.message', data: { content: 'User prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'first', content: 'User reply' } },
+			{ type: 'user.message', data: { content: 'Automation prompt', source: 'automation', clientTurnId: 'automation-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'second', content: 'Automation reply' } },
+			{ type: 'user.message', data: { content: 'Agent prompt', source: 'agent', clientTurnId: 'agent-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'third', content: 'Agent reply' } },
+			{ type: 'user.message', data: { content: 'System prompt', source: 'system', clientTurnId: 'system-turn' } },
+			{ type: 'user.message', data: { content: 'Runtime injection', source: 'system', clientTurnId: 42 } },
+			{ type: 'assistant.message', data: { messageId: 'fourth', content: 'System reply' } },
+			{ type: 'session.idle', data: {} },
+		]).map((event, index) => ({ ...event, id: `event-${index}`, timestamp: '2026-03-01T00:00:00.000Z', parentId: null }));
+		try {
+			writeFileSync(path, [...events.map(event => JSON.stringify(event)), '{malformed'].join('\n'));
+			const recovered = await recoverCopilotSessionHistory(path, new NullLogService());
+			const { session } = await createAgentSession(disposables);
+			const result = await mapSessionEvents(session.resourceUri, undefined, recovered, session.chatChannelUri, session.ownerSessionUri, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file('/workspace'))));
+			assert.deepStrictEqual(result.turns.map(turn => ({
+				prompt: turn.message.text,
+				replies: turn.responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content),
+			})), [
+				{ prompt: 'User prompt', replies: ['User reply'] },
+				{ prompt: 'Automation prompt', replies: ['Automation reply'] },
+				{ prompt: 'Agent prompt', replies: ['Agent reply'] },
+				{ prompt: 'System prompt', replies: ['System reply'] },
+			]);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('restores and sends in the parent without waiting for child history', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		mockSession.messages = toSessionEvents([

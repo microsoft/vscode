@@ -46,6 +46,7 @@ function recoverEvent(value: JsonValue): SessionEvent | undefined {
 					data: {
 						content: data.content,
 						source: string(data.source),
+						clientTurnId: string(data.clientTurnId),
 						isAutopilotContinuation: data.isAutopilotContinuation === true,
 						interactionId: string(data.interactionId),
 						delivery: data.delivery === 'steering' || data.delivery === 'queued' || data.delivery === 'idle' ? data.delivery : undefined,

@@ -1582,7 +1582,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 						return directory.fsPath;
 					}
 				} catch (error) {
-					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					const result = toFileOperationResult(error);
+					if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_NOT_DIRECTORY) {
 						throw error;
 					}
 				}
