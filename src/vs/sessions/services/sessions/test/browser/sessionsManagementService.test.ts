@@ -5401,6 +5401,33 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const preserveFocus of [undefined, true]) {
+		test(`creating a composer draft moves focus into it unless focus is preserved (${preserveFocus})`, async () => {
+			const folderUri = URI.file('/test/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.vm,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			};
+			const session = stubSession({
+				sessionId: 'draft', providerId: 'test', workspace: constObservable(workspace), status: constObservable(SessionStatus.Untitled),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+			}(session);
+			const { view, sessionsPartService } = createSessionsManagementService(session, disposables, provider);
+			await view.openNewSession();
+			sessionsPartService.focusedSessions.length = 0;
+
+			await view.openNewSession({ folderUri, preserveNavigation: true, preserveFocus });
+
+			assert.deepStrictEqual({ activeSession: activeSessionOf(view)?.sessionId, focused: sessionsPartService.focusedSessions }, {
+				activeSession: 'draft',
+				focused: preserveFocus ? [] : ['draft'],
+			});
+		});
+	}
+
 	test('does not change active session when added session is not displayed in any widget', async () => {
 		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());

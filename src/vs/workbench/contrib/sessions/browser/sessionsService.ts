@@ -100,6 +100,8 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly preserveNavigation?: boolean;
 	/** Prepare a draft without changing the Sessions grid or navigation, or hiding its hosting custom view. */
 	readonly preserveCustomView?: boolean;
+	/** Show the created draft without moving focus into it, such as when the composer replaces its draft in the background. */
+	readonly preserveFocus?: boolean;
 
 	/**
 	 * When `true`, opens the new session (or empty composer slot) to the side
@@ -2120,7 +2122,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					}
 				}
 				if (!preserveCustomView) {
-					this._activateOrInsert(session, options?.toSide, intent, preserveFocus ?? (!!options?.preserveNavigation && this._keepsFocusForComposerDraft()));
+					this._activateOrInsert(session, options?.toSide, intent, options?.preserveFocus || (preserveFocus ?? (!!options?.preserveNavigation && this._keepsFocusForComposerDraft())));
 				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordNewSessionOpened();
