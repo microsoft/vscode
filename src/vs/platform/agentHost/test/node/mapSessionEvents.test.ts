@@ -1486,7 +1486,7 @@ suite('mapSessionEvents — history replay', () => {
 			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
 			const part = turns[0].responseParts[0];
 			assert.ok(part.kind === ResponsePartKind.ToolCall);
-			assert.deepStrictEqual(readToolCallMeta(part.toolCall), mcp);
+			assert.deepStrictEqual(readToolCallMeta(part.toolCall), { mcpServerName: serverName, 'vscode.mcpServerDisplayName': 'Slack', mcpToolName: 'slack_read_thread' });
 		});
 	}
 

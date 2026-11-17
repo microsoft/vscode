@@ -1412,7 +1412,7 @@ function makeToolCallPart(
 			subagentDescription: info.subagentDescription,
 			subagentAgentName: info.subagentAgentName,
 			mcpServerName,
-			mcpServerDisplayName: mcpServerName ? mcpServerDisplayName : undefined,
+			'vscode.mcpServerDisplayName': mcpServerName ? mcpServerDisplayName : undefined,
 			mcpToolName,
 			ui: mcpUi,
 		}),

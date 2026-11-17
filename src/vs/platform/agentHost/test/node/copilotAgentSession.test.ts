@@ -22185,7 +22185,7 @@ Use the attached image as context.
 			const start = getActions(signals).find(action => action.type === ActionType.ChatToolCallStart);
 			assert.deepStrictEqual(start && readToolCallMeta(start), {
 				mcpServerName: serverName,
-				mcpServerDisplayName: 'Slack',
+				'vscode.mcpServerDisplayName': 'Slack',
 				mcpToolName: 'slack_read_thread',
 			});
 		});

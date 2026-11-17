@@ -11535,7 +11535,7 @@ export class CopilotAgentSession extends Disposable {
 			if (mcpServerName) {
 				meta.mcpServerName = mcpServerName;
 				if (mcpServerDisplayName) {
-					meta.mcpServerDisplayName = mcpServerDisplayName;
+					meta['vscode.mcpServerDisplayName'] = mcpServerDisplayName;
 				}
 			}
 			if (e.data.mcpToolName) {

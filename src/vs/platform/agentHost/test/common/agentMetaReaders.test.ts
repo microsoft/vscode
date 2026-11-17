@@ -344,8 +344,8 @@ suite('Agent host _meta readers', () => {
 		});
 
 		test('reads a trimmed MCP server display name and drops invalid ones', () => {
-			assert.deepStrictEqual([' Slack ', '   ', 42, 'x'.repeat(257)].map(value => readToolCallMeta(toolCall({ mcpServerDisplayName: value }))), [
-				{ mcpServerDisplayName: 'Slack' },
+			assert.deepStrictEqual([' Slack ', '   ', 42, 'x'.repeat(257)].map(value => readToolCallMeta(toolCall({ 'vscode.mcpServerDisplayName': value }))), [
+				{ 'vscode.mcpServerDisplayName': 'Slack' },
 				{},
 				{},
 				{},
