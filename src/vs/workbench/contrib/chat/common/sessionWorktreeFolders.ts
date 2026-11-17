@@ -104,7 +104,8 @@ function getDistinguishingParents(folders: readonly URI[]): string[] {
 			return parents;
 		}
 	}
-	return folders.map(folder => `${folder.authority}${dirname(folder).path}`);
+	// Join the segments rather than use the parent's path, which keeps a trailing separator at a root, such as `\\server\share\` on Windows
+	return segments.map((parent, index) => `${folders[index].authority}/${parent.join('/')}`);
 }
 
 /** A session as the Worktrees filter picks one to open: its folder's filter key, if it has one, and how recently it was used. */
