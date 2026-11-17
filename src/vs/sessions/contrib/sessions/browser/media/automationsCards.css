@@ -127,6 +127,7 @@
 .automations-ownership-summary,
 .automations-template-section-summary {
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	margin-inline: calc(-1 * var(--vscode-spacing-size60));
 }
 
 .automations-ownership-summary {
