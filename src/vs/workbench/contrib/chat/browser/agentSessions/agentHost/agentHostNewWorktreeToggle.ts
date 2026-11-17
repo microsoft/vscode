@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -50,8 +50,9 @@ export function markWorktreeSendChoiceTarget(element: HTMLElement, sendChoice: I
 	// the same chat, such as where its toolbar renders it again, else the question ends. Other controls never end it.
 	let anchoredFor: URI | undefined;
 	store.add(sendChoice.onDidShowSendChoice(resource => {
-		// As the callout shows, it anchors on the target that resolves now
-		anchoredFor = resolveOnboardingTarget(getWindow(element), AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID)?.element === element ? resource : undefined;
+		// As the callout shows, it anchors on the target that resolves now in the window onboarding presents in, the main
+		// window, whatever window this control is in
+		anchoredFor = resolveOnboardingTarget(mainWindow, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID)?.element === element ? resource : undefined;
 	}));
 	store.add(autorun(reader => {
 		const pending = sendChoice.pendingSendChoice.read(reader);
@@ -70,10 +71,9 @@ export function markWorktreeSendChoiceTarget(element: HTMLElement, sendChoice: I
 	store.add(toDisposable(() => {
 		const resource = anchoredFor;
 		if (resource) {
-			const targetWindow = getWindow(element);
 			// Once its marker is gone too, and a replacement rendered in the meantime marks itself
 			queueMicrotask(() => {
-				if (!resolveOnboardingTarget(targetWindow, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID)) {
+				if (!resolveOnboardingTarget(mainWindow, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID)) {
 					sendChoice.cancelSendChoice(resource);
 				}
 			});

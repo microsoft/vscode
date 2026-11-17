@@ -667,15 +667,17 @@ suite('Agent host Work in Parallel choice on send', () => {
 
 	test('ends the question about a chat unanswered only through the control its callout shows on: as that shows another chat, or goes with no other control of the chat to show on, it works in the folder and nothing is remembered; other controls do not end it', async () => {
 		const results: Record<string, unknown> = {};
-		for (const how of ['retargetAnchor', 'disposeAnchorAlone', 'disposeAnchorWithOther', 'replaceAnchor', 'retargetOther', 'disposeOther'] as const) {
+		for (const how of ['retargetAnchor', 'disposeAnchorAlone', 'disposeAnchorWithOther', 'replaceAnchor', 'retargetOther', 'disposeOther', 'retargetAuxiliary', 'disposeAuxiliary'] as const) {
 			const window = createWindow({ firstChatIn: primary, realCallout: true });
 			const asked = window.newDraft();
 			const other = window.newDraft();
 			const store = new DisposableStore();
 			// Controls of chat inputs, as their checkbox or folder chip, each showing a chat that can change, one below the other
 			const controls: { readonly name: string; readonly element: HTMLElement; readonly marker: IDisposable; current: URI; readonly onDidChange: Emitter<void> }[] = [];
-			const addControl = (name: string, top: number) => {
-				const element = append(mainWindow.document.body, $('.action-item', undefined, name));
+			const addControl = (name: string, top: number, document = mainWindow.document) => {
+				const element = append(document.body, document.createElement('div'));
+				element.className = 'action-item';
+				element.textContent = name;
 				Object.assign(element.style, { position: 'absolute', left: '100px', top: `${top}px`, width: '120px', height: '20px' });
 				store.add(toDisposable(() => element.remove()));
 				const onDidChange = store.add(new Emitter<void>());
@@ -685,7 +687,13 @@ suite('Agent host Work in Parallel choice on send', () => {
 				return control;
 			};
 			const first = addControl('first', 200);
-			const second = how === 'disposeAnchorAlone' || how === 'replaceAnchor' ? undefined : addControl('second', 300);
+			// Or, as in an auxiliary window, a control of the same chat in another document, which the callout never shows on
+			const auxiliary = how.endsWith('Auxiliary') ? append(mainWindow.document.body, $('iframe')) as HTMLIFrameElement : undefined;
+			if (auxiliary) {
+				Object.assign(auxiliary.style, { position: 'absolute', left: '400px', top: '0px', width: '300px', height: '800px' });
+				store.add(toDisposable(() => auxiliary.remove()));
+			}
+			const second = how === 'disposeAnchorAlone' || how === 'replaceAnchor' ? undefined : addControl('second', auxiliary ? 600 : 300, auxiliary?.contentDocument ?? undefined);
 			const callout = () => mainWindow.document.querySelector<HTMLElement>('.spotlight-callout');
 			// The control the shown callout highlights, as its hole covers it
 			const anchor = () => {
@@ -700,7 +708,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			const asking = window.service.requestSendChoice(asked);
 			await retry(async () => assert.ok(anchor()), 20, 50);
 			const before = anchor();
-			const target = (how === 'retargetOther' || how === 'disposeOther') && second ? second : first;
+			const target = (how.endsWith('Other') && how !== 'disposeAnchorWithOther' || how.endsWith('Auxiliary')) && second ? second : first;
 			if (how.startsWith('retarget')) {
 				target.current = other;
 				target.onDidChange.fire();
@@ -736,6 +744,8 @@ suite('Agent host Work in Parallel choice on send', () => {
 			replaceAnchor: keptOn('replacement'),
 			retargetOther: keptOn('first'),
 			disposeOther: keptOn('first'),
+			retargetAuxiliary: keptOn('first'),
+			disposeAuxiliary: keptOn('first'),
 		});
 	});
 
