@@ -36,7 +36,7 @@ import { agentHostAuthority, toAgentHostContentUri } from '../../../../../../pla
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IFileDialogService, ISaveDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
@@ -159,6 +159,12 @@ import type { IChatBackgroundShell } from '../../../../../common/chatBackgroundS
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Turns the tool confirmation carousel on, telling the renderers that observe the setting, as the configuration service does. */
+	function enableToolConfirmationCarousel(configurationService: TestConfigurationService): void {
+		configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === ChatConfiguration.ToolConfirmationCarousel }));
+	}
 
 	// Every test removes the chat list hosts it appends to the window, whose layout another file's tests would see otherwise
 	let sessionHostsBefore = 0;
@@ -2613,6 +2619,8 @@ suite('ChatListRenderer', () => {
 			));
 			const template = renderer.renderTemplate(rendererContainer);
 			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			// As the chat list binds its renderer to the chat it shows
+			renderer.updateViewModel(viewModel);
 			return { renderer, template };
 		};
 		const { renderer, template } = createRenderer(options.getWidget);
@@ -6916,6 +6924,11 @@ suite('ChatListRenderer', () => {
 		const focused: string[] = [];
 		// The tool approvals in each widget's carousel, one for each tool, as the chat input keeps them
 		const toolCarousels = new Map<string, Map<string, (tool: IChatToolInvocation) => ChatToolInvocationPart>>();
+		/** Every tool approval added to or removed from a widget's carousel, in order. */
+		const toolCalls: string[] = [];
+		/** How each tool approval's carousel reveals its subagent, and the widgets revealed instead. */
+		const toolReveals = new Map<string, ((subAgentInvocationId: string) => void) | undefined>();
+		const revealed: string[] = [];
 		const onDidFocus = new Map<string, Emitter<void>>();
 		const onDidChangeViewModel = new Map<string, Emitter<IChatWidgetViewModelChangeEvent>>();
 		const onDidShow = new Map<string, Emitter<void>>();
@@ -6951,7 +6964,9 @@ suite('ChatListRenderer', () => {
 			const input = new class extends mock<ChatInputPart>() {
 				override get questionCarousel() { return undefined; }
 				override get hasActiveToolConfirmationCarousel() { return false; }
-				override addToolToConfirmationCarousel(...[tool, factory]: Parameters<ChatInputPart['addToolToConfirmationCarousel']>) {
+				override addToolToConfirmationCarousel(...[tool, factory, , , revealSubagent]: Parameters<ChatInputPart['addToolToConfirmationCarousel']>) {
+					toolCalls.push(`${name}:add:${tool.toolCallId}`);
+					toolReveals.set(tool.toolCallId, revealSubagent);
 					const tools = toolCarousels.get(name) ?? new Map();
 					toolCarousels.set(name, tools);
 					if (!tools.has(tool.toolCallId)) {
@@ -6959,6 +6974,7 @@ suite('ChatListRenderer', () => {
 					}
 				}
 				override removeToolFromConfirmationCarousel(...[tool]: Parameters<ChatInputPart['removeToolFromConfirmationCarousel']>) {
+					toolCalls.push(`${name}:remove:${tool.toolCallId}`);
 					toolCarousels.get(name)?.delete(tool.toolCallId);
 				}
 				override renderQuestionCarousel(...[carousel, context, options]: Parameters<ChatInputPart['renderQuestionCarousel']>) {
@@ -6983,6 +6999,7 @@ suite('ChatListRenderer', () => {
 				override readonly onDidChangeViewModel = onDidChangeViewModel.get(name)!.event;
 				override getInput() { return ''; }
 				override focusInput() { focused.push(name); }
+				override reveal() { revealed.push(name); }
 				override get inputPart() { return input; }
 				override readonly input = input;
 			}());
@@ -7016,7 +7033,7 @@ suite('ChatListRenderer', () => {
 			visible.set(name, false);
 			onDidShow.get(name)!.fire();
 		};
-		return { chatWidgetService, widgets, dockedIn, keysIn, questionIn, planIn, showChat, focus, hide, focused, toolCarousels };
+		return { chatWidgetService, widgets, dockedIn, keysIn, questionIn, planIn, showChat, focus, hide, focused, toolCarousels, toolCalls, toolReveals, revealed };
 	}
 
 	/** A host of another widget's chat list, appended to the window as the workbench's are, which the test removes. */
@@ -7237,7 +7254,7 @@ suite('ChatListRenderer', () => {
 		const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve-once' });
 		const { chatWidgetService, widgets, focused, toolCarousels, focus } = createInputRequestWidgets(session, ['a', 'b']);
 		const b = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('b') });
-		b.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		enableToolConfirmationCarousel(b.configurationService);
 		const a = b.createRenderer(() => widgets.get('a'), ownedHost());
 		focus('b');
 		const tool = new ChatToolInvocation(
@@ -7259,6 +7276,42 @@ suite('ChatListRenderer', () => {
 		[...carouselPart.domNode.querySelectorAll<HTMLElement>('.chat-buttons .monaco-button')].at(-1)?.click();
 
 		assert.deepStrictEqual({ registered, afterClose, focused }, { registered: [['b', ['approve-once']]], afterClose: [['b', ['approve-once']]], focused: ['b'] });
+	});
+
+	test('a tool approval that arrives after the widget that docks the chat\'s requests changed is in the carousel of the one that docks them now only, also a subagent\'s, and answering it focuses that one', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve-later' });
+		const { chatWidgetService, widgets, focused, toolCarousels, toolReveals, revealed, focus } = createInputRequestWidgets(session, ['a', 'b']);
+		const a = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('a') });
+		enableToolConfirmationCarousel(a.configurationService);
+		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+		// Running without needing approval yet, while a docks the chat's requests: a standalone tool and a subagent's
+		const direct = new ChatToolInvocation(
+			{ invocationMessage: 'Run the build' },
+			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+			'later-direct', undefined, {},
+		);
+		const child = new ChatToolInvocation(
+			{ invocationMessage: 'Read the file' },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read', source: ToolDataSource.Internal },
+			'later-child', 'later-agent', {},
+		);
+		a.model.acceptResponseProgress(a.request, direct);
+		a.model.acceptResponseProgress(a.request, createSubagentTool('later-agent', { kind: 'subagent', hasStarted: true, isActive: true }));
+		a.model.acceptResponseProgress(a.request, child);
+		await renderAgain(a.node, a, b);
+
+		focus('b');
+		direct.requestConfirmation({ confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } });
+		child.requestConfirmation({ confirmationMessages: { title: 'Read file?', message: 'Reads a file.' } });
+		await renderAgain(a.node, a, b);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const carousels = [...toolCarousels].map(([name, tools]) => [name, [...tools.keys()].sort()]);
+		const carouselPart = a.disposables.add(toolCarousels.get('b')!.get('later-direct')!(direct));
+		[...carouselPart.domNode.querySelectorAll<HTMLElement>('.chat-buttons .monaco-button')].at(-1)?.click();
+		// The subagent's approval reveals its response in the widget that docks it, and the subagent in it
+		toolReveals.get('later-child')?.('later-agent');
+
+		assert.deepStrictEqual({ carousels, focused, revealed }, { carousels: [['b', ['later-child', 'later-direct']]], focused: ['b'], revealed: ['b'] });
 	});
 
 	test('a question docked in a widget is removed from its input as it is settled or another widget docks it, also once its row renders another response', async () => {
@@ -7307,9 +7360,9 @@ suite('ChatListRenderer', () => {
 
 	test('a preview of a chat, such as an agent session\'s hover, docks none of its questions or tool approvals in the input of the widget that shows it, and closing it leaves those the widget has', async () => {
 		const session = URI.from({ scheme: 'vscode-chat-session', path: '/preview' });
-		const { chatWidgetService, widgets, dockedIn, toolCarousels } = createInputRequestWidgets(session, ['shown']);
+		const { chatWidgetService, widgets, dockedIn, toolCarousels, toolCalls } = createInputRequestWidgets(session, ['shown']);
 		const preview = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, rendererOptions: { renderStyle: 'compact', noHeader: true, editable: false, renderInputRequests: false } });
-		preview.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		enableToolConfirmationCarousel(preview.configurationService);
 		const tool = new ChatToolInvocation(
 			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
 			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
@@ -7319,15 +7372,24 @@ suite('ChatListRenderer', () => {
 		widgets.get('shown')!.inputPart.addToolToConfirmationCarousel(tool, () => { throw new Error('not rendered'); });
 		preview.model.acceptResponseProgress(preview.request, tool);
 		preview.model.acceptResponseProgress(preview.request, new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'previewed-question'));
+		// A subagent's pending approval too
+		preview.model.acceptResponseProgress(preview.request, createSubagentTool('previewed-agent', { kind: 'subagent', hasStarted: true, isActive: true }));
+		preview.model.acceptResponseProgress(preview.request, new ChatToolInvocation(
+			{ invocationMessage: 'Read the file', confirmationMessages: { title: 'Read file?', message: 'Reads a file.' } },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read', source: ToolDataSource.Internal },
+			'previewed-child', 'previewed-agent', {},
+		));
 		preview.renderer.renderElement(preview.node, 0, preview.template);
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		const shown = { question: dockedIn('previewed-question'), tools: [...toolCarousels.get('shown')?.keys() ?? []] };
 
 		preview.renderer.dispose();
 
-		assert.deepStrictEqual({ shown, afterClose: [...toolCarousels.get('shown')?.keys() ?? []] }, {
+		assert.deepStrictEqual({ shown, afterClose: [...toolCarousels.get('shown')?.keys() ?? []], toolCalls }, {
 			shown: { question: [], tools: ['previewed'] },
 			afterClose: ['previewed'],
+			// The widget's own, and nothing from the preview
+			toolCalls: ['shown:add:previewed'],
 		});
 	});
 
@@ -7359,7 +7421,7 @@ suite('ChatListRenderer', () => {
 			const { chatWidgetService, widgets, focused, toolCarousels, focus } = createInputRequestWidgets(session, ['other', 'own']);
 			const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('own') });
 			focus('own');
-			configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+			enableToolConfirmationCarousel(configurationService);
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
 				{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
@@ -7369,6 +7431,7 @@ suite('ChatListRenderer', () => {
 			model.acceptResponseProgress(request, tool);
 			renderer.renderElement(node, 0, template);
 			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const carousels = [...toolCarousels].filter(([, tools]) => tools.size).map(([name]) => name);
 			const factory = toolCarousels.get('own')?.get('approve-build');
 			const carouselPart = factory && disposables.add(factory(tool));
 			// The last button, Skip or the feedback review's own Cancel, is enabled in every kind
@@ -7376,7 +7439,7 @@ suite('ChatListRenderer', () => {
 			const specialized = last?.textContent === 'Cancel';
 			last?.click();
 
-			assert.deepStrictEqual({ carousels: [...toolCarousels].filter(([, tools]) => tools.size).map(([name]) => name), specialized, focused }, { carousels: ['own'], specialized: kind !== 'base', focused: ['own'] });
+			assert.deepStrictEqual({ carousels, specialized, focused }, { carousels: ['own'], specialized: kind !== 'base', focused: ['own'] });
 		});
 	}
 
@@ -7422,7 +7485,7 @@ suite('ChatListRenderer', () => {
 					override getWidgetBySessionResource() { return widget; }
 				}(),
 			});
-			configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+			enableToolConfirmationCarousel(configurationService);
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Inspect workspace?', message: 'Allow the inspection.', confirmResults: true } },
 				{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
@@ -9400,6 +9463,7 @@ suite('ChatListRenderer', () => {
 			override addToolToConfirmationCarousel(...args: Parameters<ChatInputPart['addToolToConfirmationCarousel']>): void {
 				factories.push(args[1]);
 			}
+			override removeToolFromConfirmationCarousel(): void { }
 		}();
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly input = input;
@@ -9411,7 +9475,7 @@ suite('ChatListRenderer', () => {
 		}();
 		const { disposables, configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, chatWidgetService });
 		configurePersistentProgressTypography(container, 13);
-		configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		enableToolConfirmationCarousel(configurationService);
 		const tool = new ChatToolInvocation(
 			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
 			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
@@ -17147,7 +17211,7 @@ suite('ChatListRenderer', () => {
 			context.setViewModel(context.viewModel);
 			const disabledCount = context.carousel?.pendingCount ?? 0;
 			tool.presentation = ToolInvocationPresentation.Hidden;
-			context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+			enableToolConfirmationCarousel(context.configurationService);
 			context.setViewModel(context.viewModel);
 			assert.deepStrictEqual({
 				readOnlyCount, editableCount, disabledCount, hiddenCount: context.carousel?.pendingCount ?? 0, toolState: tool.state.get().type,

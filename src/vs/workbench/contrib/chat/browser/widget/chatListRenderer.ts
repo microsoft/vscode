@@ -1572,11 +1572,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			? parent.toolSpecificData
 			: undefined;
 		const subagentTitle = tool.subAgentInvocationId ? subagentData?.description ?? localize('confirmationSubagent', "Subagent") : undefined;
-		const revealSubagent = () => {
-			if (this.isSessionsChat && subagentData?.chatResource) {
-				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource: subagentData.chatResource });
+		// The subagent as the list renders it now, where it does
+		const getSubagentPart = (subAgentInvocationId: string) => subAgentInvocationId ? this.getSubagentPart(this.getTemplateDataForRequestId(response.id)?.renderedParts, subAgentInvocationId) : undefined;
+		const revealSubagent = (subAgentInvocationId: string) => {
+			const chatResource = getSubagentPart(subAgentInvocationId)?.getChatResource() ?? subagentData?.chatResource;
+			if (this.isSessionsChat && chatResource) {
+				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource });
 			} else {
+				// The response, which renders its row where the list does not, then the subagent in it
 				widget.reveal(response);
+				getSubagentPart(subAgentInvocationId)?.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}
 		};
 		const revealSubagentLabel = this.isSessionsChat && subagentTitle
@@ -5131,7 +5136,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData: IChatListItemTemplate,
 		codeBlockStartIndex: number,
 	): void {
-		if (!this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel)) {
+		// A preview, such as an agent session's hover, leaves the chat's input requests to the widget that shows the chat
+		if (context.renderInputRequests === false || this.rendererOptions.readOnly || !this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel)) {
 			return;
 		}
 		if (toolInvocation.kind !== 'toolInvocation' || !isResponseVM(context.element)) {
@@ -5141,41 +5147,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const widget = this.getDockingWidget(context.element.sessionResource);
+		const sessionResource = context.element.sessionResource;
+		const widget = this.getInputRequestWidget(sessionResource);
 		if (!widget) {
 			return;
 		}
 
 		const subAgentInvocationId = subagentPart.subAgentInvocationId;
-		const subagentTitle = subagentPart.getSubagentTitle();
 
-		const revealSubagent = (targetSubAgentId: string) => {
-			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
-			const currentSubagentPart = this.getSubagentPart(currentTemplateData?.renderedParts, targetSubAgentId) ?? subagentPart;
-			const chatResource = currentSubagentPart.getChatResource();
-			if (this.isSessionsChat && chatResource) {
-				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource });
-			} else {
-				currentSubagentPart.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
-			}
-		};
-		const revealSubagentLabel = this.isSessionsChat
-			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
-			: undefined;
-
+		// The carousel of the widget that docks the chat's input requests now, which the tool confirmation observation adds the
+		// subagent's approvals to, and keeps them in as that widget changes
 		const navigateToCarousel = (targetSubAgentId: string) => {
-			widget.inputPart.activateCarouselForSubagent(targetSubAgentId);
+			this.getInputRequestWidget(sessionResource)?.inputPart.activateCarouselForSubagent(targetSubAgentId);
 		};
-
-		const factory = this.createCarouselToolPartFactory(context, codeBlockStartIndex);
 
 		const addToolToCarousel = (tool: IChatToolInvocation) => {
-			// While a request is being edited the carousel does not host approvals; the model-driven
-			// observation adds them back once editing ends.
-			if (this.viewModel?.editing) {
-				return;
-			}
-			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
 			const listener = this.createUpdateWorkingProgressOnConfirmationEnd(tool, templateData);
 			if (listener) {
 				templateData.elementDisposables.add(listener);
@@ -5815,23 +5801,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// For cases not handled above (no thinking part, no subagent, etc.), create the part now
 		const { part } = createToolPart();
 		retainedToolParts?.deleteAndLeak(toolInvocation.toolCallId);
-		// Watch for future confirmation transitions and route to carousel. The part itself keeps its
-		// transcript copy hidden while the carousel hosts the confirmation.
+		// Watch for future confirmation transitions. The carousel of the widget that docks the chat's input requests hosts
+		// the confirmation, as the tool confirmation observation puts it there, and the part keeps its transcript copy hidden.
 		if (context.renderInputRequests !== false && this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
 			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) &&
-			!isMcpToolInvocation(toolInvocation)) {
-			const widget = this.getDockingWidget(context.element.sessionResource);
-			if (widget) {
-				const factory = this.createCarouselToolPartFactory(context, codeBlockStartIndex);
-				part.addDisposable(autorun(reader => {
-					const state = toolInvocation.state.read(reader);
-					if (this.shouldRouteConfirmationToCarousel(toolInvocation, state)) {
-						widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
-					} else {
-						this.updateWorkingProgress(templateData);
-					}
-				}));
-			}
+			!isMcpToolInvocation(toolInvocation) && this.getInputRequestWidget(context.element.sessionResource)) {
+			part.addDisposable(autorun(reader => {
+				const state = toolInvocation.state.read(reader);
+				if (!this.shouldRouteConfirmationToCarousel(toolInvocation, state)) {
+					this.updateWorkingProgress(templateData);
+				}
+			}));
 		}
 
 		return part;
@@ -5895,20 +5875,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return false;
 			}
 
-			const widget = this.getDockingWidget(context.element.sessionResource);
-			if (!widget) {
+			if (!this.getInputRequestWidget(context.element.sessionResource)) {
 				return false;
 			}
 
-			// The moved-out part keeps its transcript copy hidden while the carousel hosts the confirmation.
+			// The moved-out part keeps its transcript copy hidden while the carousel of the widget that docks the chat's input
+			// requests hosts the confirmation, as the tool confirmation observation puts it there.
 			const part = moveConfirmationWidgetOutOfThinking();
-			const factory = this.createCarouselToolPartFactory(context, context.codeBlockStartIndex);
 
 			part.addDisposable(autorun(reader => {
 				const currentState = toolInvocation.state.read(reader);
-				if (this.shouldRouteConfirmationToCarousel(toolInvocation, currentState)) {
-					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
-				} else {
+				if (!this.shouldRouteConfirmationToCarousel(toolInvocation, currentState)) {
 					this.updateWorkingProgress(templateData);
 				}
 			}));
