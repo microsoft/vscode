@@ -37,7 +37,7 @@ import { ContributionEnablementState, IEnablementModel, isContributionEnabled } 
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
-import { OrganizationManagedTag, withOrganizationManagedAriaLabel } from './customizationOrganizationPolicy.js';
+import { getOrganizationManagedTooltip, OrganizationManagedTag, withOrganizationManagedAriaLabel } from './customizationOrganizationPolicy.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -274,7 +274,7 @@ interface IPluginInstalledItemTemplateData {
 	currentItemId: string | undefined;
 }
 
-class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemEntry, IPluginInstalledItemTemplateData> {
+export class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemEntry, IPluginInstalledItemTemplateData> {
 	readonly templateId = 'pluginInstalledItem';
 	private readonly _templates = new Set<IPluginInstalledItemTemplateData>();
 	private _focusedItemId: string | undefined;
@@ -285,6 +285,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
 		private readonly _getOrganizationControl: (item: IInstalledPluginItem, reader: IReader) => ICustomizationOrganizationControl | undefined,
 		private readonly _showSyncToggle = true,
+		private readonly _getSessionPluginItem?: (item: IInstalledPluginItem) => ICustomizationItem | undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): IPluginInstalledItemTemplateData {
@@ -323,7 +324,8 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		// items are already grouped under "Enabled Locally" / "Disabled Locally"
 		// section headers, and the row's aria-label conveys state to screen readers.
 		templateData.disposables.add(autorun(reader => {
-			const enabled = isContributionEnabled(element.item.plugin.enablement.read(reader));
+			const sessionItem = this._getSessionPluginItem?.(element.item);
+			const enabled = sessionItem ? sessionItem.enabled !== false : isContributionEnabled(element.item.plugin.enablement.read(reader));
 			templateData.container.classList.toggle('disabled', !enabled);
 		}));
 
@@ -389,7 +391,7 @@ function getRemotePluginDescription(item: ICustomizationItem): string | undefine
 	return getCustomizationContributionSourceLabel('organization', sourceLabel);
 }
 
-class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, IPluginRemoteItemTemplateData> {
+export class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, IPluginRemoteItemTemplateData> {
 	readonly templateId = 'pluginRemoteItem';
 	private readonly _templates = new Set<IPluginRemoteItemTemplateData>();
 	private _focusedItemId: string | undefined;
@@ -444,12 +446,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 			templateData.description.style.display = 'none';
 		}
 
-		// Organization-managed plugins should not appear grayed out. For team defaults,
-		// the persisted install flag is false, but the organization control indicates
-		// it's managed and should be shown normally. Only gray out if it's truly disabled
-		// and not organization-managed.
-		const isOrganizationManaged = !!element.item.organizationControl;
-		templateData.container.classList.toggle('disabled', element.item.enabled === false && !isOrganizationManaged);
+		templateData.container.classList.toggle('disabled', element.item.enabled === false);
 		templateData.metadata.textContent = localize('sessionPluginMetadata', "Agent host");
 		renderRemotePluginStatusIcon(templateData.statusIcon, element.item, this._hoverService, templateData.disposables);
 		DOM.clearNode(templateData.actions);
@@ -1111,7 +1108,7 @@ export class PluginListWidget extends Disposable {
 			(entry, container, disposables) => this.renderPluginTreeGroupActions(entry, container, disposables),
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), (item, reader) => this.getInstalledPluginOrganizationControl(item, reader), false);
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), (item, reader) => this.getInstalledPluginOrganizationControl(item, reader), false, item => this.getSessionPluginItem(item));
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), this.hoverService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 
@@ -1528,7 +1525,8 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderRemotePluginToggle(item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore, scopeBadges?: HTMLElement[]): HTMLElement | undefined {
-		const action = item.actions?.find(action => action.checked !== undefined);
+		const itemActions = this.getRemotePluginItemActions(item);
+		const action = itemActions.find(action => action.checked !== undefined);
 		if (!action) {
 			return undefined;
 		}
@@ -1536,7 +1534,7 @@ export class PluginListWidget extends Disposable {
 			? localize('pluginWorkspaceEnablementAria', "Plugin enablement for {0}. Workspace scope. {1}", item.name, action.tooltip ?? action.label)
 			: localize('pluginEnablementAria', "Plugin enablement for {0}. {1}", item.name, action.tooltip ?? action.label);
 		let scopeBadge: Button | undefined;
-		const scopeAction = item.actions?.find(candidate => candidate.checked === undefined && candidate.scope === 'global');
+		const scopeAction = itemActions.find(candidate => candidate.checked === undefined && candidate.scope === 'global');
 		if (action.scope === 'workspace') {
 			const badge = disposables.add(new Button(actions, {
 				...getButtonStyles({
@@ -1590,7 +1588,7 @@ export class PluginListWidget extends Disposable {
 		}));
 		const toggle = disposables.add(new CustomizationToggle({
 			ariaLabel: label,
-			checked: action.checked,
+			checked: item.enabled ?? action.checked,
 			disabled: action.enabled === false,
 			title: false,
 		}));
@@ -1616,7 +1614,7 @@ export class PluginListWidget extends Disposable {
 			try {
 				await action.run();
 			} catch (error) {
-				toggle.checked = action.checked ?? false;
+				toggle.checked = item.enabled ?? action.checked ?? false;
 				toggle.disabled = action.enabled === false;
 				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
 			}
@@ -1978,6 +1976,7 @@ export class PluginListWidget extends Disposable {
 	private appendInstalledPluginToggle(parent: HTMLElement, row: HTMLElement, primaryAction: HTMLElement, item: IInstalledPluginItem, scopeBadges?: HTMLElement[]): HTMLElement {
 		const sessionItem = this.getSessionPluginItem(item);
 		if (sessionItem) {
+			row.classList.toggle('disabled', sessionItem.enabled === false);
 			return this.renderRemotePluginToggle(sessionItem, parent, this.cardDisposables, scopeBadges)!;
 		}
 		let renderedState = item.plugin.enablement.get();
@@ -2033,6 +2032,7 @@ export class PluginListWidget extends Disposable {
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(item.name);
+		this.cardDisposables.add(new OrganizationManagedTag(nameRow, this.hoverService)).update(item.organizationControl);
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		description.textContent = getRemotePluginDescription(item) || localize('pluginNoDescription', "No description provided.");
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
@@ -2616,16 +2616,29 @@ export class PluginListWidget extends Disposable {
 		return actions;
 	}
 
+	private getRemotePluginItemActions(item: ICustomizationItem): readonly ICustomizationItemAction[] {
+		const control = item.organizationControl;
+		if (control?.requiredEnabled === undefined) {
+			return item.actions ?? [];
+		}
+		return (item.actions ?? []).map(action => action.checked !== undefined || action.scope !== undefined
+			? { ...action, enabled: false, tooltip: getOrganizationManagedTooltip(control) }
+			: action);
+	}
+
 	private getRemotePluginActions(item: ICustomizationItem): Action[] {
 		const actions: Action[] = [];
 		const busy = this.getPendingPluginScopeChanges().get().has(this.getPluginScopeChangeKey(item));
-		for (const itemAction of item.actions ?? []) {
+		for (const itemAction of this.getRemotePluginItemActions(item)) {
 			const action = new Action(
 				itemAction.id,
 				itemAction.label,
 				itemAction.icon ? ThemeIcon.asClassName(itemAction.icon) : undefined,
 				!busy && itemAction.enabled !== false,
 				() => {
+					if (itemAction.enabled === false) {
+						throw new Error(itemAction.tooltip ?? localize('pluginScopeUnavailable', "Plugin scope cannot be changed right now."));
+					}
 					if (this.getPendingPluginScopeChanges().get().has(this.getPluginScopeChangeKey(item))) {
 						throw new Error(localize('pluginScopeUnavailable', "Plugin scope cannot be changed right now."));
 					}

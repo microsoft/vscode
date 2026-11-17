@@ -18,14 +18,14 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, installedPluginMatchesQuery, installedPluginToItem, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginListWidget, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, installedPluginMatchesQuery, installedPluginToItem, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginInstalledItemRenderer, PluginListWidget, PluginMarketplaceSnapshotModel, PluginRemoteItemRenderer, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationItem } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem } from '../../../common/customizationHarnessService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
@@ -139,6 +139,56 @@ suite('pluginListWidget', () => {
 			switch: { disabled: true, checked: 'true' },
 			own: undefined, withoutSessionPlugin: undefined, local: undefined,
 			localBlocked: { requiredEnabled: false },
+		});
+	});
+
+	test('installed rows reflect session activation rather than global installation enablement', () => {
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/plugins/required');
+			override readonly label = 'required';
+			override readonly enablement = constObservable(ContributionEnablementState.DisabledProfile);
+			override readonly agents = constObservable([]);
+			override readonly skills = constObservable([]);
+			override readonly commands = constObservable([]);
+			override readonly instructions = constObservable([]);
+			override readonly mcpServerDefinitions = constObservable([]);
+			override readonly hooks = constObservable([]);
+		}();
+		const item: IInstalledPluginItem = { kind: AgentPluginItemKind.Installed, name: plugin.label, description: '', plugin };
+		let sessionItem: ICustomizationItem | undefined;
+		const renderer = new PluginInstalledItemRenderer(
+			new class extends mock<ICustomizationHarnessService>() { }(),
+			new class extends mock<IHoverService>() {
+				override setupManagedHover() {
+					return { show() { }, hide() { }, update() { }, dispose() { } };
+				}
+			}(),
+			() => { },
+			() => sessionItem?.organizationControl,
+			false,
+			() => sessionItem,
+		);
+		const row = $('div');
+		const template = renderer.renderTemplate(row);
+		store.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const render = () => {
+			renderer.renderElement({ type: 'plugin-item', item }, 0, template);
+			return {
+				disabled: row.classList.contains('disabled'),
+				badgeVisible: row.querySelector<HTMLElement>('.organization-managed-tag')!.style.display !== 'none',
+			};
+		};
+		const global = render();
+		sessionItem = {
+			uri: plugin.uri, type: 'plugin', name: plugin.label, source: AICustomizationSources.plugin,
+			extensionId: undefined, pluginUri: plugin.uri, enabled: true, organizationControl: { requiredEnabled: true },
+		};
+		const enabledInSession = render();
+		sessionItem = { ...sessionItem, enabled: false };
+		assert.deepStrictEqual({ global, enabledInSession, disabledInSession: render() }, {
+			global: { disabled: true, badgeVisible: false },
+			enabledInSession: { disabled: false, badgeVisible: true },
+			disabledInSession: { disabled: true, badgeVisible: true },
 		});
 	});
 
@@ -319,6 +369,102 @@ suite('pluginListWidget', () => {
 		}, {
 			pending: { disabled: true, label: `Plugin enablement for Native. ${reason}`, checked: 'false', calls: 0 },
 			ready: { checked: 'true', calls: 1 },
+		});
+	});
+
+	test('plugin activation, organization badges, and enablement locks are independent when rows are reused', () => {
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover() { return toDisposable(() => { }); }
+			override setupManagedHover() {
+				return { show() { }, hide() { }, update() { }, dispose() { } };
+			}
+		}();
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			harnessService, hoverService,
+			notificationService: new TestNotificationService(),
+		});
+		const renderer = new PluginRemoteItemRenderer(
+			(item, actions, disposables) => widget.renderRemoteListActions(item, actions, disposables),
+			hoverService,
+		);
+		const row = $('div');
+		const template = renderer.renderTemplate(row);
+		store.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const item: ICustomizationItem = {
+			uri: URI.file('/plugins/native'), type: 'plugin', name: 'Native', source: AICustomizationSources.plugin,
+			extensionId: undefined, pluginUri: undefined,
+		};
+		const states: readonly Partial<ICustomizationItem>[] = [
+			{ enabled: true, organizationControl: { requiredEnabled: true } },
+			{ enabled: false, organizationControl: { requiredEnabled: false } },
+			{ enabled: false, organizationControl: { requiredEnabled: true } },
+			{ enabled: true, organizationControl: {} },
+			{ enabled: false },
+			{ enabled: true, organizationControl: {}, actions: [{ id: 'toggle', label: 'Toggle', checked: true, enabled: false, tooltip: 'Not supported', run: () => { } }] },
+		];
+		assert.deepStrictEqual(states.map(state => {
+			renderer.renderElement({
+				type: 'remote-item',
+				item: {
+					...item,
+					actions: [{ id: 'toggle', label: 'Toggle', checked: state.enabled !== true, run: () => { } }],
+					...state,
+				},
+			}, 0, template);
+			const toggle = row.querySelector<HTMLButtonElement>('[role="switch"]')!;
+			return {
+				rowDisabled: row.classList.contains('disabled'),
+				badgeVisible: row.querySelector<HTMLElement>('.organization-managed-tag')!.style.display !== 'none',
+				checked: toggle.getAttribute('aria-checked'),
+				locked: toggle.disabled,
+				label: toggle.getAttribute('aria-label'),
+			};
+		}), [
+			{ rowDisabled: false, badgeVisible: true, checked: 'true', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is always enabled and can\'t be disabled.' },
+			{ rowDisabled: true, badgeVisible: true, checked: 'false', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is disabled and can\'t be enabled.' },
+			{ rowDisabled: true, badgeVisible: true, checked: 'false', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is always enabled and can\'t be disabled.' },
+			{ rowDisabled: false, badgeVisible: true, checked: 'true', locked: false, label: 'Plugin enablement for Native. Toggle' },
+			{ rowDisabled: true, badgeVisible: false, checked: 'false', locked: false, label: 'Plugin enablement for Native. Toggle' },
+			{ rowDisabled: false, badgeVisible: true, checked: 'true', locked: true, label: 'Plugin enablement for Native. Not supported' },
+		]);
+	});
+
+	test('organization locks prevent switch and scope changes without blocking other actions', async () => {
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			harnessService,
+			hoverService: new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return toDisposable(() => { }); }
+			}(),
+		});
+		const item: ICustomizationItem = {
+			uri: URI.file('/plugins/native'), type: 'plugin', name: 'Native', source: AICustomizationSources.plugin,
+			extensionId: undefined, pluginUri: undefined, enabled: true, organizationControl: { requiredEnabled: true },
+			actions: [
+				{ id: 'toggle', label: 'Disable for Workspace', checked: true, scope: 'workspace', run: () => { calls.push('toggle'); } },
+				{ id: 'scope', label: 'Use Global Enablement', scope: 'global', run: () => { calls.push('scope'); } },
+				{ id: 'open', label: 'Open Plugin Folder', run: () => { calls.push('open'); } },
+			],
+		};
+		const controls = $('div');
+		widget.renderRemotePluginToggle(item, controls, store.add(new DisposableStore()));
+		const toggle = controls.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		toggle.click();
+		toggle.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const actions: Action[] = widget.getRemotePluginActions(item);
+		actions.forEach(action => store.add(action));
+		for (const action of actions.slice(0, 2)) {
+			await assert.rejects(async () => action.run(), /Managed by your organization/);
+		}
+		await actions[2].run();
+		assert.deepStrictEqual({
+			checked: toggle.getAttribute('aria-checked'),
+			locked: toggle.disabled,
+			scopeLocked: controls.querySelector('.plugin-scope-badge')!.getAttribute('aria-disabled'),
+			menuEnabled: actions.map(action => action.enabled),
+			calls,
+		}, {
+			checked: 'true', locked: true, scopeLocked: 'true', menuEnabled: [false, false, true], calls: ['open'],
 		});
 	});
 
