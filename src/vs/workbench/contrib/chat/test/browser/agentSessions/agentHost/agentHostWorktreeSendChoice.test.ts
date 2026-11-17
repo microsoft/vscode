@@ -8,7 +8,7 @@ import { $, append } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -37,6 +37,7 @@ import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, IAgent
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
+import { AgentHostNewWorktreeToggle, ChatAgentHostNewWorktreeSelected, ToggleAgentHostNewWorktreeAction } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { ChatSubmitRequestHandlerService, ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService } from '../../../../browser/chatSubmitRequestHandlerService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -83,8 +84,9 @@ suite('Agent host Work in Parallel choice on send', () => {
 		let applied: DeferredPromise<void> | undefined;
 		let applyFails: 'beforeChange' | 'afterChange' | 'rollbackToo' | 'rollbackNoop' | 'configGone' | 'isolationGone' | undefined;
 		let config: 'known' | 'gone' | 'noIsolation' = 'known';
+		const onDidChangeProvisional = disposables.add(new Emitter<URI>());
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
-			onDidChange: Event.None,
+			onDidChange: onDidChangeProvisional.event,
 			getResolvedConfig: (resource: URI): ResolveSessionConfigResult | undefined => config === 'gone' ? undefined : ({ schema: { type: 'object', properties: config === 'noIsolation' ? {} : { isolation: { type: 'string', title: 'Isolation', enum: [...options.isolations ?? ['folder', 'worktree']] } } }, values: { isolation: isolations.get(resource.toString()) ?? 'folder' } }),
 			getPreparedSessionConfig: () => undefined,
 			applyConfigChange: async (resource: URI, _provider: string, _folder: URI | undefined, partial: Record<string, unknown>) => {
@@ -103,6 +105,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 				if (applyFails && (partial.isolation === 'worktree' || applyFails === 'rollbackToo')) {
 					throw new Error(`cannot change to ${partial.isolation}`);
 				}
+				onDidChangeProvisional.fire(resource);
 				return resource;
 			},
 		}));
@@ -149,7 +152,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			return widgets.get(key);
 		};
 		const close = (resource: URI) => { widgets.set(resource.toString(), undefined); };
-		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: widgetOf }));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: widgetOf, lastFocusedWidget: undefined }));
 		// The callout: the control it points at, and the user's answers in turn, each held until its `held` completes where given
 		const asked: { readonly onControl: boolean }[] = [];
 		const askedOn: (HTMLElement | undefined)[] = [];
@@ -194,7 +197,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			const choices = instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => draft);
 			try {
 				if (service.preselectsNewWorktree(draft, choices)) {
-					await choices.preselectNewWorktree();
+					await service.preselectNewWorktree(draft, choices);
 				}
 			} finally {
 				choices.dispose();
@@ -223,8 +226,10 @@ suite('Agent host Work in Parallel choice on send', () => {
 		};
 		// Its contributions are global, one window at a time
 		const isolationOf = (draft: URI) => isolations.get(draft.toString()) ?? 'folder';
+		// The service as the chat inputs and the New Worktree toggle reach it
+		instantiationService.stub(IAgentHostWorktreeSendChoiceService, service);
 		const setWorktreeSupport = (on: boolean) => configuration.setUserConfiguration(ChatConfiguration.EditorWindowEnableWorktree, on);
-		return { newDraft, show, chosen, setWorktreeSupport, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
+		return { instantiationService, newDraft, show, chosen, setWorktreeSupport, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
 	}
 
 	test('asks of a new chat in the folder only after another chat of the agent host was active in the folder itself within the last day', () => {
@@ -433,6 +438,44 @@ suite('Agent host Work in Parallel choice on send', () => {
 		window.dispose();
 
 		assert.deepStrictEqual({ asked: window.asked.length, sent: window.sent }, { asked: 1, sent: ['worktree', 'folder'] });
+	});
+
+	test('while New Worktree is preselected, the checkbox shows it at once, and a send or a click right then waits for it: never a hidden worktree or a flip of a hidden value', async () => {
+		const run = async (action: 'send' | 'toggle') => {
+			const window = createWindow({ firstChatIn: primary });
+			window.setAnswer('useWorktree');
+			await window.send(window.newDraft());
+			// Its configuration changes at once, and the host takes a while
+			const applying = new DeferredPromise<void>();
+			window.holdApply(applying);
+			const draft = window.newDraft();
+			// The chat input's New Worktree toggle, as the editor window gives each chat widget one
+			const contextKeyService = store.add(new ContextKeyService(window.instantiationService.get(IConfigurationService)));
+			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: draft }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
+			const toggle = window.instantiationService.createInstance(AgentHostNewWorktreeToggle, widget);
+			const shown = () => contextKeyService.getContextKeyValue<boolean>(ChatAgentHostNewWorktreeSelected.key) === true;
+			const shownAtAction = shown();
+			let settledEarly = false;
+			const acting = (action === 'send'
+				? window.send(draft, { shown: false })
+				: window.instantiationService.invokeFunction(accessor => new ToggleAgentHostNewWorktreeAction().run(accessor, { widget }))).then(() => { settledEarly = !applying.isSettled; });
+			await timeout(0);
+			window.holdApply(undefined);
+			applying.complete();
+			await acting;
+			await timeout(0);
+			const result = { shownAtAction, settledEarly, isolation: window.isolationOf(draft), shownAfter: shown(), sent: window.sent.slice(1) };
+			toggle.dispose();
+			window.dispose();
+			return result;
+		};
+
+		assert.deepStrictEqual({ send: await run('send'), toggle: await run('toggle') }, {
+			// Sent once New Worktree applied, which the checkbox showed when the user sent
+			send: { shownAtAction: true, settledEarly: false, isolation: 'worktree', shownAfter: true, sent: ['worktree'] },
+			// The click unchecks what the checkbox showed: the chat works in the folder, as it then shows
+			toggle: { shownAtAction: true, settledEarly: false, isolation: 'folder', shownAfter: false, sent: [] },
+		});
 	});
 
 	test('does not preselect New Worktree with worktree support off', async () => {

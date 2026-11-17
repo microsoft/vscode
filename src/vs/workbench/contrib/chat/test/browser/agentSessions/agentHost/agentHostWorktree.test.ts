@@ -93,6 +93,8 @@ suite('AgentHostWorktree', () => {
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ onDidCommitSession: onDidCommitSession.event }));
 		// Where the chats of the editor window's session layer work, which the Chat view's sessions list does not list
 		const sessionLayerDirectories = new Map<string, string>();
+		/** The chats of the session layer whose sessions are archived, which the Chat view's list does not know. */
+		const layerArchived = new Set<string>();
 		const onDidChangeSessionLayer = store.add(new Emitter<void>());
 		/** The sessions of the Chat view's list that are archived, by their resource. */
 		const archived = new Set<string>();
@@ -102,7 +104,7 @@ suite('AgentHostWorktree', () => {
 			onDidChange: onDidChangeSessionLayer.event,
 			resolve: (chat: URI) => {
 				const path = sessionLayerDirectories.get(chat.toString());
-				return chat.scheme === 'ahp-chat' ? { workingDirectory: path ? URI.file(path) : undefined, isArchived: archived.has(chat.toString()) } : undefined;
+				return chat.scheme === 'ahp-chat' ? { workingDirectory: path ? URI.file(path) : undefined, isArchived: layerArchived.has(chat.toString()) } : undefined;
 			},
 		}));
 		instantiationService.stub(IAgentHostWorktreeChatResolverService, chatResolver);
@@ -194,7 +196,7 @@ suite('AgentHostWorktree', () => {
 		/** The user moves the folder in the window's title, which the workspace makes like any other move. */
 		const userStartsMoveTo = (location: URI) => setFolderLocation(location, { reason: 'user' });
 		const commit = (original: URI, committed: URI) => onDidCommitSession.fire({ original, committed });
-		return { show, archived, workingDirectories, onDidChangeSessions, sessionLayerDirectories, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks, notices };
+		return { show, archived, workingDirectories, onDidChangeSessions, sessionLayerDirectories, layerArchived, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks, notices };
 	}
 
 	const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -359,13 +361,13 @@ suite('AgentHostWorktree', () => {
 		await settle();
 		feature.show(localChat);
 		await settle();
-		feature.archived.add(chat.toString());
+		feature.layerArchived.add(chat.toString());
 		feature.onDidChangeSessionLayer.fire();
 		feature.userMovesTo(worktree);
 		const reopened = () => feature.opened.filter(opened => opened.startsWith('/remembered '));
 		const whileArchived = reopened();
 		feature.userMovesTo(URI.file('/work/vscode'));
-		feature.archived.delete(chat.toString());
+		feature.layerArchived.delete(chat.toString());
 		feature.userMovesTo(worktree);
 
 		assert.deepStrictEqual({ whileArchived, unarchived: reopened() }, { whileArchived: [], unarchived: ['/remembered (restore)'] });

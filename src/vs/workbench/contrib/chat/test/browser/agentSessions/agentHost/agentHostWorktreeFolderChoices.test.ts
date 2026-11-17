@@ -87,7 +87,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			},
 		}));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
-		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ preselectsNewWorktree: () => false, rememberSelection: () => { } }));
+		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ preselectsNewWorktree: () => false, whenPreselected: async () => { }, rememberSelection: () => { } }));
 		const choices = store.add(instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => session));
 		const actions = (selected: URI) => choices.getActions(upcastPartial<MenuItemAction>({}), selected, () => { });
 		// As the chip does as it shows: its first ask reads the worktrees

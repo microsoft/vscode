@@ -7,7 +7,7 @@ import { Sequencer } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -115,6 +115,15 @@ export interface IAgentHostWorktreeSendChoiceService {
 	preselectsNewWorktree(resource: URI, choices: AgentHostWorktreeFolderChoices): boolean;
 
 	/**
+	 * Selects New Worktree for the new chat of `resource` with `choices`, as {@link preselectsNewWorktree} tells. Until that
+	 * settles, a send of it waits for it, and so should anything that reads or flips its selection ({@link whenPreselected}).
+	 */
+	preselectNewWorktree(resource: URI, choices: AgentHostWorktreeFolderChoices): Promise<void>;
+
+	/** Settles once the preselection of the new chat of `resource` under way, if any, has. */
+	whenPreselected(resource: URI): Promise<void>;
+
+	/**
 	 * Remembers where the user chose the new chat of `resource` to work, as its checkbox or folder chip now shows it: New
 	 * Worktree, or the window's own folder. Nothing for an existing worktree, nor for a chat not in the window's own folder.
 	 */
@@ -144,6 +153,8 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	private readonly _asks = new Sequencer();
 	/** The rendered worktree controls of chat inputs: New Worktree checkboxes and folder chips. */
 	private readonly _controls = new Set<HTMLElement>();
+	/** The preselections of New Worktree under way, by the new chat. */
+	private readonly _preselecting = new ResourceMap<Promise<void>>();
 
 	constructor(
 		private readonly _now: () => number,
@@ -186,6 +197,12 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		if (this._holding.has(resource)) {
 			// The held request goes on once decided; this one is neither sent as well nor cleared
 			return { outcome: ChatSubmitRequestOutcome.Cancelled };
+		}
+		const preselecting = this._preselecting.get(resource);
+		if (preselecting) {
+			// Sent while New Worktree is being preselected: not before the chat works where its checkbox shows
+			await preselecting;
+			return { outcome: ChatSubmitRequestOutcome.Continue, held: true };
 		}
 		if (!this._mayBeNewChatInFolder(resource)) {
 			return { outcome: ChatSubmitRequestOutcome.Continue };
@@ -273,6 +290,20 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 
 	preselectsNewWorktree(resource: URI, choices: AgentHostWorktreeFolderChoices): boolean {
 		return this._rememberedChoice() === 'worktree' && this._isNewChatInFolder(resource, choices) && this._hasRecentChatInFolder(resource) && choices.canWorkInNewWorktree();
+	}
+
+	preselectNewWorktree(resource: URI, choices: AgentHostWorktreeFolderChoices): Promise<void> {
+		const preselecting = choices.preselectNewWorktree().catch(onUnexpectedError).finally(() => {
+			if (this._preselecting.get(resource) === preselecting) {
+				this._preselecting.delete(resource);
+			}
+		});
+		this._preselecting.set(resource, preselecting);
+		return preselecting;
+	}
+
+	async whenPreselected(resource: URI): Promise<void> {
+		await this._preselecting.get(resource);
 	}
 
 	rememberSelection(resource: URI): void {

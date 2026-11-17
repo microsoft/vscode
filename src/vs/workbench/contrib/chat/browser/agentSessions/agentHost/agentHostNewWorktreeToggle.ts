@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -76,7 +75,13 @@ export class AgentHostNewWorktreeToggle extends Disposable {
 			const resource = widget.viewModel?.sessionResource;
 			if (resource && !preselected.has(resource) && sendChoice.preselectsNewWorktree(resource, choices)) {
 				preselected.add(resource);
-				choices.preselectNewWorktree().catch(onUnexpectedError);
+				// Shown at once, as a send or a click waits for it to apply; shown as it is once it settled, also where it failed
+				selected.set(true);
+				sendChoice.preselectNewWorktree(resource, choices).then(() => {
+					if (!this._store.isDisposed) {
+						selected.set(choices.isNewWorktreeSelected());
+					}
+				});
 			}
 		};
 		this._register(choices.onDidChange(update));
@@ -151,6 +156,11 @@ export class ToggleAgentHostNewWorktreeAction extends Action2 {
 		const sendChoice = accessor.get(IAgentHostWorktreeSendChoiceService);
 		const choices = accessor.get(IInstantiationService).createInstance(AgentHostWorktreeFolderChoices, () => widget.viewModel?.sessionResource);
 		try {
+			// Flips what the checkbox shows: a preselection under way, which it shows already, first applies
+			const shownResource = widget.viewModel?.sessionResource;
+			if (shownResource) {
+				await sendChoice.whenPreselected(shownResource);
+			}
 			await choices.setNewWorktree(!choices.isNewWorktreeSelected());
 			// The user's choice is their answer for later new chats in the folder
 			const resource = widget.viewModel?.sessionResource;
