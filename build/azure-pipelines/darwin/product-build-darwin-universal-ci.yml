@@ -1,0 +1,155 @@
+# Checks in CI that the x64 and arm64 clients still merge into the universal app, which only the
+# macOS (UNIVERSAL) job of the product build checked before. It packages both clients unsigned, as
+# the Compile jobs of the product build do (product-build-darwin.yml), and merges them as
+# product-build-darwin-universal.yml does, without the steps that sign, notarize or publish. Only a
+# build whose commits can affect the merge runs them (see universalAppChanges.ts).
+#
+# The clients have no CLI or Copilot shim mixed in, which the CI builds don't build.
+parameters:
+  - name: VSCODE_ARCHS
+    type: object
+    default: [x64, arm64]
+
+jobs:
+  - job: macOSUniversalChanges
+    displayName: Universal App - Detect changes
+    pool:
+      name: 1es-ubuntu-22.04-x64
+      os: linux
+    timeoutInMinutes: 10
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - template: ../common/setup-node.yml@self
+        parameters:
+          os: linux
+
+      - script: node build/azure-pipelines/darwin/universalAppChanges.ts
+        name: changes
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Detect changes that can affect the universal app
+
+  - ${{ each arch in parameters.VSCODE_ARCHS }}:
+    - job: macOSUniversal_${{ arch }}_Compile
+      displayName: Universal App - Compile (${{ upper(arch) }})
+      dependsOn: macOSUniversalChanges
+      condition: and(succeeded(), eq(dependencies.macOSUniversalChanges.outputs['changes.AFFECTED'], 'true'))
+      timeoutInMinutes: 90
+      variables:
+        VSCODE_ARCH: ${{ arch }}
+        BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
+      templateContext:
+        outputs:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/client
+            artifactName: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+            displayName: Publish client archive (unsigned)
+            sbomEnabled: false
+            isProduction: false
+            condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
+      steps:
+        - template: ./steps/product-build-darwin-compile.yml@self
+          parameters:
+            VSCODE_ARCH: ${{ arch }}
+            VSCODE_CIBUILD: true
+            VSCODE_BUILD_SERVER: false
+            VSCODE_BUILD_SERVER_WEB: false
+            VSCODE_BUILD_PRODUCT_ASSETS: false
+            VSCODE_BUILD_INTEGRATION_TESTS: false
+            VSCODE_COMPILE_TEST_SUITES: false
+
+        - script: |
+            set -e
+            APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+            APP_NAME="`ls $APP_ROOT | head -n 1`"
+            APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
+          displayName: Verify arch of Mach-O objects
+
+        - script: |
+            set -e
+            mkdir -p $(Build.ArtifactStagingDirectory)/client
+            (cd $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $(Build.ArtifactStagingDirectory)/client/VSCode-darwin-$(VSCODE_ARCH).zip *)
+          displayName: Package client
+
+        # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+        # the artifact that an earlier attempt already published (see ../common/checkForArtifact.ts)
+        - script: node build/azure-pipelines/common/checkForArtifact.ts CLIENT_ARCHIVE_PUBLISHED unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          displayName: Check for artifact published by an earlier attempt
+
+  - job: macOSUniversal
+    displayName: Universal App - Merge
+    dependsOn:
+      - macOSUniversal_x64_Compile
+      - macOSUniversal_arm64_Compile
+    timeoutInMinutes: 30
+    variables:
+      VSCODE_ARCH: universal
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - template: ../common/setup-node.yml@self
+        parameters:
+          os: macOS
+
+      - template: ../distro/download-distro.yml@self
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get GitHub token"
+        inputs:
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
+
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY build
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM Registry
+
+      - template: ../common/install-pnpm.yml@self
+        parameters:
+          setupRegistry: true
+          os: macOS
+
+      - script: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            pnpm install --frozen-lockfile && break
+            if [ $i -eq 5 ]; then
+              echo "pnpm install failed too many times" >&2
+              exit 1
+            fi
+            echo "pnpm install failed $i, trying again..."
+          done
+        workingDirectory: build
+        env:
+          GITHUB_TOKEN: "$(github-token-code-oss)"
+        displayName: Install build dependencies
+
+      - download: current
+        artifact: unsigned_vscode_client_darwin_x64_archive
+        displayName: Download x64 artifact
+
+      - download: current
+        artifact: unsigned_vscode_client_darwin_arm64_archive
+        displayName: Download arm64 artifact
+
+      - script: node build/azure-pipelines/distro/mixin-quality.ts
+        displayName: Mixin distro quality
+
+      - script: |
+          set -e
+          unzip -q $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64 &
+          unzip -q $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64 &
+          wait
+          DEBUG=* node build/darwin/create-universal-app.ts $(agent.builddirectory)
+        displayName: Create Universal App
+
+      - script: |
+          set -e
+          APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+          APP_NAME="`ls $APP_ROOT | head -n 1`"
+          APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts universal
+        displayName: Verify arch of Mach-O objects
