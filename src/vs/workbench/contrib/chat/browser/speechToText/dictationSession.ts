@@ -385,9 +385,18 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 	// The placeholder we last applied, so we only ever restore the previous
 	// placeholder when it was ours to restore.
 	let appliedPlaceholder: string | undefined;
+	let updatingPlaceholder = false;
+	const updateEditorPlaceholder = (placeholder: string | undefined) => {
+		updatingPlaceholder = true;
+		try {
+			editor.updateOptions({ placeholder });
+		} finally {
+			updatingPlaceholder = false;
+		}
+	};
 	const restorePlaceholder = () => {
 		if (appliedPlaceholder !== undefined && editor.getOption(EditorOption.placeholder) === appliedPlaceholder) {
-			editor.updateOptions({ placeholder: previousPlaceholder });
+			updateEditorPlaceholder(previousPlaceholder);
 		}
 		appliedPlaceholder = undefined;
 	};
@@ -404,13 +413,23 @@ export async function startDictation(service: IChatSpeechToTextService, editor: 
 		if (desired !== undefined) {
 			if (appliedPlaceholder !== desired) {
 				previousPlaceholder = editor.getOption(EditorOption.placeholder);
-				editor.updateOptions({ placeholder: desired });
 				appliedPlaceholder = desired;
+				updateEditorPlaceholder(desired);
 			}
 		} else {
 			restorePlaceholder();
 		}
 	};
+	disposables.add(editor.onDidChangeConfiguration(event => {
+		if (!event.hasChanged(EditorOption.placeholder) || updatingPlaceholder || appliedPlaceholder === undefined) {
+			return;
+		}
+		const placeholder = editor.getOption(EditorOption.placeholder);
+		if (placeholder !== appliedPlaceholder) {
+			previousPlaceholder = placeholder;
+			updateEditorPlaceholder(appliedPlaceholder);
+		}
+	}));
 	disposables.add(toDisposable(() => {
 		// Ensure the interim styling never lingers, regardless of how the session
 		// ends (final transcript, cancel, editor disposal, or a service-side error).

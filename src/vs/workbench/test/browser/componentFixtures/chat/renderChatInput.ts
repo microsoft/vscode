@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -48,6 +49,9 @@ import { ITtsPlaybackService } from '../../../../contrib/chat/browser/voiceClien
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import '../../../../../editor/contrib/placeholderText/browser/placeholderText.css';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { InlineCompletionsController } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 
 /** Room above the input for the pet, which stands outside it. */
 const PET_HEADROOM = 64;
@@ -152,11 +156,15 @@ export interface ChatInputFixtureOptions {
 	readonly pet?: boolean;
 	/** Overrides the secondary picker labels for visual states such as Plan / Allow All. */
 	readonly secondaryPickerLabels?: readonly [target: string, permission: string];
+	/** Supplies a prototype next-step suggestion through Monaco's real inline-completion UI. */
+	readonly nextStepSuggestion?: string;
+	/** Renders the next-step suggestion as accepted editable input. */
+	readonly showAcceptedNextStepSuggestion?: boolean;
 }
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, focusVoiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'] } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, resizeWidths = [], models = [], agentHostSessionConfig, combinedModePermissionsPicker = false, voiceControl, focusVoiceControl, notification, pet = false, secondaryPickerLabels = ['Local', 'Default permissions'], nextStepSuggestion, focusInput = false, showAcceptedNextStepSuggestion = false } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 	const sessionResource = fixtureOptions.sessionResource ?? (agentHostSessionConfig ? getNewChatSessionResource(SessionType.AgentHostCopilot) : undefined);
@@ -273,6 +281,19 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		await configService.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, true);
 	}
 
+	if (nextStepSuggestion) {
+		const languageFeaturesService = instantiationService.get(ILanguageFeaturesService);
+		disposableStore.add(languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, {
+			provideInlineCompletions: model => ({
+				items: model.getValue().length === 0 ? [{
+					insertText: nextStepSuggestion,
+					range: new Range(1, 1, 1, 1),
+				}] : [],
+			}),
+			disposeInlineCompletions: () => { },
+		}));
+	}
+
 	container.style.width = `${width}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
@@ -386,6 +407,34 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			inputPart.inputEditor.setSelection(selection);
 		}
 	}
+
+	if (nextStepSuggestion) {
+		if (!focusInput && !showAcceptedNextStepSuggestion) {
+			disposableStore.add(new PlaceholderTextContribution(inputPart.inputEditor));
+			inputPart.inputEditor.updateOptions({ placeholder: nextStepSuggestion });
+		} else {
+			inputPart.inputEditor.updateOptions({ placeholder: '', inlineSuggest: { showToolbar: 'never' } });
+			inputPart.inputEditor.focus();
+			const inlineCompletionsController = InlineCompletionsController.get(inputPart.inputEditor)
+				?? disposableStore.add(instantiationService.createInstance(InlineCompletionsController, inputPart.inputEditor));
+			const inlineCompletionsModel = inlineCompletionsController.model.get();
+			if (!inlineCompletionsModel) {
+				throw new Error('Inline completions model was not initialized');
+			}
+			await inlineCompletionsModel.triggerExplicitly();
+			await timeout(100);
+			inputPart.layout(width);
+
+			if (showAcceptedNextStepSuggestion) {
+				await inlineCompletionsModel.accept(inputPart.inputEditor);
+				if (inputPart.inputEditor.getValue() !== nextStepSuggestion) {
+					throw new Error('Next-step suggestion was not accepted');
+				}
+				inputPart.layout(width);
+			}
+		}
+	}
+
 	inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
 	await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
 	await new Promise(r => setTimeout(r, 50));
