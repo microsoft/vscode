@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-import type { CDPSession, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
 import { getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
@@ -75,6 +75,10 @@ export function setup(logger: Logger): void {
 					response.writeHead(200, { 'Content-Type': 'text/javascript' });
 					response.end(`window.addEventListener('keydown', () => {
 						const output = document.querySelector('#comment-keydown-count');
+						output.textContent = String(Number(output.textContent) + 1);
+					});
+					document.addEventListener('securitypolicyviolation', () => {
+						const output = document.querySelector('#csp-violation-count');
 						output.textContent = String(Number(output.textContent) + 1);
 					});`);
 					return;
@@ -256,74 +260,61 @@ export function setup(logger: Logger): void {
 			const workbenchPage = app.code.driver.currentPage;
 			const target = browserPage.locator('#comment-target');
 			const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
-			const cdp = await browserPage.context().newCDPSession(browserPage);
-			try {
-				await cdp.send('DOM.enable');
-				await cdp.send('CSS.enable');
-				await target.waitFor();
+			const cspViolationCount = browserPage.locator('#csp-violation-count');
+			await target.waitFor();
 
-				await browserPage.keyboard.press(`${modifier}+Shift+c`);
-				await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
-				const labelStyle = await getPickerComputedStyle(cdp, '[data-vscode-pick-host]', '.label');
-				const backdropStyle = await getPickerComputedStyle(cdp, '[data-vscode-pick-host]', '.comment-backdrop-fill');
-				assert.deepStrictEqual({
-					labelPosition: labelStyle.get('position'),
-					backdropOpacity: backdropStyle.get('opacity')
-				}, { labelPosition: 'fixed', backdropOpacity: '0' });
-				await target.click();
-				await app.workbench.chat.waitForChatView();
-				await workbenchPage.locator('div[id="workbench.panel.chat"] .chat-attached-context-attachment', { hasText: 'button#comment-target' }).waitFor();
+			await browserPage.keyboard.press(`${modifier}+Shift+c`);
+			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
+			assert.strictEqual(await cspViolationCount.textContent(), '0');
+			await target.click();
+			await app.workbench.chat.waitForChatView();
+			await workbenchPage.locator('div[id="workbench.panel.chat"] .chat-attached-context-attachment', { hasText: 'button#comment-target' }).waitFor();
 
-				await target.click();
-				await browserPage.keyboard.press(`${modifier}+Alt+c`);
-				await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
-				await target.click();
-				await browserPage.waitForFunction(() => document.activeElement?.hasAttribute('data-vscode-pick-host'));
-				await browserPage.evaluate(() => document.querySelector('#comment-keydown-count')!.textContent = '0');
-				await browserPage.keyboard.type(comment);
-				await browserPage.keyboard.press('Enter');
-				assert.strictEqual(await browserPage.locator('#comment-keydown-count').textContent(), '0');
-				const chatInput = workbenchPage.locator('div[id="workbench.panel.chat"] .interactive-input-part .monaco-editor[role="code"]');
-				// The input mentions the element as text, or as a pill when attachments are shown inline.
-				await chatInput.filter({ hasText: 'button#comment-target' }).waitFor();
-				await app.workbench.chat.waitForInputText(comment);
+			await target.click();
+			await browserPage.keyboard.press(`${modifier}+Alt+c`);
+			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
+			assert.strictEqual(await cspViolationCount.textContent(), '0');
+			await target.click();
+			await browserPage.waitForFunction(() => document.activeElement?.hasAttribute('data-vscode-pick-host'));
+			await browserPage.evaluate(() => document.querySelector('#comment-keydown-count')!.textContent = '0');
+			await browserPage.keyboard.type(comment);
+			await browserPage.keyboard.press('Enter');
+			assert.strictEqual(await browserPage.locator('#comment-keydown-count').textContent(), '0');
+			const chatInput = workbenchPage.locator('div[id="workbench.panel.chat"] .interactive-input-part .monaco-editor[role="code"]');
+			// The input mentions the element as text, or as a pill when attachments are shown inline.
+			await chatInput.filter({ hasText: 'button#comment-target' }).waitFor();
+			await app.workbench.chat.waitForInputText(comment);
 
-				await browserPage.keyboard.press('Escape');
-				await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
-				// Click past the comment at the end of the input, as a click on an inline attachment pill would open its attachment.
-				const { width, height } = (await chatInput.boundingBox())!;
-				await chatInput.click({ position: { x: width - 30, y: height - 5 } });
-				await workbenchPage.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
-				await workbenchPage.keyboard.press('Backspace');
-				await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'detached' });
+			await browserPage.keyboard.press('Escape');
+			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
+			// Click past the comment at the end of the input, as a click on an inline attachment pill would open its attachment.
+			const { width, height } = (await chatInput.boundingBox())!;
+			await chatInput.click({ position: { x: width - 30, y: height - 5 } });
+			await workbenchPage.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+			await workbenchPage.keyboard.press('Backspace');
+			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'detached' });
 
-				await runAddToChatMenuAction(browserPage, workbenchPage, 'Add Area Screenshot to Chat');
-				await browserPage.locator('[data-vscode-area-pick-host]').waitFor({ state: 'attached' });
-				const areaStyle = await getPickerComputedStyle(cdp, '[data-vscode-area-pick-host]', '.overlay');
-				assert.deepStrictEqual({
-					overlayPosition: areaStyle.get('position'),
-					cursor: await target.evaluate(element => getComputedStyle(element).cursor)
-				}, { overlayPosition: 'fixed', cursor: 'crosshair' });
-				const targetBounds = (await target.boundingBox())!;
-				await browserPage.mouse.move(targetBounds.x, targetBounds.y);
-				await browserPage.mouse.down();
-				await browserPage.mouse.move(targetBounds.x + targetBounds.width, targetBounds.y + targetBounds.height);
-				await browserPage.mouse.up();
-				await browserPage.locator('[data-vscode-area-pick-host]').waitFor({ state: 'detached' });
-				await workbenchPage.locator('div[id="workbench.panel.chat"] .chat-attached-context-attachment.image-attachment', { hasText: 'Browser Area Screenshot' }).waitFor();
+			await runAddToChatMenuAction(browserPage, workbenchPage, 'Add Area Screenshot to Chat');
+			await browserPage.locator('[data-vscode-area-pick-host]').waitFor({ state: 'attached' });
+			assert.strictEqual(await cspViolationCount.textContent(), '0');
+			assert.strictEqual(await target.evaluate(element => getComputedStyle(element).cursor), 'crosshair');
+			const targetBounds = (await target.boundingBox())!;
+			await browserPage.mouse.move(targetBounds.x, targetBounds.y);
+			await browserPage.mouse.down();
+			await browserPage.mouse.move(targetBounds.x + targetBounds.width, targetBounds.y + targetBounds.height);
+			await browserPage.mouse.up();
+			await browserPage.locator('[data-vscode-area-pick-host]').waitFor({ state: 'detached' });
+			await workbenchPage.locator('div[id="workbench.panel.chat"] .chat-attached-context-attachment.image-attachment', { hasText: 'Browser Area Screenshot' }).waitFor();
 
-				await browserPage.goto(`${baseUrl}/screenshot`);
-				await runAddToChatMenuAction(browserPage, workbenchPage, 'Add Full Page Screenshot to Chat (Experimental)');
-				const attachment = workbenchPage.locator('div[id="workbench.panel.chat"] .chat-attached-context-attachment.image-attachment', { hasText: 'Browser Full Page Screenshot' });
-				const image = attachment.locator('img.chat-attached-context-pill-image');
-				await image.waitFor();
-				assert.strictEqual(await image.evaluate(element => {
-					const image = element as HTMLImageElement;
-					return image.naturalHeight > image.naturalWidth * 2;
-				}), true);
-			} finally {
-				await cdp.detach();
-			}
+			await browserPage.goto(`${baseUrl}/screenshot`);
+			await runAddToChatMenuAction(browserPage, workbenchPage, 'Add Full Page Screenshot to Chat (Experimental)');
+			const attachment = workbenchPage.locator('div[id="workbench.panel.chat"] .chat-attached-context-attachment.image-attachment', { hasText: 'Browser Full Page Screenshot' });
+			const image = attachment.locator('img.chat-attached-context-pill-image');
+			await image.waitFor();
+			assert.strictEqual(await image.evaluate(element => {
+				const image = element as HTMLImageElement;
+				return image.naturalHeight > image.naturalWidth * 2;
+			}), true);
 		});
 
 		it('allows agents to use shared pages and blocks unshared pages', async function () {
@@ -507,16 +498,6 @@ function withFakeMediaDevice(options: ApplicationOptions): ApplicationOptions {
 	};
 }
 
-async function getPickerComputedStyle(cdp: CDPSession, hostSelector: string, selector: string): Promise<Map<string, string>> {
-	const { root } = await cdp.send('DOM.getDocument');
-	const { nodeId: hostId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: hostSelector });
-	const { node: host } = await cdp.send('DOM.describeNode', { nodeId: hostId, depth: 1, pierce: true });
-	assert.ok(host.shadowRoots?.length, 'Picker must have a shadow root');
-	const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: host.shadowRoots[0].nodeId, selector });
-	const { computedStyle } = await cdp.send('CSS.getComputedStyleForNode', { nodeId });
-	return new Map(computedStyle.map(property => [property.name, property.value]));
-}
-
 async function openBrowserPage(app: Application, url: string, openPages: Set<Page>): Promise<Page> {
 	const workbenchPage = app.code.driver.currentPage;
 	const browserPage = await app.code.driver.waitForNewPage(url, async () => {
@@ -661,6 +642,7 @@ function pageForRoute(route: string, requestCount: number): string {
 		case '/comment':
 			return html('Browser Smoke Comment', `<button id="comment-target">Comment target</button>
 				<output id="comment-keydown-count">0</output>
+				<output id="csp-violation-count">0</output>
 				<script src="/comment.js"></script>`);
 		case '/screenshot':
 			return html('Browser Smoke Screenshot', '<div id="screenshot-top">Top</div><div style="height: 2400px"></div><div id="screenshot-bottom">Bottom</div>');
