@@ -8,7 +8,8 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
-import { disposableTimeout, raceTimeout, SequencerByKey } from '../../../../../../base/common/async.js';
+import { SequencerByKey, disposableTimeout, raceTimeout } from '../../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
@@ -16,79 +17,80 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { autorun, constObservable, derived, derivedDisposable, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, IReader, ISettableObservable, autorun, constObservable, derived, derivedDisposable, derivedObservableWithCache, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { format } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, sessionChangesetLabel, uncommittedChangesetLabel, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { ChangesetKind, branchChangesetLabel, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, sessionChangesetLabel, uncommittedChangesetLabel, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
-import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionLifecycle, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ISessionArtifact, SessionArtifactType, isGitHubArtifactLink, readSessionArtifactsNewestFirst } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { observableFromSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, SessionLifecycle, SessionState, SessionStatus, SessionSummaryMeta, StateComponents, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { getFileNamesMessage, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { IDialogService, getFileNamesMessage } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
-import { getRequiredPullRequestChecksStatus } from '../../../../../../platform/github/common/pullRequestRequiredChecks.js';
-import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
 import { parseGitHubCommitTarget } from '../../../../../../platform/github/common/githubUrls.js';
+import { getRequiredPullRequestChecksStatus } from '../../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
-import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
-import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
-import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
-import { CanvasesPillControl } from '../../../../canvases/browser/canvasesPillControl.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { EMPTY_CHAT_CHANGES_STATS, IChatChangesStats, chatChangesStatsEqual } from '../../../../../browser/chatChangesPill.js';
+import { ChatPillHoverCache } from '../../../../../browser/chatPillHover.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, IChatPillEntry, IChatPillSection, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, withChatPillHoverLabel, type ChatPillsCompactMode } from '../../../../../browser/chatPills.js';
+import { type IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
 import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../common/chatIssue.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
-import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../common/sessionChatPills.js';
+import { reportSessionArtifactOpen } from '../../../../../common/sessionArtifactOpenTelemetry.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
+import { BrowserViewSharingState, IBrowserViewWorkbenchService, browserViewUrlMatches, getAgentBrowserViewsNewestFirst } from '../../../../browserView/common/browserView.js';
+import { CanvasesPillControl } from '../../../../canvases/browser/canvasesPillControl.js';
+import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
+import { GitHubResourceDetailsResolver, getGitHubResourcePresentation } from '../../../../github/browser/githubResourceDetails.js';
+import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
-import { reportSessionArtifactOpen } from '../../../../../common/sessionArtifactOpenTelemetry.js';
-import { isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IChatEditingService, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
-import { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
-import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
-import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
-import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../common/sessionChatPills.js';
+import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
 import { confirmUndoAllEdits } from '../../chatEditing/chatEditing.js';
 import { ChatInputPills, IChatInputOwnPillContext, StandardChatInputPillSources } from '../../chatInputPills.js';
-import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
-import { ChatResourcesControl, IChatResource } from '../../chatResources/chatResourcesControl.js';
+import { ChatResourceContributionEntries, IChatResourceSessionIds, chatResourceContributions } from '../../chatResources/chatResourceContributions.js';
 import { ChatResourcesEnabledSettingId } from '../../chatResources/chatResources.js';
-import { ChatResourceContributionEntries, chatResourceContributions, IChatResourceSessionIds } from '../../chatResources/chatResourceContributions.js';
+import { ChatResourcesControl, IChatResource } from '../../chatResources/chatResourcesControl.js';
+import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
-import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
+import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
+import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
+import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
+import { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
 import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
 import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
+import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
+import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
-import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
-import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '../../../../github/browser/githubResourceDetails.js';
-import { ChatPillHoverCache } from '../../../../../browser/chatPillHover.js';
-import { type IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
+
 
 const artifactIcons: ReadonlyMap<SessionArtifactType, ThemeIcon> = new Map([
 	[SessionArtifactType.PullRequest, Codicon.gitPullRequest],
@@ -394,16 +396,16 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 		const store = new DisposableStore();
 		entry.subscription.value = store;
 		entry.value.set(undefined, undefined);
-		const controller = new AbortController();
-		store.add(toDisposable(() => controller.abort()));
-		void this._gitHubService.acquireDefaultAccountClient(controller.signal).then(async reference => {
+		const controller = new CancellationTokenSource();
+		store.add(toDisposable(() => controller.dispose(true)));
+		void this._gitHubService.acquireDefaultAccountClient(controller.token).then(async reference => {
 			if (store.isDisposed) {
 				reference.dispose();
 				return;
 			}
 			const client = store.add(reference).object;
-			const credential = await client.credentials.getCredential(controller.signal);
-			if (controller.signal.aborted || generation !== entry.generation) {
+			const credential = await client.credentials.getCredential(controller.token);
+			if (controller.token.isCancellationRequested || generation !== entry.generation) {
 				return;
 			}
 			const ref: GitHubIssueRef = { ...credential.account, ...entry.target };
@@ -414,7 +416,7 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 			}));
 			void subscription.refresh().catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub issue reference', error));
 		}).catch(error => {
-			if (!controller.signal.aborted && generation === entry.generation) {
+			if (!controller.token.isCancellationRequested && generation === entry.generation) {
 				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for issue reference', error);
 				entry.subscription.clear();
 			}
@@ -426,16 +428,16 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 		const store = new DisposableStore();
 		entry.subscription.value = store;
 		entry.value.set(undefined, undefined);
-		const controller = new AbortController();
-		store.add(toDisposable(() => controller.abort()));
-		void this._gitHubService.acquireDefaultAccountClient(controller.signal).then(async reference => {
+		const controller = new CancellationTokenSource();
+		store.add(toDisposable(() => controller.dispose(true)));
+		void this._gitHubService.acquireDefaultAccountClient(controller.token).then(async reference => {
 			if (store.isDisposed) {
 				reference.dispose();
 				return;
 			}
 			const client = store.add(reference).object;
-			const credential = await client.credentials.getCredential(controller.signal);
-			if (controller.signal.aborted || generation !== entry.generation) {
+			const credential = await client.credentials.getCredential(controller.token);
+			if (controller.token.isCancellationRequested || generation !== entry.generation) {
 				return;
 			}
 			const ref: PullRequestRef = { ...credential.account, ...entry.target };
@@ -455,7 +457,7 @@ class AgentHostGitHubReferenceResolver extends Disposable {
 			void subscription.refresh('core').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request reference', error));
 			void subscription.refresh('checks').catch(error => this._logService.warn('[AgentHostSessionInputPills] Failed to refresh GitHub pull request checks', error));
 		}).catch(error => {
-			if (!controller.signal.aborted && generation === entry.generation) {
+			if (!controller.token.isCancellationRequested && generation === entry.generation) {
 				this._logService.warn('[AgentHostSessionInputPills] Failed to resolve GitHub credentials for pull request reference', error);
 				entry.subscription.clear();
 			}

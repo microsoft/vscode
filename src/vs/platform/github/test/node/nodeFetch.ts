@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { FetchFunction } from '../../common/githubTransport.js';
 
-export const nodeFetch: FetchFunction = async (input, init) => {
+
+export async function nodeFetch(input: Parameters<FetchFunction>[0], init?: Parameters<FetchFunction>[1], fetchToken = CancellationToken.None, _lifetime?: DisposableStore): Promise<Response> {
 	const http = await import('http');
 	const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
 	const body = init?.body;
@@ -15,8 +19,8 @@ export const nodeFetch: FetchFunction = async (input, init) => {
 	if (new URL(url).protocol !== 'http:') {
 		return Promise.reject(new Error('Agent Host GitHub tests only support HTTP loopback requests'));
 	}
-	if (init?.signal?.aborted) {
-		return Promise.reject(init.signal.reason);
+	if (fetchToken.isCancellationRequested) {
+		return Promise.reject(new CancellationError());
 	}
 	return new Promise<Response>((resolve, reject) => {
 		let settled = false;
@@ -25,7 +29,7 @@ export const nodeFetch: FetchFunction = async (input, init) => {
 				return;
 			}
 			settled = true;
-			init?.signal?.removeEventListener('abort', onAbort);
+			onCancellationSubscription.dispose();
 			callback();
 		};
 		const request = http.request(url, {
@@ -55,15 +59,15 @@ export const nodeFetch: FetchFunction = async (input, init) => {
 				})));
 			});
 		});
-		const onAbort = () => {
+		const onCancellation = () => {
 			request.destroy();
-			finish(() => reject(init?.signal?.reason));
+			finish(() => reject(new CancellationError()));
 		};
-		init?.signal?.addEventListener('abort', onAbort, { once: true });
-		request.on('error', error => finish(() => reject(init?.signal?.aborted ? init.signal.reason : error)));
+		const onCancellationSubscription = fetchToken.onCancellationRequested(onCancellation);
+		request.on('error', error => finish(() => reject(fetchToken.isCancellationRequested ? new CancellationError() : error)));
 		if (body !== undefined && body !== null) {
 			request.write(body);
 		}
 		request.end();
 	});
-};
+}

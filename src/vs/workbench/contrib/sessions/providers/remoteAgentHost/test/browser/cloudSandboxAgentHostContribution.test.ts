@@ -3101,16 +3101,16 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 					const [providerId, session] = args;
 					const authorization = toGitHubAuthorizationContext(providerId, session);
 					const lifetime = new DisposableStore();
-					const controller = new AbortController();
-					lifetime.add(toDisposable(() => controller.abort()));
+					const controller = new CancellationTokenSource();
+					lifetime.add(toDisposable(() => controller.dispose(true)));
 					const credentials: IGitHubCredentials = {
 						onDidInvalidate: Event.None,
-						getCredential: async () => ({ account: { host: 'api.github.com', accountId: 'account-1' }, token: 'token', generation: 0, signal: controller.signal }),
+						getCredential: async () => ({ account: { host: 'api.github.com', accountId: 'account-1' }, token: 'token', generation: 0, cancellationToken: controller.token }),
 						handleRequestError: () => { },
 					};
 					const provider = new LocalMissionControlRequestProvider({
 						apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test',
-					}, credentials, transport, new NullLogService(), controller.signal);
+					}, credentials, transport, new NullLogService(), controller.token);
 					return new AccountClient(authorization, { rest: provider, graphql: provider, missionControl: provider }, lifetime);
 				}
 			}(),

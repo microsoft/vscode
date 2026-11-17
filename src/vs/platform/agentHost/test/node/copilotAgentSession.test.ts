@@ -31135,7 +31135,7 @@ Use the attached image as context.
 			assert.strictEqual(result.resultType, 'failure');
 		});
 
-		test('client tool handler waits for completion without emitting tool_ready', async () => {
+		test('client tool handler releases a held tool_ready when the runtime authorized it without a permission request', async () => {
 
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
@@ -31153,14 +31153,22 @@ Use the attached image as context.
 			if (isAction(startSignal!, ActionType.ChatToolCallStart)) {
 				assert.deepStrictEqual((startSignal.action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
 			}
+			// Held for the permission flow until the handler runs.
+			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
 
-			// SDK invokes the handler — it creates a deferred and waits,
-			// but does NOT fire tool_ready (that comes from the permission flow).
+			// The runtime approved the call without a permission request (e.g. a standing
+			// approval) and invokes the handler, which must release the held ready so the
+			// client runs the tool instead of every side waiting until the runtime times out.
 			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
 
-			// No pending_confirmation or tool_ready should have been emitted by the handler
-			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
+			assert.deepStrictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).map(s => {
+				if (s.kind === 'pending_confirmation') {
+					return { kind: s.kind };
+				}
+				const action = (s as { action: ChatToolCallReadyAction }).action;
+				return { type: action.type, toolCallId: action.toolCallId, confirmed: action.confirmed, contributor: action.contributor };
+			}), [{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-client-1', confirmed: ToolCallConfirmationReason.NotNeeded, contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' } }]);
 
 			// Complete the tool call
 			session.handleClientToolCallComplete('tc-client-1', {
@@ -31172,6 +31180,29 @@ Use the attached image as context.
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'result text');
+		});
+
+		test('client tool handler that runs before the tool start releases tool_ready once the start arrives', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
+
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-early-handler', {});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-early-handler',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.deepStrictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).map(s => {
+				if (s.kind === 'pending_confirmation') {
+					return { kind: s.kind };
+				}
+				const action = (s as { action: ChatToolCallReadyAction }).action;
+				return { type: action.type, toolCallId: action.toolCallId, confirmed: action.confirmed };
+			}), [{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-early-handler', confirmed: ToolCallConfirmationReason.NotNeeded }]);
+
+			session.handleClientToolCallComplete('tc-early-handler', { success: true, pastTenseMessage: 'did it', content: [] });
+			assert.strictEqual((await handlerPromise).resultType, 'success');
 		});
 
 		test('client tool auto-readies when SDK allow-all mode is on', async () => {
