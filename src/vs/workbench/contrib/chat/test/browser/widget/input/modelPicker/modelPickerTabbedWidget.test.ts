@@ -1491,6 +1491,30 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('search lists newer model versions first without reversing alphabetical order', () => {
+		const models = [
+			['gpt-5.6-sol', 'GPT-5.6 Sol'],
+			['gpt-6-sol', 'GPT-6 Sol'],
+			['gpt-6.1-sol', 'GPT-6.1 Sol'],
+			['claude-sonnet-5', 'Claude Sonnet 5'],
+		].map(([id, name]) => {
+			const entry = model(id);
+			return { ...entry, metadata: { ...entry.metadata, name } };
+		});
+		const { popup } = createPicker({ models, selectedModelId: models[2].identifier, pinnedModelIds: models.map(model => model.identifier) });
+		element(popup, '[data-id="search"]').click();
+		const input = popup.querySelector<HTMLInputElement>('input')!;
+		const results = ['', 'sol'].map(query => {
+			input.value = query;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			return [...popup.querySelectorAll('.chat-model-picker-model .title')].map(title => title.textContent);
+		});
+		assert.deepStrictEqual(results, [
+			['Claude Sonnet 5', 'GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol'],
+			['GPT-6.1 Sol', 'GPT-6 Sol', 'GPT-5.6 Sol'],
+		]);
+	});
+
 	test('idempotent filtered opening focuses the exact row without selecting it', () => {
 		const a = model('same');
 		const b = { ...model('same'), identifier: 'codex/target', metadata: { ...a.metadata, vendor: 'codex', modelPickerGroup: { id: 'copilot', label: 'GitHub Copilot' } } };

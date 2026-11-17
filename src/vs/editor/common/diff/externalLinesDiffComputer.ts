@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDiffComputer as IExternalDiffComputer, createDiffComputer as createExternalDiffComputer } from '@vscode/diff';
+// #if MONACO
+// import { createTsDiffComputer } from '@vscode/diff/core';
+// #endif
 import { resolveAmdNodeModulePath } from '../../../amdX.js';
 import { LineRange } from '../core/ranges/lineRange.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
@@ -19,9 +22,14 @@ let externalModulePromise: Promise<ExternalDiffModule> | undefined;
 
 function loadExternalModule(): Promise<ExternalDiffModule> {
 	if (!externalModulePromise) {
+		// #if MONACO
+		// // The standalone editor's users bundle `@vscode/diff` like any other dependency; it has no wasm there.
+		// externalModulePromise = Promise.resolve({ createDiffComputer: async () => createTsDiffComputer() });
+		// #else
 		const url = resolveAmdNodeModulePath('@vscode/diff', 'dist/index.js');
 		// Use a runtime-computed URL to keep bundlers from rewriting the import.
 		externalModulePromise = import(/* webpackIgnore: true */ /* @vite-ignore */ `${url}`) as Promise<ExternalDiffModule>;
+		// #endif
 	}
 	return externalModulePromise;
 }

@@ -245,6 +245,11 @@ export interface IArtifactBindingContext {
 	readonly artifact: ArtifactRecord;
 	readonly configuration: IObservable<ArtifactAutomationConfiguration>;
 	readonly state: IArtifactBindingStateStore;
+	/**
+	 * Posts plain text about a change of the bound resource as a system notice in the chat that recorded the artifact.
+	 * It is never sent to an agent. Absent when the runtime cannot post notices.
+	 */
+	postNotice?(content: string): Promise<void>;
 }
 
 export interface ArtifactResourceMatch {

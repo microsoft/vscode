@@ -17,7 +17,7 @@ import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
 import { InAgentsChatPartContext } from './agentsChatPartContext.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
-import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
+import { getEditorWindowComposerTarget, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
@@ -233,7 +233,7 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			if (!folderUri) {
 				return;
 			}
-			await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(accessor.get(IEditorWindowComposerFoldersService), folderUri, latest), { newComposer: true });
+			await accessor.get(IEditorWindowSessionsPresenterService).presenter.get().openComposer(getNewSessionTarget(accessor.get(IEditorWindowComposerFoldersService), folderUri, latest), { newComposer: true });
 		}
 	}));
 
@@ -253,7 +253,7 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			const session = Array.isArray(context) ? (context.length === 1 ? context[0] : undefined) : context;
 			const folderUri = session && getSessionFolder(session);
 			if (session && folderUri) {
-				await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(accessor.get(IEditorWindowComposerFoldersService), folderUri, session), { newComposer: true });
+				await accessor.get(IEditorWindowSessionsPresenterService).presenter.get().openComposer(getNewSessionTarget(accessor.get(IEditorWindowComposerFoldersService), folderUri, session), { newComposer: true });
 			}
 		}
 	}));

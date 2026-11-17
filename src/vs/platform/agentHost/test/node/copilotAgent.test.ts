@@ -10,6 +10,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { readCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
+import { readCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
@@ -3092,11 +3093,11 @@ suite('CopilotAgent', () => {
 			afterTest(() => disposeAgent(agent));
 
 			const marketplaces = await agent.listPluginMarketplaces();
-			assert.deepStrictEqual(marketplaces.map(marketplace => ({ name: marketplace.name, source: marketplace.source })), [
-				{ name: 'user-marketplace', source: `${source.source === 'github' ? source.repo : source.url}#${source.ref}` },
-				{ name: 'managed-marketplace', source: displaySource },
-				{ name: 'default-marketplace', source: displaySource },
-				{ name: 'team-marketplace', source: displaySource },
+			assert.deepStrictEqual(marketplaces.map(marketplace => ({ name: marketplace.name, source: marketplace.source, team: marketplace.team })), [
+				{ name: 'user-marketplace', source: `${source.source === 'github' ? source.repo : source.url}#${source.ref}`, team: undefined },
+				{ name: 'managed-marketplace', source: displaySource, team: undefined },
+				{ name: 'default-marketplace', source: displaySource, team: undefined },
+				{ name: 'team-marketplace', source: displaySource, team: true },
 			]);
 		});
 	}
@@ -3174,6 +3175,7 @@ suite('CopilotAgent', () => {
 			{ name: 'disabled', marketplace: 'marketplace', enabled: false, version: '1.0' },
 			{ name: 'direct', marketplace: '', enabled: true, directSourceId: 'opaque-source', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, description: 'Verified plugin', iconUrl: 'https://example.test/icon.png' },
 			{ name: 'live', marketplace: 'local', enabled: true, installedFrom: '/marketplaces/local' },
+			{ name: 'assigned', marketplace: 'marketplace', enabled: true, team: true },
 			{ name: 'missing-managed', marketplace: 'enterprise', enabled: false, managed: true, installed: false },
 			{ name: 'builtin', marketplace: '', enabled: true, source: 'builtin' },
 		];
@@ -3183,6 +3185,7 @@ suite('CopilotAgent', () => {
 			{ name: 'disabled', marketplace: 'marketplace', directSourceId: undefined, enabled: false, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: '1.0', description: undefined, verifiedSource: undefined, iconUrl: undefined },
 			{ name: 'direct', marketplace: '', directSourceId: 'opaque-source', enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: 'Verified plugin', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, iconUrl: 'https://example.test/icon.png' },
 			{ name: 'live', marketplace: 'local', directSourceId: undefined, enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
+			{ name: 'assigned', marketplace: 'marketplace', directSourceId: undefined, enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, team: true, resource: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
 		]);
 	});
 
@@ -3237,20 +3240,21 @@ suite('CopilotAgent', () => {
 		afterTest(() => disposeAgent(agent));
 		const session = AgentSession.uri('copilotcli', 'managed-inventory');
 		setDefaultSessionStub(agent, 'managed-inventory', {
+			// Team assignment follows the signed-in account, so only the chat inventory reports it here.
 			listInstalledPlugins: async () => [
 				{ ...client.pluginInstallations[0], enabled: true, managed: true, managedDesiredEnabled: true, installed: true },
-				client.pluginInstallations[1],
-				{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+				{ ...client.pluginInstallations[1], team: true },
+				{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false, team: true },
 			],
 		});
 		const customizations = await agent['_getOrCreateActiveClient'](session, URI.file('/workspace')).pluginController.getCustomizationsSettled();
 		assert.deepStrictEqual(Object.fromEntries(customizations.filter(item => item.type === CustomizationType.Plugin).map(plugin => {
 			const runtime = readRuntimePluginEnablement(plugin);
-			return [plugin.name, { load: plugin.load?.kind, global: runtime?.globalEnabled, effective: runtime?.effectiveEnabled, required: runtime?.managedDesiredEnabled, organization: readCustomizationOrganizationMeta(plugin) }];
+			return [plugin.name, { load: plugin.load?.kind, global: runtime?.globalEnabled, effective: runtime?.effectiveEnabled, required: runtime?.managedDesiredEnabled, organization: readCustomizationOrganizationMeta(plugin), team: readCustomizationTeamProvided(plugin) }];
 		})), {
-			required: { load: CustomizationLoadStatus.Loaded, global: false, effective: true, required: true, organization: undefined },
-			own: { load: CustomizationLoadStatus.Loaded, global: true, effective: true, required: undefined, organization: undefined },
-			missing: { load: CustomizationLoadStatus.Error, global: undefined, effective: undefined, required: undefined, organization: { requiredEnabled: true } },
+			required: { load: CustomizationLoadStatus.Loaded, global: false, effective: true, required: true, organization: undefined, team: false },
+			own: { load: CustomizationLoadStatus.Loaded, global: true, effective: true, required: undefined, organization: undefined, team: true },
+			missing: { load: CustomizationLoadStatus.Error, global: undefined, effective: undefined, required: undefined, organization: { requiredEnabled: true }, team: true },
 		});
 	});
 

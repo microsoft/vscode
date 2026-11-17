@@ -27,6 +27,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { AGENT_DISCOVERY_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { withCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
+import { withCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
@@ -776,7 +777,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 						version: plugin.version,
 						load: { kind: CustomizationLoadStatus.Error, message: localize('copilot.managedPluginNotInstalled', "Your organization requires this plugin, but it isn't installed.") },
 						children: [],
-						_meta: withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }),
+						_meta: withCustomizationTeamProvided(withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }), plugin.team),
 					});
 				}
 				continue;
@@ -794,6 +795,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					pluginChildren.set(projected.id, projected);
 				}
 			}
+			const meta = withCustomizationTeamProvided(plugin.managed ? withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }) : discoveryMeta, plugin.team);
 			result.set(root, {
 				type: CustomizationType.Plugin,
 				id: customizationId(uri),
@@ -802,7 +804,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				version: plugin.version,
 				load: { kind: CustomizationLoadStatus.Loaded },
 				children: [...pluginChildren.values()],
-				...(plugin.managed ? { _meta: withCustomizationOrganizationMeta(discoveryMeta, { requiredEnabled: plugin.managedDesiredEnabled }) } : discoveryMeta ? { _meta: discoveryMeta } : {}),
+				...(meta ? { _meta: meta } : {}),
 			});
 		}
 		for (const id of pluginIds) {

@@ -94,9 +94,9 @@ export class SessionsListingScopeFilter extends Disposable {
 	 * its main chat works (see `_getScopingFolders`): the folders its other chats add count only while the main chat has none. `scopeGitHubRepositories`, as lowercase `owner/repo`, are the GitHub repositories of the scope folders'
 	 * `origin`: a session working in one of them on GitHub, on any branch, such as a Copilot Cloud session, is in the scope
 	 * too. Only the metadata the providers report is read, comparing whole URIs, so a session of another host never matches a
-	 * local folder. A workspace-less quick chat, by its own `isQuickChat` flag, is in every scope: a session whose workspace
-	 * is not known yet is not, as it may still hydrate into another folder. The result follows the sessions' workspaces and
-	 * quick-chat flags through `reader`.
+	 * local folder. A session without a workspace, such as a quick chat, is in no scope: only an empty window, which has no
+	 * scope, lists it. A session whose workspace is not known yet joins the scope once it hydrates into a scope folder. The
+	 * result follows the sessions' workspaces through `reader`.
 	 */
 	private _getSessionsInScope(sessions: readonly ISession[], scopeFolders: readonly URI[], reader: IReader, scopeGitHubRepositories: readonly string[]): ReadonlySet<ISession> {
 		const extUri = extUriBiasedIgnorePathCase;
@@ -105,7 +105,7 @@ export class SessionsListingScopeFilter extends Disposable {
 		const isScopeFolder = (uri: URI | undefined) => !!uri && (scopeFolders.some(folder => extUri.isEqual(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories));
 		const included = new Set<ISession>();
 		for (const session of sessions) {
-			if (session.isQuickChat?.read(reader) || this._getScopingFolders(session, reader).some(folder => worksInScope(folder.workingDirectory) || isScopeFolder(folder.root) || isScopeFolder(folder.gitRepository?.uri))) {
+			if (this._getScopingFolders(session, reader).some(folder => worksInScope(folder.workingDirectory) || isScopeFolder(folder.root) || isScopeFolder(folder.gitRepository?.uri))) {
 				included.add(session);
 			}
 		}

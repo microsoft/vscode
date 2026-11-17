@@ -246,6 +246,7 @@ import './contrib/sessions/browser/chatView/chatViewOpenInChatPart.contribution.
 import './contrib/sessions/providers/agentsView/browser/agentsViewProviders.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
+import './contrib/sessions/browser/chatView/chatViewSessionsList.contribution.js';
 
 // Screenshot Tool
 import './contrib/screenshotTool/browser/screenshotTool.contribution.js';

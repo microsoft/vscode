@@ -267,6 +267,18 @@ suite('SessionsListModelService', () => {
 		});
 	}));
 
+	test('a malformed stored Inbox entry does not discard the other triage decisions', () => {
+		storageService.store('sessionsListControl.inboxState', JSON.stringify([
+			['held', { kind: 'hold' }],
+			['broken', { kind: 'unknown' }],
+			['alsoBroken'],
+			['snoozed', { kind: 'snoozed', until: Date.now() + 60_000 }],
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual(['held', 'broken', 'snoozed'].map(id => service.getInboxState(createSession(id))?.kind), ['hold', undefined, 'snoozed']);
+	});
+
 	test('explicit triage of historical unread completions survives reload', () => {
 		sessions.push(...['dismissed', 'held', 'timed', 'untilActivity'].map(id => ({
 			...createSession(id), isRead: constObservable(false),

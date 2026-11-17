@@ -276,7 +276,11 @@ interface IFixtureAgentHostPlugin {
 	readonly organization?: string;
 	readonly enabled?: boolean;
 	readonly organizationControl?: ICustomizationOrganizationControl;
-	/** Enablement actions, which pair the plugin with a runtime-installed plugin of the same name. */
+	/** Set when the user's GitHub Team assigns the plugin. */
+	readonly teamProvided?: boolean;
+	/** Marketplace the runtime installed the plugin from, which locates it where its runtime-installed plugin is. */
+	readonly marketplace?: string;
+	/** Enablement actions, which a plugin needs to pair with the runtime-installed plugin at the same location. */
 	readonly actions?: ICustomizationItem['actions'];
 }
 
@@ -285,7 +289,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 		onDidChange: Event.None,
 		async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
 			const pluginItems = plugins.map((plugin): ICustomizationItem => ({
-				uri: URI.file(`/home/dev/.copilot/installed-plugins/${plugin.name}`),
+				uri: URI.file(`/home/dev/.copilot/installed-plugins/${plugin.marketplace ? `${plugin.marketplace}/` : ''}${plugin.name}`),
 				type: 'plugin',
 				name: plugin.name,
 				description: plugin.description,
@@ -297,6 +301,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 				statusMessage: plugin.statusMessage,
 				enabled: plugin.enabled,
 				organizationControl: plugin.organizationControl,
+				teamProvided: plugin.teamProvided,
 				actions: plugin.actions,
 				extensionId: undefined,
 				pluginUri: undefined,
@@ -4556,6 +4561,23 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	// Plugins a GitHub Team assigns. This is provenance only, so the organization tag wins when both apply.
+	TeamProvidedAgentHostPlugins: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The contoso-onboarding row shows a Managed by your GitHub Team tag with a shield icon next to its name. The contoso-compliance row, which the Team assigns and the organization requires, shows only the Managed by your organization tag. The azure row has no tag.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			marketplaceVisibilityEnabled: true,
+			agentHostPlugins: [
+				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded' },
+				{ name: 'contoso-onboarding', description: 'Onboarding workflows for the Contoso platform team', scope: 'user', status: 'loaded', teamProvided: true },
+				{ name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', teamProvided: true, organizationControl: { requiredEnabled: true } },
+			],
+			height: 1180,
+		}),
+	}),
+
 	// Organization managed settings: plugins the agent host runtime installed are listed as local rows
 	// paired with their agent-host plugin, which reports what the organization requires for the session.
 	OrgManagedRuntimeInstalledPlugins: defineComponentFixture({
@@ -4568,11 +4590,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			runtimeInstalledPlugins: ['contoso-compliance', 'azure'],
 			agentHostPlugins: [
 				{
-					name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', organizationControl: { requiredEnabled: true },
+					name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', organizationControl: { requiredEnabled: true }, marketplace: 'contoso',
 					actions: [{ id: 'agentPlugin.runtime.disable.global', label: 'Disable Globally', checked: true, enabled: false, tooltip: 'This plugin is managed by your organization.', scope: 'global', run: () => { } }],
 				},
 				{
-					name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded',
+					name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded', marketplace: 'contoso',
 					actions: [{ id: 'agentPlugin.runtime.disable.global', label: 'Disable Globally', checked: true, scope: 'global', run: () => { } }],
 				},
 				{ name: 'contoso-security', description: 'Security scanning required by your organization', scope: 'user', status: 'error', statusMessage: 'Your organization requires this plugin, but it isn\'t installed.', organizationControl: { requiredEnabled: true } },

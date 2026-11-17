@@ -123,6 +123,7 @@ import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHos
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
 import { hasKey } from '../../../../../../base/common/types.js';
+import { stubChatViewSessionsListService } from '../../../../../../workbench/contrib/chat/test/common/chatViewSessionsListServiceTestUtils.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -840,6 +841,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		}
 	}());
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options?.isSessionsWindow ?? true } as IWorkbenchEnvironmentService);
+	stubChatViewSessionsListService(instantiationService);
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: options?.confirmDelete ?? true }) });
 	instantiationService.stub(IChatSessionsService, {

@@ -212,6 +212,7 @@ import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { ICanvas } from '../../../../../common/canvasReference.js';
 import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { stubChatViewSessionsListService } from '../../common/chatViewSessionsListServiceTestUtils.js';
 
 type ILegacyTimedChatAction =
 	| { type: 'chat/turnComplete'; turnId: string; endedAt: string }
@@ -1254,6 +1255,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		reconcile: async () => { },
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
+	stubChatViewSessionsListService(instantiationService);
 	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	instantiationService.stub(IChatInputNotificationService, {
 		_serviceBrand: undefined,
@@ -19413,7 +19415,7 @@ suite('AgentHostChatContribution', () => {
 				activeSessions: 0,
 			};
 
-			function createRegistrationServices(policy = false) {
+			function createRegistrationServices(policy = false, configuration: Record<string, unknown> = {}) {
 				const services = createTestServices(disposables);
 				const { instantiationService, agentHostService } = services;
 				agentHostService.addSession({ session: AgentSession.uri('claude', 'saved'), provider: 'claude', startTime: 0, modifiedTime: 0 });
@@ -19423,7 +19425,7 @@ suite('AgentHostChatContribution', () => {
 						const value = super.inspect<T>(key);
 						return { ...value, policyValue: policy && key === claudeSetting ? value.value : undefined };
 					}
-				}({ [claudeSetting]: true, [codexSetting]: true, 'chat.editor.codex.preferAgentHost': true });
+				}({ [claudeSetting]: true, [codexSetting]: true, 'chat.editor.codex.preferAgentHost': true, ...configuration });
 				disposables.add(configurationService.onDidChangeConfigurationEmitter);
 				instantiationService.stub(IConfigurationService, configurationService);
 				const subscription = disposables.add(new RootStateSubscription('root-snapshot-test', () => { }));
@@ -19469,6 +19471,26 @@ suite('AgentHostChatContribution', () => {
 				subscription.handleSnapshot(rootState, 0);
 				await timeout(0);
 				assert.deepStrictEqual(chatSessionContributions.map(contribution => [contribution.type, contribution.requiresCustomModels]), [['agent-host-copilot', true], ['agent-host-claude', true]]);
+			});
+
+			test('surfaces Codex in an editor window only while the Chat view shows the sessions of the Agents window, following that setting live', async () => {
+				const { instantiationService, subscription, changePreference, chatSessionContributions } = createRegistrationServices(false, { 'chat.editor.codex.preferAgentHost': false, [ChatConfiguration.ChatViewSessionsListEnabled]: false });
+				disposables.add(instantiationService.createInstance(AgentHostContribution));
+				subscription.handleSnapshot({ ...rootState, agents: [...rootState.agents, { provider: 'codex', displayName: 'Codex', description: 'test', models: [] }] }, 0);
+				await timeout(0);
+				const types = () => chatSessionContributions.map(contribution => contribution.type);
+				const off = types();
+				await changePreference(ChatConfiguration.ChatViewSessionsListEnabled, true);
+				await timeout(0);
+				const on = types();
+				await changePreference(ChatConfiguration.ChatViewSessionsListEnabled, false);
+				await timeout(0);
+
+				assert.deepStrictEqual({ off, on, offAgain: types() }, {
+					off: ['agent-host-copilot', 'agent-host-claude'],
+					on: ['agent-host-copilot', 'agent-host-claude', 'agent-host-codex'],
+					offAgain: ['agent-host-copilot', 'agent-host-claude'],
+				});
 			});
 
 			for (const kind of ['Error', 'undefined'] as const) {

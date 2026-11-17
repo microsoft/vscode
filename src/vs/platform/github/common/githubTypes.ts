@@ -80,6 +80,8 @@ export class GitHubRequestRateLimitError extends GitHubRequestError {
 export interface GitHubHostCapabilities {
 	readonly graphql: boolean;
 	readonly mergeQueue: boolean;
+	/** Whether the host reports why a pull request left its merge queue, through `RemovedFromMergeQueueEvent`. */
+	readonly mergeQueueRemovals: boolean;
 	readonly reviewThreads: boolean;
 	readonly checkContextRequiredness: boolean;
 }

@@ -17,6 +17,7 @@ import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 const unavailableCapabilities: GitHubHostCapabilities = {
 	graphql: false,
 	mergeQueue: false,
+	mergeQueueRemovals: false,
 	reviewThreads: false,
 	checkContextRequiredness: false,
 };
@@ -25,12 +26,14 @@ const unavailableCapabilities: GitHubHostCapabilities = {
  * GitHub rejects any query that selects `__Type.fields` more than twice with an
  * `INTROSPECTION_LIMIT_EXCEEDED` error, so the two `fields` selections below are the entire budget.
  * `RequirableByPullRequest` therefore only gets an existence check: `isRequired` is the sole field
- * of that interface, so the interface being present implies the field is available.
+ * of that interface, so the interface being present implies the field is available. `RemovedFromMergeQueueEvent` is
+ * likewise only checked for existence; it came with the `reason` and `beforeCommit` fields that the removal is read with.
  */
 const capabilitiesQuery = `query AgentHostGitHubCapabilities {
 	pullRequest: __type(name: "PullRequest") { fields { name } }
 	repository: __type(name: "Repository") { fields { name } }
 	requirableByPullRequest: __type(name: "RequirableByPullRequest") { name }
+	removedFromMergeQueueEvent: __type(name: "RemovedFromMergeQueueEvent") { name }
 	rateLimit { limit remaining used resetAt }
 }`;
 
@@ -42,6 +45,7 @@ interface ICapabilitiesProbe {
 	readonly pullRequest?: ITypeFields;
 	readonly repository?: ITypeFields;
 	readonly requirableByPullRequest?: { readonly name?: string };
+	readonly removedFromMergeQueueEvent?: { readonly name?: string };
 }
 
 interface ICapabilitiesProbeResult {
@@ -228,10 +232,12 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			}
 			const pullRequestFields = fieldNames(response.data.pullRequest);
 			const repositoryFields = fieldNames(response.data.repository);
+			const mergeQueue = pullRequestFields.has('mergeQueueEntry') && repositoryFields.has('mergeQueue');
 			return {
 				capabilities: {
 					graphql: true,
-					mergeQueue: pullRequestFields.has('mergeQueueEntry') && repositoryFields.has('mergeQueue'),
+					mergeQueue,
+					mergeQueueRemovals: mergeQueue && typeof response.data.removedFromMergeQueueEvent?.name === 'string',
 					reviewThreads: pullRequestFields.has('reviewThreads'),
 					checkContextRequiredness: typeof response.data.requirableByPullRequest?.name === 'string',
 				},
@@ -247,6 +253,7 @@ function formatCapabilities(capabilities: GitHubHostCapabilities): string {
 	return [
 		`graphql=${capabilities.graphql}`,
 		`mergeQueue=${capabilities.mergeQueue}`,
+		`mergeQueueRemovals=${capabilities.mergeQueueRemovals}`,
 		`reviewThreads=${capabilities.reviewThreads}`,
 		`checkContextRequiredness=${capabilities.checkContextRequiredness}`,
 	].join(', ');
