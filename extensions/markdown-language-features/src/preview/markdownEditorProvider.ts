@@ -28,6 +28,8 @@ import { MarkdownEditorRename } from './markdownEditorRename';
 import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
 import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
 import { MarkdownEditorNavigation } from './markdownEditorNavigation';
+import { MarkdownEditorSessionTelemetry, type MarkdownEditorViewState } from './markdownEditorTelemetry';
+import type { TelemetryReporter } from '../telemetryReporter';
 
 export interface MarkdownCodeBlockEditorApiV1 {
 	getProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
@@ -271,6 +273,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #contributions: MarkdownContributionProvider;
 	readonly #logger: ILogger;
 	readonly #tryOpenLink: (href: string, fromResource: vscode.Uri) => Promise<boolean>;
+	readonly #telemetryReporter: TelemetryReporter;
+	readonly #telemetrySessions = new Set<MarkdownEditorSessionTelemetry>();
 	readonly #webviewPanels = new Map<vscode.WebviewPanel, AuthenticatedWebview>();
 	readonly #navigation = new Map<vscode.WebviewPanel, MarkdownEditorNavigation>();
 	readonly #focusedWebviewPanels = new Set<vscode.WebviewPanel>();
@@ -287,6 +291,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		contributions: MarkdownContributionProvider,
 		logger: ILogger,
 		tryOpenLink: (href: string, fromResource: vscode.Uri) => Promise<boolean>,
+		telemetryReporter: TelemetryReporter,
 	) {
 		super();
 		this.#extensionUri = extensionUri;
@@ -295,7 +300,15 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#contributions = contributions;
 		this.#logger = logger;
 		this.#tryOpenLink = tryOpenLink;
+		this.#telemetryReporter = telemetryReporter;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
+		// Editors still open when the extension deactivates (window closed or reloaded) end here.
+		this._register(new vscode.Disposable(() => {
+			for (const session of this.#telemetrySessions) {
+				session.end('shutdown');
+			}
+			this.#telemetrySessions.clear();
+		}));
 		this._register(new vscode.Disposable(() => {
 			void vscode.commands.executeCommand('setContext', 'markdownEditorFocus', false);
 		}));
@@ -398,6 +411,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		let webviewText = document.getText();
 		let webviewReady = false;
 		let readonly = this.#getInitialReadonly(document);
+		// Inline diff editors are not usage sessions of the Markdown editor itself
+		const telemetry = originalDocument ? undefined : this.#startTelemetrySession(document, webviewPanel, readonly);
 		let codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] | undefined;
 		let contributionUpdate = 0;
 		const resolveCancellation = new vscode.CancellationTokenSource();
@@ -577,6 +592,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 			setReadonly: async message => {
 				readonly = message.readonly;
+				telemetry?.session.setMode(readonly ? 'read' : 'edit');
 				await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, message.readonly);
 			},
 			history: async (message, _context, { signal }) => {
@@ -640,6 +656,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 						if (!await vscode.workspace.applyEdit(edit)) {
 							throw new Error('Workspace rejected Markdown editor edit');
 						}
+						telemetry?.session.recordEdit();
 						if (messageEdit.editEpoch === editQueue.epoch) {
 							webviewText = computedEdit.nextWebviewText;
 						}
@@ -756,6 +773,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#configureWebview(document, editorWebview, editQueue.epoch, readonly);
 
 		webviewPanel.onDidDispose(() => {
+			telemetry?.dispose();
 			navigation.dispose();
 			this.#navigation.delete(webviewPanel);
 			imagePaste.dispose();
@@ -787,6 +805,38 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			onDidChangeLinkPresentationRules.dispose();
 			richLinks.dispose();
 		});
+	}
+
+	#startTelemetrySession(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, readonly: boolean): { readonly session: MarkdownEditorSessionTelemetry; dispose(): void } {
+		const getViewState = (): MarkdownEditorViewState => ({
+			visible: webviewPanel.visible,
+			focused: webviewPanel.active && vscode.window.state.focused,
+		});
+		const session = new MarkdownEditorSessionTelemetry(this.#telemetryReporter, {
+			scheme: document.uri.scheme,
+			textLength: document.getText().length,
+			mode: readonly ? 'read' : 'edit',
+			viewState: getViewState(),
+		});
+		this.#telemetrySessions.add(session);
+		if (document.uri.scheme === 'untitled') {
+			// Links the session with the untitled document funnel of the workbench
+			Promise.resolve(vscode.commands.executeCommand<string | undefined>('_workbench.getUntitledDocumentId', document.uri)).then(
+				id => session.setUntitledDocumentId(typeof id === 'string' ? id : undefined),
+				() => { /* not supported by this host */ });
+		}
+		const listeners = [
+			webviewPanel.onDidChangeViewState(() => session.setViewState(getViewState())),
+			vscode.window.onDidChangeWindowState(() => session.setViewState(getViewState())),
+		];
+		return {
+			session,
+			dispose: () => {
+				disposeAll(listeners);
+				this.#telemetrySessions.delete(session);
+				session.end('closed');
+			},
+		};
 	}
 
 	public async executeCommand(command: string): Promise<void> {

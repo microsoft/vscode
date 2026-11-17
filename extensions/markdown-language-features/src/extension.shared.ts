@@ -32,8 +32,7 @@ export function activateShared(
 	logger: ILogger,
 	contributions: MarkdownContributionProvider,
 ) {
-	const telemetryReporter = loadDefaultTelemetryReporter();
-	context.subscriptions.push(telemetryReporter);
+	const telemetryReporter = loadDefaultTelemetryReporter(context.extension);
 
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const commandManager = new CommandManager();
@@ -65,8 +64,12 @@ export function activateShared(
 		contributions,
 		logger,
 		(href, fromResource) => linkPresentationService.openLink(href, fromResource),
+		telemetryReporter,
 	);
 	context.subscriptions.push(markdownEditorProvider);
+	// Subscriptions are disposed in order: keep the reporter alive until the Markdown editor
+	// has reported the sessions that end when the extension deactivates.
+	context.subscriptions.push(telemetryReporter);
 	context.subscriptions.push(registerMarkdownEditorCommands(context, markdownEditorProvider));
 	context.subscriptions.push(vscode.window.registerCustomEditorProvider(
 		MarkdownEditorProvider.viewType,
