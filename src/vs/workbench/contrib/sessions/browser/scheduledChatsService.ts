@@ -711,6 +711,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		this.assertWritable(automation);
 		const current = this.editingRequest.get();
 		if (current?.id === automation.id) {
+			await this.revealScheduledRequest(automation);
 			return;
 		}
 		if (current && this.automationService.automations.get().some(item => item.id === current.id && !item.oneTimeDispatchedAt)) {
@@ -759,18 +760,28 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			},
 		};
 		this.editingRequest.set({ id: automation.id, state }, undefined);
-		const conversation = automation.conversation ?? handoff?.conversation;
-		const session = conversation && this.sessionsManagementService.getSession(conversation.sessionResource);
-		if (conversation && session && ![...this.chatInputs.keys()].some(widget => widget.visible && isEqual(widget.viewModel?.sessionResource, conversation.chatResource))) {
-			try {
-				await this.sessionsService.openChat(session, conversation.chatResource);
-			} catch (error) {
-				if (this.editingRequest.get()?.state === state) {
-					this.editingRequest.set(undefined, undefined);
-				}
-				throw error;
+		try {
+			await this.revealScheduledRequest(automation);
+		} catch (error) {
+			if (this.editingRequest.get()?.state === state) {
+				this.editingRequest.set(undefined, undefined);
 			}
+			throw error;
 		}
+	}
+
+	private async revealScheduledRequest(automation: IAutomationDescriptor): Promise<void> {
+		const handoff = this.readHandoffs().find(candidate => candidate.automationId === automation.id || candidate.id === automation.creationId);
+		const conversation = automation.conversation ?? handoff?.conversation;
+		if (!conversation) {
+			return;
+		}
+		const getWidget = () => [...this.chatInputs.keys()].find(widget => widget.visible && isEqual(widget.viewModel?.sessionResource, conversation.chatResource));
+		const session = this.sessionsManagementService.getSession(conversation.sessionResource);
+		if (session && !getWidget()) {
+			await this.sessionsService.openChat(session, conversation.chatResource);
+		}
+		getWidget()?.revealScheduledRequest(automation.id);
 	}
 
 	private async saveEditedRequest(automation: IAutomationDescriptor, state: Pick<IChatScheduledRequestEditing, 'text' | 'input' | 'runAt'>, newSession?: { target: ISavedSessionDraftTarget; session: ISession }): Promise<IAutomationDescriptor> {

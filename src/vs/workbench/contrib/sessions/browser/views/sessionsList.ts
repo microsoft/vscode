@@ -1780,6 +1780,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			scheduledSessionResources?: IObservable<ReadonlySet<string>>;
 			/** Each session's scheduled messages, by session resource, for the card its clock shows. */
 			scheduledRequests?: IObservable<ReadonlyMap<string, readonly IChatScheduledRequest[]>>;
+			focusSession?: (session: ISession) => void;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1943,7 +1944,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const run = async (requestId: string, actionId: string) => {
 			this.hoverService.hideHover(true);
 			try {
-				const action = getRequests().find(request => request.id === requestId)?.actions.find(action => action.id === actionId);
+				const request = getRequests().find(request => request.id === requestId);
+				const action = request?.actions.find(action => action.id === actionId)
+					?? (request?.editAction?.id === actionId ? request.editAction : undefined);
 				if (!action?.enabled) {
 					throw new Error(localize('scheduledSessionActionUnavailable', "This scheduled message has changed. Open its session to manage it."));
 				}
@@ -1986,22 +1989,26 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		indicator.removeAttribute('aria-hidden');
 		indicator.setAttribute('role', 'button');
 		indicator.setAttribute('aria-label', localize('showScheduledMessages', "Show Scheduled Messages"));
-		const showHover = (focus: boolean) => this.hoverService.showInstantHover({
-			...hoverOptions(), target: indicator, trapFocus: focus, persistence: { hideOnHover: false, sticky: true },
-		}, focus);
+		const showHover = () => {
+			this.hoverService.hideHover(true);
+			indicator.focus();
+			this.hoverService.showInstantHover({
+				...hoverOptions(), target: indicator, trapFocus: true, persistence: { hideOnHover: false, sticky: true },
+			}, true);
+		};
 		store.add(Gesture.ignoreTarget(indicator));
 		for (const type of [DOM.EventType.MOUSE_OVER, DOM.EventType.POINTER_DOWN, DOM.EventType.MOUSE_DOWN, DOM.EventType.POINTER_UP, DOM.EventType.MOUSE_UP, DOM.EventType.DBLCLICK]) {
 			store.add(DOM.addDisposableListener(indicator, type, e => e.stopPropagation()));
 		}
 		store.add(DOM.addDisposableListener(indicator, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e, true);
-			showHover(false);
+			showHover();
 		}));
 		store.add(DOM.addStandardDisposableListener(indicator, DOM.EventType.KEY_DOWN, e => {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
 				e.preventDefault();
 				e.stopPropagation();
-				showHover(true);
+				showHover();
 			}
 		}));
 	}
@@ -2019,7 +2026,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 			const indicator = scheduledIndicator.element;
 			template.elementDisposables.add(autorun(reader => {
-				indicator.classList.toggle('visible', scheduledSessionResources.read(reader).has(element.resource.toString()));
+				const visible = scheduledSessionResources.read(reader).has(element.resource.toString());
+				const hadFocus = DOM.isAncestorOfActiveElement(indicator);
+				indicator.classList.toggle('visible', visible);
+				if (!visible && hadFocus) {
+					this.options.focusSession?.(element);
+				}
 			}));
 			this.renderScheduledIndicatorHover(element, indicator, template);
 		}
@@ -5212,6 +5224,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getSearchHint,
 				scheduledSessionResources: this.options.scheduledSessionResources,
 				scheduledRequests: this.options.scheduledRequests,
+				focusSession: session => {
+					const tree = this.getTree(session);
+					if (tree.hasElement(session)) {
+						tree.setFocus([session]);
+					}
+					tree.domFocus();
+				},
 			},
 			approvalModel,
 			undefined,

@@ -27,6 +27,7 @@ export function getScheduledRequestsCardKey(requests: readonly IChatScheduledReq
 	return JSON.stringify(requests.map(request => [
 		request.id, request.runAt, request.description, request.text,
 		request.actions.map(action => [action.id, action.label, action.class, action.enabled]),
+		request.editAction && [request.editAction.id, request.editAction.label, request.editAction.class, request.editAction.enabled],
 	]));
 }
 
@@ -56,7 +57,8 @@ export function renderScheduledRequestsCard(requests: readonly IChatScheduledReq
 			updateTime(request.description);
 		}
 		append(row, $('span.session-scheduled-card-text', { 'aria-hidden': 'true' }, text));
-		const actions = CARD_ACTION_IDS.map(id => request.actions.find(action => action.id === id)).filter(isDefined);
+		const actions = CARD_ACTION_IDS.map(id => request.actions.find(action => action.id === id)
+			?? (request.editAction?.id === id ? request.editAction : undefined)).filter(isDefined);
 		const actionBar = store.add(new ActionBar(append(row, $('.session-scheduled-card-actions')), {
 			ariaLabel: localize('sessionScheduledCard.actions', "Actions for {0}", text),
 		}));

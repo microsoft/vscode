@@ -10,7 +10,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -419,14 +419,17 @@ suite('Sessions - pending list items', () => {
 				staleActionReported: notifications.length === 1 && notifications[0].includes('scheduled message has changed'),
 			}, {
 				text: 'Check the build', time: 'Sends in 3 hours', actions: ['Edit', 'Send Now', 'Cancel Schedule'],
-				focused: keyboard, invoked: ['latest'], role: 'button', staleActionReported: true,
+				focused: true, invoked: ['latest'], role: 'button', staleActionReported: true,
 			});
 		});
 	}
 
-	function createScheduledPreview() {
-		const session = createTestSession('scheduled').session;
-		const harness = createListHarness(disposables, [session]);
+	function createScheduledPreview(scheduled: readonly (readonly IChatScheduledRequest[])[] = [[{
+		id: 'message', text: 'Check the build', description: 'Tomorrow', attachments: [], actions: [],
+	}]]) {
+		const sessions = scheduled.map((_, index) => createTestSession(`scheduled-${index}`).session);
+		const session = sessions[0];
+		const harness = createListHarness(disposables, sessions);
 		const configuration = new TestConfigurationService();
 		configuration.setUserConfiguration('workbench.hover.delay', 0);
 		harness.instantiationService.stub(IConfigurationService, configuration);
@@ -440,17 +443,17 @@ suite('Sessions - pending list items', () => {
 		container.style.position = 'fixed';
 		container.style.top = '0';
 		container.style.left = '0';
+		const resources = observableValue<ReadonlySet<string>>('scheduled resources', new Set(sessions.map(session => session.resource.toString())));
+		const requests = observableValue<ReadonlyMap<string, readonly IChatScheduledRequest[]>>('requests', new Map(sessions.map((session, index) => [getComparisonKey(session.resource), scheduled[index]])));
 		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
-			scheduledSessionResources: constObservable(new Set([session.resource.toString()])),
-			scheduledRequests: constObservable(new Map([[getComparisonKey(session.resource), [{
-				id: 'message', text: 'Check the build', description: 'Tomorrow', attachments: [], actions: [],
-			}]]])),
+			scheduledSessionResources: resources,
+			scheduledRequests: requests,
 			onSessionOpen: resource => { opened.push(resource.toString()); },
 		}));
 		list.layout(800, 400);
-		const indicator = list.getItemRow({ session: session.resource })!.querySelector<HTMLElement>('.session-scheduled-indicator')!;
-		return { list, indicator, session, opened, container };
+		const indicators = sessions.map(session => list.getItemRow({ session: session.resource })!.querySelector<HTMLElement>('.session-scheduled-indicator')!);
+		return { list, indicator: indicators[0], indicators, session, sessions, opened, container, requests, resources };
 	}
 
 	async function settleIntersections(container: HTMLElement): Promise<void> {
@@ -496,17 +499,137 @@ suite('Sessions - pending list items', () => {
 		}, { sameClock: true, previewConnected: true });
 	});
 
-	test('Escape restores clock focus after a keyboard-opened scheduled preview', async () => {
-		const { indicator } = createScheduledPreview();
+	test('clicking another clock replaces a locked scheduled preview', async () => {
+		const { indicators, opened, container } = createScheduledPreview(['First session', 'Second session'].map(text => [{
+			id: 'message', text, description: 'Tomorrow', attachments: [], actions: [],
+		}]));
+		const previews: Element[] = [];
+		const texts: (string | null | undefined)[] = [];
+		for (const indicator of indicators) {
+			indicator.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+			indicator.click();
+			const preview = mainWindow.document.querySelector('.monaco-hover.session-scheduled-card-hover');
+			assert.ok(preview);
+			previews.push(preview);
+			texts.push(preview.querySelector('.session-scheduled-card-text')?.textContent);
+			await settleIntersections(container);
+		}
+		assert.deepStrictEqual({
+			texts, connected: previews.map(preview => preview.isConnected),
+			focused: previews[1].contains(mainWindow.document.activeElement), opened,
+		}, { texts: ['First session', 'Second session'], connected: [false, true], focused: true, opened: [] });
+	});
+
+	for (const keyboard of [false, true]) {
+		test(`Escape restores clock focus after opening a scheduled preview (keyboard: ${keyboard})`, async () => {
+			const { indicator } = createScheduledPreview();
+			if (keyboard) {
+				indicator.focus();
+				indicator.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			} else {
+				indicator.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+				indicator.click();
+			}
+			const preview = mainWindow.document.querySelector('.monaco-hover.session-scheduled-card-hover');
+			assert.ok(preview && preview.contains(mainWindow.document.activeElement));
+			mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+			await timeout(0);
+			assert.deepStrictEqual({
+				closed: !preview.isConnected, clockFocused: mainWindow.document.activeElement === indicator,
+			}, { closed: true, clockFocused: true });
+		});
+	}
+
+	test('an editing scheduled preview retains Edit and resolves its live edit action', async () => {
+		const invoked: string[] = [];
+		const request: IChatScheduledRequest = {
+			id: 'editing', text: 'Check the build', description: 'Tomorrow', attachments: [],
+			actions: ['save', 'editTime', 'cancelEdit'].map(id => toAction({ id: `sessions.scheduled.${id}`, label: id, run: () => { invoked.push(id); } })),
+			editAction: toAction({ id: 'sessions.scheduled.edit', label: 'Edit', class: ThemeIcon.asClassName(Codicon.edit), run: () => { invoked.push('stale'); } }),
+		};
+		const { indicator, requests, session, list } = createScheduledPreview([[request]]);
+		indicator.click();
+		const preview = mainWindow.document.querySelector('.monaco-hover.session-scheduled-card-hover');
+		assert.ok(preview);
+		const action = preview.querySelector<HTMLElement>('.codicon-edit');
+		assert.ok(action);
+		const latest = { ...request, editAction: toAction({ ...request.editAction!, run: () => { invoked.push('latest'); } }) };
+		requests.set(new Map([[getComparisonKey(session.resource), [latest]]]), undefined);
+		list.update();
+		action.click();
+		await timeout(0);
+		requests.set(new Map([[getComparisonKey(session.resource), [{ ...latest, editAction: toAction({ ...latest.editAction, enabled: false }) }]]]), undefined);
+		indicator.click();
+		assert.deepStrictEqual({
+			invoked,
+			actions: [...mainWindow.document.querySelectorAll('.session-scheduled-card .action-label')].map(action => action.getAttribute('aria-label')),
+			disabled: !!mainWindow.document.querySelector('.session-scheduled-card .action-item.disabled'),
+		}, { invoked: ['latest'], actions: ['Edit'], disabled: true });
+	});
+
+	for (const actionId of ['cancel', 'sendNow']) {
+		test(`removing the last scheduled message with ${actionId} preserves owning session focus`, async () => {
+			const invoked: string[] = [];
+			const { list, indicator, session, resources, requests, opened } = createScheduledPreview([[{
+				id: 'message', text: 'Check the build', description: 'Tomorrow', attachments: [],
+				actions: ([
+					['edit', 'Edit', Codicon.edit],
+					['sendNow', 'Send Now', Codicon.newLine],
+					['cancel', 'Cancel Schedule', Codicon.closeSmall],
+				] as const).map(([id, label, icon]) => toAction({
+					id: `sessions.scheduled.${id}`, label, class: ThemeIcon.asClassName(icon),
+					run: () => {
+						invoked.push(id);
+						removeSchedule();
+					},
+				})),
+			}]]);
+			const removeSchedule = () => {
+				requests.set(new Map(), undefined);
+				resources.set(new Set(), undefined);
+			};
+			indicator.focus();
+			indicator.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			const preview = mainWindow.document.querySelector('.monaco-hover.session-scheduled-card-hover')!;
+			preview.querySelector<HTMLElement>('.codicon-edit')!.focus();
+			mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+			for (let index = 0; index < (actionId === 'sendNow' ? 1 : 2); index++) {
+				mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+				mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keyup', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+			}
+			mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			await timeout(0);
+			const row = list.getItemRow({ session: session.resource })!;
+			assert.deepStrictEqual({
+				closed: !preview.isConnected, clockHidden: mainWindow.getComputedStyle(indicator).display === 'none',
+				listFocused: mainWindow.document.activeElement === row.closest('.monaco-list'),
+				sessionFocused: row.classList.contains('focused'), opened, invoked,
+			}, { closed: true, clockHidden: true, listFocused: true, sessionFocused: true, opened: [], invoked: [actionId] });
+		});
+	}
+
+	test('removing the last scheduled clock does not override intentional editor focus', async () => {
+		const completed = new DeferredPromise<void>();
+		const editor = append(mainWindow.document.body, $('textarea'));
+		disposables.add(toDisposable(() => editor.remove()));
+		const { indicator, resources } = createScheduledPreview([[{
+			id: 'message', text: 'Check the build', description: 'Tomorrow', attachments: [],
+			actions: [toAction({
+				id: 'sessions.scheduled.sendNow', label: 'Send Now', class: ThemeIcon.asClassName(Codicon.newLine),
+				run: () => {
+					editor.focus();
+					removeSchedule();
+					void completed.complete();
+				},
+			})],
+		}]]);
+		const removeSchedule = () => resources.set(new Set(), undefined);
 		indicator.focus();
 		indicator.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-		const preview = mainWindow.document.querySelector('.monaco-hover.session-scheduled-card-hover');
-		assert.ok(preview && preview.contains(mainWindow.document.activeElement));
-		mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-		await timeout(0);
-		assert.deepStrictEqual({
-			closed: !preview.isConnected, clockFocused: mainWindow.document.activeElement === indicator,
-		}, { closed: true, clockFocused: true });
+		mainWindow.document.querySelector<HTMLElement>('.session-scheduled-card .codicon-newline')!.click();
+		await completed.p;
+		assert.strictEqual(mainWindow.document.activeElement, editor);
 	});
 
 	test('clock touches bypass list gestures without suppressing the preview click', async () => {

@@ -76,6 +76,7 @@ suite('Scheduled chat handoffs', () => {
 		let failCreate = false;
 		let failDelete = false;
 		let openChatError: Error | undefined;
+		let onOpenChat: ((resource: URI) => void) | undefined;
 		let publishBeforeFailure = false;
 		let conflict = false;
 		let occupied = false;
@@ -240,6 +241,7 @@ suite('Scheduled chat handoffs', () => {
 						throw openChatError;
 					}
 					openedChats.push(resource);
+					onOpenChat?.(resource);
 				}
 			},
 			new class extends mock<ISessionGroupsService>() {
@@ -270,6 +272,7 @@ suite('Scheduled chat handoffs', () => {
 			set failCreate(value: boolean) { failCreate = value; },
 			set failDelete(value: boolean) { failDelete = value; },
 			set openChatError(value: Error | undefined) { openChatError = value; },
+			set onOpenChat(value: (resource: URI) => void) { onOpenChat = value; },
 			set publishBeforeFailure(value: boolean) { publishBeforeFailure = value; },
 			set conflict(value: boolean) { conflict = value; },
 			set occupied(value: boolean) { occupied = value; },
@@ -288,16 +291,19 @@ suite('Scheduled chat handoffs', () => {
 		const model = disposables.add(new MockChatModel(resource));
 		let text = input.inputText;
 		let enabled = true;
+		let visible = true;
 		let scheduled: readonly IChatScheduledRequest[] = [];
+		const revealed: { id: string; editing: IChatScheduledRequest['editing'] }[] = [];
 		const context = disposables.add(new MockContextKeyService());
 		const anchor = $('div');
 		const widget = upcastPartial<IChatWidget>({
-			visible: true,
+			get visible() { return visible; },
 			scopedContextKeyService: context,
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<IChatViewModel>({ model, sessionResource: resource, setScheduledRequests: requests => { scheduled = requests; } }),
 			getInput: () => text,
 			setInput: value => { text = value ?? ''; },
+			revealScheduledRequest: id => { revealed.push({ id, editing: scheduled.find(request => request.id === id)?.editing }); },
 			getContrib: () => undefined,
 			attachmentModel: upcastPartial<ChatAttachmentModel>({ clearAndSetContext: () => { } }),
 			input: upcastPartial<ChatInputPart>({
@@ -307,7 +313,7 @@ suite('Scheduled chat handoffs', () => {
 			}),
 		});
 		disposables.add(service.registerChatInput(widget, constObservable(currentSession), constObservable(resource), constObservable(true)));
-		return { widget, context, interactivity, resource, anchor, get scheduled() { return scheduled; }, get text() { return text; }, get enabled() { return enabled; } };
+		return { widget, context, interactivity, resource, anchor, revealed, set visible(value: boolean) { visible = value; }, get scheduled() { return scheduled; }, get text() { return text; }, get enabled() { return enabled; } };
 	}
 
 	for (const existingChat of [false, true]) {
@@ -425,7 +431,7 @@ suite('Scheduled chat handoffs', () => {
 		});
 	}));
 
-	test('editing a visible scheduled message keeps the current composer draft without reopening the chat', async () => {
+	test('editing a visible scheduled message reveals its editor without reopening the chat or replacing the composer draft', async () => {
 		const fixture = create();
 		const source = registerInput(fixture.service);
 		fixture.sessions.set('agent-host-copilot:/session', session);
@@ -434,7 +440,47 @@ suite('Scheduled chat handoffs', () => {
 		await source.scheduled[0].editAction!.run();
 		assert.deepStrictEqual({
 			opened: fixture.openedChats, composer: source.text, editing: source.scheduled[0].editing?.text,
-		}, { opened: [], composer: 'Unsent composer draft', editing: input.inputText });
+			revealed: source.revealed.map(reveal => ({ id: reveal.id, editing: reveal.editing === source.scheduled[0].editing })),
+		}, {
+			opened: [], composer: 'Unsent composer draft', editing: input.inputText,
+			revealed: [{ id: source.scheduled[0].id, editing: true }],
+		});
+	});
+
+	test('resuming a scheduled edit from another chat reveals it without resetting unsaved text, context or time', async () => {
+		const fixture = create();
+		const source = registerInput(fixture.service);
+		const other = registerInput(fixture.service, URI.parse('agent-host-copilot:/session/other'));
+		fixture.sessions.set('agent-host-copilot:/session', session);
+		await fixture.service.scheduleChatInput(source.widget);
+		source.widget.setInput('Unsent composer draft');
+		other.widget.setInput('Other chat draft');
+		await source.scheduled[0].editAction!.run();
+		const editing = source.scheduled[0].editing!;
+		editing.text = 'Unsaved scheduled edit';
+		editing.input = { inputText: editing.text, attachments: [{ kind: 'generic', id: 'unsaved', name: 'Unsaved context', value: 'Context' }] };
+		editing.runAt = '2099-01-15T10:00:00Z';
+		const editedInput = editing.input;
+		source.visible = false;
+		fixture.openChatError = new Error('Navigation failed');
+		await assert.rejects(async () => fixture.service.items.get()[0].editAction!.run(), /Navigation failed/);
+		assert.strictEqual(source.scheduled[0].editing, editing, 'A failed return must retain the active edit');
+		fixture.openChatError = undefined;
+		fixture.onOpenChat = resource => {
+			assert.strictEqual(resource.toString(), source.resource.toString());
+			source.visible = true;
+			other.visible = false;
+		};
+		await fixture.service.items.get()[0].editAction!.run();
+		assert.deepStrictEqual({
+			opened: fixture.openedChats, drafts: [source.text, other.text],
+			revealed: source.revealed.map(reveal => reveal.editing === editing),
+			sameState: source.scheduled[0].editing === editing, sameInput: editing.input === editedInput,
+			text: editing.text, attachments: editing.input.attachments.map(attachment => attachment.id), runAt: editing.runAt,
+		}, {
+			opened: [source.resource], drafts: ['Unsent composer draft', 'Other chat draft'], revealed: [true, true],
+			sameState: true, sameInput: true, text: 'Unsaved scheduled edit', attachments: ['unsaved'], runAt: '2099-01-15T10:00:00Z',
+		});
 	});
 
 	test('a failed navigation from scheduled-message Edit leaves the schedule available to retry', async () => {

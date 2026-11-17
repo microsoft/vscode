@@ -2581,6 +2581,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	revealScheduledRequest(requestId: string): void {
+		const request = this.viewModel?.getItems().find((item): item is IChatScheduledRequestViewModel => isScheduledRequestVM(item) && item.id === `scheduled:${requestId}`);
+		if (!request?.editing || this._readOnly) {
+			return;
+		}
+
+		// View-model changes are batched; refresh before revealing a newly edited, virtualized row.
+		this.listWidget.refresh();
+		this.listWidget.reveal(request);
+		if (this._scheduledRequestEdit?.state === request.editing) {
+			this.input.focus();
+		}
+	}
+
 	private clickedRequest(item: IChatListItemTemplate) {
 
 		const currentElement = item.currentElement;
