@@ -704,6 +704,10 @@ class AutomationCardsSection extends Disposable {
 			const checkbox = disposables.add(new Checkbox(label, this.showDisabled.get(), { ...defaultCheckboxStyles, size: 14 }));
 			DOM.append(container, checkbox.domNode);
 			const labelText = DOM.append(container, $('span', undefined, label));
+			disposables.add(DOM.addDisposableGenericMouseDownListener(labelText, (event: MouseEvent) => {
+				event.preventDefault();
+				checkbox.focus();
+			}));
 			disposables.add(DOM.addDisposableListener(labelText, DOM.EventType.CLICK, () => checkbox.domNode.click()));
 			disposables.add(DOM.addDisposableListener(container, DOM.EventType.CLICK, event => DOM.EventHelper.stop(event, true)));
 			disposables.add(checkbox.onChange(() => {

@@ -1032,6 +1032,28 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('clicking the disabled filter label focuses the checkbox for subsequent keyboard toggles', () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setAutomations([automation({ enabled: false })]);
+		const checkbox = widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!;
+		const label = widget.element.querySelector<HTMLElement>('.automations-show-disabled > span')!;
+		const summary = widget.element.querySelector<HTMLElement>('.automations-ownership-summary')!;
+		const section = widget.element.querySelector<HTMLDetailsElement>('.automations-ownership-section')!;
+		summary.focus();
+		const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+		label.dispatchEvent(mouseDown);
+		label.click();
+		const afterClick = { focused: document.activeElement === checkbox, checked: checkbox.getAttribute('aria-checked') };
+		document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, keyCode: 32 }));
+		assert.deepStrictEqual({
+			defaultPrevented: mouseDown.defaultPrevented, afterClick,
+			afterSpace: checkbox.getAttribute('aria-checked'), open: section.open,
+		}, {
+			defaultPrevented: true, afterClick: { focused: true, checked: 'true' },
+			afterSpace: 'false', open: true,
+		});
+	});
+
 	test('ownership hover is confined to the heading and excludes the disabled filter', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
 		automationService.setAutomations([automation({ enabled: false })]);
@@ -1093,17 +1115,19 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(storage.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE), true);
 		first.widget.dispose();
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, storage);
+		const state = () => ({
+			checked: widget.element.querySelector('.automations-show-disabled [role="checkbox"]')?.getAttribute('aria-checked'),
+			display: widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!.style.display,
+		});
+		automationService.setAutomations([automation({ enabled: false })]);
+		assert.deepStrictEqual(state(), { checked: 'true', display: '' });
 		for (const checked of [true, false]) {
 			automationService.setAutomations([]);
 			automationService.setAutomations([automation({ enabled: false })]);
-			const checkbox = widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!;
-			if (checkbox.getAttribute('aria-checked') !== String(checked)) {
-				checkbox.click();
+			assert.deepStrictEqual(state(), { checked: String(checked), display: checked ? '' : 'none' });
+			if (checked) {
+				widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!.click();
 			}
-			assert.deepStrictEqual({
-				checked: widget.element.querySelector('[role="checkbox"]')?.getAttribute('aria-checked'),
-				display: widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!.style.display,
-			}, { checked: String(checked), display: checked ? '' : 'none' });
 		}
 	});
 
