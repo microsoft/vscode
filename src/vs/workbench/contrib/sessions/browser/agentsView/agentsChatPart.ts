@@ -8,7 +8,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ITransaction, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ITransaction, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -22,7 +22,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
+import { EditorsOrder, GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
 import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -40,7 +40,7 @@ import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayou
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatEditorWindow, registerSessionChatViewEditor, SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS } from '../chatEditor/chatEditor.js';
 import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
-import { getChatViewHostOpenReason, IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHostService, IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
 import { IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
@@ -276,6 +276,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IEditorWindowComposerFoldersService private readonly _composerFolders: IEditorWindowComposerFoldersService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorWindowShownChatService shownChatService: IEditorWindowShownChatService,
+		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 	) {
 		super();
 		this._chatTabsMode = observableConfigValue<string>(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, this._configurationService);
@@ -339,6 +340,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			chatEnabled = enabled;
 		}));
 
+		this._dropChatsOpenedElsewhere();
+
 		// Last: what reads the chat part once it exists reads all of it, of this instance
 		this._frame.didCreateContent(this);
 	}
@@ -372,7 +375,16 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// A new session in the active tab while it is a composer that has not sent its session yet, as a chat window does
 		const active = this._activeInput.get();
 		const activeChat = active && this._chats.get(active);
-		if (activeChat?.isComposer && !options?.sideBySide && !options?.newComposer) {
+		// In Single, its one new-session composer that has not sent its session yet, also behind the chat it shows
+		const unsentComposer = this._isSingle() && !options?.sideBySide ? [...this._chats.values()].find(chat => chat.isComposer && !isSessionCreated(chat.session.get()) && !!this._groupOf(chat.input)) : undefined;
+		if (unsentComposer && unsentComposer !== activeChat) {
+			const composer = this._composerModels.get(unsentComposer.input);
+			if (composer && target?.folderUri) {
+				composer.retargetFolder(target.folderUri);
+			}
+			return this._open(unsentComposer, options);
+		}
+		if (activeChat?.isComposer && !options?.sideBySide && (!options?.newComposer || unsentComposer === activeChat)) {
 			// It aims at the new session's folder, such as where the window's folder is now, unless the user picked another
 			const composer = active && this._composerModels.get(active);
 			if (composer && target?.folderUri) {
@@ -508,6 +520,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 		const part = this._ensurePart();
 		const active = chats[Math.min(Math.max(stored?.active ?? 0, 0), chats.length - 1)];
+		if (this._isSingle()) {
+			// Stored most recent first: a group puts an editor it opens inactive right after its active one, so the active one
+			// opens first and the others from the least recent
+			const others = chats.filter(chat => chat !== active).reverse();
+			chats.splice(0, chats.length, active, ...others);
+		}
 		for (const chat of chats) {
 			this._restoringTabs.add(chat.input);
 		}
@@ -573,6 +591,33 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				this._explicitOpens.set(this._explicitOpens.get() + 1, tx);
 			});
 		}
+	}
+
+	/**
+	 * A chat that the user opens elsewhere in the window, in the Chat view while no host replaces it, or in an editor of the
+	 * editor area, leaves the chats it keeps: it shows in one place.
+	 */
+	private _dropChatsOpenedElsewhere(): void {
+		const drop = (resource: URI | undefined) => {
+			const chat = resource && this._findChat(resource);
+			if (chat && !chat.isComposer) {
+				this._closeChat(chat);
+			}
+		};
+		this._register(autorun(reader => {
+			const shown = this._chatViewHostService.shownSession.read(reader);
+			// Not one it restores as the window starts, before the chat part's host replaces it
+			if (shown && shown.reason !== 'restore' && this._chatViewHostService.chatViewHosts.read(reader) && !this._chatViewHostService.replaced.read(reader)) {
+				drop(shown.resource);
+			}
+		}));
+		this._register(this._editorService.onDidVisibleEditorsChange(() => {
+			for (const pane of this._editorService.visibleEditorPanes) {
+				if (!this._part?.groups.includes(pane.group)) {
+					drop(pane.input?.resource);
+				}
+			}
+		}));
 	}
 
 	private _isSingle(): boolean {
@@ -743,13 +788,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	/**
-	 * Closing a chat shows the chat opened before it, as an editor group does; closing the last chat shows a new-session
-	 * composer, as a new session, and closing that closes the chat part. Closing its last chat while it is hidden leaves it
-	 * hidden and empty.
+	 * Closing a chat shows the chat opened before it, as an editor group does. Closing the last chat closes the chat part, but
+	 * in Single, where it shows one chat at a time, it shows a new-session composer, as a new session: closing that closes the
+	 * chat part. Closing its last chat while it is hidden leaves it hidden and empty.
 	 */
 	private _didCloseTab(closedChat: boolean): void {
 		// Not while it is hidden, such as as its chat moves to the Chat view: that would show it
-		if (closedChat && !this._closingAll && !this._lifecycleService.willShutdown && this._layoutService.isVisible(Parts.CHAT_PART) && this._part?.groups.every(group => group.isEmpty)) {
+		if (closedChat && this._isSingle() && !this._closingAll && !this._lifecycleService.willShutdown && this._layoutService.isVisible(Parts.CHAT_PART) && this._part?.groups.every(group => group.isEmpty)) {
 			this.openComposer(getEditorWindowComposerTarget(this._workspaceContextService, this._editorService)).catch(onUnexpectedError);
 			return;
 		}
@@ -782,7 +827,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		if (!this._part) {
 			return;
 		}
-		const inputs = this._part.groups.flatMap(group => group.editors).filter(input => this._chats.has(input));
+		// In Single, most recent first, to show again in that order as it closes them
+		const inputs = this._part.groups.flatMap(group => this._isSingle() ? group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE) : group.editors).filter(input => this._chats.has(input));
 		if (!inputs.length) {
 			this._storageService.remove(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			return;

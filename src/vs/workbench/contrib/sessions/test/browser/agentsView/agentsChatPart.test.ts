@@ -14,15 +14,16 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
+import { IChatViewHostService, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { parse } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
-import { EditorInputWithOptions, IEditorPane } from '../../../../../common/editor.js';
+import { EditorInputWithOptions, EditorsOrder, IEditorPane, IVisibleEditorPane } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IContentPart, ICreateEditorPartOptions, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
-import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
+import { IEditorService, IVisibleEditorsChangeEvent, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
@@ -71,18 +72,28 @@ class FakeGroup {
 	open(editor: EditorInput, inactive?: boolean): void {
 		if (!this.editors.includes(editor)) {
 			this.editors.push(editor);
+			// As a real group: an editor that opens inactive is the most recent after its active one
+			this.mru.splice(this.mru.length ? 1 : 0, 0, editor);
 		}
 		if (!inactive || !this.activeEditor) {
 			this.activeEditor = editor;
+			this.mru = [editor, ...this.mru.filter(candidate => candidate !== editor)];
 			this.onDidActiveEditorChangeEmitter.fire();
 		}
+	}
+	/** Its editors most recently active first, as a real group orders them. */
+	private mru: EditorInput[] = [];
+	getEditors(order: EditorsOrder): readonly EditorInput[] {
+		return order === EditorsOrder.MOST_RECENTLY_ACTIVE ? this.mru : this.editors;
 	}
 	/** Closes `editor`, which disposes before the group tells it closed, as in a real group. */
 	async closeEditor(editor: EditorInput): Promise<boolean> {
 		this.onWillCloseEditorEmitter.fire({ editor });
 		this.editors = this.editors.filter(candidate => candidate !== editor);
+		this.mru = this.mru.filter(candidate => candidate !== editor);
+		// As a real group: the most recently active one shows next
 		if (this.activeEditor === editor) {
-			this.activeEditor = this.editors.at(-1) ?? null;
+			this.activeEditor = this.mru[0] ?? null;
 		}
 		editor.dispose();
 		this.onDidCloseEditorEmitter.fire({ editor });
@@ -209,7 +220,11 @@ suite('AgentsChatPartService', () => {
 		const content = observableValue<IAgentsChatPartService | undefined>('content', undefined);
 		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }), content, contentCreated: derived(reader => !!content.read(reader)), didCreateContent: created => content.set(created, undefined) }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: createOptions => { part.createOptions = createOptions; return part as unknown as IContentPart; }, mainPart: undefined }));
+		// The editors of the editor area that show
+		const editorArea = { panes: [] as IVisibleEditorPane[], onDidChange: store.add(new Emitter<IVisibleEditorsChangeEvent>()) };
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			get visibleEditorPanes() { return editorArea.panes; },
+			onDidVisibleEditorsChange: editorArea.onDidChange.event,
 			openEditor: (async (editor: EditorInput, editorOptions: IEditorOptions | undefined, group: FakeGroup) => {
 				group.open(editor, editorOptions?.inactive);
 				if (!editorOptions?.inactive) {
@@ -275,7 +290,10 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({ setDraftSlotGroup: () => toDisposable(() => { }), getGroupOfSession: () => undefined }));
 
 		const shownChatService = new EditorWindowShownChatService();
+		// The Chat view, as it shows a chat while no host replaces it
+		const chatView = { shown: observableValue<IChatViewHostShownSession | undefined>('chatViewShown', undefined), hosts: observableValue('chatViewHosts', true), replaced: observableValue('replaced', false) };
 		instantiationService.stub(IEditorWindowShownChatService, shownChatService);
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession: chatView.shown, chatViewHosts: chatView.hosts, replaced: chatView.replaced }));
 		const host = new EditorWindowMainSessionHost(contextKeyService, shownChatService);
 		instantiationService.stub(ISessionHost, host);
 		// Delayed, as the editor window registers it: created as something first uses it, such as an open
@@ -292,6 +310,8 @@ suite('AgentsChatPartService', () => {
 			scoped,
 			store,
 			hide: () => instantiationService.get(IWorkbenchLayoutService).setPartHidden(true, Parts.CHAT_PART),
+			chatView,
+			editorArea,
 			save: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 				return storageService.get(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
@@ -398,11 +418,8 @@ suite('AgentsChatPartService', () => {
 		const backToComposer = hostShows();
 		status.set(SessionStatus.InProgress, undefined);
 		const sent = hostShows();
-		// The composer that shows once the last chat closes has no draft yet
-		newSession.set(undefined, undefined);
 		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
 		await service.closeChat(other.mainChat.chat.resource);
-		await timeout(0);
 
 		assert.deepStrictEqual({ noDraftYet, composing, otherTab, backToComposer, sent, closed: hostShows() }, {
 			noDraftYet: { session: 'none', chat: 'none', active: 'none' },
@@ -768,7 +785,7 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(asItsTabDisposes, { liveSlots: 0, reentered: 0, disposed: true });
 	});
 
-	test('closing the last chat shows a new-session composer, which closing a chat it does not show leaves as it is', async () => {
+	test('with tabs, closing the last chat closes the chat part, which closing a chat it does not show leaves as it is', async () => {
 		const { service, layout } = createService();
 		await service.openChat(session, chatA);
 		await service.openChat(session, chatB);
@@ -781,7 +798,7 @@ suite('AgentsChatPartService', () => {
 
 		assert.deepStrictEqual({ oneLeft, none: layout() }, {
 			oneLeft: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
-			none: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
+			none: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
 		});
 	});
 
@@ -795,9 +812,9 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(layout(), { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false });
 	});
 
-	for (const chatTabs of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
-		test(`closes as an editor group does (${chatTabs}): closing the chat it shows shows the one opened before it, closing the last chat shows a new-session composer, and closing that closes the chat part`, async () => {
-			const { service, part, layout } = createService({ chatTabs });
+	{
+		test('in Single, it closes as an editor group does: closing the chat it shows shows the one opened before it, closing the last chat shows a new-session composer, and closing that closes the chat part', async () => {
+			const { service, part, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
 			await service.openChat(session, chatA);
 			await service.openChat(session, chatB);
 			const bothOpen = layout();
@@ -891,12 +908,69 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
+	test('in Single, it stores its chats most recent first, and restoring shows them again in that order as it closes them', async () => {
+		const first = createService({ chatTabs: SessionsChatTabsMode.Single });
+		await first.service.openChat(session, chatA);
+		await first.service.openChat(session, chatB);
+		await first.service.openChat(session, chatC);
+		await first.service.openChat(session, chatA);
+		const stored = JSON.parse(first.save()!);
+
+		const second = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, stored: JSON.stringify(stored) });
+		await second.service.restore();
+		const shown = [second.layout().groups[0].active];
+		for (const chat of [chatA, chatC]) {
+			await second.service.closeChat(chat);
+			await timeout(0);
+			shown.push(second.layout().groups[0].active);
+		}
+
+		assert.deepStrictEqual({ stored, shown }, { stored: { chats: ['test:/a', 'test:/c', 'test:/b'], active: 0 }, shown: ['/a', '/c', '/b'] });
+	});
+
+	test('in Single, a new session reuses its one new-session composer that has not sent its session', async () => {
+		const { service, part, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
+		await service.openComposer(undefined, { newComposer: true });
+		const first = part.activeGroup.activeEditor;
+		await service.openComposer(undefined, { newComposer: true });
+
+		assert.deepStrictEqual({ layout: layout(), reused: part.activeGroup.activeEditor === first }, { layout: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true }, reused: true });
+	});
+
+	test('a chat that the user opens in the Chat view while no host replaces it, or in an editor, leaves the chats it keeps; not one the Chat view restores, nor one it shows while a host replaces it', async () => {
+		const { service, layout, chatView, editorArea } = createService({ chatTabs: SessionsChatTabsMode.Single });
+		await service.openChat(session, chatA);
+		await service.openChat(session, chatB);
+		await service.openChat(session, chatC);
+		const tabs = () => layout().groups[0].tabs;
+		chatView.replaced.set(true, undefined);
+		chatView.shown.set({ resource: chatA, reason: 'open' }, undefined);
+		const replacedShows = tabs();
+		chatView.shown.set({ resource: chatB, reason: 'restore' }, undefined);
+		chatView.replaced.set(false, undefined);
+		const restored = tabs();
+		chatView.shown.set({ resource: chatA, reason: 'open' }, undefined);
+		await timeout(0);
+		const openedInChatView = tabs();
+		editorArea.panes = [upcastPartial<IVisibleEditorPane>({ input: upcastPartial<EditorInput>({ resource: chatB }), group: upcastPartial<IVisibleEditorPane['group']>({}) })];
+		editorArea.onDidChange.fire(upcastPartial<IVisibleEditorsChangeEvent>({}));
+		await timeout(0);
+
+		assert.deepStrictEqual({ replacedShows, restored, openedInChatView, openedInEditor: tabs() }, {
+			replacedShows: ['/a', '/b', '/c'],
+			restored: ['/a', '/b', '/c'],
+			openedInChatView: ['/b', '/c'],
+			openedInEditor: ['/c'],
+		});
+	});
+
 	test('in Single, restoring shows the chat it showed and keeps the others it stored, to show again as it closes', async () => {
 		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, stored: JSON.stringify({ chats: [chatA.toString(), chatB.toString(), chatC.toString()], active: 1 }) });
 
 		await service.restore();
 
-		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/a', '/b', '/c'], active: '/b' }], activeGroup: 0, visible: true });
+		// Most recent first, from the one it showed: its tabs, which it does not show, are in the order it opened them
+		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/b', '/c', '/a'], active: '/b' }], activeGroup: 0, visible: true });
 	});
 
 	test('the chat part stores its chats and the active one as the window saves, and shows them again in that order once restored', async () => {
@@ -971,9 +1045,6 @@ suite('AgentsChatPartService', () => {
 		const first = createService({ stored: JSON.stringify({ chats: ['test:/a'], active: 0 }) });
 		await first.service.openChat(session, chatA);
 		await first.service.closeChat(chatA);
-		await timeout(0);
-		// And the new-session composer that showed in its place
-		await first.part.activeGroup.closeEditor(first.part.activeGroup.activeEditor!);
 		const stored = first.save();
 
 		const unreadable = createService({ stored: 'not json', visible: true });

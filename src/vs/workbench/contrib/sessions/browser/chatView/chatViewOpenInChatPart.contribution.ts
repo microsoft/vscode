@@ -5,10 +5,11 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
@@ -96,42 +97,48 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		const available = ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)!;
 		const availableKeys = new Set(available.keys());
 		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
-		const enabled = derived(this, reader => openInChatPart.read(reader) && orientation.read(reader) !== 'stacked' && chatAvailable.read(reader));
+		// As configured: its setting, with the sessions side by side (not the width-based layout)
+		const configured = derived(this, reader => openInChatPart.read(reader) && orientation.read(reader) !== 'stacked');
+		const enabled = derived(this, reader => configured.read(reader) && chatAvailable.read(reader));
 		this._register(this._chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
-		// As it turns on or off while the window runs, the chat that the Chat view or the chat part shows moves to the other,
-		// not as the window starts, which restores each
-		let started = false;
-		let handovers = 0;
-		const handOver = (handover: ChatHandover, fromChatPart = false) => {
-			const handoverId = ++handovers;
-			this._handOver(handover, () => handoverId === handovers && !this._store.isDisposed, fromChatPart).catch(onUnexpectedError);
-		};
 		// The sessions that the chat part shows are known while the Chat view lists them
 		this._register(autorun(reader => {
-			const isEnabled = enabled.read(reader);
-			const turned = started;
-			started = true;
-			if (isEnabled) {
-				// Taken from the Chat view before the chat part hosts what it shows
-				const fromChatView = turned ? this._takeFromChatView() : undefined;
-				// Taken from the chat part as it turns off, while it still hosts what it shows; not as chat itself goes
-				reader.store.add(toDisposable(() => {
-					if (!this._store.isDisposed && this._contextKeyService.contextMatchesRules(available)) {
-						const fromChatPart = this._takeFromChatPart();
-						queueMicrotask(() => handOver(fromChatPart, true));
-					}
-				}));
+			if (enabled.read(reader)) {
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
 				// The chats show in the chat part, so the Chat view shows only its sessions, except while it hosts a chat that the chat
 				// part leaves to it, such as a local chat: the seam owns that rule.
 				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
 				// No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions
 				reader.store.add(localChatAvailabilityService.hide());
-				if (fromChatView) {
-					// Once the chat part's host, which another autorun of `enabled` registers, takes what opens
-					queueMicrotask(() => handOver(fromChatView));
-				}
 			}
+		}));
+
+		// What the Chat view showed until chats opened in the chat part: as they do, the chat part's host shows what opens
+		let chatViewShown: URI | undefined;
+		this._register(autorun(reader => {
+			if (!enabled.read(reader)) {
+				chatViewShown = this._chatViewHostService.shownSession.read(reader)?.resource;
+			}
+		}));
+		// As it is configured on or off while the window runs, the chat shown moves to the other host: not as the window starts,
+		// which restores each, nor as chat itself comes or goes
+		const handover = this._register(new MutableDisposable());
+		this._register(runOnChange(configured, toChatPart => {
+			if (!this._contextKeyService.contextMatchesRules(available)) {
+				return;
+			}
+			const taken = toChatPart ? this._takeFromChatView(chatViewShown) : this._takeFromChatPart();
+			if (taken.kind === 'stay') {
+				return;
+			}
+			// A later move supersedes this one
+			const cts = new CancellationTokenSource();
+			handover.value = toDisposable(() => cts.dispose(true));
+			this._handOver(taken, toChatPart, cts.token).catch(error => {
+				if (!isCancellationError(error)) {
+					onUnexpectedError(error);
+				}
+			});
 		}));
 		this._hideMaximizeWhileSessionsOnly();
 	}
@@ -140,8 +147,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	 * What the Chat view shows, to show in the chat part: its session, or the input of its new chat; a local chat stays, as
 	 * the chat part shows only agent sessions.
 	 */
-	private _takeFromChatView(): ChatHandover {
-		const resource = this._chatViewHostService.shownSession.get()?.resource;
+	private _takeFromChatView(resource: URI | undefined): ChatHandover {
 		if (!resource) {
 			return { kind: 'none' };
 		}
@@ -165,36 +171,41 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	}
 
 	/**
-	 * Shows what `handover` took in the host in use now: its session, unless it shows it already, which a session taken from
-	 * the chat part then leaves, else a new chat, with the input it took, which leaves its source only once the new chat holds
-	 * it. A later handover supersedes it.
+	 * Shows what `handover` took in the other host, once that host is in use: its session, unless it shows it already, which
+	 * a session taken from the chat part then leaves; else a new chat there, with the input it took, which leaves its source
+	 * only once the new chat holds it. Never in the host it took it from.
 	 */
-	private async _handOver(handover: ChatHandover, isCurrent: () => boolean, fromChatPart: boolean): Promise<void> {
-		if (handover.kind === 'stay') {
+	private async _handOver(handover: ChatHandover, toChatPart: boolean, token: CancellationToken): Promise<void> {
+		await waitForState(this._chatViewHostService.replaced, replaced => replaced === toChatPart, undefined, token);
+		if (token.isCancellationRequested) {
 			return;
 		}
 		if (handover.kind === 'session') {
+			// The seam shows what the host in use shows: the target's
 			if (!isEqual(this._chatViewHostService.shownSession.get()?.resource, handover.resource)) {
 				await this._chatViewHostService.openSession(handover.resource, { preserveFocus: true });
 			}
 			// The chat part keeps its other chats, for as it turns on again, but not the one the Chat view shows now
-			if (fromChatPart && isCurrent()) {
+			if (!toChatPart && !token.isCancellationRequested) {
 				await this._chatPartService.closeChat(handover.resource);
 			}
 			return;
 		}
-		if (!await this._chatViewHostService.newChat(undefined, { ownChat: true, preserveFocus: true }) || !isCurrent()) {
+		// Only the chat part's own new chat as it turns on, never the Chat view's in its place; the Chat view's own as it turns off
+		if (!await this._chatViewHostService.newChat(undefined, { ownChat: !toChatPart, preserveFocus: true }) || token.isCancellationRequested) {
 			return;
 		}
 		if (handover.kind === 'draft' && (handover.input || handover.attachments.length)) {
 			const target = await this._chatViewHostService.reveal(true);
-			if (!target || target === handover.source || !isCurrent()) {
+			if (!target || token.isCancellationRequested) {
 				return;
 			}
 			target.setInput(handover.input);
-			target.attachmentModel.addContext(...handover.attachments);
-			handover.source?.setInput('');
-			handover.source?.attachmentModel.clear();
+			target.attachmentModel.clearAndSetContext(...handover.attachments);
+			if (handover.source && handover.source !== target) {
+				handover.source.setInput('');
+				handover.source.attachmentModel.clear();
+			}
 		}
 	}
 
