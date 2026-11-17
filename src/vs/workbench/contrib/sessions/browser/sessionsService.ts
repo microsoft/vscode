@@ -100,8 +100,12 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	readonly preserveNavigation?: boolean;
 	/** Prepare a draft without changing the Sessions grid or navigation, or hiding its hosting custom view. */
 	readonly preserveCustomView?: boolean;
-	/** Show the created draft without moving focus into it, such as when the composer replaces its draft in the background. */
-	readonly preserveFocus?: boolean;
+	/**
+	 * Replace the composer's draft in the background, such as when its host moves to another provider: the draft takes
+	 * its previous draft's place in the Sessions grid, or the empty new-session slot's while that is active, without
+	 * changing the active pane, navigation, focus, or the custom view or canvas shown.
+	 */
+	readonly background?: boolean;
 
 	/**
 	 * When `true`, opens the new session (or empty composer slot) to the side
@@ -2068,7 +2072,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// A draft of another slot is never shown in the grid, so it does not navigate, like a preserved custom view.
 		const draftSlot = options?.draftSlot && options.draftSlot !== this.sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
 		const preserveCustomView = options?.preserveCustomView || !!draftSlot;
-		if (preserveCustomView) {
+		const background = !preserveCustomView && !!options?.background;
+		if (preserveCustomView || background) {
 			intent = 'automatic';
 		}
 		if (options?.cancelRestore) {
@@ -2101,7 +2106,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (token.isCancellationRequested) {
 				return { session: undefined, trustDeclined: false };
 			}
-			if (!preserveCustomView) {
+			if (!preserveCustomView && !background) {
 				this._beginNavigation(intent, token, options?.preserveNavigation);
 				this._startOpenSession();
 			}
@@ -2121,8 +2126,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 						throw error;
 					}
 				}
-				if (!preserveCustomView) {
-					this._activateOrInsert(session, options?.toSide, intent, options?.preserveFocus || (preserveFocus ?? (!!options?.preserveNavigation && this._keepsFocusForComposerDraft())));
+				if (background) {
+					this._showBackgroundDraft(session);
+				} else if (!preserveCustomView) {
+					this._activateOrInsert(session, options?.toSide, intent, preserveFocus ?? (!!options?.preserveNavigation && this._keepsFocusForComposerDraft()));
 				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
 					this._navigation.recordNewSessionOpened();
@@ -2136,7 +2143,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 
-		if (preserveCustomView) {
+		if (preserveCustomView || background) {
 			return { session: (draftSlot ?? this.sessionsManagementService).newSession.get(), trustDeclined: false };
 		}
 
@@ -2178,6 +2185,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._navigation.recordNewSessionOpened();
 		}
 		return { session: targetSession, trustDeclined: false };
+	}
+
+	/**
+	 * Shows a draft replaced in the background where the composer that created it shows: in its previous draft's slot,
+	 * which the replacement took already, or in the active empty new-session slot, keeping focus where it is.
+	 */
+	private _showBackgroundDraft(session: ISession): void {
+		const activePane = this._visibility.activePane.get();
+		if (this._visibility.getSlot(session.sessionId) || !activePane || activePane.session.get()) {
+			return;
+		}
+		const emptySlotView = this.sessionsPartService.getSessionView(undefined);
+		this._activate(session, !emptySlotView || this.sessionsPartService.getFocusedSessionView() !== emptySlotView);
 	}
 
 	/** Open or move beside the active session when requested, keeping a single empty slot. */

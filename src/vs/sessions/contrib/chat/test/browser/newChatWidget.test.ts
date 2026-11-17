@@ -1529,15 +1529,21 @@ suite('NewChatWidget', () => {
 			}, { environment: 'local', announcements: ['Environment: This Computer'], openedPickers: 0 });
 		});
 
-		for (const { devContainer, hosted } of [{ devContainer: false, hosted: true }, { devContainer: true, hosted: false }]) {
-			test(`follows the provider that continues the selected host in the background with the draft, its agent, Dev Container, requested target and selection origin (devContainer: ${devContainer}, hosted: ${hosted})`, async () => {
+		for (const { devContainer, hosted, requested } of [
+			{ devContainer: false, hosted: true, requested: undefined },
+			{ devContainer: false, hosted: true, requested: 'claude' },
+			{ devContainer: true, hosted: false, requested: undefined },
+			{ devContainer: false, hosted: false, requested: 'claude' },
+		]) {
+			test(`follows the provider that continues the selected host in the background with the draft, its requested agent, Dev Container, requested target and selection origin (devContainer: ${devContainer}, hosted: ${hosted}, requested: ${requested})`, async () => {
 				const { harness, calls } = createHarness(true);
 				const environment: ISessionCreationEnvironment = { id: 'agenthost-env', kind: 'remote', label: 'GitHub Environment', icon: Codicon.github, providerIds: ['agenthost-env'] };
 				const direct: ISessionCreationEnvironment = { id: 'agenthost-wsl', kind: 'remote', label: 'WSL', icon: Codicon.remote, providerIds: ['agenthost-wsl'] };
 				const directFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project' });
-				const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: folder, providerId: 'agenthost-env', modelId: 'model' });
+				const requestedType = requested ? { sessionTypeId: requested } : undefined;
+				const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: folder, providerId: 'agenthost-env', modelId: 'model', ...requestedType });
 				const selections: { origin: WorkspaceSelectionOrigin; persist: boolean }[] = [];
-				const created: { pick: IPreferredSessionType | undefined; preserveFocus: boolean | undefined }[] = [];
+				const created: { pick: IPreferredSessionType | undefined; background: boolean | undefined }[] = [];
 				const { setSelectedWorkspace } = harness._workspacePicker;
 				const picker = Object.assign(harness._workspacePicker, {
 					selectionSnapshot: { origin: WorkspaceSelectionOrigin.User },
@@ -1552,6 +1558,8 @@ suite('NewChatWidget', () => {
 					Object.assign(harness.sessionsProvidersService.getProvider(LOCAL_AGENT_HOST_PROVIDER_ID)!, { isDevContainerRequested: () => true });
 				}
 				harness._pickedEnvironment.set(environment, undefined);
+				// The main composer waits for the agent the user picked; a hosted composer, for the one its host requests.
+				Object.assign(harness._newChatInput, { sessionTypePicker: { getUserPickedSessionType: (): IPreferredSessionType | undefined => hosted ? { sessionTypeId: 'codex' } : requested ? { providerId: 'agenthost-env', sessionTypeId: requested } : { providerId: 'other', sessionTypeId: 'codex' } } });
 				if (hosted) {
 					harness._draftHost = { requestedTarget: target, setRequestedTarget: next => target.set(next, undefined) };
 				}
@@ -1566,7 +1574,7 @@ suite('NewChatWidget', () => {
 					_store: { isDisposed: false },
 					_reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions) { reconcile.call(this, options); },
 					_requestsDevContainer(folderUri: URI | undefined) { return requestsDevContainer.call(this, folderUri); },
-					_onWorkspaceSelected: async (_folderUri: URI, pick: IPreferredSessionType | undefined, preserveFocus: boolean | undefined) => { created.push({ pick, preserveFocus }); calls.push('createDraft'); },
+					_onWorkspaceSelected: async (_folderUri: URI, pick: IPreferredSessionType | undefined, background: boolean | undefined) => { created.push({ pick, background }); calls.push('createDraft'); },
 				}), folder, 'agenthost-env', directFolder, 'agenthost-wsl');
 
 				assert.deepStrictEqual({
@@ -1581,9 +1589,9 @@ suite('NewChatWidget', () => {
 					environment: devContainer ? 'container:agenthost-wsl' : 'agenthost-wsl',
 					folder: directFolder,
 					devContainerFolder: devContainer ? directFolder : undefined,
-					target: hosted ? { folderUri: directFolder, providerId: 'agenthost-wsl', modelId: 'model' } : { folderUri: folder, providerId: 'agenthost-env', modelId: 'model' },
+					target: hosted ? { folderUri: directFolder, providerId: 'agenthost-wsl', modelId: 'model', ...requestedType } : { folderUri: folder, providerId: 'agenthost-env', modelId: 'model', ...requestedType },
 					selections: [{ origin: WorkspaceSelectionOrigin.User, persist: !hosted }],
-					created: [{ pick: { providerId: 'agenthost-wsl', sessionTypeId: 'copilot' }, preserveFocus: true }],
+					created: [{ pick: { providerId: 'agenthost-wsl', sessionTypeId: requested ?? 'copilot' }, background: true }],
 					calls: ['saveDraft', 'cancelUpgrade', 'cancelCreation', `workspace:agenthost-wsl:${devContainer}`, 'createDraft', devContainer ? 'Environment: Dev Container' : 'Environment: WSL'],
 				});
 			});
