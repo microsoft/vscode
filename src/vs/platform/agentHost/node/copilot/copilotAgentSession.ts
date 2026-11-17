@@ -2249,6 +2249,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _assistedApprovalInstructionsSequencer = new Sequencer();
 	/** Instructions the live SDK session holds; the runtime keeps them in memory only, so each launch starts empty. */
 	private _appliedAssistedApprovalInstructions = '';
+	private _assistedApprovalRepositoryContext: Promise<void> | undefined;
 	private _shellInitScriptDisposing = false;
 	/**
 	 * Scopes this instance's script files so a disposed predecessor's queued
@@ -5153,6 +5154,7 @@ export class CopilotAgentSession extends Disposable {
 			this._wrapper = this._wrapperDisposables.add(wrapper);
 			this._adoptLaunchPermissionMode(wrapper);
 			this._appliedAssistedApprovalInstructions = '';
+			this._assistedApprovalRepositoryContext = undefined;
 			this._mcpAwaitingOAuthReconnect.clear();
 			this._lastAppliedAgent = this._launchPlan.kind === 'create' ? this._launchPlan.resolvedAgentName ?? null : undefined;
 			this._registeredByokConfig = wrapper.launchByokConfig;
@@ -5194,7 +5196,10 @@ export class CopilotAgentSession extends Disposable {
 			this._appliedImageGenerationWatermark = wrapper.launchImageGenerationWatermark;
 			await this._syncImageGeneration();
 			await this._declareHostPolicyPermissionHandler(wrapper);
-			await this._applyAssistedApprovalRepositoryContext(wrapper);
+			const permissionMode = wrapper.session.permissionModeResult?.mode ?? this._launchPermissionMode;
+			if (permissionMode === undefined || permissionMode === 'assisted') {
+				await (this._assistedApprovalRepositoryContext ??= this._applyAssistedApprovalRepositoryContext(wrapper));
+			}
 			await this._syncAssistedApprovalInstructions();
 			this.refreshModelConfiguration();
 			await this._sandbox.updateDiagnostics();
@@ -9529,10 +9534,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Gives the Assisted permissions judge the repository of the session's working directory
-	 * as advisory context, so that the user's instructions can refer to it. The context
-	 * authorizes nothing, and the runtime holds it only for the live SDK session, so every
-	 * attached SDK session receives it again.
+	 * Applies advisory repository context once per SDK session, before Assisted permissions can be used.
+	 * Known non-Assisted launches defer discovery until Assisted mode is selected; unknown restored modes do not.
 	 */
 	private async _applyAssistedApprovalRepositoryContext(wrapper: CopilotSessionWrapper): Promise<void> {
 		const workingDirectory = this._workingDirectory;
@@ -9655,6 +9658,9 @@ export class CopilotAgentSession extends Disposable {
 				}
 				this._experimentalModeEnabled = experimentalModeEnabled;
 				this._logService.info(`[Copilot:${this.sessionId}] ${experimentalModeEnabled ? 'Enabled' : 'Disabled'} SDK experimental mode`);
+			}
+			if (mode === 'assisted') {
+				await (this._assistedApprovalRepositoryContext ??= this._applyAssistedApprovalRepositoryContext(this._wrapper));
 			}
 			if (this._lastAppliedPermissionMode === mode) {
 				this._acceptPermissionMode(mode);

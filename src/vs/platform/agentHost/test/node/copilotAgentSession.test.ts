@@ -2947,13 +2947,86 @@ suite('CopilotAgentSession', () => {
 
 		for (const resume of [false, true]) {
 			test(`every attached SDK session receives the working directory's repository (resume=${resume})`, async () => {
-				const { session, mockSession } = await createAgentSession(disposables, { resume, workingDirectory, gitService: withRemotes(['git@github.com:Microsoft/VSCode.git', 'https://github.com/fork/vscode.git']) });
+				const { session, mockSession } = await createAgentSession(disposables, {
+					resume, workingDirectory, gitService: withRemotes(['git@github.com:Microsoft/VSCode.git', 'https://github.com/fork/vscode.git']),
+					configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+					configureMockSession: mock => { mock.permissionModeResult = { success: true, mode: 'assisted' }; },
+					duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+				});
 				session.markTelemetryRevocationRequiresRestart();
 				await session.revalidateTelemetryBeforeRegistration();
 				const context = { assistedApprovalContext: { source: 'vscode.repository', value: { repository: 'microsoft/vscode', host: 'github.com' } } };
 				assert.deepStrictEqual(contexts(mockSession), [context, context]);
 			});
 		}
+
+		test('a resumed session with an unknown permission mode still receives repository context', async () => {
+			const { mockSession } = await createAgentSession(disposables, {
+				resume: true, keepsRestoredPermissionMode: true, workingDirectory,
+				gitService: withRemotes(['https://github.com/microsoft/vscode.git']),
+				duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+			});
+			assert.deepStrictEqual(contexts(mockSession), [
+				{ assistedApprovalContext: { source: 'vscode.repository', value: { repository: 'microsoft/vscode', host: 'github.com' } } },
+			]);
+		});
+
+		for (const level of ['default', 'autoApprove'] as const) {
+			test(`non-Assisted launches and sends do not discover remotes (${level})`, async () => {
+				const getFetchRemoteUrls = spy(async () => ['https://github.com/microsoft/vscode.git']);
+				const { session, mockSession } = await createAgentSession(disposables, {
+					workingDirectory,
+					gitService: { ...createNoopGitService(), getFetchRemoteUrls },
+					configValues: { [SessionConfigKey.AutoApprove]: level },
+					duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+				});
+				await session.send('hello', undefined, 'non-assisted');
+				assert.deepStrictEqual({ reads: getFetchRemoteUrls.callCount, contexts: contexts(mockSession) }, { reads: 0, contexts: [] });
+			});
+		}
+
+		test('switching to Assisted waits for context before enabling the judge and sending, without repeating discovery', async () => {
+			const getFetchRemoteUrls = spy(async () => ['https://github.com/microsoft/vscode.git']);
+			const { session, mockSession, setConfigValue } = await createAgentSession(disposables, {
+				workingDirectory,
+				gitService: { ...createNoopGitService(), getFetchRemoteUrls },
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				configureMockSession: mock => { mock.permissionModeResult = { success: true, mode: 'manual' }; },
+				duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+			});
+			assert.strictEqual(getFetchRemoteUrls.callCount, 0);
+			const configureEntered = new DeferredPromise<void>();
+			const configureRelease = new DeferredPromise<void>();
+			mockSession.permissionConfigureGate = configureRelease.p;
+			mockSession.onPermissionConfigure = () => { void configureEntered.complete(); };
+			setConfigValue(SessionConfigKey.AutoApprove, 'assisted');
+			const sending = session.send('hello', undefined, 'first-assisted');
+			try {
+				await configureEntered.p;
+				const beforeContextApplied = { modes: [...mockSession.permissionModeSetCalls], sends: mockSession.sendRequests.length };
+				await configureRelease.complete();
+				await sending;
+				setConfigValue(SessionConfigKey.AutoApprove, 'default');
+				await session.syncPermissionMode('config-change');
+				setConfigValue(SessionConfigKey.AutoApprove, 'assisted');
+				await session.syncPermissionMode('config-change');
+				assert.deepStrictEqual({
+					beforeContextApplied,
+					reads: getFetchRemoteUrls.callCount,
+					contexts: contexts(mockSession),
+					modes: mockSession.permissionModeSetCalls,
+					sends: mockSession.sendRequests.length,
+				}, {
+					beforeContextApplied: { modes: [], sends: 0 },
+					reads: 1,
+					contexts: [{ assistedApprovalContext: { source: 'vscode.repository', value: { repository: 'microsoft/vscode', host: 'github.com' } } }],
+					modes: ['assisted', 'manual', 'assisted'],
+					sends: 1,
+				});
+			} finally {
+				await configureRelease.complete();
+			}
+		});
 
 		test('a session without a recognized repository sends no context', async () => {
 			const sent = async (options: { readonly workingDirectory?: URI; readonly remotes?: readonly string[] }) => {
