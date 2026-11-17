@@ -27,16 +27,10 @@ import { IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
-import { MockChatSessionsService } from '../../../../chat/test/common/mockChatSessionsService.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 
 suite('AgentsChatViewHost', () => {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface IHostOptions {
 		readonly chatAvailable?: boolean;
@@ -88,12 +82,6 @@ suite('AgentsChatViewHost', () => {
 			}),
 			upcastPartial<INotificationService>({ info: message => { calls.push(`info ${message}`); return undefined!; }, error: message => { calls.push(`error ${message}`); return undefined!; } }),
 			upcastPartial<IAgentsChatPartFrame>({ content, contentCreated: derived(reader => !!content.read(reader)) }),
-			// New chats default to the Copilot agent, not local chat
-			new TestConfigurationService({ [ChatConfiguration.DefaultToCopilotHarness]: true }),
-			new MockChatSessionsService(),
-			store.add(new TestStorageService()),
-			upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(true), managedSandboxEnforced: constObservable(false) }),
-			new NullManagedSettingsService(),
 		);
 		return { host, calls, composerWidget };
 	}

@@ -18,12 +18,8 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../chat/browser/chatViewHost.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
-import { IChatSessionsService, isAgentHostSessionResource, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
-import { ChatAgentLocation, getDefaultNewChatSessionType } from '../../../chat/common/constants.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { isAgentHostSessionResource, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -78,11 +74,6 @@ export class AgentsChatViewHost implements IChatViewHost {
 		@IChatService private readonly _chatService: IChatService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAgentsChatPartFrame frame: IAgentsChatPartFrame,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
-		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		// Read once the chat part exists, of the frame: reading it does not create it, also not again as it is being created
 		this.shownSession = derived(reader => frame.contentCreated.read(reader) ? frame.content.read(reader)?.shownSession.read(reader) : undefined);
@@ -123,11 +114,10 @@ export class AgentsChatViewHost implements IChatViewHost {
 
 	/**
 	 * New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part, unless the Chat view
-	 * keeps it, or a New Chat without a target starts a local chat (see {@link leavesNewChatToChatView}). Resolves once the
-	 * composer shows, so that a request that follows goes to it, not to the chat shown before.
+	 * keeps it. Resolves once the composer shows, so that a request that follows goes to it, not to the chat shown before.
 	 */
 	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
-		if (!this._ownsNewChat.get() || !this._available || (!target && this.leavesNewChatToChatView())) {
+		if (!this._ownsNewChat.get() || !this._available) {
 			return false;
 		}
 		const aimed = target ? toComposerTarget(target) : this._composerTarget();
@@ -136,18 +126,6 @@ export class AgentsChatViewHost implements IChatViewHost {
 		}
 		await this._chatPart.openComposer(aimed, { newComposer: true, preserveFocus: options?.preserveFocus });
 		return true;
-	}
-
-	/**
-	 * Whether a New Chat that it would take, without a target, starts in the Chat view instead: while the default type of new
-	 * chats is local chat, which it does not show (see {@link canShow}), as the local chat setting decides.
-	 */
-	leavesNewChatToChatView(): boolean {
-		if (!this._ownsNewChat.get() || !this._available) {
-			return false;
-		}
-		const defaultType = getDefaultNewChatSessionType(this._configurationService, this._chatSessionsService, this._storageService, this._workspaceContextService.getWorkspace(), this._agentHostEnablementService.enabled.get(), undefined, this._agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this._managedSettingsService, this._configurationService));
-		return defaultType === localChatSessionType;
 	}
 
 	/** Whether it shows anything: not while chat is hidden or disabled, such as with AI features off. */

@@ -390,12 +390,10 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		let host = this.host;
 		let taken: boolean;
 		try {
-			const leftToChatView = !target && host !== this.chatViewHost && !!host.leavesNewChatToChatView?.();
 			taken = await host.newChat?.(target, hostOptions) ?? false;
-			if (!taken && (options?.ownChat || leftToChatView) && host !== this.chatViewHost && !superseded()) {
+			if (!taken && options?.ownChat && host !== this.chatViewHost && !superseded()) {
 				host = this.chatViewHost;
-				// The Chat view's own new chat, also for a New Chat that would otherwise go to the chat widget it acts on
-				taken = await host.newChat?.(target, { ...hostOptions, ownChat: true }) ?? false;
+				taken = await host.newChat?.(target, hostOptions) ?? false;
 			}
 		} finally {
 			supersession.dispose();
