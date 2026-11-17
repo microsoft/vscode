@@ -359,6 +359,7 @@ export interface IMapSessionEventsOptions {
 	readonly agent?: AgentSelection;
 	readonly interruptedTurnError?: ErrorInfo;
 	readonly resolveSkill?: SkillToolCallResolver;
+	readonly resolveSubagentChatUri?: (toolCallId: string) => string;
 }
 
 function newTurnBuilder(id: string, text: string, options?: { attachments?: MessageAttachment[]; model?: ModelSelection; agent?: AgentSelection; origin?: MessageKind; startedAt?: string }): ITurnBuilder {
@@ -405,7 +406,7 @@ function readMcpUiResourceUri(source: unknown): string | undefined {
 	return readStringProperty(ui, 'resourceUri');
 }
 
-function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, pathMapper: ICopilotSdkPathMapper, workingDirectory: URI | undefined, source: unknown, resolveAgentName: ToolAgentNameResolver, toolTitle?: string, intentionSummary?: string | null): IToolStartInfo | undefined {
+function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCallId: string | undefined, pathMapper: ICopilotSdkPathMapper, workingDirectory: URI | undefined, source: unknown, resolveAgentName: ToolAgentNameResolver, resolveAgentChat: (agentId: string) => string | undefined, toolTitle?: string, intentionSummary?: string | null): IToolStartInfo | undefined {
 	if (isHiddenTool(toolName)) {
 		return undefined;
 	}
@@ -426,7 +427,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 	return {
 		toolName,
 		displayName,
-		invocationMessage: getInvocationMessage(toolName, displayName, parameters, path => resolveToolDisplayPath(path, pathMapper, workingDirectory), resolveAgentName),
+		invocationMessage: getInvocationMessage(toolName, displayName, parameters, path => resolveToolDisplayPath(path, pathMapper, workingDirectory), resolveAgentName, resolveAgentChat),
 		toolInput: getToolInputString(toolName, parameters, toolArgs),
 		toolKind,
 		language: toolKind === 'terminal' ? getShellLanguage(toolName) : undefined,
@@ -513,6 +514,15 @@ export async function mapSessionEvents(
 	// `agentId` and the parent tool call id it was spawned from, so we map
 	// one to the other and resolve every later sub-agent event through it.
 	const parentToolCallIdByAgentId = new Map<string, string>();
+	for (const event of events) {
+		if ((event.type === 'subagent.started' || event.type === 'subagent.completed' || event.type === 'subagent.failed') && event.agentId && !parentToolCallIdByAgentId.has(event.agentId)) {
+			parentToolCallIdByAgentId.set(event.agentId, event.data.toolCallId);
+		}
+	}
+	const resolveAgentChat = (agentId: string) => {
+		const toolCallId = parentToolCallIdByAgentId.get(agentId);
+		return toolCallId === undefined ? undefined : options?.resolveSubagentChatUri?.(toolCallId);
+	};
 	const resolveParentToolCallId = (agentId: string | undefined, deprecatedParentToolCallId: string | undefined): string | undefined => {
 		const mapped = agentId ? parentToolCallIdByAgentId.get(agentId) : undefined;
 		return mapped ?? deprecatedParentToolCallId;
@@ -576,6 +586,8 @@ export async function mapSessionEvents(
 			if (e.agentId) {
 				parentToolCallIdByAgentId.set(e.agentId, e.data.toolCallId);
 			}
+		} else if ((e.type === 'subagent.completed' || e.type === 'subagent.failed') && e.agentId && !parentToolCallIdByAgentId.has(e.agentId)) {
+			parentToolCallIdByAgentId.set(e.agentId, e.data.toolCallId);
 		}
 		if (e.type === 'assistant.message' && !e.agentId) {
 			for (const request of e.data.toolRequests ?? []) {
@@ -607,7 +619,7 @@ export async function mapSessionEvents(
 		if (e.type === 'tool.execution_start') {
 			const d = e.data;
 			const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId) ?? resolveFusionPhaseToolCallId(e.agentId, d.fusion);
-			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, pathMapper, workingDirectory, d, resolveAgentName, toolTitlesByCallId.get(d.toolCallId), toolIntentionsByCallId.get(d.toolCallId));
+			const info = makeToolStartInfo(d.toolName, d.arguments, parentToolCallId, pathMapper, workingDirectory, d, resolveAgentName, resolveAgentChat, toolTitlesByCallId.get(d.toolCallId), toolIntentionsByCallId.get(d.toolCallId));
 			if (!info) {
 				continue;
 			}
@@ -1006,7 +1018,7 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'system.notification': {
-				const notification = buildCopilotSystemNotification(e, resolveAgentName);
+				const notification = buildCopilotSystemNotification(e, resolveAgentName, resolveAgentChat);
 				if (!notification) {
 					break;
 				}
@@ -1093,7 +1105,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeToolCallPart(d.toolCallId, d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, storedResources, subagentInfoByToolCallId.get(d.toolCallId), pathMapper, workingDirectory, resolveAgentName, binaryAssets, readEventTimestamp(e));
+				const completedPart = makeToolCallPart(d.toolCallId, d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, storedResources, subagentInfoByToolCallId.get(d.toolCallId), pathMapper, workingDirectory, resolveAgentName, resolveAgentChat, binaryAssets, readEventTimestamp(e));
 				builder.responseParts.push(completedPart);
 				// Background task launch completion is not a child-turn boundary.
 				if (!parentToolCallId && subagentInfoByToolCallId.has(d.toolCallId) && info.parameters?.mode !== 'background') {
@@ -1181,7 +1193,7 @@ export async function mapSessionEvents(
 				continue;
 			}
 			const info = toolInfoByCallId.get(request.toolCallId)
-				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, pathMapper, workingDirectory, request, resolveAgentName, request.toolTitle, request.intentionSummary);
+				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, pathMapper, workingDirectory, request, resolveAgentName, resolveAgentChat, request.toolTitle, request.intentionSummary);
 			if (!info) {
 				continue;
 			}
@@ -1205,6 +1217,7 @@ export async function mapSessionEvents(
 				pathMapper,
 				workingDirectory,
 				resolveAgentName,
+				resolveAgentChat,
 				binaryAssets,
 			));
 		}
@@ -1376,6 +1389,7 @@ function makeToolCallPart(
 	pathMapper: ICopilotSdkPathMapper,
 	workingDirectory: URI | undefined,
 	resolveAgentName: ToolAgentNameResolver,
+	resolveAgentChat: (agentId: string) => string | undefined,
 	binaryAssets: ReadonlyMap<string, BinaryAssetData>,
 	completedAt?: string,
 ): ResponsePart {
@@ -1517,7 +1531,7 @@ function makeToolCallPart(
 		...base,
 		status: ToolCallStatus.Completed,
 		success: d.success,
-		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, pathMapper, workingDirectory), resolveAgentName, imageGeneration),
+		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, pathMapper, workingDirectory), resolveAgentName, imageGeneration, resolveAgentChat),
 		content: content.length > 0 ? content : undefined,
 		structuredContent: d.result?.structuredContent as Record<string, unknown> | undefined,
 		resultMetadata: getSdkMcpResultMeta(d.result),

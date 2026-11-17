@@ -3728,6 +3728,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			ChatSystemNotificationContentPart,
 			{ kind: 'systemNotification', content: new MarkdownString(label) },
 			this.chatContentMarkdownRenderer,
+			element.sessionResource.toString(),
 		);
 		templateData.elementDisposables.add(notificationPart);
 		templateData.value.appendChild(notificationPart.domNode);
@@ -5397,7 +5398,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, content.shimmer, undefined);
 			} else if (content.kind === 'systemNotification') {
 				this.finalizeCurrentThinkingPart(context, templateData);
-				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer);
+				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer, context.element.sessionResource.toString());
 			} else if (content.kind === 'working') {
 				if (this.isStickyProgressEnabled() && context.element === this.viewModel?.getItems().findLast(isResponseVM)) {
 					this.updateStickyProgressContent();
