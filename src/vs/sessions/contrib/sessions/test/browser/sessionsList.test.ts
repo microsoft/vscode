@@ -246,6 +246,123 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	/** A session of the folder `root`, labelled `label`. */
+	function createFolderSession(id: string, label: string, root: string, createdAt?: Date, options?: ITestSessionOptions): ISession {
+		const { session } = createTestSession(id, { ...options, workspaceLabel: label, createdAt });
+		const uri = URI.parse(root);
+		return { ...session, workspace: constObservable({ ...session.workspace.get()!, uri, folders: [{ root: uri, workingDirectory: uri, name: label, description: undefined, gitRepository: undefined }] }) };
+	}
+
+	test('a scoped list, of a window with folders, shows no Chats section under any grouping, also empty, while an unscoped list keeps it, as the scope changes live', () => {
+		const harness = createListHarness(disposables, [createFolderSession('folder', 'repo', 'file:///work/repo')]);
+		void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, true);
+		const provider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true, environment: { id: 'local', label: 'This Computer' } });
+		harness.instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
+			override getProviders() { return [provider]; }
+			override getProvider() { return undefined; }
+		});
+		const chatsSection = (grouping: SessionsGrouping) => {
+			const scoped = observableValue('scoped', false);
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				scoped,
+				quickChatsInTimeGrouping: true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const hasChats = () => list.getTreeSnapshot().some(node => node.type === 'section' && node.id === QUICK_CHATS_SECTION_ID);
+			const steps = [hasChats()];
+			scoped.set(true, undefined);
+			steps.push(hasChats());
+			scoped.set(false, undefined);
+			steps.push(hasChats());
+			return steps.map(shown => shown ? 'chats' : '-').join(' ');
+		};
+
+		// Unscoped, scoped, unscoped again
+		assert.deepStrictEqual({
+			date: chatsSection(SessionsGrouping.Date),
+			environment: chatsSection(SessionsGrouping.Environment),
+			worktree: chatsSection(SessionsGrouping.Worktree),
+			workspace: chatsSection(SessionsGrouping.Workspace),
+			repository: chatsSection(SessionsGrouping.Repository),
+		}, {
+			date: 'chats - chats',
+			environment: '- - -',
+			worktree: 'chats - chats',
+			workspace: 'chats - chats',
+			repository: 'chats - chats',
+		});
+	});
+
+	test('a scoped list says so when it shows no session, also when the filters hide its sessions', () => {
+		const harness = createListHarness(disposables, [createFolderSession('archived', 'vscode', 'file:///work/vscode', undefined, { isArchived: true })]);
+		const container = harness.createContainer(400, 1400);
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			scoped: constObservable(true),
+			onSessionOpen: () => { },
+		}));
+		list.setExcludeArchived(true);
+		list.layout(1400, 400);
+
+		assert.deepStrictEqual({
+			sessions: list.getVisibleSessions().length,
+			rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.textContent?.trim()).filter(text => text === 'No sessions to show in this folder.'),
+		}, { sessions: 0, rows: ['No sessions to show in this folder.'] });
+	});
+
+	test('a scoped list leaves out a comparison whose sessions the providers do not list, nested in a custom group', () => {
+		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+		const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Elsewhere', createdAt: 2, parentId: work.id };
+		const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createFolderSession(id, 'other', 'file:///other', hoursAgo(2 + index)));
+		const comparison: ISessionComparison = {
+			id: 'comparison-1',
+			groupId: comparisonGroup.id,
+			title: 'Elsewhere',
+			createdAt: 1,
+			workspace: URI.parse('file:///other'),
+			prompt: 'Elsewhere',
+			participants: attempts.map((session, index) => ({
+				id: `participant-${index}`,
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				sessionResource: session.resource,
+			})),
+		};
+		// The providers list only the sessions of the window's folder; lookups still find those of other folders
+		const harness = createListHarness(disposables, [createFolderSession('here', 'repo', 'file:///work/repo', hoursAgo(1))], {
+			groups: [work, comparisonGroup],
+			memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+			comparisons: [comparison],
+		});
+		harness.managementService.unlistedSessions = attempts;
+		const render = (scoped: IObservable<boolean> | undefined) => {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				scoped,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			return {
+				sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+				comparison: !!container.querySelector('.session-comparison-group'),
+			};
+		};
+
+		assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable(true)) }, {
+			unscoped: { sessions: ['here'], comparison: true },
+			scoped: { sessions: ['here'], comparison: false },
+		});
+	});
+
 	test('shown again with nothing changed, the list renders again only once its sections no longer hold as the time passed: at midnight, and once a session is no longer updated in the last day', () => runWithFakedTimers({ startTime: new Date(2024, 5, 10, 23, 50).getTime(), maxTaskCount: 10_000 }, async () => {
 		// Created a week ago, at noon: Recent until midnight, when the week of Recent starts a day later
 		const lastWeek = createTestSession('Last week', { createdAt: new Date(2024, 5, 3, 12, 0) }).session;
@@ -6282,6 +6399,34 @@ suite('Sessions - SessionsList', () => {
 				}, { description, accessible: description !== undefined, archived: false });
 			});
 		}
+
+		test('inbox rebuilds only when a session placement changes, not on every attention update', async () => {
+			const ready = createTestSession('ready');
+			const other = createTestSession('other');
+			const harness = createListHarness(disposables, [ready.session, other.session]);
+			const readyAttention: IInboxSessionAttention = { tab: InboxTab.Working, priority: InboxNotificationPriority.Next, notificationIds: ['review'], isHistoricalCompletion: false };
+			const attention = observableValue<ReadonlyMap<string, IInboxSessionAttention>>('attention', new Map([['ready', readyAttention]]));
+			harness.instantiationService.stub(ISessionAttentionService, { sessionAttention: attention, acquireSessionAttention: () => toDisposable(() => { }) });
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const list = disposables.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.setVisible(true);
+			list.layout(800, 320);
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			await nextFrame();
+			let updates = 0;
+			const update = list.update.bind(list);
+			list.update = expandAll => { updates++; update(expandAll); };
+			// A new notification identity that keeps the same section and priority.
+			attention.set(new Map([['ready', { ...readyAttention, notificationIds: ['review:newThread'] }]]), undefined);
+			await nextFrame();
+			const unchanged = updates;
+			attention.set(new Map([['ready', { ...readyAttention, tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now }]]), undefined);
+			await nextFrame();
+			assert.deepStrictEqual({ unchanged, moved: updates }, { unchanged: 0, moved: 1 });
+		});
 
 		test('inbox renders historical and explicit triage state and restores custom placement when leaving the mode', async () => {
 			const grouped = createTestSession('grouped');
