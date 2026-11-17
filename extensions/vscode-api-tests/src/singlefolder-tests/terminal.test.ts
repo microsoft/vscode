@@ -920,7 +920,7 @@ import { assertNoRpc, poll } from '../utils';
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
 				// Verify get
-				const defaultOptions: Required<EnvironmentVariableMutatorOptions> = {
+				const defaultOptions: Required<Pick<EnvironmentVariableMutatorOptions, 'applyAtProcessCreation' | 'applyAtShellIntegration'>> = {
 					applyAtProcessCreation: true,
 					applyAtShellIntegration: false
 				};
@@ -949,7 +949,7 @@ import { assertNoRpc, poll } from '../utils';
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
 				// Verify get for scope
-				const defaultOptions: Required<EnvironmentVariableMutatorOptions> = {
+				const defaultOptions: Required<Pick<EnvironmentVariableMutatorOptions, 'applyAtProcessCreation' | 'applyAtShellIntegration'>> = {
 					applyAtProcessCreation: true,
 					applyAtShellIntegration: false
 				};

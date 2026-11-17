@@ -15,6 +15,9 @@ import { ActionType, StateAction } from '../../common/state/protocol/actions.js'
 import { TerminalClaimKind, TerminalContentPart, TerminalLifecycleStatus, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentTerminalPathService, IAgentTerminalPathService } from '../../node/agentTerminalPathService.js';
+import { noAgentTerminalPathService } from './noAgentTerminalPathService.js';
+import { delimiter, join } from '../../../../base/common/path.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTerminalManager, formatTerminalText, removeTerminalQueriesSuppressedFromClient, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from '../../node/osc633Parser.js';
@@ -240,8 +243,9 @@ class TestAgentHostTerminalManager extends AgentHostTerminalManager {
 		productService: IProductService,
 		configurationService: AgentConfigurationService,
 		private readonly _pty: TestPty,
+		agentTerminalPathService: IAgentTerminalPathService = noAgentTerminalPathService,
 	) {
-		super(stateManager, logService, productService, configurationService);
+		super(stateManager, logService, productService, configurationService, agentTerminalPathService);
 	}
 
 	protected override async _spawnPty(_file: string, _args: string[], options: IPtyForkOptions | IWindowsPtyForkOptions): Promise<IPty> {
@@ -479,6 +483,45 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		}, { preventShellHistory: true, nonInteractive: true });
 		assert.strictEqual(bashSessionManager.spawnOptions?.env?.VSCODE_AGENT_ZSH_FIXUPS, undefined);
 		assert.strictEqual(bashSessionManager.spawnOptions?.env?.VSCODE_PREVENT_SHELL_HISTORY, '1');
+	});
+
+	test('adds agent terminal PATH entries to session shells only, when they spawn', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pathService = disposables.add(new AgentTerminalPathService());
+		pathService.setClientPath('window', { prepend: [join(process.cwd(), 'pre')], append: [join(process.cwd(), 'post')] });
+
+		async function spawnPath(id: string, claim: TerminalClaim): Promise<{ path: string[]; pathPrefix: string | undefined }> {
+			const pty = new TestPty();
+			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty, pathService));
+			const createTerminal = manager.createTerminal({ channel: `agenthost-terminal://test/${id}`, claim, cwd: process.cwd(), cols: 80, rows: 24 }, { shell: '/bin/bash' });
+			await pty.dataListenerRegistered.p;
+			pty.fireData('prompt');
+			await createTerminal;
+			const env = manager.spawnOptions?.env ?? {};
+			const key = Object.keys(env).find(name => name.toUpperCase() === 'PATH') ?? 'PATH';
+			return { path: (env[key] ?? '').split(delimiter), pathPrefix: env.VSCODE_PATH_PREFIX };
+		}
+
+		const session = await spawnPath('session', { kind: TerminalClaimKind.Session, session: 'copilot:/session-1', chat: buildDefaultChatUri('copilot:/session-1'), turnId: 'turn-1', toolCallId: 'tool-1' });
+		const client = await spawnPath('client', { kind: TerminalClaimKind.Client, clientId: 'test-client' });
+
+		assert.deepStrictEqual({
+			sessionFirst: session.path[0],
+			sessionLast: session.path.at(-1),
+			// macOS login profiles reorder PATH; shell integration re-applies the prefix afterwards.
+			sessionPathPrefix: session.pathPrefix,
+			clientHasEntries: client.path.includes(join(process.cwd(), 'pre')) || client.path.includes(join(process.cwd(), 'post')),
+			clientPathPrefix: client.pathPrefix,
+		}, {
+			sessionFirst: join(process.cwd(), 'pre'),
+			sessionLast: join(process.cwd(), 'post'),
+			sessionPathPrefix: process.platform === 'darwin' ? join(process.cwd(), 'pre') + delimiter : undefined,
+			clientHasEntries: false,
+			clientPathPrefix: undefined,
+		});
 	});
 
 	test('writes headless DSR responses back to the PTY', async () => {
@@ -921,7 +964,7 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
-		const manager = disposables.add(new AgentHostTerminalManager(stateManager, logService, productService, configurationService));
+		const manager = disposables.add(new AgentHostTerminalManager(stateManager, logService, productService, configurationService, noAgentTerminalPathService));
 		return { manager, stateManager };
 	}
 

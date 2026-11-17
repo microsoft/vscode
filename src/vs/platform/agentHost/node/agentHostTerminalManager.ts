@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { DeferredPromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { dirname, parse as pathParse } from '../../../base/common/path.js';
+import { delimiter, dirname, parse as pathParse } from '../../../base/common/path.js';
 import * as platform from '../../../base/common/platform.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { URI } from '../../../base/common/uri.js';
@@ -17,6 +17,8 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
+import { EnvironmentVariableMutatorType, type ISerializableEnvironmentVariableCollections } from '../../terminal/common/environmentVariable.js';
+import { emptyAgentTerminalPath, type IAgentTerminalPath } from '../common/agentTerminalPath.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
@@ -25,6 +27,7 @@ import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
 import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH, AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../common/terminalConstants.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentTerminalPathService } from './agentTerminalPathService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import { isZsh } from './agentHostShellUtils.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -199,6 +202,18 @@ interface IOutputTerminal {
 }
 
 /**
+ * Expresses the prepended agent terminal entries as an environment variable
+ * collection, so shell integration can re-apply them after a login profile.
+ */
+function agentTerminalPathCollections({ prepend }: IAgentTerminalPath): ISerializableEnvironmentVariableCollections | undefined {
+	if (prepend.length === 0) {
+		return undefined;
+	}
+	const mutator = { variable: 'PATH', value: prepend.join(delimiter) + delimiter, type: EnvironmentVariableMutatorType.Prepend };
+	return [['vscode.agentTerminalPath', [['PATH', mutator]], []]];
+}
+
+/**
  * Manages terminal processes for the agent host. Each terminal is backed by
  * a node-pty instance and identified by a protocol URI.
  *
@@ -217,6 +232,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentTerminalPathService private readonly _agentTerminalPathService: IAgentTerminalPathService,
 	) {
 		super();
 
@@ -341,6 +357,8 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (params.claim?.kind === TerminalClaimKind.Session && isZsh(shell)) {
 			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
 		}
+		const agentTerminalPath = params.claim?.kind === TerminalClaimKind.Session ? this._agentTerminalPathService.path : emptyAgentTerminalPath;
+		this._applyAgentTerminalPath(env, agentTerminalPath);
 		if (options?.nonInteractive) {
 			// Suppress paging and interactive prompts so that tool-spawned
 			// terminals produce clean, machine-friendly output. An empty
@@ -366,7 +384,9 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			{
 				shellIntegration: { enabled: true, suggestEnabled: false, nonce },
 				windowsUseConptyDll: false,
-				environmentVariableCollections: undefined,
+				// Login shells on macOS (path_helper, user profiles) can push prepended
+				// entries back; like integrated terminals, shell integration re-applies them.
+				environmentVariableCollections: agentTerminalPathCollections(agentTerminalPath),
 				workspaceFolder: undefined,
 				isScreenReaderOptimized: false,
 			},
@@ -944,6 +964,16 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			terminal.store.dispose();
 			this._broadcastTerminalList();
 		}
+	}
+
+	/** Adds the extension-contributed agent terminal `PATH` entries to `env`. */
+	private _applyAgentTerminalPath(env: Record<string, string>, { prepend, append }: IAgentTerminalPath): void {
+		if (prepend.length === 0 && append.length === 0) {
+			return;
+		}
+		// Windows environment keys are case-insensitive, but `env` is a plain object.
+		const pathKey = Object.keys(env).find(key => platform.isWindows ? key.toUpperCase() === 'PATH' : key === 'PATH') ?? 'PATH';
+		env[pathKey] = [...prepend, ...(env[pathKey] ? [env[pathKey]] : []), ...append].join(delimiter);
 	}
 
 	async getDefaultShell(): Promise<string> {
