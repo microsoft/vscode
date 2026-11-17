@@ -37,6 +37,7 @@ import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPart
 import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
 import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, createChatWindowComposerResource, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { fromStoredChatDraft, toStoredChatDraft } from '../../../common/newChatDraftState.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
@@ -205,8 +206,9 @@ suite('AgentsChatPartService', () => {
 			configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, options?.chatTabs ?? SessionsChatTabsMode.Multiple);
 		}
 
-		// The chat part, and whether the layout shows it
+		// The chat part, whether the layout shows it, and whether it has focus
 		const part = new FakePart();
+		const focus = { chatPart: false };
 		store.add(part);
 		let partVisible = !!options?.visible;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
@@ -219,7 +221,7 @@ suite('AgentsChatPartService', () => {
 					onDidChangePartVisibility.fire({ partId: Parts.CHAT_PART, visible: partVisible });
 				}
 			},
-			hasFocus: () => false,
+			hasFocus: (candidate: Parts) => candidate === Parts.CHAT_PART && focus.chatPart,
 		}));
 		// The frame has the chat part once it is created, as the real frame does
 		const content = observableValue<IAgentsChatPartService | undefined>('content', undefined);
@@ -227,10 +229,13 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: createOptions => { part.createOptions = createOptions; return part as unknown as IContentPart; }, mainPart: undefined }));
 		// The editors of the editor area that show
 		const editorArea = { panes: [] as IVisibleEditorPane[], onDidChange: store.add(new Emitter<IVisibleEditorsChangeEvent>()) };
+		// The editors it opens in its groups, and whether each takes focus
+		const opens: { readonly tab: string | null; readonly focuses: boolean }[] = [];
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
 			get visibleEditorPanes() { return editorArea.panes; },
 			onDidVisibleEditorsChange: editorArea.onDidChange.event,
 			openEditor: (async (editor: EditorInput, editorOptions: IEditorOptions | undefined, group: FakeGroup) => {
+				opens.push({ tab: name(editor), focuses: !editorOptions?.preserveFocus });
 				group.open(editor, editorOptions?.inactive);
 				if (!editorOptions?.inactive) {
 					part.activate(group);
@@ -317,6 +322,8 @@ suite('AgentsChatPartService', () => {
 			hide: () => instantiationService.get(IWorkbenchLayoutService).setPartHidden(true, Parts.CHAT_PART),
 			chatView,
 			editorArea,
+			focus,
+			opens,
 			save: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 				return storageService.get(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
@@ -328,6 +335,12 @@ suite('AgentsChatPartService', () => {
 				return raw ? (parse(raw) as { readonly input?: unknown }[]).map(composer => fromStoredChatDraft(composer.input).inputText) : [];
 			},
 			lifecycle: instantiationService.get(ILifecycleService) as TestLifecycleService,
+			/** What the chat part's composers aim at, and what was typed in them, as they store them. */
+			composerStates: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly target?: INewSessionTarget; readonly input?: unknown }[]).map(composer => ({ ...composer.target, folderUri: composer.target?.folderUri?.path, input: fromStoredChatDraft(composer.input).inputText })) : [];
+			},
 			/** The folders the chat part's composers aim at, as they store them. */
 			composerFolders: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
@@ -1030,6 +1043,49 @@ suite('AgentsChatPartService', () => {
 			restored: ['/a', '/b', '/c'],
 			openedInChatView: ['/b', '/c'],
 			openedInEditor: ['/c'],
+		});
+	});
+
+	test('in Single, a new session that reuses its composer aims it at all it asks for, also from a folder the user picked, keeping what was typed', async () => {
+		const composer = createChatWindowComposerResource();
+		const { service, layout, composerStates } = createService({
+			chatTabs: SessionsChatTabsMode.Single, visible: true,
+			stored: JSON.stringify({ chats: [composer.toString()], active: 0 }),
+			// The user picked its folder and its session type
+			storedComposers: stringify([{ resource: composer, target: { folderUri: URI.file('/picked'), providerId: 'claude', sessionTypeId: 'claude' }, hostFolder: null, input: toStoredChatDraft({ inputText: 'typed', attachments: [] }) }]),
+		});
+		await service.restore();
+
+		await service.openComposer({ folderUri: URI.file('/repo'), providerId: 'copilot', sessionTypeId: 'copilotcli', placement: 'worktree' }, { newComposer: true });
+
+		assert.deepStrictEqual({ tabs: layout().groups[0].tabs, composers: composerStates() }, {
+			tabs: ['composer'],
+			composers: [{ folderUri: '/repo', providerId: 'copilot', sessionTypeId: 'copilotcli', placement: 'worktree', input: 'typed' }],
+		});
+	});
+
+	test('in Single, the composer that shows as its last chat leaves takes focus only when the chat part had it: not as the chat opens elsewhere', async () => {
+		const run = async (leave: (fixture: ReturnType<typeof createService>) => Promise<void>, chatPartFocused: boolean) => {
+			// Its composer's editor resolves only later
+			const fixture = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, holdOpen: () => timeout(0) });
+			await fixture.service.openChat(session, chatA);
+			fixture.focus.chatPart = chatPartFocused;
+			fixture.opens.length = 0;
+			await leave(fixture);
+			await timeout(10);
+			return { tabs: fixture.layout().groups[0].tabs, opens: fixture.opens };
+		};
+		const openedInEditor = async ({ editorArea }: ReturnType<typeof createService>) => {
+			editorArea.panes = [upcastPartial<IVisibleEditorPane>({ input: upcastPartial<EditorInput>({ resource: chatA }), group: upcastPartial<IVisibleEditorPane['group']>({}) })];
+			editorArea.onDidChange.fire(upcastPartial<IVisibleEditorsChangeEvent>({}));
+		};
+
+		assert.deepStrictEqual({
+			openedInEditor: await run(openedInEditor, false),
+			closedInChatPart: await run(({ service }) => service.closeChat(chatA), true),
+		}, {
+			openedInEditor: { tabs: ['composer'], opens: [{ tab: 'composer', focuses: false }] },
+			closedInChatPart: { tabs: ['composer'], opens: [{ tab: 'composer', focuses: true }] },
 		});
 	});
 

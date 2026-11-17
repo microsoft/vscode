@@ -48,7 +48,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
-type ChatDraftHandover = { readonly kind: 'draft'; readonly source: IChatWidget | undefined; readonly input: string; readonly attachments: readonly IChatRequestVariableEntry[] };
+/** The input of a new chat that moves, and the widget it was taken from (`source`), with the chat it showed (`sourceResource`). */
+type ChatDraftHandover = { readonly kind: 'draft'; readonly source: IChatWidget | undefined; readonly sourceResource: URI | undefined; readonly input: string; readonly attachments: readonly IChatRequestVariableEntry[] };
 
 /**
  * What moves to the other host as the chat part turns on or off: a session, a new chat with the input of the one it took
@@ -167,13 +168,14 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	}
 
 	private _takeDraft(widget: IChatWidget | undefined): ChatDraftHandover {
-		return { kind: 'draft', source: widget, input: widget?.getInput() ?? '', attachments: [...widget?.attachmentModel.attachments ?? []] };
+		return { kind: 'draft', source: widget, sourceResource: widget?.viewModel?.sessionResource, input: widget?.getInput() ?? '', attachments: [...widget?.attachmentModel.attachments ?? []] };
 	}
 
 	/**
 	 * Shows what `handover` took in the other host, once that host is in use: its session, unless it shows it already, which
-	 * a session taken from the chat part then leaves; else a new chat there, with the input it took, which leaves its source
-	 * only once the new chat holds it. Never in the host it took it from. A local chat leaves the Chat view only while local
+	 * a session taken from the chat part then leaves once the Chat view shows it; else a new chat there, with the input it
+	 * took, which leaves its source only once the new chat holds it. Never in the host it took it from, nor over input of the
+	 * new chat, nor after a later request, such as an open by the user. A local chat leaves the Chat view only while local
 	 * chats are hidden: the chat part's new chat then takes the Chat view, which shows only its sessions, and the local chat
 	 * stays in its history.
 	 */
@@ -193,28 +195,44 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 			if (!isEqual(this._chatViewHostService.shownSession.get()?.resource, handover.resource)) {
 				await this._chatViewHostService.openSession(handover.resource, { preserveFocus: true });
 			}
-			// The chat part keeps its other chats, for as it turns on again, but not the one the Chat view shows now
-			if (!toChatPart && !token.isCancellationRequested) {
+			// The chat part keeps its other chats, for as it turns on again, but not the one the Chat view shows now: only once
+			// it does, not when it failed to open it, or a later request showed another chat
+			if (!toChatPart && !token.isCancellationRequested && this._chatViewHostService.chatViewHosts.get() && isEqual(this._chatViewHostService.shownSession.get()?.resource, handover.resource)) {
 				await this._chatPartService.closeChat(handover.resource);
 			}
 			return;
 		}
+		// What the user asks for meanwhile, such as an open, supersedes the move: the new chat it starts is the only request
+		let requests = this._chatViewHostService.requests.get() + 1;
 		// Only the chat part's own new chat as it turns on, never the Chat view's in its place; the Chat view's own as it turns off
-		if (!await this._chatViewHostService.newChat(undefined, { ownChat: !toChatPart, preserveFocus: true }) || token.isCancellationRequested) {
+		if (!await this._chatViewHostService.newChat(undefined, { ownChat: !toChatPart, preserveFocus: true }) || token.isCancellationRequested || this._chatViewHostService.requests.get() !== requests) {
 			return;
 		}
-		if (handover.kind === 'draft' && (handover.input || handover.attachments.length)) {
-			const target = await this._chatViewHostService.reveal(true);
-			if (!target || token.isCancellationRequested) {
-				return;
-			}
-			target.setInput(handover.input);
-			target.attachmentModel.clearAndSetContext(...handover.attachments);
-			if (handover.source && handover.source !== target) {
-				handover.source.setInput('');
-				handover.source.attachmentModel.clear();
-			}
+		if (handover.kind !== 'draft' || (!handover.input && !handover.attachments.length)) {
+			return;
 		}
+		requests++;
+		const target = await this._chatViewHostService.reveal(true);
+		if (!target || target === handover.source || token.isCancellationRequested || this._chatViewHostService.requests.get() !== requests || !this._canMoveDraft(handover, target)) {
+			return;
+		}
+		target.setInput(handover.input);
+		target.attachmentModel.clearAndSetContext(...handover.attachments);
+		handover.source?.setInput('');
+		handover.source?.attachmentModel.clear();
+	}
+
+	/**
+	 * Whether the input that `handover` took can move to `target`: not over what was typed in the target, such as the chat
+	 * part's one new-session composer, and not once its source shows another chat or its input changed. Both keep their
+	 * input then.
+	 */
+	private _canMoveDraft(handover: ChatDraftHandover, target: IChatWidget): boolean {
+		if (target.getInput() || target.attachmentModel.attachments.length) {
+			return false;
+		}
+		const source = handover.source;
+		return !source || (isEqual(source.viewModel?.sessionResource, handover.sourceResource) && source.getInput() === handover.input);
 	}
 
 	/**

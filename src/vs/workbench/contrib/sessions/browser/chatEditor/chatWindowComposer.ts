@@ -176,6 +176,13 @@ export class ChatWindowComposerBackgroundSends extends Disposable {
 	}
 }
 
+/** Whether `a` and `b` aim a new session at the same folder, provider, session type, model, mode and placement. */
+function isSameNewSessionTarget(a: INewSessionTarget, b: INewSessionTarget): boolean {
+	return (a.folderUri && b.folderUri ? extUriBiasedIgnorePathCase.isEqual(a.folderUri, b.folderUri) : a.folderUri === b.folderUri)
+		&& a.providerId === b.providerId && a.sessionTypeId === b.sessionTypeId && a.modelId === b.modelId && a.modeId === b.modeId
+		&& a.requireDevContainer === b.requireDevContainer && a.placement === b.placement;
+}
+
 /** What a composer of a chat window starts with. */
 export interface IChatWindowComposerInit {
 	/** What it creates its drafts for; as the main window's composer does while undefined. */
@@ -236,7 +243,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	readonly onWillDispose = this._onWillDispose.event;
 
 	private readonly _onDidRetarget = this._register(new Emitter<INewSessionTarget>());
-	/** Fires as its host aims it at another folder ({@link retargetFolder}), for which it creates its draft. */
+	/** Fires as its host aims it at another folder ({@link retargetFolder}) or target ({@link requestTarget}), for which it creates its draft. */
 	readonly onDidRetarget = this._onDidRetarget.event;
 
 	/** The folder its host aimed it at: while it aims at that one, the user did not pick another. */
@@ -341,6 +348,29 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 
 	getFolderPresentation(folderUri: URI): IAllowedFolderPresentation | undefined {
 		return this._getFolderPresentation?.(folderUri);
+	}
+
+	/**
+	 * Aims it at all of `target`, as something the user does asks, such as a new session of a given folder, session type or
+	 * placement that reuses this composer: also from a folder the user picked, keeping what was typed. Not while it sends, as
+	 * {@link retargetFolder}. Its host aimed it at the target's folder then. Returns whether it does.
+	 */
+	requestTarget(target: INewSessionTarget): boolean {
+		if (this.input.isSubmitting || this.input.get().attempt || this._sending.get()) {
+			return false;
+		}
+		this._hostFolder = target.folderUri;
+		const current = this._requestedTarget.get();
+		// Aimed at it already: its draft stays as it is, such as the model the user picked in it
+		if (current && isSameNewSessionTarget(current, target)) {
+			return true;
+		}
+		this._targetGeneration++;
+		transaction(tx => {
+			this._requestedTarget.set(target, tx);
+			this._onDidRetarget.fire(target);
+		});
+		return true;
 	}
 
 	openStartedSession(session: ISession): Promise<void> {
