@@ -443,6 +443,8 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
 	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
+	/** Restores the target session and chat before deciding whether a message must be queued. */
+	readonly restoreChat: (session: URI, chat: URI, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	readonly startPrompt: (session: URI, chat: URI, prompt: string, delegation?: IAgentMessageDelegationMeta, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	readonly createChat: (session: URI, chat: URI, options?: { title?: string; model?: ModelSelection; workingDirectories?: readonly URI[]; provider?: AgentProvider }, credentials?: IAgentHostCredentialSource) => Promise<void>;
 	/**
@@ -1628,6 +1630,9 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		messageId,
 		revision,
 	} : undefined;
+	if (args.delivery !== 'steer' && !stateManager?.getChatState(chat.toString())) {
+		await accessor.restoreChat(session, chat, credentials);
+	}
 	const targetState = stateManager?.getChatState(chat.toString());
 	if (args.delivery === 'steer') {
 		if (!stateManager || !targetState?.activeTurn) {
