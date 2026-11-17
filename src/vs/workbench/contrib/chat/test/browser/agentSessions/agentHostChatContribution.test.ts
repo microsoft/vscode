@@ -7352,6 +7352,44 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('switching the folder to another location keeps the sessions working in the primary location that have no project or one that is not it, but not those of a nested project', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const primary = URI.file('/workspace/root');
+			const checkout = URI.file('/workspace/root.worktrees/feature');
+			let folder = primary;
+			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => testIWorkspace({ id: '', uri: primary, folders: [{ uri: folder, name: 'root', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+				onDidChangeWorkbenchState: Event.None,
+			});
+
+			// A session without a project, and one of a window opened on a linked checkout, whose project is the main worktree
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'no-project'), startTime: 1000, modifiedTime: 2000, summary: 'No project', workingDirectories: [URI.file('/workspace/root/sub')] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'main-worktree'), startTime: 1000, modifiedTime: 1800, summary: 'Main worktree project', workingDirectories: [URI.file('/workspace/root/other')], project: { uri: URI.file('/workspace/main'), displayName: 'main' } });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'nested'), startTime: 1000, modifiedTime: 1200, summary: 'Nested repository', workingDirectories: [URI.file('/workspace/root/nested/src')], project: { uri: URI.file('/workspace/root/nested'), displayName: 'nested' } });
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const removed: string[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => removed.push(...(delta.removed ?? []).map(resource => resource.path))));
+			const labels = () => listController.items.map(item => item.label).sort();
+
+			await listController.refresh(CancellationToken.None);
+			const atPrimary = labels();
+			folder = checkout;
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+
+			assert.deepStrictEqual({ atPrimary, atCheckout: labels(), removed }, {
+				atPrimary: ['Main worktree project', 'Nested repository', 'No project'],
+				atCheckout: ['Main worktree project', 'No project'],
+				removed: ['/nested'],
+			});
+		});
+
 		test('a folder location switch keeps a session with multi-root metadata listed too, and Save Workspace As drops the sessions of the primary location of the folder', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
