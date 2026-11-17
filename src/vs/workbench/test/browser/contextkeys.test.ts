@@ -126,8 +126,8 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		]);
 	});
 
-	test('the empty editor group offers to hide the editor area only while the chat part shows, with that group alone, in the main window of an editor window', () => {
-		const shown = (keys: { chatPartVisible?: boolean; isSessionsWindow?: boolean; isAuxiliaryWindow?: boolean; editorPartMultipleEditorGroups?: boolean }) => {
+	test('the empty editor group offers to hide the editor area only while the chat part shows, with that group alone, in the main window of an editor window, and not while the secondary side bar is maximized over it', () => {
+		const shown = (keys: { chatPartVisible?: boolean; isSessionsWindow?: boolean; isAuxiliaryWindow?: boolean; editorPartMultipleEditorGroups?: boolean; auxiliaryBarMaximized?: boolean }) => {
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			for (const [key, value] of Object.entries(keys)) {
 				contextKeyService.createKey(key, value);
@@ -151,7 +151,8 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 			agentsWindow: shown({ chatPartVisible: true, isSessionsWindow: true }),
 			auxiliaryWindow: shown({ chatPartVisible: true, isAuxiliaryWindow: true }),
 			otherGroups: shown({ chatPartVisible: true, editorPartMultipleEditorGroups: true }),
+			secondarySideBarMaximized: shown({ chatPartVisible: true, auxiliaryBarMaximized: true }),
 			steps,
-		}, { chatShows: offered, chatHidden: [], agentsWindow: [], auxiliaryWindow: [], otherGroups: [], steps: ['setEditorHiddenByChat(true)'] });
+		}, { chatShows: offered, chatHidden: [], agentsWindow: [], auxiliaryWindow: [], otherGroups: [], secondarySideBarMaximized: [], steps: ['setEditorHiddenByChat(true)'] });
 	});
 });

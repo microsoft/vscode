@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, EditorPartMultipleEditorGroupsContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, EditorPartMultipleEditorGroupsContext, AuxiliaryBarMaximizedContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -313,7 +313,8 @@ registerAction2(class HideEditorAreaForChatAction extends Action2 {
 				id: MenuId.EmptyEditorGroup,
 				group: 'navigation',
 				order: 30,
-				when: ContextKeyExpr.and(ChatPartVisibleContext, IsSessionsWindowContext.negate(), IsAuxiliaryWindowContext.negate(), EditorPartMultipleEditorGroupsContext.negate())
+				// Not while the secondary side bar is maximized, over the editor area
+				when: ContextKeyExpr.and(ChatPartVisibleContext, IsSessionsWindowContext.negate(), IsAuxiliaryWindowContext.negate(), EditorPartMultipleEditorGroupsContext.negate(), AuxiliaryBarMaximizedContext.negate())
 			}
 		});
 	}
