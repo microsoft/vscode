@@ -1109,7 +1109,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	protected override _mapBackendSessionResource(resource: URI): URI {
+	protected override _mapBackendSessionResource(resource: URI): URI | undefined {
 		return this._mapSessionResource?.(resource) ?? super._mapBackendSessionResource(resource);
 	}
 
