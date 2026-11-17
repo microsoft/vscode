@@ -17,8 +17,11 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
-import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { EditorWindowSessionsPresenterService, getEditorWindowComposerTarget, IEditorWindowPresenterOpenOptions, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { IChatViewHostService, IChatViewHostNewChatOptions, IChatViewNewChatTarget } from '../../../../chat/browser/chatViewHost.js';
+import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID, AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, AgentsChatPartVisibleContext, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { InAgentsChatPartContext } from '../../../browser/agentsView/agentsChatPartContext.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -47,7 +50,8 @@ suite('Agents chat part actions', () => {
 		return { ...buildTestSession({ id, title: id }).session, providerId: 'local-agent-host', sessionType: 'copilotcli', createdAt: new Date(createdAt), workspace: constObservable(workspace) };
 	}
 
-	function run(commandId: string, arg: unknown, folderOptions?: IEditorWindowComposerFolderOptions) {
+	/** Runs `commandId` while the chat part presents the window's sessions, else while the Chat view does. */
+	function run(commandId: string, arg: unknown, folderOptions?: IEditorWindowComposerFolderOptions, chatPart = true) {
 		const opened: { readonly target: INewSessionTarget | undefined; readonly newComposer: boolean | undefined }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
@@ -56,9 +60,20 @@ suite('Agents chat part actions', () => {
 			store.add(composerFolders.setComposerFolderOptions(() => folderOptions));
 		}
 		instantiationService.stub(IEditorWindowComposerFoldersService, composerFolders);
-		instantiationService.stub(IAgentsChatPartService, upcastPartial<IAgentsChatPartService>({
-			openComposer: async (target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions) => { opened.push({ target, newComposer: options?.newComposer }); },
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
+			newChat: async (target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions) => {
+				opened.push({ target: target && { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType }, newComposer: options?.ownChat });
+				return true;
+			},
 		}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => Disposable.None }));
+		const presenterService = store.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
+		if (chatPart) {
+			store.add(presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({
+				openComposer: async (target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions) => { opened.push({ target, newComposer: options?.newComposer }); },
+			})));
+		}
+		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
 		return instantiationService.invokeFunction(async accessor => {
 			await CommandsRegistry.getCommand(commandId)!.handler(accessor, arg);
 			return opened.map(({ target, newComposer }) => ({ folder: target?.folderUri?.path, providerId: target?.providerId, sessionTypeId: target?.sessionTypeId, noWorkspace: !!target && !target.folderUri, newComposer }));
@@ -91,6 +106,20 @@ suite('Agents chat part actions', () => {
 				sectionContext: 'chatIsEnabled && sessionSection.type == \'worktree\'',
 				session: 'chatIsEnabled',
 			},
+		});
+	});
+
+	test('starts a new session in the folder of a session or a Worktree section in the Chat view, while no chat part presents the window\'s sessions', async () => {
+		store.add(registerAgentsViewNewSessionActions());
+		const session = createSession('session', '/work/repo', '/work/repo.worktrees/feature', 1);
+		const section = upcastPartial<ISessionSection>({ id: `worktree:${URI.file('/work/repo.worktrees/feature').toString()}`, label: 'feature', sessions: [session] });
+
+		assert.deepStrictEqual({
+			worktree: await run('workbench.action.agentsView.newSessionInWorktree', section, undefined, false),
+			sameFolder: await run('workbench.action.agentsView.newSessionInSameFolder', session, undefined, false),
+		}, {
+			worktree: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'copilotcli', noWorkspace: false, newComposer: true }],
+			sameFolder: [{ folder: '/work/repo.worktrees/feature', providerId: 'local-agent-host', sessionTypeId: 'copilotcli', noWorkspace: false, newComposer: true }],
 		});
 	});
 
