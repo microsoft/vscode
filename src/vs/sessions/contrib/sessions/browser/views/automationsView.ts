@@ -94,7 +94,7 @@ import { INewSessionComposerService } from '../../../../../workbench/contrib/ses
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -274,8 +274,7 @@ export class AutomationsCardsWidget extends Disposable {
 		const visibleAutomations = derived(this, reader => {
 			configurationChanged.read(reader);
 			const sendLaterEnabled = configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true;
-			return this.automationService.automations.read(reader).filter(automation =>
-				!sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined);
+			return getVisibleAutomations(this.automationService.automations.read(reader), sendLaterEnabled);
 		});
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;

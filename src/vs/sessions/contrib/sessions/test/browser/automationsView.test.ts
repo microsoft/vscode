@@ -61,7 +61,7 @@ import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } fr
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { openOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -994,12 +994,15 @@ suite('AutomationsCardsWidget', () => {
 
 	test('template onboarding opens templates without expanding disabled automations', async () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
-		automationService.setAutomations([automation({ enabled: false })]);
+		automationService.setAutomations([automation({ enabled: false }), automation({ id: 'shared', ownership: 'repository' })]);
 		const templates = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
 		const disabled = widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
+		templates.open = false;
 		const before = [templates.open, disabled.open];
 
-		await openOnboardingTarget(widget.element.querySelector<HTMLElement>('[data-onboarding-id="sessions.automations.templates"]')!);
+		const target = resolveOnboardingTarget(getWindow(widget.element), 'sessions.automations.templates');
+		assert.ok(target);
+		await target.open?.();
 
 		assert.deepStrictEqual({ before, after: [templates.open, disabled.open] }, { before: [false, false], after: [true, false] });
 	});
@@ -6202,6 +6205,41 @@ suite('AutomationsCardsWidget', () => {
 			includesBuiltInTemplate: false,
 		});
 	});
+
+	for (const sendLaterEnabled of [false, true]) {
+		test(`accessible template visibility matches the widget with Send Later enabled=${sendLaterEnabled}`, async () => {
+			const { automationService, configurationService, instantiationService, widget } = setup();
+			await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, sendLaterEnabled);
+			instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+			stubSessionsHostLayout(instantiationService);
+			const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help')!;
+			const view = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
+			const schedule: IAutomationSchedule = { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+			const pending = automation({ id: 'pending', name: 'Pending scheduled chat', purpose: 'scheduledChat', schedule });
+			const catalogues = [
+				[pending],
+				[{ ...pending, oneTimeDispatchedAt: '2027-01-01T10:00:00.000Z' }],
+				[automation({ schedule })],
+				[pending, automation({ id: 'shared', ownership: 'repository' })],
+			];
+
+			assert.deepStrictEqual(catalogues.map(items => {
+				automationService.setAutomations(items);
+				const helpProvider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+				const viewProvider = disposables.add(instantiationService.invokeFunction(accessor => view.getProvider(accessor))!);
+				return {
+					widget: widget.element.querySelector<HTMLElement>('.automations-built-in-templates')!.checkVisibility(),
+					help: helpProvider.provideContent().includes('Built-in Templates section'),
+					view: viewProvider.provideContent().includes('\nBuilt-in Templates\n'),
+				};
+			}), [
+				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
+				{ widget: false, help: false, view: false },
+				{ widget: false, help: false, view: false },
+				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
+			]);
+		});
+	}
 
 	test('accessibility help describes visible templates independently of catalogue completeness', () => {
 		const { automationService, instantiationService } = setup();

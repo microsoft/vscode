@@ -24,11 +24,11 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
-import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -41,14 +41,16 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const automationService = accessor.get(IAutomationService);
 		const agentPluginService = accessor.get(IAgentPluginService);
+		const configurationService = accessor.get(IConfigurationService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		const templates = readAutomationTemplates(agentPluginService.plugins.get());
-		const builtInTemplatesVisible = hasEmptyAutomationSection(automationService.automations.get()) && templates.some(template => !template.source);
+		const automations = getVisibleAutomations(automationService.automations.get(), configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true);
+		const builtInTemplatesVisible = hasEmptyAutomationSection(automations) && templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
 			localize('automationsCustomView.help.manageRemotes', "When a dev tunnel is disconnected and remote management is enabled, the unavailable message shows how many dev tunnels are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage dev tunnels. GitHub Environments do not appear in Automations warnings or this count."),
-			localize('automationsCustomView.help.disabled', "Disabled automations are grouped above templates in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
+			localize('automationsCustomView.help.disabled', "Disabled automations are grouped in the Disabled automations section, which starts collapsed. Press Enter or Space on its heading to expand or collapse it. The expansion state is remembered on this machine. Run history and the Accessible View still include disabled automations."),
 			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
 			localize('automationsCustomView.help.conditions', "For Agent Host automations, expand Advanced Settings in the automation dialog with Enter or Space, then Tab to Disables after. Advanced Settings starts collapsed. You can also ask an agent in chat to set an end date and time. Manual runs remain available after the end date. Use Remove end date in a card's More menu to clear the end date. Removing the end date does not enable a disabled automation."),
 			localize('automationsCustomView.help.duration', "Choose Never for no end date, or Days, Weeks, or Months to reveal a number field before the unit picker. Enter a positive whole number, use the Up and Down Arrow keys, or use Increase Duration and Decrease Duration. A changed duration starts when saved; calendar months use the last valid day when needed. Existing end dates show approximate days remaining and are preserved until you edit the duration. The estimated end date is shown in your local time zone. Cloud automations do not support end dates."),
@@ -130,7 +132,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 					remoteManagementEnabled,
 				);
 				return buildAutomationsAccessibleContent(
-					automationService.automations.get(),
+					getVisibleAutomations(automationService.automations.get(), configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true),
 					runs.filter(run => {
 						const retainedHistory = automationService.getAutomationHistoryState?.(run.automationId) !== undefined;
 						return retainedHistory || (
