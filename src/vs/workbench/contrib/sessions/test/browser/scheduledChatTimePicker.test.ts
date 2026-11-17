@@ -6,13 +6,14 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
-import { pickScheduledChatTime } from '../../browser/scheduledChatTimePicker.js';
+import { pickDateTime, pickScheduledChatTime } from '../../browser/scheduledChatTimePicker.js';
 
 suite('Scheduled chat time picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,7 +21,7 @@ suite('Scheduled chat time picker', () => {
 	const fixedNow = new Date(2030, 4, 15, 12, 0).getTime();
 	const timedTest = (name: string, fn: () => Promise<void>) => test(name, () => runWithFakedTimers({ startTime: fixedNow }, fn));
 
-	function create(preset?: string, onSendNow?: () => Promise<void>) {
+	function create(preset?: string, onSendNow?: () => Promise<void>, dateTime?: { initialValue?: Date; token?: CancellationToken }) {
 		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
 		const shown = new DeferredPromise<void>();
 		const container = document.body.appendChild($('div'));
@@ -55,7 +56,10 @@ suite('Scheduled chat time picker', () => {
 			}
 			override createQuickWidget() { return picker; }
 		};
-		const result = pickScheduledChatTime(quickInput, undefined, onSendNow);
+		const result = dateTime ? pickDateTime(quickInput, {
+			title: 'End Date', confirmLabel: 'Select', hint: 'Device time zone',
+			summary: date => `Ends ${date.toLocaleString()}`, initialValue: dateTime.initialValue,
+		}, dateTime.token) : pickScheduledChatTime(quickInput, undefined, onSendNow);
 		const ready = async () => {
 			await shown.p;
 			const query = (selector: string) => container.querySelector<HTMLElement>(selector)!;
@@ -231,5 +235,44 @@ suite('Scheduled chat time picker', () => {
 		await fixture.ready();
 		fixture.picker.hide();
 		assert.strictEqual(await fixture.result, undefined);
+	});
+
+	timedTest('direct calendar reopens the saved date and exact time without losing timestamp precision', async () => {
+		const initialValue = new Date(2031, 0, 21, 17, 24, 37, 123);
+		const fixture = create(undefined, undefined, { initialValue });
+		const { day, time, exact, schedule } = await fixture.ready();
+		const before = {
+			title: fixture.picker.title, label: schedule.textContent, selected: day(21).getAttribute('aria-selected'),
+			time: time.selectedIndex, exact: exact.value, presets: fixture.choices.length,
+		};
+		schedule.click();
+		assert.deepStrictEqual({ before, result: (await fixture.result)?.toISOString() }, {
+			before: { title: 'End Date', label: 'Select', selected: 'true', time: 96, exact: '17:24', presets: 0 },
+			result: initialValue.toISOString(),
+		});
+	});
+
+	timedTest('direct calendar changes use local wall time and cancellation leaves no selected value', async () => {
+		const initialValue = new Date(2031, 0, 21, 17, 24);
+		const fixture = create(undefined, undefined, { initialValue });
+		const { nextMonth, day, selectTime, schedule } = await fixture.ready();
+		nextMonth.click();
+		day(15).click();
+		selectTime(38);
+		schedule.click();
+		const cancelled = create(undefined, undefined, { initialValue });
+		const { cancel } = await cancelled.ready();
+		cancel.click();
+		assert.deepStrictEqual({ selected: (await fixture.result)?.toISOString(), cancelled: await cancelled.result }, {
+			selected: new Date(2031, 1, 15, 9, 30).toISOString(), cancelled: undefined,
+		});
+	});
+
+	timedTest('disposing the owner cancels the shared calendar and removes its widget', async () => {
+		const cancellation = store.add(new CancellationTokenSource());
+		const fixture = create(undefined, undefined, { token: cancellation.token });
+		const { schedule } = await fixture.ready();
+		cancellation.cancel();
+		assert.deepStrictEqual({ result: await fixture.result, removed: !schedule.isConnected }, { result: undefined, removed: true });
 	});
 });
