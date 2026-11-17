@@ -7305,6 +7305,32 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ docked, after: dockedIn('list-gone') }, { docked: ['a'], after: [] });
 	});
 
+	test('a preview of a chat, such as an agent session\'s hover, docks none of its questions or tool approvals in the input of the widget that shows it, and closing it leaves those the widget has', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/preview' });
+		const { chatWidgetService, widgets, dockedIn, toolCarousels } = createInputRequestWidgets(session, ['shown']);
+		const preview = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, rendererOptions: { renderStyle: 'compact', noHeader: true, editable: false, renderInputRequests: false } });
+		preview.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
+			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+			'previewed', undefined, {},
+		);
+		// The widget that shows the chat has the approval in its carousel, as its own list put it there
+		widgets.get('shown')!.inputPart.addToolToConfirmationCarousel(tool, () => { throw new Error('not rendered'); });
+		preview.model.acceptResponseProgress(preview.request, tool);
+		preview.model.acceptResponseProgress(preview.request, new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'previewed-question'));
+		preview.renderer.renderElement(preview.node, 0, preview.template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const shown = { question: dockedIn('previewed-question'), tools: [...toolCarousels.get('shown')?.keys() ?? []] };
+
+		preview.renderer.dispose();
+
+		assert.deepStrictEqual({ shown, afterClose: [...toolCarousels.get('shown')?.keys() ?? []] }, {
+			shown: { question: [], tools: ['previewed'] },
+			afterClose: ['previewed'],
+		});
+	});
+
 	for (const order of ['the widget it moves to first', 'the widget it moves from first'] as const) {
 		test(`an answer typed in a widget's list is kept as the question moves to another widget, whose copy rendered before it was typed goes (${order})`, async () => {
 			const session = URI.from({ scheme: 'vscode-chat-session', path: `/typed-${order.replace(/ /g, '-')}` });
