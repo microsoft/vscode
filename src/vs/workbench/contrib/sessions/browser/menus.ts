@@ -36,8 +36,6 @@ export const Menus = {
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	/** When automation sessions also appear in the Sessions list, a submenu of {@link SessionsViewShow}. */
 	SessionsViewAutomations: new MenuId('SessionsViewAutomations'),
-	/** Whether the Sessions list includes sessions with scheduled messages, only them, or not them, a submenu of {@link SessionsViewShow}. */
-	SessionsViewScheduled: new MenuId('SessionsViewScheduled'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	SidebarCustomizationsEntryPoint: new MenuId('SessionsSidebarCustomizationsEntryPoint'),
 	SidebarAgentHost: new MenuId('SessionsSidebarAgentHost'),
@@ -128,7 +126,7 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 export const SessionsViewShowGroup = {
 	/** Recent and All, for the groupings that cap their sections. */
 	Capping: '1_show',
-	/** Which sessions the list includes, in every grouping: automation sessions, sessions with scheduled messages, and done or archived sessions. */
+	/** Which sessions the list includes, in every grouping: automation sessions, done or archived sessions, and only sessions with scheduled messages. */
 	Visibility: '2_visibility',
 } as const;
 

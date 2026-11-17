@@ -34,7 +34,6 @@ import { IChatScheduledRequest } from '../../../../../workbench/contrib/chat/com
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { IPendingSessionItem, IPendingSessionSection } from '../../../../../workbench/contrib/sessions/browser/views/pendingSessions.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ScheduledSessionsFilter } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { createListHarness, createTestSession, IListHarness } from './sessionsListTestUtils.js';
 
@@ -104,7 +103,7 @@ suite('Sessions - pending list items', () => {
 		});
 	}
 
-	test('Drafts lists only schedules when showing only scheduled sessions, only ordinary drafts when showing them never, and retains schedule metadata', () => {
+	test('scheduled-only Drafts retains schedule metadata and works without ordinary saved drafts', () => {
 		const harness = createListHarness(disposables, []);
 		const pendingSections = observableValue<readonly IPendingSessionSection[]>('drafts', [
 			{ id: 'drafts', label: 'Drafts', items: [item('ordinary-draft')] },
@@ -118,9 +117,7 @@ suite('Sessions - pending list items', () => {
 		}));
 		list.layout(800, 400);
 		list.setItemCollapsed({ section: 'drafts' }, false);
-		list.filters.setScheduledFilter(ScheduledSessionsFilter.Never);
-		const never = { schedule: !!list.getItemRow({ pendingSession: 'Follow up' }), draft: !!list.getItemRow({ pendingSession: 'ordinary-draft' }) };
-		list.filters.setScheduledFilter(ScheduledSessionsFilter.Only);
+		list.filters.setScheduledOnly(true);
 		const row = list.getItemRow({ pendingSession: 'Follow up' })!;
 		const filtered = {
 			draftHidden: !list.getItemRow({ pendingSession: 'ordinary-draft' }),
@@ -133,10 +130,9 @@ suite('Sessions - pending list items', () => {
 		scheduledSessions.set([], undefined);
 		list.update();
 		assert.deepStrictEqual({
-			never, filtered, schedulesWithoutSavedDrafts,
+			filtered, schedulesWithoutSavedDrafts,
 			emptySections: list.element.querySelectorAll('.session-section-label').length,
 		}, {
-			never: { schedule: false, draft: true },
 			filtered: {
 				draftHidden: true, description: 'vscode - Scheduled for tomorrow at 10:00 AM', clock: 'flex',
 				ariaLabel: 'Follow up, scheduled, vscode - Scheduled for tomorrow at 10:00 AM',
@@ -335,16 +331,13 @@ suite('Sessions - pending list items', () => {
 			onSessionOpen: () => { },
 		}));
 		list.layout(800, 400);
-		list.setItemCollapsed({ section: 'drafts' }, false);
 		const row = list.getItemRow({ session: scheduled.resource })!;
 		const indicator = row.querySelector<HTMLElement>('.session-scheduled-indicator')!;
 		const before = { indicator: mainWindow.getComputedStyle(indicator).display, aria: row.getAttribute('aria-label')?.includes('has scheduled messages') };
 		row.classList.add('hovered');
 		const hovered = mainWindow.getComputedStyle(indicator).display;
 		row.classList.remove('hovered');
-		list.filters.setScheduledFilter(ScheduledSessionsFilter.Never);
-		const never = { sessions: list.getVisibleSessions().map(session => session.sessionId), draftShown: !!list.getItemRow({ pendingSession: 'draft' }) };
-		list.filters.setScheduledFilter(ScheduledSessionsFilter.Only);
+		list.filters.setScheduledOnly(true);
 		const filtered = list.getVisibleSessions().map(session => session.sessionId);
 		const draftHidden = !list.getItemRow({ pendingSession: 'draft' });
 		scheduledSessionResources.set(new Set(), undefined);
@@ -353,11 +346,11 @@ suite('Sessions - pending list items', () => {
 		schedulingEnabled.set(false, undefined);
 		list.update();
 		assert.deepStrictEqual({
-			before, hovered, never, filtered, draftHidden, afterDispatch,
+			before, hovered, filtered, draftHidden, afterDispatch,
 			disabled: list.getVisibleSessions().map(session => session.sessionId).sort(),
 			indicatorHidden: mainWindow.getComputedStyle(list.getItemRow({ session: scheduled.resource })!.querySelector('.session-scheduled-indicator')!).display,
 		}, {
-			before: { indicator: 'flex', aria: true }, hovered: 'flex', never: { sessions: ['normal'], draftShown: true }, filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
+			before: { indicator: 'flex', aria: true }, hovered: 'flex', filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
 			disabled: ['normal', 'scheduled'], indicatorHidden: 'none',
 		});
 	});
