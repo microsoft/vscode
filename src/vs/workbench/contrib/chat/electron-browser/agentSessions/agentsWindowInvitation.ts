@@ -20,6 +20,7 @@ import { INativeHostService } from '../../../../../platform/native/common/native
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorCloseContext } from '../../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
@@ -36,7 +37,7 @@ import { ChatConfiguration, OPEN_AGENTS_WINDOW_PRECONDITION } from '../../common
 import { IChatModel } from '../../common/model/chatModel.js';
 import { isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IAgentHostEditorActivityService } from './agentHostEditorActivity.js';
-import { isAgentHostChatWidget, registerAgentsWindowTreatments } from './agentSessionsActions.js';
+import { getActiveWorkspaceFolder, getRemoteSessionHandoff, isAgentHostChatWidget, registerAgentsWindowTreatments } from './agentSessionsActions.js';
 
 interface IInvitationPresentation {
 	readonly invitation: IAgentsWindowInvitation;
@@ -85,8 +86,9 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IHostService private readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IEditorService editorService: IEditorService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEditorActivityService private readonly activity: IAgentHostEditorActivityService,
 	) {
 		super();
@@ -236,7 +238,9 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 			if (!scenario.matches(activity)) {
 				continue;
 			}
-			if (!this.developerMode) {
+			// The banner setting and delay only affect scenarios that can show.
+			const enabled = (this.treatments.get(getAgentsWindowInvitationTreatment(scenario, 'enabled')) ?? scenario.enabled) === true;
+			if (!this.developerMode && enabled) {
 				logExperimentTrigger(this.telemetryService, getAgentsWindowInvitationTreatment(scenario, 'delaySeconds'));
 			}
 			const treatment = this.treatments.get(getAgentsWindowInvitationTreatment(scenario, 'delaySeconds'));
@@ -248,10 +252,12 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 			}
 			// Observe the opportunity in every arm, before experiment enablement or impression history.
 			if (!this.developerMode) {
-				logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.AgentsWindowBannerEnabled);
+				if (enabled) {
+					logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.AgentsWindowBannerEnabled);
+				}
 				logExperimentTrigger(this.telemetryService, getAgentsWindowInvitationTreatment(scenario, 'enabled'));
 			}
-			if (!candidate && (this.developerMode || this.treatments.get(getAgentsWindowInvitationTreatment(scenario, 'enabled')) !== false)) {
+			if (!candidate && (this.developerMode || enabled)) {
 				candidate = scenario;
 			}
 		}
@@ -398,7 +404,11 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 				logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.AgentsWindowBannerRevealCurrentSession);
 			}
 			const revealSession = this.configurationService.getValue<boolean>(ChatConfiguration.AgentsWindowBannerRevealCurrentSession) !== false;
+			const remoteAuthority = revealSession ? this.environmentService.remoteAuthority : undefined;
+			const remote = remoteAuthority ? getRemoteSessionHandoff(presentation.resource, remoteAuthority,
+				getActiveWorkspaceFolder(this.workspaceContextService, () => this.editorService) ?? this.workspaceContextService.getWorkspace().folders[0]?.uri) : undefined;
 			await this.nativeHostService.openAgentsWindow({
+				...remote,
 				reveal: revealSession ? presentation.resource.toJSON() : 'new',
 				onboardingSessionResource: presentation.resource.toJSON(),
 				source: presentation.scenario.source,

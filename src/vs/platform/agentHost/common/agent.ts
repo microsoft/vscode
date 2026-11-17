@@ -352,6 +352,8 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 	/** Explicit repository override; null inherits global state, absent means unavailable. */
 	readonly repositoryEnabled?: boolean | null;
 	readonly managedDesiredEnabled?: boolean;
+	/** Set when the signed-in account's GitHub Team assigns this plugin. Provenance only: the user's own enablement choices still apply. Absent when the runtime doesn't report it. */
+	readonly team?: boolean;
 	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
 	readonly resource?: URI;
 	/** Host-owned installed-content revision; activation-only changes preserve it. */
@@ -711,6 +713,8 @@ export interface IAgentPluginMarketplace {
 	readonly isDefault: boolean;
 	readonly managed: boolean;
 	readonly available: boolean;
+	/** Set when the signed-in account's GitHub Team provides this marketplace. Absent when the runtime doesn't report it. */
+	readonly team?: boolean;
 }
 
 export interface IAgentPluginMarketplaceItem {
@@ -820,6 +824,8 @@ export interface AuthenticateParams {
 	readonly expiresIn?: number;
 	/** The single consumer this token is for; when absent, tokens match by resource and scopes. */
 	readonly target?: AuthenticateTarget;
+	/** Unverified client-local account selection, stable across token renewals. */
+	readonly accountId?: string;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }

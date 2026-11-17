@@ -556,7 +556,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		const bounds = this._getHorizontalBounds();
 		const contentWidths = this._measureContentWidths();
 		const widthRange = this._sizeModel.getWidthRange(contentWidths);
-		const preferredWidth = getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN);
+		const isNewComment = !this._commentThread.comments?.length;
+		const preferredWidth = getDefaultFloatingWidgetWidth(this.editor.getLayoutInfo().contentWidth, bounds.right - bounds.left - 2 * EDGE_MARGIN, isNewComment);
 		const defaultWidth = this._sizeModel.getDefaultWidth(contentWidths, preferredWidth, this._commentThreadWidget.isEditing);
 
 		const editorCode = this._codeGeometry.getBoundingRect();
@@ -568,7 +569,6 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			obstacles,
 			scrollableHeight: maxBottom ?? this._getScrollableHeight()
 		};
-		const isNewComment = !this._commentThread.comments?.length;
 		// Laying the widget out makes the browser lay it out, so its size at the default width is measured at most once.
 		let defaultSize: ISize | undefined;
 		const measureDefaultSize = () => defaultSize ??= this._layOutAtWidth(defaultWidth, widthRange);

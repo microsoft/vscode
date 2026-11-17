@@ -104,7 +104,11 @@ export interface ArtifactAutomationEnabledRules {
 export interface ArtifactAutomationNotice {
 	readonly session: string;
 	readonly artifact: ArtifactRecord;
-	readonly kind: 'enabled' | 'changed' | 'disabled';
+	/**
+	 * `enabled`, `changed` and `disabled` describe automation rule changes. `status` describes a change of the artifact's
+	 * resource that its integration reports, such as a pull request leaving its merge queue, and carries no `changes`.
+	 */
+	readonly kind: 'enabled' | 'changed' | 'disabled' | 'status';
 	/** Rendered text, used as is only when the notice carries no `changes`. */
 	readonly content: string;
 	readonly iconId?: string;

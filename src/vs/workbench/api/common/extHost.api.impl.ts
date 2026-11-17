@@ -90,6 +90,7 @@ import { IExtHostOutputService } from './extHostOutput.js';
 import { ExtHostProfileContentHandlers } from './extHostProfileContentHandler.js';
 import { IExtHostProgress } from './extHostProgress.js';
 import { ExtHostQuickDiff } from './extHostQuickDiff.js';
+import { ExtHostRemoteAgentHosts } from './extHostRemoteAgentHosts.js';
 import { ExtHostAgentEditorComments } from './extHostAgentEditorComments.js';
 import { createExtHostQuickOpen } from './extHostQuickOpen.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -260,6 +261,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostDocumentsAndEditors, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools, extHostChatSessions));
 	const extHostChatContext = rpcProtocol.set(ExtHostContext.ExtHostChatContext, new ExtHostChatContext(rpcProtocol, extHostCommands, extHostEditorTabs));
 	const extHostChatDebug = rpcProtocol.set(ExtHostContext.ExtHostChatDebug, new ExtHostChatDebug(rpcProtocol));
+	const extHostRemoteAgentHosts = new ExtHostRemoteAgentHosts(rpcProtocol);
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostAiSettingsSearch = rpcProtocol.set(ExtHostContext.ExtHostAiSettingsSearch, new ExtHostAiSettingsSearch(rpcProtocol));
@@ -1797,6 +1799,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
 				return extHostChatOutputRenderer.registerChatOutputRenderer(extension, viewType, renderer);
+			},
+			registerRemoteAgentHost(host: vscode.RemoteAgentHost): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'remoteAgentHost');
+				return extHostRemoteAgentHosts.registerRemoteAgentHost(extension, host);
 			},
 			registerChatWorkspaceContextProvider(id: string, provider: vscode.ChatWorkspaceContextProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatContextProvider');

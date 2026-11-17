@@ -243,6 +243,9 @@ export interface IEditorGroupsView {
 	readonly partOptions: IEditorPartOptions;
 	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
+	/** Whether the part was created asking for it (see `ICreateEditorPartOptions.singleTabTitleProvidedByEditor`). */
+	readonly singleTabTitleProvidedByEditor?: boolean;
+
 	readonly onDidVisibilityChange: Event<boolean>;
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;

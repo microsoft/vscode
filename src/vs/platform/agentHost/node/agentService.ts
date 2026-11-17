@@ -2258,7 +2258,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return agent.getModelsForCredentials?.(credentials, token) ?? [];
 	}
 
-	async authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+	async authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult> {
 		if (params.target) {
 			if (params.target.kind !== AuthenticateTargetKind.McpServer) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Unsupported authentication target kind');
@@ -2268,7 +2268,7 @@ export class AgentService extends Disposable implements IAgentService {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Authentication target must identify an MCP server in an existing session');
 			}
 		}
-		const result = await this._providerService.authenticate(params, scope);
+		const result = await this._providerService.authenticate(params, scope, clientId);
 		if (result.authenticated && !scope && !params.target) {
 			this._agentMergeController.refresh();
 		}
@@ -2331,6 +2331,12 @@ export class AgentService extends Disposable implements IAgentService {
 				return models;
 			},
 			getCreationDefaults: (source, sourceTurnId) => this._getServerToolCreationDefaults(source, sourceTurnId),
+			restoreChat: async (session, chat, credentials) => {
+				if (credentials && !this._isSessionRestored(session.toString())) {
+					credentials = await this._prepareColdRestoreCredentials(session.toString(), credentials);
+				}
+				await this._restoreSessionChat(session, chat, 'Message delivery', credentials);
+			},
 			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
 			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
 			canCreateSessions: provider => this._canCreateServerToolSessions(provider),
@@ -6975,10 +6981,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Restores a session and materializes one of its chats, including lazily restored peer chats. */
-	private async _restoreSessionChat(session: URI, chat: URI, operation: string): Promise<void> {
-		await this.restoreSession(session);
+	private async _restoreSessionChat(session: URI, chat: URI, operation: string, credentials?: IAgentHostCredentialSource): Promise<void> {
+		await this.restoreSession(session, undefined, credentials);
 		this._assertSessionOwnsChat(session, chat, operation);
-		await this._stateManager.resolveChatState(chat.toString());
+		await this._stateManager.resolveChatState(chat.toString(), credentials);
 	}
 
 	private _assertSessionOwnsChat(session: URI, chat: URI, operation: string): void {

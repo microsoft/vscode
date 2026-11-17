@@ -5,7 +5,7 @@
 
 import { CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
-import { DisposableStore, IDisposable } from './lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 
 export interface CancellationToken {
 
@@ -56,6 +56,41 @@ export namespace CancellationToken {
 		isCancellationRequested: true,
 		onCancellationRequested: shortcutEvent
 	});
+
+	export function throwIfCanceled(token: CancellationToken): void {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+	}
+
+	/**
+	 * Cancels when any input is cancelled; the lifetime owns the forwarding subscriptions.
+	 * A single distinct active input is returned directly and still reflects cancellation after lifetime disposal.
+	 */
+	export function any(tokens: readonly CancellationToken[], lifetime: DisposableStore): CancellationToken {
+		if (tokens.some(token => token.isCancellationRequested)) {
+			return Cancelled;
+		}
+		const active = [...new Set(tokens.filter(token => token !== None))];
+		if (active.length < 2) {
+			return active[0] ?? None;
+		}
+		const source = new CancellationTokenSource();
+		lifetime.add(toDisposable(() => {
+			// Cancellation owns emitter disposal until every listener has been notified.
+			if (!source.token.isCancellationRequested) {
+				source.dispose();
+			}
+		}));
+		const listeners = lifetime.add(new DisposableStore());
+		for (const token of active) {
+			listeners.add(token.onCancellationRequested(() => {
+				listeners.dispose();
+				source.cancel();
+			}));
+		}
+		return source.token;
+	}
 
 	/**
 	 * Creates a CancellationToken that is tied to the lifetime of the provided AbortSignal.

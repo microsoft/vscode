@@ -300,8 +300,9 @@ export class SpotlightOverlay extends Disposable {
 		this.layout();
 
 		// Move focus to the spotlighted control (so keyboard users can activate it
-		// to advance) or, otherwise, into the callout's primary action.
-		this._focus(hideNext ? focusElement : content.focusEndTour ? this._skipButton.element : this._nextButton.element);
+		// to advance) or, otherwise, into the callout's primary action. An explicit
+		// focusEndTour wins, as the target may not be focusable.
+		this._focus(content.focusEndTour ? this._skipButton.element : hideNext ? focusElement : this._nextButton.element);
 	}
 
 	/** Prevents duplicate activation while waiting for an action to be accepted. */
@@ -448,12 +449,14 @@ export class SpotlightOverlay extends Disposable {
 
 		if (side === 'top' || side === 'bottom') {
 			const pointerCenterX = this._clamp(targetCenterX, callout.left + POINTER_EDGE_MARGIN, callout.left + callout.width - POINTER_EDGE_MARGIN);
+			this._callout.style.setProperty('--spotlight-pointer-offset', `${pointerCenterX - callout.left}px`);
 			this._pointer.style.left = `${pointerCenterX - pointerOffset}px`;
 			this._pointer.style.top = `${side === 'bottom' ? callout.top + callout.height - pointerOffset : callout.top - pointerOffset}px`;
 			return;
 		}
 
 		const pointerCenterY = this._clamp(targetCenterY, callout.top + POINTER_EDGE_MARGIN, callout.top + callout.height - POINTER_EDGE_MARGIN);
+		this._callout.style.setProperty('--spotlight-pointer-offset', `${pointerCenterY - callout.top}px`);
 		this._pointer.style.left = `${side === 'right' ? callout.left + callout.width - pointerOffset : callout.left - pointerOffset}px`;
 		this._pointer.style.top = `${pointerCenterY - pointerOffset}px`;
 	}

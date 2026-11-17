@@ -31,6 +31,8 @@ export interface IChatEditorComposer {
 	readonly draftHost: INewSessionDraftHost;
 	/** What the composer shows: its draft, or the session of the request it sent until that ends. */
 	readonly session: IObservable<ISession | undefined>;
+	/** Closes the composer where it shows, such as from its session header. */
+	readonly close?: () => void;
 }
 
 /**
@@ -59,6 +61,7 @@ export class ChatEditorContent extends Disposable {
 	private readonly _contentContainer: HTMLElement;
 	/** The view of its composer, or of the request the composer sent, while it shows instead of the chat. */
 	private readonly _composerView = observableValue<AbstractChatView | undefined>(this, undefined);
+	readonly composerView: IObservable<AbstractChatView | undefined> = this._composerView;
 	/**
 	 * The chat model of a composer's session whose chat it shows, kept loaded from the composer until the chat's view has
 	 * bound to it: only that handoff, as a model held longer cannot be released for its view to load it again, such as
@@ -158,6 +161,19 @@ export class ChatEditorContent extends Disposable {
 	 * chat shown meanwhile. Focus moves between the two only where it was in the other.
 	 */
 	private _showComposer(composer: IChatEditorComposer, store: DisposableStore, instantiationService: IInstantiationService): void {
+		// Its session header shows the composer's session, titled as new, where its host shows it for a composer too
+		if (this._hostOptions?.showComposerHeader) {
+			store.add(autorun(reader => {
+				if (!this._content.read(reader)) {
+					this._header.setDraftSession(composer.session.read(reader), composer.close);
+				}
+			}));
+			store.add(toDisposable(() => {
+				if (!this._content.get()) {
+					this._header.setDraftSession(undefined);
+				}
+			}));
+		}
 		// Before its views go, as its session's chat shows: the chat model its input was bound to stays loaded while the chat
 		// shows, so the chat's view takes that model instead of loading the chat again from its provider, which can still have
 		// the composer's input as the chat's draft, such as an agent host that syncs drafts after a delay.
@@ -303,8 +319,8 @@ export class ChatEditorContent extends Disposable {
 	}
 
 	private _updateHeaderVisibility(): void {
-		const showsComposer = !this._content.get() && !!this._composer.get();
-		this._header.setVisible(this._showHeader && !this._headerHidden && !showsComposer);
+		const hidesForComposer = !this._content.get() && !!this._composer.get() && !this._hostOptions?.showComposerHeader;
+		this._header.setVisible(this._showHeader && !this._headerHidden && !hidesForComposer);
 	}
 
 	/**

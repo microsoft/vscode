@@ -33,7 +33,7 @@ import { IInstantiationService, ServiceIdentifier, ServicesAccessor } from '../.
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInput, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
@@ -148,6 +148,11 @@ suite('SessionsTitleBarWidget', () => {
 		const onDidLayoutContainer = disposables.add(new Emitter<{ readonly container: HTMLElement; readonly dimension: { readonly width: number; readonly height: number } }>());
 		const onDidShowContextMenu = disposables.add(new Emitter<void>());
 		const onDidHideContextMenu = disposables.add(new Emitter<void>());
+		const onDidShowQuickInput = disposables.add(new Emitter<void>());
+		const quickInputService = upcastPartial<IQuickInputService>({
+			onShow: onDidShowQuickInput.event,
+			currentQuickInput: undefined,
+		});
 		const hoverState = { hideCount: 0 };
 		const hoverService = upcastPartial<IHoverService>({
 			hideHover: () => hoverState.hideCount++,
@@ -199,9 +204,7 @@ suite('SessionsTitleBarWidget', () => {
 			}),
 			instantiationService,
 			new MockContextKeyService(),
-			upcastPartial<IQuickInputService>({
-				onShow: Event.None,
-			}),
+			quickInputService,
 			hoverService,
 			upcastPartial<IBrowserWorkbenchEnvironmentService>({}),
 			upcastPartial<IChatWindowService>({}),
@@ -217,7 +220,7 @@ suite('SessionsTitleBarWidget', () => {
 		targetWindow.document.body.append(container);
 		disposables.add(toDisposable(() => container.remove()));
 		widget.render(container);
-		return { activeSession, attentionSessionCount, blockedEntry, blockedSessions, commands, container, contextViewService, dismissedApprovals, hoverState, layoutContainer, lists, onDidHideContextMenu, onDidLayoutContainer, onDidShowContextMenu, ordinarySession, previewArchived, previewRead, previewSession, previewStatus, recentlyOpened, reminderSessions, sessionActionFeedback, sessionsChanged, unacknowledgedBlockedSessions };
+		return { activeSession, attentionSessionCount, blockedEntry, blockedSessions, commands, container, contextViewService, dismissedApprovals, hoverState, layoutContainer, lists, onDidHideContextMenu, onDidLayoutContainer, onDidShowContextMenu, onDidShowQuickInput, ordinarySession, previewArchived, previewRead, previewSession, previewStatus, quickInputService, recentlyOpened, reminderSessions, sessionActionFeedback, sessionsChanged, unacknowledgedBlockedSessions };
 	}
 
 	test('shows the initial attention notification, dismisses it in the blocked session, and reminds from another session', () => {
@@ -405,7 +408,7 @@ suite('SessionsTitleBarWidget', () => {
 		onDidShowContextMenu.fire();
 
 		container.dispatchEvent(new MouseEvent('mouseenter'));
-		await timeout(100);
+		await timeout(500);
 		const whileMenuOpen = {
 			sameContextView: contextViewService.container === contextMenuContainer,
 			sessionListCount: lists.length,
@@ -415,7 +418,7 @@ suite('SessionsTitleBarWidget', () => {
 		onDidHideContextMenu.fire();
 		container.dispatchEvent(new MouseEvent('mouseleave'));
 		container.dispatchEvent(new MouseEvent('mouseenter'));
-		await timeout(50);
+		await timeout(500);
 		const afterNextEntry = {
 			sessionListCount: lists.length,
 			hasContextView: !!contextViewService.container,
@@ -433,7 +436,7 @@ suite('SessionsTitleBarWidget', () => {
 		sessionsChanged.fire({ added: [], removed: [], changed: [] });
 
 		container.dispatchEvent(new MouseEvent('mouseenter'));
-		await timeout(100);
+		await timeout(500);
 		const afterHover = { commands: [...commands], listCount: lists.length, contextViewOpen: !!contextViewService.container };
 		container.querySelector<HTMLElement>('.agent-sessions-titlebar-pill')!.click();
 		container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -597,7 +600,7 @@ suite('SessionsTitleBarWidget', () => {
 			hasPopup: container.getAttribute('aria-haspopup'),
 		};
 		container.dispatchEvent(new MouseEvent('mouseenter'));
-		await timeout(49);
+		await timeout(499);
 		const beforeDelay = state();
 		await timeout(1);
 		const preview = state();
@@ -632,11 +635,83 @@ suite('SessionsTitleBarWidget', () => {
 		});
 	}));
 
+	test('quick input cancels a pending preview and prevents previews while open', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { container, contextViewService, lists, onDidShowQuickInput, quickInputService } = createInteractionHarness();
+
+		container.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(100);
+		quickInputService.currentQuickInput = upcastPartial<IQuickInput>({});
+		onDidShowQuickInput.fire();
+		await timeout(500);
+		const afterQuickInputOpened = !!contextViewService.container;
+		onDidShowQuickInput.fire();
+
+		container.dispatchEvent(new MouseEvent('mouseleave'));
+		container.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(500);
+		const whileQuickInputOpen = !!contextViewService.container;
+
+		quickInputService.currentQuickInput = undefined;
+		container.dispatchEvent(new MouseEvent('mouseleave'));
+		container.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(500);
+		const afterQuickInputClosed = !!contextViewService.container;
+
+		onDidShowQuickInput.fire();
+		assert.deepStrictEqual({
+			afterQuickInputOpened,
+			whileQuickInputOpen,
+			afterQuickInputClosed,
+			closedOnQuickInput: !contextViewService.container,
+			listCount: lists.length,
+		}, {
+			afterQuickInputOpened: false,
+			whileQuickInputOpen: false,
+			afterQuickInputClosed: true,
+			closedOnQuickInput: true,
+			listCount: 1,
+		});
+	}));
+
+	test('leaving before the hover delay cancels the preview', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { container, contextViewService, lists } = createInteractionHarness();
+		container.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(499);
+		container.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(500);
+		assert.deepStrictEqual({ open: !!contextViewService.container, listCount: lists.length }, { open: false, listCount: 0 });
+	}));
+
+	for (const activation of ['click', 'Enter', ' '] as const) {
+		test(`${activation === ' ' ? 'Space' : activation} opens immediately during the hover delay`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { container, contextViewService, lists } = createInteractionHarness(true);
+			const activate = () => {
+				if (activation === 'click') {
+					container.querySelector<HTMLElement>('.agent-sessions-titlebar-pill')!.click();
+				} else {
+					container.dispatchEvent(new KeyboardEvent('keydown', { key: activation, bubbles: true, cancelable: true }));
+				}
+			};
+			container.dispatchEvent(new MouseEvent('mouseenter'));
+			await timeout(100);
+			activate();
+			const opened = { open: !!contextViewService.container, focusCount: lists[0]?.focusCount };
+			activate();
+			await timeout(500);
+
+			assert.deepStrictEqual({ opened, reopened: !!contextViewService.container, listCount: lists.length }, {
+				opened: { open: true, focusCount: 1 },
+				reopened: false,
+				listCount: 1,
+			});
+		}));
+	}
+
 	test('hover preview stays open while a session summary hover is visible', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { container, contextViewService, lists } = createInteractionHarness();
 
 		container.dispatchEvent(new MouseEvent('mouseenter'));
-		await timeout(50);
+		await timeout(500);
 		container.dispatchEvent(new MouseEvent('mouseleave'));
 		contextViewService.container!.dispatchEvent(new MouseEvent('mouseleave'));
 		lists[0].setSessionHoverVisible(true);
@@ -660,7 +735,7 @@ suite('SessionsTitleBarWidget', () => {
 		const pill = container.querySelector<HTMLElement>('.agent-sessions-titlebar-pill')!;
 
 		container.dispatchEvent(new MouseEvent('mouseenter'));
-		await timeout(50);
+		await timeout(500);
 		pill.click();
 		container.dispatchEvent(new MouseEvent('mouseleave'));
 		contextViewService.container!.dispatchEvent(new MouseEvent('mouseleave'));
@@ -735,7 +810,7 @@ suite('SessionsTitleBarWidget', () => {
 		const { container, contextViewService, lists } = createInteractionHarness();
 
 		container.dispatchEvent(new MouseEvent('mouseenter'));
-		await timeout(50);
+		await timeout(500);
 		container.dispatchEvent(new MouseEvent('mouseleave'));
 		await timeout(200);
 		const closing = lists[0].element.classList.contains('agent-sessions-command-center-list-closing');
@@ -760,7 +835,7 @@ suite('SessionsTitleBarWidget', () => {
 		const { container, contextViewService, lists } = createInteractionHarness();
 
 		container.dispatchEvent(new MouseEvent('mouseenter'));
-		await timeout(50);
+		await timeout(500);
 		container.dispatchEvent(new MouseEvent('mouseleave'));
 		await timeout(200);
 		const closing = lists[0].element.classList.contains('agent-sessions-command-center-list-closing');

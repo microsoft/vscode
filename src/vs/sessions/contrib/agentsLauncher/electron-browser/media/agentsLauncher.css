@@ -14,6 +14,28 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
+/*
+ * A transparent window shows nothing but the card, which it lays out, and the composer's popups around it. The card draws its own
+ * shadow, since the window has no native one.
+ */
+.monaco-workbench[data-agents-launcher-transparent] {
+	background: transparent !important;
+	/*
+	 * Frosted popups show the page behind them, blurred. Beside the card that is nothing but the apps below the window, which Chromium
+	 * does not blur, so popups are opaque here. Above the inline value the frosted glass contribution sets on every workbench container.
+	 */
+	--modern-ui-glass-opacity: 100% !important;
+}
+
+.monaco-workbench[data-agents-launcher-transparent]::before {
+	display: none;
+}
+
+.monaco-workbench[data-agents-launcher-transparent] > .agents-launcher {
+	position: absolute;
+	box-shadow: var(--vscode-shadow-xl);
+}
+
 .agents-launcher .chat-view {
 	box-sizing: border-box;
 	overflow: auto;

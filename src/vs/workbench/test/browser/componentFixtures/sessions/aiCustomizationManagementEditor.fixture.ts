@@ -276,6 +276,12 @@ interface IFixtureAgentHostPlugin {
 	readonly organization?: string;
 	readonly enabled?: boolean;
 	readonly organizationControl?: ICustomizationOrganizationControl;
+	/** Set when the user's GitHub Team assigns the plugin. */
+	readonly teamProvided?: boolean;
+	/** Marketplace the runtime installed the plugin from, which locates it where its runtime-installed plugin is. */
+	readonly marketplace?: string;
+	/** Enablement actions, which a plugin needs to pair with the runtime-installed plugin at the same location. */
+	readonly actions?: ICustomizationItem['actions'];
 }
 
 function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remoteClientSkillName?: string, plugins: readonly IFixtureAgentHostPlugin[] = []): ICustomizationItemProvider {
@@ -283,7 +289,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 		onDidChange: Event.None,
 		async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
 			const pluginItems = plugins.map((plugin): ICustomizationItem => ({
-				uri: URI.file(`/home/dev/.copilot/installed-plugins/${plugin.name}`),
+				uri: URI.file(`/home/dev/.copilot/installed-plugins/${plugin.marketplace ? `${plugin.marketplace}/` : ''}${plugin.name}`),
 				type: 'plugin',
 				name: plugin.name,
 				description: plugin.description,
@@ -295,6 +301,8 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 				statusMessage: plugin.statusMessage,
 				enabled: plugin.enabled,
 				organizationControl: plugin.organizationControl,
+				teamProvided: plugin.teamProvided,
+				actions: plugin.actions,
 				extensionId: undefined,
 				pluginUri: undefined,
 			}));
@@ -1336,6 +1344,8 @@ interface IRenderEditorOptions {
 	readonly policyConfiguration?: Record<string, unknown>;
 	/** Adds local plugins that organization policy requires or blocks. */
 	readonly organizationManagedLocalPlugins?: boolean;
+	/** Names of plugins the agent host runtime installed, which pair with the agent-host plugins of the same name. */
+	readonly runtimeInstalledPlugins?: readonly string[];
 }
 
 /** Reports the given settings as organization policy values. */
@@ -1540,6 +1550,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			makeInstalledPlugin('Contoso Compliance', URI.file('/workspace/.copilot/plugins/contoso-compliance'), true, false, undefined, true),
 			makeInstalledPlugin('Unapproved Deploy', URI.file('/workspace/.copilot/plugins/unapproved-deploy'), false, true),
 		] : []),
+		...(options.runtimeInstalledPlugins ?? []).map(name =>
+			makeInstalledPlugin(name, URI.file(`/home/dev/.copilot/installed-plugins/contoso/${name}`), true, false, undefined, false, { name, marketplace: 'contoso' })),
 	];
 	if (options.customizationMarketplaceInstallationState === 'requiredPlugin') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(requiredPluginResource), { kind: 'installed', target: requiredPluginTarget });
@@ -2979,7 +2991,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
-function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false, fromMarketplace?: IMarketplacePlugin, policyRequired = false): IAgentPlugin {
+function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false, fromMarketplace?: IMarketplacePlugin, policyRequired = false, copilotCliInstallation?: IAgentPlugin['copilotCliInstallation']): IAgentPlugin {
 	const contributionName = name.toLowerCase().replace(/\s+/g, '-');
 	const enablementState = typeof enablement === 'boolean'
 		? (enablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
@@ -2993,6 +3005,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly enablement = constObservable(enablementState);
 		override readonly policyBlocked = constObservable(policyBlocked);
 		override readonly policyEnablement = constObservable(policyRequired ? true : undefined);
+		override readonly copilotCliInstallation = copilotCliInstallation;
 		override readonly hooks = constObservable([]);
 		override readonly commands = constObservable([
 			{ uri: URI.joinPath(uri, 'commands', `${contributionName}-lookup.md`), name: `${name} lookup`, description: `Search ${name} from chat.` },
@@ -4543,6 +4556,48 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{ name: 'unapproved-deploy', description: 'Deploys to unapproved environments', scope: 'user', enabled: false, organizationControl: { requiredEnabled: false } },
 				{ name: 'contoso-security', description: 'Security scanning required by your organization', scope: 'user', status: 'error', statusMessage: 'Your organization requires this plugin, but it isn\'t installed.', organizationControl: { requiredEnabled: true } },
 				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application', status: 'loaded' },
+			],
+			height: 1180,
+		}),
+	}),
+
+	// Plugins a GitHub Team assigns. This is provenance only, so the organization tag wins when both apply.
+	TeamProvidedAgentHostPlugins: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The contoso-onboarding row shows a Managed by your GitHub Team tag with a shield icon next to its name. The contoso-compliance row, which the Team assigns and the organization requires, shows only the Managed by your organization tag. The azure row has no tag.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			marketplaceVisibilityEnabled: true,
+			agentHostPlugins: [
+				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded' },
+				{ name: 'contoso-onboarding', description: 'Onboarding workflows for the Contoso platform team', scope: 'user', status: 'loaded', teamProvided: true },
+				{ name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', teamProvided: true, organizationControl: { requiredEnabled: true } },
+			],
+			height: 1180,
+		}),
+	}),
+
+	// Organization managed settings: plugins the agent host runtime installed are listed as local rows
+	// paired with their agent-host plugin, which reports what the organization requires for the session.
+	OrgManagedRuntimeInstalledPlugins: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The contoso-compliance row shows the Managed by your organization tag and a switch that is on and disabled. The azure row has no tag and an enabled switch. The contoso-security row shows the tag and an error that the organization requires the plugin but it is not installed.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			marketplaceVisibilityEnabled: true,
+			runtimeInstalledPlugins: ['contoso-compliance', 'azure'],
+			agentHostPlugins: [
+				{
+					name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', organizationControl: { requiredEnabled: true }, marketplace: 'contoso',
+					actions: [{ id: 'agentPlugin.runtime.disable.global', label: 'Disable Globally', checked: true, enabled: false, tooltip: 'This plugin is managed by your organization.', scope: 'global', run: () => { } }],
+				},
+				{
+					name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded', marketplace: 'contoso',
+					actions: [{ id: 'agentPlugin.runtime.disable.global', label: 'Disable Globally', checked: true, scope: 'global', run: () => { } }],
+				},
+				{ name: 'contoso-security', description: 'Security scanning required by your organization', scope: 'user', status: 'error', statusMessage: 'Your organization requires this plugin, but it isn\'t installed.', organizationControl: { requiredEnabled: true } },
 			],
 			height: 1180,
 		}),

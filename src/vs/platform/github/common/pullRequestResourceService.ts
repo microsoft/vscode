@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { ILogService } from '../../log/common/log.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import {
 	FragmentState,
 	GitHubFragmentError,
@@ -25,14 +27,12 @@ import {
 	PullRequestSubscription,
 	PullRequestSubscriptionOptions,
 } from './githubPullRequestService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
-import { BackoffPolicy, backoffDelay } from './backoff.js';
-import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubRequestError } from './githubTransport.js';
 import { EffectivePullRequestFragmentInterest, pullRequestOptionsForFragment, unionPullRequestInterests } from './pullRequestInterests.js';
 import { IPullRequestQuery, PullRequestFragmentResult } from './pullRequestQueryService.js';
-import { PullRequestScheduler } from './pullRequestScheduler.js';
 import { classifyRequiredPullRequestChecks, getPullRequestCheckState } from './pullRequestRequiredChecks.js';
+import { PullRequestScheduler } from './pullRequestScheduler.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 
 export interface IPullRequestResources {
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription;
@@ -69,6 +69,12 @@ export interface PullRequestPollingPolicy {
 	readonly checksBackstop: number;
 	readonly mergeabilityVisible: number;
 	readonly mergeabilityBackground: number;
+	/**
+	 * How often core and mergeability are polled while the pull request is in a merge queue, where it can merge or be
+	 * removed at any time without a push of its own.
+	 */
+	readonly mergeQueueVisible: number;
+	readonly mergeQueueBackground: number;
 	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
@@ -86,6 +92,8 @@ const defaultPollingPolicy: PullRequestPollingPolicy = {
 	checksBackstop: 300_000,
 	mergeabilityVisible: 30_000,
 	mergeabilityBackground: 120_000,
+	mergeQueueVisible: 15_000,
+	mergeQueueBackground: 60_000,
 	failureBackoff: { immediateRetries: 0, base: 30_000, maximum: 300_000, jitter: 5_000 },
 	jitter: 5_000,
 };
@@ -108,11 +116,11 @@ type AnyFragmentState =
 	| FragmentState<PullRequestMergeability>;
 
 interface IFragmentOperation {
-	readonly controller: AbortController;
+	readonly controller: CancellationTokenSource;
 	readonly generation: number;
 	readonly interest: EffectivePullRequestFragmentInterest;
 	readonly promise: Promise<void>;
-	requestSignal?: AbortSignal;
+	requestToken?: CancellationToken;
 }
 
 class PullRequestResourceImpl implements PullRequestResource {
@@ -364,9 +372,9 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 					this._scheduler.cancel(this._bodyTaskKey(entry, fragment));
 				}
 				if (oldInterest.priority !== newInterest.priority) {
-					const requestSignal = entry.operations.get(fragment)?.requestSignal;
-					if (requestSignal) {
-						this._queries.promote(requestSignal, newInterest.priority);
+					const requestToken = entry.operations.get(fragment)?.requestToken;
+					if (requestToken) {
+						this._queries.promote(requestToken, newInterest.priority);
 					}
 					this._scheduleNext(entry, fragment, newInterest);
 				}
@@ -407,7 +415,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		}
 		const fragmentGeneration = (entry.fragmentGenerations.get(fragment) ?? 0) + 1;
 		entry.fragmentGenerations.set(fragment, fragmentGeneration);
-		const controller = new AbortController();
+		const controller = new CancellationTokenSource();
 		const entryGeneration = entry.generation;
 		const headAtStart = isHeadFragment(fragment) ? entry.snapshot.get().core.value?.headSha : undefined;
 		this._setLoading(entry, fragment);
@@ -424,6 +432,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				headAtStart,
 				controller,
 			).finally(() => {
+				controller.dispose();
 				if (entry.operations.get(fragment) === operation) {
 					entry.operations.delete(fragment);
 				}
@@ -440,21 +449,22 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		entryGeneration: number,
 		fragmentGeneration: number,
 		headAtStart: string | undefined,
-		controller: AbortController,
+		controller: CancellationTokenSource,
 	): Promise<void> {
 		let credential: GitHubCredential | undefined;
 		const startedAt = this._clock.now();
 		const reauthorizationsAtStart = entry.reauthorizations;
 		this._logService.trace(`[PullRequestResourceService] Refreshing ${fragment} for ${formatPullRequestRef(entry.ref)} (entry ${entry.id}, generation ${entryGeneration})`);
+		const lifetime = new DisposableStore();
 		try {
-			credential = await this._credentials.getCredential(controller.signal);
+			credential = await this._credentials.getCredential(controller.token);
 			if (!sameAccount(credential.account, entry.ref)) {
 				throw new GitHubRequestError('Pull request resource account does not match the current GitHub credential', 'authentication');
 			}
-			const signal = AbortSignal.any([controller.signal, credential.signal]);
+			const cancellationToken = CancellationToken.any([controller.token, credential.cancellationToken], lifetime);
 			const operation = entry.operations.get(fragment);
 			if (operation?.controller === controller) {
-				operation.requestSignal = signal;
+				operation.requestToken = cancellationToken;
 			}
 			const options = pullRequestOptionsForFragment(fragment, interest);
 			const result = await this._queries.fetch(
@@ -463,10 +473,10 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				entry.snapshot.get().core.value,
 				{ ...options, get priority() { return entry.effective.get(fragment)?.priority ?? interest.priority; } },
 				credential,
-				signal,
+				cancellationToken,
 			);
 			if (!this._canCommit(entry, fragment, entryGeneration, fragmentGeneration, credential, headAtStart)) {
-				if (!controller.signal.aborted && this._isFragmentActive(entry, fragment)) {
+				if (!controller.token.isCancellationRequested && this._isFragmentActive(entry, fragment)) {
 					this._scheduleFragment(entry, fragment, this._clock.now());
 				}
 				return;
@@ -478,7 +488,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		} catch (error) {
 			// GitHub refused a request sent before the credential was reauthorized, which may have lifted the refusal,
 			// so the fragment asks again instead of reporting it.
-			if (entry.reauthorizations !== reauthorizationsAtStart && isCredentialRefusal(error) && !controller.signal.aborted
+			if (entry.reauthorizations !== reauthorizationsAtStart && isCredentialRefusal(error) && !controller.token.isCancellationRequested
 				&& this._canCommit(entry, fragment, entryGeneration, fragmentGeneration, credential, headAtStart)) {
 				this._logService.debug(`[PullRequestResourceService] Retrying ${fragment} for ${formatPullRequestRef(entry.ref)} refused before reauthorization`);
 				return this._runFragmentFetch(entry, fragment, interest, entryGeneration, fragmentGeneration, headAtStart, controller);
@@ -490,13 +500,15 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			if (canCommit) {
 				this._setError(entry, fragment, error);
 			}
-			this._logService.debug(`[PullRequestResourceService] Refresh ${fragment} for ${formatPullRequestRef(entry.ref)} ${controller.signal.aborted ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${resourceErrorKind(error)})`);
-			if (canCommit && !controller.signal.aborted && this._isFragmentActive(entry, fragment)) {
+			this._logService.debug(`[PullRequestResourceService] Refresh ${fragment} for ${formatPullRequestRef(entry.ref)} ${controller.token.isCancellationRequested ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${resourceErrorKind(error)})`);
+			if (canCommit && !controller.token.isCancellationRequested && this._isFragmentActive(entry, fragment)) {
 				this._scheduleAfterFailure(entry, fragment, interest, error);
-			} else if (credential?.signal.aborted && !controller.signal.aborted && this._isFragmentActive(entry, fragment)) {
+			} else if (credential?.cancellationToken.isCancellationRequested && !controller.token.isCancellationRequested && this._isFragmentActive(entry, fragment)) {
 				this._scheduleFragment(entry, fragment, this._clock.now());
 			}
 			throw error;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 
@@ -511,7 +523,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		if (entry.disposed
 			|| entry.generation !== entryGeneration
 			|| entry.fragmentGenerations.get(fragment) !== fragmentGeneration
-			|| credential?.signal.aborted) {
+			|| credential?.cancellationToken.isCancellationRequested) {
 			return false;
 		}
 		return !isHeadFragment(fragment) || entry.snapshot.get().core.value?.headSha === headAtStart;
@@ -558,9 +570,22 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'checks':
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt, result.headSha));
 				break;
-			case 'mergeability':
+			case 'mergeability': {
+				const wasQueued = !!entry.snapshot.get().mergeability.value?.mergeQueueEntryId;
+				const queued = !!result.value.mergeQueueEntryId;
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt, result.headSha));
+				// A queued pull request merges without a push of its own, which only core shows: core is polled on the merge
+				// queue interval while queued, and read at once when the entry leaves because it merged or was removed.
+				const coreInterest = entry.effective.get('core');
+				if (coreInterest && queued !== wasQueued) {
+					if (queued) {
+						this._scheduleNext(entry, 'core', coreInterest);
+					} else {
+						this._scheduleFragment(entry, 'core', this._clock.now());
+					}
+				}
 				break;
+			}
 		}
 		return entry;
 	}
@@ -616,7 +641,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._scheduler.cancel(this._fragmentTaskKey(entry, fragment));
 		this._scheduler.cancel(this._bodyTaskKey(entry, fragment));
 		entry.fragmentGenerations.set(fragment, (entry.fragmentGenerations.get(fragment) ?? 0) + 1);
-		entry.operations.get(fragment)?.controller.abort(new Error(`Pull request fragment ${fragment} is no longer active`));
+		entry.operations.get(fragment)?.controller.dispose(true);
 		entry.operations.delete(fragment);
 		const current = fragmentState(entry.snapshot.get(), fragment);
 		if (current.status === 'loading') {
@@ -683,9 +708,11 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			return undefined;
 		}
 		const visible = interest.priority !== 'background';
+		const queued = !!entry.snapshot.get().mergeability.value?.mergeQueueEntryId;
 		switch (fragment) {
 			case 'core':
-				return visible ? this._policy.coreVisible : this._policy.coreBackground;
+				return queued ? this._mergeQueueDelay(visible, this._policy.coreVisible, this._policy.coreBackground)
+					: visible ? this._policy.coreVisible : this._policy.coreBackground;
 			case 'topLevelComments':
 			case 'submittedReviews':
 			case 'reviewThreads':
@@ -698,8 +725,14 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 					: this._policy.checksBackstop;
 			}
 			case 'mergeability':
-				return visible ? this._policy.mergeabilityVisible : this._policy.mergeabilityBackground;
+				return queued ? this._mergeQueueDelay(visible, this._policy.mergeabilityVisible, this._policy.mergeabilityBackground)
+					: visible ? this._policy.mergeabilityVisible : this._policy.mergeabilityBackground;
 		}
+	}
+
+	/** Polls a queued pull request at least as often as the merge queue interval, without slowing a faster interval. */
+	private _mergeQueueDelay(visible: boolean, visibleDelay: number, backgroundDelay: number): number {
+		return Math.min(visible ? visibleDelay : backgroundDelay, visible ? this._policy.mergeQueueVisible : this._policy.mergeQueueBackground);
 	}
 
 	private _scheduleBodyRelease(entry: PullRequestEntry, fragment: PullRequestFragment): void {

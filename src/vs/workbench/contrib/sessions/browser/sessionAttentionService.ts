@@ -12,6 +12,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { isCopilotReviewAuthor } from '../../../../platform/github/common/pullRequestFeedback.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
@@ -523,3 +524,6 @@ function parseTimestamp(value: string | undefined): number | undefined {
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? parsed : undefined;
 }
+
+// Registered here, once, for every window that loads this module
+registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);

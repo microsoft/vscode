@@ -20,7 +20,7 @@ import * as jsoncParser from 'jsonc-parser';
 import { getProductionDependencies } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
-import { getPnpmCommand } from './pnpm.ts';
+import minimatch from 'minimatch';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
 import watcher from './watch/index.ts';
 
@@ -61,11 +61,25 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 		.pipe(packageJsonFilter.restore);
 }
 
+/**
+ * The esbuild scripts of the extensions whose build doesn't use `esbuild.mts`, with their arguments.
+ * With `typeCheckAfterBuild`, the type check runs after the script instead of alongside it.
+ */
+const esbuildScriptsByExtension: Record<string, { readonly script: string; readonly args: readonly string[]; readonly typeCheckAfterBuild?: boolean }> = {
+	// Builds the bundles that ship, without the test bundles that would make the integration tests run
+	// the extension tests too. The source maps go to `dist-sourcemaps`, which the product build uploads
+	// (see `build/azure-pipelines/copilot/upload-sourcemaps-steps.yml`). The script ends with Copilot's
+	// postinstall, which deletes and copies again `node_modules/@github/copilot/sdk`, whose declarations
+	// the type check reads.
+	'copilot': { script: '.esbuild.mts', args: ['--sourcemaps', '--shipped-bundles-only'], typeCheckAfterBuild: true },
+};
+
 function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 
-	const esbuildConfigFileName = forWeb
+	const esbuildScript = !forWeb ? esbuildScriptsByExtension[path.basename(extensionPath)] : undefined;
+	const esbuildConfigFileName = esbuildScript?.script ?? (forWeb
 		? 'esbuild.browser.mts'
-		: 'esbuild.mts';
+		: 'esbuild.mts');
 
 	const hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
 
@@ -73,11 +87,14 @@ function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 	let isBundled = false;
 
 	if (hasEsbuild) {
-		input = es.merge(
-			fromLocalEsbuild(extensionPath, esbuildConfigFileName),
-			// Esbuild extensions need a separate type check step
-			...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
-		);
+		const typeCheckRoots = getBuildRootsForExtension(extensionPath);
+		input = esbuildScript?.typeCheckAfterBuild
+			? fromLocalEsbuild(extensionPath, esbuildConfigFileName, esbuildScript.args, () => Promise.all(typeCheckRoots.map(root => typeCheckExtension(root, forWeb))))
+			: es.merge(
+				fromLocalEsbuild(extensionPath, esbuildConfigFileName, esbuildScript?.args ?? []),
+				// Esbuild extensions need a separate type check step
+				...typeCheckRoots.map(root => typeCheckExtensionStream(root, forWeb)),
+			);
 		isBundled = true;
 	} else {
 		input = fromLocalNormal(extensionPath);
@@ -164,7 +181,28 @@ function fromLocalNormal(extensionPath: string): Stream {
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
 
-function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
+/**
+ * Returns whether the `.vscodeignore` of an extension packages the file at `filePath` (a path with
+ * `/` separators, relative to the extension folder), like `vsce` does: a file is packaged unless a
+ * pattern ignores it, and a negated pattern (`!`) packages it again. A pattern without a wildcard in
+ * its last segment also matches the files in a folder of that name.
+ */
+export function createVscodeignoreFilter(extensionPath: string): (filePath: string) => boolean {
+	const ignoreFilePath = path.join(extensionPath, '.vscodeignore');
+	const patterns = fs.existsSync(ignoreFilePath)
+		? fs.readFileSync(ignoreFilePath, 'utf8').split(/[\r\n]/).map(line => line.trim()).filter(line => line && !line.startsWith('#'))
+		: [];
+	const allPatterns = [
+		...patterns,
+		...patterns.filter(pattern => !/(^|\/)[^/]*\*[^/]*$/.test(pattern)).map(pattern => pattern.endsWith('/') ? `${pattern}**` : `${pattern}/**`),
+	];
+	const ignored = allPatterns.filter(pattern => !pattern.startsWith('!'));
+	const negated = allPatterns.filter(pattern => pattern.startsWith('!')).map(pattern => pattern.slice(1));
+	const matches = (filePath: string, pattern: string) => minimatch(filePath, pattern, { dot: true });
+	return filePath => !ignored.some(pattern => matches(filePath, pattern)) || negated.some(pattern => matches(filePath, pattern));
+}
+
+function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string, esbuildArgs: readonly string[], afterBuild?: () => Promise<unknown>): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
 	const extensionName = path.basename(extensionPath);
@@ -172,7 +210,8 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 	// Extensions built with esbuild can still externalize runtime dependencies.
 	// Ensure those externals are included in the packaged built-in extension.
 	const packagedDependenciesByExtension: Record<string, string[]> = {
-		'git': ['@vscode/fs-copyfile']
+		'git': ['@vscode/fs-copyfile'],
+		'copilot': ['@github/copilot', '@vscode/copilot-typescript-server-plugin'],
 	};
 	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
 
@@ -180,7 +219,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 
 	// Run esbuild, then collect the files
 	new Promise<void>((resolve, reject) => {
-		const proc = cp.execFile(process.argv[0], [esbuildScript], { cwd: extensionPath }, (error, _stdout, stderr) => {
+		const proc = cp.execFile(process.argv[0], [esbuildScript, ...esbuildArgs], { cwd: extensionPath }, (error, _stdout, stderr) => {
 			if (error) {
 				return reject(error);
 			}
@@ -196,11 +235,13 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 		proc.stdout!.on('data', (data) => {
 			fancyLog(`${ansiColors.green('esbuilding')}: ${data.toString('utf8')}`);
 		});
-	}).then(() => {
+	}).then(() => afterBuild?.()).then(() => {
 		// After esbuild completes, collect all files using vsce
 		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
 	}).then(fileNames => {
 		const entries = new Map<string, IExtensionFile>(fileNames.map(fileName => [fileName, { path: fileName, localPath: path.join(extensionPath, fileName) }]));
+		// Like `vsce package`, which packages the files of the dependencies that the `.vscodeignore` selects.
+		const isPackaged = createVscodeignoreFilter(extensionPath);
 		for (const dependency of packagedDependencies) {
 			// The package can be hoisted out of the extension's node_modules; it is packaged at
 			// node_modules/<dependency> inside the extension. Only the package's own files are
@@ -212,6 +253,9 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 				// artifacts (e.g. Makefile) that break macOS universal builds due to SHA mismatches.
 				const parts = filePath.split(path.sep);
 				if (parts.indexOf('build') !== -1 && !filePath.endsWith('.node')) {
+					continue;
+				}
+				if (!isPackaged(parts.join('/'))) {
 					continue;
 				}
 				entries.set(filePath, { path: filePath, localPath });
@@ -541,16 +585,11 @@ export function getSharedExtensionDependencyStream(folder: string, destination: 
 }
 
 /**
- * Where {@link packageCopilotExtensionStream} packages the built-in Copilot extension before
- * extracting it.
- */
-const copilotVsixPath = path.join(root, '.build', 'copilot-vsix', 'copilot-chat.vsix');
-
-/**
- * Packages the built-in Copilot extension with the files of its VSIX: builds the extension, packages
- * it with its own `package` script and extracts the extension from the VSIX. The VSIX holds the parts
- * of `node_modules` that Copilot loads at runtime (see its `.vscodeignore`), with the native files of
- * the build machine, which packaging the product replaces with those of the target platform (see
+ * Packages the built-in Copilot extension like the other local extensions (see
+ * {@link doPackageLocalExtensionsStream}), on its own because the platform Compile jobs build it
+ * after preparing it (see `build/azure-pipelines/copilot/builtin-steps.yml`). Its packaged
+ * dependencies hold the parts of `node_modules` that Copilot loads at runtime, with the native files
+ * of the build machine, which packaging the product replaces with those of the target platform (see
  * `prepareBuiltInCopilotRipgrepShim` in `copilot.ts`).
  */
 export function packageCopilotExtensionStream(): Stream {
@@ -559,48 +598,10 @@ export function packageCopilotExtensionStream(): Stream {
 		return es.readArray([]);
 	}
 
-	const result = es.through();
-	buildCopilotVsix(extensionPath).then(() => {
-		const extracted = gulp.src(copilotVsixPath)
-			.pipe(buffer())
-			.pipe(vinylZip.src());
-		extracted.on('error', err => result.emit('error', err));
-		extracted
-			.pipe(filter('extension/**'))
-			.pipe(rename(p => p.dirname = path.join('extensions', 'copilot', p.dirname!.replace(/^extension(?:[\\/]|$)/, ''))))
-			.pipe(result);
-	}, err => result.emit('error', err));
-
-	// Like the VSIX, which is packaged before the JSON files at the root of the extension get minified.
-	return minifyExtensionResources(result, ['extensions/copilot/*.json']);
-}
-
-/**
- * Builds the Copilot extension and packages it into {@link copilotVsixPath}. Its `package` script
- * packages the extension from a staging folder that `pnpm deploy` creates, because `vsce` can't list
- * the production dependencies in pnpm's layout (see `extensions/copilot/script/build/packageVsix.ts`).
- * The build writes the source maps of the bundles to `dist-sourcemaps`, which the VSIX excludes; the
- * product build uploads them (see `build/azure-pipelines/copilot/upload-sourcemaps-steps.yml`). It
- * only builds the bundles that ship: with a test bundle in `dist`, the integration tests would also
- * run the extension tests, which need the Copilot test cache that only the Copilot Tests job pulls.
- */
-async function buildCopilotVsix(extensionPath: string): Promise<void> {
-	fs.rmSync(path.join(extensionPath, 'dist-sourcemaps'), { recursive: true, force: true });
-	await spawnAsync(process.execPath, ['.esbuild.mts', '--sourcemaps', '--shipped-bundles-only'], extensionPath, false);
-
-	fs.rmSync(path.dirname(copilotVsixPath), { recursive: true, force: true });
-	fs.mkdirSync(path.dirname(copilotVsixPath), { recursive: true });
-	const pnpm = getPnpmCommand();
-	// `vsce` takes strings of `ora` in the bundle for SendGrid secrets.
-	await spawnAsync(pnpm.command, [...pnpm.args, 'run', 'package', '--out', path.relative(extensionPath, copilotVsixPath), '--allow-package-secrets', 'sendgrid'], extensionPath, pnpm.shell);
-}
-
-function spawnAsync(command: string, args: string[], cwd: string, shell: boolean): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const child = cp.spawn(command, args, { cwd, stdio: 'inherit', shell });
-		child.on('error', reject);
-		child.on('exit', code => code === 0 ? resolve() : reject(new Error(`${command} ${args.join(' ')} failed in ${cwd} with exit code ${code}.`)));
-	});
+	return minifyExtensionResources(
+		fromLocal(extensionPath, false)
+			.pipe(rename(p => p.dirname = `extensions/copilot/${p.dirname}`))
+	).pipe(util2.setExecutableBit(['**/*.sh']));
 }
 
 export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {
