@@ -567,13 +567,12 @@
 
 /* Starter templates */
 .automations-templates {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size240);
 	width: 100%;
 	margin-top: var(--vscode-spacing-size240);
 	text-align: left;
-}
-
-.automations-template-section + .automations-template-section {
-	margin-top: var(--vscode-spacing-size240);
 }
 
 .automations-templates-description {
@@ -636,6 +635,7 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
+.automations-ownership-grid,
 .automations-template-section > .automations-templates-description,
 .automations-template-section > .automations-templates-grid {
 	width: calc(100% - var(--vscode-codiconFontSize) - var(--vscode-spacing-size60));
