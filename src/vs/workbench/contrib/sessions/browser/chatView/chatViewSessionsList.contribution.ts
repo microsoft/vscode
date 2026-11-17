@@ -85,7 +85,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		// after the window's accessibility help installs what is registered, eventually, would not be installed. They help only
 		// where the list has focus, and create nothing.
 		this._register(registerSessionsListAccessibilityHelp());
-		this._register(AccessibleViewRegistry.register(new ChatViewSessionsListAccessibilityHelp()));
+		this._register(AccessibleViewRegistry.register(instantiationService.createInstance(ChatViewSessionsListAccessibilityHelp)));
 
 		const enabled = chatViewSessionsListService.enabled;
 		this._register(autorun(reader => {

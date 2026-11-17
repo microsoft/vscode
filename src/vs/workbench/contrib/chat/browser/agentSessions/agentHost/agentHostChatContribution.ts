@@ -22,12 +22,12 @@ import { type AgentInfo, type RootState } from '../../../../../../platform/agent
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { getVirtualWorkspaceScheme } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -68,46 +68,65 @@ languageModelSourcePresentationRegistry.register({
 	description: localize('agentHostModelSource.chatGPT.description', "Models provided by your ChatGPT subscription"),
 });
 
-Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
-	matchSessionType: sessionType => isLocalAgentHostTarget(sessionType),
-	waitForActivation: waitForLocalAgentHostActivation,
-});
+/**
+ * Lets the chat sessions service wait for a local agent host's provider of a session type before it resolves its chats
+ * ({@link IAsyncChatSessionActivationRegistry}): created as the window starts, before the installed extensions register, which
+ * the service waits for before it asks.
+ */
+export class LocalAgentHostActivationContribution extends Disposable implements IWorkbenchContribution {
 
-async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
-	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
-	const agentHostService = accessor.get(IAgentHostService);
-	const configurationService = accessor.get(IConfigurationService);
-	const surfacesAllAgents = accessor.get(IChatViewSessionsListService).surfacesAllLocalAgentHostAgents;
-	if (!agentHostEnablementService.enabled.get()) {
-		return false;
+	static readonly ID = 'workbench.contrib.localAgentHostActivation';
+
+	constructor(
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatViewSessionsListService private readonly _chatViewSessionsListService: IChatViewSessionsListService,
+	) {
+		super();
+		this._register(Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
+			matchSessionType: sessionType => isLocalAgentHostTarget(sessionType),
+			waitForActivation: (_accessor, sessionType) => this._waitForActivation(sessionType),
+		}));
 	}
 
-	const provider = getLocalAgentHostProviderForSessionType(sessionType);
-	if (!provider) {
-		return false;
-	}
-
-	while (true) {
-		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, surfacesAllAgents.get()).includes(provider)) {
-			return true;
-		}
-		const rootState = agentHostService.rootState.value;
-		if (rootState instanceof Error) {
+	private async _waitForActivation(sessionType: string): Promise<boolean> {
+		const agentHostService = this._agentHostService;
+		const configurationService = this._configurationService;
+		const surfacesAllAgents = this._chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
+		if (!this._agentHostEnablementService.enabled.get()) {
 			return false;
 		}
-		if (rootState) {
-			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, surfacesAllAgents.get()));
+
+		const provider = getLocalAgentHostProviderForSessionType(sessionType);
+		if (!provider) {
+			return false;
 		}
 
-		const changed = await Promise.race([
-			Event.toPromise(agentHostService.rootState.onDidChange).then(() => true),
-			Event.toPromise(agentHostService.onAgentHostExit).then(() => false),
-		]);
-		if (!changed) {
-			return false;
+		while (true) {
+			if (getPolicyUnavailableLocalAgentHostProviders(configurationService, surfacesAllAgents.get()).includes(provider)) {
+				return true;
+			}
+			const rootState = agentHostService.rootState.value;
+			if (rootState instanceof Error) {
+				return false;
+			}
+			if (rootState) {
+				return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, surfacesAllAgents.get()));
+			}
+
+			const changed = await Promise.race([
+				Event.toPromise(agentHostService.rootState.onDidChange).then(() => true),
+				Event.toPromise(agentHostService.onAgentHostExit).then(() => false),
+			]);
+			if (!changed) {
+				return false;
+			}
 		}
 	}
 }
+
+registerWorkbenchContribution2(LocalAgentHostActivationContribution.ID, LocalAgentHostActivationContribution, WorkbenchPhase.BlockStartup);
 
 function getLocalAgentHostProviderForSessionType(sessionType: string): AgentProvider | undefined {
 	if (!isLocalAgentHostTarget(sessionType) || !sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)) {

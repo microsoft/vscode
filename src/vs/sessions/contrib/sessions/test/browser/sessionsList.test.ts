@@ -253,29 +253,49 @@ suite('Sessions - SessionsList', () => {
 		return { ...session, workspace: constObservable({ ...session.workspace.get()!, uri, folders: [{ root: uri, workingDirectory: uri, name: label, description: undefined, gitRepository: undefined }] }) };
 	}
 
-	test('a scoped list, of a window with folders, shows no Chats section under time grouping, also empty, while an unscoped list keeps it', () => {
+	test('a scoped list, of a window with folders, shows no Chats section under any grouping, also empty, while an unscoped list keeps it, as the scope changes live', () => {
 		const harness = createListHarness(disposables, [createFolderSession('folder', 'repo', 'file:///work/repo')]);
 		void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, true);
-		const provider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true });
+		const provider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true, environment: { id: 'local', label: 'This Computer' } });
 		harness.instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			override readonly onDidChangeProviders = Event.None;
 			override getProviders() { return [provider]; }
 			override getProvider() { return undefined; }
 		});
-		const sections = (scoped: boolean) => {
+		const chatsSection = (grouping: SessionsGrouping) => {
+			const scoped = observableValue('scoped', false);
 			const container = harness.createContainer(400, 1400);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
+				grouping: () => grouping,
 				sorting: () => SessionsSorting.Created,
-				scoped: scoped ? constObservable(true) : undefined,
+				scoped,
 				quickChatsInTimeGrouping: true,
 				onSessionOpen: () => { },
 			}));
 			list.layout(1400, 400);
-			return list.getTreeSnapshot().some(node => node.type === 'section' && node.id === QUICK_CHATS_SECTION_ID);
+			const hasChats = () => list.getTreeSnapshot().some(node => node.type === 'section' && node.id === QUICK_CHATS_SECTION_ID);
+			const steps = [hasChats()];
+			scoped.set(true, undefined);
+			steps.push(hasChats());
+			scoped.set(false, undefined);
+			steps.push(hasChats());
+			return steps.map(shown => shown ? 'chats' : '-').join(' ');
 		};
 
-		assert.deepStrictEqual({ scoped: sections(true), unscoped: sections(false) }, { scoped: false, unscoped: true });
+		// Unscoped, scoped, unscoped again
+		assert.deepStrictEqual({
+			date: chatsSection(SessionsGrouping.Date),
+			environment: chatsSection(SessionsGrouping.Environment),
+			worktree: chatsSection(SessionsGrouping.Worktree),
+			workspace: chatsSection(SessionsGrouping.Workspace),
+			repository: chatsSection(SessionsGrouping.Repository),
+		}, {
+			date: 'chats - chats',
+			environment: '- - -',
+			worktree: 'chats - chats',
+			workspace: 'chats - chats',
+			repository: 'chats - chats',
+		});
 	});
 
 	test('a scoped list says so when it shows no session, also when the filters hide its sessions', () => {

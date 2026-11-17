@@ -17,7 +17,8 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SessionsListNotificationFocused } from '../views/sessionsListNotification.js';
-import { getSessionsViewResolver, SessionsViewFocusedContext } from '../views/sessionsView.js';
+import { ISessionsViewLocator, SessionsView, SessionsViewFocusedContext, SessionsViewId } from '../views/sessionsView.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 /**
  * The accessibility help of the sessions list in the Chat view of an editor window. The list's Undo notice has help of its
@@ -29,14 +30,18 @@ export class ChatViewSessionsListAccessibilityHelp implements IAccessibleViewImp
 	readonly name = 'chatViewSessionsList';
 	readonly when = ContextKeyExpr.and(SessionsViewFocusedContext, FocusedViewContext.isEqualTo(ChatViewId), IsSessionsWindowContext.negate(), SessionsListNotificationFocused.negate());
 
-	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
-		// Resolved while the accessor is valid, for the list to take focus back as the help closes
-		const getSessionsView = getSessionsViewResolver(accessor);
+	constructor(
+		@IViewsService private readonly _viewsService: IViewsService,
+		@ISessionsViewLocator private readonly _sessionsViewLocator: ISessionsViewLocator,
+	) { }
+
+	getProvider(_accessor: ServicesAccessor): AccessibleContentProvider {
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.ChatViewSessionsList,
 			{ type: AccessibleViewType.Help },
 			() => getChatViewSessionsListAccessibilityHelpContent(),
-			() => getSessionsView()?.focus(),
+			// The list takes focus back as the help closes: the Sessions view as it is then, registered or embedded in the Chat view
+			() => (this._viewsService.getViewWithId<SessionsView>(SessionsViewId) ?? this._sessionsViewLocator.getEmbeddedView())?.focus(),
 			AccessibilityVerbositySettingId.Chat,
 		);
 	}

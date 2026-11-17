@@ -130,6 +130,7 @@ suite('ChatViewSessionsGate', () => {
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
+		instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => undefined }));
 		instantiationService.stub(IChatViewSessionsListService, new ChatViewSessionsListService(configurationService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority, isSessionsWindow: false })));
 		contextKeyService = new MockContextKeyService();
 		instantiationService.stub(IContextKeyService, contextKeyService);
@@ -187,10 +188,21 @@ suite('ChatViewSessionsGate', () => {
 		}({ [ChatConfiguration.ChatViewSessionsListEnabled]: false });
 		const before = registered();
 		const environmentService = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false });
-		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
-		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({}), environmentService, new ChatViewSessionsListService(configurationService, environmentService)));
+		// With the setting off, the gate creates nothing but the accessibility help of the list: any other use of the instantiation
+		// service fails
+		const created: string[] = [];
+		const instantiationService = upcastPartial<IInstantiationService>({
+			createInstance: ((ctor: { name: string }) => {
+				created.push(ctor.name);
+				if (ctor !== ChatViewSessionsListAccessibilityHelp) {
+					throw new Error(`created ${ctor.name}`);
+				}
+				return new ChatViewSessionsListAccessibilityHelp(upcastPartial<IViewsService>({}), upcastPartial<ISessionsViewLocator>({}));
+			}) as IInstantiationService['createInstance'],
+		});
+		disposables.add(new ChatViewSessionsGate(configurationService, instantiationService, environmentService, new ChatViewSessionsListService(configurationService, environmentService)));
 
-		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
+		assert.deepStrictEqual({ ...registered(), reads, created }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled], created: ['ChatViewSessionsListAccessibilityHelp'] });
 	});
 
 	test('gives the Chat view its sessions list, showing only the sessions while a host replaces it, hiding new local chats without changing their setting, holding the sessions providers, and the actions of the list only once it shows, while the setting is on', () => {
@@ -260,8 +272,8 @@ suite('ChatViewSessionsGate', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId: () => null }));
 		instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => upcastPartial<SessionsView>({ focus: () => { focused.push('list'); } }) }));
-		const help = new ChatViewSessionsListAccessibilityHelp();
-		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor)));
+		const help = instantiationService.createInstance(ChatViewSessionsListAccessibilityHelp);
+		const provider = disposables.add(help.getProvider(upcastPartial<ServicesAccessor>({})));
 		provider.onClose();
 
 		const shows = (view: string, inList: boolean, sessionsWindow = false, noticeFocused = false) => help.when?.evaluate({
