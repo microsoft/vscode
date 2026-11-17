@@ -122,15 +122,15 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 	}));
 
-	// Closes all the chats of the chat part, which closes it: right after Close in the More Actions of a header of a chat it shows,
-	// while it shows them as tabs; in Single, it shows one at a time
+	// Closes all the chats of the chat part, which closes it: last in the More Actions of a header of a chat it shows, in a group
+	// of its own, both showing its chats as tabs and one at a time
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID,
 				title: localize2('agentsView.closeAllChats', "Close All"),
 				precondition: ChatContextKeys.enabled,
-				menu: SessionHeaderMenus.map(id => ({ id, group: 'secondary/0_pane', order: 20, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) })),
+				menu: SessionHeaderMenus.map(id => ({ id, group: 'secondary/9_close', order: 0, when: inChatPart })),
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {

@@ -116,7 +116,10 @@ export interface IAgentsChatPartService {
 	 */
 	parkComposerInput(): boolean;
 
-	/** Closes the tabs of all its chats, which closes it. */
+	/**
+	 * Closes the tabs of all its chats, which closes it. In Single, what was typed in its unsent new-session composers is kept
+	 * for its next ones, as closing each does.
+	 */
 	closeAllChats(): Promise<void>;
 
 	/** Whether the chat part shows `chatResource` in one of its tabs. */
@@ -273,6 +276,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _openGenerations = new Map<GroupIdentifier, number>();
 	/** Whether it closes all its chats, or its part closes: no composer shows in their place then. */
 	private _closingAll = false;
+	/** Whether its part closes with the window: its composers keep nothing then. */
+	private _partClosing = false;
 	private readonly _partStore = this._register(new DisposableStore());
 	private readonly _chats = this._register(new DisposableMap<EditorInput, AgentsChatPartChat>());
 	private _composers: ChatWindowComposers | undefined;
@@ -476,10 +481,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	async closeAllChats(): Promise<void> {
 		this._closingAll = true;
 		try {
-			await Promise.all((this._part?.groups ?? []).map(group => group.closeAllEditors()));
+			// The least recently active first: in Single, the composer used last keeps its draft last, for the next to take first
+			await Promise.all((this._part?.groups ?? []).map(group => group.closeEditors([...group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)].reverse())));
 		} finally {
 			this._closingAll = false;
 		}
+		this._hideIfEmpty();
 	}
 
 	isShowing(chatResource: URI): boolean {
@@ -803,6 +810,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// The part goes with the window; its chats are not dirty, so nothing moves back to the editor area
 		this._partStore.add(toDisposable(() => {
 			this._closingAll = true;
+			this._partClosing = true;
 			part.forceClose();
 			this._kept = [];
 		}));
@@ -864,13 +872,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	/**
-	 * In Single, closing its new-session composer keeps what was typed in it, without asking, for its next one: not as it
-	 * closes all its chats or the window shuts down, nor a composer that sends its session.
+	 * In Single, closing its new-session composer keeps what was typed in it, without asking, for its next one, also as it
+	 * closes all its chats: not as its part closes or the window shuts down, nor a composer that sends its session.
 	 */
 	private _captureClosingComposerInput(editor: EditorInput): void {
 		this._closingComposerInputs.delete(editor);
 		const composer = this._composerModels.get(editor);
-		if (!composer || !this._isSingle() || this._closingAll || this._lifecycleService.willShutdown || isSessionCreated(this._chats.get(editor)?.session.get())) {
+		if (!composer || !this._isSingle() || this._partClosing || this._lifecycleService.willShutdown || isSessionCreated(this._chats.get(editor)?.session.get())) {
 			return;
 		}
 		const input = this._sendableComposerInput(composer);
