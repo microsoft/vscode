@@ -87,7 +87,7 @@ export const sessionsListConfigurationProperties = {
 	},
 	[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: {
 		type: 'string',
-		tags: ['experimental', 'advanced'],
+		tags: ['advanced'],
 		enum: [AutomationSessionsListMode.Always, AutomationSessionsListMode.AfterReply, AutomationSessionsListMode.Never],
 		enumDescriptions: [
 			localize('sessions.list.showAutomationSessions.always', "Show every automation session in the sessions list."),
@@ -96,7 +96,6 @@ export const sessionsListConfigurationProperties = {
 		],
 		description: localize('sessions.list.showAutomationSessions', "Controls when automation sessions automatically also appear in the sessions list. They always remain in Automations. Use Show in Sessions List or Hide from Sessions List in a session's context menu to override this for that session."),
 		default: AutomationSessionsListMode.AfterReply,
-		experiment: { mode: 'auto' }
 	},
 	[SESSIONS_LIST_INDENT_ITEMS_SETTING]: {
 		type: 'boolean',
