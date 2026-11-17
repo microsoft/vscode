@@ -154,6 +154,7 @@ import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction, OpenAgentHostFolderPickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { AgentHostFolderPickerActionItem } from '../../agentSessions/agentHost/agentHostFolderPickerActionItem.js';
+import { createNewWorktreeCheckboxViewItem, ToggleAgentHostNewWorktreeAction } from '../../agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -4611,6 +4612,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return Math.max(0, laneWidth - genericChipsContainer.getBoundingClientRect().width - gap);
 		};
 		const agentHostPermissions = this._register(new MutableDisposable<AgentHostChatInputPicker>());
+		let folderPicker: AgentHostFolderPickerActionItem | undefined;
 		if (this.options.renderSecondaryToolbar !== false) {
 			this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, responsivePickerContainer, MenuId.ChatInputSecondary, {
 				telemetrySource: this.options.menus.telemetrySource,
@@ -4622,7 +4624,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					kind: 'all',
 					minItems: 1,
 					actionMinWidth: 48,
-					getActionMinWidth: action => secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
+					// A folder chip that always shows its name needs its width, which it does not give up as compact pickers do
+					getActionMinWidth: action => (action.id === OpenAgentHostFolderPickerAction.ID ? folderPicker?.getMinimumWidth() : undefined)
+						?? secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
 					observedElement: responsivePickerContainer,
 					getAvailableWidth: getSecondaryToolbarAvailableWidth,
 					allowOverflow: () => this._secondaryPickerResponsiveLayout?.areAllItemsCompact() === true,
@@ -4731,13 +4735,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this.agentHostPickers.delete(agentHostPickerProperty);
 							}
 						}, retainPicker);
+					} else if (action.id === ToggleAgentHostNewWorktreeAction.ID) {
+						return createNewWorktreeCheckboxViewItem(action, options, this.instantiationService);
 					} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
 						if (this.options.isSessionsWindow) {
 							return new HiddenActionViewItem(action);
 						}
 						const createPicker = () => this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, getSecondaryPickerOptions(action.id));
 						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
-						return createPicker();
+						folderPicker = createPicker();
+						return folderPicker;
 					} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 						const createPicker = () => {
 							const widgets = this.createChatSessionPickerWidgets(action, getSecondaryPickerOptions(action.id));
