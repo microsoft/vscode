@@ -5,8 +5,8 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import type { AutomationDisableCondition, JsonPrimitive, Message } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AutomationTrigger } from '../../../../../platform/github/common/missionControl/automations.js';
-import type { JsonPrimitive, Message } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
@@ -137,6 +137,8 @@ export interface IAutomationDescriptor {
 	readonly targetDisplay?: { readonly label: string; readonly icon: ThemeIcon };
 	readonly externalResource?: URI;
 	readonly ownership?: 'user' | 'repository';
+	/** Whether the provider identifies the signed-in user as this automation's creator. */
+	readonly isCreatedByCurrentUser?: boolean;
 
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;
@@ -151,6 +153,8 @@ export interface IAutomationDescriptor {
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;
+	/** Host-owned conditions; only end dates can be authored by this client. */
+	readonly disableConditions?: readonly AutomationDisableCondition[];
 
 	/** ISO-8601 UTC timestamp. */
 	readonly createdAt: string;
@@ -168,6 +172,10 @@ export interface IAutomationDescriptor {
  * reports completion, failure, cancellation, or timeout.
  */
 export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export function isAutomationVisible(automation: Pick<IAutomationDescriptor, 'ownership' | 'isCreatedByCurrentUser'>, showSharedByOthers: boolean): boolean {
+	return showSharedByOthers || automation.ownership !== 'repository' || automation.isCreatedByCurrentUser === true;
+}
 
 /**
  * What kicked off a run. `catch_up` reflects the host's misfire policy for a

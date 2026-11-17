@@ -19,7 +19,7 @@ import { activeContrastBorder } from '../../../../platform/theme/common/colorReg
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CodeDataTransfers, containsDragType, Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, InputDropTargetHints, isContentDropTarget, isInputDropTarget, registerPassThroughDropTarget, ResourcesDropHandler } from '../../dnd.js';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropData, InputDropTargetHints, isContentDropTarget, isInputDropTarget, isPassThroughModifierHeld, PASS_THROUGH_MODIFIER_LABEL, registerPassThroughDropTarget, ResourcesDropHandler } from '../../dnd.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, GroupTransferKind, IEditorGroupsView, IEditorGroupView, prepareMoveCopyEditors } from './editor.js';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -56,10 +56,11 @@ function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationSer
 }
 
 /** The key, as it shows, that drops into the editor while it is held (see {@link isDragIntoEditorEvent}). */
-const DROP_INTO_EDITOR_MODIFIER_LABEL = isMacintosh ? '⇧' : 'Shift';
+const DROP_INTO_EDITOR_MODIFIER_LABEL = PASS_THROUGH_MODIFIER_LABEL;
 
+/** Whether the key that drops into the editor is held: the one that lets drags through other placement overlays too, such as to attach to a chat. */
 function isDragIntoEditorEvent(e: DragEvent): boolean {
-	return e.shiftKey;
+	return isPassThroughModifierHeld(e);
 }
 
 /**

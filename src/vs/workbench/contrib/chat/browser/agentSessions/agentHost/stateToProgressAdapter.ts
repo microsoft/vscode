@@ -891,6 +891,8 @@ export function getTerminalContent(content: ToolResultContent[] | undefined): Ex
  * Resolves selected and actual model identifiers independently, along with response display details.
  */
 export interface TurnModelLookup {
+	/** Returns the lookup for a turn that selected the given raw AHP model id, so each turn is read against its own selection. */
+	forTurn?(selectedRawModelId: string | undefined): TurnModelLookup;
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
 	/** Resolves the actual model's registered id when available, without falling back to the selected model. */
@@ -945,7 +947,8 @@ export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, looku
 		}
 	}
 	const fusionModelId = reportedModelId ?? (isFusionModel(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
-	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
+	const turnLookup = lookup?.forTurn?.(selectedModelId) ?? lookup;
+	return turnLookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
 }
 
 /**
@@ -1347,7 +1350,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
 		const modelId = lookup?.toLanguageModelId(turn.message.model?.id ?? rawModelId);
-		const details = turnToResponseDetails(turn, lookup);
+		const turnLookup = lookup?.forTurn?.(turn.message.model?.id) ?? lookup;
+		const details = turnToResponseDetails(turn, turnLookup);
 
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority, resourceUris);
@@ -1386,14 +1390,14 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
 		// History is settled, so an unresolved row would never flip to a routed one.
-		const autoModeResolution = lookup?.toAutoModeResolution?.(turn.usage);
+		const autoModeResolution = turnLookup?.toAutoModeResolution?.(turn.usage);
 		if (autoModeResolution?.resolved) {
 			parts.push(autoModeResolution);
 		}
 
-		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
+		const usage = usageInfoToChatUsage(turn.usage, turnLookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
-			const actualModelId = lookup?.toActualModelId(rawModelId);
+			const actualModelId = turnLookup?.toActualModelId(rawModelId);
 			if (actualModelId) {
 				usage.actualModelId = actualModelId;
 			}
@@ -1859,7 +1863,7 @@ export function reasoningPartToThinking(part: ReasoningResponsePart, value = par
  */
 export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatProgress[] {
 	const parts: IChatProgress[] = [];
-	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
+	const usage = usageInfoToChatUsage(activeTurn.usage, (lookup?.forTurn?.(activeTurn.message.model?.id) ?? lookup)?.toModelDisplayName);
 	if (usage) {
 		parts.push(usage);
 	}
@@ -2403,7 +2407,8 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 }
 
 function toolCallOriginMessage(tc: ToolCallState): string | undefined {
-	const serverName = readToolCallMeta(tc).mcpServerName?.trim();
+	const meta = readToolCallMeta(tc);
+	const serverName = (meta['vscode.mcpServerDisplayName'] ?? meta.mcpServerName)?.trim();
 	return serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
 }
 
@@ -3120,7 +3125,7 @@ export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolC
 	return {
 		id: `${sessionAuthority}/${tc.contributor.customizationId}`,
 		target: { kind: AuthenticateTargetKind.McpServer, session: backendSession.toString(), customizationId: tc.contributor.customizationId },
-		name: name ?? tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
+		name: name ?? tc.auth.resource.resource_name ?? metadata['vscode.mcpServerDisplayName'] ?? metadata.mcpServerName ?? tc.displayName,
 		resource: tc.auth.resource.resource,
 		oauthClient: tc.auth.oauthClient,
 		authorizationServers: tc.auth.resource.authorization_servers,

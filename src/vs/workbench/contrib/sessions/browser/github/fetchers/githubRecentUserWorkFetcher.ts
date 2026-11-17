@@ -42,9 +42,10 @@ export class GitHubRecentUserWorkFetcher {
 	constructor(private readonly _client: GitHubApiClient) { }
 
 	getRecentAssignedIssues(owner: string, repo: string, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentIssue[]> {
-		return this._client.withClient(async (client, signal) => {
-			const page = await client.search.issues(`repo:${owner}/${repo} is:open assignee:@me`, signal, {
+		return this._client.withClient(async (client, cancellationToken) => {
+			const page = await client.search.issues(`repo:${owner}/${repo} is:open assignee:@me`, cancellationToken, {
 				...options,
+				caller: options?.caller ?? 'githubRecentUserWorkFetcher',
 				query: { per_page: 5, sort: 'updated', order: 'desc' },
 			});
 			return page.items.map(issue => ({
@@ -57,8 +58,8 @@ export class GitHubRecentUserWorkFetcher {
 	}
 
 	getRecentAuthoredPullRequests(owner: string, repo: string, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequest[]> {
-		return this._client.withClient(async (client, signal) => {
-			const page = await client.search.pullRequests(`repo:${owner}/${repo} is:open author:@me sort:updated-desc`, signal, { ...options, query: { first: 5 } });
+		return this._client.withClient(async (client, cancellationToken) => {
+			const page = await client.search.pullRequests(`repo:${owner}/${repo} is:open author:@me sort:updated-desc`, cancellationToken, { ...options, caller: options?.caller ?? 'githubRecentUserWorkFetcher', query: { first: 5 } });
 			return (page.nodes ?? []).filter(isDefined).map(pullRequest => {
 				const latestCommit = pullRequest.commits.nodes?.find(isDefined)?.commit;
 				return {
@@ -75,10 +76,11 @@ export class GitHubRecentUserWorkFetcher {
 	}
 
 	getPullRequestReviewThreads(owner: string, repo: string, pullRequestNumber: number, token: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubRecentPullRequestReviewThread[]> {
-		return this._client.withClient(async (client, signal) => {
-			const pullRequest = await client.pullRequests.get({ owner, repo }, pullRequestNumber, signal, options);
-			const threads = await client.reviews.listThreadSummaries(pullRequest.node_id, signal, {
-				...options,
+		return this._client.withClient(async (client, cancellationToken) => {
+			const requestOptions = { ...options, caller: options?.caller ?? 'githubRecentUserWorkFetcher' };
+			const pullRequest = await client.pullRequests.get({ owner, repo }, pullRequestNumber, cancellationToken, requestOptions);
+			const threads = await client.reviews.listThreadSummaries(pullRequest.node_id, cancellationToken, {
+				...requestOptions,
 				query: { first: 100 },
 				maxPages: 100,
 			});
@@ -99,8 +101,8 @@ export class GitHubRecentUserWorkFetcher {
 			}
 			return Promise.resolve(new Set());
 		}
-		return this._client.withClient(async (client, signal) => {
-			const counts = await client.issues.getClosingPullRequestCounts({ owner, repo }, issueNumbers, signal, options);
+		return this._client.withClient(async (client, cancellationToken) => {
+			const counts = await client.issues.getClosingPullRequestCounts({ owner, repo }, issueNumbers, cancellationToken, { ...options, caller: options?.caller ?? 'githubRecentUserWorkFetcher' });
 			if (counts === null) {
 				throw new GitHubRequestError(`GitHub repository not found: ${owner}/${repo}`, 'notFound');
 			}

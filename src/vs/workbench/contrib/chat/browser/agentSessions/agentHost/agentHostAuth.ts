@@ -13,10 +13,11 @@ import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { isObject } from '../../../../../../base/common/types.js';
+import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
-import { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -74,6 +75,12 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	}
 	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
 	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
+}
+
+function assertAuthenticationAccepted(result: unknown): void {
+	if (isObject(result) && (result as Partial<AuthenticateResult>).authenticated === false) {
+		throw new Error(localize('agentHost.credentialRejected', "The agent host did not accept the authentication credential."));
+	}
 }
 
 interface IForwardedAuthenticationIdentity {
@@ -134,7 +141,7 @@ export class AgentHostAuthTokenCache {
 		}
 
 		const promise = (async () => {
-			await authenticate();
+			assertAuthenticationAccepted(await authenticate());
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
@@ -656,6 +663,7 @@ export interface IAgentHostAuthenticateRequest {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	readonly accountId?: string;
 	readonly _meta?: Record<string, unknown>;
 }
 
@@ -737,13 +745,13 @@ async function forwardAuthenticationToken(
 	};
 	if (options.authTokenCache) {
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target, identity);
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), request.accountId, readAgentEntitlementHint(request), options.target, identity);
 	}
-	await options.authenticate(request);
+	assertAuthenticationAccepted(await options.authenticate(request));
 	return true;
 }
 
-function toAuthenticateRequest(
+export function toAuthenticateRequest(
 	resource: string,
 	scopes: readonly string[] | undefined,
 	session: IForwardedAuthenticationSession | undefined,
@@ -751,18 +759,16 @@ function toAuthenticateRequest(
 	entitlement?: IAgentEntitlementHint,
 ): IAgentHostAuthenticateRequest {
 	const expiresAfter = session?.expiresAfter;
-	const account = providerId && session?.account?.id ? {
-		providerId,
-		accountId: session.account.id,
-		...(providerId === 'microsoft' && session.account.label ? { label: session.account.label } : {}),
-		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
-	} : undefined;
+	const accountId = providerId && session?.account?.id
+		? JSON.stringify([providerId, session.account.id, session.authorizationServer?.toString()])
+		: undefined;
 	return {
 		resource,
 		scopes,
 		token: session?.accessToken ?? '',
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
-		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
+		...(accountId !== undefined ? { accountId } : {}),
+		...(entitlement ? { _meta: agentEntitlementHintMeta(entitlement) } : {}),
 	};
 }
 

@@ -402,12 +402,48 @@ suite('Sandbox path grant confirmation display', () => {
 			getSandboxPathGrantConfirmation({ path: '/copilot/session-state/sdk/workspace.yaml', access: 'read' }, { path: { ...display, relativePath: 'workspace.yaml' } }),
 		];
 		assert.deepStrictEqual(variants.map(value => typeof value.invocationMessage === 'object' ? value.invocationMessage.markdown.split('\n\n')[0] : undefined), [
-			'Allow read access to `files/workspace.yml` in this session\'s storage.',
-			'Allow read/write access to `files/workspace.yml` in this session\'s storage.',
-			'Change access to `files/workspace.yml` in this session\'s storage from read-only to read/write.',
-			'Allow read access to this session\'s storage.',
-			'Allow read access to `workspace.yaml` in this session\'s storage.',
+			'Allow reading `files/workspace.yml` from this session.',
+			'Allow reading and writing `files/workspace.yml` from this session.',
+			'Allow reading and writing `files/workspace.yml` from this session instead of read-only access.',
+			'Allow reading files from this session.',
+			'Allow reading `workspace.yaml` from this session.',
 		]);
+	});
+
+	test('describes named-session files and roots without a breadcrumb separator', () => {
+		const path = '/copilot/session-state/other/files/label-test-peer.txt';
+		const display = { label: 'Session "Session One" / files/label-test-peer.txt', fullPath: path, isCurrentSession: false, sessionTitle: 'Session One', relativePath: 'files/label-test-peer.txt' };
+		const variants = [
+			getSandboxPathGrantConfirmation({ path, access: 'read' }, { path: display }),
+			getSandboxPathGrantConfirmation({ path, access: 'readWrite' }, { path: display }),
+			getSandboxPathGrantConfirmation({ path, access: 'readWrite', removedReadonlyPaths: [path] }, { path: display }),
+			getSandboxPathGrantConfirmation({ path: '/copilot/session-state/other', access: 'read' }, { path: { ...display, relativePath: '' } }),
+			getSandboxPathGrantConfirmation({ path: '/copilot/session-state', deniedPath: path, access: 'read' }, {
+				path: { label: '/copilot/session-state', fullPath: '/copilot/session-state' },
+				deniedPath: display,
+			}),
+		];
+		assert.deepStrictEqual(variants.map(value => typeof value.invocationMessage === 'object' ? value.invocationMessage.markdown.split('\n\n').slice(0, value === variants[4] ? 2 : 1) : undefined), [
+			['Allow reading `files/label-test-peer.txt` from session "Session One" and retry inside the sandbox.'],
+			['Allow reading and writing `files/label-test-peer.txt` from session "Session One" and retry inside the sandbox.'],
+			['Allow reading and writing `files/label-test-peer.txt` from session "Session One" instead of read-only access and retry inside the sandbox.'],
+			['Allow reading files from session "Session One" and retry inside the sandbox.'],
+			['Allow read access to `/copilot/session-state` and retry inside the sandbox.', 'The blocked path was `files/label-test-peer.txt` from session "Session One". Access will cover `/copilot/session-state`, including its contents if it is a folder.'],
+		]);
+	});
+
+	test('escapes named-session prose separately from the relative path', () => {
+		const path = '/copilot/session-state/other/files/`notes`.txt';
+		const display = getSandboxPathGrantConfirmation({ path, access: 'read' }, {
+			path: {
+				label: 'unused',
+				fullPath: path,
+				sessionTitle: '[Review](command:run) <b> *title*\nnext',
+				relativePath: 'files/`notes`.txt',
+			},
+		});
+		assert.deepStrictEqual(typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown.split('\n\n')[0] : undefined,
+			'Allow reading ``files/`notes`.txt`` from session "\\[Review\\]\\(command\\:run\\) \\<b\\> \\*title\\* next" and retry inside the sandbox.');
 	});
 
 	test('names the granted storage folder when the blocked file is inside it', () => {
@@ -418,8 +454,24 @@ suite('Sandbox path grant confirmation display', () => {
 			deniedPath: { label: 'This session / workspace.yml', fullPath: deniedPath, isCurrentSession: true, relativePath: 'workspace.yml' },
 		});
 		assert.deepStrictEqual(typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown.split('\n\n').slice(0, 2) : undefined, [
-			'Allow read access to this session\'s storage.',
-			'The blocked path was `workspace.yml` in this session\'s storage. Access will cover `/copilot/session-state/sdk`, including its contents if it is a folder.',
+			'Allow reading files from this session.',
+			'The blocked path was `workspace.yml` from this session. Access will cover `/copilot/session-state/sdk`, including its contents if it is a folder.',
+		]);
+	});
+
+	test('qualifies parent, direct child, and another session\'s child', () => {
+		const path = '/copilot/session-state/other/notes.txt';
+		const variants = [
+			{ relationship: 'parent' as const, sessionTitle: 'Fix login' },
+			{ relationship: 'child' as const, sessionTitle: 'Investigate tests' },
+			{ relationship: 'child' as const, sessionTitle: 'Investigate tests', parentSessionTitle: '[Fix](command:run)' },
+		].map(identity => getSandboxPathGrantConfirmation({ path, access: 'read' }, {
+			path: { label: 'unused', fullPath: path, relativePath: 'notes.txt', ...identity },
+		}));
+		assert.deepStrictEqual(variants.map(value => typeof value.invocationMessage === 'object' ? value.invocationMessage.markdown.split('\n\n')[0] : undefined), [
+			'Allow reading `notes.txt` from parent session "Fix login" and retry inside the sandbox.',
+			'Allow reading `notes.txt` from child session "Investigate tests" and retry inside the sandbox.',
+			'Allow reading `notes.txt` from child session "Investigate tests" of session "\\[Fix\\]\\(command\\:run\\)" and retry inside the sandbox.',
 		]);
 	});
 
@@ -527,6 +579,23 @@ suite('getPermissionDisplay — MCP tool confirmation', () => {
 			},
 			fallback: 'GitHub: issue_read',
 			toolName: 'issue_read',
+		});
+	});
+
+	test('labels a Connector server by its display name while keeping the server identity', () => {
+		const serverName = 'github-copilot-connector-9839aae413778b24b512';
+		const display = getPermissionDisplay({
+			kind: 'mcp',
+			serverName,
+			serverDisplayName: 'Slack',
+			toolName: 'slack_read_thread',
+			toolTitle: 'Read thread messages',
+			readOnly: true,
+		});
+		assert.deepStrictEqual({ confirmationTitle: display.confirmationTitle, invocationMessage: display.invocationMessage, mcpServerName: display.mcpServerName }, {
+			confirmationTitle: 'Allow tool from Slack?',
+			invocationMessage: 'Slack: Read thread messages',
+			mcpServerName: serverName,
 		});
 	});
 });

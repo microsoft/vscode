@@ -6296,7 +6296,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 
 		this.pluginDetailDisposables.clear();
-		this.embeddedPluginDetail.setInput(item);
+		this.embeddedPluginDetail.setInput(item, this.pluginListWidget);
 		this.pluginDetailScrollable?.scanDomNode();
 
 		if (this.dimension) {

@@ -30,11 +30,11 @@ import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { scrollbarShadow } from '../../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
-import { IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { combineVoiceInput } from '../../../chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../chat/browser/attachments/chatVariables.js';
-import { IChatExecuteActionContext } from '../../../chat/browser/actions/chatExecuteActions.js';
+import { createChatInputToolbarContext } from '../../../chat/browser/actions/chatExecuteActions.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { compactCodiconsIn } from '../../../chat/browser/chatIcons.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
@@ -199,6 +199,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 	/** Counts draft bindings, so a load that a newer draft superseded is released instead of bound. */
 	private _modelBinding = 0;
+	private _bindingModel = false;
 	private _boundResource: URI | undefined;
 	/** Attachments added before the input renders, such as a host's initial context. */
 	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
@@ -218,6 +219,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	readonly onDidFocus = this._onDidFocus.event;
 	/** Fires with the model the user selects for the session, once applied: not as the session's model changes otherwise. */
 	get onDidSelectModel(): Event<string> { return this._modelSelection.onDidSelectModel; }
+
+	/** The chat widget of its input, whose submits it sends; undefined until it renders. */
+	get widget(): IChatWidget | undefined { return this._widget; }
 
 	private _widgetContextKeyService: IContextKeyService | undefined;
 
@@ -281,11 +285,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const container = this._container = dom.append(parent, dom.$('.new-chat-input-container.sessions-shared-chat-input'));
 		this._register(toDisposable(() => container.remove()));
 
-		// Mounted on the workbench container so suggest and other overflow widgets
-		// are not clipped by the composer.
-		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(root)).appendChild(dom.$('.chat-editor-overflow.monaco-editor'));
-		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
-
 		const widgetContainer = dom.append(container, dom.$('.sessions-shared-chat-widget'));
 		const widgetContextKeyService = this._widgetContextKeyService = this._register(this.contextKeyService.createScoped(widgetContainer));
 		const busyContextKey = SharedChatInputComposerBusyContext.bindTo(widgetContextKeyService);
@@ -323,7 +322,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				inputEditorPadding: COMPOSER_INPUT_EDITOR_PADDING,
 				inputPlaceholder: this.options.placeholder,
 				sandboxToggleChecked: observeSessionSandboxToggle(this.options.session, derived(this, reader => this._getChatResource(reader)), this.sessionsProvidersService),
-				editorOverflowWidgetsDomNode,
+				// No editorOverflowWidgetsDomNode: the composer renders before its view is attached, possibly to another window
+				// such as the Agents Launcher's, and the widget's own one follows the widget into the window it lays out in.
 				menus: {
 					inputToolbar: Menus.NewSessionChatInputToolbar,
 					telemetrySource: 'sessions.newChatComposer',
@@ -337,6 +337,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 					canSubmit: derived(this, reader => this._canSendRequest.read(reader) && !this._sending.read(reader)),
 					hasContent: this.options.hasAdditionalSendContent,
 					label: this.options.sendButtonLabel,
+					// Submitting from the user's submit on, also while the widget saves files first, so its host doesn't retarget it
+					beginSubmit: () => this.options.inputSnapshot?.beginSubmit() ?? Disposable.None,
+					labelOnly: this.options.sendButtonLabelOnly,
 				},
 				submitHandler: async (query, _mode, attachedContext) => {
 					await this._send(query, attachedContext ?? [], false);
@@ -515,7 +518,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				? this._scopedInstantiationService.createInstance(ComposerStatusActionViewItem, action, options)
 				: undefined,
 		}));
-		statusToolbar.context = { widget: this._widget } satisfies IChatExecuteActionContext;
+		if (this._widget) {
+			statusToolbar.context = createChatInputToolbarContext(this._widget);
+		}
 
 		const updateVisibility = () => {
 			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer
@@ -621,13 +626,18 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const inputText = widget.getInput();
 		const attachments = [...widget.attachmentModel.attachments];
 		const references = [...getDynamicVariablesForWidget(widget)];
-		widget.setModel(ref.object);
-		// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
-		if (widget.inputEditor.getValue() !== inputText) {
-			this.setInputValue(inputText);
+		this._bindingModel = true;
+		try {
+			widget.setModel(ref.object);
+			// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
+			if (widget.inputEditor.getValue() !== inputText) {
+				this.setInputValue(inputText);
+			}
+			widget.attachmentModel.clearAndSetContext(...attachments);
+			widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
+		} finally {
+			this._bindingModel = false;
 		}
-		widget.attachmentModel.clearAndSetContext(...attachments);
-		widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
 		this._modelRef.value = ref;
 	}
 
@@ -730,8 +740,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	saveState(): void {
 		const widget = this._widget;
 		// A host that keeps the input in a snapshot persists it itself.
-		if (widget && !this.options.inputSnapshot) {
-			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
+		if (widget && !this.options.inputSnapshot && this.options.shouldPersistInput?.() !== false) {
+			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) }, this.options.getSavedDraftId?.());
 		}
 	}
 
@@ -798,7 +808,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private _writeInputSnapshot(widget: ChatWidget): void {
-		if (this._widget === widget) {
+		if (this._widget === widget && !this._bindingModel) {
 			const draft = { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) };
 			this.options.inputSnapshot?.set(draft);
 			this.options.onDidChangeDraft?.(draft);
@@ -1073,7 +1083,31 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 	}
 
+	/** Sends the input, marked as submitting from here on, before any check or wait, so its host doesn't retarget it meanwhile. */
 	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
+		const submitting = this.options.inputSnapshot?.beginSubmit();
+		try {
+			return await this._doSend(rawQuery, attachments, background);
+		} finally {
+			submitting?.dispose();
+		}
+	}
+
+	private async _doSend(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
+		if (this.options.submitOverride) {
+			try {
+				const overridden = await this.options.submitOverride(this._widget?.input.executeToolbarElement);
+				if (overridden !== undefined) {
+					return overridden;
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this.logService.error('[SharedChatInputComposer] Failed to submit request', error);
+					this.notificationService.error(error);
+				}
+				return false;
+			}
+		}
 		const widget = this._widget;
 		const query = rawQuery.trim();
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
@@ -1192,12 +1226,29 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		};
 		try {
 			const session = this.options.session.get();
-			if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
+			const outcome = !hasAdditionalSendContent && !!session ? (await this.chatSubmitRequestHandlerService.tryHandle({
 				sessionResource: session.resource,
 				providerId: session.providerId,
 				sessionId: session.sessionId,
 				input: query,
-			})) {
+			})).outcome : ChatSubmitRequestOutcome.Continue;
+			const handled = outcome === ChatSubmitRequestOutcome.Handled;
+			if (outcome === ChatSubmitRequestOutcome.Cancelled) {
+				// Stopped by the handler: neither sent nor cleared
+				userInteraction?.cancel('notDispatched');
+				return false;
+			}
+			// The handler can wait, during which the composer can be closed or move to another draft, also with the same input:
+			// the request is for the draft it was written for, so it is never sent to another, nor once that is closed, and the
+			// input, now another draft's, stays as it is, also where the handler acted on the request, which then dropped nothing.
+			if (this._store.isDisposed || (session && this.options.session.get()?.sessionId !== session.sessionId)) {
+				userInteraction?.cancel('notDispatched');
+				if (!handled && !this._store.isDisposed && isInputAlive()) {
+					this.notificationService.warn(localize('sharedChatInputComposer.draftChanged', "The request was not sent because its chat changed while it waited. Its input was kept."));
+				}
+				return false;
+			}
+			if (handled) {
 				userInteraction?.cancel('notDispatched');
 				// The handler has acted on the request; an input replaced while it ran is newer, so it is kept.
 				if (!isInputAlive() || !isDraftReplaced()) {

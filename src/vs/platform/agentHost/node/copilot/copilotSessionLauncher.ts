@@ -17,7 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import type { IParsedAgent, IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -51,7 +51,7 @@ import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.j
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { isMicrosoftCopilotAccountContext } from '../../common/copilotAccountContext.js';
+import type { CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
@@ -416,6 +416,11 @@ export interface ICopilotSessionRuntime {
 	 * Independent of the experiment arm, so both arms report the same exposure.
 	 */
 	setProgressUpdatesPromptEligible?(eligible: boolean): void;
+	/**
+	 * Whether this launch enabled Copilot Memory with the placement following its configuration default, so the
+	 * memory placement experiment applies to it. Independent of the experiment arm, so both arms report the same exposure.
+	 */
+	setMemoryModeEligible?(eligible: boolean): void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
 	/** Tools that let the agent ask the user to turn on Computer Use; empty unless the runtime has it and it is off. */
@@ -441,7 +446,7 @@ export interface ICopilotSessionLauncher {
 	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig>;
 }
 
-type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
+type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'> & {
 	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox' | 'managedSettings'>;
 };
 
@@ -488,6 +493,8 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubCredentials: CopilotGitHubSessionCredentials;
+	/** The Microsoft account the session signs in with instead of {@link githubCredentials}; the SDK takes no such credential when opening a session. */
+	readonly accountContext?: Extract<CopilotAccountContext, { kind: 'ready' }>;
 	/** Receives launch stage timing for the turn that triggered this launch, if any. */
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
@@ -1102,6 +1109,14 @@ export function isCopilotSessionTelemetryEnabled(
 	return effectiveLevel >= TelemetryLevel.USAGE;
 }
 
+/** Whether a Copilot session launched now runs canvases: canvases are enabled and the session is durable. */
+export function isCopilotCanvasRuntimeEnabled(
+	configurationService: Pick<IAgentConfigurationService, 'getRootValue'>,
+	isEphemeral: boolean,
+): boolean {
+	return !isEphemeral && configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -1202,23 +1217,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return session;
 	}
 
-	private _assertConversationAuthentication(plan: CopilotSessionLaunchPlan): void {
-		if (this._configurationService.copilotM365EnabledAtStartup && isMicrosoftCopilotAccountContext(this._accountService.state.get()) && !plan.githubCredentials.usesScopedCredential) {
-			this._accountService.requireReady();
-			throw new Error(localize('copilot.microsoftConversationUnavailable', "Microsoft Copilot conversation authentication is not yet available."));
-		}
-	}
-
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		if (plan.workspace?.kind === 'virtual' && !plan.virtualSessionFs) {
 			throw new Error('Virtual Copilot sessions require an editor-backed filesystem provider');
 		}
-		this._assertConversationAuthentication(plan);
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');
 		const built = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		if (runtime.cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (plan.accountContext && this._accountService.state.get() !== plan.accountContext) {
 			throw new CancellationError();
 		}
 		const modelPolicy = built.modelPolicy;
@@ -1334,12 +1344,26 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(trustWorkingDirectory ? { trustWorkingDirectory } : {}),
 			workingDirectory: plan.virtualSessionFs?.pathMapper.rootSdkPath ?? plan.workingDirectory?.fsPath,
 		})));
+		if (plan.accountContext) {
+			try {
+				await this._accountService.authenticateSession(raw, plan.client, plan.accountContext, runtime.cancellationToken ?? CancellationToken.None);
+			} catch (error) {
+				// A new conversation has no history to keep, so one that cannot be signed in is removed.
+				await raw.disconnect().catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to disconnect unauthenticated session`, cleanupError));
+				await plan.client.deleteSession(plan.sessionId).catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to delete unauthenticated session`, cleanupError));
+				throw error;
+			}
+		}
 		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config, runtime, trustWorkingDirectory);
 	}
 
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ICopilotSessionConfig, runtime: ICopilotSessionRuntime, trustWorkingDirectory?: SessionConfig['trustWorkingDirectory'], resetAutoTier = false): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
+			if (plan.kind === 'resume' && plan.accountContext) {
+				// TODO: Remove once the SDK takes the Microsoft account when opening a session: github/copilot-agent-runtime#40998. The runtime keeps the sign-in only with the open session, so a reopened one has none. Its history is kept if this fails.
+				await this._accountService.authenticateSession(raw, plan.client, plan.accountContext, runtime.cancellationToken ?? CancellationToken.None);
+			}
 			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
 			await raw.rpc.agent.list();
 			const nativeAgent = getNativeAgentSelection(plan);
@@ -1348,6 +1372,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			await sandboxConfig(raw);
 			await this._configureExecutionSubagentTool(raw, config);
+			if (plan.accountContext && this._accountService.state.get() !== plan.accountContext) {
+				throw new CancellationError();
+			}
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -1484,8 +1511,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 */
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ICopilotSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined; resetAutoTier: boolean }> {
 		const plugins = plan.snapshot.plugins;
-		const canvasRuntimeEnabled = !plan.isEphemeral
-			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
+		const canvasRuntimeEnabled = isCopilotCanvasRuntimeEnabled(this._configurationService, plan.isEphemeral === true);
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
 			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
 		}
@@ -1495,6 +1521,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral;
 		const localMemoryEnabled = plan.workspace?.kind !== 'virtual' && memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
+		const memoryUserPromptMode = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MemoryMode) === 'user-prompt';
+		// The mode is fixed with the SDK config, so the experiment's provenance must be too.
+		runtime.setMemoryModeEligible?.(memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MemoryModeDefaultControlled) === true);
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
@@ -1550,8 +1579,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
+		const pluginDirectoriesPromise = Promise.all(coalesce((plan.workspace?.kind === 'virtual' ? [] : plugins).map(p => p.pluginDir))
+			.filter(directory => directory.scheme === Schemas.file).map(async directory => {
+				try {
+					if ((await this._fileService.resolve(directory)).isDirectory) {
+						return directory.fsPath;
+					}
+				} catch (error) {
+					const result = toFileOperationResult(error);
+					if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_NOT_DIRECTORY) {
+						throw error;
+					}
+				}
+				this._logService.warn(`[Copilot:${plan.sessionId}] Skipping unavailable plugin directory: ${directory.fsPath}`);
+				return undefined;
+			}));
 		// These are independent, so resolve them concurrently rather than paying each in turn.
-		const [externalByok, shellTools, pluginCustomAgents, computerUseTools] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise]);
+		const [externalByok, shellTools, pluginCustomAgents, computerUseTools, pluginDirectories] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise, pluginDirectoriesPromise]);
 		if (externalByok.models?.length) {
 			// The provider base URL carries the proxy's host:port, which correlates a
 			// session with its `ByokLmProxyService` bind when reading logs.
@@ -1818,8 +1862,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			availableTools: sdkAvailableTools,
 			excludedBuiltinAgents: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExploreAgent) === false ? ['explore'] : [],
-			pluginDirectories: coalesce((plan.workspace?.kind === 'virtual' ? [] : plugins).map(p => p.pluginDir))
-				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
+			pluginDirectories: coalesce(pluginDirectories),
 			tools: toolConfiguration.tools,
 			...plan.githubCredentials.sdkSessionOptions,
 			// Enable infinite sessions so the SDK provisions a workspace
@@ -1830,7 +1873,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			infiniteSessions: { enabled: true },
 			// Always explicit so the VS Code opt-in gates memory instead of the runtime default.
 			// The runtime still applies the user's GitHub Copilot Memory settings and policies.
-			memory: { enabled: memoryEnabled },
+			// `mode` is sent only for the experimental placement, so the default stays the runtime's.
+			memory: { enabled: memoryEnabled, ...(memoryUserPromptMode ? { mode: 'user-prompt' } : {}) },
 			enableManagedSettings: true,
 		};
 		return { config, modelPolicy: resolved, resetAutoTier: resumeAutoTier === null };

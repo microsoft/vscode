@@ -46,6 +46,8 @@ import '../../browser/mobile/mobileChatInputConfigPicker.contribution.js';
 import '../../../../chat/browser/modelPicker.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { AGENT_PICKER_SPOTLIGHT_ID } from '../../../../../../workbench/contrib/chat/browser/onboarding/agentPickerSpotlight.js';
+import { AgentsWindowUsage } from '../../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
+import { CustomAgentUsage } from '../../../../../../workbench/contrib/chat/common/customAgentUsage.js';
 import { onboardingScenarioRegistry } from '../../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 
 suite('agentHostAgentPicker', () => {
@@ -87,6 +89,11 @@ suite('agentHostAgentPicker', () => {
 			});
 			const providers = disposables.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
 			disposables.add(providers.registerProvider(provider));
+			const storage = disposables.add(new TestStorageService());
+			new CustomAgentUsage(storage).recordUse();
+			const usage = new AgentsWindowUsage(storage);
+			usage.recordSessionCreated();
+			usage.recordSessionCreated();
 			disposables.add(new AgentHostAgentPickerContribution(
 				new NullActionViewItemService(),
 				focusedSessionHostServiceOf(constObservable(session)),
@@ -97,7 +104,7 @@ suite('agentHostAgentPicker', () => {
 					onDidAddWidget: Event.None, onDidRemoveWidget: Event.None,
 					onDidChangeWidgetVisibility: Event.None, onDidChangeFocusedSession: Event.None,
 				}),
-				disposables.add(new TestStorageService()), new NullLogService(), configuration, context,
+				storage, new NullLogService(), configuration, context,
 				upcastPartial<IChatContextPickService>({ registerChatContextItem: () => Disposable.None }),
 				new TestExperimentTriggerTelemetryService(),
 				upcastPartial<INewSessionComposerService>({}),
@@ -113,6 +120,9 @@ suite('agentHostAgentPicker', () => {
 				custom: [{ ...ChatMode.Agent, id: alpha.uri, isBuiltin: false }], onDidChange: Event.None,
 			}), undefined);
 			await frame();
+			const newUser = ready();
+			usage.recordSessionCreated();
+			await frame();
 			const defaultAgent = ready();
 			mode.set({ id: alpha.uri, kind: 'agent' }, undefined);
 			const customAgent = ready();
@@ -123,8 +133,8 @@ suite('agentHostAgentPicker', () => {
 			const mobile = ready();
 			phone.set(false);
 			await frame();
-			assert.deepStrictEqual({ noCustomAgents, defaultAgent, customAgent, returnedToDefault, mobile, desktop: ready() }, {
-				noCustomAgents: false, defaultAgent: true, customAgent: false, returnedToDefault: true, mobile: false, desktop: true,
+			assert.deepStrictEqual({ noCustomAgents, newUser, defaultAgent, customAgent, returnedToDefault, mobile, desktop: ready() }, {
+				noCustomAgents: false, newUser: false, defaultAgent: true, customAgent: false, returnedToDefault: true, mobile: false, desktop: true,
 			});
 		});
 	}
@@ -139,6 +149,7 @@ suite('agentHostAgentPicker', () => {
 
 	test('keeps the new-session agent in the session options', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		ChatContextKeys.enabled.bindTo(context).set(true);
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		IsPhoneLayoutContext.bindTo(context).set(false);
 		ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);
@@ -191,6 +202,7 @@ suite('agentHostAgentPicker', () => {
 		const configuration = new TestConfigurationService();
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const context = disposables.add(new ContextKeyService(configuration));
+		ChatContextKeys.enabled.bindTo(context).set(true);
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		IsPhoneLayoutContext.bindTo(context).set(false);
 		ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);

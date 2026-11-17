@@ -8,6 +8,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { basenameOrAuthority } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -21,6 +22,11 @@ interface IRegisteredProvider {
 	readonly builtIn: boolean;
 }
 
+/** Unlike `removeTrailingPathSeparator`, this also strips the separator of a UNC share root, which names the same location without it. */
+function withoutTrailingSeparator(uri: URI): URI {
+	return uri.path.length > 1 && uri.path.endsWith('/') ? uri.with({ path: uri.path.slice(0, -1) }) : uri;
+}
+
 export class WorkspaceFolderLocationService extends Disposable implements IWorkspaceFolderLocationService {
 
 	declare readonly _serviceBrand: undefined;
@@ -29,6 +35,9 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
+
+	private readonly _onDidChangeLocations = this._register(new Emitter<void>());
+	readonly onDidChangeLocations = this._onDidChangeLocations.event;
 
 	private readonly locations = new ResourceMap<IResolvedFolderLocation>();
 
@@ -70,6 +79,25 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		return !workspace.configuration && !!workspace.uri && workspace.folders.length === 1 && extUri.isEqual(workspace.folders[0].uri, folder.uri) && !extUri.isEqual(folder.uri, workspace.uri);
 	}
 
+	private getPrimaryLocation(folder: IWorkspaceFolder): URI {
+		return this.isAtAlternateLocation(folder) ? this.contextService.getWorkspace().uri! : folder.uri;
+	}
+
+	async getFolderLocations(folder: IWorkspaceFolder, token: CancellationToken): Promise<IFolderLocation[]> {
+		const primary = this.getPrimaryLocation(folder);
+		const result: IFolderLocation[] = [{ uri: primary, label: basenameOrAuthority(primary) }];
+		if (this.isAtAlternateLocation(folder) || this.canSetLocation(folder)) {
+			const extUri = this.uriIdentityService.extUri;
+			const primaryWithoutSeparator = withoutTrailingSeparator(primary);
+			for (const location of await this.getLocations(primary, token)) {
+				if (!extUri.isEqual(withoutTrailingSeparator(location.uri), primaryWithoutSeparator)) {
+					result.push(location);
+				}
+			}
+		}
+		return result;
+	}
+
 	setLocation(folder: IWorkspaceFolder, location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {
 		this.locations.clear(); // only single-folder workspaces are supported
 		if (location) {
@@ -91,14 +119,16 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		if (!location) {
 			return undefined;
 		}
-		return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
+		return location.label;
 	}
 
 	registerProvider(provider: IWorkspaceFolderLocationProvider, options?: { readonly builtIn?: boolean }): IDisposable {
 		const entry: IRegisteredProvider = { provider, builtIn: !!options?.builtIn };
 		this.providers.push(entry);
+		const listener = provider.onDidChangeLocations?.(() => this._onDidChangeLocations.fire());
 		this._onDidChangeProviders.fire();
 		return toDisposable(() => {
+			listener?.dispose();
 			const index = this.providers.indexOf(entry);
 			if (index !== -1) {
 				this.providers.splice(index, 1);

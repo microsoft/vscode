@@ -5,6 +5,7 @@
 
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IChatQuestion, IChatQuestionAnswers, IChatQuestionCarousel } from '../../chatService/chatService.js';
 import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 
@@ -31,6 +32,11 @@ export function maskPasswordAnswers(questions: readonly IChatQuestion[], answers
 export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	public readonly kind = 'questionCarousel' as const;
 	public readonly completion = new DeferredPromise<{ answers: IChatQuestionAnswers | undefined }>();
+	private readonly _isUsed = observableValue<boolean | undefined>(this, undefined);
+	/** Whether the carousel is settled: answered, skipped or dismissed, through any widget that shows its chat, or elsewhere. */
+	public readonly used: IObservable<boolean> = derived(this, reader => !!this._isUsed.read(reader));
+	get isUsed(): boolean | undefined { return this._isUsed.get(); }
+	set isUsed(value: boolean | undefined) { this._isUsed.set(value, undefined); }
 	public draftAnswers: IChatQuestionAnswers | undefined;
 	public draftCurrentIndex: number | undefined;
 	public draftCollapsed: boolean | undefined;
@@ -75,12 +81,14 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 		public allowSkip: boolean,
 		public resolveId?: string,
 		public data?: IChatQuestionAnswers,
-		public isUsed?: boolean,
+		isUsed?: boolean,
 		public message?: string | IMarkdownString,
 		public source?: ToolDataSource,
 		public terminalId?: string,
 		public answerPresentation?: 'conversation',
-	) { }
+	) {
+		this.isUsed = isUsed;
+	}
 
 	toJSON(): IChatQuestionCarousel {
 		return {

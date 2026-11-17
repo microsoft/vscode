@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toSlashes } from '../../../../../base/common/extpath.js';
+import { appendEscapedMarkdownInlineCode, escapeUntrustedMarkdown } from '../../../../../base/common/htmlContent.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPathDisplay } from '../../../../../platform/agentHost/common/sessionPathDisplay.js';
@@ -19,26 +20,41 @@ import { MockLanguageModelToolsService } from '../../../../contrib/chat/test/com
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { renderChatWidget } from './chatWidget.fixture.js';
 
-type Scenario = 'current' | 'sibling' | 'other' | 'movedSource' | 'movedDestination' | 'unknown' | 'terminal';
+type Scenario = 'current' | 'sibling' | 'other' | 'movedSource' | 'movedDestination' | 'unknown' | 'terminal' | 'parent' | 'child' | 'otherChild';
 
 async function renderConfirmation(context: ComponentFixtureContext, scenario: Scenario, width = 620): Promise<void> {
 	const source = URI.parse('copilot:/source');
 	const destination = URI.parse('copilot:/destination');
-	const isOther = scenario === 'other' || scenario === 'movedSource' || scenario === 'movedDestination';
-	const current = scenario === 'movedDestination' ? destination : source;
+	const isOther = !['current', 'unknown', 'terminal'].includes(scenario);
+	const current = source;
 	const sdkId = scenario === 'sibling' ? 'peer-chat-sdk' : isOther ? 'moved-chat-sdk' : 'current-chat-sdk';
 	const rootPath = `C:\\Users\\example\\.copilot\\session-state\\${sdkId}`;
 	const path = `${rootPath}\\files\\notes.txt`;
 	const root = URI.file(toSlashes(rootPath));
 	const display = getSessionPathDisplay(path, URI.joinPath(root, 'files', 'notes.txt'), current, scenario === 'unknown' ? [] : [
-		{ root, session: isOther ? destination : source, title: 'Review authentication' },
+		{
+			root, session: isOther ? destination : source, title: 'Review authentication',
+			parentSession: scenario === 'child' ? source : scenario === 'otherChild' ? URI.parse('copilot:/other-parent') : undefined,
+			parentTitle: scenario === 'otherChild' ? 'Fix login' : undefined,
+		},
+		...(isOther ? [{ root: URI.file('C:/Users/example/.copilot/session-state/requester-sdk'), session: source, parentSession: scenario === 'parent' ? destination : undefined }] : []),
 	], extUri);
+	const sessionLabel = display.relationship === 'parent'
+		? `parent session "${escapeUntrustedMarkdown(display.sessionTitle ?? '')}"`
+		: display.relationship === 'child'
+			? `child session "${escapeUntrustedMarkdown(display.sessionTitle ?? '')}"${display.parentSessionTitle ? ` of session "${escapeUntrustedMarkdown(display.parentSessionTitle)}"` : ''}`
+			: `session "${escapeUntrustedMarkdown(display.sessionTitle ?? '')}"`;
+	const description = display.isCurrentSession
+		? `Allow reading \`${display.relativePath}\` from this session.`
+		: display.sessionTitle
+			? `Allow reading ${appendEscapedMarkdownInlineCode(display.relativePath ?? '')} from ${sessionLabel} and retry inside the sandbox.`
+			: `Allow read access to ${appendEscapedMarkdownInlineCode(display.label)} and retry inside the sandbox.`;
 	const invocation = toolCallStateToInvocation({
 		toolCallId: 'session-grant', toolName: scenario === 'terminal' ? 'shell' : 'read_file',
 		displayName: scenario === 'terminal' ? 'Shell' : 'Read file', status: ToolCallStatus.PendingConfirmation,
 		confirmationTitle: 'Allow sandbox path access and retry?',
 		invocationMessage: {
-			markdown: `${display.isCurrentSession ? `Allow read access to \`${display.relativePath}\` in this session's storage.` : `Allow read access to \`${display.label}\` and retry inside the sandbox.`}\n\nSession access is shared by chats in this session and saved when you resume it. User access is saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions. Your organization's restrictions still apply.`,
+			markdown: `${description}\n\nSession access is shared by chats in this session and saved when you resume it. User access is saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions. Your organization's restrictions still apply.`,
 		},
 		toolInput: scenario === 'terminal' ? 'Get-Content notes.txt' : JSON.stringify({ path }),
 		options: [
@@ -80,12 +96,15 @@ export default defineThemedFixtureGroup({ path: 'chat/SessionPathConfirmation/' 
 	Current: defineComponentFixture({ render: context => renderConfirmation(context, 'current') }),
 	SiblingChat: defineComponentFixture({ render: context => renderConfirmation(context, 'sibling') }),
 	OtherSession: defineComponentFixture({ render: context => renderConfirmation(context, 'other') }),
+	ParentSession: defineComponentFixture({ render: context => renderConfirmation(context, 'parent') }),
+	ChildSession: defineComponentFixture({ render: context => renderConfirmation(context, 'child') }),
+	OtherSessionsChild: defineComponentFixture({ render: context => renderConfirmation(context, 'otherChild') }),
 	MovedFromSource: defineComponentFixture({ render: context => renderConfirmation(context, 'movedSource') }),
 	MovedToDestination: defineComponentFixture({ render: context => renderConfirmation(context, 'movedDestination') }),
 	Unknown: defineComponentFixture({ render: context => renderConfirmation(context, 'unknown') }),
 	Terminal: defineComponentFixture({ render: context => renderConfirmation(context, 'terminal') }),
 	Narrow: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderConfirmation(context, 'other', 320),
+		render: context => renderConfirmation(context, 'otherChild', 320),
 	}),
 });

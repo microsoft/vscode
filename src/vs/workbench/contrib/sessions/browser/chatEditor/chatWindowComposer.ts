@@ -7,9 +7,11 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -181,6 +183,18 @@ export interface IChatWindowComposerInit {
 	/** The custom group of the sessions list that the sessions it sends join. */
 	readonly groupId?: string;
 	readonly input?: IComposerInputState;
+	/**
+	 * The folders of the window it opens in, such as an editor window's, the only ones it creates sessions in besides the
+	 * folder of its {@link target}. None restrict it, as in a window without folders.
+	 */
+	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/** How it shows one of its {@link allowedFolders}, such as a linked checkout of the window's folder. */
+	readonly getFolderPresentation?: (folderUri: URI) => IAllowedFolderPresentation | undefined;
+	/**
+	 * The folder its host aimed it at, which it follows to another folder (see `ChatWindowComposerModel.retargetFolder`), or
+	 * `null` when the user picked its folder. The folder of its {@link target} when undefined, as for a new composer.
+	 */
+	readonly hostFolder?: URI | null;
 }
 
 /**
@@ -221,8 +235,18 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
+	private readonly _onDidRetarget = this._register(new Emitter<INewSessionTarget>());
+	/** Fires as its host aims it at another folder ({@link retargetFolder}), for which it creates its draft. */
+	readonly onDidRetarget = this._onDidRetarget.event;
+
+	/** The folder its host aimed it at: while it aims at that one, the user did not pick another. */
+	private _hostFolder: URI | undefined;
+
 	/** The custom group of the sessions list that the sessions it sends join. */
 	readonly groupId: string | undefined;
+
+	readonly allowedFolders: IObservable<readonly URI[]> | undefined;
+	private readonly _getFolderPresentation: ((folderUri: URI) => IAllowedFolderPresentation | undefined) | undefined;
 
 	constructor(
 		readonly resource: URI,
@@ -234,7 +258,16 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	) {
 		super();
 		this.groupId = init.groupId;
+		this._getFolderPresentation = init.getFolderPresentation;
+		const windowFolders = init.allowedFolders;
+		// Also the folder it aims at, such as one its host retargets it to outside the window's folders
+		this.allowedFolders = windowFolders && derived(this, reader => {
+			const folders = windowFolders.read(reader);
+			const targetFolder = this._requestedTarget.read(reader)?.folderUri;
+			return folders.length && targetFolder && !folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, targetFolder)) ? [...folders, targetFolder] : folders;
+		});
 		this._requestedTarget.set(init.target, undefined);
+		this._hostFolder = init.hostFolder === undefined ? init.target?.folderUri : init.hostFolder ?? undefined;
 		this.input = new ComposerInputSnapshot(init.input);
 		this.slot = this._register(_sessionsManagementService.createNewSessionSlot({ readoptOnFailure: session => this._isRequested(session) }));
 		this._register(sessionGroupsService.setDraftSlotGroup(this.slot.id, init.groupId));
@@ -263,10 +296,15 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		super.dispose();
 	}
 
-	/** What it stores to be restored, such as after a reload: what it aims for, its group and its input. */
+	/**
+	 * What it stores to be restored, such as after a reload: what it aims for, whether its host or the user picked that, its
+	 * group and its input.
+	 */
 	toStored(): IStoredChatWindowComposer {
 		const target = this._requestedTarget.get();
-		return { resource: this.resource, ...(target ? { target } : {}), ...(this.groupId ? { groupId: this.groupId } : {}), ...this.input.get() };
+		const current = target?.folderUri;
+		const hostFolder = current && this._hostFolder && extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder) ? this._hostFolder : null;
+		return { resource: this.resource, ...(target ? { target } : {}), hostFolder, ...(this.groupId ? { groupId: this.groupId } : {}), ...this.input.get() };
 	}
 
 	setRequestedTarget(target: INewSessionTarget, reason: 'user' | 'background' = 'user'): void {
@@ -274,6 +312,35 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		if (reason === 'user') {
 			this._targetGeneration++;
 		}
+	}
+
+	/**
+	 * Aims it at `folderUri`, such as the location the window's folder moved to, while it aims at the folder its host
+	 * aimed it at (`from`, when given): not at one the user picked, and not while it sends: from the user's submit, through
+	 * the checks and preparation before its request is accepted, until that request ends. Returns whether it does.
+	 */
+	retargetFolder(folderUri: URI, from?: URI): boolean {
+		const target = this._requestedTarget.get();
+		const current = target?.folderUri;
+		if (this.input.isSubmitting || this.input.get().attempt || this._sending.get() || !target || !current || !this._hostFolder || !extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder)
+			|| (from && !extUriBiasedIgnorePathCase.isEqual(current, from)) || extUriBiasedIgnorePathCase.isEqual(current, folderUri)) {
+			return false;
+		}
+		const retargeted = { ...target, folderUri };
+		this._hostFolder = folderUri;
+		// As a target the user picks: a background send that fails then offers its prompt back, not into another folder silently
+		this._targetGeneration++;
+		// Observers of the target and of the allowed folders, such as the picker's, run only once those of the retarget aimed
+		// the picker and the draft at the new folder: not while the picker still shows a folder no longer allowed
+		transaction(tx => {
+			this._requestedTarget.set(retargeted, tx);
+			this._onDidRetarget.fire(retargeted);
+		});
+		return true;
+	}
+
+	getFolderPresentation(folderUri: URI): IAllowedFolderPresentation | undefined {
+		return this._getFolderPresentation?.(folderUri);
 	}
 
 	openStartedSession(session: ISession): Promise<void> {
@@ -303,20 +370,23 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 					return 'gone';
 				}
 				// Only once its input shows it: not while it sends, such as while it reseeds after another background send.
-				return target._isIdle() && target.input.restore(input) ? 'restored' : 'busy';
+				return target.isIdle() && target.input.restore(input) ? 'restored' : 'busy';
 			},
 		});
 	}
 
-	/** Whether its input is empty and no send of it is under way. */
-	private _isIdle(): boolean {
+	/**
+	 * Whether its input is empty and no send of it is under way, also no submit before its send attempt, such as one from an
+	 * empty input that waits for its session to be ready or the host's confirmation.
+	 */
+	isIdle(): boolean {
 		const state = this.input.get();
-		return !state.attempt && !state.input.inputText && !state.input.attachments.length;
+		return !this.input.isSubmitting && !state.attempt && !state.input.inputText && !state.input.attachments.length;
 	}
 
 	/** Whether closing it loses nothing: its input is empty, and no foreground request of it is under way. */
 	isPristine(): boolean {
-		return !this._sending.get() && this._isIdle();
+		return !this._sending.get() && this.isIdle();
 	}
 
 	/**
@@ -358,6 +428,8 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 export interface IStoredChatWindowComposer extends IComposerInputState {
 	readonly resource: URI;
 	readonly target?: INewSessionTarget;
+	/** The folder its host aimed it at, or `null` when the user picked its folder; absent from composers stored before it was. */
+	readonly hostFolder?: URI | null;
 	readonly groupId?: string;
 }
 
@@ -373,10 +445,11 @@ function isOptionalString(value: unknown): value is string | undefined {
 
 /** The stored composer that `value` is, unmarshalled; throws when it is none. */
 function fromStoredComposer(value: unknown): IStoredChatWindowComposer {
-	const entry = value as { resource?: unknown; target?: Partial<Record<keyof INewSessionTarget, unknown>>; groupId?: unknown; input?: unknown; attempt?: { id?: unknown; input?: unknown; session?: unknown } } | undefined;
+	const entry = value as { resource?: unknown; target?: Partial<Record<keyof INewSessionTarget, unknown>>; hostFolder?: unknown; groupId?: unknown; input?: unknown; attempt?: { id?: unknown; input?: unknown; session?: unknown } } | undefined;
 	const target = entry?.target;
 	const attempt = entry?.attempt;
 	if (!entry || !URI.isUri(entry.resource) || !isChatWindowComposerResource(entry.resource) || !isOptionalString(entry.groupId)
+		|| (entry.hostFolder !== undefined && entry.hostFolder !== null && !URI.isUri(entry.hostFolder))
 		|| (target !== undefined && (typeof target !== 'object' || target === null || (target.folderUri !== undefined && !URI.isUri(target.folderUri))
 			|| !isOptionalString(target.providerId) || !isOptionalString(target.sessionTypeId) || !isOptionalString(target.modelId) || !isOptionalString(target.modeId)
 			|| (target.requireDevContainer !== undefined && typeof target.requireDevContainer !== 'boolean')))
@@ -386,6 +459,7 @@ function fromStoredComposer(value: unknown): IStoredChatWindowComposer {
 	return {
 		resource: entry.resource,
 		...(target ? { target: target as INewSessionTarget } : {}),
+		...(entry.hostFolder !== undefined ? { hostFolder: entry.hostFolder as URI | null } : {}),
 		...(entry.groupId ? { groupId: entry.groupId } : {}),
 		input: fromStoredChatDraft(entry.input),
 		...(attempt ? { attempt: { id: attempt.id as string, input: fromStoredChatDraft(attempt.input), ...(attempt.session ? { session: attempt.session as URI } : {}) } } : {}),
@@ -396,6 +470,7 @@ function toStoredComposer(composer: IStoredChatWindowComposer): unknown {
 	return {
 		resource: composer.resource,
 		target: composer.target,
+		hostFolder: composer.hostFolder,
 		groupId: composer.groupId,
 		input: toStoredChatDraft(composer.input),
 		attempt: composer.attempt && { id: composer.attempt.id, session: composer.attempt.session, input: toStoredChatDraft(composer.attempt.input) },
@@ -463,7 +538,7 @@ export class ChatWindowComposers extends Disposable {
 	 * longer follows. It stays stored until the chat it restores as opens in a window ({@link didOpen}), so that a window
 	 * that fails to open loses nothing.
 	 */
-	async restore(resource: URI, openStartedSession: (session: ISession) => Promise<void>): Promise<RestoredChatWindowComposer | undefined> {
+	async restore(resource: URI, openStartedSession: (session: ISession) => Promise<void>, folders?: Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'>): Promise<RestoredChatWindowComposer | undefined> {
 		const key = resource.toString();
 		const stored = this._stored.get(key);
 		if (!stored || this._live.has(key) || this._restoring.has(key)) {
@@ -485,7 +560,9 @@ export class ChatWindowComposers extends Disposable {
 		}
 		const input = stored.attempt?.input ?? stored.input;
 		this._restoredAs.set(key, key);
-		return { kind: 'composer', composer: this.create(resource, { target: stored.target, groupId: stored.groupId, input: { input } }, openStartedSession) };
+		// A composer stored before its host's folder was does not tell whether the user picked its folder: it keeps it, as one the user picked
+		const hostFolder = stored.hostFolder === undefined ? null : stored.hostFolder;
+		return { kind: 'composer', composer: this.create(resource, { target: stored.target, hostFolder, groupId: stored.groupId, input: { input }, ...folders }, openStartedSession) };
 	}
 
 	/** The session that a foreground send of the stored composer of `resource` went out with, if any. */

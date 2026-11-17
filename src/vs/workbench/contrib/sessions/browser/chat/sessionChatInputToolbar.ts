@@ -48,7 +48,7 @@ import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../chat/common/sessionChatPills.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, isWorkspacelessQuickChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getNestedChatDefaultChangesetId, IChat, ISession, isWorkspacelessQuickChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../common/sessionsTelemetry.js';
@@ -177,7 +177,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			pullRequestState: state,
 			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Artifact from Session"),
+				label: localize('sessionChatPills.removePullRequest', "Remove \"{0}\" Artifact", pullRequest?.title || ref.title || `#${ref.number}`),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
@@ -258,7 +258,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removeIssue', "Remove Issue Artifact from Session"),
+				label: localize('sessionChatPills.removeIssue', "Remove \"{0}\" Artifact", issue?.title || ref.title || `#${ref.number}`),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.(recordedReferenceIds, resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
@@ -303,7 +303,7 @@ export function computeSessionInputPillStats(session: ISession | undefined, chat
 		return EMPTY_DIFF_STATS;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader), session)) : undefined;
+	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(session, chat, workspace, reader)) : undefined;
 	if (stats) {
 		return stats;
 	}
@@ -324,7 +324,7 @@ export function readLoadedSessionInputPillStats(session: ISession | undefined, c
 		return undefined;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readLoadedChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader), session)) : undefined;
+	const stats = chat && workspace ? readLoadedChatChangesStats(chat, reader, getChangesPillChangesetId(session, chat, workspace, reader)) : undefined;
 	// Providers that only summarize the session report its main chat's file list empty until it resolves.
 	if (stats?.files === 0 && chat && !chat.changesSummary && !isNestedChat(session, chat, reader) && (session?.changesSummary?.read(reader)?.files ?? 0) > 0) {
 		return undefined;
@@ -342,9 +342,16 @@ function isCloudSandboxSession(session: ISession | undefined): boolean {
 	return session?.environment === 'cloud' && isAgentHostProviderId(session.providerId);
 }
 
-/** Cloud sandboxes and nested chats show Session Changes; other main chats keep their workspace-based selection. */
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: ISession | undefined): string {
-	return !isNested && !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
+/**
+ * Nested chats use {@link getNestedChatDefaultChangesetId}, so the pill opens the same changeset the Changes view
+ * defaults to, even before the chat's changesets load. Cloud sandboxes show Session Changes; other main chats keep
+ * their workspace-based selection.
+ */
+function getChangesPillChangesetId(session: ISession | undefined, chat: IChat | undefined, workspace: ISessionWorkspace | undefined, reader: IReader | undefined): string {
+	if (isNestedChat(session, chat, reader)) {
+		return getNestedChatDefaultChangesetId(workspace, session?.mainChat.read(reader)?.workspace?.read(reader));
+	}
+	return !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
 }
@@ -411,6 +418,14 @@ class CopyFeedbackActionCache extends Disposable {
 }
 
 /** A toolbar for session metadata, active-turn status, and background activity. */
+/** How a {@link SessionChatInputToolbar} shows its Changes pill, such as beside an input that shows the session's changes as its working set. */
+export interface ISessionChatInputToolbarChangesOptions {
+	/** Hides the Changes pill while it is `true`, such as while the input shows the session's changes as its working set. */
+	readonly hidden?: IObservable<boolean>;
+	/** Actions the context menu of the Changes pill adds, such as to show the session's changes as the working set again. */
+	readonly contextMenuActions?: () => IAction[];
+}
+
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
@@ -474,6 +489,7 @@ export class SessionChatInputToolbar extends Disposable {
 		focusFallback: (() => void) | undefined,
 		/** The session of the pane that hosts the chat, such as a chat editor's session scoped to its chat. */
 		private readonly _paneSession: IObservable<ISession | undefined> | undefined,
+		changesOptions: ISessionChatInputToolbarChangesOptions | undefined,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -626,8 +642,10 @@ export class SessionChatInputToolbar extends Disposable {
 			extensionService.onDidChangeExtensions,
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(externalUriOpenersSettingId)),
 		));
-		const activityBarOpenerRefs = derivedOpts<readonly { id: string; uri: URI }[]>({ owner: this, equalsFn: structuralEquals }, reader =>
-			pullRequestRefs.read(reader).map(ref => ({ id: ref.recordedReferenceId ?? ref.uri.toString(), uri: ref.uri })));
+		const activityBarOpenerRefs = derivedOpts<readonly { id: string; uri: URI }[]>({
+			owner: this,
+			equalsFn: (a, b) => a.length === b.length && a.every((ref, index) => ref.id === b[index].id && isEqual(ref.uri, b[index].uri)),
+		}, reader => pullRequestRefs.read(reader).map(ref => ({ id: ref.recordedReferenceId ?? ref.uri.toString(), uri: ref.uri })));
 		let supportedOpenerUris = new Set<string>();
 		const activityBarOpeners = derived(this, reader => {
 			openerChanges.read(reader);
@@ -757,10 +775,14 @@ export class SessionChatInputToolbar extends Disposable {
 		const integratedSources = this._register(instantiationService.createInstance(ArtifactIntegrationPillSources, integratedItems, pinScope, detailsHost)).sources;
 		const changesLabel = derived(this, reader => {
 			const session = this._session.read(reader);
-			if (isNestedChat(session, this._chat.read(reader), reader) || isCloudSandboxSession(session)) {
+			const chat = this._chat.read(reader);
+			const isNested = isNestedChat(session, chat, reader);
+			const chatWorkspace = chat?.workspace?.read(reader);
+			if (isCloudSandboxSession(session) || (isNested && getChangesPillChangesetId(session, chat, chatWorkspace, reader) === SESSION_CHANGES_CHANGESET_ID)) {
 				return localize('sessionChatPills.sessionChanges', "Session Changes");
 			}
-			const workspace = session?.workspace.read(reader);
+			// A nested chat showing Branch Changes works on a branch of its own.
+			const workspace = isNested ? chatWorkspace : session?.workspace.read(reader);
 			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
 			return branch
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
@@ -786,11 +808,12 @@ export class SessionChatInputToolbar extends Disposable {
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
+							id: getChangesPillChangesetId(session, chat, workspace, undefined),
 						},
 						chatResource: target !== 'main' ? chat?.resource : undefined,
 					}, target !== 'main' ? target.mainPart.activeGroup : undefined);
 				},
+				getContextMenuPrimaryActions: () => changesOptions?.contextMenuActions?.() ?? [],
 			},
 			pullRequests: pullRequestData,
 			issues: {
@@ -811,7 +834,12 @@ export class SessionChatInputToolbar extends Disposable {
 			debugName: 'SessionChatInputToolbar.content',
 			compact,
 			enabled: pillsVisible,
-			sources: derived(reader => sources.sources.flatMap(source => source.kind === SessionChatPillKind.Artifacts ? [...integratedSources.read(reader), source] : [source])),
+			sources: derived(reader => {
+				const changesHidden = changesOptions?.hidden?.read(reader) ?? false;
+				return sources.sources
+					.filter(source => !changesHidden || source.kind !== SessionChatPillKind.Changes)
+					.flatMap(source => source.kind === SessionChatPillKind.Artifacts ? [...integratedSources.read(reader), source] : [source]);
+			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			context: this._session,
 			actionRunner,

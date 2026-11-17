@@ -99,6 +99,7 @@ suite('SessionServerTools', () => {
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
+			restoreChat: overrides?.restoreChat ?? (async () => { }),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options, credentials) => { overrides?.onCreateChat?.(session, chat, options, credentials); }),
 			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
@@ -2860,6 +2861,52 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, [], recordedDefaultChat), /message/);
 		assert.throws(() => getSendMessageArgs({ operation: 'send', session: 'copilot:/s2', message: 'x', delivery: 'later' }, [sessionMeta('s2', SessionStatus.Idle, workspace)], recordedDefaultChat), /delivery/);
 		assert.throws(() => getSendMessageArgs({ operation: 'replace', session: 'copilot:/s2', message: 'x', messageId: 'm1' }, [sessionMeta('s2', SessionStatus.Idle, workspace)], recordedDefaultChat), /expectedRevision/);
+	});
+
+	test('send_message queues concurrent messages after restoring a cold target', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const targetSession = 'copilot:/s2';
+		const targetChat = buildDefaultChatUri(targetSession);
+		const restoring = new DeferredPromise<void>();
+		const restored = new DeferredPromise<void>();
+		let restoreCalls = 0;
+		const prompts: string[] = [];
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+			restoreChat: async () => {
+				restoreCalls++;
+				restoring.complete();
+				await restored.p;
+			},
+			onPrompt: (_session, _chat, prompt) => {
+				prompts.push(prompt);
+				stateManager.dispatchServerAction(targetChat, chatTurnStarted('active-turn', prompt));
+			},
+		});
+		const sends = ['first', 'second'].map(message => applySendMessageTool(accessor, { session: targetSession, message }, buildDefaultChatUri('copilot:/s1'), 'turn-1', stateManager));
+		await restoring.p;
+		stateManager.createSession({
+			resource: targetSession,
+			provider: 'copilot',
+			title: 'Target',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			defaultChat: targetChat,
+		});
+		restored.complete();
+		const results = await Promise.all(sends);
+		assert.deepStrictEqual({
+			restoreCalls,
+			actions: results.map(result => JSON.parse(result).action),
+			prompts,
+			queued: stateManager.getChatState(targetChat)?.queuedMessages?.map(queued => queued.message.text),
+		}, {
+			restoreCalls: 1,
+			actions: ['started', 'queued'],
+			prompts: ['first'],
+			queued: ['second'],
+		});
 	});
 
 	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {

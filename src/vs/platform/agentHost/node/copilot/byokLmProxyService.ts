@@ -22,6 +22,7 @@ import {
 	bridgeResultToResponsesBody,
 	capBridgeTools,
 	createResponsesSseEmitter,
+	effectiveReasoningEffort,
 	endsWithUserMessage,
 	hasVisibleBridgeOutput,
 	hasVisibleDelta,
@@ -302,6 +303,12 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		let bridgeRequest;
 		try {
 			bridgeRequest = responsesRequestToBridge(vendor, bridgeBody);
+			if (recovered) {
+				// The recovered input is only the trailing tool outputs, so an
+				// effort selected by a `configuration_update` earlier in the
+				// replay has to be read from the full request.
+				bridgeRequest = { ...bridgeRequest, reasoningEffort: effectiveReasoningEffort(body) };
+			}
 		} catch (err) {
 			const message = err instanceof ResponsesTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');
