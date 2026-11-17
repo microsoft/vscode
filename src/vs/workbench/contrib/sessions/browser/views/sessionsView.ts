@@ -57,6 +57,7 @@ import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Menus } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
@@ -359,6 +360,7 @@ export class SessionsView extends ViewPane {
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 		@ISessionsViewLocator sessionsViewLocator: ISessionsViewLocator,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
@@ -957,7 +959,7 @@ export class SessionsView extends ViewPane {
 		// The Worktrees filter, of an editor window only, whose picked folder opens a session of it once allowed to, as a click
 		// in the list does
 		const offersWorktrees = this.scopedContextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true;
-		const worktreeOpener = this._register(new SessionsWorktreeOpener(
+		const worktreeOpener = this._register(this.instantiationService.createInstance(SessionsWorktreeOpener,
 			this._mainWindowHost.session,
 			() => this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionListed(session)),
 			session => this.sessionsService.canOpenSession(session),
@@ -981,6 +983,7 @@ export class SessionsView extends ViewPane {
 				this.sessionsManagementService.getSessions(),
 				environments,
 				(session, reader) => sessionsControl.isSessionListed(session, reader),
+				this.uriIdentityService.extUri,
 				reader,
 			).filter(option => offersWorktrees || option.filter.kind !== 'worktree');
 			const environmentLabels = new Map(options

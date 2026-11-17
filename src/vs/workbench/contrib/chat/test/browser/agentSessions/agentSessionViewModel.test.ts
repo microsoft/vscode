@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { getWorktreeFilterKey } from '../../../common/sessionWorktreeFolders.js';
@@ -1312,7 +1312,7 @@ suite('AgentSessions', () => {
 			const first = inFolder('first', '/work/vscode.worktrees/first');
 			const second = inFolder('second', '/work/vscode.worktrees/second');
 			// A folder selected before, whose sessions are not there yet, as at startup
-			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first')) }), StorageScope.PROFILE, StorageTarget.USER);
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase) }), StorageScope.PROFILE, StorageTarget.USER);
 			modelSessions = [main, second];
 			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
 			// As the Chat view's toolbar shows the list filtered
@@ -1344,7 +1344,7 @@ suite('AgentSessions', () => {
 			const main = inFolder('main', '/work/vscode');
 			const first = inFolder('first', '/work/vscode.worktrees/first');
 			// Stored before, its sessions not there yet, as at startup
-			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first')) }), StorageScope.PROFILE, StorageTarget.USER);
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase) }), StorageScope.PROFILE, StorageTarget.USER);
 			modelSessions = [main];
 			const picked: string[] = [];
 			disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId, onDidPickWorktree: worktree => picked.push(worktree) }));
@@ -1361,7 +1361,7 @@ suite('AgentSessions', () => {
 
 			assert.deepStrictEqual({ late, picks: picked }, {
 				late: [],
-				picks: [getWorktreeFilterKey(URI.file('/work/vscode'))],
+				picks: [getWorktreeFilterKey(URI.file('/work/vscode'), extUriBiasedIgnorePathCase)],
 			});
 		});
 
@@ -1391,7 +1391,7 @@ suite('AgentSessions', () => {
 				}
 			}
 			const opener = disposables.add(instantiationService.createInstance(RecordingOpener));
-			const first = getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'));
+			const first = getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase);
 			const show = (session: IAgentSession) => shown.set({ resource: session.resource, reason: 'open' }, undefined);
 
 			await opener.open(first);
@@ -1447,7 +1447,7 @@ suite('AgentSessions', () => {
 			modelSessions = [known, newer, elsewhere];
 			onDidChangeModelSessions.fire();
 			shown.set({ resource: elsewhere.resource, reason: 'open' }, undefined);
-			await opener.open(getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first')));
+			await opener.open(getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase));
 
 			assert.deepStrictEqual(opened, ['started']);
 		});
@@ -1458,7 +1458,7 @@ suite('AgentSessions', () => {
 			const main = inFolder('main', '/work/vscode');
 			const first = inFolder('first', '/work/vscode.worktrees/first');
 			modelSessions = [main, first];
-			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktrees: [getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'))] }), StorageScope.PROFILE, StorageTarget.USER);
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktrees: [getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase)] }), StorageScope.PROFILE, StorageTarget.USER);
 			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
 			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
 			const checked = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).filter(item => (item.command.toggled as ContextKeyExpression).serialize() === 'true').map(item => item.command.title);

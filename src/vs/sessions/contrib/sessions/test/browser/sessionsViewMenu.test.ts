@@ -16,6 +16,8 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -98,7 +100,10 @@ suite('Sessions - View Menu', () => {
 		const grouping = SessionsViewGroupingContext.bindTo(contextKeyService);
 		const capped = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
 		const compact = SessionsViewCompactContext.bindTo(contextKeyService);
-		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService())));
+		const uriIdentityService = upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase });
+		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), uriIdentityService));
+		const viewInstantiationService = store.add(new TestInstantiationService());
+		viewInstantiationService.stub(IUriIdentityService, uriIdentityService);
 		const sessionsChanged = store.add(new Emitter<void>());
 		const providersChanged = store.add(new Emitter<void>());
 		let excludeArchived = true;
@@ -141,6 +146,8 @@ suite('Sessions - View Menu', () => {
 			get grouping() { return contextKeyService.getContextKeyValue<string>(SessionsViewGroupingContext.key); },
 			scopedContextKeyService: contextKeyService,
 			configurationService,
+			instantiationService: viewInstantiationService,
+			uriIdentityService,
 			workspaceGroupCappedContextKey: capped,
 			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
@@ -379,7 +386,7 @@ suite('Sessions - View Menu', () => {
 			const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
 			harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 			const storage = store.add(new InMemoryStorageService());
-			let filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+			let filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService()), upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 			const registration = observableValue<LocalAgentHostRegistration | undefined>('registration', undefined);
 			const localSession = buildTestSession({ id: 'local', title: 'Local', workspace: 'app' }).session;
 			const registrationSession = buildTestSession({ id: 'registration', title: 'Registration', workspace: 'app', environment: 'github' }).session;
@@ -392,7 +399,7 @@ suite('Sessions - View Menu', () => {
 			if (restored) {
 				filters.setInboxEnvironment({ id: 'github', label: 'My Computer (GitHub)' });
 				filters.setInboxWorkspace({ environment: 'github', resource: 'file:///app', label: 'app' });
-				filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+				filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService()), upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 				registration.set('githubEnvironment', undefined);
 			}
 			const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
@@ -417,7 +424,7 @@ suite('Sessions - View Menu', () => {
 				workspace: scope.element.querySelector('.workspace-picker .action-label')?.textContent,
 				rows,
 				localMatches: filters.matchesInboxScope(localSession),
-				persisted: store.add(new SessionsListFilters(storage, store.add(new NullLogService()))).inboxScope,
+				persisted: store.add(new SessionsListFilters(storage, store.add(new NullLogService()), upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase }))).inboxScope,
 			};
 			filters.setInboxEnvironment({ id: 'missing', label: 'Other Computer' });
 			assert.deepStrictEqual({ normalized, unavailable: { scope: filters.inboxScope, label: trigger.textContent } }, {
@@ -1308,7 +1315,7 @@ suite('Sessions - View Menu', () => {
 		const menu = createMenu([main]);
 		menu.shown.set(main, undefined);
 		// Stored before, its sessions not there yet, as at startup: applying again opens nothing
-		const first = getSessionFilterOptions([older], [], () => true).find(option => option.filter.kind === 'worktree')!.filter.id;
+		const first = getSessionFilterOptions([older], [], () => true, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree')!.filter.id;
 		menu.filters.setSelectedWorktree(first);
 		menu.setSessions([main, older, newer, second]);
 		const late = [...menu.opened];
@@ -1407,7 +1414,7 @@ suite('Sessions - View Menu', () => {
 		const sessions = [inFolder('main', '/work/vscode'), inFolder('first', '/work/vscode.worktrees/first')];
 		// A folder selected in an editor window, whose profile the Agents window shares
 		const menu = createMenu(sessions, [], undefined, undefined, { sessionsWindow: true });
-		menu.filters.setSelectedWorktree(getSessionFilterOptions(sessions, [], () => true).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
+		menu.filters.setSelectedWorktree(getSessionFilterOptions(sessions, [], () => true, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
 
 		assert.deepStrictEqual({
 			submenu: menu.snapshot(Menus.SessionsViewFilter).some(item => item.submenu === Menus.SessionsViewWorktree.id),

@@ -10,6 +10,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -22,6 +23,7 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
@@ -175,6 +177,7 @@ suite('AgentHostWorktree', () => {
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
 		// The provider the contribution registers while worktree support is on, which knows the real paths of the window's folders
 		instantiationService.stub(IAgentHostWorktreeLocations, upcastPartial<IAgentHostWorktreeLocations>({

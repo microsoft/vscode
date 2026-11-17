@@ -24,6 +24,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
@@ -140,6 +141,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -237,7 +239,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 
 	/** The session the user last opened while the folder was at `location`, its own location or a worktree. */
 	getLastSession(location: URI): URI | undefined {
-		const session = this._lastSessions.get(getWorktreeFilterKey(location));
+		const session = this._lastSessions.get(getWorktreeFilterKey(location, this._uriIdentityService.extUri));
 		return session ? URI.parse(session) : undefined;
 	}
 
@@ -616,7 +618,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	}
 
 	private _rememberSession(location: URI, session: URI): void {
-		if (!this._lastSessions.remember(getWorktreeFilterKey(location), session.toString())) {
+		if (!this._lastSessions.remember(getWorktreeFilterKey(location, this._uriIdentityService.extUri), session.toString())) {
 			return;
 		}
 		if (this._agentSessionsService.getSession(session)) {
@@ -666,7 +668,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 				for (const entry of stored.slice(-LAST_SESSIONS_LIMIT)) {
 					if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'string') {
 						// Stored by its Worktrees filter key, which is the form of a location URI that compares it
-						this._lastSessions.remember(getWorktreeFilterKey(URI.parse(entry[0])), entry[1]);
+						this._lastSessions.remember(getWorktreeFilterKey(URI.parse(entry[0]), this._uriIdentityService.extUri), entry[1]);
 					}
 				}
 			}

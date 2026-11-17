@@ -7,12 +7,13 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { getSessionWorktreeFolder, getWorktreeFilterOptions, WorktreeLastSessions } from '../../common/sessionWorktreeFolders.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 
 suite('getWorktreeFilterOptions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('labels folders of the same name by as many parent folders as tell them apart, else by their whole parent paths', () => {
-		const labels = (folders: readonly URI[]) => getWorktreeFilterOptions(folders.map(folder => getSessionWorktreeFolder(folder))).map(option => option.label);
+		const labels = (folders: readonly URI[]) => getWorktreeFilterOptions(folders.map(folder => getSessionWorktreeFolder(folder)), extUriBiasedIgnorePathCase).map(option => option.label);
 
 		assert.deepStrictEqual({
 			sameParentName: labels([URI.file('/work/one/repo'), URI.file('/work/one/repo.worktrees/fix'), URI.file('/work/two/repo'), URI.file('/work/two/repo.worktrees/fix')]),

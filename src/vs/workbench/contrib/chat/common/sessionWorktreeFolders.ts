@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { basename, dirname, IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getRepositoryRootFromWorktree } from '../../../../platform/agentHost/common/worktreePaths.js';
@@ -25,9 +25,12 @@ export function getSessionWorktreeFolder(folder: URI | undefined, repository?: U
 	return folder && { folder, repository: repository ?? getRepositoryRootFromWorktree(folder) ?? folder };
 }
 
-/** The key the Worktrees filter keeps for the sessions of `folder`. */
-export function getWorktreeFilterKey(folder: URI): string {
-	return extUriBiasedIgnorePathCase.getComparisonKey(folder);
+/**
+ * The key the Worktrees filter keeps for the sessions of `folder`, as `extUri` compares it: pass the URI identity service's `extUri`,
+ * which ignores path case only where the folder's file system does.
+ */
+export function getWorktreeFilterKey(folder: URI, extUri: IExtUri): string {
+	return extUri.getComparisonKey(folder);
 }
 
 export interface IWorktreeFilterOption {
@@ -43,19 +46,19 @@ export interface IWorktreeFilterOption {
  * without any offers no Worktrees filter. Folders are labelled by their name, and where names clash also by as many of
  * their parent folders as tell them apart.
  */
-export function getWorktreeFilterOptions(folders: Iterable<ISessionWorktreeFolder | undefined>): IWorktreeFilterOption[] {
+export function getWorktreeFilterOptions(folders: Iterable<ISessionWorktreeFolder | undefined>, extUri: IExtUri): IWorktreeFilterOption[] {
 	const repositories = new Map<string, { readonly repository: URI; readonly worktrees: Map<string, URI> }>();
 	for (const entry of folders) {
 		if (!entry) {
 			continue;
 		}
-		const repositoryKey = getWorktreeFilterKey(entry.repository);
+		const repositoryKey = getWorktreeFilterKey(entry.repository, extUri);
 		let repository = repositories.get(repositoryKey);
 		if (!repository) {
 			repository = { repository: entry.repository, worktrees: new Map() };
 			repositories.set(repositoryKey, repository);
 		}
-		const key = getWorktreeFilterKey(entry.folder);
+		const key = getWorktreeFilterKey(entry.folder, extUri);
 		if (key !== repositoryKey) {
 			repository.worktrees.set(key, entry.folder);
 		}

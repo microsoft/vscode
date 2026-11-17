@@ -18,6 +18,12 @@ import { ISession, ISessionEnvironment, ISessionWorkspace } from '../../../../..
 import { buildTestSession, buildTestWorkspace } from '../../common/testSessionBuilder.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { UriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
 
 suite('SessionsListFilters', () => {
@@ -25,8 +31,37 @@ suite('SessionsListFilters', () => {
 	const listAll = () => true;
 
 	function createFilters(storage = store.add(new InMemoryStorageService())): SessionsListFilters {
-		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+		return store.add(new SessionsListFilters(storage, store.add(new NullLogService()), upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 	}
+
+	test('tells apart worktree folders whose paths differ only in case where their file system does, such as an agent host\'s', () => {
+		// The URI identity of the window, with an agent host's file system, which is case sensitive
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(AGENT_HOST_SCHEME, store.add(new InMemoryFileSystemProvider())));
+		const uriIdentityService = store.add(new UriIdentityService(fileService));
+		const inFolder = (id: string, path: string): ISession => {
+			const root = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path });
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
+		};
+		const sessions = [inFolder('main', '/work/repo'), inFolder('upper', '/work/repo.worktrees/Fix'), inFolder('lower', '/work/repo.worktrees/fix')];
+		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), uriIdentityService));
+		const available = getWorktreeFilterKeys(sessions, listAll, uriIdentityService.extUri);
+		const options = getSessionFilterOptions(sessions, [], listAll, uriIdentityService.extUri).filter(option => option.filter.kind === 'worktree');
+		const visible = (label: string) => {
+			filters.setSelectedWorktree(options.find(option => option.label === label)?.filter.id);
+			return sessions.filter(session => filters.matches(session, false, available)).map(session => session.sessionId);
+		};
+
+		assert.deepStrictEqual({ options: options.map(option => option.label), upper: visible('Fix'), lower: visible('fix') }, {
+			options: ['repo', 'fix', 'Fix'],
+			upper: ['upper'],
+			lower: ['lower'],
+		});
+	});
 
 	test('offers no worktree folder whose listed sessions are all archived, shows all while the selected one\'s are, and it again as one is unarchived', () => {
 		const archived = observableValue('archived', false);
@@ -44,8 +79,8 @@ suite('SessionsListFilters', () => {
 		const sessions = [main, first, second];
 		const filters = createFilters();
 		const state = () => {
-			const available = getWorktreeFilterKeys(sessions, listAll);
-			const options = getSessionFilterOptions(sessions, [], listAll).filter(option => option.filter.kind === 'worktree');
+			const available = getWorktreeFilterKeys(sessions, listAll, extUriBiasedIgnorePathCase);
+			const options = getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase).filter(option => option.filter.kind === 'worktree');
 			const selected = filters.getSelectedWorktree(available);
 			return {
 				options: options.map(option => option.label),
@@ -53,7 +88,7 @@ suite('SessionsListFilters', () => {
 				visible: sessions.filter(session => filters.matches(session, false, available)).map(session => session.sessionId),
 			};
 		};
-		filters.setSelectedWorktree(getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
+		filters.setSelectedWorktree(getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
 		const selected = state();
 		archived.set(true, undefined);
 		const lastArchived = state();
@@ -83,10 +118,10 @@ suite('SessionsListFilters', () => {
 		const archived = inFolder('archived', '/work/vscode.worktrees/first', 5, true);
 		const second = inFolder('second', '/work/vscode.worktrees/second', 10);
 		const sessions = [main, older, newer, archived, second];
-		const first = getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id;
+		const first = getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id;
 		const shown = observableValue<ISession | undefined>('shown', main);
 		const opened: string[] = [];
-		const opener = store.add(new SessionsWorktreeOpener(shown, () => sessions, async () => true, session => opened.push(session.sessionId), Event.None));
+		const opener = store.add(new SessionsWorktreeOpener(shown, () => sessions, async () => true, session => opened.push(session.sessionId), Event.None, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 
 		await opener.open(first);
 		const mostRecent = [...opened];
@@ -133,9 +168,9 @@ suite('SessionsListFilters', () => {
 			const allowed = new DeferredPromise<boolean>();
 			const opened: string[] = [];
 			const disposables = new DisposableStore();
-			const opener = disposables.add(new SessionsWorktreeOpener(shown, () => sessions, () => allowed.p, session => opened.push(session.sessionId), Event.None));
+			const opener = disposables.add(new SessionsWorktreeOpener(shown, () => sessions, () => allowed.p, session => opened.push(session.sessionId), Event.None, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 			shown.set(elsewhere, undefined);
-			const opening = opener.open(getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
+			const opening = opener.open(getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
 			if (change === 'archive') {
 				archived.set(true, undefined);
 			} else if (change === 'remove') {
@@ -176,10 +211,10 @@ suite('SessionsListFilters', () => {
 		const sessions = [hydrating, newer, elsewhere];
 		const shown = observableValue<ISession | undefined>('shown', hydrating);
 		const opened: string[] = [];
-		const opener = store.add(new SessionsWorktreeOpener(shown, () => sessions, async () => true, session => opened.push(session.sessionId), Event.None));
+		const opener = store.add(new SessionsWorktreeOpener(shown, () => sessions, async () => true, session => opened.push(session.sessionId), Event.None, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 		hydrating.hydrate('/work/vscode.worktrees/first');
 		shown.set(elsewhere, undefined);
-		await opener.open(getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
+		await opener.open(getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
 
 		assert.deepStrictEqual(opened, ['hydrating']);
 	});
@@ -203,10 +238,10 @@ suite('SessionsListFilters', () => {
 		const quick = buildTestSession({ id: 'quick', title: 'Quick', isQuickChat: true }).session;
 		const storage = store.add(new InMemoryStorageService());
 		const filters = createFilters(storage);
-		const keyOf = (label: string) => getSessionFilterOptions([main, first, second], [], listAll).find(option => option.filter.kind === 'worktree' && option.label === label)!.filter.id;
+		const keyOf = (label: string) => getSessionFilterOptions([main, first, second], [], listAll, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree' && option.label === label)!.filter.id;
 		const state = (sessions: readonly ISession[], target = filters) => {
-			const available = getWorktreeFilterKeys(sessions, listAll);
-			const options = getSessionFilterOptions(sessions, [], listAll).filter(option => option.filter.kind === 'worktree');
+			const available = getWorktreeFilterKeys(sessions, listAll, extUriBiasedIgnorePathCase);
+			const options = getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase).filter(option => option.filter.kind === 'worktree');
 			const selected = target.getSelectedWorktree(available);
 			return {
 				checked: selected === undefined ? 'All Worktrees' : options.find(option => option.filter.id === selected)?.label,
@@ -215,8 +250,8 @@ suite('SessionsListFilters', () => {
 		};
 		const sessions = [main, first, second, quick];
 
-		const withoutWorktrees = getSessionFilterOptions([main, quick], [], listAll).filter(option => option.filter.kind === 'worktree').map(option => option.label);
-		const offered = getSessionFilterOptions(sessions, [], listAll).filter(option => option.filter.kind === 'worktree').map(option => option.label);
+		const withoutWorktrees = getSessionFilterOptions([main, quick], [], listAll, extUriBiasedIgnorePathCase).filter(option => option.filter.kind === 'worktree').map(option => option.label);
+		const offered = getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase).filter(option => option.filter.kind === 'worktree').map(option => option.label);
 		const initial = state(sessions);
 		filters.setSelectedWorktree(keyOf('first'));
 		const firstOnly = state(sessions);
@@ -348,7 +383,7 @@ suite('SessionsListFilters', () => {
 	});
 
 	test('always offers the three harnesses, This Computer and Cloud, and their VS Code application choices', () => {
-		assert.deepStrictEqual(getSessionFilterOptions([], [], listAll), [
+		assert.deepStrictEqual(getSessionFilterOptions([], [], listAll, extUriBiasedIgnorePathCase), [
 			{ filter: { kind: 'harness', id: 'copilot' }, label: 'Copilot', group: '1_harnesses' },
 			{ filter: { kind: 'harness', id: 'claude' }, label: 'Claude', group: '1_harnesses' },
 			{ filter: { kind: 'harness', id: 'codex' }, label: 'Codex', group: '1_harnesses' },
@@ -369,7 +404,7 @@ suite('SessionsListFilters', () => {
 			{ id: 'connected-host', label: 'Connected Host' },
 			{ id: 'cached-host', label: 'Cached Host', isConnected: disconnected },
 			{ id: 'empty-host', label: 'Empty Host', isConnected: disconnected },
-		], listAll);
+		], listAll, extUriBiasedIgnorePathCase);
 		assert.deepStrictEqual({
 			environments: options.filter(option => option.filter.kind === 'environment').map(option => option.label),
 			applications: options.filter(option => option.filter.kind === 'application').map(option => option.label),
@@ -418,7 +453,7 @@ suite('SessionsListFilters', () => {
 			before,
 			after: sessions.filter(session => filters.matches(session)).map(session => session.sessionId),
 			external: sessions.map(session => session.isExternal?.get()),
-			applications: getSessionFilterOptions(sessions, [], listAll)
+			applications: getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase)
 				.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
 				.map(option => option.label),
 		}, {
@@ -438,7 +473,7 @@ suite('SessionsListFilters', () => {
 		const shownIds = observableValue<ReadonlySet<string>>('shownIds', new Set());
 		const snapshots: string[][] = [];
 		store.add(autorun(reader => {
-			snapshots.push(cloudApplications(getSessionFilterOptions(sessions, [], (session, reader) => !session.isAutomation?.read(reader) || shownIds.read(reader).has(session.sessionId), reader)));
+			snapshots.push(cloudApplications(getSessionFilterOptions(sessions, [], (session, reader) => !session.isAutomation?.read(reader) || shownIds.read(reader).has(session.sessionId), extUriBiasedIgnorePathCase, reader)));
 		}));
 		shownIds.set(new Set(['shown']), undefined);
 
@@ -459,7 +494,7 @@ suite('SessionsListFilters', () => {
 		filters.setExcluded({ kind: 'environment', id: 'cloud' }, false);
 		filters.setExcluded({ kind: 'harness', id: 'copilot' }, true);
 		assert.deepStrictEqual({
-			applications: getSessionFilterOptions(sessions, [], listAll)
+			applications: getSessionFilterOptions(sessions, [], listAll, extUriBiasedIgnorePathCase)
 				.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
 				.map(option => option.label),
 			before,
@@ -557,7 +592,7 @@ suite('SessionsListFilters', () => {
 		const environments: ISessionEnvironment[] = [{ id: 'remote-id', label: 'Workstation', isConnected: connected }];
 		const snapshots: string[][] = [];
 		store.add(autorun(reader => {
-			snapshots.push(getSessionFilterOptions(catalog.read(reader), environments, listAll, reader).slice(3).map(option => `${option.group}: ${option.label}`));
+			snapshots.push(getSessionFilterOptions(catalog.read(reader), environments, listAll, extUriBiasedIgnorePathCase, reader).slice(3).map(option => `${option.group}: ${option.label}`));
 		}));
 		connected.set(false, undefined);
 		remote.application.set(getSessionApplication('github/cli'), undefined);
@@ -579,10 +614,10 @@ suite('SessionsListFilters', () => {
 		filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 		filters.setExcluded(environmentFilter, true);
 		filters.setExcluded(applicationFilter, true);
-		const absent = getSessionFilterOptions([], [{ id: 'remote-id', label: 'Old Name' }], listAll);
+		const absent = getSessionFilterOptions([], [{ id: 'remote-id', label: 'Old Name' }], listAll, extUriBiasedIgnorePathCase);
 		const restored = createFilters(storage);
 		restored.setExcluded(environmentFilter, false);
-		const renamed = getSessionFilterOptions([session], [{ id: 'remote-id', label: 'New Name' }], listAll);
+		const renamed = getSessionFilterOptions([session], [{ id: 'remote-id', label: 'New Name' }], listAll, extUriBiasedIgnorePathCase);
 		assert.deepStrictEqual({
 			absentApplications: absent.filter(option => option.filter.kind === 'application').map(option => option.label),
 			label: renamed.find(option => sessionFilterKey(option.filter) === sessionFilterKey(applicationFilter))?.label,

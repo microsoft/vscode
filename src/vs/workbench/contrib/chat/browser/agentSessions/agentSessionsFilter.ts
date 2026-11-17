@@ -12,6 +12,7 @@ import { registerAction2, Action2, MenuId, MenuRegistry } from '../../../../../p
 import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, ISessionWorktreeFolder, IWorktreeFilterOption } from '../../common/sessionWorktreeFolders.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
@@ -102,6 +103,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -138,7 +140,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	 * archived is not offered, and while it is selected all folders show, until one of its sessions is unarchived.
 	 */
 	private getWorktreeOptions(): IWorktreeFilterOption[] {
-		return getWorktreeFilterOptions(this.agentSessionsService.model.sessions.filter(session => !session.isArchived()).map(getAgentSessionWorktreeFolder));
+		return getWorktreeFilterOptions(this.agentSessionsService.model.sessions.filter(session => !session.isArchived()).map(getAgentSessionWorktreeFolder), this.uriIdentityService.extUri);
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
@@ -535,7 +537,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const selectedWorktree = this.getSelectedWorktree();
 		if (selectedWorktree !== undefined) {
 			const worktree = getAgentSessionWorktreeFolder(session);
-			if (worktree && getWorktreeFilterKey(worktree.folder) !== selectedWorktree) {
+			if (worktree && getWorktreeFilterKey(worktree.folder, this.uriIdentityService.extUri) !== selectedWorktree) {
 				return true;
 			}
 		}

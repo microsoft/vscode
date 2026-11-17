@@ -18,7 +18,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { findOnboardingTarget, markOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { extractChatReferenceDropData } from '../../../../../platform/dnd/browser/dnd.js';
-import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
+import { ExtUri, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -3833,7 +3833,7 @@ suite('Sessions - SessionsList', () => {
 				}));
 				list.layout(1400, 400);
 				if (select) {
-					list.filters.setSelectedWorktree(getWorktreeFilterKey(URI.parse('file:///work/repo.worktrees/a')));
+					list.filters.setSelectedWorktree(getWorktreeFilterKey(URI.parse('file:///work/repo.worktrees/a'), extUriBiasedIgnorePathCase));
 				}
 				return list.getVisibleSessions().map(session => session.sessionId).sort();
 			};

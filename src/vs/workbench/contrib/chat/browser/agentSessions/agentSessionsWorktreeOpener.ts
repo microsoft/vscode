@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getWorktreeFilterKey, getWorktreeSessionToOpen, IWorktreeFilterSession, WorktreeLastSessions } from '../../common/sessionWorktreeFolders.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatViewHostService } from '../chatViewHost.js';
 import { getAgentSessionWorktreeFolder } from './agentSessionsFilter.js';
 import { IAgentSession } from './agentSessionsModel.js';
@@ -25,6 +26,7 @@ export class AgentSessionsWorktreeOpener extends Disposable {
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		// Also as where the shown session works becomes known or changes, which it can after it shows, such as after its first request
@@ -66,7 +68,7 @@ export class AgentSessionsWorktreeOpener extends Disposable {
 		const worktree = getAgentSessionWorktreeFolder(session);
 		return {
 			id: session.resource.toString(),
-			worktree: worktree && getWorktreeFilterKey(worktree.folder),
+			worktree: worktree && getWorktreeFilterKey(worktree.folder, this._uriIdentityService.extUri),
 			isArchived: session.isArchived(),
 			time: session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created,
 		};

@@ -6,13 +6,14 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../../base/common/resources.js';
+import { getComparisonKey, IExtUri } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, getWorktreeSessionToOpen, ISessionWorktreeFolder, IWorktreeFilterSession, WorktreeLastSessions } from '../../../chat/common/sessionWorktreeFolders.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
@@ -155,7 +156,7 @@ export function getSessionFilterEnvironments(providers: readonly ISessionsProvid
  * The filter options for the given sessions. Only sessions the list includes, as
  * decided by `isSessionListed`, contribute their creating applications.
  */
-export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader): ISessionFilterOption[] {
+export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, extUri: IExtUri, reader?: IReader): ISessionFilterOption[] {
 	const options: ISessionFilterOption[] = [
 		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
 		{ filter: { kind: 'harness', id: 'claude' }, label: localize('harness.claude', "Claude"), group: '1_harnesses' },
@@ -190,31 +191,31 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 		}
 	}
 	// The worktrees that listed sessions not archived work in, with their repository's own folder
-	for (const option of getListedWorktreeOptions(sessions, isSessionListed, reader)) {
+	for (const option of getListedWorktreeOptions(sessions, isSessionListed, extUri, reader)) {
 		options.push({ filter: { kind: 'worktree', id: option.key }, label: option.label, group: option.isRepository ? '4_worktrees_1_repository' : '4_worktrees_2_worktrees' });
 	}
 	return options;
 }
 
 /** `session` as the Worktrees filter picks one to open as the user picks its folder. */
-export function getWorktreeFilterSession(session: ISession): IWorktreeFilterSession {
+export function getWorktreeFilterSession(session: ISession, extUri: IExtUri): IWorktreeFilterSession {
 	const worktree = getSessionWorktreeFilterFolder(session);
 	return {
 		id: session.sessionId,
-		worktree: worktree && getWorktreeFilterKey(worktree.folder),
+		worktree: worktree && getWorktreeFilterKey(worktree.folder, extUri),
 		isArchived: session.isArchived.get(),
 		time: (session.updatedAt.get() ?? session.createdAt).getTime(),
 	};
 }
 
 /** The Worktrees filter's options: the folders that listed sessions not archived work in. */
-function getListedWorktreeOptions(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader) {
-	return getWorktreeFilterOptions(sessions.filter(session => isSessionListed(session, reader) && !session.isArchived.read(reader)).map(session => getSessionWorktreeFilterFolder(session, reader)));
+function getListedWorktreeOptions(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, extUri: IExtUri, reader?: IReader) {
+	return getWorktreeFilterOptions(sessions.filter(session => isSessionListed(session, reader) && !session.isArchived.read(reader)).map(session => getSessionWorktreeFilterFolder(session, reader)), extUri);
 }
 
 /** The keys of the folders the Worktrees filter offers for `sessions`: of those the list includes, not archived. */
-export function getWorktreeFilterKeys(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader): ReadonlySet<string> {
-	return new Set(getListedWorktreeOptions(sessions, isSessionListed, reader).map(option => option.key));
+export function getWorktreeFilterKeys(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, extUri: IExtUri, reader?: IReader): ReadonlySet<string> {
+	return new Set(getListedWorktreeOptions(sessions, isSessionListed, extUri, reader).map(option => option.key));
 }
 
 /**
@@ -235,6 +236,7 @@ export class SessionsWorktreeOpener extends Disposable {
 		private readonly _canOpen: (session: ISession) => Promise<boolean>,
 		private readonly _open: (session: ISession) => void,
 		onDidChangeFilters: Event<void>,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._register(onDidChangeFilters(() => this._generation++));
@@ -243,7 +245,7 @@ export class SessionsWorktreeOpener extends Disposable {
 			const shown = this._shown.read(reader);
 			const folder = shown && getSessionWorktreeFilterFolder(shown, reader);
 			if (shown && folder) {
-				this._lastSessions.remember(getWorktreeFilterKey(folder.folder), shown.sessionId);
+				this._lastSessions.remember(getWorktreeFilterKey(folder.folder, this._uriIdentityService.extUri), shown.sessionId);
 			}
 		}));
 	}
@@ -252,7 +254,8 @@ export class SessionsWorktreeOpener extends Disposable {
 		const generation = ++this._generation;
 		const shown = this._shown.get();
 		const sessions = this._sessions();
-		const pick = getWorktreeSessionToOpen(worktree, shown && getWorktreeFilterSession(shown), sessions.map(session => getWorktreeFilterSession(session)), this._lastSessions.get(worktree));
+		const extUri = this._uriIdentityService.extUri;
+		const pick = getWorktreeSessionToOpen(worktree, shown && getWorktreeFilterSession(shown, extUri), sessions.map(session => getWorktreeFilterSession(session, extUri)), this._lastSessions.get(worktree));
 		const session = pick && sessions.find(candidate => candidate.sessionId === pick.id);
 		if (!session || !await this._canOpen(session) || generation !== this._generation || this._store.isDisposed) {
 			return;
@@ -260,7 +263,7 @@ export class SessionsWorktreeOpener extends Disposable {
 		// Asked for that session only: where it no longer is one of the folder's to open, such as archived, removed or moved
 		// meanwhile, it opens nothing rather than another that was not asked for
 		const current = this._sessions().find(candidate => candidate.sessionId === session.sessionId);
-		const now = current && getWorktreeFilterSession(current);
+		const now = current && getWorktreeFilterSession(current, extUri);
 		if (now && now.worktree === worktree && !now.isArchived) {
 			this._open(current);
 		}
@@ -286,6 +289,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService logService: ILogService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.excluded = new Map();
@@ -404,7 +408,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		const selectedWorktree = this.getSelectedWorktree(availableWorktrees);
 		const worktree = selectedWorktree !== undefined && session.workspace && getSessionWorktreeFilterFolder({ workspace: session.workspace, isQuickChat: session.isQuickChat });
 		return !this.isExcluded({ kind: 'harness', id: session.harness })
-			&& (!worktree || getWorktreeFilterKey(worktree.folder) === selectedWorktree)
+			&& (!worktree || getWorktreeFilterKey(worktree.folder, this.uriIdentityService.extUri) === selectedWorktree)
 			&& (inbox || !this.isExcluded({ kind: 'environment', id: session.environment }))
 			&& (application.id === UNKNOWN_SESSION_APPLICATION_ID
 				|| !this.isExcluded({ kind: 'application', environment: session.environment, id: application.id }));
