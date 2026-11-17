@@ -695,6 +695,29 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ providerGone, removed: service.isShowing(peer) }, { providerGone: true, removed: false });
 	});
 
+	test('in Single, a restored chat that has not shown yet stays in its list until its session is reported removed; then it leaves the list and is not stored', async () => {
+		const [a, b, c] = ['a', 'b', 'c'].map(id => buildTestSession({ id, title: id.toUpperCase() }));
+		const chatOf = (built: typeof a) => built.mainChat.chat.resource;
+		let sessions: readonly ISession[] = [];
+		const fixture = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, sessions: () => sessions, stored: JSON.stringify({ chats: [a, b, c].map(built => chatOf(built).toString()), active: 0 }) });
+		await fixture.service.restore();
+		// Not known yet, as their provider has not loaded them: they stay
+		await timeout(0);
+		const unknown = JSON.parse(fixture.save()!).chats;
+		sessions = [a.session, b.session, c.session];
+		fixture.fireSessionsChanged([a.session, b.session, c.session]);
+		await timeout(0);
+		sessions = [a.session, c.session];
+		fixture.fireSessionsChanged([], [b.session]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ unknown, afterRemoved: JSON.parse(fixture.save()!).chats, showingB: fixture.service.isShowing(chatOf(b)) }, {
+			unknown: [a, b, c].map(built => chatOf(built).toString()),
+			afterRemoved: [a, c].map(built => chatOf(built).toString()),
+			showingB: false,
+		});
+	});
+
 	test('restoring the chat part shown restores its chats, unless chat is hidden or disabled as the window starts, which hides it', async () => {
 		const restore = async (available: boolean) => {
 			const calls: string[] = [];
