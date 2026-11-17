@@ -9,7 +9,7 @@ import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/ag
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, routeListsModel, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
-import { describeModelRouterModel, describeModelRouterSituation, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
+import { describeModelRouterModel, describeModelRouterSituation, modelRouterSituationFor, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
 import { firstModelRouterError, type IModelRouterFile } from './copilotModelRouterCatalog.js';
@@ -205,7 +205,7 @@ export class CopilotModelRouter {
 			return { ...keepCurrent, notices: [localize('modelRouter.noModels', "None of the models in the model router {0} are available, so this chat kept its current model.", modelRouterLabel(router))] };
 		}
 		const last = lastSelectionOf(request.previousTurns);
-		const situation = describeModelRouterSituation(request.situation);
+		const situation = describeModelRouterSituation(modelRouterSituationFor(router, request.situation));
 		const context: IRouteContext = {
 			request, router, routes,
 			candidates: routes.map(route => {
@@ -258,11 +258,11 @@ export class CopilotModelRouter {
 		}
 		const picked = routes.find(route => routeKey(route) === pick.model);
 		if (!picked || pick.confidence < MIN_PICK_CONFIDENCE) {
-			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}`);
+			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}${describeDecision(context, pick)}`);
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, pick.effortScore));
 		}
 		const effort = this._effortFor(context, picked, pick.effortScore);
-		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}`);
+		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}${describeDecision(context, pick)}`);
 		return decision(context, picked, { ...switchedFrom(picked), ...preferenceOf(picked) }, [], effort);
 	}
 
@@ -303,7 +303,7 @@ export class CopilotModelRouter {
 			return stay;
 		}
 		const outcome = decideModelRouterSwitch({ currentModel: routeKey(current), pick, ...switchHistory(previousTurns) });
-		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model} probabilities=${JSON.stringify(pick.probabilities)}`);
+		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model}${describeDecision(context, pick)}`);
 		const effort = router.effort === 'auto' && !current.effort
 			? decideModelRouterEffort({ current: currentEffort, score: pick.effortScore, supported: current.supportedEfforts })
 			: this._effortFor(context, current, undefined);
@@ -353,6 +353,11 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 }
 
 const PREFERENCE_CHARS = 300;
+
+/** For the log: how the decision weighed each route, and the facts it was told besides the message. Never the message. */
+function describeDecision({ situation }: IRouteContext, pick: IModelRouterPick): string {
+	return ` probabilities=${JSON.stringify(pick.probabilities)} facts=${JSON.stringify(situation ?? [])}`;
+}
 
 /** What a routing decision answers with, and what a chat's turns remember a pick by: the route's name, or its model when it has none. */
 function routeKey(route: IResolvedModelRoute): string {
