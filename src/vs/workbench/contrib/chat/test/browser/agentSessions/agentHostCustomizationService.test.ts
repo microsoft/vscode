@@ -921,6 +921,39 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
+	test('eager MCP diagnostics share duplicate server subscriptions and keep replayed times', () => {
+		const { sut, session, target, operations, records, logs } = createMcpLogsSut(LogLevel.Debug);
+		const template = 'other-logs://tenant/shared/{level}';
+		const declared = { ...mcpServer('declared', 'shared'), _meta: { [MCP_SERVER_LOGS_META_KEY]: template } };
+		const live = { ...mcpServer('live', 'shared'), _meta: { [MCP_SERVER_LOGS_META_KEY]: template } };
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin', load: { kind: CustomizationLoadStatus.Loaded }, children: [declared] };
+		sut.updateTarget(target, [plugin, live]);
+		sut.getMcpServers(session);
+		sut.updateTarget(target, [plugin]);
+		logs.fire({
+			channel: 'other-logs://tenant/shared/debug',
+			payload: { resourceLogs: [{ scopeLogs: [{ logRecords: [{ timeUnixNano: '1000000', severityNumber: 9, body: { stringValue: 'rpc:replayed' } }] }] }] },
+		});
+		const beforeTeardown = [...operations];
+		sut.disposeMcpDiagnostics(session);
+		assert.deepStrictEqual({ beforeTeardown, operations, records: records.filter(record => record.message.includes('rpc:')) }, {
+			beforeTeardown: ['subscribe:other-logs://tenant/shared/debug'],
+			operations: ['subscribe:other-logs://tenant/shared/debug', 'unsubscribe:other-logs://tenant/shared/debug'],
+			records: [{ level: LogLevel.Info, message: '[1970-01-01T00:00:00.001Z] rpc:replayed' }],
+		});
+	});
+
+	test('revealed MCP diagnostics survive transient loading snapshots', async () => {
+		const { sut, session, target, operations } = createMcpLogsSut(LogLevel.Info);
+		const declared = { ...mcpServer('declared', 'declared'), _meta: { [MCP_SERVER_LOGS_META_KEY]: 'other-logs://tenant/declared/{level}' } };
+		const plugin: PluginCustomization = { type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'Plugin', load: { kind: CustomizationLoadStatus.Loaded }, children: [declared] };
+		sut.updateTarget(target, [plugin]);
+		await sut.showMcpServerLog(session, sut.getMcpServers(session)[0].id);
+		sut.updateTarget(target, [{ ...plugin, load: { kind: CustomizationLoadStatus.Loading }, children: undefined }]);
+		sut.updateTarget(target, [plugin]);
+		assert.deepStrictEqual(operations, ['subscribe:other-logs://tenant/declared/info']);
+	});
+
 	test('MCP diagnostics without advertised logs retain state-only output', async () => {
 		const { sut, session, target, operations, records } = createMcpLogsSut(LogLevel.Debug);
 		target.customizations = [mcpServer('first', 'first')];

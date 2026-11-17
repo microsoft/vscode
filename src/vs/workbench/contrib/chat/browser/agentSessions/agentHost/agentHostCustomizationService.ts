@@ -17,7 +17,7 @@ import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, Mutabl
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey, IPermissionsValue } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readMcpServerLogsChannelTemplate } from '../../../../../../platform/agentHost/common/otlp/mcpServerLogsChannel.js';
-import { iterateOtlpLogRecords, logLevelToOtlpLevelName, severityNumberToLogLevel } from '../../../../../../platform/agentHost/common/otlp/otlpLogEmitter.js';
+import { iterateOtlpLogRecords, logLevelToOtlpLevelName, severityNumberToLogLevel, type IOtlpLogRecord } from '../../../../../../platform/agentHost/common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentProvider, type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
@@ -490,7 +490,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return;
 		}
 		this._mcpDiagnosticSessions.add(sessionResource);
-		this._mcpLogRegistry.retainForSession(sessionResource, servers.map(({ server }) => server.id));
+		// Containers republish without children while loading; only retire entries once the snapshot settles.
+		const settled = target.customizations.every(customization => customization.type === CustomizationType.McpServer
+			|| customization.children !== undefined && customization.load?.kind !== CustomizationLoadStatus.Loading);
+		if (settled) {
+			this._mcpLogRegistry.retainForSession(sessionResource, servers.map(({ server }) => server.id));
+		}
 		for (const { server, plugin } of servers) {
 			this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)), state: server.state, connection: target.connection, logsTemplate: readMcpServerLogsChannelTemplate(server._meta) });
 		}
@@ -1377,6 +1382,8 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 
 	private readonly _entries = new Map<string, IMcpServerLogEntry>();
 	private readonly _bySession = new Map<string, Set<string>>();
+	/** Log channel subscriptions shared by entries for the same server, per connection and channel. */
+	private readonly _channelSubscriptions = new Map<IAgentConnection, Map<string, { refs: number; readonly subscribed: Promise<void> }>>();
 
 	constructor(
 		@ILoggerService private readonly _loggerService: ILoggerService,
@@ -1435,7 +1442,7 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 					for (const record of iterateOtlpLogRecords(params.payload)) {
 						const level = severityNumberToLogLevel(record.severityNumber);
 						if (canLog(currentEntry.logger.getLevel(), level)) {
-							log(currentEntry.logger, level, record.body);
+							log(currentEntry.logger, level, formatMcpServerLogRecord(record));
 						}
 					}
 				}));
@@ -1483,20 +1490,55 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 		const store = new DisposableStore();
 		entry.subscription.value = store;
 		entry.channel = channel.toString();
+		const subscription = this._acquireChannel(connection, channel);
 		store.add(toDisposable(() => {
 			entry.channel = undefined;
-			try {
-				connection.unsubscribe?.(channel);
-			} catch {
-				// Unsubscribing after disconnection is best-effort.
-			}
+			subscription.dispose();
 		}));
-		connection.subscribeStateless(channel).catch(error => {
+		subscription.subscribed.catch(error => {
 			if (entry.subscription.value === store) {
 				entry.subscription.clear();
 				entry.logger.warn(localize('agentHost.mcpServer.logsSubscriptionFailed', "Failed to subscribe to server diagnostics: {0}", getErrorMessage(error)));
 			}
 		});
+	}
+
+	private _acquireChannel(connection: IAgentConnection, channel: URI): { readonly subscribed: Promise<void>; dispose(): void } {
+		const key = channel.toString();
+		let byChannel = this._channelSubscriptions.get(connection);
+		if (!byChannel) {
+			byChannel = new Map();
+			this._channelSubscriptions.set(connection, byChannel);
+		}
+		let shared = byChannel.get(key);
+		if (!shared) {
+			shared = { refs: 0, subscribed: connection.subscribeStateless?.(channel) ?? Promise.resolve() };
+			byChannel.set(key, shared);
+		}
+		shared.refs++;
+		const acquired = shared;
+		let disposed = false;
+		return {
+			subscribed: acquired.subscribed,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				if (--acquired.refs > 0) {
+					return;
+				}
+				byChannel.delete(key);
+				if (!byChannel.size) {
+					this._channelSubscriptions.delete(connection);
+				}
+				try {
+					connection.unsubscribe?.(channel);
+				} catch {
+					// Unsubscribing after disconnection is best-effort.
+				}
+			},
+		};
 	}
 
 	async show(channelId: string, beforeShow?: () => Promise<void>): Promise<void> {
@@ -1539,6 +1581,15 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 			this._entries.delete(channelId);
 		}
 	}
+}
+
+/**
+ * Renders a diagnostic record for an Output channel. Subscriptions replay retained history,
+ * so records that are not current keep their original time ahead of the logger's own timestamp.
+ */
+function formatMcpServerLogRecord(record: IOtlpLogRecord): string {
+	const timestamp = record.timeUnixNano.length > 6 ? Number(record.timeUnixNano.slice(0, -6)) : NaN;
+	return Number.isFinite(timestamp) && Date.now() - timestamp > 1000 ? `[${new Date(timestamp).toISOString()}] ${record.body}` : record.body;
 }
 
 /**
