@@ -8,8 +8,10 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
@@ -60,6 +62,11 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
 
 	private readonly STORAGE_KEY = `agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu`;
+	/**
+	 * Sort order explicitly selected in the sessions filter menu. It takes
+	 * precedence over the {@link ChatConfiguration.ChatViewSessionsDefaultSortOrder}
+	 * setting, which only provides the default.
+	 */
 	private readonly SORTING_STORAGE_KEY = `agentSessions.sorting`;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -70,7 +77,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private excludes = DEFAULT_EXCLUDES;
 	private isStoringExcludes = false;
-	private currentSorting: AgentSessionsSorting = AgentSessionsSorting.Created;
+	private currentSorting: AgentSessionsSorting;
 
 	private readonly actionDisposables = this._register(new DisposableStore());
 
@@ -78,10 +85,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
-		this.restoreSorting();
+		this.currentSorting = this.getPreferredSorting();
 		this.updateExcludes(false);
 
 		this.registerListeners();
@@ -92,6 +100,12 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatViewSessionsDefaultSortOrder)) {
+				this.updateSorting(this.getPreferredSorting());
+			}
+		}));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
@@ -132,22 +146,41 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 	}
 
-	private restoreSorting(): void {
-		const storedSorting = this.storageService.get(this.SORTING_STORAGE_KEY, StorageScope.PROFILE);
-		if (storedSorting && Object.values(AgentSessionsSorting).includes(storedSorting as AgentSessionsSorting)) {
-			this.currentSorting = storedSorting as AgentSessionsSorting;
+	private getPreferredSorting(): AgentSessionsSorting {
+		const storedSorting = this.getStoredSorting();
+		if (storedSorting) {
+			return storedSorting;
 		}
+
+		return this.configurationService.getValue<string>(ChatConfiguration.ChatViewSessionsDefaultSortOrder) === AgentSessionsSorting.Updated ?
+			AgentSessionsSorting.Updated :
+			AgentSessionsSorting.Created;
 	}
 
-	setSorting(sorting: AgentSessionsSorting): void {
-		if (this.currentSorting === sorting) {
+	private getStoredSorting(): AgentSessionsSorting | undefined {
+		const storedSorting = this.storageService.get(this.SORTING_STORAGE_KEY, StorageScope.PROFILE);
+
+		return storedSorting === AgentSessionsSorting.Created || storedSorting === AgentSessionsSorting.Updated ?
+			storedSorting :
+			undefined;
+	}
+
+	private updateSorting(sorting: AgentSessionsSorting, forceUpdate = false): void {
+		if (this.currentSorting === sorting && !forceUpdate) {
 			return;
 		}
 
 		this.currentSorting = sorting;
-		this.storageService.store(this.SORTING_STORAGE_KEY, sorting, StorageScope.PROFILE, StorageTarget.USER);
 		this.updateFilterActions();
 		this._onDidChange.fire();
+	}
+
+	setSorting(sorting: AgentSessionsSorting): void {
+		// the selection is remembered even when it matches the default, so the
+		// setting no longer overrides it
+		const hasStoredSorting = this.getStoredSorting() !== undefined;
+		this.storageService.store(this.SORTING_STORAGE_KEY, sorting, StorageScope.PROFILE, StorageTarget.USER);
+		this.updateSorting(sorting, !hasStoredSorting);
 	}
 
 	private updateFilterActions(): void {
@@ -392,7 +425,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	isDefault(): boolean {
-		return equals(this.excludes, DEFAULT_EXCLUDES) && this.currentSorting === AgentSessionsSorting.Created;
+		return equals(this.excludes, DEFAULT_EXCLUDES) && this.getStoredSorting() === undefined;
 	}
 
 	getExcludes(): IAgentSessionsFilterExcludes {
@@ -434,8 +467,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	reset(): void {
 		this.storeExcludes({ ...DEFAULT_EXCLUDES });
-		if (this.currentSorting !== AgentSessionsSorting.Created) {
-			this.setSorting(AgentSessionsSorting.Created);
-		}
+
+		// dropping the selected sorting makes the configured one apply again
+		const hasStoredSorting = this.getStoredSorting() !== undefined;
+		this.storageService.remove(this.SORTING_STORAGE_KEY, StorageScope.PROFILE);
+		this.updateSorting(this.getPreferredSorting(), hasStoredSorting);
 	}
 }
