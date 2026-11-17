@@ -444,7 +444,12 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 			templateData.description.style.display = 'none';
 		}
 
-		templateData.container.classList.toggle('disabled', element.item.enabled === false);
+		// Organization-managed plugins should not appear grayed out. For team defaults,
+		// the persisted install flag is false, but the organization control indicates
+		// it's managed and should be shown normally. Only gray out if it's truly disabled
+		// and not organization-managed.
+		const isOrganizationManaged = !!element.item.organizationControl;
+		templateData.container.classList.toggle('disabled', element.item.enabled === false && !isOrganizationManaged);
 		templateData.metadata.textContent = localize('sessionPluginMetadata', "Agent host");
 		renderRemotePluginStatusIcon(templateData.statusIcon, element.item, this._hoverService, templateData.disposables);
 		DOM.clearNode(templateData.actions);
