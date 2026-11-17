@@ -364,11 +364,11 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		const resetFilters = optionalBoolean(operation, 'resetFilters');
 		const filters = this.readFilters(operation, list);
 
-		if (resetFilters) {
-			view.resetFilters();
-		}
 		if (grouping !== undefined) {
 			view.setGrouping(grouping);
+		}
+		if (resetFilters) {
+			view.resetFilters();
 		}
 		if (sorting !== undefined) {
 			view.setSorting(sorting);

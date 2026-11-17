@@ -81,6 +81,7 @@ import { ChatConfiguration } from '../../../chat/common/constants.js';
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
+const NON_INBOX_GROUPING_STORAGE_KEY = 'sessionsViewPane.nonInboxGrouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
@@ -281,7 +282,7 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 
 	/**
 	 * The groupings it offers, and the one it shows until one of them is chosen, such as when the chosen one is not offered;
-	 * by default, {@link DEFAULT_SESSIONS_GROUPINGS}, and without a `default`, Inbox or Workspace as the Inbox setting says.
+	 * by default, {@link DEFAULT_SESSIONS_GROUPINGS}, and without a `default`, Workspace.
 	 */
 	readonly groupings?: { readonly offered: readonly SessionsGrouping[]; readonly default?: SessionsGrouping };
 
@@ -376,7 +377,7 @@ export class SessionsView extends ViewPane {
 		// Restore persisted grouping
 		this.groupings = options.groupings;
 		this.quickChatsInTimeGrouping = !!options.quickChatsInTimeGrouping;
-		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.offeredGroupings);
+		this.restoreGrouping();
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -391,10 +392,8 @@ export class SessionsView extends ViewPane {
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING) && this.currentGrouping === undefined) {
-				this.groupingContextKey?.set(this.grouping);
-				this.sessionsControl?.update(true);
-				this.updateHeaderLayout();
+			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
+				this.updateInboxAvailability();
 			}
 		}));
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
@@ -659,7 +658,8 @@ export class SessionsView extends ViewPane {
 		}));
 
 		if (filterChipsContainer) {
-			const chips = this._register(new MobileSessionFilterChips(filterChipsContainer));
+			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+			const chips = this._register(scopedInstantiationService.createInstance(MobileSessionFilterChips, filterChipsContainer));
 			this._register(chips.onDidRequestSortGroup(() => {
 				this.openSortGroupSheet();
 			}));
@@ -1299,35 +1299,52 @@ export class SessionsView extends ViewPane {
 				group: 'group',
 			},
 		];
-		if (!this.chatEntitlementService.sentiment.hidden) {
-			items.push({
-				id: SessionsGrouping.Inbox,
-				label: localize('inboxMode', "Inbox Mode"),
-				checked: this.grouping === SessionsGrouping.Inbox,
-				group: 'group',
-			});
-		}
-
 		showMobileSortGroupSheet(this.layoutService.mainContainer, localize('sortGroupSheet.title', "Sort"), items).then(selectedId => {
 			if (!selectedId) {
 				return;
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
-			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date || selectedId === SessionsGrouping.Inbox) {
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		}).catch(onUnexpectedError);
 	}
 
 	get grouping(): SessionsGrouping {
-		return this.currentGrouping ?? this.groupings?.default ?? (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
-			? SessionsGrouping.Inbox
-			: SessionsGrouping.Workspace);
+		return this.currentGrouping ?? this.groupings?.default ?? SessionsGrouping.Workspace;
 	}
 
 	private get offeredGroupings(): readonly SessionsGrouping[] {
 		return this.groupings?.offered ?? DEFAULT_SESSIONS_GROUPINGS;
+	}
+
+	private get nonInboxGrouping(): SessionsGrouping {
+		return getStoredSessionsGrouping(this.storageService.get(NON_INBOX_GROUPING_STORAGE_KEY, StorageScope.PROFILE),
+			this.offeredGroupings.filter(grouping => grouping !== SessionsGrouping.Inbox)) ?? this.groupings?.default ?? SessionsGrouping.Workspace;
+	}
+
+	private restoreGrouping(): void {
+		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.offeredGroupings);
+		this.updateInboxAvailability();
+	}
+
+	private updateInboxAvailability(): void {
+		if (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
+			return;
+		}
+		const activeElement = DOM.getActiveElement();
+		const restoreFocus = DOM.isHTMLElement(activeElement) && activeElement.classList.contains('codicon-inbox') && this.element?.contains(activeElement);
+		if (this.grouping === SessionsGrouping.Inbox) {
+			this.setGrouping(this.nonInboxGrouping);
+		}
+		if (restoreFocus) {
+			this.focus();
+		}
+	}
+
+	toggleInbox(): void {
+		this.setGrouping(this.grouping === SessionsGrouping.Inbox ? this.nonInboxGrouping : SessionsGrouping.Inbox);
 	}
 
 	get sorting(): SessionsSorting {
@@ -1339,11 +1356,21 @@ export class SessionsView extends ViewPane {
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {
-		if (this.currentGrouping === grouping || !this.offeredGroupings.includes(grouping)) {
+		if (!this.offeredGroupings.includes(grouping)) {
+			return;
+		}
+		if (grouping === SessionsGrouping.Inbox && (!this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
+			|| this.configurationService.getValue<boolean>('chat.disableAIFeatures') || this.chatEntitlementService.sentiment.hidden)) {
+			throw new Error(localize('inboxUnavailable', "Enable {0} and AI features to use Inbox Mode.", SESSIONS_LIST_INBOX_ENABLED_SETTING));
+		}
+		if (this.currentGrouping === grouping) {
 			return;
 		}
 
 		const preserveCollapseState = this.grouping === SessionsGrouping.Inbox || grouping === SessionsGrouping.Inbox;
+		if (this.grouping !== SessionsGrouping.Inbox) {
+			this.storageService.store(NON_INBOX_GROUPING_STORAGE_KEY, this.grouping, StorageScope.PROFILE, StorageTarget.USER);
+		}
 		this.currentGrouping = grouping;
 		this.storageService.store(GROUPING_STORAGE_KEY, this.currentGrouping, StorageScope.PROFILE, StorageTarget.USER);
 		this.groupingContextKey?.set(this.currentGrouping);

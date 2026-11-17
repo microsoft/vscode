@@ -19,6 +19,7 @@ export function getNewSessionRepositoryConfigGroup(order: number, actionId: stri
  */
 export const Menus = {
 	MobileSessionsDrawerHeader: new MenuId('SessionsMobileSessionsDrawerHeader'),
+	MobileSessionsListActions: new MenuId('SessionsMobileSessionsListActions'),
 	NewSessionPlace: new MenuId('SessionsNewSessionPlace'),
 	CommandCenterSessionsHeader: new MenuId('SessionsCommandCenterSessionsHeader'),
 	CommandCenterSessionsItem: new MenuId('SessionsCommandCenterSessionsItem'),
