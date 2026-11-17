@@ -166,6 +166,7 @@
 }
 
 .remotes-widget .remotes-name,
+.remotes-widget .remotes-name-detail,
 .remotes-widget .remotes-empty-description,
 .remotes-widget .remotes-connection-text {
 	min-width: 0;
@@ -199,7 +200,8 @@
 	gap: var(--vscode-spacing-size60);
 }
 
-.remotes-widget .remotes-empty-description {
+.remotes-widget .remotes-empty-description,
+.remotes-widget .remotes-name-detail {
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -266,12 +268,12 @@
 	pointer-events: auto;
 }
 
-.remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name {
+.remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) :is(.remotes-name, .remotes-name-detail) {
 	opacity: 0.55;
 }
 
-.hc-black .remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name,
-.hc-light .remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) .remotes-name {
+.hc-black .remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) :is(.remotes-name, .remotes-name-detail),
+.hc-light .remotes-widget :is(.remotes-row-hidden, .remotes-row-picker-unavailable) :is(.remotes-name, .remotes-name-detail) {
 	opacity: 1;
 }
 
@@ -317,6 +319,7 @@
 .remotes-widget .remotes-connection-icon[hidden],
 .remotes-widget .remotes-connection-warning[hidden],
 .remotes-widget .remotes-empty-description[hidden],
+.remotes-widget .remotes-name-detail[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {
 	display: none;
 }

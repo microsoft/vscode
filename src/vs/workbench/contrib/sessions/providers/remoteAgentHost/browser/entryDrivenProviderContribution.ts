@@ -47,6 +47,8 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 
 	protected readonly _providerStores = this._register(new DisposableMap<string, DisposableStore>());
 	protected readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
+	/** The entry kind each provider was created for, since provider options derive from it. */
+	private readonly _providerEntryTypes = new Map<string, RemoteAgentHostEntryType>();
 	private readonly _wiredAddresses = new Set<string>();
 
 	constructor(
@@ -90,17 +92,23 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 		for (const [address] of this._providerStores) {
 			if (!desiredAddresses.has(address)) {
 				this._providerStores.deleteAndDispose(address);
+				this._providerEntryTypes.delete(address);
 			}
 		}
 
 		for (const entry of entries) {
 			const address = getEntryAddress(entry);
 			const existing = this._providerInstances.get(address);
-			if (existing && existing.defaultLabel !== (entry.name || address)) {
+			const existingType = this._providerEntryTypes.get(address);
+			if (existing && existingType !== undefined && existingType !== entry.connection.type) {
+				// Another kind now supplies this address, so the provider must not keep the previous kind's options.
+				this._providerStores.deleteAndDispose(address);
+			} else if (existing && existing.defaultLabel !== (entry.name || address)) {
 				this._updateProviderName(address, existing, entry.name);
 			}
 			if (!this._providerStores.has(address)) {
 				this._createProvider(address, entry.name, this._getProviderOptions(entry));
+				this._providerEntryTypes.set(address, entry.connection.type);
 			}
 		}
 	}

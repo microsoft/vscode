@@ -96,7 +96,8 @@ export function agentHostSessionWorkspaceKey(workspace: ISessionWorkspace | unde
 			String(repo?.uncommittedChanges ?? ''),
 		].join('\u0001');
 	});
-	return [workspace.label, ...folderKeys].join('\n');
+	// Working directories can arrive equal to a project the session had without them, which changes only whether it requires trust.
+	return [workspace.label, String(workspace.requiresWorkspaceTrust), ...folderKeys].join('\n');
 }
 
 /** Resolves the GitHub info a session folder reports, by working directory. */
@@ -276,7 +277,9 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 				description: options.description,
 				gitRepository: { uri: project.uri, workTreeUri, isRepository: constObservable(true), gitHubInfo, ...gitFields },
 			}, ...additionalFolders],
-			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
+			// Trust covers the folders the agent works in. Without working directories, the folder is the
+			// project the host reports, such as a repository URL, which gives the agent no access to anything.
+			requiresWorkspaceTrust: options.requiresWorkspaceTrust && primary !== undefined,
 			isVirtualWorkspace: false,
 			typeIcon: options.typeIcon,
 		};

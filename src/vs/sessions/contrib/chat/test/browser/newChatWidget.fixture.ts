@@ -20,6 +20,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IExtensionRemoteAgentHostsService } from '../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -550,6 +551,9 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
 				override readonly enabled = false;
 				override readonly accountKey = undefined;
+				override readonly hosts = constObservable([]);
+			}());
+			reg.defineInstance(IExtensionRemoteAgentHostsService, new class extends mock<IExtensionRemoteAgentHostsService>() {
 				override readonly hosts = constObservable([]);
 			}());
 			if (petEnabled) {
