@@ -283,10 +283,6 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.onDidAction ?? Event.None;
 	}
 
-	get connectionAvailable(): IObservable<boolean> {
-		return this._protocolClient?.connectionAvailable ?? constObservable(false);
-	}
-
 	get onDidReceiveOtlpLogs(): Event<OtlpExportLogsParams> {
 		return this._protocolClient?.onDidReceiveOtlpLogs ?? Event.None;
 	}
