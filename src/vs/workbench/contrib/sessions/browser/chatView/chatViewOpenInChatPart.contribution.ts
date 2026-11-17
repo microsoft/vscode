@@ -74,7 +74,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IEditorWindowChatPartService chatPartService: IEditorWindowChatPartService,
+		@IEditorWindowChatPartService private readonly _chatPartService: IEditorWindowChatPartService,
 		@IEditorWindowSessionsRuntime sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
@@ -97,14 +97,14 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		const availableKeys = new Set(available.keys());
 		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
 		const enabled = derived(this, reader => openInChatPart.read(reader) && orientation.read(reader) !== 'stacked' && chatAvailable.read(reader));
-		this._register(chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
+		this._register(this._chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
 		// As it turns on or off while the window runs, the chat that the Chat view or the chat part shows moves to the other,
 		// not as the window starts, which restores each
 		let started = false;
 		let handovers = 0;
-		const handOver = (handover: ChatHandover) => {
+		const handOver = (handover: ChatHandover, fromChatPart = false) => {
 			const handoverId = ++handovers;
-			this._handOver(handover, () => handoverId === handovers && !this._store.isDisposed).catch(onUnexpectedError);
+			this._handOver(handover, () => handoverId === handovers && !this._store.isDisposed, fromChatPart).catch(onUnexpectedError);
 		};
 		// The sessions that the chat part shows are known while the Chat view lists them
 		this._register(autorun(reader => {
@@ -118,7 +118,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 				reader.store.add(toDisposable(() => {
 					if (!this._store.isDisposed && this._contextKeyService.contextMatchesRules(available)) {
 						const fromChatPart = this._takeFromChatPart();
-						queueMicrotask(() => handOver(fromChatPart));
+						queueMicrotask(() => handOver(fromChatPart, true));
 					}
 				}));
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
@@ -165,16 +165,21 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	}
 
 	/**
-	 * Shows what `handover` took in the host in use now: its session, unless it shows it already, else a new chat, with the
-	 * input it took, which leaves its source only once the new chat holds it. A later handover supersedes it.
+	 * Shows what `handover` took in the host in use now: its session, unless it shows it already, which a session taken from
+	 * the chat part then leaves, else a new chat, with the input it took, which leaves its source only once the new chat holds
+	 * it. A later handover supersedes it.
 	 */
-	private async _handOver(handover: ChatHandover, isCurrent: () => boolean): Promise<void> {
+	private async _handOver(handover: ChatHandover, isCurrent: () => boolean, fromChatPart: boolean): Promise<void> {
 		if (handover.kind === 'stay') {
 			return;
 		}
 		if (handover.kind === 'session') {
 			if (!isEqual(this._chatViewHostService.shownSession.get()?.resource, handover.resource)) {
 				await this._chatViewHostService.openSession(handover.resource, { preserveFocus: true });
+			}
+			// The chat part keeps its other chats, for as it turns on again, but not the one the Chat view shows now
+			if (fromChatPart && isCurrent()) {
+				await this._chatPartService.closeChat(handover.resource);
 			}
 			return;
 		}

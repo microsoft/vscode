@@ -88,8 +88,10 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: options.remote ? 'remote' : undefined, isSessionsWindow: !!options.sessionsWindow }));
+		const handovers: string[] = [];
 		instantiationService.stub(IEditorWindowChatPartService, upcastPartial<IEditorWindowChatPartService>({
 			enable: (o: IEditorWindowChatPartOptions): IDisposable => { chatPartOptions.push(o); return toDisposable(() => { }); },
+			closeChat: async resource => { handovers.push(`part closes ${resource.path}`); },
 		}));
 		instantiationService.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({
 			enable: (o: IEditorWindowSessionsRuntimeOptions): IDisposable => { runtimeOptions.push(o); runtimeHeld++; return toDisposable(() => runtimeHeld--); },
@@ -100,7 +102,6 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		// The Chat view and, while it is registered, the chat part's host, each with the chat it shows and their chat widgets
 		const shown = { view: observableValue<URI | undefined>('view', options.chatViewShows), part: observableValue<URI | undefined>('part', undefined) };
 		const hostInUse = () => registrations.get() > 0 ? 'part' : 'view';
-		const handovers: string[] = [];
 		const widgets = new Map<string, FakeChatWidget>();
 		const widgetOf = (resource: URI | undefined) => (resource && widgets.get(resource.toString())) as IChatWidget | undefined;
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: resource => widgetOf(resource) }));
@@ -432,7 +433,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
 		const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file-a' });
 
-		test('a session moves from the Chat view to the chat part as it turns on, and the chat part\'s active one back as it turns off', async () => {
+		test('a session moves from the Chat view to the chat part as it turns on, and the chat part\'s active one back as it turns off, which the chat part then no longer keeps', async () => {
 			const { setSetting, handovers, shown } = setup({ chatViewShows: session });
 			await setSetting(true);
 			const onPart = shown.part.get()?.path;
@@ -440,7 +441,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			await setSetting(false);
 
 			assert.deepStrictEqual({ handovers, onPart, onView: shown.view.get()?.path }, {
-				handovers: ['part opens /session-a', 'view opens /session-b'],
+				handovers: ['part opens /session-a', 'view opens /session-b', 'part closes /session-b'],
 				onPart: '/session-a',
 				onView: '/session-b',
 			});
@@ -459,7 +460,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			assert.deepStrictEqual({ none: none.handovers, local: local.handovers, already: already.handovers }, {
 				none: ['part new chat'],
 				local: [],
-				already: [],
+				already: ['part closes /session-a'],
 			});
 		});
 

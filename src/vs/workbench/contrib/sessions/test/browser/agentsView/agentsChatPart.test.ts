@@ -785,6 +785,16 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
+	test('closing its last chat while it is hidden, such as as that chat moves to the Chat view, leaves it hidden and empty', async () => {
+		const { service, layout, hide } = createService();
+		await service.openChat(session, chatA);
+		hide();
+		await service.closeChat(chatA);
+		await timeout(0);
+
+		assert.deepStrictEqual(layout(), { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false });
+	});
+
 	for (const chatTabs of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
 		test(`closes as an editor group does (${chatTabs}): closing the chat it shows shows the one opened before it, closing the last chat shows a new-session composer, and closing that closes the chat part`, async () => {
 			const { service, part, layout } = createService({ chatTabs });

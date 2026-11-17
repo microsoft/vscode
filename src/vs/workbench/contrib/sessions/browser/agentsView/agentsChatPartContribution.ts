@@ -6,6 +6,7 @@
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -65,6 +66,9 @@ export interface IEditorWindowChatPartService {
 	 * workbench creates its grid. Features that enable it together share the one chat part.
 	 */
 	enable(options: IEditorWindowChatPartOptions): IDisposable;
+
+	/** Closes the tab of `chatResource` in the chat part, where it has one; creates nothing where it has no chats yet. */
+	closeChat(chatResource: URI): Promise<void>;
 }
 
 export class EditorWindowChatPartService extends Disposable implements IEditorWindowChatPartService {
@@ -105,6 +109,12 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 				this._updateAnchor();
 			}
 		});
+	}
+
+	async closeChat(chatResource: URI): Promise<void> {
+		if (this._frame.contentCreated.get()) {
+			await this._frame.content.get()?.closeChat(chatResource);
+		}
 	}
 
 	private _updateAnchor(): void {

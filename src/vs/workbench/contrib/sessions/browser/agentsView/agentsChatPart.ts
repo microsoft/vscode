@@ -744,10 +744,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 	/**
 	 * Closing a chat shows the chat opened before it, as an editor group does; closing the last chat shows a new-session
-	 * composer, as a new session, and closing that closes the chat part.
+	 * composer, as a new session, and closing that closes the chat part. Closing its last chat while it is hidden leaves it
+	 * hidden and empty.
 	 */
 	private _didCloseTab(closedChat: boolean): void {
-		if (closedChat && !this._closingAll && !this._lifecycleService.willShutdown && this._part?.groups.every(group => group.isEmpty)) {
+		// Not while it is hidden, such as as its chat moves to the Chat view: that would show it
+		if (closedChat && !this._closingAll && !this._lifecycleService.willShutdown && this._layoutService.isVisible(Parts.CHAT_PART) && this._part?.groups.every(group => group.isEmpty)) {
 			this.openComposer(getEditorWindowComposerTarget(this._workspaceContextService, this._editorService)).catch(onUnexpectedError);
 			return;
 		}
