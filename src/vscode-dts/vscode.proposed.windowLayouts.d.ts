@@ -58,7 +58,8 @@ declare module 'vscode' {
 		 * Switches back to {@link WindowLayoutSwitch.previousLayout previous layout}.
 		 *
 		 * Restoring only switches the layout while the layout the extension switched to
-		 * is still active, so that it does not undo a later switch of the user.
+		 * is still active, so that it does not undo a later switch of the user. If that
+		 * layout was already active before the switch, there is nothing to restore.
 		 *
 		 * @returns A promise that resolves to `true` if the previous layout was restored.
 		 */

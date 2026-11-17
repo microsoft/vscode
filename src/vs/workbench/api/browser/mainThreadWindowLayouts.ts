@@ -67,7 +67,9 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 		await this.namedLayoutsService.switchLayout(layout);
 
 		const token = this.nextToken++;
-		if (this.namedLayoutsService.activeLayout.id === layout.id) {
+		// Switching to the active layout changes nothing that could be restored, and fires
+		// no event that clears the map, so such switches are not stored
+		if (previousLayout.id !== layout.id && this.namedLayoutsService.activeLayout.id === layout.id) {
 			this.restorableSwitches.set(token, { previousLayoutId: previousLayout.id, layoutId: layout.id });
 		}
 
