@@ -66,6 +66,7 @@ import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolve
 import { toCopilotMessageSource } from './copilotMessageSource.js';
 import type { AgentMessageProvenance } from '../../common/agentMessageProvenance.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
+import { CopilotProjectExtensionLaunchPolicy, ICopilotProjectExtensionTrustChange } from './copilotProjectExtensionLaunchPolicy.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
 import { buildCopilotBuiltinSkillsContainer } from './copilotBuiltinSkills.js';
 import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -1491,12 +1492,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _forgetCanvasContinuityAfterSettlement = new Set<string>();
 	private readonly _canvasWatches = new ResourceMap<IAgentChatCanvasWatchHost>();
 	private readonly _canvasRestores = new ResourceMap<Promise<void>>();
-	/**
-	 * Canonical filesystem roots with active project-extension launch admission.
-	 * The value is the number of live admissions for the root, so disposing one
-	 * session cannot revoke a root that another session still admits.
-	 */
-	private readonly _extensionLaunchRoots = new Map<string, number>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
 
 	/** Exact chat -> its owner as the host context recorded it (read at use), for fork/restore paths that only know the chat URI. */
@@ -1579,6 +1574,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _isShuttingDown = false;
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
+	private readonly _projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+	/** Reconciles live sessions with workspace trust; changes arriving while it runs coalesce into one more pass. */
+	private readonly _projectExtensionTrustReconciler = this._register(new Throttler());
+	private _pendingProjectExtensionTrustChange: ICopilotProjectExtensionTrustChange | undefined;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
 	private readonly _secondaryAssignmentContext: CopilotSecondaryAssignmentContext;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
@@ -1668,6 +1667,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._projectExtensionLaunchPolicy = new CopilotProjectExtensionLaunchPolicy(this._configurationService, this._logService);
 		this._sandboxCertificate = this._instantiationService.createInstance(CopilotSandboxCertificate);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
 			() => this._ensureClient(),
@@ -1754,6 +1754,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// startup changes, disposing any active sessions. These values are applied in
 		// `_ensureClient`, so they only take effect on the next client start.
 		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const trustChange = this._projectExtensionLaunchPolicy.updateTrust();
+			if (trustChange) {
+				this._scheduleProjectExtensionTrustReconciliation(trustChange);
+			}
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to apply root config change', err)
 			);
@@ -2675,59 +2679,51 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return new CopilotClient(options);
 	}
 
-	private async _acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable> {
-		const roots: string[] = [];
-		for (const directory of directories) {
-			if (directory.scheme !== Schemas.file) {
-				continue;
-			}
-			try {
-				roots.push(await fs.realpath(directory.fsPath));
-			} catch (error) {
-				this._logService.warn(`[Copilot] Failed to canonicalize extension launch root '${directory.fsPath}': ${getErrorMessage(error)}`);
-			}
-		}
-		for (const root of roots) {
-			this._extensionLaunchRoots.set(root, (this._extensionLaunchRoots.get(root) ?? 0) + 1);
-		}
-		return toDisposable(() => {
-			for (const root of roots) {
-				const count = this._extensionLaunchRoots.get(root);
-				if (count === undefined || count <= 1) {
-					this._extensionLaunchRoots.delete(root);
-				} else {
-					this._extensionLaunchRoots.set(root, count - 1);
-				}
-			}
-		});
+	private _scheduleProjectExtensionTrustReconciliation(change: ICopilotProjectExtensionTrustChange): void {
+		const pending = this._pendingProjectExtensionTrustChange;
+		this._pendingProjectExtensionTrustChange = {
+			expanded: change.expanded || pending?.expanded === true,
+			contracted: change.contracted || pending?.contracted === true,
+		};
+		// While a pass runs, the throttler keeps only the latest queued pass, which takes every change accumulated meanwhile.
+		void this._projectExtensionTrustReconciler.queue(() => this._reconcilePendingProjectExtensionTrustChange())
+			.catch(error => this._logService.error('[Copilot] Failed to reconcile project extensions after workspace trust changed', error));
 	}
 
-	private async _resolveExtensionLaunch(modulePath: string, source: 'project' | 'user' | 'plugin' | 'session', extensionBootstrapPath: string) {
-		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs' || source === 'session') {
-			return {};
+	/** Applies every trust change accumulated since the previous pass. */
+	private async _reconcilePendingProjectExtensionTrustChange(): Promise<void> {
+		const accumulated = this._pendingProjectExtensionTrustChange;
+		this._pendingProjectExtensionTrustChange = undefined;
+		if (accumulated) {
+			await this._reconcileProjectExtensionsAfterTrustChange(accumulated);
 		}
-		if (source === 'project') {
-			let canonicalModulePath: string;
-			try {
-				canonicalModulePath = await fs.realpath(modulePath);
-			} catch {
-				return {};
-			}
-			if (resourceBasename(URI.file(canonicalModulePath)) !== 'extension.mjs'
-				|| ![...this._extensionLaunchRoots.keys()].some(root => isEqualOrParent(URI.file(canonicalModulePath), URI.file(root)))) {
-				return {};
-			}
+	}
+
+	private async _reconcileProjectExtensionsAfterTrustChange(change: ICopilotProjectExtensionTrustChange): Promise<void> {
+		const reconciliation = await this._projectExtensionLaunchPolicy.reconciliationFor(change);
+		if (!reconciliation.expanded && reconciliation.revokedExtensionNames.size === 0) {
+			return;
 		}
-		return {
-			launch: {
-				executable: process.execPath,
-				args: [extensionBootstrapPath],
-				env: {
-					EXTENSION_PATH: modulePath,
-					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-				},
-			},
-		};
+		await Promise.all(this._allLiveSessions()
+			.filter(session => session.canvasRuntimeEnabled)
+			.map(async session => {
+				try {
+					await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
+				} catch (error) {
+					this._logService.error(`[Copilot:${session.sessionId}] Failed to reconcile project extensions after workspace trust changed`, error);
+				}
+			}));
+	}
+
+	protected _acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession) {
+		// The host allocates each workspace-less chat its own scratch folder directly under the chats root: the default
+		// chat's is named after its session, any other chat's is not. Only that exact folder is exempt from workspace trust.
+		const scratchFolder = session.workspacelessFolder;
+		return this._projectExtensionLaunchPolicy.acquireAdmission(
+			session.extensionLaunchDirectories,
+			scratchFolder ? { folder: scratchFolder, root: workspacelessChatsRoot(this._environmentService.userHome) } : undefined,
+			session.createdWorktree,
+		);
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -5272,7 +5268,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				logLevel: copilotSdkLogLevelAtStartup,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
-						resolve: request => this._resolveExtensionLaunch(request.modulePath, request.source, extensionBootstrapPath),
+						resolve: request => this._projectExtensionLaunchPolicy.resolveLaunch(request.modulePath, request.source, extensionBootstrapPath),
 					},
 				} : {}),
 				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
@@ -11372,7 +11368,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session.dispose();
 			throw new CancellationError();
 		}
-		const extensionLaunchAdmission = await this._acquireExtensionLaunchAdmission(session.extensionLaunchDirectories);
+		const extensionLaunchAdmission = await this._acquireProjectExtensionLaunchAdmission(session);
 		if (this._isShuttingDown || token.isCancellationRequested) {
 			extensionLaunchAdmission.dispose();
 			session.dispose();
@@ -11388,8 +11384,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session.onDidChangeRuntimePlugins(() => { runtimePluginsChangedBeforeRegistration = true; }),
 			session.onDidReloadRuntimeContributions(() => { runtimeContributionsReloadedBeforeRegistration = true; }),
 		);
+		// Live-session reconciliation skips a session until it registers, so it catches up with any trust change itself.
+		let reconciledTrustState = extensionLaunchAdmission.trustState;
 		try {
 			await session.initializeSession(token);
+			const changeDuringInitialization = this._projectExtensionLaunchPolicy.trustChangeSince(reconciledTrustState);
+			if (session.canvasRuntimeEnabled && changeDuringInitialization) {
+				reconciledTrustState = this._projectExtensionLaunchPolicy.trustState;
+				const reconciliation = await this._projectExtensionLaunchPolicy.reconciliationFor(changeDuringInitialization);
+				// It throws only when a revocation fails: an extension that may run without trust fails the session.
+				await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
+			}
 			await beforeRegistration?.();
 			if (session.hasPendingConnectorRefresh) {
 				await session.refreshConnectors();
@@ -11400,6 +11405,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			runtimePluginsListener.dispose();
 			register();
+			const changeBeforeRegistration = this._projectExtensionLaunchPolicy.trustChangeSince(reconciledTrustState);
+			if (session.canvasRuntimeEnabled && changeBeforeRegistration) {
+				try {
+					await session.reconcileProjectExtensionsAfterTrustChange(await this._projectExtensionLaunchPolicy.reconciliationFor(changeBeforeRegistration));
+				} catch (error) {
+					this._logService.error(`[Copilot:${session.sessionId}] Failed to reconcile project extensions after registration`, error);
+				}
+			}
 		} finally {
 			runtimePluginsListener.dispose();
 			this._sessionsPendingRegistration.deleteAndLeak(session);
