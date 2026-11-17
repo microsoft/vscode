@@ -297,7 +297,8 @@
 	flex: 0 1 auto;
 }
 
-.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config {
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config > .action-label {
 	overflow: visible;
 }
 

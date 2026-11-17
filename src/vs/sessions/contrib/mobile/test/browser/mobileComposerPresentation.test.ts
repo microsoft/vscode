@@ -51,7 +51,7 @@ suite('Mobile composer presentation', () => {
 			const configurationItem = dom.append(actions, dom.$('li.action-item'));
 			const configurationSlot = dom.append(configurationItem, dom.$('.sessions-chat-picker-slot.sessions-chat-picker-slot-mobile-config'));
 			const configuration = dom.append(configurationSlot, dom.$('a.action-label', { role: 'button' }));
-			configuration.textContent = 'GPT-5.6';
+			dom.append(configuration, dom.$('span.chat-input-picker-label')).textContent = 'GPT-5.6';
 			item.style.display = 'none';
 			const hidden = submit.getBoundingClientRect().height;
 			item.style.display = '';
@@ -60,6 +60,9 @@ suite('Mobile composer presentation', () => {
 				touchInset: mainWindow.getComputedStyle(submit, '::after').top,
 			};
 			item.style.display = 'none';
+			const configurationBounds = configuration.getBoundingClientRect();
+			const x = configurationBounds.left + configurationBounds.width / 2;
+			const y = configurationBounds.top + configurationBounds.height / 2;
 			assert.deepStrictEqual({
 				hidden,
 				available,
@@ -67,12 +70,13 @@ suite('Mobile composer presentation', () => {
 				configuration: {
 					height: configuration.getBoundingClientRect().height,
 					touchInset: mainWindow.getComputedStyle(configuration, '::after').top,
+					touchHits: [-21.5, 21.5].map(offset => configuration.contains(mainWindow.document.elementFromPoint(x, y + offset))),
 				},
 			}, {
 				hidden: 0,
 				available: { height: 36, touchInset: '-4px' },
 				hiddenAgain: 0,
-				configuration: { height: 36, touchInset: '-4px' },
+				configuration: { height: 36, touchInset: '-4px', touchHits: [true, true] },
 			});
 		});
 

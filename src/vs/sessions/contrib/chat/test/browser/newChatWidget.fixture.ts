@@ -902,7 +902,9 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 	disposableStore.add(instantiationService.createInstance(SharedChatInputComposerContribution));
 	disposableStore.add(instantiationService.createInstance(ModelPickerToolbarsContribution));
 	menuService.addItem(Menus.NewSessionChatInputToolbar, { command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: 'Add Context...', icon: Codicon.addCompact }, group: 'navigation', order: -2 });
-	menuService.addItem(Menus.NewSessionChatInputToolbar, { command: { id: COMPOSER_SESSION_CONTROLS_ACTION_ID, title: 'Session Controls' }, group: 'navigation', order: 0 });
+	if (withControlPickers || mobileWorkbench) {
+		menuService.addItem(Menus.NewSessionChatInputToolbar, { command: { id: COMPOSER_SESSION_CONTROLS_ACTION_ID, title: 'Session Controls' }, group: 'navigation', order: 0 });
+	}
 	// The fixture menu service keeps insertion order.
 	if (withVoiceInputMode) {
 		menuService.addItem(MenuId.ChatExecute, { command: { id: ChatVoiceInputModeAction.ID, title: 'Voice Input Mode', icon: Codicon.micCompact }, group: 'navigation', order: -11 });
