@@ -37,7 +37,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
-import { ChatConfiguration, observeChatViewSessionsListEnabled, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../../chat/common/constants.js';
+import { ChatViewSessionsListService, IChatViewSessionsListService } from '../../../../chat/common/chatViewSessionsListService.js';
 import { ChatViewSessionsGate } from '../../../browser/chatView/chatViewSessionsList.contribution.js';
 import { ILocalChatAvailabilityService } from '../../../../chat/common/localChatAvailability.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
@@ -52,7 +53,7 @@ import { InSessionsViewContext, ISessionsViewLocator, SessionsView, SessionsView
 import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { SessionsListNotificationFocused } from '../../../browser/views/sessionsListNotification.js';
-import { ChatViewSessionsListAccessibilityHelp, trackChatViewSessionsListHelpHint } from '../../../browser/chatView/chatViewSessionsListAccessibilityHelp.js';
+import { ChatViewSessionsListAccessibilityHelp, ChatViewSessionsListHelpHint } from '../../../browser/chatView/chatViewSessionsListAccessibilityHelp.js';
 import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
@@ -129,6 +130,7 @@ suite('ChatViewSessionsGate', () => {
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
+		instantiationService.stub(IChatViewSessionsListService, new ChatViewSessionsListService(configurationService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority, isSessionsWindow: false })));
 		contextKeyService = new MockContextKeyService();
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
@@ -184,10 +186,11 @@ suite('ChatViewSessionsGate', () => {
 			}
 		}({ [ChatConfiguration.ChatViewSessionsListEnabled]: false });
 		const before = registered();
+		const environmentService = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false });
 		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
-		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({}), upcastPartial<IWorkbenchEnvironmentService>({})));
+		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({}), environmentService, new ChatViewSessionsListService(configurationService, environmentService)));
 
-		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: ['chat.sessionsView.enabled', ChatConfiguration.ChatViewSessionsListEnabled] });
+		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
 	});
 
 	test('gives the Chat view its sessions list, showing only the sessions while a host replaces it, hiding new local chats without changing their setting, holding the sessions providers, and the actions of the list only once it shows, while the setting is on', () => {
@@ -228,7 +231,7 @@ suite('ChatViewSessionsGate', () => {
 			onDidUpdateKeybindings: keybindingsChanged.event,
 		});
 		const descriptions: (string | undefined)[] = [];
-		const hint = trackChatViewSessionsListHelpHint({ setAriaDescription: description => descriptions.push(description) }, configuration, keybindingService);
+		const hint = new ChatViewSessionsListHelpHint({ setAriaDescription: description => descriptions.push(description) }, configuration, keybindingService);
 		const setVerbosity = (value: boolean) => {
 			configuration.setUserConfiguration(AccessibilityVerbositySettingId.Chat, value);
 			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === AccessibilityVerbositySettingId.Chat }));
@@ -319,42 +322,6 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual(steps, [false, true, false, true, false]);
 	});
 
-	test('registers nothing while the Agents view of #347688 is on too, which takes precedence; as it takes effect on restart, a change of it does not change the Chat view until then', () => {
-		createGate(true, undefined, { 'chat.sessionsView.enabled': true });
-		const whileAgentsView = [{ providers, runtimeHolds }];
-		change('chat.sessionsView.enabled', false);
-		whileAgentsView.push({ providers, runtimeHolds });
-		createGate(true);
-		const withoutAgentsView = [{ providers, runtimeHolds }];
-		change('chat.sessionsView.enabled', true);
-		withoutAgentsView.push({ providers, runtimeHolds });
-
-		assert.deepStrictEqual({ whileAgentsView, withoutAgentsView }, {
-			whileAgentsView: [{ providers: 0, runtimeHolds: 0 }, { providers: 0, runtimeHolds: 0 }],
-			withoutAgentsView: [{ providers: 1, runtimeHolds: 1 }, { providers: 1, runtimeHolds: 1 }],
-		});
-	});
-
-	test('the Agents view counts as it was when the window started, also once it changes before the Chat view\'s setting first turns on, and for observers created later', () => {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: false, 'chat.sessionsView.enabled': false });
-		const environment = { isSessionsWindow: false };
-		// The gate's observer, created and read as the window starts with both off
-		const enabled = observeChatViewSessionsListEnabled(configurationService);
-		const atStartup = enabled.get();
-		// The Agents view turns on, which takes effect on restart: an observer created later still sees it off
-		configurationService.setUserConfiguration('chat.sessionsView.enabled', true);
-		const laterSurfacesAll = surfacesAllLocalAgentHostAgents(environment, configurationService);
-		// Then the Chat view's sessions list turns on, which takes effect live
-		configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsListEnabled, true);
-
-		assert.deepStrictEqual({ atStartup, laterSurfacesAll, enabled: enabled.get(), laterEnabled: observeChatViewSessionsListEnabled(configurationService).get() }, {
-			atStartup: false,
-			laterSurfacesAll: false,
-			enabled: true,
-			laterEnabled: true,
-		});
-	});
-
 	test('registers the actions of the list once the Chat view first shows', () => {
 		const before = sessionItemMenuItems();
 		const gate = createGate(true);
@@ -366,17 +333,18 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ afterShown, afterDispose: sessionItemMenuItems() - before }, { afterShown: true, afterDispose: 0 });
 	});
 
-	test('surfaces every local agent host agent in a local editor window with the setting or the Agents view on, as the Agents window does, but not in a remote one', () => {
-		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false, sessionsViewEnabled = false) =>
-			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, 'chat.sessionsView.enabled': sessionsViewEnabled }));
+	test('surfaces every local agent host agent in a local editor window with the setting on, as the Agents window does, but not in a remote one, and does not read the Agents view\'s setting', () => {
+		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false) => {
+			const service = new ChatViewSessionsListService(new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, 'chat.sessionsView.enabled': true }), upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow, remoteAuthority }));
+			return `${service.enabled.get()}/${service.surfacesAllLocalAgentHostAgents.get()}`;
+		};
 
 		assert.deepStrictEqual({
 			local: surfaces(true),
 			remote: surfaces(true, 'ssh-remote+host'),
 			off: surfaces(false),
 			agentsWindow: surfaces(false, undefined, true),
-			agentsView: surfaces(false, undefined, false, true),
-		}, { local: true, remote: false, off: false, agentsWindow: true, agentsView: true });
+		}, { local: 'true/true', remote: 'true/false', off: 'false/false', agentsWindow: 'false/true' });
 	});
 
 	test('leaves the Chat view as it is in a remote window, with new local chats offered', () => {
@@ -494,15 +462,24 @@ suite('ChatViewSessionsGate', () => {
 		});
 	});
 
+	/**
+	 * The Chat view's instantiation service, as the list provider creates what it shows with it: the Sessions view is `view`, and
+	 * the rest gets the services it injects.
+	 */
+	function createListInstantiationService(view: SessionsView, sessionsManagementService: ISessionsManagementService): IInstantiationService {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IKeybindingService, upcastPartial<IKeybindingService>({ lookupKeybinding: () => undefined, onDidUpdateKeybindings: Event.None }));
+		return upcastPartial<IInstantiationService>({
+			createInstance: ((ctor: new (...args: never[]) => unknown, ...args: never[]) => ctor.prototype instanceof SessionsView ? view : instantiationService.createInstance(ctor, ...args)) as IInstantiationService['createInstance'],
+		});
+	}
+
 	test('the Chat view keeps its own chat input with the sessions list, for new chats and the chats it shows: the list provides only its control and header', () => {
 		const view = upcastPartial<SessionsView>({ element: document.createElement('div'), render: () => { }, setVisible: () => { }, dispose: () => { } });
 		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
-		const accessor = upcastPartial<ServicesAccessor>({ get: (<T>() => workspaceContextService as T) as ServicesAccessor['get'] });
-		const instantiationService = upcastPartial<IInstantiationService>({
-			invokeFunction: ((fn: (accessor: ServicesAccessor) => unknown) => fn(accessor)) as IInstantiationService['invokeFunction'],
-			createInstance: (() => view) as IInstantiationService['createInstance'],
-		});
-		const list = new ChatViewSessionsListProvider().create(document.createElement('div'), instantiationService, { overrideStyles: {} });
+		const list = new ChatViewSessionsListProvider(workspaceContextService).create(document.createElement('div'), createListInstantiationService(view, upcastPartial<ISessionsManagementService>({})), { overrideStyles: {} });
 		disposables.add(list.control);
 
 		assert.deepStrictEqual({ keys: Object.keys(list).sort(), hasHeader: list.hasHeader }, { keys: ['control', 'hasHeader'], hasHeader: true });
@@ -514,12 +491,7 @@ suite('ChatViewSessionsGate', () => {
 		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
 		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilot:/session') });
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ getSessionForChatResource: resource => resource.path === '/peer' ? { session, chat: upcastPartial<IChat>({ resource }) } : undefined });
-		const accessor = upcastPartial<ServicesAccessor>({ get: (<T>(id: unknown) => (id === ISessionsManagementService ? sessionsManagementService : id === IConfigurationService ? new TestConfigurationService() : id === IKeybindingService ? upcastPartial<IKeybindingService>({ lookupKeybinding: () => undefined, onDidUpdateKeybindings: Event.None }) : workspaceContextService) as T) as ServicesAccessor['get'] });
-		const instantiationService = upcastPartial<IInstantiationService>({
-			invokeFunction: ((fn: (accessor: ServicesAccessor) => unknown) => fn(accessor)) as IInstantiationService['invokeFunction'],
-			createInstance: (() => view) as IInstantiationService['createInstance'],
-		});
-		const list = new ChatViewSessionsListProvider().create(document.createElement('div'), instantiationService, { overrideStyles: {} });
+		const list = new ChatViewSessionsListProvider(workspaceContextService).create(document.createElement('div'), createListInstantiationService(view, sessionsManagementService), { overrideStyles: {} });
 		disposables.add(list.control);
 
 		const results = { peer: list.control.reveal(URI.parse('agent-host-copilot:/peer')), unknown: list.control.reveal(URI.parse('agent-host-copilot:/untitled')) };

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService, isAgentHostTarget, isRemoteAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -238,54 +236,6 @@ export const enum OpenInAgentsTitleBarHoverVariant {
 	ManyWindowsToOne = 'manyWindowsToOne',
 	/** A hover card with the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, and the button stays an icon. */
 	WindowComparison = 'windowComparison',
-}
-
-/**
- * Whether a window shows the sessions of the Agents window in its Chat view ({@link ChatConfiguration.ChatViewSessionsListEnabled}),
- * as that setting changes. Not while the Agents view of an editor window (`chat.sessionsView.enabled`) is on, which shows them in a
- * view of its own and takes precedence: that setting takes effect on restart, so its value as the window started counts.
- */
-export function observeChatViewSessionsListEnabled(configurationService: IConfigurationService): IObservable<boolean> {
-	// Read as the observer is created, which a window does as it starts, not first as the setting turns on
-	const sessionsViewEnabled = isSessionsViewEnabledAtStartup(configurationService);
-	const sessionsListEnabled = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
-	return derived(reader => sessionsListEnabled.read(reader) === true && !sessionsViewEnabled);
-}
-
-/** The first value read of `chat.sessionsView.enabled`, per configuration service, which a window has one of. */
-const sessionsViewEnabledAtStartup = new WeakMap<IConfigurationService, boolean>();
-
-/** The Agents view of editor windows (`chat.sessionsView.enabled`) as the window started: the setting takes effect on restart. */
-function isSessionsViewEnabledAtStartup(configurationService: IConfigurationService): boolean {
-	let enabled = sessionsViewEnabledAtStartup.get(configurationService);
-	if (enabled === undefined) {
-		enabled = configurationService.getValue<boolean>('chat.sessionsView.enabled') === true;
-		sessionsViewEnabledAtStartup.set(configurationService, enabled);
-	}
-	return enabled;
-}
-
-/**
- * Whether a window surfaces every local agent host agent, as the Agents window does, as the settings change: also a local editor
- * window that shows the sessions of the Agents window, in its Agents view (`chat.sessionsView.enabled`, as the window started) or in its Chat view
- * ({@link ChatConfiguration.ChatViewSessionsListEnabled}), so that its list and chats are those of the Agents window. A remote
- * window never shows them.
- */
-export function observeSurfacesAllLocalAgentHostAgents(environment: { readonly isSessionsWindow: boolean; readonly remoteAuthority?: string }, configurationService: IConfigurationService): IObservable<boolean> {
-	if (environment.isSessionsWindow) {
-		return constObservable(true);
-	}
-	if (environment.remoteAuthority) {
-		return constObservable(false);
-	}
-	const sessionsViewEnabled = isSessionsViewEnabledAtStartup(configurationService);
-	const sessionsListEnabled = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
-	return derived(reader => sessionsViewEnabled || sessionsListEnabled.read(reader) === true);
-}
-
-/** {@link observeSurfacesAllLocalAgentHostAgents} as it is now. */
-export function surfacesAllLocalAgentHostAgents(environment: { readonly isSessionsWindow: boolean; readonly remoteAuthority?: string }, configurationService: IConfigurationService): boolean {
-	return observeSurfacesAllLocalAgentHostAgents(environment, configurationService).get();
 }
 
 /**

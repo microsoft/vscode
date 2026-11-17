@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -59,18 +59,25 @@ function getChatViewSessionsListAccessibilityHelpContent(): string {
  * Tells screen readers in the list how to open its accessibility help, while the Chat view's verbosity setting is on, and
  * follows changes of the setting and of the keybindings.
  */
-export function trackChatViewSessionsListHelpHint(list: { setAriaDescription(description: string | undefined): void }, configurationService: IConfigurationService, keybindingService: IKeybindingService): IDisposable {
-	const store = new DisposableStore();
-	const update = () => {
-		const keybinding = configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat) ? keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel() : undefined;
-		list.setAriaDescription(keybinding ? localize('chatViewSessionsListHelpHint', "Press {0} for accessibility help.", keybinding) : undefined);
-	};
-	update();
-	store.add(configurationService.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
-			update();
-		}
-	}));
-	store.add(keybindingService.onDidUpdateKeybindings(() => update()));
-	return store;
+export class ChatViewSessionsListHelpHint extends Disposable {
+
+	constructor(
+		private readonly _list: { setAriaDescription(description: string | undefined): void },
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	) {
+		super();
+		this.update();
+		this._register(_configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
+				this.update();
+			}
+		}));
+		this._register(_keybindingService.onDidUpdateKeybindings(() => this.update()));
+	}
+
+	private update(): void {
+		const keybinding = this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat) ? this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel() : undefined;
+		this._list.setAriaDescription(keybinding ? localize('chatViewSessionsListHelpHint', "Press {0} for accessibility help.", keybinding) : undefined);
+	}
 }

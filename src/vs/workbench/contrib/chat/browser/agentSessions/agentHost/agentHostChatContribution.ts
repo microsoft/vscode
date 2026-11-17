@@ -33,7 +33,7 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, observeSurfacesAllLocalAgentHostAgents, surfacesAllLocalAgentHostAgents } from '../../../common/constants.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
@@ -56,6 +56,7 @@ import { AICustomizationManagementSection } from '../../../common/aiCustomizatio
 import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
+import { IChatViewSessionsListService } from '../../../common/chatViewSessionsListService.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -76,7 +77,7 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
 	const agentHostService = accessor.get(IAgentHostService);
 	const configurationService = accessor.get(IConfigurationService);
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+	const surfacesAllAgents = accessor.get(IChatViewSessionsListService).surfacesAllLocalAgentHostAgents;
 	if (!agentHostEnablementService.enabled.get()) {
 		return false;
 	}
@@ -87,7 +88,7 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 	}
 
 	while (true) {
-		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, surfacesAllLocalAgentHostAgents(environmentService, configurationService)).includes(provider)) {
+		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, surfacesAllAgents.get()).includes(provider)) {
 			return true;
 		}
 		const rootState = agentHostService.rootState.value;
@@ -95,7 +96,7 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 			return false;
 		}
 		if (rootState) {
-			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, surfacesAllLocalAgentHostAgents(environmentService, configurationService)));
+			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, surfacesAllAgents.get()));
 		}
 
 		const changed = await Promise.race([
@@ -168,11 +169,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super();
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
-		this._surfacesAllAgents = observeSurfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
+		this._surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
 		this._isLocalAgentHost = !environmentService.remoteAuthority;
 		this._canvasPresentationAvailable = this._isLocalAgentHost ? constObservable(true) : observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, this._configurationService);
 		this._connectionAuthority = environmentService.remoteAuthority ? agentHostAuthority(`vscode-remote://${environmentService.remoteAuthority}`) : LOCAL_AGENT_HOST_AUTHORITY;

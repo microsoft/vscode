@@ -212,6 +212,7 @@ import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { ICanvas } from '../../../../../common/canvasReference.js';
 import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { stubChatViewSessionsListService } from '../../common/chatViewSessionsListServiceTestUtils.js';
 
 type ILegacyTimedChatAction =
 	| { type: 'chat/turnComplete'; turnId: string; endedAt: string }
@@ -1254,6 +1255,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		reconcile: async () => { },
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow } as Partial<IWorkbenchEnvironmentService>);
+	stubChatViewSessionsListService(instantiationService);
 	instantiationService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 	instantiationService.stub(IChatInputNotificationService, {
 		_serviceBrand: undefined,

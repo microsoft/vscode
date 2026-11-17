@@ -51,7 +51,7 @@ import { IGitHubService } from '../../../browser/github/githubService.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 import { DevContainerAgentHostSessionsProvider } from './devContainerAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from './reconnectableAgentHostAutomationStore.js';
-import { observeSurfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
+import { IChatViewSessionsListService } from '../../../../chat/common/chatViewSessionsListService.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -202,6 +202,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
@@ -224,7 +225,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		}));
 		this.automations = automations;
 
-		this._surfacesAllAgents = observeSurfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
+		this._surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 

@@ -6,7 +6,6 @@
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, NotificationsFilter, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
@@ -18,8 +17,8 @@ import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { ChatViewPane } from '../../widgetHosts/viewPane/chatViewPane.js';
 import { CODEX_CONTINUATION_DISABLE_LABEL, CODEX_CONTINUATION_LABEL, CODEX_CONTINUATION_MESSAGE, CodexContinuationGuide, ICodexContinuationNavigation } from './codexContinuationGuide.js';
 import { CodexContinuationPresenter } from './codexContinuationPresenter.js';
-import { observeSurfacesAllLocalAgentHostAgents } from '../../../common/constants.js';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { IChatViewSessionsListService } from '../../../common/chatViewSessionsListService.js';
 
 class CodexContinuationContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.codexContinuation';
@@ -30,12 +29,12 @@ class CodexContinuationContribution extends Disposable {
 		@IChatWidgetService widgets: IChatWidgetService,
 		@ICodexContinuationService nudge: ICodexContinuationService,
 		@IViewsService views: IViewsService,
-		@IConfigurationService configuration: IConfigurationService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super();
-		// Its guide reveals the session in the Chat view's sessions, which do not show while the Agents view replaces the Chat view,
-		// or while the Chat view shows the sessions of the Agents window: it sets up and goes as that changes
-		const surfacesAllAgents = observeSurfacesAllLocalAgentHostAgents(environment, configuration);
+		// Its guide reveals the session in the Chat view's own sessions, which do not show in the Agents window, or while the Chat
+		// view shows the sessions of the Agents window: it sets up and goes as that changes
+		const surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
 		this._register(autorun(reader => {
 			if (surfacesAllAgents.read(reader)) { return; }
 			const enablement = reader.store;

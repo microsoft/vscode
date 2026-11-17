@@ -16,9 +16,7 @@ import { ChatViewId } from '../../../chat/browser/chat.js';
 import { localize } from '../../../../../nls.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { trackChatViewSessionsListHelpHint } from '../chatView/chatViewSessionsListAccessibilityHelp.js';
+import { ChatViewSessionsListHelpHint } from '../chatView/chatViewSessionsListAccessibilityHelp.js';
 
 /** The shared sessions list of an editor window, embedded in the Chat view, as the Chat view acts on it. */
 class ChatViewSessionsListControl implements IChatViewSessionsListControl {
@@ -26,7 +24,7 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 	constructor(
 		private readonly _view: SessionsView,
 		private readonly _helpHint: IDisposable | undefined,
-		private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) { }
 
 	setVisible(visible: boolean): void { this._view.setVisible(visible); }
@@ -64,11 +62,14 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
  */
 export class ChatViewSessionsListProvider implements IChatViewSessionsListProvider {
 
+	constructor(
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+	) { }
+
 	create(container: HTMLElement, instantiationService: IInstantiationService, _options: { readonly overrideStyles: IStyleOverride<IListStyles> }): IChatViewSessionsList {
-		const workspaceContextService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService));
 		// The Sessions view of an editor window, as the Agents viewlet shows it, with its header as a section of the Chat view:
 		// embedded in the Chat view, whose id it takes, and found by the actions of the list through the locator it registers with
-		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, workspaceContextService), 'section'), {
+		const view = instantiationService.createInstance(createEditorWindowSessionsView(createEditorWindowSessionsScope(this, this._workspaceContextService), 'section'), {
 			id: ChatViewId,
 			title: localize('chatViewSessions.title', "Sessions"),
 			expanded: true,
@@ -79,9 +80,9 @@ export class ChatViewSessionsListProvider implements IChatViewSessionsListProvid
 		view.setVisible(true);
 		// How to open the list's accessibility help, which screen readers tell in the list
 		const sessionsList = view.sessionsControl;
-		const helpHint = sessionsList && instantiationService.invokeFunction(accessor => trackChatViewSessionsListHelpHint(sessionsList, accessor.get(IConfigurationService), accessor.get(IKeybindingService)));
+		const helpHint = sessionsList && instantiationService.createInstance(ChatViewSessionsListHelpHint, sessionsList);
 		return {
-			control: new ChatViewSessionsListControl(view, helpHint, instantiationService.invokeFunction(accessor => accessor.get(ISessionsManagementService))),
+			control: instantiationService.createInstance(ChatViewSessionsListControl, view, helpHint),
 			hasHeader: true,
 		};
 	}

@@ -21,7 +21,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { MovedChatEditorRetargeter } from './agentHostChatMoveEditors.js';
 import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
-import { observeSurfacesAllLocalAgentHostAgents } from '../../../common/constants.js';
+import { IChatViewSessionsListService } from '../../../common/chatViewSessionsListService.js';
 
 export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
 
@@ -48,12 +48,13 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super();
 		this._movedChatEditors = new MovedChatEditorRetargeter(editorGroupsService, editorService);
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
-		this._surfacesAllAgents = observeSurfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
+		this._surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
 
 		if (this._isSessionsWindow) {
 			return;
