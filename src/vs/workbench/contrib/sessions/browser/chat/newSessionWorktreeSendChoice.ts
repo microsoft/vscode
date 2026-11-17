@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorktreeSendChoiceAsker } from '../../../chat/browser/agentSessions/worktreeSendChoiceTarget.js';
 
 /** Where the first request of a new session sent in its folder works ({@link INewSessionWorktreeSendChoiceProvider}). */
 export type NewSessionWorktreeSendChoice = 'worktree' | 'folder';
@@ -17,20 +17,9 @@ export type NewSessionWorktreeSendChoice = 'worktree' | 'folder';
  * Decides, as the first request of a new session that would work in its folder is sent, whether it works in a new worktree
  * of the folder instead: such as when another chat recently worked in that folder, as the user chose once or chooses now
  * in a callout on the New Worktree control of the draft's composer. It holds no UI: the composer marks its own control as
- * the callout's target ({@link targetId}) while the provider asks about its draft ({@link pendingSendChoice}).
+ * the callout's target while the provider asks about its draft, with `markWorktreeSendChoiceTarget`.
  */
-export interface INewSessionWorktreeSendChoiceProvider {
-	/** The onboarding target id that the callout anchors on: the New Worktree control of the draft asked about. */
-	readonly targetId: string;
-	/** The draft that the provider asks about now, until it has the answer. */
-	readonly pendingSendChoice: IObservable<URI | undefined>;
-	/**
-	 * Fires with the draft asked about each time its callout shows, also again on another control of the draft once the one
-	 * it showed on is gone: the control that resolves as its target then is where it shows.
-	 */
-	readonly onDidShowSendChoice: Event<URI>;
-	/** Ends the question about `draft` unanswered, where it asks about it: its {@link requestSendChoice} then has no answer. */
-	cancelSendChoice(draft: URI): void;
+export interface INewSessionWorktreeSendChoiceProvider extends IWorktreeSendChoiceAsker {
 	/** Whether another chat recently worked in `folder` itself, other than the session of `draft`: only then is there a choice. */
 	isRecentChatInFolder(folder: URI, draft: URI): boolean;
 	/**

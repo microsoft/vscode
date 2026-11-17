@@ -5518,7 +5518,7 @@ suite('NewChatWidget', () => {
 						return element;
 					});
 					let current: HTMLElement | undefined = checkbox;
-					const harness = { worktreeSendChoiceService, _session: constObservable(upcastPartial<ISession>({ resource: draft })), _getWorktreeSendChoiceControl: () => current, _getWorktreeSendChoiceScope: Reflect.get(NewChatWidget.prototype, '_getWorktreeSendChoiceScope'), _anchorWorktreeSendChoice: Reflect.get(NewChatWidget.prototype, '_anchorWorktreeSendChoice') };
+					const harness = { worktreeSendChoiceService, _session: constObservable(upcastPartial<ISession>({ resource: draft })), _getWorktreeSendChoiceControl: () => current };
 					store.add(mark.call(harness, checkbox));
 					store.add(mark.call(harness, picker));
 					const target = () => findOnboardingTarget(mainWindow, 'test.worktreeSendChoice')?.className;
@@ -5571,8 +5571,6 @@ suite('NewChatWidget', () => {
 								worktreeSendChoiceService,
 								_session: composer.session,
 								_getWorktreeSendChoiceControl: () => composer.control,
-								_getWorktreeSendChoiceScope: Reflect.get(NewChatWidget.prototype, '_getWorktreeSendChoiceScope'),
-								_anchorWorktreeSendChoice: Reflect.get(NewChatWidget.prototype, '_anchorWorktreeSendChoice'),
 							};
 							const control = { name, element, composer, marker: store.add(mark.call(harness, element)) };
 							controls.push(control);
