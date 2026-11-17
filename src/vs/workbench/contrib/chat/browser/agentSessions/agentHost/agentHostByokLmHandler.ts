@@ -198,6 +198,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					maxPromptTokens: metadata.maxInputTokens,
 					maxOutputTokens: metadata.maxOutputTokens,
 					supportsVision: !!metadata.capabilities?.vision,
+					...(metadata.capabilities?.toolSearch !== undefined ? { supportsToolSearch: metadata.capabilities.toolSearch } : {}),
 					...(supportedReasoningEfforts?.length ? { supportedReasoningEfforts } : {}),
 					...(defaultReasoningEffort !== undefined ? { defaultReasoningEffort } : {}),
 				};

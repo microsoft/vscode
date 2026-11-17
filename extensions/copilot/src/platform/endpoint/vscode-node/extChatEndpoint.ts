@@ -24,7 +24,7 @@ import { IOTelService, type OTelModelOptions } from '../../otel/common/otelServi
 import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation } from '../../requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getModelCapabilityOverride, modelSupportsThinkingContentInHistory } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { EndpointEditToolName, isEndpointEditToolName } from '../common/endpointProvider';
 import { CustomDataPartMimeTypes, modelVendorHandlesCacheBreakpoints } from '../common/endpointTypes';
 import { decodeStatefulMarker, encodeStatefulMarker, rawPartAsStatefulMarker } from '../common/statefulMarkerContainer';
@@ -124,6 +124,11 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 
 	get supportsToolCalls(): boolean {
 		return this.languageModel.capabilities?.supportsToolCalling ?? false;
+	}
+
+	get supportsToolSearch(): boolean | undefined {
+		// An explicit provider declaration wins; otherwise the model-id heuristic decides.
+		return this.languageModel.capabilities?.toolSearch ?? modelSupportsToolSearch(this);
 	}
 
 	get supportsVision(): boolean {

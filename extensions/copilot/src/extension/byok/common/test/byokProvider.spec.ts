@@ -135,6 +135,19 @@ describe('resolveModelInfo', () => {
 
 		expect(info.capabilities.limits?.max_context_window_tokens).toBe(128000);
 	});
+
+	it('propagates toolSearch into the tool_search capability, preserving the three-state contract', () => {
+		// `true` and `false` are explicit declarations that must win over the
+		// id-based heuristic; omission leaves the capability unset so the
+		// heuristic applies downstream.
+		const enabled = resolveModelInfo('m1', 'TestProvider', undefined, { ...baseCapabilities, toolSearch: true });
+		const disabled = resolveModelInfo('m1', 'TestProvider', undefined, { ...baseCapabilities, toolSearch: false });
+		const omitted = resolveModelInfo('m1', 'TestProvider', undefined, baseCapabilities);
+
+		expect(enabled.capabilities.supports.tool_search).toBe(true);
+		expect(disabled.capabilities.supports.tool_search).toBe(false);
+		expect(omitted.capabilities.supports.tool_search).toBeUndefined();
+	});
 });
 
 describe('resolveModelTokenLimits', () => {

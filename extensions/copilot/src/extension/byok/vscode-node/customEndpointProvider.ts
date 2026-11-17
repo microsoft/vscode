@@ -108,6 +108,12 @@ interface _CustomEndpointModelConfig {
 	modelOptions?: IChatModelRequestOptions;
 	zeroDataRetentionEnabled?: boolean;
 	statefulResponses?: boolean;
+	/**
+	 * Whether the model supports client-executed tool search. `true`/`false`
+	 * declare the capability explicitly (overriding the model-id heuristic);
+	 * omitting it leaves the heuristic in charge.
+	 */
+	toolSearch?: boolean;
 	supportsReasoningEffort?: string[];
 	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
@@ -175,6 +181,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			modelOptions: modelConfiguration?.modelOptions,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			statefulResponses: modelConfiguration?.statefulResponses,
+			toolSearch: modelConfiguration?.toolSearch,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};

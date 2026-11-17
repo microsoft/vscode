@@ -176,7 +176,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
-		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean, statefulResponses?: boolean): Promise<IChatEndpoint> {
+		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean, statefulResponses?: boolean, toolSearch?: boolean): Promise<IChatEndpoint> {
 			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
 			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
 			const modelConfiguration: CustomEndpointModelConfig = {
@@ -194,6 +194,9 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			}
 			if (statefulResponses !== undefined) {
 				modelConfiguration.statefulResponses = statefulResponses;
+			}
+			if (toolSearch !== undefined) {
+				modelConfiguration.toolSearch = toolSearch;
 			}
 			const [model] = await provider.provideLanguageModelChatInformation({
 				silent: true,
@@ -307,6 +310,26 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				storePresent: true,
 				store: true,
 				previousResponseId: customResponsesMarker,
+			});
+		});
+
+		it('threads toolSearch into the endpoint tool_search capability, overriding the id heuristic', async () => {
+			// The model id is not one the heuristic recognizes, so an explicit
+			// `toolSearch` declaration is the only way this endpoint can defer tools.
+			const [enabled, disabled, omitted] = await Promise.all([
+				createConfiguredResponsesEndpoint(undefined, undefined, true),
+				createConfiguredResponsesEndpoint(undefined, undefined, false),
+				createConfiguredResponsesEndpoint(),
+			]);
+
+			expect({
+				enabled: enabled.supportsToolSearch,
+				disabled: disabled.supportsToolSearch,
+				omitted: omitted.supportsToolSearch,
+			}).toEqual({
+				enabled: true,
+				disabled: false,
+				omitted: false,
 			});
 		});
 

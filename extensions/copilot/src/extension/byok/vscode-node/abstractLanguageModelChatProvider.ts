@@ -118,6 +118,10 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 					...model.capabilities,
 					apiType: apiTypes?.[endpoint.apiType],
 					adaptiveThinking: endpoint.supportsAdaptiveThinking,
+					// The endpoint resolves the explicit `toolSearch` declaration over the
+					// id heuristic; forward the resolved value so the runtime and the
+					// agent-host bridge see the same capability.
+					toolSearch: endpoint.supportsToolSearch,
 				},
 			};
 		}));
