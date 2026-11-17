@@ -1078,6 +1078,37 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ closed: await run('closed'), parked: await run('parked') }, { closed: expected, parked: expected });
 	});
 
+	test('leaving Single forgets the kept drafts it stored also while the chat part was never created, and keeps the tabs it stored', async () => {
+		const storedTabs = [chatA.toString(), chatB.toString()];
+		const keptD = [toStoredChatDraft({ inputText: 'D', attachments: [] })];
+		/** Starts hidden with what it stored, changes its mode as `modes` say, saves, and starts hidden again for a New Chat. */
+		const run = async (startMode: SessionsChatTabsMode, modes: readonly SessionsChatTabsMode[], chats: readonly string[] = []) => {
+			const first = createService({ chatTabs: startMode, stored: stringify({ chats, active: chats.length ? 1 : 0, kept: keptD }) });
+			await first.startWindow();
+			for (const mode of modes) {
+				first.setSetting(SESSIONS_CHAT_TABS_SETTING, mode);
+			}
+			const saved = first.save();
+			const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: saved });
+			await second.startWindow();
+			await second.service.openComposer(undefined, { newComposer: true });
+			const value = saved && parse(saved) as { readonly chats: readonly string[]; readonly active: number; readonly kept?: unknown };
+			return { stored: value && { chats: value.chats, active: value.active, kept: !!value.kept }, newChat: second.composerDrafts().map(draft => draft.input) };
+		};
+
+		assert.deepStrictEqual({
+			untouched: await run(SessionsChatTabsMode.Single, []),
+			leftSingle: await run(SessionsChatTabsMode.Single, [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single]),
+			leftSingleWithTabs: await run(SessionsChatTabsMode.Single, [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single], storedTabs),
+			startedInMultiple: await run(SessionsChatTabsMode.Multiple, []),
+		}, {
+			untouched: { stored: { chats: [], active: 0, kept: true }, newChat: ['D'] },
+			leftSingle: { stored: undefined, newChat: [''] },
+			leftSingleWithTabs: { stored: { chats: storedTabs, active: 1, kept: false }, newChat: [''] },
+			startedInMultiple: { stored: undefined, newChat: [''] },
+		});
+	});
+
 	test('in Single, the kept drafts it stored that are no drafts are skipped, and the others come back', async () => {
 		const { service, startWindow, composerDrafts } = createService({ chatTabs: SessionsChatTabsMode.Single, stored: stringify({ chats: [], active: 0, kept: [toStoredChatDraft({ inputText: 'D', attachments: [] }), { bogus: true }, 42] }) });
 		await startWindow();

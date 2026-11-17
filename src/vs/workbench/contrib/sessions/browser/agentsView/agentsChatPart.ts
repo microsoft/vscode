@@ -932,22 +932,30 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	private _save(): void {
-		// Not yet restored, it keeps what it stored
 		if (!this._part) {
+			// Not yet restored, it keeps the chats it stored, and its kept drafts unless it changed them, such as as it forgot
+			// them leaving Single
+			if (this._kept !== undefined) {
+				const stored = this._readStored();
+				this._writeStored(stored?.chats ?? [], stored?.active ?? 0, this._isSingle() ? this._kept : []);
+			}
 			return;
 		}
 		// In Single, most recent first, to show again in that order as it closes them
 		const inputs = this._part.groups.flatMap(group => this._isSingle() ? group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE) : group.editors).filter(input => this._chats.has(input));
-		const kept = this._isSingle() ? this._keptComposerInputs() : [];
-		if (!inputs.length && !kept.length) {
+		this._writeStored(
+			inputs.map(input => this._chats.get(input)!.chat.get().toString()),
+			Math.max(0, inputs.indexOf(this._activeInput.get() ?? inputs[0])),
+			this._isSingle() ? this._keptComposerInputs() : [],
+		);
+	}
+
+	private _writeStored(chats: readonly string[], active: number, kept: readonly IChatDraft[]): void {
+		if (!chats.length && !kept.length) {
 			this._storageService.remove(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			return;
 		}
-		const value = {
-			chats: inputs.map(input => this._chats.get(input)!.chat.get().toString()),
-			active: Math.max(0, inputs.indexOf(this._activeInput.get() ?? inputs[0])),
-			...(kept.length ? { kept: kept.map(toStoredChatDraft) } : {}),
-		};
+		const value = { chats, active, ...(kept.length ? { kept: kept.map(toStoredChatDraft) } : {}) };
 		this._storageService.store(CHAT_PART_EDITORS_STORAGE_KEY, stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
