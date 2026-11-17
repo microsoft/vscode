@@ -152,6 +152,23 @@ export function resolveInstalledPluginSkillLink(item: IAgentPluginItem, link: st
 		: undefined;
 }
 
+/** What the active session reports about an installed plugin, which the plugin alone may not know. */
+export interface IInstalledPluginSessionState {
+	/** Whether to show the plugin as managed by the user's GitHub Team. */
+	isInstalledPluginTeamProvided(item: IInstalledPluginItem, reader: IReader | undefined): boolean;
+	/** Whether the plugin is active. A session can turn on a plugin that the user has not enabled globally. */
+	isInstalledPluginEnabled(item: IInstalledPluginItem, reader: IReader | undefined): boolean;
+}
+
+/**
+ * The status shown beside an installed plugin's name, or `undefined` when it needs none. A plugin that is
+ * active in the session needs none, even when the user has not enabled it globally.
+ */
+export function getInstalledPluginStatusLabel(item: IInstalledPluginItem, sessionState: IInstalledPluginSessionState | undefined, reader?: IReader): string | undefined {
+	const enabled = isContributionEnabled(item.plugin.enablement.read(reader)) || sessionState?.isInstalledPluginEnabled(item, reader) === true;
+	return enabled && !isPluginPolicyBlocked(item.plugin) ? undefined : getPluginInclusionLabel(item.plugin);
+}
+
 /**
  * Compact detail view for an agent plugin inside the AI Customizations management editor's
  * split-pane host. Renders identity, provenance, contribution summary, and description while
@@ -195,7 +212,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly pluginRepositoryDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private current: IAgentPluginItem | undefined;
-	private isTeamProvided: ((item: IInstalledPluginItem, reader: IReader | undefined) => boolean) | undefined;
+	private sessionState: IInstalledPluginSessionState | undefined;
 	private primaryActionButton: Button | undefined;
 	private narrowLayout = false;
 	private readonly readmeRenderGuard = new PluginReadmeRenderGuard();
@@ -307,12 +324,9 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		return this.primaryActionButton;
 	}
 
-	/**
-	 * Shows `item`. `isTeamProvided` decides whether an installed plugin is shown as managed by the user's GitHub Team;
-	 * the runtime reports that per session, so the plugin alone may not know it.
-	 */
-	setInput(item: IAgentPluginItem, isTeamProvided?: (item: IInstalledPluginItem, reader: IReader | undefined) => boolean): void {
-		this.isTeamProvided = isTeamProvided;
+	/** Shows `item`. `sessionState` supplies what the active session reports about an installed plugin. */
+	setInput(item: IAgentPluginItem, sessionState?: IInstalledPluginSessionState): void {
+		this.sessionState = sessionState;
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
 		this.current = item;
@@ -324,6 +338,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 				item.plugin.enablement.read(reader);
 				const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
 				this.readTeamProvided(item, reader);
+				this.sessionState?.isInstalledPluginEnabled(item, reader);
 				item.plugin.version?.read(reader);
 				const installations = this.marketplaceInstallService.installations.read(reader);
 				const repository = getPluginRepository(item, installations);
@@ -353,7 +368,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
 		this.current = undefined;
-		this.isTeamProvided = undefined;
+		this.sessionState = undefined;
 		this.inputStateAutorun.clear();
 		this.renderItem();
 	}
@@ -390,13 +405,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		}
 
 		this.nameEl.textContent = item.name;
-		if (item.kind === AgentPluginItemKind.Installed && (!isContributionEnabled(item.plugin.enablement.get()) || isPluginPolicyBlocked(item.plugin))) {
-			this.statusBadgeEl.textContent = getPluginInclusionLabel(item.plugin);
-			this.statusBadgeEl.style.display = '';
-		} else {
-			this.statusBadgeEl.textContent = '';
-			this.statusBadgeEl.style.display = 'none';
-		}
+		this.updateStatusBadge(item);
 		DOM.clearNode(this.titleActionsEl);
 		this.primaryActionButton = undefined;
 		DOM.clearNode(this.factsEl);
@@ -417,17 +426,17 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	private updateInstalledState(item: Extract<IAgentPluginItem, { kind: AgentPluginItemKind.Installed }>): void {
-		if (!isContributionEnabled(item.plugin.enablement.get()) || isPluginPolicyBlocked(item.plugin)) {
-			this.statusBadgeEl.textContent = getPluginInclusionLabel(item.plugin);
-			this.statusBadgeEl.style.display = '';
-		} else {
-			this.statusBadgeEl.textContent = '';
-			this.statusBadgeEl.style.display = 'none';
-		}
+		this.updateStatusBadge(item);
 		this.updateEnablementAction?.();
 		this.updateTeamTag();
 		this.updatePluginVersionFact(item);
 		this._onDidChangeContent.fire();
+	}
+
+	private updateStatusBadge(item: IAgentPluginItem): void {
+		const status = item.kind === AgentPluginItemKind.Installed ? getInstalledPluginStatusLabel(item, this.sessionState) : undefined;
+		this.statusBadgeEl.textContent = status ?? '';
+		this.statusBadgeEl.style.display = status ? '' : 'none';
 	}
 
 	/** Shows the Team tag for an installed plugin the user's GitHub Team assigns, unless the organization manages it. */
@@ -438,8 +447,8 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	}
 
 	private readTeamProvided(item: IInstalledPluginItem, reader: IReader | undefined): boolean {
-		return this.isTeamProvided
-			? this.isTeamProvided(item, reader)
+		return this.sessionState
+			? this.sessionState.isInstalledPluginTeamProvided(item, reader)
 			: isTeamProvidedVisible(item.plugin.teamProvided?.read(reader), getPluginPolicyEnablement(item.plugin, reader) !== undefined);
 	}
 

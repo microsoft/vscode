@@ -2623,7 +2623,7 @@ export class PluginListWidget extends Disposable {
 	 * runtime installed, its session plugin reports the activation that applies to the chat: a GitHub Team
 	 * assignment or a workspace setting can turn on a plugin that the user has not enabled globally.
 	 */
-	private isInstalledPluginEnabled(item: IInstalledPluginItem, reader?: IReader): boolean {
+	isInstalledPluginEnabled(item: IInstalledPluginItem, reader?: IReader): boolean {
 		return this.getSessionPluginItem(item, reader)?.enabled ?? isContributionEnabled(item.plugin.enablement.read(reader));
 	}
 
