@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Action } from '../../../base/common/actions.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { constObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
@@ -16,15 +18,22 @@ import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPrefe
 import { ISSHAgentHostConnection, ISSHRemoteAgentHostService } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
+import { getIconRegistry } from '../../../platform/theme/common/iconRegistry.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { IConfigurationChangeEvent } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../platform/chat/common/chatSettings.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { OpenInVSCodeAction } from '../../browser/actions/vscodeActions.js';
+import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWidget.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -154,6 +163,70 @@ suite('Web Open in Editor', () => {
 
 suite('Open in Editor in Agents windows', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the editor icon for the product quality', () => {
+		const keybindings = upcastPartial<IKeybindingService>({ appendKeybinding: label => `${label} (shortcut)` });
+		const configuration = new TestConfigurationService({ [AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const results = ['stable', 'insider', 'exploration', undefined].map(quality => {
+			const action = store.add(new Action('test', 'Open in Editor'));
+			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality }), NullHoverService, keybindings, configuration, NullTelemetryService));
+			const container = document.createElement('div');
+			widget.render(container);
+			const icon = container.querySelector('.open-in-vscode-titlebar-widget-icon');
+			return {
+				icon: icon?.className,
+				hidden: icon?.getAttribute('aria-hidden'),
+				label: container.getAttribute('aria-label'),
+			};
+		});
+		assert.deepStrictEqual({
+			results,
+			stableDefault: getIconRegistry().getIcon('open-in-vscode')?.defaults,
+			insidersDefault: getIconRegistry().getIcon('open-in-vscode-insiders')?.defaults,
+		}, {
+			results: [
+				{ icon: 'open-in-vscode-titlebar-widget-icon codicon codicon-open-in-vscode', hidden: 'true', label: 'Open in VS Code Editor Window (shortcut)' },
+				{ icon: 'open-in-vscode-titlebar-widget-icon codicon codicon-open-in-vscode-insiders', hidden: 'true', label: 'Open in VS Code Editor Window (shortcut)' },
+				{ icon: 'open-in-vscode-titlebar-widget-icon codicon codicon-open-in-vscode', hidden: 'true', label: 'Open in VS Code Editor Window (shortcut)' },
+				{ icon: 'open-in-vscode-titlebar-widget-icon codicon codicon-open-in-vscode', hidden: 'true', label: 'Open in VS Code Editor Window (shortcut)' },
+			],
+			stableDefault: Codicon.vscode,
+			insidersDefault: Codicon.vscodeInsiders,
+		});
+	});
+
+	for (const useCodicons of [false, true]) {
+		test(`uses the ${useCodicons ? 'codicon' : 'branded'} editor icon in the ${useCodicons ? 'treatment' : 'control'} arm and logs its trigger`, async () => {
+			const setting = AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING;
+			const configuration = new class extends TestConfigurationService {
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return key === setting ? { ...inspected, userValue: undefined, userLocalValue: undefined } : inspected;
+				}
+			}({ [setting]: useCodicons });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const keybindings = upcastPartial<IKeybindingService>({ appendKeybinding: label => `${label} (shortcut)` });
+			const action = store.add(new Action('test', 'Open in Editor'));
+			const widget = store.add(new OpenInVSCodeTitleBarWidget(action, undefined, 'test', upcastPartial<IProductService>({ quality: 'stable' }), NullHoverService, keybindings, configuration, telemetry));
+			const container = document.createElement('div');
+			widget.render(container);
+			const icon = container.querySelector('.open-in-vscode-titlebar-widget-icon');
+			assert.deepStrictEqual({
+				hasCodicon: icon?.classList.contains('codicon'),
+				triggerLogged: telemetry.triggers.includes(`config.${setting}`),
+			}, { hasCodicon: useCodicons, triggerLogged: true });
+
+			await configuration.setUserConfiguration(setting, !useCodicons);
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === setting;
+				}
+			}());
+			assert.strictEqual(icon?.classList.contains('codicon'), !useCodicons);
+		});
+	}
 
 	test('shows in the main window and in chat windows, as the main window always showed it, and not in editor windows', () => {
 		const menus = new OpenInVSCodeAction().desc.menu;

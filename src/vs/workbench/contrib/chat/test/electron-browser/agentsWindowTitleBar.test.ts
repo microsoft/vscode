@@ -28,6 +28,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING } from '../../../../../platform/chat/common/chatSettings.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, ChatConfiguration } from '../../common/constants.js';
@@ -43,7 +44,7 @@ suite('Agents Window titlebar copy experiment', () => {
 	const manyWindowsToOneCard = { title: cardTitle, graphic: 'many-windows-to-one' };
 	const windowComparisonCard = { title: cardTitle, graphic: 'window-comparison' };
 
-	function createHarness(sessionCount?: number, richHover?: string, richHoverOnClick?: boolean) {
+	function createHarness(sessionCount?: number, richHover?: string, richHoverOnClick?: boolean, iconConfiguration?: TestConfigurationService) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const storage = disposables.add(new InMemoryStorageService());
 		if (sessionCount !== undefined) {
@@ -81,7 +82,8 @@ suite('Agents Window titlebar copy experiment', () => {
 			update: content => { hoverContent = content; },
 			hide: () => { hoverHides++; },
 		});
-		const configuration = new TestConfigurationService({
+		const configuration = iconConfiguration ?? new TestConfigurationService({
+			[AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING]: true,
 			...(richHover === undefined ? {} : { [ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: richHover }),
 			...(richHoverOnClick === undefined ? {} : { [ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick]: richHoverOnClick }),
 		});
@@ -180,6 +182,33 @@ suite('Agents Window titlebar copy experiment', () => {
 			await timeout(0);
 		};
 		return { storage, createFirstSession, setSessionCount, setRichHover, hoverCard, hoverState, focusedHovers, activateByKeyboard, activateByClick, getHoverHides: () => hoverHides, refetched, requests, expansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, snapshot, getActionRuns: () => actionRuns };
+	}
+
+	for (const useCodicons of [false, true]) {
+		test(`uses the ${useCodicons ? 'codicon' : 'branded'} title-bar icon in the ${useCodicons ? 'treatment' : 'control'} arm and logs its trigger`, async () => {
+			const configuration = new class extends TestConfigurationService {
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return key === AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING
+						? { ...inspected, userValue: undefined, userLocalValue: undefined }
+						: inspected;
+				}
+			}({ [AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING]: useCodicons });
+			const h = createHarness(undefined, undefined, undefined, configuration);
+			const icon = h.container.querySelector('.open-in-agents-titlebar-widget-icon');
+			assert.deepStrictEqual({
+				hasCodicon: icon?.classList.contains('codicon'),
+				triggerLogged: h.snapshot().triggers.includes(`config.${AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING}`),
+			}, { hasCodicon: useCodicons, triggerLogged: true });
+
+			await configuration.setUserConfiguration(AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING, !useCodicons);
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section === AGENTS_WINDOW_TITLE_BAR_ICONS_SETTING;
+				}
+			}());
+			assert.strictEqual(icon?.classList.contains('codicon'), !useCodicons);
+		});
 	}
 
 	for (const value of [undefined, 'Try Agents']) {
