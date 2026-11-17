@@ -14,7 +14,7 @@ suite('EditorTelemetry', () => {
 	test('getEditorTelemetryId only reports known editor IDs', () => {
 		assert.deepStrictEqual(
 			['default', 'vscode.markdown.editor', 'mainThreadWebview-markdown.preview', 'someExtension.secret-view-type', 'mainThreadWebview-someExtension.view', undefined].map(getEditorTelemetryId),
-						['default', 'vscode.markdown.editor', 'mainThreadWebview-markdown.preview', 'other', 'other', 'none']
+			['default', 'vscode.markdown.editor', 'mainThreadWebview-markdown.preview', 'other', 'other', 'none']
 		);
 	});
 });
