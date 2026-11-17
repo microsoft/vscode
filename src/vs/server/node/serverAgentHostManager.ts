@@ -9,7 +9,7 @@ import { Event } from '../../base/common/event.js';
 import { isObject, isStringArray } from '../../base/common/types.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
-import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
 import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
 import type { IAgentHostProcessExitEvent } from '../../platform/agentHost/common/agentHostProcessExit.js';
 import { AgentHostLaunchKind } from '../../platform/agentHost/common/agentHostTelemetry.js';
@@ -230,8 +230,14 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		try {
 			await this._trackClientConnections(connection);
 			if (this._options.githubEnvironment) {
+				const options = await this._getGithubEnvironmentOptions(this._options.githubEnvironment);
 				const management = ProxyChannel.toService<IAgentHostManagementService>(connection.client.getChannel(AgentHostIpcChannels.Management));
-				const result = await management.configureMissionControl(await this._getGithubEnvironmentOptions(this._options.githubEnvironment));
+				await management.setHostExecutionCredentials([GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE].map(resource => ({
+					resource: resource.resource,
+					scopes: resource.scopes_supported,
+					token: options.credential,
+				})));
+				const result = await management.configureMissionControl(options);
 				if (result) {
 					throw reviveConnectionDiagnosticError(result.error);
 				}
@@ -279,7 +285,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			}
 			roots.push(root);
 		}
-		return { ...configuration, roots };
+		return { ...configuration, roots, useLocalCredentials: true };
 	}
 
 	private _handleUnexpectedExit(connection: IAgentHostConnection, e: IAgentHostProcessExitEvent): void {

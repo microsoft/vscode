@@ -43,6 +43,7 @@ import type { ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { IAgentService, IConnectionTrackerService, type IMissionControlOptions } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
+import { IAgentHostAuthenticationController } from '../../node/agentHostAuthenticationService.js';
 import { IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import { IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -124,6 +125,7 @@ suite('Mission Control WPS', () => {
 		instantiation.stub(IAgentHostSystemWakeService, new class extends mock<IAgentHostSystemWakeService>() { }());
 		instantiation.stub(IAgentHostMacAccessibilityTrustService, new class extends mock<IAgentHostMacAccessibilityTrustService>() { }());
 		instantiation.stub(ITelemetryService, NullTelemetryService);
+		instantiation.stub(IAgentHostAuthenticationController, new class extends mock<IAgentHostAuthenticationController>() { }());
 		const management = instantiation.createInstance(AgentHostManagementService,
 			new class extends mock<IAgentService>() { }(),
 			new class extends mock<IConnectionTrackerService>() { }(),
@@ -2636,6 +2638,7 @@ suite('Mission Control WPS', () => {
 				tokens: number[];
 				directory: string;
 				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				credentialModes: boolean[];
 				readonly projectUpdates: number;
 				signedSpawn: (clientId: string, nonce: string) => object;
 				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
@@ -2670,6 +2673,8 @@ suite('Mission Control WPS', () => {
 				const tokens: number[] = [];
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
 				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
+				const credentialModes: boolean[] = [];
+				let useLocalCredentials = false;
 				let projectUpdates = 0;
 				let signingKeyRequests = 0;
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
@@ -2726,7 +2731,13 @@ suite('Mission Control WPS', () => {
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory, useLocalCredentials) => {
+					configureExecutionAuthentication: value => {
+						const changed = useLocalCredentials !== value;
+						useLocalCredentials = value;
+						credentialModes.push(value);
+						return changed;
+					},
+					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory) => {
 						attachments.push({ initialRoots, getRoots, getProjects, defaultDirectory, useLocalCredentials, rootMeta: server.rootMeta, server });
 						return { dispose() { } };
 					},
@@ -2751,7 +2762,7 @@ suite('Mission Control WPS', () => {
 				const options: IMissionControlOptions = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [], ...(overrides.ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}) };
 				await service.configure(options);
 				await run({
-					service, clock, heartbeats, diagnostics, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
+					service, clock, heartbeats, diagnostics, errors, sockets, options, tokens, directory: path, attachments, credentialModes, requests, signedSpawn: signed,
 					setSessionEventsFormats: formats => { environment.webpubsub.session_events_formats = formats; },
 					get projectUpdates() { return projectUpdates; },
 					delayHeartbeat: () => {
@@ -3522,6 +3533,67 @@ suite('Mission Control WPS', () => {
 					closed: [true, true, false],
 					errors: [],
 				});
+			});
+		});
+
+		test('validates owner configuration before selecting execution credentials and attaching the relay', async () => {
+			await withEnvironment([], async ({ service, options, delayIdentity, credentialModes, attachments, sockets }) => {
+				const identity = delayIdentity();
+				const configuring = service.configure({ ...options, useLocalCredentials: true });
+				await identity.started;
+				assert.deepStrictEqual({ credentialModes, connections: sockets.length }, { credentialModes: [], connections: 1 });
+				await identity.complete(Response.json({ id: 123, type: 'User' }));
+				await configuring;
+				const wrongIdentity = delayIdentity();
+				const rejected = assert.rejects(service.configure({ ...options, credential: 'wrong-owner-token', useLocalCredentials: false }), /does not match the Agent Host owner/);
+				await wrongIdentity.started;
+				await wrongIdentity.complete(Response.json({ id: 456, type: 'User' }));
+				await rejected;
+				await assert.rejects(service.configure({ ...options, accountId: 'other', useLocalCredentials: false }), /another local account/);
+				await assert.rejects(service.configure({ ...options, requireConnectionBinding: true, useLocalCredentials: false }), /already configured/);
+				assert.deepStrictEqual({
+					credentialModes,
+					delegation: attachments.map(attachment => attachment.useLocalCredentials),
+					closed: sockets.map(socket => socket.closed),
+				}, { credentialModes: [true], delegation: [false, true], closed: [true, false] });
+			});
+		});
+
+		test('preserves execution credentials when registration is withdrawn or the mode is omitted', async () => {
+			await withEnvironment([], async ({ service, options, credentialModes, attachments, sockets }) => {
+				await service.configure({ ...options, useLocalCredentials: true });
+				await service.configure(options);
+				await service.configure(undefined, options.accountId);
+				assert.deepStrictEqual({ credentialModes, closed: sockets.map(socket => socket.closed) }, { credentialModes: [true], closed: [true, true] });
+				await service.configure(options);
+				await service.configure({ ...options, useLocalCredentials: false });
+				assert.deepStrictEqual({
+					credentialModes,
+					delegation: attachments.map(attachment => attachment.useLocalCredentials),
+				}, { credentialModes: [true, false], delegation: [false, true, true, false] });
+			});
+		});
+
+		test('keeps the validated host credential choice when registration fails', async () => {
+			let policyUnavailable = false;
+			await withEnvironment([], async ({ service, options, credentialModes, attachments }) => {
+				await service.configure(undefined, options.accountId);
+				policyUnavailable = true;
+				await assert.rejects(service.configure({ ...options, useLocalCredentials: true }), /Device policy unavailable/);
+				assert.deepStrictEqual({ credentialModes, enabled: service.isEnabled }, { credentialModes: [true], enabled: false });
+				policyUnavailable = false;
+				await service.configure(options);
+				assert.deepStrictEqual({
+					credentialModes,
+					delegation: attachments.map(attachment => attachment.useLocalCredentials),
+				}, { credentialModes: [true], delegation: [false, true] });
+			}, undefined, false, {
+				getRemoteControlPolicy: async () => {
+					if (policyUnavailable) {
+						throw new Error('Device policy unavailable');
+					}
+					return undefined;
+				},
 			});
 		});
 

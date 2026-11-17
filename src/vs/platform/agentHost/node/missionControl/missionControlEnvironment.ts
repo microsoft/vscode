@@ -56,7 +56,9 @@ export interface IMissionControlEnvironmentHost {
 	readonly userDataPath: string;
 	readonly name: string;
 	readonly fetch: typeof fetch;
-	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string, useLocalCredentials?: boolean) => IDisposable;
+	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string) => IDisposable;
+	/** Applies an owner-validated credential choice and reports whether the effective mode changed. */
+	readonly configureExecutionAuthentication?: (useLocalCredentials: boolean) => boolean;
 	readonly updateProjects?: () => Promise<void>;
 	readonly onError: (error: unknown) => void;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
@@ -266,6 +268,7 @@ export class MissionControlEnvironment extends Disposable {
 		if ((options.live ? endpoint.protocol !== 'https:' : endpoint.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname))
 			|| (options.live && endpoint.pathname !== '/')
 			|| endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !options.credential || !options.accountId || (!options.live && options.roots.length === 0)
+			|| (options.useLocalCredentials !== undefined && typeof options.useLocalCredentials !== 'boolean')
 			|| (options.name !== undefined && !options.name.trim())) {
 			throw new Error('Mission Control requires a safe origin, credential, account, and project roots');
 		}
@@ -299,11 +302,20 @@ export class MissionControlEnvironment extends Disposable {
 		if (!roots.every(root => root.startsWith('/') || /^[A-Za-z]:\\/.test(root))) {
 			throw new Error('Mission Control projects must be absolute local directories');
 		}
-		if (this._options) {
-			if (this._options.baseUrl !== options.baseUrl || this._options.name !== options.name || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
-				|| (!options.live && JSON.stringify(this._roots) !== JSON.stringify(roots))) {
-				throw new Error('Mission Control is already configured; disable it before changing its scope');
+		if (this._options && (this._options.baseUrl !== options.baseUrl || this._options.name !== options.name || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
+			|| (!options.live && JSON.stringify(this._roots) !== JSON.stringify(roots)))) {
+			throw new Error('Mission Control is already configured; disable it before changing its scope');
+		}
+		let executionAuthenticationChanged = false;
+		if (options.useLocalCredentials !== undefined) {
+			if (!this._host.configureExecutionAuthentication) {
+				throw new Error('Host execution authentication configuration is unavailable');
 			}
+			executionAuthenticationChanged = this._host.configureExecutionAuthentication(options.useLocalCredentials);
+		} else if (this._options?.useLocalCredentials !== undefined) {
+			options = { ...options, useLocalCredentials: this._options.useLocalCredentials };
+		}
+		if (this._options) {
 			this._roots = [...new Set([...this._roots, ...roots])];
 			const remoteControlPolicyOverrideChanged = (this._options.ignoreRemoteControlPolicy === true) !== (options.ignoreRemoteControlPolicy === true);
 			if (remoteControlPolicyOverrideChanged) {
@@ -311,6 +323,7 @@ export class MissionControlEnvironment extends Disposable {
 			}
 			if (this._options.credential !== options.credential || this._recoveryStopped
 				|| this._options.defaultDirectory !== options.defaultDirectory
+				|| executionAuthenticationChanged
 				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)
 				|| remoteControlPolicyOverrideChanged) {
 				this._generation++;
@@ -784,7 +797,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._server.value = server;
 		const connectionWatch = StopWatch.create(false);
 		let relayReady = false;
-		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory, options.useLocalCredentials === true), server.onClose(() => {
+		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._recoveryStopped) {
 				if (relayReady) {
 					const close = server.closeInfo;
