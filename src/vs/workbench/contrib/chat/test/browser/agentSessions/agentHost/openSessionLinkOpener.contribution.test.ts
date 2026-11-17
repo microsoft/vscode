@@ -80,7 +80,8 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 					opened: [{
 						resource: client.with({ fragment: chatId ?? '' }).toString(),
 						target: openToSide ? SIDE_GROUP : ChatViewPaneTarget,
-						options: { pinned: true, preserveFocus: true, revealIfOpened: !openToSide }
+						// In the Chat view's host, the window's folder stays where it is
+						options: { pinned: true, preserveFocus: true, revealIfOpened: !openToSide, ...(openToSide ? {} : { keepFolder: true }) }
 					}]
 				});
 			});

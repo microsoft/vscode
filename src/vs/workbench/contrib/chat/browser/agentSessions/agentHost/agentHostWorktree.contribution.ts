@@ -178,8 +178,10 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			// A chat the user opens follows; so does one that a first request made, on its own, as the user did not pick it
 			const follows = shown?.reason === 'open' || shown?.reason === 'commit';
 			this._trace(shown ? `shown ${shown.resource.toString()} (${shown.reason})` : 'shown: none');
-			this._shown = shown && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined, followOnceKnown: follows } : undefined;
-			if (!shown || shown.reason === 'open') {
+			// A chat opened where the folder stays, such as by a link in the window, is never followed, nor the last chat of where
+			// the folder is
+			this._shown = shown && shown.reason !== 'keepFolder' && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined, followOnceKnown: follows } : undefined;
+			if (!shown || shown.reason === 'open' || shown.reason === 'keepFolder') {
 				// The user's latest choice: no switch asked for before applies, also where this chat moves nothing
 				this._request++;
 				this._foreground++;
