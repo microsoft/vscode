@@ -20,7 +20,10 @@ import { ILogService } from '../../log/common/log.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxRequestError, type CloudSandboxDiscoveryTrigger, type ICloudSandboxDiscoveredSession, type ICloudSandboxDiscoveryDiagnostics, type ICloudSandboxDiscoveryOptions, type ICloudSandboxDiscoveryResult, type ICloudSandboxTask } from './cloudSandboxAgentHost.js';
 import { SessionStatus } from './state/sessionState.js';
 
-/** A credential-bound executor supplied by the owning authentication adapter. */
+/**
+ * A credential-bound executor whose identity scopes authorization-refusal backoff.
+ * Resolvers must reuse the instance while credentials and authorization scope are unchanged, and replace it when either changes.
+ */
 export interface ICloudSandboxDiscoverySource {
 	withClient<T>(token: CancellationToken, options: ApiRequestOptions, execute: (client: IGitHubAccountClient, token: CancellationToken, options: ApiRequestOptions) => Promise<T>): Promise<T>;
 }
