@@ -98,19 +98,23 @@ export function getInboxPullRequestMergeOperation(session: ISession, reader?: IR
 	if (pullRequests.size !== 1) {
 		return undefined;
 	}
+	let candidate: { readonly changeset: ISessionChangeset; readonly operation: ISessionChangesetOperation } | undefined;
 	for (const changeset of session.mainChat.read(reader).changesets.read(reader) ?? []) {
 		if (!changeset.isEnabled.read(reader)) {
 			continue;
 		}
 		for (const operation of changeset.operations.read(reader)) {
 			if (operation.id !== AgentHostPullRequestOperationId.Merge
-				|| !operation.scopes.includes(SessionChangesetOperationScope.Changeset)
-				|| operation.status === SessionChangesetOperationStatus.Disabled
-				|| operation.status === SessionChangesetOperationStatus.Running) {
+				|| !operation.scopes.includes(SessionChangesetOperationScope.Changeset)) {
 				continue;
 			}
-			return { changeset, operation };
+			if (operation.status === SessionChangesetOperationStatus.Running) {
+				return undefined;
+			}
+			if (!candidate && operation.status !== SessionChangesetOperationStatus.Disabled) {
+				candidate = { changeset, operation };
+			}
 		}
 	}
-	return undefined;
+	return candidate;
 }
