@@ -43,11 +43,15 @@ suite('Markdown editor pull diagnostics', () => {
 			assertCustomOnly();
 		} finally {
 			const document = vscode.workspace.textDocuments.find(document => document.uri.toString() === uri.toString());
-			if (document?.isDirty) {
+			// Web defaults to auto-save, so the edit may already be on disk even when the document isn't dirty.
+			if (document && (document.isDirty || document.getText() !== originalText)) {
 				const restore = new vscode.WorkspaceEdit();
 				restore.replace(uri, new vscode.Range(0, 0, document.lineCount, 0), originalText);
 				await vscode.workspace.applyEdit(restore);
 				await document.save();
+			}
+			if (new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)) !== originalText) {
+				await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(originalText));
 			}
 			const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs)
 				.filter(tab => tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === uri.toString());
