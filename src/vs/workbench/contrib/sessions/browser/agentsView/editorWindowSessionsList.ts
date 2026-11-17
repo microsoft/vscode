@@ -9,8 +9,7 @@ import { IObservable, observableFromEvent } from '../../../../../base/common/obs
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -96,33 +95,18 @@ export function registerEditorWindowSessionsViews(container: IViewContainerDescr
 	return store;
 }
 
-export const IEditorWindowSessionsListService = createDecorator<IEditorWindowSessionsListService>('editorWindowSessionsListService');
-
 /**
- * What the sessions lists of a window share, however many hold them: the window marked as showing them
- * ({@link EditorWindowSessionsContext}), their settings, and, once one first shows, their actions and those of the sessions they
- * show. Registered with the first holder and disposed with the last.
+ * The sessions list of an editor window, which the Chat view shows: the window marked as showing it
+ * ({@link EditorWindowSessionsContext}), the settings of the list, and, once the view of `viewId` or the chat part first shows,
+ * the actions of the list and of the sessions it shows, and `registerMore` of the caller, such as the actions of the chat part,
+ * which this does not know. `viewId` is the view whose first show registers them: the Sessions view, or the view that embeds
+ * it, such as the Chat view. All is undone with this.
  */
-export interface IEditorWindowSessionsListService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Holds the sessions list of an editor window: its settings, the window marked as showing it ({@link EditorWindowSessionsContext}),
-	 * and its actions and those of the sessions it shows once the Sessions view or the chat part first shows, all shared with the
-	 * other holders of a window (such as the Agents view and the Chat view) until the last one goes. `registerMore` registers the
-	 * actions of this holder, such as of the chat part, which this does not know, as its view first shows.
-	 * `viewId` is the view whose first show registers them: the Sessions view, or the view that embeds it, such as the Chat view.
-	 */
-	hold(registerMore: () => IDisposable, viewId?: string): IDisposable;
-}
-
-export class EditorWindowSessionsListService extends Disposable implements IEditorWindowSessionsListService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private shared: { holders: number; readonly store: DisposableStore; actionsRegistered: boolean } | undefined;
+export class EditorWindowSessionsList extends Disposable {
 
 	constructor(
+		registerMore: () => IDisposable,
+		viewId: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -130,48 +114,15 @@ export class EditorWindowSessionsListService extends Disposable implements IEdit
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
-		this._register(toDisposable(() => this.shared?.store.dispose()));
-	}
-
-	hold(registerMore: () => IDisposable, viewId: string = SessionsViewId): IDisposable {
-		const store = new DisposableStore();
-		store.add(this.holdShared());
-		store.add(this.registerOnFirstShown(viewId, () => {
-			this.registerSharedActions();
-			store.add(registerMore());
+		EditorWindowSessionsContext.bindTo(this.contextKeyService).set(true);
+		this._register(toDisposable(() => EditorWindowSessionsContext.bindTo(this.contextKeyService).reset()));
+		this._register(registerSessionsListConfiguration());
+		this._register(this.registerOnFirstShown(viewId, () => {
+			this._register(registerSessionsListActions());
+			this._register(registerSessionsListReadStateMenus());
+			this._register(this.instantiationService.createInstance(SessionsArchiveActionsContribution));
+			this._register(registerMore());
 		}));
-		return store;
-	}
-
-	private holdShared(): IDisposable {
-		if (!this.shared) {
-			const store = new DisposableStore();
-			EditorWindowSessionsContext.bindTo(this.contextKeyService).set(true);
-			store.add(toDisposable(() => EditorWindowSessionsContext.bindTo(this.contextKeyService).reset()));
-			store.add(registerSessionsListConfiguration());
-			this.shared = { holders: 0, store, actionsRegistered: false };
-		}
-		const shared = this.shared;
-		shared.holders++;
-		return toDisposable(() => {
-			if (--shared.holders === 0) {
-				if (this.shared === shared) {
-					this.shared = undefined;
-				}
-				shared.store.dispose();
-			}
-		});
-	}
-
-	private registerSharedActions(): void {
-		const shared = this.shared;
-		if (!shared || shared.actionsRegistered) {
-			return;
-		}
-		shared.actionsRegistered = true;
-		shared.store.add(registerSessionsListActions());
-		shared.store.add(registerSessionsListReadStateMenus());
-		shared.store.add(this.instantiationService.createInstance(SessionsArchiveActionsContribution));
 	}
 
 	/** Runs `register` once, as the view of `viewId` or the chat part, which shows sessions too, first shows. */
@@ -201,18 +152,6 @@ export class EditorWindowSessionsListService extends Disposable implements IEdit
 		});
 		return firstShown;
 	}
-}
-
-registerSingleton(IEditorWindowSessionsListService, EditorWindowSessionsListService, InstantiationType.Delayed);
-
-/**
- * Holds the sessions list of an editor window, as {@link IEditorWindowSessionsListService.hold} does.
- *
- * @deprecated Callers with access to services should depend on {@link IEditorWindowSessionsListService} and call `hold`; this
- * shim only keeps the signature and looks the service up through the instantiation service.
- */
-export function registerEditorWindowSessionsList(instantiationService: IInstantiationService, registerMore: () => IDisposable, viewId: string = SessionsViewId): IDisposable {
-	return instantiationService.invokeFunction(accessor => accessor.get(IEditorWindowSessionsListService)).hold(registerMore, viewId);
 }
 
 /**
