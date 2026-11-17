@@ -24,7 +24,6 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { HideAgentSessionsSidebar, ShowAgentSessionsSidebar } from '../../../chat/browser/agentSessions/agentSessionsActions.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
-import { ILocalChatAvailabilityService } from '../../../chat/common/localChatAvailability.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -101,7 +100,6 @@ class ChatViewSessionsListFeature extends Disposable {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILocalChatAvailabilityService localChatAvailabilityService: ILocalChatAvailabilityService,
 		@IEditorWindowSessionsRuntime sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -112,9 +110,6 @@ class ChatViewSessionsListFeature extends Disposable {
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
-
-		// No new local chats, which the list does not show
-		this._register(localChatAvailabilityService.hide());
 
 		// The sessions providers, held while the Chat view, which lists their sessions, shows
 		this._register(sessionsRuntime.enable({ viewIds: [ChatViewId] }));

@@ -69,7 +69,7 @@ import { isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } f
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
 import { AutomationCardCanDeleteContext, AutomationCardCanUpdateContext, AutomationCardEnabledContext, AutomationCardHasEventTriggerContext, AutomationCardHasExternalResourceContext, AutomationCardHasLimitsContext, AutomationCardIsCloudContext } from './automationCardContextKeys.js';
-import { getUnavailableAutomationsReasons, isAutomationVisibleInCatalogue } from './automationCataloguePresentation.js';
+import { getUnavailableAutomationsReasons, getVisibleAutomations } from './automationCataloguePresentation.js';
 import { AutomationsLayoutActions } from './automationsLayoutActions.js';
 import { AUTOMATIONS_NAV_IDS, AutomationRunState, AutomationsNavId, AutomationsSectionId, IAutomationLayoutSection, AutomationStatusFilter, classifyAutomation, CLOUD_AUTOMATION_HOST, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationExamples, filterAutomationRows, filterAutomationRuns, getAutomationLayoutDetails, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunArtifacts, getAutomationRunDestination, getAutomationRunState, getSharedRepositoryLabel, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutDetails, IAutomationLayoutExample, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutRunResult, IAutomationLayoutWarning, IAutomationsLayoutFilters, isAutomationsFilterActive, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
 import { getAutomationsSampleData, IAutomationsSampleData, sampleAutomationRunsRead } from './automationsLayoutSampleData.js';
@@ -522,7 +522,7 @@ class AutomationsLayoutModel extends Disposable {
 			automationService.availableProviders.read(reader);
 			const runs = automationService.runs.read(reader);
 			const sendLaterEnabled = sendLaterSetting.read(reader) === true;
-			const real = automationService.automations.read(reader).filter(automation => isAutomationVisibleInCatalogue(automation, sendLaterEnabled)).map(automation => {
+			const real = getVisibleAutomations(automationService.automations.read(reader), sendLaterEnabled).map(automation => {
 				const latestRun = runs.find(run => run.automationId === automation.id);
 				return this.toRow(automation, latestRun && withLocalProgress(latestRun, reader));
 			});

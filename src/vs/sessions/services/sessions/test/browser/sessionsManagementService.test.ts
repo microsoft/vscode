@@ -504,6 +504,30 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('routes worktree cleanup and capability checks by owner rather than filesystem path', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'first' });
+		const calls: string[] = [];
+		const providers = ['first', 'second'].map(id => new class extends TestSessionsProvider {
+			override readonly id = id;
+			override readonly supportsWorktreeCleanup = id === 'first';
+			override readonly supportsManagedWorktreeCleanup = id === 'second';
+			override async cleanupManagedWorktree(): Promise<void> {
+				calls.push(this.id);
+			}
+		}(session));
+		const { service } = createSessionsManagementService(session, disposables, providers);
+		const owners = providers.map(provider => ({
+			providerId: provider.id, repository: 'vscode-remote://host/repo', worktree: 'vscode-remote://host/repo.worktrees/task',
+			branch: 'agents/task', cleanupStatus: { state: 'unknown' as const },
+		}));
+		for (const owner of owners) {
+			await service.cleanupManagedWorktree!(owner);
+		}
+		assert.deepStrictEqual({ calls, capabilities: [service.canCleanupWorktree!(session), ...owners.map(owner => service.canCleanupWorktree!(owner))] }, {
+			calls: ['first', 'second'], capabilities: [true, false, true],
+		});
+	});
+
 	test('lists the sessions as their providers list them, and finds and reports the changes of also those outside a listing scope', () => {
 		const listed = stubSession({ sessionId: 'listed', providerId: 'scoped' });
 		const hidden = stubSession({ sessionId: 'hidden', providerId: 'scoped' });
@@ -520,9 +544,10 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			listed: service.getSessions().map(session => session.sessionId),
+			maintenance: service.getSessions({ includeHidden: true }).map(session => session.sessionId),
 			found: service.getSession(hidden.resource)?.sessionId,
 			changes,
-		}, { listed: ['listed'], found: 'hidden', changes: ['changed hidden'] });
+		}, { listed: ['listed'], maintenance: ['listed', 'hidden'], found: 'hidden', changes: ['changed hidden'] });
 	});
 
 	suite('session grid integration', () => {

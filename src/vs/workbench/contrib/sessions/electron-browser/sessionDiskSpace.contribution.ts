@@ -9,10 +9,10 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService, LOW_DISK_SPACE_BYTES } from '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService, LOW_DISK_SPACE_BYTES } from '../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 
 const DISK_SPACE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -56,7 +56,7 @@ export class SessionDiskSpaceContribution extends Disposable implements IWorkben
 			this.cleanupService.setAvailableDiskSpace(undefined);
 			return;
 		}
-		const paths = new Set(this.sessionsManagementService.getSessions().flatMap(session =>
+		const paths = new Set(this.sessionsManagementService.getSessions({ includeHidden: true }).flatMap(session =>
 			session.workspace.get()?.folders.flatMap(folder => {
 				const uri = folder.gitRepository?.workTreeUri;
 				return uri?.scheme === Schemas.file ? [uri.fsPath] : [];
