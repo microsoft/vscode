@@ -52,7 +52,7 @@ function getChatViewSessionsListAccessibilityHelpContent(): string {
 		localize('chatViewSessionsList.overview', "You are in the sessions list of the Chat view. It lists your agent sessions in sections and groups."),
 		localize('chatViewSessionsList.navigation', "Use the Up Arrow and Down Arrow keys to move through the list. Use the Right Arrow and Left Arrow keys to expand and collapse a section, a group, or a session with several chats."),
 		localize('chatViewSessionsList.open', "Press Enter to open the focused session or chat. It opens in the Chat view, below or beside the list, unless the chats of the window open in the chat area."),
-		localize('chatViewSessionsList.newChat', "To start a new chat in the Chat view, run New Chat{0}, or New Session in the header of the list.", '<keybinding:workbench.action.chat.newChat>'),
+		localize('chatViewSessionsList.newChat', "To start a new chat, run New Chat{0}.", '<keybinding:workbench.action.chat.newChat>'),
 		localize('chatViewSessionsList.find', "Search the list with Find Session{0}.", '<keybinding:sessionsViewPane.find>'),
 		localize('chatViewSessionsList.actions', "Press Shift+F10 or the Context Menu key to open the actions of the focused session, section, or group, such as Pin, Rename, Archive, and Mark as Read."),
 		localize('chatViewSessionsList.shortcuts', "Rename the focused session{0}. Mark it as read{1} or unread{2}.", `<keybinding:${RENAME_SESSION_COMMAND_ID}>`, `<keybinding:${SESSIONS_LIST_MARK_READ_COMMAND_ID}>`, `<keybinding:${SESSIONS_LIST_MARK_UNREAD_COMMAND_ID}>`),
