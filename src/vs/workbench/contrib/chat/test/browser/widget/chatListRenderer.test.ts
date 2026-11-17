@@ -1154,7 +1154,7 @@ suite('ChatListRenderer', () => {
 				runAt: new Date(Date.now() + remaining).toISOString(),
 			}]);
 			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
-			return template.value.querySelector('.scheduled-request-description')!;
+			return template.value.querySelector('.scheduled-request-from-now')!;
 		};
 		const hours = renderAt(3 * 60 * 60_000).textContent;
 		const description = renderAt(179_000);
@@ -1168,7 +1168,7 @@ suite('ChatListRenderer', () => {
 		await timeout(60_000);
 		labels.push(description.textContent);
 		assert.deepStrictEqual({
-			hours, labels, retainedElement: template.value.querySelector('.scheduled-request-description') === description,
+			hours, labels, retainedElement: template.value.querySelector('.scheduled-request-from-now') === description,
 		}, {
 			hours: 'Sends in 3 hours',
 			labels: ['Sends in 3 minutes', 'Sends in 3 minutes', 'Sends in 2 minutes', 'Sends in less than a minute', 'Waiting to send'],
@@ -1177,24 +1177,27 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	}));
 
-	test('scheduled editing refreshes the relative time and accessible label without replacing the picker anchor', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('scheduled editing refreshes the local day without replacing the picker anchor', () => runWithFakedTimers({ startTime: new Date(2026, 10, 16, 23, 59).getTime(), useFakeTimers: true }, async () => {
 		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
 		viewModel.setScheduledRequests([{
 			id: 'later', text: 'Scheduled message', description: 'Exact send time', attachments: [], actions: [],
 			editing: {
-				text: 'Scheduled message', runAt: new Date(Date.now() + 90_000).toISOString(), description: 'Exact send time',
+				text: 'Scheduled message', runAt: new Date(2026, 10, 17, 0, 1).toISOString(), description: 'Exact send time',
 				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }), save: async () => { }, cancel: () => { },
 			},
 		}]);
 		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
 		const time = template.requestTimestampContainer.querySelector('.scheduled-request-edit-time')!;
-		const initial = time.getAttribute('aria-label');
+		const save = template.requestTimestampContainer.querySelector('.scheduled-request-save-label')!;
+		const initial = time.getAttribute('aria-label')?.replace(/\s/g, ' ');
 		await timeout(60_000);
 		assert.deepStrictEqual({
-			initial, updated: time.getAttribute('aria-label'),
+			initial, updated: time.getAttribute('aria-label')?.replace(/\s/g, ' '),
+			saveLabel: save.textContent?.replace(/\s/g, ' '),
 			retainedAnchor: template.requestTimestampContainer.querySelector('.scheduled-request-edit-time') === time,
 		}, {
-			initial: 'Change send time, Sends in 2 minutes', updated: 'Change send time, Sends in less than a minute', retainedAnchor: true,
+			initial: 'Change send time, Tomorrow at 12:01 AM', updated: 'Change send time, Today at 12:01 AM',
+			saveLabel: 'Send Today at 12:01 AM', retainedAnchor: true,
 		});
 		disposables.dispose();
 	}));
@@ -1277,7 +1280,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('scheduled editing delegates the input to the widget and retains time, save, and cancel controls', async () => {
+	test('scheduled inline editing retains attachments and offers Cancel and a timed Send button', () => runWithFakedTimers({ startTime: new Date(2026, 10, 16, 9).getTime(), useFakeTimers: true }, async () => {
 		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
 		const saved: string[] = [];
 		let cancelled = 0;
@@ -1285,7 +1288,7 @@ suite('ChatListRenderer', () => {
 		let inlineInputRequested = false;
 		disposables.add(renderer.onDidRerender(item => { inlineInputRequested = item === template; }));
 		const editing = {
-			text: 'Original', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+			text: 'Original', runAt: new Date(2026, 10, 16, 11, 42).toISOString(), description: 'Exact send time',
 			selectTime: toAction({ id: 'time', label: 'Time', run: async (anchor?: HTMLElement) => { timeAnchor = anchor; editing.runAt = '2099-01-16T10:00:00Z'; } }),
 			save: async () => { saved.push(editing.text, editing.runAt); },
 			cancel: () => { cancelled++; },
@@ -1294,24 +1297,32 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
 		editing.text = 'Edited\nmessage';
 		const timeButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
-		timeButton.click();
+		const saveButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-save-label')!;
+		const cancelButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-cancel')!;
+		cancelButton.focus();
+		cancelButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const saveReachedByKeyboard = mainWindow.document.activeElement === saveButton;
+		saveButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const timeReachedByKeyboard = mainWindow.document.activeElement === timeButton;
+		timeButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		await timeout(0);
-		const buttons = template.requestTimestampContainer.querySelectorAll<HTMLElement>('.monaco-button');
-		buttons[1].click();
+		saveButton.click();
 		await timeout(0);
-		buttons[2].click();
+		cancelButton.click();
 		assert.deepStrictEqual({
 			text: editing.text, timeAnchored: timeAnchor === timeButton, inlineInputRequested, saved, cancelled,
 			hasCustomTextArea: !!template.rowContainer.querySelector('textarea'),
+			saveReachedByKeyboard, timeReachedByKeyboard, saveLabel: saveButton.textContent?.replace(/\s/g, ' '),
 			attachments: template.requestTimestampContainer.querySelector('.scheduled-request-attachments')?.textContent,
 			hoverToolbar: !!template.rowContainer.querySelector('.scheduled-request-actions'),
 		}, {
 			text: 'Edited\nmessage', timeAnchored: true, inlineInputRequested: true, hasCustomTextArea: false,
 			saved: ['Edited\nmessage', '2099-01-16T10:00:00Z'], cancelled: 1,
+			saveReachedByKeyboard: true, timeReachedByKeyboard: true, saveLabel: 'Send Today at 11:42 AM',
 			attachments: 'Attachments: notes.txt', hoverToolbar: false,
 		});
 		disposables.dispose();
-	});
+	}));
 
 	test('leaving scheduled editing restores the visible message on the reused row', () => {
 		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();

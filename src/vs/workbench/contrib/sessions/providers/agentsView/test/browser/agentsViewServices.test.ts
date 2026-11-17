@@ -79,7 +79,7 @@ const CORE_SERVICES = new Set([
  * of core features, such as chat, MCP and extensions. Each is an inert stub; the sessions services only need them to exist.
  */
 const STUBBED_CORE_SERVICES = [
-	'IChatService', 'IChatWidgetHistoryService', 'IMcpService', 'agentHostCustomizationService', 'chatSessionsService', 'chatViewHostService',
+	'IChatService', 'IChatWidgetHistoryService', 'IMcpService', 'IUserDataProfileStorageService', 'agentHostCustomizationService', 'chatSessionsService', 'chatViewHostService',
 	'commandService', 'customizationHarnessService', 'extensionManifestPropertiesService', 'extensionsWorkbenchService', 'gitHubService', 'onboardingScenarioService',
 	'remoteAgentHostService', 'viewsService',
 ];

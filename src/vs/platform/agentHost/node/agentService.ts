@@ -14942,7 +14942,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let title = meta.summary ?? 'Session';
 		let isRead: boolean | undefined;
 		let defaultChatIsRead: boolean | undefined;
-		let isArchived: boolean | undefined;
+		let isArchived = meta.status === undefined ? undefined : isSessionStatusArchived(meta.status);
 		let persistedConfigValues: Record<string, unknown> | undefined;
 		let changes: ChangesSummary | undefined;
 		let gitMetadata: Record<string, string | undefined> | undefined;

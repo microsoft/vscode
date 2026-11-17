@@ -3,54 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { ITableColumn, ITableRenderer } from '../../../../base/browser/ui/table/table.js';
-import { Checkbox, TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Action, IAction, toAction } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { fromNow } from '../../../../base/common/date.js';
-import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { basename, extUri } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { ByteSize } from '../../../../platform/files/common/files.js';
-import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawWorkbenchListFocusContextKey, WorkbenchTable } from '../../../../platform/list/browser/listService.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { localize } from '../../../../nls.js';
-import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
-import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
-import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
-import { SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, getWorktreeCleanupDiskUsage, getWorktreeCleanupId, getWorktreeCleanupLastActivity, getWorktreeCleanupSessions, getWorktreeCleanupTitle, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, isWorktreeCleanupBranchSupported, SessionWorktreeCleanupProgress, SessionWorktreeCleanupState } from '../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { DropdownMenuActionViewItem } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ITableColumn, ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
+import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { fromNow } from '../../../../../base/common/date.js';
+import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { basename, extUri } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ByteSize } from '../../../../../platform/files/common/files.js';
+import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { RawWorkbenchListFocusContextKey, WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { localize } from '../../../../../nls.js';
+import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { IEditorOpenContext } from '../../../../common/editor.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { SessionWorktreeCleanupEditorFocusedContext } from '../../common/contextkeys.js';
+import { ISessionsService } from '../sessionsService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BYTES, CLEANUP_THRESHOLD_WORKTREES, getWorktreeCleanupDiskUsage, getWorktreeCleanupId, getWorktreeCleanupLastActivity, getWorktreeCleanupSessions, getWorktreeCleanupTitle, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, isWorktreeCleanupBranchSupported, SessionWorktreeCleanupProgress, SessionWorktreeCleanupState } from './sessionWorktreeCleanupService.js';
 import { SessionWorktreeCleanupEditorInput } from './sessionWorktreeCleanupEditorInput.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import './media/sessionWorktreeCleanupEditor.css';
 
 const MINIMUM_AGE_OPTIONS = [0, 1, 3, 7, 15, 30, 60, 90];
@@ -184,6 +186,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 	}, 100));
 	private automaticCleanupInput: Checkbox | undefined;
+	private readonly inventoryRefreshScheduler = this._register(new RunOnceScheduler(() => {
+		if (this.input && !this.isSchedulingCleanup) {
+			void this.load(false, true);
+		}
+	}, 500));
 
 	constructor(
 		group: IEditorGroup,
@@ -199,8 +206,14 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super(SessionWorktreeCleanupEditor.ID, group, telemetryService, themeService, storageService);
+		this._register(sessionsManagementService.onDidChangeSession(() => {
+			if (this.input) {
+				this.inventoryRefreshScheduler.schedule();
+			}
+		}));
 		this._register(toDisposable(() => {
 			this.renderedCells.clear();
 			this.tableScrollables.clear();
@@ -425,6 +438,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		this.inventoryRefreshScheduler.cancel();
 		this.renderVersion++;
 		this.cleanupGeneration++;
 		this.isSchedulingCleanup = false;
@@ -693,11 +707,17 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			if (event.element && event.browserEvent instanceof dom.getWindow(container).KeyboardEvent && (!event.browserEvent.target || event.browserEvent.target === this.tableFocusElements.get(table))) {
 				const worktree = this.displayWorktreesById.get(event.element)!;
 				if (worktree.session) {
-					void this.sessionsService.openSession(worktree.session.resource).catch(error => this.notificationService.error(error));
+					void this.openSession(worktree.session).catch(error => this.notificationService.error(error));
 				}
 			}
 		}));
 		return table;
+	}
+
+	private async openSession(session: ISession): Promise<void> {
+		if (await this.sessionsService.canOpenSession(session)) {
+			await this.sessionsService.openSession(session.resource);
+		}
 	}
 
 	private createWorktreeCellRenderer(column: WorktreeColumn): ITableRenderer<string, IWorktreeCellTemplate> {
@@ -839,7 +859,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	private getVisibleWorktrees(): readonly ISessionWorktree[] {
-		return this.getMatchingWorktrees().filter(worktree => !this.hasRemovalIssue(worktree) && (worktree.isMeasuring || this.isWorktreeInProgress(worktree) || this.canScheduleCleanup(worktree)));
+		return this.getMatchingWorktrees().filter(worktree => worktree.cleanupUnavailableReason || (!this.hasRemovalIssue(worktree) && (worktree.isMeasuring || this.isWorktreeInProgress(worktree) || this.canScheduleCleanup(worktree))));
 	}
 
 	private renderRows(): void {
@@ -995,7 +1015,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			const openSession = () => {
 				const session = template.worktree?.session;
 				if (session) {
-					void this.sessionsService.openSession(session.resource).catch(error => this.notificationService.error(error));
+					void this.openSession(session).catch(error => this.notificationService.error(error));
 				} else if (template.worktree?.unlinkedWorktree) {
 					this.hoverService.showInstantHover({ ...this.cellHoverOptions, target: titleLink, content: getWorktreePath(template.worktree, this.labelService) }, true);
 				}
@@ -1139,6 +1159,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			worktree.sizeBytes === undefined,
 			worktree.worktreeCount,
 			worktree.cleanupState,
+			worktree.cleanupUnavailableReason,
 			worktree.session?.isArchived.get(),
 			worktree.isMeasuring,
 			worktree.cleanupStatus?.state,
@@ -1160,6 +1181,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	private getWorktreeCleanupLabel(worktree: ISessionWorktree, cleaning: boolean): string | undefined {
+		if (worktree.cleanupUnavailableReason) {
+			return worktree.cleanupUnavailableReason;
+		}
 		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
 		if (batch?.state === 'removed') {
 			return localize('sessionWorktreeCleanup.removed', "Worktree removed");
@@ -1272,7 +1296,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private canScheduleCleanup(worktree: ISessionWorktree): boolean {
 		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
-		return worktree.isListedByHost !== false && worktree.worktreeExists !== false && batch?.state !== 'queued' && batch?.state !== 'pending' && batch?.state !== 'removed'
+		return !worktree.cleanupUnavailableReason && worktree.isListedByHost !== false && worktree.worktreeExists !== false && batch?.state !== 'queued' && batch?.state !== 'pending' && batch?.state !== 'removed'
 			&& (worktree.unlinkedWorktree
 				? !!worktree.unlinkedWorktree.branch && !worktree.cleanupStatusError && !worktree.worktreeCheckError && worktree.cleanupStatus?.state !== 'inUse' && !this.hasPendingCleanup(worktree)
 				: worktree.cleanupState === 'archived'
@@ -1292,7 +1316,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		return worktree.cleanupStatus?.state === 'failed' || worktree.cleanupStatus?.state === 'skipped' || worktree.cleanupStatus?.state === 'inUse'
 			|| worktree.isListedByHost === false || !!worktree.worktreeCheckError || !!worktree.cleanupStatusError || worktree.measurementFailed === true
-			|| batch?.state === 'failed' || batch?.state === 'attention';
+			|| ((batch?.state === 'failed' || batch?.state === 'attention') && !batch.schedulingError);
 	}
 
 	private updateCleanupBatch(): void {

@@ -448,7 +448,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			...(cloneRoot ? { cloneRoot } : {}),
 			live: true,
 			...(this.environmentName.get() ? { name: this.environmentName.get() } : {}),
-			...(useLocalCredentials ? { useLocalCredentials: true } : {}),
+			useLocalCredentials,
 			...(ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}),
 			...(disableRepositoryMetadata ? { disableRepositoryMetadata: true } : {}),
 		}).catch(error => {

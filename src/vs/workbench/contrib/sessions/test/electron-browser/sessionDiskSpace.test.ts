@@ -15,10 +15,10 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
-import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ISession, ISessionGitRepository, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ISession, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService } from '../../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 import { SessionDiskSpaceContribution } from '../../electron-browser/sessionDiskSpace.contribution.js';
 
 suite('SessionDiskSpaceContribution', () => {
@@ -26,6 +26,7 @@ suite('SessionDiskSpaceContribution', () => {
 
 	function create(options: {
 		paths?: readonly URI[];
+		hiddenPaths?: readonly URI[];
 		enabled?: boolean;
 		hidden?: boolean;
 		getFreeDiskSpace?: (path: string) => Promise<number>;
@@ -38,7 +39,7 @@ suite('SessionDiskSpaceContribution', () => {
 		const paths = options.paths ?? [URI.file('/worktree')];
 		const contribution = disposables.add(new SessionDiskSpaceContribution(
 			upcastPartial<ISessionsManagementService>({
-				getSessions: () => paths.map(path => upcastPartial<ISession>({
+				getSessions: query => [...paths, ...(query?.includeHidden ? options.hiddenPaths ?? [] : [])].map(path => upcastPartial<ISession>({
 					workspace: constObservable(upcastPartial<ISessionWorkspace>({
 						folders: [{
 							root: path,
@@ -76,6 +77,14 @@ suite('SessionDiskSpaceContribution', () => {
 			checks: [URI.file('/worktree').fsPath],
 			availableSpace: [ByteSize.GB],
 		});
+	}));
+
+	test('checks worktrees outside the session listing scope', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const path = URI.file('/hidden-worktree');
+		const { contribution, checks, availableSpace } = create({ paths: [], hiddenPaths: [path] });
+		await timeout(10_001);
+		contribution.dispose();
+		assert.deepStrictEqual({ checks, availableSpace }, { checks: [path.fsPath], availableSpace: [ByteSize.GB] });
 	}));
 
 	for (const available of [0, 5 * ByteSize.GB - 1, 5 * ByteSize.GB, 10 * ByteSize.GB]) {
