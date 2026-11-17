@@ -6806,6 +6806,66 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	test('stamps the active turn account on forwarded rows without a model call', async () => {
+		const telemetryService = new class extends RecordingTelemetryService {
+			override publicLog(eventName?: string, data?: unknown): void {
+				this.events.push({ eventName: eventName ?? '', data });
+			}
+		}();
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService }) as TestableCopilotAgent;
+		afterTest(() => disposeAgent(agent));
+		await agent.listChatsToMigrate();
+		const forward = getCreatedClientOptions(agent).at(-1)?.github?.onTelemetry;
+		assert.ok(forward);
+
+		const turnContext = { copilotSku: 'turn-sku', copilotTrackingId: 'turn-analytics' };
+		const callContext = { copilotSku: 'call-sku', copilotTrackingId: 'call-analytics' };
+		const subagentContext = { copilotSku: 'subagent-sku', copilotTrackingId: 'subagent-analytics' };
+		const correlation = (turnTelemetryContext: typeof turnContext | undefined) => ({
+			currentTurnId: turnTelemetryContext ? 'turn-1' : undefined,
+			isDisposed: false,
+			telemetryContextForRow: (agentId: string | undefined) => agentId ? (agentId === 'agent-1' ? subagentContext : undefined) : turnTelemetryContext,
+			compactionTurnCorrelation: { resolve: async (): Promise<ICompactionTurnCorrelationResult> => ({ turnId: 'turn-1', outcome: 'mappingAvailable' }) },
+			modelCallTurnCorrelation: {
+				take: () => undefined,
+				wait: () => Promise.resolve({ turnId: undefined, outcome: 'waitExpired' as const, waitMs: 0 }),
+				markResponseForwarded: () => { },
+				getTelemetryContext: (modelCallId: string) => modelCallId === 'call-1' ? callContext : undefined,
+			},
+		});
+		setLiveChatStub(agent, 'in-turn', correlation(turnContext));
+		setLiveChatStub(agent, 'between-turns', correlation(undefined));
+		const row = (sessionId: string, kind: string, modelCallId?: string, agentId?: string): GitHubTelemetryNotification => ({
+			sessionId,
+			restricted: false,
+			event: { kind, ...(modelCallId ? { model_call_id: modelCallId } : {}), properties: { ...(kind.startsWith('session_compaction') ? { compaction_attempt_id: 'attempt' } : {}), ...(agentId ? { agent_id: agentId } : {}) }, metrics: {} },
+		});
+
+		await forward(row('in-turn', 'prompt_cache_break'));
+		await forward(row('in-turn', 'skill_invoked'));
+		await forward(row('in-turn', 'session_compaction_complete'));
+		await forward(row('in-turn', 'tool_call_executed', 'call-1'));
+		await forward(row('in-turn', 'tool_call_executed', 'evicted-call'));
+		await forward(row('in-turn', 'skill_invoked', undefined, 'agent-1'));
+		await forward(row('in-turn', 'skill_invoked', undefined, 'agent-unknown'));
+		await forward(row('between-turns', 'prompt_cache_break'));
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName.startsWith('copilotSdk/')).map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { eventName: event.eventName, copilotSku: data.copilotSku, trackingId: data['common.copilotTrackingId'] };
+		}), [
+			{ eventName: 'copilotSdk/prompt_cache_break', copilotSku: 'turn-sku', trackingId: 'turn-analytics' },
+			{ eventName: 'copilotSdk/skill_invoked', copilotSku: 'turn-sku', trackingId: 'turn-analytics' },
+			{ eventName: 'copilotSdk/session_compaction_complete', copilotSku: 'turn-sku', trackingId: 'turn-analytics' },
+			{ eventName: 'copilotSdk/tool_call_executed', copilotSku: 'call-sku', trackingId: 'call-analytics' },
+			{ eventName: 'copilotSdk/tool_call_executed', copilotSku: undefined, trackingId: undefined },
+			{ eventName: 'copilotSdk/skill_invoked', copilotSku: 'subagent-sku', trackingId: 'subagent-analytics' },
+			{ eventName: 'copilotSdk/skill_invoked', copilotSku: undefined, trackingId: undefined },
+			{ eventName: 'copilotSdk/prompt_cache_break', copilotSku: undefined, trackingId: undefined },
+		]);
+	});
+
 	for (const disposeDuringWait of [false, true]) {
 		test(`captures the original root during an expired correlation wait (disposed: ${disposeDuringWait})`, async () => {
 			const response = new DeferredPromise<ITelemetryData>();
