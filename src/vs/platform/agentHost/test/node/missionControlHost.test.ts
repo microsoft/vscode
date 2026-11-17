@@ -95,6 +95,10 @@ suite('Mission Control host integration', () => {
 		const rootValues: Record<string, unknown> = {};
 		instantiation.stub(IAgentConfigurationService, new class extends mock<IAgentConfigurationService>() {
 			override readonly onDidRootConfigChange = rootConfigChanged.event;
+			override publishRootTransientValues(patch: Readonly<Record<string, unknown>>): void {
+				Object.assign(rootValues, patch);
+				rootConfigChanged.fire();
+			}
 			override getRootValue<D extends SchemaDefinition, K extends keyof D & string>(
 				schema: ISchema<D>, key: K,
 			): SchemaValue<D[K]> | undefined {
@@ -583,8 +587,7 @@ suite('Mission Control host integration', () => {
 			instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() {
 				override dispose(): void { }
 			}());
-			const { authentication, credentialValidations, rootValues } = createHost(instantiation);
-			rootValues[MissionControlUseLocalCredentialsConfigKey] = useLocalCredentials;
+			const { authentication, credentialValidations } = createHost(instantiation);
 			const resource = 'https://api.github.com';
 			const repository = `${resource}/repos`;
 			const mcp = 'https://mcp.example.test';
@@ -595,7 +598,9 @@ suite('Mission Control host integration', () => {
 			await authentication.authenticate({ resource, token: 'desktop-token', scopes: ['read:user'] }, [provider]);
 			await authentication.authenticate({ resource: repository, token: 'desktop-repository-token', scopes: ['repo'] }, [provider]);
 			const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
-			store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { }(), [], () => [], () => [], undefined, useLocalCredentials));
+			assert.ok(environment.configureExecutionAuthentication);
+			environment.configureExecutionAuthentication(useLocalCredentials);
+			store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { }(), [], () => [], () => []));
 			const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
 			const principal = { apiOrigin: resource, userId: '123' };
 			const resolveCredentials = config.resolveRelayCredentials;
