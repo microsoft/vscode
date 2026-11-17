@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../..
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
@@ -24,14 +24,15 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
+import { IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { IChatWidgetViewModelChangeEvent } from '../../../../browser/chat.js';
-import { IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
+import { IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { IChatModelReference } from '../../../../common/chatService/chatService.js';
-import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { ChatSessionRefreshReason, SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
@@ -42,6 +43,24 @@ import { ChatConfiguration } from '../../../../common/constants.js';
 import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
 import { IWorkbenchLayoutService, Position } from '../../../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../../common/views.js';
+
+/**
+ * What the Chat view reads of its seam (IChatViewHostService): the sessions list it shows, and whether it shows only its
+ * sessions, which a feature's contribution changes together, as it registers and as it goes.
+ */
+function createSeam() {
+	const sessionsList = observableValue<IChatViewSessionsListProvider | undefined>('sessionsList', undefined);
+	const sessionsOnly = observableValue('sessionsOnly', false);
+	const set = (provider: IChatViewSessionsListProvider | undefined, only: boolean) => transaction(tx => {
+		sessionsList.set(provider, tx);
+		sessionsOnly.set(only, tx);
+	});
+	const provide = (provider: IChatViewSessionsListProvider, only: boolean) => {
+		set(provider, only);
+		return toDisposable(() => set(undefined, false));
+	};
+	return { sessionsList, sessionsOnly, provide };
+}
 
 suite('ChatViewPane sessions refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -54,6 +73,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
+			chatViewHostService: { sessionsOnly: constObservable(false) },
 			configurationService: configuration,
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
 			lastDimensions: { width: 1000, height: 600 },
@@ -77,6 +97,238 @@ suite('ChatViewPane sessions refresh', () => {
 		host.sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 		update.call(host);
 		assert.deepStrictEqual(visibility, [false, true, false, true, false, false]);
+	});
+
+	test('a sessions list that a provider gives shows, while it asks for only the sessions, also with a chat and the sessions off in settings', async () => {
+		const visibility: boolean[] = [];
+		const sessionsOnly = observableValue('sessionsOnly', true);
+		const host = {
+			sessionsContainer: document.createElement('div'),
+			viewPaneContainer: document.createElement('div'),
+			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
+			chatViewHostService: { sessionsOnly },
+			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: false }),
+			sessionsViewerOrientation: AgentSessionsViewerOrientation.Stacked,
+			lastDimensions: { width: 1000, height: 600 },
+			sessionsViewerVisibilityContext: { set: () => { } },
+			isBodyVisible: () => true,
+			chatEntitlementService: { sentiment: { completed: true } },
+			_widget: { isEmpty: () => false },
+			_sessionsListSuppressionCount: 0,
+		};
+		const update = Reflect.get(ChatViewPane.prototype, 'updateSessionsControlVisibility') as (this: typeof host) => void;
+		update.call(host);
+		sessionsOnly.set(false, undefined);
+		update.call(host);
+		assert.deepStrictEqual(visibility, [true, false]);
+	});
+
+	test('New Chat that is not its own is left to the chat widget it acts on', async () => {
+		const calls: string[] = [];
+		const cancellable = (name: string) => ({ value: { cancel: () => calls.push(`cancel ${name}`) } });
+		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object) => Promise<boolean>;
+		const taken = await newChat.call({ loadSessionCts: cancellable('load'), _applyModelCts: cancellable('restore') });
+		assert.deepStrictEqual({ taken, calls }, { taken: false, calls: [] });
+	});
+
+	test('focusing the input of a Chat view that shows only the sessions focuses its sessions, else the chat', () => {
+		const focused: string[] = [];
+		const focusInput = Reflect.get(ChatViewPane.prototype, 'focusInput') as (this: object) => void;
+		const host = (sessionsOnly: boolean) => ({
+			chatViewHostService: { sessionsOnly: constObservable(sessionsOnly) },
+			sessionsControl: { focus: () => focused.push('sessions') },
+			_widget: { focusInput: () => focused.push('chat') },
+		});
+		focusInput.call(host(true));
+		focusInput.call(host(false));
+		assert.deepStrictEqual(focused, ['sessions', 'chat']);
+	});
+
+	test('the chat widget is not visible while the Chat view shows only its sessions, so a chat it hides is not marked read; as the claim goes, it shows and the view lays it out', () => {
+		const seam = createSeam();
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const events: string[] = [];
+		const widget = {
+			visible: true,
+			setVisible(value: boolean) { this.visible = value; events.push(`visible ${value}`); },
+		};
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined, setVisible: () => { } }),
+			},
+			hostService: { onDidChangeFocus: Event.None },
+			chatViewHostService: seam,
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			viewPaneContainer: document.createElement('div'),
+			isBodyVisible: () => true,
+			sessionsViewerVisible: true,
+			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
+			welcomeController: undefined,
+			lastDimensions: { width: 400, height: 600 },
+			layoutBody: () => events.push(`layout, chat ${widget.visible ? 'shown' : 'hidden'}`),
+			relayout: Reflect.get(ChatViewPane.prototype, 'relayout'),
+			updateWidgetVisibility: Reflect.get(ChatViewPane.prototype, 'updateWidgetVisibility'),
+			_widget: undefined as typeof widget | undefined,
+		};
+		// As the Chat view creates them: its sessions control, then its chat widget
+		(Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void).call(host, document.createElement('div'));
+		host._widget = widget;
+		(Reflect.get(ChatViewPane.prototype, 'trackWidgetVisibility') as (this: typeof host) => void).call(host);
+		events.splice(0);
+
+		seam.sessionsOnly.set(true, undefined);
+		const claimed = events.splice(0);
+		seam.sessionsOnly.set(false, undefined);
+
+		assert.deepStrictEqual({ claimed, released: events }, {
+			claimed: ['visible false', 'layout, chat hidden'],
+			released: ['visible true', 'layout, chat shown'],
+		});
+	});
+
+	test('the sessions list follows the provider live: a provider registering replaces the Chat view\'s own list, and its own list returns as it goes, the replaced one disposed', () => {
+		const seam = createSeam();
+		const disposed: string[] = [];
+		const control = (name: string) => upcastPartial<AgentSessionsControl>({ dispose: () => disposed.push(name), setVisible: () => { } });
+		let ownLists = 0;
+		const viewPaneContainer = document.createElement('div');
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => {
+					if (ctor === AgentSessionsControl) {
+						return control(`own ${++ownLists}`);
+					}
+					return ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined });
+				},
+			},
+			hostService: { onDidChangeFocus: Event.None },
+			chatViewHostService: seam,
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			viewPaneContainer,
+			isBodyVisible: () => true,
+			sessionsViewerVisible: true,
+			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
+			relayout: () => { },
+			sessionsControl: undefined as unknown,
+			sessionsTitleContainer: undefined as HTMLElement | undefined,
+		};
+		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
+		createControl.call(host, document.createElement('div'));
+		const providedControl = control('provided');
+		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: seam.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', disposed: disposed.splice(0) });
+		const steps = [state()];
+
+		const registration = seam.provide(upcastPartial<IChatViewSessionsListProvider>({
+			create: () => ({ control: providedControl, hasHeader: true }),
+		}), true);
+		steps.push(state());
+		registration.dispose();
+		steps.push(state());
+
+		assert.deepStrictEqual(steps, [
+			{ control: 'own 1', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: [] },
+			{ control: 'provided', sessionsOnly: true, sessionsOnlyClass: true, title: false, disposed: ['own 1'] },
+			{ control: 'own 2', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: ['provided'] },
+		]);
+	});
+
+	test('as the sessions list swaps live, the new list takes focus only if the replaced list had it, or the chat input while the new list does not show', () => {
+		const seam = createSeam();
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const parent = mainWindow.document.body.appendChild(document.createElement('div'));
+		const elsewhere = mainWindow.document.body.appendChild(document.createElement('input'));
+		const chatInput = mainWindow.document.body.appendChild(document.createElement('textarea'));
+		store.add(toDisposable(() => { parent.remove(); elsewhere.remove(); chatInput.remove(); }));
+		// Each list renders a focusable row into its container, which its focus focuses
+		const render = (container: HTMLElement, name: string) => {
+			const row = container.appendChild(document.createElement('input'));
+			row.name = name;
+			return upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { }, focus: () => row.focus() });
+		};
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar, container?: HTMLElement) => {
+					if (ctor === AgentSessionsControl) {
+						return render(container!, 'own');
+					}
+					return ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined });
+				},
+			},
+			hostService: { onDidChangeFocus: Event.None },
+			chatViewHostService: seam,
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			viewPaneContainer: document.createElement('div'),
+			isBodyVisible: () => true,
+			sessionsViewerVisible: true,
+			// Whether the list shows after the swap, as the Chat view's visibility rules say, such as its own list while
+			// its sessions are disabled in the settings
+			sessionsVisible: true,
+			updateSessionsControlVisibility: () => {
+				host.sessionsViewerVisible = host.sessionsVisible;
+				return { changed: false, visible: host.sessionsVisible };
+			},
+			// Whether the layout shows the list, such as switching to side by side in a wide window, after the visibility check
+			layoutShowsList: false,
+			relayout: () => {
+				if (host.layoutShowsList) {
+					host.sessionsVisible = true;
+					host.updateSessionsControlVisibility();
+				}
+			},
+			sessionsControlContainer: undefined as HTMLElement | undefined,
+			_widget: { focusInput: () => chatInput.focus() },
+			updateWidgetVisibility: () => { },
+		};
+		Object.assign(host, { focusInput: Reflect.get(ChatViewPane.prototype, 'focusInput') });
+		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
+		createControl.call(host, parent);
+		const focusList = () => host.sessionsControlContainer!.querySelector('input')!.focus();
+		const active = () => {
+			const element = mainWindow.document.activeElement;
+			return element === chatInput ? 'chat input' : element === elsewhere ? 'elsewhere' : (element as HTMLInputElement | null)?.name ?? 'none';
+		};
+		const provide = (sessionsOnly: boolean) => seam.provide(upcastPartial<IChatViewSessionsListProvider>({
+			create: container => ({ control: render(container, 'provided'), hasHeader: true }),
+		}), sessionsOnly);
+		const steps: string[] = [];
+
+		// The list has focus, and the list that replaces it shows: it takes focus
+		focusList();
+		const provided = provide(false);
+		steps.push(active());
+		// Focus is elsewhere, such as in an editor: it stays there
+		elsewhere.focus();
+		provided.dispose();
+		steps.push(active());
+		// The provided list, showing only the sessions, has focus, and the Chat view's own list that replaces it does not
+		// show: the chat input takes focus
+		const sessionsOnly = provide(true);
+		focusList();
+		host.sessionsVisible = false;
+		sessionsOnly.dispose();
+		steps.push(active());
+		// As before, but the layout then shows the Chat view's own list, such as side by side: that list takes focus
+		const sessionsOnlyAgain = provide(true);
+		focusList();
+		host.sessionsVisible = false;
+		host.layoutShowsList = true;
+		sessionsOnlyAgain.dispose();
+		steps.push(active());
+
+		assert.deepStrictEqual(steps, ['provided', 'elsewhere', 'chat input', 'own']);
 	});
 
 	test('sessions layout telemetry reports the settled layout once shown and restored, then only changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -146,10 +398,12 @@ suite('ChatViewPane sessions refresh', () => {
 				},
 			},
 			hostService: { onDidChangeFocus: focusChanged.event },
+			chatViewHostService: { sessionsList: constObservable(undefined), sessionsOnly: constObservable(false) },
 			configurationService: new TestConfigurationService(),
 			onDidChangeBodyVisibility: Event.None,
 			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
 			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			relayout: () => { },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => AgentSessionsControl;
 		createControl.call(host, document.createElement('div'));
@@ -236,6 +490,7 @@ suite('ChatViewPane session transitions', () => {
 			_openDiagnostics: store.add(new MutableDisposable()),
 			loadSessionCts: store.add(new MutableDisposable()),
 			_applyModelCts: store.add(new MutableDisposable()),
+			localChatCommit: store.add(new MutableDisposable()),
 			logService: new NullLogService(),
 			layoutService: { isRestored: () => false },
 			notificationService: { error: () => { } },
@@ -252,6 +507,25 @@ suite('ChatViewPane session transitions', () => {
 		didChangeViewModel = committed => (Reflect.get(pane, 'onDidChangeShownModel') as (e: IChatWidgetViewModelChangeEvent) => void).call(pane, { previousSessionResource: undefined, currentSessionResource: shown?.sessionResource, committed });
 		return { pane, paneStore, widget, modelRef, nextModel, nextRef, bindings, disposed, locks };
 	}
+
+	test('a new Local chat, whose model stays as its first request is accepted, reports its commit as that request is added, and only its first', () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const requests: unknown[] = [];
+		const changed = store.add(new Emitter<{ kind: string }>());
+		const local = upcastPartial<IChatModel>({ sessionResource: LocalChatSessionUri.forSession('new'), getRequests: () => requests as ReturnType<IChatModel['getRequests']>, onDidChange: changed.event as IChatModel['onDidChange'] });
+		const reason = () => rig.pane.shownSession.get()?.reason ?? 'none';
+		rig.widget.setModel(local);
+		const shownNew = reason();
+		requests.push({});
+		changed.fire({ kind: 'addRequest' });
+		const afterFirst = reason();
+		rig.pane.reportOpened(local.sessionResource);
+		requests.push({});
+		changed.fire({ kind: 'addRequest' });
+
+		assert.deepStrictEqual({ shownNew, afterFirst, afterSecond: reason() }, { shownNew: 'open', afterFirst: 'commit', afterSecond: 'open' });
+	});
 
 	test('keeps the previous session bound until its replacement is ready', async () => {
 		const resolving = new DeferredPromise<void>();
@@ -382,7 +656,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = instantiationService.createInstance(ChatViewHostService);
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
 		const stream: string[] = [];
 		store.add(autorun(reader => {
 			const shown = rig.pane.shownSession.read(reader);
@@ -407,6 +681,93 @@ suite('ChatViewPane session transitions', () => {
 		});
 	});
 
+	test('through the Chat view host, a New Chat of its own that an open supersedes leaves the opened chat as the shown one', async () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const opened = nextResource.with({ path: '/opened' });
+		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
+		const newChatAcquired = new DeferredPromise<{ modelRef: IChatModelReference }>();
+		const newChatStarted = new DeferredPromise<void>();
+		Object.assign(rig.pane, {
+			chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) },
+			acquireDefaultNewSession: () => { newChatStarted.complete(); return newChatAcquired.p; },
+			updateViewState: () => { },
+		});
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+			isViewVisible: () => true,
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const shown = () => { const value = host.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
+
+		// New Chat of its own waits for its new chat, and meanwhile the user opens a chat
+		const resetting = host.newChat(undefined, { ownChat: true, preserveFocus: true });
+		await newChatStarted.p;
+		await host.openSession(opened, { preserveFocus: true });
+		const afterOpen = shown();
+		await newChatAcquired.complete({ modelRef: reference(nextResource.with({ path: '/untitled-reset' })) });
+		const taken = await resetting;
+
+		assert.deepStrictEqual({ afterOpen, taken, afterReset: shown(), widget: rig.widget.viewModel?.sessionResource.path }, {
+			afterOpen: '/opened open',
+			taken: true,
+			afterReset: '/opened open',
+			widget: '/opened',
+		});
+	});
+
+	test('through the Chat view host, of two New Chats of its own under way, the later one is the shown none, also as the earlier one completes first, until its first send commits', async () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
+		const acquisitions = [new DeferredPromise<{ modelRef: IChatModelReference }>(), new DeferredPromise<{ modelRef: IChatModelReference }>()];
+		const [acquiredA, acquiredB] = acquisitions;
+		const pending = [...acquisitions];
+		const startedA = new DeferredPromise<void>();
+		Object.assign(rig.pane, {
+			chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) },
+			acquireDefaultNewSession: () => { startedA.complete(); return pending.shift()!.p; },
+			updateViewState: () => { },
+		});
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+			isViewVisible: () => true,
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const shown = () => { const value = host.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
+
+		// The later New Chat starts while the Chat view acquires the earlier one's new chat
+		const newChatA = host.newChat(undefined, { ownChat: true, preserveFocus: true });
+		await startedA.p;
+		const newChatB = host.newChat(undefined, { ownChat: true, preserveFocus: true });
+		await acquiredA.complete({ modelRef: reference(nextResource.with({ path: '/untitled-a' })) });
+		await newChatA;
+		await acquiredB.complete({ modelRef: reference(nextResource.with({ path: '/untitled-b' })) });
+		await newChatB;
+		const afterNewChats = shown();
+		const widget = rig.widget.viewModel?.sessionResource.path;
+		// Its first send commits the session it starts
+		await host.openSession(nextResource.with({ path: '/committed' }), { preserveFocus: true, commit: true });
+
+		assert.deepStrictEqual({ afterNewChats, widget, afterCommit: shown() }, {
+			afterNewChats: 'none',
+			widget: '/untitled-b',
+			afterCommit: '/committed commit',
+		});
+	});
+
 	test('through the Chat view host, an open of the chat it shows already that supersedes a restore of it under way reports the open, not the restore', async () => {
 		const rig = createPane();
 		rig.nextRef.dispose();
@@ -426,7 +787,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = instantiationService.createInstance(ChatViewHostService);
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
 		await host.openSession(chat, { preserveFocus: true });
 		const stream: string[] = [];
 		store.add(autorun(reader => {
@@ -463,7 +824,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = instantiationService.createInstance(ChatViewHostService);
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
 		const start = await host.startSession(untitled, { local: false, importingConversation: false });
 		const stream: string[] = [];
 		store.add(autorun(reader => {
@@ -534,6 +895,68 @@ suite('ChatViewPane session transitions', () => {
 		await showing;
 		assert.deepStrictEqual({ input: rig.widget.getInput(), bindings: rig.bindings }, {
 			input: 'New draft typed while loading', bindings: [nextResource],
+		});
+	});
+
+	test('a new chat of its own, as a sessions list starts one, replaces the chat it shows and its slow load, without focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const rig = createPane();
+		const acquiring = new DeferredPromise<IChatModelReference>();
+		const freshResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-fresh' });
+		const freshRef = Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: freshResource }) });
+		const focused: string[] = [];
+		Object.assign(rig.pane, {
+			chatService: { acquireOrLoadSession: () => acquiring.p },
+			acquireDefaultNewSession: async () => ({ modelRef: freshRef }),
+			updateViewState: () => { },
+		});
+		Object.assign(rig.widget, { focusInput: () => focused.push('chat') });
+		// A load still under way, while the chat it replaces still shows
+		const loading = rig.pane.loadSession(nextResource);
+		await timeout(150);
+
+		const taken = await (Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object, target: IChatViewNewChatTarget, options: IChatViewHostNewChatOptions) => Promise<boolean>)
+			.call(rig.pane, { folder: URI.file('/repo') }, { ownChat: true, preserveFocus: true });
+		await acquiring.complete(rig.nextRef);
+		await loading;
+
+		assert.deepStrictEqual({ taken, focused, bindings: rig.bindings, shown: rig.widget.viewModel?.sessionResource.path }, {
+			taken: true,
+			focused: [],
+			bindings: [freshResource],
+			shown: '/untitled-fresh',
+		});
+	}));
+
+	test('of two New Chats of its own under way, the later one shows its new chat, also as the earlier one completes last', async () => {
+		const rig = createPane();
+		const disposedNew: string[] = [];
+		const newChat = (name: string) => {
+			const model = upcastPartial<IChatModel>({ sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: `/untitled-${name}` }) });
+			return { model, ref: Object.assign(toDisposable(() => disposedNew.push(name)), { object: model }) as IChatModelReference, acquired: new DeferredPromise<{ modelRef: IChatModelReference }>() };
+		};
+		const a = newChat('a');
+		const b = newChat('b');
+		const acquisitions = [a, b];
+		Object.assign(rig.pane, {
+			acquireDefaultNewSession: () => acquisitions.shift()!.acquired.p,
+			updateViewState: () => { },
+		});
+		const run = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object, target: { folder: URI }, options: { ownChat: boolean; preserveFocus: boolean }) => Promise<boolean>;
+		const first = run.call(rig.pane, { folder: URI.file('/a') }, { ownChat: true, preserveFocus: true });
+		const second = run.call(rig.pane, { folder: URI.file('/b') }, { ownChat: true, preserveFocus: true });
+		await b.acquired.complete({ modelRef: b.ref });
+		const takenLater = await second;
+		await a.acquired.complete({ modelRef: a.ref });
+		const takenEarlier = await first;
+		// The rig's next chat, which these New Chats do not use
+		rig.nextRef.dispose();
+
+		assert.deepStrictEqual({ takenEarlier, takenLater, bindings: rig.bindings.map(resource => resource?.path), disposedNew, shown: rig.widget.viewModel?.sessionResource?.path }, {
+			takenEarlier: true,
+			takenLater: true,
+			bindings: ['/untitled-b'],
+			disposedNew: ['a'],
+			shown: '/untitled-b',
 		});
 	});
 
@@ -609,6 +1032,7 @@ suite('ChatViewPane managed permission rules', () => {
 					storageService: store.add(new TestStorageService()),
 					chatSessionsService: new MockChatSessionsService(),
 					agentHostEnablementService: { enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+					localChatAvailabilityService: { hidden: constObservable(false) },
 					logService: new NullLogService(),
 					notificationService: { error: (message: string) => errors.push(message) },
 					chatService: {
@@ -745,6 +1169,7 @@ suite('ChatViewPane restored chat with a harness disabled by policy', () => {
 			storageService: store.add(new TestStorageService()),
 			chatSessionsService: new MockChatSessionsService(),
 			agentHostEnablementService: { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
+			localChatAvailabilityService: { hidden: constObservable(false) },
 			chatService: {
 				transferredSessionResource: undefined,
 				acquireOrLoadSession: async (resource: URI): Promise<IChatModelReference> => ({ object: upcastPartial<IChatModel>({ sessionResource: resource, hasRequests }), dispose: () => { disposed = true; } }),
@@ -801,6 +1226,7 @@ suite('ChatViewPane widget readiness', () => {
 			onDidChangeBodyVisibility: Event.None,
 			isBodyVisible: () => true,
 			welcomeController: undefined,
+			chatViewHostService: { sessionsOnly: constObservable(false) },
 			relayout: () => { },
 		}) as ChatViewPane;
 		pane.whenWidget.then(created => steps.push(created === widget ? 'resolved to the widget' : `resolved to ${created}`));
