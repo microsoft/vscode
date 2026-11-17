@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, runOnChange } from '../../../../../../base/common/observable.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -21,6 +21,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { MovedChatEditorRetargeter } from './agentHostChatMoveEditors.js';
 import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
+import { IChatViewSessionsListService } from '../../../common/chatViewSessionsListService.js';
 
 export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
 
@@ -31,6 +32,8 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 	private readonly _historyRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 
 	private readonly _isSessionsWindow: boolean;
+	/** Whether it lists every agent's sessions, as the Agents window does, rather than only the agents editor windows show. */
+	private readonly _surfacesAllAgents: IObservable<boolean>;
 	private readonly _movedChatEditors: MovedChatEditorRetargeter;
 	private _initialized = false;
 	private _sessionListStore: AgentHostSessionListStore | undefined;
@@ -45,11 +48,13 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super();
 		this._movedChatEditors = new MovedChatEditorRetargeter(editorGroupsService, editorService);
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
 
 		if (this._isSessionsWindow) {
 			return;
@@ -90,16 +95,18 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		this._handleRootStateChange(initialRootState, sessionListStore);
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
+			if (!affectsAgentHostProviderPreference(e, this._surfacesAllAgents.get())) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
 			this._handleRootStateChange(current, sessionListStore);
 		}));
+		// The agents a window surfaces change too as it starts or stops showing the sessions of the Agents window
+		this._register(runOnChange(this._surfacesAllAgents, () => this._handleRootStateChange(this._agentHostService.rootState.value, sessionListStore)));
 	}
 
 	private _shouldRegisterAgent(provider: AgentProvider): boolean {
-		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._surfacesAllAgents.get());
 	}
 
 	private _handleRootStateChange(rootState: RootState | Error | undefined, sessionListStore: AgentHostSessionListStore): void {
@@ -115,7 +122,7 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 			}
 		}
 
-		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow));
+		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._surfacesAllAgents.get()));
 		for (const [provider] of this._historyRegistrations) {
 			if (!unavailable.has(provider)) {
 				this._historyRegistrations.deleteAndDispose(provider);

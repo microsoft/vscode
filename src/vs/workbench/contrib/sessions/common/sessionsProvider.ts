@@ -35,10 +35,12 @@ import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
  * `SessionsListingScopeFilter` matches them. With no folders, it lists every session.
  */
 export interface ISessionsListingScope {
+	/**
+	 * The folders of the scope, such as an editor window's: a session working in one, or whose root or repository is one, is
+	 * in the scope.
+	 */
 	readonly folders: IObservable<readonly URI[]>;
-	/** The repositories the {@link folders} are known to be checkouts of, such as the main checkout of an open worktree. */
-	readonly repositories: IObservable<readonly URI[]>;
-	/** The GitHub repositories, as `owner/repo`, of the {@link repositories}' `origin`, whose sessions on GitHub are in the scope. */
+	/** The GitHub repositories, as `owner/repo`, of the {@link folders}' `origin`, whose sessions on GitHub are in the scope. */
 	readonly gitHubRepositories?: IObservable<readonly string[]>;
 }
 
@@ -802,8 +804,11 @@ export interface ISessionsProvider {
 	/** Cheaply checks the owning host's worktrees. False confirms all roots are absent; undefined means unavailable. */
 	sessionWorktreeExists?(sessionId: string, token?: CancellationToken): Promise<boolean | undefined>;
 
-	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
+	/** Whether the connected host supports preparing and scheduling session worktree cleanup. */
+	readonly supportsWorktreeCleanup?: boolean;
+	readonly supportsManagedWorktreeCleanup?: boolean;
 	readonly supportsForceWorktreeCleanup?: boolean;
+	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;

@@ -29,6 +29,8 @@ import { getAgentHostPolicyGaps } from '../../../../../platform/agentHost/common
 import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../common/localChatAvailability.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 
 suite('ChatConfiguration defaults', () => {
 
@@ -474,6 +476,7 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IStorageService, storageService);
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
 		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		accessor.set(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		return { sessionType: getDefaultNewChatSessionTypeAndReason(accessor, options).sessionType };
 	}
 
@@ -492,6 +495,7 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IStorageService, storageService);
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
 		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		accessor.set(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		return getDefaultNewChatSessionTypeAndReason(accessor, options);
 	}
 
@@ -912,6 +916,36 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('while a feature hides new local chats, selecting another type and then the default remembers what it remembers with local chats off in the setting, so that new chats are local again once it no longer hides them', () => {
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const flow = (hide: boolean) => {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.DefaultToCopilotHarness]: false,
+				[ChatConfiguration.EditorLocalAgentEnabled]: hide,
+			});
+			const storageService = disposables.add(new TestStorageService());
+			const availability = disposables.add(new LocalChatAvailabilityService());
+			const hidden = hide ? availability.hide() : undefined;
+			const localChatHidden = availability.hidden.get();
+			const shownDefault = getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true, false, false, localChatHidden);
+			recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude, true, localChatHidden);
+			recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, shownDefault, true, localChatHidden);
+			// Local chats on again: no longer hidden, or the setting turned back on
+			hidden?.dispose();
+			configurationService.setUserConfiguration(ChatConfiguration.EditorLocalAgentEnabled, true);
+			return {
+				shownDefault,
+				remembered: getRememberedSessionType(storageService),
+				nextChat: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { localChatHidden: availability.hidden.get() }),
+			};
+		};
+
+		assert.deepStrictEqual({ hidden: flow(true), settingOff: flow(false) }, {
+			hidden: { shownDefault: SessionType.AgentHostCopilot, remembered: undefined, nextChat: localChatSessionType },
+			settingOff: { shownDefault: SessionType.AgentHostCopilot, remembered: undefined, nextChat: localChatSessionType },
+		});
+	});
+
 	test('selecting local while the agent host default is Copilot remembers local as an opt-out', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
@@ -1226,6 +1260,35 @@ suite('ChatConfiguration defaults', () => {
 			customVirtual: true,
 			mixed: false,
 		});
+	});
+
+	test('while a feature hides new local chats, they are off as the setting turns them off, the setting stays as it is, and releasing every hide restores them', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: false,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const storageService = disposables.add(new TestStorageService());
+		const availability = disposables.add(new LocalChatAvailabilityService());
+		const resolve = (localChatHidden = availability.hidden.get()) => ({
+			localEnabled: isEditorLocalAgentEnabled(configurationService, localWorkspace, false, localChatHidden),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace, false, true, false, localChatHidden),
+			localUsable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, localWorkspace, true, false, false, localChatHidden),
+			newChatIsLocal: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType, localChatHidden }) === localChatSessionType,
+		});
+
+		const offered = resolve();
+		const first = availability.hide();
+		const second = availability.hide();
+		const hidden = resolve();
+		first.dispose();
+		const oneReleased = resolve();
+		const setting = configurationService.getValue(ChatConfiguration.EditorLocalAgentEnabled);
+		second.dispose();
+		const released = resolve();
+
+		const on = { localEnabled: true, localVisible: true, localUsable: true, newChatIsLocal: true };
+		const off = { localEnabled: false, localVisible: false, localUsable: false, newChatIsLocal: false };
+		assert.deepStrictEqual({ offered, hidden, oneReleased, setting, released }, { offered: on, hidden: off, oneReleased: off, setting: undefined, released: on });
 	});
 
 	test('managed sandbox floor hides the local harness and defaults to the Copilot SDK', () => {

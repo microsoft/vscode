@@ -1633,7 +1633,7 @@ suite('Session Artifacts', () => {
 			withoutSupport: expected(false),
 			// Every kind gets a remove action once the provider supports it, named for whether it removes an artifact or a reference.
 			withSupport: expected(true),
-			websiteLabels: ['Remove Artifact Site from Session', 'Remove Reference Site from Session'],
+			websiteLabels: ['Remove "Site" Artifact', 'Remove "Site" Reference'],
 		});
 	});
 

@@ -11,7 +11,7 @@ import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../
 import { IChatToolInvocation } from '../../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../chat.js';
 import { ChatCustomConfirmationWidget } from '../chatConfirmationWidget.js';
-import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { focusChatInput, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart {
@@ -74,7 +74,7 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 		this._register(widget.onDidClick(async ({ button, isTouchClick }) => {
 			await button.data();
 			if (!isTouchClick) {
-				chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
+				focusChatInput(context, chatWidgetService);
 			}
 		}));
 		this.domNode = widget.domNode;

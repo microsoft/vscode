@@ -3,60 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type WebSocket from 'ws';
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import { createHash } from 'crypto';
 import { EventEmitter as NodeEventEmitter } from 'events';
 import { mkdtemp, rm, stat } from 'fs/promises';
 import { Duplex } from 'stream';
+import type WebSocket from 'ws';
+import { SequencerByKey } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { join, posix } from '../../../base/common/path.js';
-import { StopWatch } from '../../../base/common/stopwatch.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
-import { URI } from '../../../base/common/uri.js';
-import { hasKey } from '../../../base/common/types.js';
-import { findExecutable } from '../../../base/node/processes.js';
-import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { join, posix } from '../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { hasKey } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
 import { vArray, vLiteral, vObj, vOptionalProp, vString, vUnknown } from '../../../base/common/validation.js';
+import { findExecutable } from '../../../base/node/processes.js';
 import { localize } from '../../../nls.js';
-import { ILogService } from '../../log/common/log.js';
-import { IProductService } from '../../product/common/productService.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IGitHubService } from '../../github/common/githubService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { writeCertificatesFile, writeUserDataCertificatesFile } from '../../request/node/certificates.js';
-import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
-import { IRelayMessage } from '../common/relayTransport.js';
-import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type AgentHostEndpointAddress, selectAgentHostEndpoint } from '../common/agentHostEndpointRegistry.js';
+import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { DevContainerSample, IDevContainerRepository, IDevContainerSampleSource, devContainerSampleUri, devContainerSamples, getDevContainerSampleFolder } from '../common/devContainerSamples.js';
+import { IRelayMessage } from '../common/relayTransport.js';
 import { getAppNodeModulesUri } from './appNodeModules.js';
+import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
+import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
+import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
+import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
+import { IDevContainerStateErrorValues, IDevContainerStateLinkProgress, buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
+import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import {
+	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
+	ISshExec,
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
-	COLD_AGENT_HOST_REGISTRATION_TIMEOUT_MS,
 	filterLiveAgentHostEndpoints,
 	formatAgentHostUrlHost,
 	getRemoteCLIDataDir,
-	ISshExec,
 	resolveRemotePlatform,
 	runAgentEndpoints,
 	shellEscape,
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
-import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
-import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
-import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
-import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
-import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
-import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
-import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -544,12 +544,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			readSource: async () => {
 				const lifetime = new DisposableStore();
 				try {
-					const signal = CancellationToken.toAbortSignal(token, lifetime);
-					signal.throwIfAborted();
+					const cancellationToken = token;
+					CancellationToken.throwIfCanceled(cancellationToken);
 					const client = lifetime.add(this._gitHubService.acquireAnonymousClient());
 					const repository = { owner: 'microsoft', repo: getDevContainerSampleFolder(sample) };
-					const commitSha = await client.content.resolveRef(repository, 'HEAD', signal);
-					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', signal);
+					const commitSha = await client.content.resolveRef(repository, 'HEAD', cancellationToken, { caller: 'agentHost.devContainerSample' });
+					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', cancellationToken, { caller: 'agentHost.devContainerSample' });
 					return { commitSha, content };
 				} finally {
 					lifetime.dispose();

@@ -31,6 +31,7 @@ import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -102,6 +103,7 @@ import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
+import type { AgentSessionResidency } from '../../node/agentSessionResidency.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TELEMETRY_FLUSH_TIMEOUT_MS, AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
@@ -112,10 +114,9 @@ import { SCHEDULED_WORK_WAKE_SETTLE_MS } from '../../common/agentHostWakeNetwork
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
-import { SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthenticationService.js';
+import { IAgentHostAuthenticationController, SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthenticationService.js';
 import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthentication.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
@@ -1198,7 +1199,7 @@ suite('AgentService (node dispatcher)', () => {
 		await assert.rejects(service.manageHostSandboxCertificate(provider.id, 'install'), /unavailable/);
 		const calls: string[] = [];
 		provider.manageHostSandboxCertificate = async operation => { calls.push(operation); };
-		const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+		const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 		for (const operation of ['install', 'rotate', 'remove'] as const) {
 			await managementService.manageHostSandboxCertificate(provider.id, operation);
 		}
@@ -1220,7 +1221,7 @@ suite('AgentService (node dispatcher)', () => {
 			provider[operation] = async (chat, scopeId) => { calls.push([chat, scopeId]); };
 			await assert.rejects(service[operation]('conversation://missing/chat', 'runtime'), /unavailable/);
 			await assert.rejects(service[operation](URI.parse(chat).toString(), 'runtime'), /unavailable/);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 			await managementService[operation](chat, 'runtime');
 			assert.deepStrictEqual(calls, [[chat, 'runtime']]);
 		});
@@ -1558,6 +1559,59 @@ suite('AgentService (node dispatcher)', () => {
 			}), { code: AhpErrorCodes.AuthRequired });
 		});
 
+		for (const peer of [false, true]) {
+			test(`send_message sponsors cold ${peer ? 'peer' : 'default'} chat restoration with the caller's credentials`, async () => {
+				const historyCredentials: (string | undefined)[] = [];
+				class ScopedAgent extends MockAgent {
+					readonly supportsScopedCredentials = true;
+					serverToolHost: IAgentServerToolHost | undefined;
+					setServerToolHost(host: IAgentServerToolHost): void {
+						this.serverToolHost = host;
+					}
+					override async createChat(): Promise<IAgentCreateChatResult> {
+						return { providerData: 'peer-backing' };
+					}
+					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+						getMessages: async (chat, context) => {
+							historyCredentials.push(resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
+							return base.getMessages(chat, context);
+						},
+					}));
+				}
+				const data = createPerSessionDataService();
+				const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const provider = disposables.add(new ScopedAgent('copilot'));
+				registerTestAgentProvider(scopedService, provider);
+				const original = source();
+				await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'original' }, original);
+				const session = await scopedService.createSession({ legacyChatUris: true, provider: 'copilot', credentials: original });
+				const chatId = peer ? 'peer-1' : undefined;
+				const chat = chatId ? buildChatUri(session, chatId) : buildDefaultChatUri(session);
+				if (peer) {
+					await scopedService.createChat(session, URI.parse(chat), { title: 'Peer' }, original);
+				}
+				const caller = source();
+				await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'caller' }, caller);
+				const sourceSession = await scopedService.createSession({ legacyChatUris: true, provider: 'copilot', credentials: caller });
+				getStateManager(scopedService).deleteSession(session.toString());
+				getTestAgentServiceComposition(scopedService).authenticationService.releaseSessionCredentials(session.toString());
+				original.dispose();
+
+				await provider.serverToolHost!.executeTool(buildDefaultChatUri(sourceSession), SessionServerToolName.SendMessage, {
+					session: buildOpenSessionLinkUri(session, chatId).toString(),
+					message: 'please take over',
+				});
+				await waitForCondition(provider.onDidSendMessage, () => provider.sendMessageCalls.length === 1, 'the sponsored message should reach the provider');
+
+				const sendContext = provider.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+				const sendCredential = sendContext ? resolveAgentChatContext(sendContext, URI.parse(chat)).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token : undefined;
+				assert.deepStrictEqual({ historyCredentials, sendCredential }, {
+					historyCredentials: peer ? ['caller', 'caller'] : ['caller'],
+					sendCredential: 'caller',
+				});
+			});
+		}
+
 		test('merge enabled at creation retains an explicit operation capture after its connection closes', async () => {
 			class ScopedAgent extends MockAgent {
 				readonly supportsScopedCredentials = true;
@@ -1692,7 +1746,7 @@ suite('AgentService (node dispatcher)', () => {
 				if (withMicrosoft) {
 					await scopedService.authenticate({
 						resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
-						_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'microsoft' }),
+						accountId: 'microsoft',
 					});
 				}
 				const previous = source();
@@ -3880,7 +3934,7 @@ suite('AgentService (node dispatcher)', () => {
 				managedKeys: ['permissions'],
 			});
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			assert.deepStrictEqual(await managementService.getManagedSettingsDiagnostics(), [{
 				provider: 'copilot',
@@ -3908,7 +3962,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, provider);
 			registerTestAgentProvider(service, otherProvider);
 			registerTestAgentProvider(service, unsupportedProvider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			await managementService.refreshCopilotConnectorSessions();
 			await managementService.refreshCopilotConnectorSessions('mail');
@@ -3929,7 +3983,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [{ name: 'spark', marketplace: 'copilot-plugins' }];
 			};
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
 			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
@@ -3980,7 +4034,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [{ name: name ?? 'marketplace', success: true }];
 			};
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			const listed = await managementService.listPluginMarketplaces(provider.id, session);
 			const added = await managementService.addPluginMarketplace(provider.id, session, 'owner/repository');
@@ -4066,7 +4120,7 @@ suite('AgentService (node dispatcher)', () => {
 					}, [], creationTimeChatStorageResource);
 				}
 			};
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 			const session = AgentSession.uri('copilot', 'canvas-session');
 			const chat = URI.parse(buildDefaultChatUri(session.toString()));
 
@@ -4136,7 +4190,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			let restoreCalls = 0;
 			service.restoreSession = async () => { restoreCalls++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 			const coldSession = AgentSession.uri('copilot', 'canvas-cold-session');
 			const resource = URI.parse('ahp-canvas:/preview');
 
@@ -4180,7 +4234,7 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			});
 			service.restoreSession = async () => { };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			await assert.rejects(
 				managementService.listSessionCanvases(requestedSession, foreignChat),
@@ -4221,7 +4275,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			let restoreCalls = 0;
 			service.restoreSession = async () => { restoreCalls++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			await assert.rejects(
 				managementService.listSessionCanvases(session, chat),
@@ -8930,7 +8984,7 @@ suite('AgentService (node dispatcher)', () => {
 			const provider: IAgent = copilotAgent;
 			provider.getSessionStateFile = async session => URI.file(`/state/${AgentSession.id(session)}/events.jsonl`);
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			assert.deepStrictEqual({
 				supported: (await managementService.getSessionStateFile(AgentSession.uri('copilot', 'session-1')))?.toString(),
@@ -10491,26 +10545,27 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, agent, warmed, onDidWarm: onDidWarm.event };
 		}
 
-		test('warms a trusted folder draft only in the treatment arm, and reports the trigger in both arms', async () => {
+		test('warms a trusted folder draft unless the setting is off, and reports the trigger in every case', async () => {
 			const results: Record<string, { warmed: boolean; triggers: readonly string[] }> = {};
-			for (const enabled of [true, false]) {
+			for (const [name, enabled] of [['enabled', true], ['disabled', false], ['unset', undefined]] as const) {
 				const telemetry = new TestExperimentTriggerTelemetryService();
 				const { svc, warmed, onDidWarm } = createPrewarmService(telemetry);
-				getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, [AgentHostPrewarmSessionsConfigKey]: enabled, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				getConfigurationService(svc).updateRootConfig({ ...trustedRootConfig, ...(enabled === undefined ? {} : { [AgentHostPrewarmSessionsConfigKey]: enabled }), [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
 				const warm = Event.toPromise(onDidWarm);
 				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilotcli', workingDirectories: [workingDirectory], activeClient });
-				if (enabled) {
+				if (enabled !== false) {
 					await warm;
 				} else {
 					await waitForCondition(telemetry.onDidTrigger, () => telemetry.triggers.length > 0, 'trigger reported');
 				}
 				warm.cancel();
-				results[enabled ? 'enabled' : 'disabled'] = { warmed: warmed.includes(getStateManager(svc).getDefaultChat(session.toString())!), triggers: telemetry.triggers };
+				results[name] = { warmed: warmed.includes(getStateManager(svc).getDefaultChat(session.toString())!), triggers: telemetry.triggers };
 			}
 
 			assert.deepStrictEqual(results, {
 				enabled: { warmed: true, triggers: [trigger] },
 				disabled: { warmed: false, triggers: [trigger] },
+				unset: { warmed: true, triggers: [trigger] },
 			});
 		});
 
@@ -24960,7 +25015,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.claimDetachedWorktree = async handle => { calls.push(`claim:${handle}`); };
 			service.deleteDetachedWorktree = async handle => { calls.push(`delete:${handle}`); };
 			service.reconcileDetachedWorktrees = async (scope, activeHandles) => { calls.push(`reconcile:${scope}:${activeHandles.join(',')}`); };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			const created = await managementService.createDetachedWorktree(session, 'prepare');
 			await managementService.setDetachedWorktreeArchived(created.handle, true);
@@ -24985,7 +25040,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('forwards system wake and network reports to scheduled work readiness', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const systemWake = disposables.add(new AgentHostSystemWakeService(new NullLogService()));
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), systemWake, new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), systemWake, new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 			const readiness = () => ({ fullyAwake: systemWake.isFullyAwake.get(), ready: systemWake.isReadyForScheduledWork.get() });
 
 			await managementService.setSystemFullyAwake(false);
@@ -25340,7 +25395,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
 			let ingressShutdownCount = 0;
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			const first = managementService.shutdown();
 			const second = managementService.shutdown();
@@ -25369,7 +25424,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			void managementService.createSessionWithExtensions({});
 			await managementService.shutdown();
@@ -25401,7 +25456,7 @@ suite('AgentService (node dispatcher)', () => {
 					warnings.push(message);
 				}
 			}();
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, logService, disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), telemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, logService, disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), telemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			let shutDown = false;
 			const shutdown = managementService.shutdown().then(() => { shutDown = true; });
@@ -25459,7 +25514,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.createSession = () => createSession.p;
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			const mutation = managementService.createSessionWithExtensions({});
 			const shutdown = managementService.shutdown();
@@ -25486,6 +25541,24 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- restoreSession -------------------------------------------------
 
 	suite('restoreSession', () => {
+
+		for (const persistedArchived of [undefined, 'false', 'true']) {
+			test(`restores provider archive status with persisted override ${persistedArchived}`, async () => {
+				const db = new TestSessionDatabase();
+				if (persistedArchived !== undefined) {
+					await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, persistedArchived);
+				}
+				const agent = disposables.add(new MockAgent('copilot'));
+				agent.sessionMetadataOverrides = { status: SessionStatus.IsArchived };
+				const { session } = await createAgentSession(agent);
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(svc, agent);
+
+				await svc.restoreSession(session);
+
+				assert.strictEqual(isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())!.status), persistedArchived !== 'false');
+			});
+		}
 
 		test('surviving cold subscriber installs summary interest when the restoring subscriber is cancelled', async () => {
 			const db = new TestSessionDatabase();
@@ -36345,6 +36418,168 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		for (const target of ['cold default', 'cold peer', 'lazy peer'] as const) {
+			test(`send_message restores a ${target} chat before delivering an agent-originated turn`, async () => {
+				const materialized = new Set<string>();
+				class ServerToolAgent extends MockAgent {
+					serverToolHost: IAgentServerToolHost | undefined;
+					setServerToolHost(host: IAgentServerToolHost): void {
+						this.serverToolHost = host;
+					}
+					override async materializeChat(chat: URI): Promise<void> {
+						materialized.add(chat.toString());
+					}
+				}
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new ServerToolAgent('copilot'));
+				registerTestAgentProvider(localService, agent);
+				const source = await localService.createSession({ legacyChatUris: false, provider: 'copilot' });
+				const sourceChat = getStateManager(localService).getDefaultChat(source.toString())!;
+				const session = await localService.createSession({ legacyChatUris: false, provider: 'copilot' });
+				const chat = target === 'cold default' ? getStateManager(localService).getDefaultChat(session.toString())! : mintPeerChatUri('opaque', session.toString());
+				const chatId = target === 'cold default' ? undefined : getAgentHostChatId(chat);
+				if (chatId) {
+					await seedNormalizedPeers(localService, session, [{ chat, order: 0, providerData: 'peer-backing' }]);
+				}
+				getStateManager(localService).deleteSession(session.toString());
+				if (target === 'lazy peer') {
+					await localService.restoreSession(session);
+				}
+				let materializedAtSend = false;
+				disposables.add(agent.onDidSendMessage(call => {
+					materializedAtSend = call.chat !== undefined && materialized.has(call.chat.toString());
+				}));
+
+				await agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.SendMessage, {
+					session: buildOpenSessionLinkUri(session, chatId).toString(),
+					message: 'please take over',
+				});
+				await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the restored chat should receive the message');
+
+				const message = getStateManager(localService).getChatState(chat)?.activeTurn?.message;
+				assert.deepStrictEqual({
+					materializedAtSend,
+					deliveredChat: agent.sendMessageCalls[0].chat?.toString(),
+					text: message?.text,
+					origin: message?.origin.kind,
+				}, {
+					materializedAtSend: true,
+					deliveredChat: chat,
+					text: 'please take over',
+					origin: MessageKind.Agent,
+				});
+			});
+		}
+
+		for (const arrival of ['restoring', 'hydrated'] as const) {
+			test(`send_message preserves FIFO when a later send finds the target ${arrival}`, async () => {
+				const historyStarted = new DeferredPromise<void>();
+				const releaseHistory = new DeferredPromise<void>();
+				const reconciliationStarted = new DeferredPromise<void>();
+				const releaseReconciliation = new DeferredPromise<void>();
+				class ServerToolAgent extends MockAgent {
+					serverToolHost: IAgentServerToolHost | undefined;
+					holdHistory = false;
+					setServerToolHost(host: IAgentServerToolHost): void {
+						this.serverToolHost = host;
+					}
+					override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+						if (this.holdHistory) {
+							historyStarted.complete();
+							await releaseHistory.p;
+						}
+						return super.getSessionMessages(chat);
+					}
+				}
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new ServerToolAgent('copilot'));
+				registerTestAgentProvider(localService, agent);
+				const source = await localService.createSession({ legacyChatUris: false, provider: 'copilot' });
+				const stateManager = getStateManager(localService);
+				const sourceChat = stateManager.getDefaultChat(source.toString())!;
+				const session = await localService.createSession({ legacyChatUris: false, provider: 'copilot' });
+				const chat = stateManager.getDefaultChat(session.toString())!;
+				const sessions = await localService.listSessions();
+				const listSessions = stub(localService, 'listSessions').resolves(sessions);
+				disposables.add(toDisposable(() => listSessions.restore()));
+				stateManager.deleteSession(session.toString());
+				agent.holdHistory = true;
+				const residency = Reflect.get(localService, '_sessionResidency') as AgentSessionResidency;
+				const reconcile = stub(residency, 'reconcile').callsFake(async () => {
+					if (stateManager.getChatState(chat)) {
+						reconciliationStarted.complete();
+						await releaseReconciliation.p;
+					}
+				});
+				disposables.add(toDisposable(() => reconcile.restore()));
+				const send = (message: string) => agent.serverToolHost!.executeTool(sourceChat, SessionServerToolName.SendMessage, {
+					session: buildOpenSessionLinkUri(session).toString(),
+					message,
+				});
+				const first = send('first');
+				await historyStarted.p;
+				if (arrival === 'hydrated') {
+					releaseHistory.complete();
+					await reconciliationStarted.p;
+				}
+				const second = send('second');
+				try {
+					await timeout(0);
+					releaseHistory.complete();
+					await reconciliationStarted.p;
+					await timeout(0);
+				} finally {
+					releaseHistory.complete();
+					releaseReconciliation.complete();
+				}
+				const results = await Promise.all([first, second]);
+				await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the first message should reach the provider');
+				assert.deepStrictEqual({
+					actions: results.map(result => JSON.parse(result).action),
+					active: stateManager.getChatState(chat)?.activeTurn?.message.text,
+					queued: stateManager.getChatState(chat)?.queuedMessages?.map(queued => queued.message.text),
+				}, {
+					actions: ['started', 'queued'],
+					active: 'first',
+					queued: ['second'],
+				});
+			});
+		}
+
+		test('send_message propagates peer restoration failures without starting a turn', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				override async materializeChat(chat: URI): Promise<void> {
+					if (!isMintedTestDefaultChat(chat)) {
+						throw new Error('peer restoration failed');
+					}
+				}
+			}
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const chat = buildChatUri(session, 'peer-1');
+			await seedNormalizedPeers(localService, session, [{ chat, order: 0, providerData: 'peer-backing' }]);
+			getStateManager(localService).deleteSession(session.toString());
+			await localService.restoreSession(session);
+			const turnStarts: string[] = [];
+			disposables.add(getStateManager(localService).onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatTurnStarted) {
+					turnStarts.push(envelope.channel);
+				}
+			}));
+
+			await assert.rejects(async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.SendMessage, {
+				session: buildOpenSessionLinkUri(session, 'peer-1').toString(),
+				message: 'please take over',
+			}), /peer restoration failed/);
+			assert.deepStrictEqual({ turnStarts, sends: agent.sendMessageCalls.length }, { turnStarts: [], sends: 0 });
+		});
+
 		test('createChat resolves a restored peer fork source before creating the fork', async () => {
 			let materializeCalls = 0;
 			let providerForkTurnId: string | undefined;
@@ -39361,6 +39596,8 @@ suite('AgentService (node dispatcher)', () => {
 
 				test('promoting a chat of a restored sponsored session, whose chat has no credential context yet, still gives the new session its principal', async () => {
 					const env = await setupCredentials({ source: '1', target: undefined });
+					// Let the original host finish its deferred catalog state writes, so they don't race the restarted host's promotion.
+					await env.service.whenCatalogReconciliationIdle();
 					const restarted = restartedHost(env, env.orchestrator);
 					env.agent.sessionMetadataOverrides = { workingDirectories: [URI.file('/repo')] };
 					await restarted.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'ambient' });

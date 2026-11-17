@@ -15,13 +15,15 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { IFileService, type IFileContent } from '../../../files/common/files.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { FileOperationError, FileOperationResult, IFileService, type IFileContent, type IFileStatWithMetadata } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
@@ -485,12 +487,12 @@ suite('CopilotSessionLauncher Microsoft account', () => {
 	}
 
 	for (const scenario of ['create', 'resume', 'virtual-create', 'virtual-resume'] as const) {
-		test(`signs a new session in after creating it fully configured and resumes once without signing in: ${scenario}`, async () => {
+		test(`signs a session in after opening it fully configured: ${scenario}`, async () => {
 			const kind = scenario.endsWith('resume') ? 'resume' : 'create';
 			const f = setup(scenario.startsWith('virtual') ? URI.parse('vscode-vfs://github/microsoft/vscode') : testWorkingDirectory);
 			store.add(await f.launcher.launch(f.plan(kind), testRuntime));
 			assert.deepStrictEqual({ calls: f.calls, storage: f.storage }, {
-				calls: kind === 'create' ? ['policy', 'create', 'authenticate', 'agents'] : ['policy', 'resume', 'agents'], storage: [false],
+				calls: ['policy', kind, 'authenticate', 'agents'], storage: [false],
 			});
 		});
 	}
@@ -515,12 +517,14 @@ suite('CopilotSessionLauncher Microsoft account', () => {
 		});
 	});
 
-	test('a new session that cannot be signed in is disconnected and deleted', async () => {
-		const f = setup();
-		f.accounts.authenticateSession = async () => { f.calls.push('authenticate'); throw new Error('Login rejected'); };
-		await assert.rejects(f.launcher.launch(f.plan('create'), testRuntime), /Login rejected/);
-		assert.deepStrictEqual(f.calls, ['policy', 'create', 'authenticate', 'disconnect', 'delete']);
-	});
+	for (const kind of ['create', 'resume'] as const) {
+		test(`a session that cannot be signed in is disconnected, and deleted only when it is new: ${kind}`, async () => {
+			const f = setup();
+			f.accounts.authenticateSession = async () => { f.calls.push('authenticate'); throw new Error('Login rejected'); };
+			await assert.rejects(f.launcher.launch(f.plan(kind), testRuntime), /Login rejected/);
+			assert.deepStrictEqual(f.calls, ['policy', kind, 'authenticate', 'disconnect', ...(kind === 'create' ? ['delete'] : [])]);
+		});
+	}
 
 	test('an account change while a signed-in session is finalized disconnects it', async () => {
 		const f = setup();
@@ -547,6 +551,7 @@ suite('CopilotSessionLauncher Microsoft account', () => {
 
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const appBundleRoot = URI.file('/application').fsPath;
 
 	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -628,7 +633,10 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		let attachedSession: CopilotSession | undefined;
 		let sessionClosed = false;
 		const services = new ServiceCollection(
-			[ISessionSandboxPathService, new class extends mock<ISessionSandboxPathService>() { }()],
+			[INativeEnvironmentService, upcastPartial<INativeEnvironmentService>({ appRoot: appBundleRoot, appBundleRoot })],
+			[ISessionSandboxPathService, new class extends mock<ISessionSandboxPathService>() {
+				override async load(): Promise<void> { }
+			}()],
 			[IWorkspaceSandboxPathService, new WorkspaceSandboxPathService(store.add(new AgentHostStorageService(undefined, logService)))],
 			[IAgentConfigurationService, configuration],
 			[IAgentHostStateManager, manager],
@@ -668,7 +676,13 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				attachedSession = session;
 			},
 		};
-		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
+		const preparedLauncher = {
+			launch: async (plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime) => {
+				await sandbox.prepare();
+				return launcher.launch(plan, runtime);
+			},
+		};
+		return { manager, configuration, owner, updates, commands, launcher: preparedLauncher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
 
 	test('a sandbox update failing after shutdown does not broadcast a policy conflict', async () => {
@@ -972,7 +986,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				enabled: true,
 				addCurrentWorkingDirectory: true,
 				auth: { git: true, gh: true },
-				userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] } },
+				userPolicy: { filesystem: { readonlyPaths: [appBundleRoot, URI.file('/session-data/sess-1/attachments').fsPath] } },
 			}],
 		});
 	});
@@ -1009,7 +1023,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			assert.deepStrictEqual(attempts, [true, false]);
 		});
 
-		test(`${kind} applies attachment read roots at launch and does not resend them at the first turn`, async () => {
+		test(`${kind} applies application and attachment read roots at launch and does not resend them at the first turn`, async () => {
 			const fixture = setup(kind);
 			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
 
@@ -1020,7 +1034,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				enabled: true,
 				addCurrentWorkingDirectory: true,
 				auth: { git: true, gh: true },
-				userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] } },
+				userPolicy: { filesystem: { readonlyPaths: [appBundleRoot, URI.file('/session-data/sess-1/attachments').fsPath] } },
 			};
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig), [expected]);
 		});
@@ -1352,7 +1366,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				policy: fixture.configuration.getSessionSandboxPolicy(fixture.owner),
 				stored: fixture.configuration.getRootConfigValues()?.sandbox,
 			}, {
-				applied: [{ enabled: true, addCurrentWorkingDirectory: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] }, network: { allowOutbound: false } } }],
+				applied: [{ enabled: true, addCurrentWorkingDirectory: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [appBundleRoot, URI.file('/session-data/sess-1/attachments').fsPath] }, network: { allowOutbound: false } } }],
 				policy: { enabled: true, allowBypass: false, allowOutbound: false },
 				stored: { enabled: 'off', allowNetwork: true, allowUnsandboxedCommands: false },
 			});
@@ -2307,6 +2321,62 @@ suite('CopilotSessionLauncher shared session config', () => {
 			});
 		});
 	}
+
+	test('filters missing plugin directories on create and resume but propagates inspection failures', async () => {
+		const configs: (ResumeSessionConfig | undefined)[] = [];
+		const logService = new CapturingLogService();
+		let denied = false;
+		const inspectionError = new FileOperationError('Access denied', FileOperationResult.FILE_PERMISSION_DENIED);
+		const available = URI.joinPath(testWorkingDirectory, 'available');
+		const missing = URI.joinPath(testWorkingDirectory, 'missing');
+		const file = URI.joinPath(testWorkingDirectory, 'file');
+		const blockedByFile = URI.joinPath(file, 'plugin');
+		const launcher = createTestLauncher(undefined, {}, logService, undefined, undefined, undefined, upcastPartial<IFileService>({
+			resolve: async resource => {
+				if (denied) {
+					throw inspectionError;
+				}
+				if (isEqual(resource, missing)) {
+					throw new FileOperationError('Missing', FileOperationResult.FILE_NOT_FOUND);
+				}
+				if (isEqual(resource, blockedByFile)) {
+					throw new FileOperationError('Ancestor is a file', FileOperationResult.FILE_NOT_DIRECTORY);
+				}
+				return upcastPartial<IFileStatWithMetadata>({ resource, isDirectory: isEqual(resource, available) });
+			},
+		}));
+		const session = upcastPartial<CopilotSession>({
+			sessionId: 'plugins', on: () => () => { }, disconnect: async () => { },
+			rpc: upcastPartial<CopilotSession['rpc']>({ agent: upcastPartial<CopilotSession['rpc']['agent']>(emptyAgentCatalog), options: { update: async () => ({ success: true }) } }),
+		});
+		const basePlan = {
+			client: returningSession(session, config => configs.push(config)),
+			sessionId: 'plugins', workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+			snapshot: {
+				discoveredAgents: [], additionalRootInstructions: [], tools: [], mcpServers: {},
+				plugins: [available, missing, file, blockedByFile, URI.parse('virtual:/plugin')].map(pluginDir => ({
+					format: PluginFormat.Copilot, pluginDir, hooks: [], mcpServers: [], agents: [], skills: [], instructions: [],
+				})),
+			},
+			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+		};
+		for (const plan of [
+			{ ...basePlan, kind: 'create' as const, model: undefined },
+			{ ...basePlan, kind: 'resume' as const, fallback: { model: undefined } },
+		]) {
+			store.add(await launcher.launch(plan, testRuntime));
+		}
+		denied = true;
+		await assert.rejects(() => launcher.launch({ ...basePlan, kind: 'create', model: undefined }, testRuntime), inspectionError);
+		assert.deepStrictEqual({
+			directories: configs.map(config => config?.pluginDirectories),
+			warnings: logService.warnings.filter(warning => warning.message.includes('Skipping unavailable plugin directory')).map(warning => warning.message),
+		}, {
+			directories: [[available.fsPath], [available.fsPath]],
+			warnings: [missing, file, blockedByFile, missing, file, blockedByFile].map(directory => `[Copilot:plugins] Skipping unavailable plugin directory: ${directory.fsPath}`),
+		});
+	});
 
 	test('client-owned credentials preserve workspace discovery, tools, BYOK and host policy on create and resume', async () => {
 		const configs: SessionConfig[] = [];
@@ -4383,6 +4453,29 @@ suite('CopilotSessionLauncher resume config', () => {
 		}])), {
 			cloud: { memory: { enabled: true }, localStore: false },
 			local: { memory: { enabled: true }, localStore: true },
+		});
+	});
+
+	test('places memories in user messages only for the user-prompt memory mode, and reports eligibility for memory-enabled launches whose mode follows the experiment', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launch = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>, isEphemeral?: boolean) => {
+			let eligible: boolean | undefined;
+			const config = await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' }, undefined, undefined, { setMemoryModeEligible: value => { eligible = value; } }, { isEphemeral });
+			return { memory: config.memory, eligible };
+		};
+
+		assert.deepStrictEqual({
+			unknownProvenance: await launch({}),
+			systemPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'system-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }),
+			userPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }),
+			explicitUserPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: false }),
+			ephemeralUserPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }, true),
+		}, {
+			unknownProvenance: { memory: { enabled: true }, eligible: false },
+			systemPrompt: { memory: { enabled: true }, eligible: true },
+			userPrompt: { memory: { enabled: true, mode: 'user-prompt' }, eligible: true },
+			explicitUserPrompt: { memory: { enabled: true, mode: 'user-prompt' }, eligible: false },
+			ephemeralUserPrompt: { memory: { enabled: false }, eligible: false },
 		});
 	});
 

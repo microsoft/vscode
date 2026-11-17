@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -116,6 +116,25 @@ suite('SpotlightOverlay', () => {
 			pointerLeft: `${300 + 60 - 5}px`,
 			pointerTop: `${callout.offsetTop + callout.offsetHeight - 5}px`,
 		});
+	});
+
+	test('keeps the callout border gap aligned with the pointer as placement changes', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, mainWindow.innerWidth / 2, mainWindow.innerHeight / 2, 20, 20);
+		const positions = (['above', 'below', 'left', 'right'] as const).map(placement => {
+			overlay.show(target, content(), { placement });
+			const callout = container.querySelector<HTMLElement>('.spotlight-callout')!;
+			const pointer = container.querySelector<HTMLElement>('.spotlight-callout-pointer')!;
+			const vertical = pointer.classList.contains('top') || pointer.classList.contains('bottom');
+			return {
+				offset: parseFloat(callout.style.getPropertyValue('--spotlight-pointer-offset')),
+				pointerCenter: vertical
+					? parseFloat(pointer.style.left) + 5 - parseFloat(callout.style.left)
+					: parseFloat(pointer.style.top) + 5 - parseFloat(callout.style.top),
+			};
+		});
+		assert.deepStrictEqual(positions.map(({ offset, pointerCenter }) => offset === pointerCenter), [true, true, true, true]);
 	});
 
 	test('shows progress only for multi-step tours and clears it when reused for one step', () => {
@@ -403,6 +422,28 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	for (const half of ['primary', 'dropdown'] as const) {
+		test(`Escape from a split button's ${half} half dismisses its wrapper spotlight`, () => {
+			const container = createContainer();
+			const target = disposables.add(new ButtonWithDropdown(container, {
+				...defaultButtonStyles,
+				contextMenuProvider: { showContextMenu: () => { } },
+				actions: [],
+			}));
+			target.label = 'Create with Agent';
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const reasons: OnboardingDismissReason[] = [];
+			disposables.add(overlay.onDidSkip(reason => reasons.push(reason)));
+			overlay.show(target.element, content(), { allowTargetInteraction: true });
+
+			const button = half === 'primary' ? target.primaryButton : target.dropdownButton;
+			button.focus();
+			button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual(reasons, [OnboardingDismissReason.EscapeKey]);
+		});
+	}
+
 	test('Escape in external target UI skips without consuming the native dismissal', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
@@ -569,6 +610,32 @@ suite('SpotlightOverlay', () => {
 			nextHidden: true,
 			ariaModal: 'false',
 			activeElement: skip,
+		});
+	});
+
+	test('focusEndTour wins over hideNext, so End Tour is focused when the target is not focusable', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const skips: OnboardingDismissReason[] = [];
+		disposables.add(overlay.onDidSkip(reason => skips.push(reason)));
+		const target = createTarget(container, 100, 100, 80, 30);
+		const press = (element: HTMLElement, key: string, keyCode: number, shiftKey = false) => {
+			const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+			element.dispatchEvent(event);
+		};
+
+		overlay.show(target, content({ endTourLabel: 'Got It', showEndTour: true, focusEndTour: true, stepIndex: 0, stepCount: 1, canGoBack: false, isLastStep: true }), { hideNext: true });
+		const [skip, , next] = getButtons(container);
+		const initial = mainWindow.document.activeElement;
+		press(skip, 'Tab', 9);
+		const afterTab = mainWindow.document.activeElement;
+		press(skip, 'Tab', 9, true);
+		const afterShiftTab = mainWindow.document.activeElement;
+		press(skip, 'Escape', 27);
+
+		assert.deepStrictEqual({ initial: initial === skip, afterTab: afterTab === skip, afterShiftTab: afterShiftTab === skip, nextHidden: next.style.display === 'none', skips }, {
+			initial: true, afterTab: true, afterShiftTab: true, nextHidden: true, skips: [OnboardingDismissReason.EscapeKey],
 		});
 	});
 

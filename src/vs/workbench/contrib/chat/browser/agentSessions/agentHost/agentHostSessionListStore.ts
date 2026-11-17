@@ -94,6 +94,10 @@ export class AgentHostSessionListStore extends Disposable {
 	 */
 	private readonly _pendingNewSessions = new Set<string>();
 	private _cacheValid = false;
+	/** Whether the store has the host's current sessions: listed, and kept since by its notifications. */
+	get isListed(): boolean {
+		return this._cacheValid;
+	}
 	private _refreshInFlight: Promise<void> | undefined;
 	/**
 	 * Incremented whenever the in-memory list is mutated outside of
@@ -135,14 +139,18 @@ export class AgentHostSessionListStore extends Disposable {
 		// Re-fetch the session list whenever the set of VS Code workspace
 		// folders changes, since filtering depends on it. The agent host itself
 		// doesn't know which workspace this VS Code window has open.
-		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+		const onDidChangeWorkspace = () => {
 			if (this._options.filterToWorkspace === false) {
 				return;
 			}
 			this._cacheValid = false;
 			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
-		}));
+		};
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(onDidChangeWorkspace));
+		// Also as the window's workspace changes without its folders, such as as Save Workspace As turns a folder into a
+		// workspace file
+		this._register(this._workspaceContextService.onDidChangeWorkbenchState(onDidChangeWorkspace));
 	}
 
 	getSessions(provider: string): readonly IAgentHostSessionListEntry[] {
@@ -544,13 +552,40 @@ export class AgentHostSessionListStore extends Disposable {
 				return extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), configuration);
 			}
 			// An empty window shows every session; a single-folder (or other
-			// non-multi-root) window falls back to working-directory containment.
-			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders);
+			// non-multi-root) window falls back to working-directory containment,
+			// or its primary location, as for any other session.
+			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders) || this._matchesPrimaryLocation(entry.summary, workingDirectories);
 		}
 		if (folders.length === 0) {
 			return true;
 		}
-		return this._matchesAnyFolder(workingDirectories, folders);
+		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesPrimaryLocation(entry.summary, workingDirectories);
+	}
+
+	/**
+	 * Whether a session belongs to the primary location of the folder of a single-folder window while its folder is at another
+	 * location, such as a linked checkout: the sessions of the primary location stay listed, and removing one from the list
+	 * would dispose the content of its chats that are open, which turns them read-only. It does when its project, the root it
+	 * was started from, is the primary location, or when it works in it and its project is unknown or elsewhere, such as the main
+	 * worktree of a window opened on a checkout. A project only inside the primary location, such as a nested repository, is not
+	 * it, and at the primary location itself a session is listed by its working directory only.
+	 */
+	private _matchesPrimaryLocation(summary: SessionSummary, workingDirectories: readonly URI[]): boolean {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const primary = workspace.uri;
+		if (workspace.configuration || !primary || workspace.folders.length !== 1 || extUriBiasedIgnorePathCase.isEqual(workspace.folders[0].uri, primary)) {
+			return false;
+		}
+		const project = summary.project?.uri ? URI.parse(summary.project.uri) : undefined;
+		if (project?.scheme === Schemas.file) {
+			if (extUriBiasedIgnorePathCase.isEqual(project, primary)) {
+				return true;
+			}
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(project, primary)) {
+				return false;
+			}
+		}
+		return workingDirectories.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, primary));
 	}
 
 	private _filterEntriesToWorkspace(): void {

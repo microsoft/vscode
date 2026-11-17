@@ -933,6 +933,41 @@ suite('ChatWidget', () => {
 		return widget;
 	}
 
+	test('scheduled inline input inherits the conversation model, configuration, and model pool', () => {
+		const input = mockObject<ChatInputPart>()({});
+		input.requestModelByIdentifier.resolves(true);
+		const resource = URI.parse('agent-host-copilot:/session');
+		const modelConfiguration = { reasoningEffort: 'high' };
+		const mainInput = mockObject<ChatInputPart>()({
+			currentModeObs: constObservable(upcastPartial<IChatMode>({ id: 'agent' })),
+			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ permissionLevel: ChatPermissionLevel.Default }),
+			currentLanguageModel: 'agent-host-copilot:opus',
+		});
+		mainInput.getModelConfiguration.returns(modelConfiguration);
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_respondent: { resource, respondent: { modelSessionType: 'agent-host-copilot' } },
+			_scheduledRequestEdit: {},
+			createInput: () => { },
+			_onDidChangeActiveInputEditor: { fire: () => { } },
+		});
+		Object.defineProperties(widget, { input: { value: input }, inputPart: { value: mainInput } });
+		const container = dom.$('div');
+		const timestamp = dom.append(container, dom.$('div'));
+		const create = Reflect.get(ChatWidget.prototype, 'createInlineInput') as (this: ChatWidget, item: IChatListItemTemplate, store: DisposableStore, type: undefined) => void;
+		create.call(widget, upcastPartial<IChatListItemTemplate>({ requestTimestampContainer: timestamp }), store.add(new DisposableStore()), undefined);
+		assert.deepStrictEqual({
+			pool: input.setModelSessionTypeOverride.args,
+			model: input.requestModelByIdentifier.args,
+			mode: input.setChatMode.args,
+			mainModelChanged: mainInput.requestModelByIdentifier.called,
+		}, {
+			pool: [[{ sessionType: 'agent-host-copilot' }, resource]],
+			model: [['agent-host-copilot:opus', modelConfiguration]],
+			mode: [['agent']],
+			mainModelChanged: false,
+		});
+	});
+
 	test('scheduled inline editing captures text deletion and attachment removal', async () => {
 		await withAsyncTestCodeEditor('Message', {}, async editor => {
 			const attachmentChange = store.add(new Emitter<void>());
@@ -1671,6 +1706,7 @@ suite('ChatWidget', () => {
 			renderChatSuggestNextWidget: () => { },
 			bodyDimension: { width: 100, height: 100 },
 			_inputVisible: true,
+			_inputVisibleObs: observableValue('inputVisible', true),
 			inputPartDisposable: { value: { height: observableValue('inputHeight', 10), element: { offsetHeight: 10 }, setVisible: () => { } } },
 			listContainer: mainWindow.document.createElement('div'),
 			welcomeMessageContainer: mainWindow.document.createElement('div'),
@@ -1783,6 +1819,7 @@ suite('ChatWidget', () => {
 		} = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
 			_draftOnly: draftOnly,
+			_inputVisibleObs: observableValue('inputVisible', true),
 			_visible: constObservable(false),
 			_readOnlyContextKey: { set: () => { } },
 			policyRequiresAgentHost: constObservable(false),
@@ -3674,6 +3711,30 @@ suite('ChatWidget - acceptInput submission', () => {
 			}
 		});
 	}
+
+	test('a host that sends the input takes part in its submit from before the files save, which can take a while, until its submit handler ends', async () => {
+		const fixture = createSubmissionWidget();
+		const events: string[] = [];
+		const saving = new DeferredPromise<void>();
+		fixture.editorService.saveAll.callsFake(async () => {
+			events.push('save');
+			await saving.p;
+			return { success: true, editors: [] };
+		});
+		fixture.viewOptions.hostSubmit = { canSubmit: constObservable(true), beginSubmit: () => { events.push('begin'); return toDisposable(() => events.push('end')); } };
+		fixture.viewOptions.submitHandler = async () => {
+			events.push('handler');
+			return true;
+		};
+
+		const sending = fixture.widget.acceptInput('Test request', fixture.options);
+		await timeout(0);
+		const whileSaving = [...events];
+		saving.complete();
+		await sending;
+
+		assert.deepStrictEqual({ whileSaving, events }, { whileSaving: ['begin', 'save'], events: ['begin', 'save', 'handler', 'end'] });
+	});
 
 	for (const explicit of [false, true]) {
 		test(`excludes ${explicit ? 'explicitly' : 'implicitly'} queued submissions without cancelling the request`, async () => {

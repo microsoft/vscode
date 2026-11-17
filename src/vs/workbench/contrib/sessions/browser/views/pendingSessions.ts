@@ -19,6 +19,7 @@ import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolba
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
+import { getScheduledRequestTimeLabel, renderScheduledRequestTime } from '../../../chat/browser/widget/chatScheduledRequestTime.js';
 import { SessionsListFilters } from './sessionsListFilters.js';
 import type { SessionListItem } from './sessionsList.js';
 
@@ -29,6 +30,7 @@ export interface IPendingSessionItem {
 	readonly kind: 'draft' | 'scheduled';
 	readonly title: string;
 	readonly description: string;
+	readonly runAt?: string;
 	readonly folderUri?: URI;
 	readonly providerId?: string;
 	readonly sessionType?: string;
@@ -103,9 +105,10 @@ export function getPendingSessionAriaLabel(item: IPendingSessionItem): string {
 }
 
 function getPendingSessionDescription(item: IPendingSessionItem): string {
+	const description = item.kind === 'scheduled' && item.runAt ? getScheduledRequestTimeLabel(item.runAt) : item.description;
 	return item.kind === 'scheduled' && item.folderUri
-		? localize('pendingScheduledWorkspace', "{0} - {1}", basename(item.folderUri), item.description)
-		: item.description;
+		? localize('pendingScheduledWorkspace', "{0} - {1}", basename(item.folderUri), description)
+		: description;
 }
 
 interface IPendingSessionTemplate {
@@ -117,6 +120,7 @@ interface IPendingSessionTemplate {
 	readonly toolbar: WorkbenchToolBar;
 	readonly toolbarContainer: HTMLElement;
 	readonly disposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
 export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, IPendingSessionTemplate> {
@@ -131,6 +135,7 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 	renderTemplate(container: HTMLElement): IPendingSessionTemplate {
 		const disposables = new DisposableStore();
+		const elementDisposables = disposables.add(new DisposableStore());
 		container.classList.add('session-item');
 		const icon = DOM.append(container, DOM.$('.session-icon', { 'aria-hidden': 'true' }));
 		const main = DOM.append(container, DOM.$('.session-main'));
@@ -151,10 +156,11 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		disposables.add(Gesture.ignoreTarget(toolbarContainer));
 		const description = DOM.append(main, DOM.$('.session-details-row'));
-		return { icon, scheduledIndicator, title, description, compactDescription, toolbar, toolbarContainer, disposables };
+		return { icon, scheduledIndicator, title, description, compactDescription, toolbar, toolbarContainer, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: IPendingSessionTemplate): void {
+		template.elementDisposables.clear();
 		const item = node.element;
 		if (!isPendingSessionItem(item)) {
 			return;
@@ -164,9 +170,17 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		DOM.reset(template.icon, icon);
 		template.scheduledIndicator.classList.toggle('visible', item.kind === 'scheduled');
 		template.title.set(item.title, createMatches(node.filterData));
-		const description = getPendingSessionDescription(item);
-		template.description.textContent = description;
-		template.compactDescription.textContent = description;
+		const updateDescription = () => {
+			const description = getPendingSessionDescription(item);
+			template.description.textContent = description;
+			template.compactDescription.textContent = description;
+			template.description.closest('[role="treeitem"]')?.setAttribute('aria-label', getPendingSessionAriaLabel(item));
+		};
+		if (item.kind === 'scheduled' && item.runAt) {
+			template.elementDisposables.add(renderScheduledRequestTime(item.runAt, template.description, updateDescription));
+		} else {
+			updateDescription();
+		}
 		template.toolbar.setActions(item.kind === 'draft' ? getPendingSessionActions(item, false).filter(action => action.id !== 'sessions.drafts.resume') : [toAction({
 			id: 'sessions.pending.actions',
 			label: localize('pendingSessionActions', "More Actions..."),
@@ -176,6 +190,7 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 	}
 
 	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: IPendingSessionTemplate): void {
+		template.elementDisposables.clear();
 		template.toolbar.setActions([]);
 	}
 

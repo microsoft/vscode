@@ -8,7 +8,7 @@ import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { $, getActiveElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { retry, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -39,6 +39,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
@@ -46,7 +47,7 @@ import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../..
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
@@ -58,7 +59,8 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { getSessionFilterEnvironments, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import '../../browser/views/sessionsViewActions.js';
@@ -73,7 +75,9 @@ suite('Sessions - View Menu', () => {
 		providers?: readonly ISessionsProvider[],
 	) {
 		const configurationService = new class extends TestConfigurationService {
-			override async updateValue(key: string, value: unknown): Promise<void> {
+			readonly updates: unknown[][] = [];
+			override async updateValue(key: string, value: unknown, ...rest: unknown[]): Promise<void> {
+				this.updates.push([key, value, ...rest]);
 				await this.setUserConfiguration(key, value);
 				this.onDidChangeConfigurationEmitter.fire({
 					affectsConfiguration: section => section === key,
@@ -84,6 +88,7 @@ suite('Sessions - View Menu', () => {
 			}
 		}({
 			[ChatConfiguration.ShowExternalAgentSessions]: ChatExternalSessionsMode.Last7Days,
+			[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: AutomationSessionsListMode.AfterReply,
 			[ChatSessionArchiveActionWordingSettingId]: wording,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -94,7 +99,7 @@ suite('Sessions - View Menu', () => {
 		const grouping = SessionsViewGroupingContext.bindTo(contextKeyService);
 		const capped = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
 		const compact = SessionsViewCompactContext.bindTo(contextKeyService);
-		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService())));
+		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), configurationService));
 		const sessionsChanged = store.add(new Emitter<void>());
 		const providersChanged = store.add(new Emitter<void>());
 		let excludeArchived = true;
@@ -279,6 +284,64 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('Inbox offers connected and disconnected environments without sessions and labels their connection status', () => {
+		const harness = createListHarness(store, []);
+		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
+		const connected = observableValue('connected', false);
+		const providers = [
+			upcastPartial<ISessionsProvider>({
+				id: 'connected-host',
+				environment: { id: 'connected-host', label: 'Connected Host', isConnected: constObservable(true) },
+			}),
+			upcastPartial<ISessionsProvider>({
+				id: 'disconnected-host',
+				environment: { id: 'disconnected-host', label: 'Disconnected Host', isConnected: connected },
+			}),
+		];
+		const environments = getSessionFilterEnvironments(providers);
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
+			constObservable([]), constObservable(environments.environments), constObservable(environments.localEnvironmentIds)));
+		const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
+		const snapshot = () => {
+			trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			const rows = [...mainWindow.document.querySelectorAll('.action-widget .monaco-list-row')].map(row => ({
+				label: row.querySelector('.title')?.textContent,
+				description: row.querySelector('.description')?.textContent ?? '',
+				accessible: row.getAttribute('aria-label'),
+			}));
+			actionWidgetService.hide(true);
+			return rows;
+		};
+		const before = snapshot();
+		trigger.click();
+		const disconnected = [...mainWindow.document.querySelectorAll<HTMLElement>('.action-widget .monaco-list-row .title')]
+			.find(item => item.textContent === 'Disconnected Host');
+		assert.ok(disconnected);
+		disconnected.click();
+		const selected = { scope: filters.inboxScope, label: trigger.textContent, focused: getActiveElement() === trigger };
+		connected.set(true, undefined);
+		assert.deepStrictEqual({ before, selected, after: snapshot(), label: trigger.textContent }, {
+			before: [
+				{ label: 'All Environments', description: '', accessible: 'All Environments' },
+				{ label: 'This Computer', description: '', accessible: 'This Computer' },
+				{ label: 'Cloud', description: '', accessible: 'Cloud' },
+				{ label: 'Connected Host', description: 'Connected', accessible: 'Connected Host, Connected' },
+				{ label: 'Disconnected Host', description: 'Disconnected', accessible: 'Disconnected Host, Disconnected' },
+			],
+			selected: { scope: { environment: { id: 'disconnected-host', label: 'Disconnected Host' }, workspace: undefined }, label: 'Disconnected: Disconnected Host', focused: true },
+			after: [
+				{ label: 'All Environments', description: '', accessible: 'All Environments' },
+				{ label: 'This Computer', description: '', accessible: 'This Computer' },
+				{ label: 'Cloud', description: '', accessible: 'Cloud' },
+				{ label: 'Connected Host', description: 'Connected', accessible: 'Connected Host, Connected' },
+				{ label: 'Disconnected Host', description: 'Connected', accessible: 'Disconnected Host, Connected' },
+			],
+			label: 'Disconnected Host',
+		});
+	});
+
 	test('environment filters exclude this computer sharing registrations as their identity becomes known', () => {
 		const github = observableValue<LocalAgentHostRegistration | undefined>('github', undefined);
 		const tunnel = observableValue<LocalAgentHostRegistration | undefined>('tunnel', undefined);
@@ -360,7 +423,7 @@ suite('Sessions - View Menu', () => {
 			const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
 			harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 			const storage = store.add(new InMemoryStorageService());
-			let filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+			let filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService()), new TestConfigurationService()));
 			const registration = observableValue<LocalAgentHostRegistration | undefined>('registration', undefined);
 			const localSession = buildTestSession({ id: 'local', title: 'Local', workspace: 'app' }).session;
 			const registrationSession = buildTestSession({ id: 'registration', title: 'Registration', workspace: 'app', environment: 'github' }).session;
@@ -373,7 +436,7 @@ suite('Sessions - View Menu', () => {
 			if (restored) {
 				filters.setInboxEnvironment({ id: 'github', label: 'My Computer (GitHub)' });
 				filters.setInboxWorkspace({ environment: 'github', resource: 'file:///app', label: 'app' });
-				filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+				filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService()), new TestConfigurationService()));
 				registration.set('githubEnvironment', undefined);
 			}
 			const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
@@ -398,7 +461,7 @@ suite('Sessions - View Menu', () => {
 				workspace: scope.element.querySelector('.workspace-picker .action-label')?.textContent,
 				rows,
 				localMatches: filters.matchesInboxScope(localSession),
-				persisted: store.add(new SessionsListFilters(storage, store.add(new NullLogService()))).inboxScope,
+				persisted: store.add(new SessionsListFilters(storage, store.add(new NullLogService()), new TestConfigurationService())).inboxScope,
 			};
 			filters.setInboxEnvironment({ id: 'missing', label: 'Other Computer' });
 			assert.deepStrictEqual({ normalized, unavailable: { scope: filters.inboxScope, label: trigger.textContent } }, {
@@ -496,6 +559,25 @@ suite('Sessions - View Menu', () => {
 		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
 		assert.deepStrictEqual({ initial, enabled, hiddenAI, disabled: offered() }, {
 			initial: true, enabled: true, hiddenAI: false, disabled: true,
+		});
+	});
+
+	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
+		const { snapshot, contextKeyService } = createMenu();
+		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
+		const offered = (isSessionsWindow: boolean, groupings: readonly SessionsGrouping[]) => {
+			sessionsWindow.set(isSessionsWindow);
+			bindSessionsViewGroupings(contextKeyService, groupings);
+			return snapshot(Menus.SessionsViewGrouping).map(item => item.title);
+		};
+		assert.deepStrictEqual({
+			agentsWindow: offered(true, DEFAULT_SESSIONS_GROUPINGS),
+			editorWindow: offered(false, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
+			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
+		}, {
+			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'],
+			editorWindow: ['Time', 'Environment', 'Worktree'],
+			sessionsWindowOffering: ['Time', 'Environment'],
 		});
 	});
 
@@ -612,7 +694,7 @@ suite('Sessions - View Menu', () => {
 	});
 
 	for (const mixedSelection of [false, true]) {
-		test(`inbox can acknowledge pinned historical completions${mixedSelection ? ' alongside acknowledged sessions' : ''} and return them to Inbox`, async () => {
+		test(`inbox can acknowledge pinned historical completions${mixedSelection ? ' alongside acknowledged sessions' : ''} and return them to Inbox after unpinning`, async () => {
 			const sessions = ['historical', 'acknowledged'].map(id => buildTestSession({ id, title: id, isRead: true }).session);
 			const [historical, acknowledged] = sessions;
 			const harness = createListHarness(store, sessions);
@@ -643,6 +725,7 @@ suite('Sessions - View Menu', () => {
 				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
 			}));
 			list.layout(600, 400);
+			await timeout(100);
 			const showMenu = (selection: ISession[]) => {
 				assert.ok(list.setSelectedItems(selection.map(session => ({ session: session.resource }))));
 				list.getItemRow({ session: historical.resource })!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
@@ -659,10 +742,13 @@ suite('Sessions - View Menu', () => {
 			};
 			const toolbarCanResume = () => !!list.getItemRow({ session: historical.resource })!
 				.querySelector('.session-title-toolbar [aria-label="Return to Inbox"]');
+			const toolbarCanAcknowledge = () => !!list.getItemRow({ session: historical.resource })!
+				.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]');
 			const sectionSessions = (section: SessionInboxSection) => list.getTreeSnapshot().flatMap(node =>
 				node.type === 'section' && node.id === section ? node.children.flatMap(child => child.type === 'session' ? [child.session.sessionId] : []) : []);
 			const menu = showMenu(mixedSelection ? sessions : [historical]);
-			const initial = { actions: triageActions(menu), toolbarCanResume: toolbarCanResume() };
+			await retry(async () => assert.strictEqual(toolbarCanAcknowledge(), true), 10, 100);
+			const initial = { actions: triageActions(menu), toolbarCanResume: toolbarCanResume(), toolbarCanAcknowledge: toolbarCanAcknowledge() };
 			await run(menu, 'sessionsViewPane.inboxAcknowledge');
 			list.unpinSession(historical);
 			list.update(true);
@@ -677,7 +763,7 @@ suite('Sessions - View Menu', () => {
 				inboxSessions: sectionSessions(SessionInboxSection.ReadyForYou),
 				otherState: model.getInboxState(acknowledged)?.kind,
 			}, {
-				initial: { actions: [{ label: 'Acknowledge', enabled: true }, { label: 'Return to Inbox', enabled: true }], toolbarCanResume: true },
+				initial: { actions: [{ label: 'Acknowledge', enabled: true }], toolbarCanResume: false, toolbarCanAcknowledge: true },
 				acknowledgedSections: ['historical'], afterAcknowledgement: [{ label: 'Return to Inbox', enabled: true }],
 				resumed: undefined, inboxSessions: ['historical'], otherState: 'done',
 			});
@@ -742,7 +828,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('Inbox context actions acknowledge selected sessions without treating navigation as acknowledgement or breaking submenus', async () => {
+	test('Inbox navigation and submenu actions preserve selected sessions without acknowledging them', async () => {
 		const sessions = ['first', 'second'].map(id => buildTestSession({ id, title: id, isRead: false }).session);
 		const harness = createListHarness(store, sessions);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
@@ -779,21 +865,25 @@ suite('Sessions - View Menu', () => {
 		const submenu = actions.find(action => action.label === 'Session Actions');
 		assert.ok(submenu instanceof SubmenuAction);
 		await shown.actionRunner!.run(submenu.actions[0], shown.getActionsContext?.());
-		await retry(async () => assert.deepStrictEqual(list.getVisibleSessions(), []), 10, 100);
-		assert.deepStrictEqual({ afterNavigation, states: sessions.map(session => model.getInboxState(session)?.kind), archived: sessions.map(session => session.isArchived.get()), read: sessions.map(session => session.isRead.get()) }, {
-			afterNavigation: [undefined, undefined], states: ['done', 'done'], archived: [false, false], read: [false, false],
+		list.update();
+		assert.deepStrictEqual({ afterNavigation, states: sessions.map(session => model.getInboxState(session)?.kind), visible: list.getVisibleSessions().map(session => session.sessionId).sort(), archived: sessions.map(session => session.isArchived.get()), read: sessions.map(session => session.isRead.get()) }, {
+			afterNavigation: [undefined, undefined], states: [undefined, undefined], visible: ['first', 'second'], archived: [false, false], read: [false, false],
 		});
 	});
 
-	for (const source of ['toolbar', 'context menu']) {
-		test(`Acknowledge from the ${source} quietly moves an already-read active Inbox session to Acknowledged and returns on activity`, async () => {
-			const built = buildTestSession({ id: 'first', title: 'First', isRead: true });
+	for (const { source, section } of ['toolbar', 'context menu'].flatMap(source =>
+		[SessionInboxSection.ReadyForYou, SessionInboxSection.Working, SessionInboxSection.OnHold].map(section => ({ source, section })))) {
+		test(`Acknowledge from the ${source} quietly moves an already-read active ${section} session to Acknowledged and returns on activity`, async () => {
+			const built = buildTestSession({ id: 'first', title: 'First', isRead: true, status: section === SessionInboxSection.Working ? SessionStatus.InProgress : SessionStatus.Completed });
 			const other = buildTestSession({ id: 'second', title: 'Second', isRead: false }).session;
 			const session = built.session;
 			const activeSession = constObservable({ ...session, activeChat: session.mainChat });
 			const harness = createListHarness(store, [session, other], { activeSession });
 			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);
+			if (section === SessionInboxSection.OnHold) {
+				model.setInboxState([session], 'hold');
+			}
 			harness.instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 				executeCommand: async (id, ...args) => {
 					await CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, ...args);
@@ -818,6 +908,7 @@ suite('Sessions - View Menu', () => {
 				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
 			}));
 			list.layout(600, 400);
+			list.setItemCollapsed({ section }, false);
 			list.setSelectedItems([{ session: session.resource }]);
 			list.setFocusedItem({ session: session.resource });
 			list.focus();
@@ -898,34 +989,65 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('inbox merge uses only the available provider operation and rejects stale or multiple targets', async () => {
+	test('inbox merge invokes one repeated provider operation and rejects stale or multiple targets', async () => {
 		const built = buildTestSession({ id: 'merge', title: 'Merge', workspace: 'Project', repository: 'owner/repo', pullRequest: { number: 1, title: 'PR' } });
-		const operations = observableValue<readonly ISessionChangesetOperation[]>('operations', [{
+		const merge: ISessionChangesetOperation = {
 			id: 'pr-merge', label: 'Merge', scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle,
-		}]);
+		};
+		const operations = ['branch', 'uncommitted', 'session'].map(id => observableValue<readonly ISessionChangesetOperation[]>(id, [merge]));
+		const started = new DeferredPromise<void>();
+		const completed = new DeferredPromise<void>();
 		const calls: string[] = [];
-		const changeset = upcastPartial<ISessionChangeset>({
-			isEnabled: constObservable(true), operations,
-			invokeOperation: async id => { calls.push(id); },
-		});
-		const session: ISession = { ...built.session, mainChat: constObservable({ ...built.mainChat.chat, changesets: constObservable([changeset]) }) };
+		const changesets = ['branch', 'uncommitted', 'session'].map((changesetId, index) => upcastPartial<ISessionChangeset>({
+			id: changesetId, isEnabled: constObservable(true), operations: operations[index],
+			invokeOperation: async id => {
+				calls.push(`${changesetId}:${id}`);
+				operations[index].set([{ ...merge, status: SessionChangesetOperationStatus.Running }], undefined);
+				await started.complete();
+				await completed.p;
+				operations[index].set([merge], undefined);
+			},
+		}));
+		const session: ISession = { ...built.session, mainChat: constObservable({ ...built.mainChat.chat, changesets: constObservable(changesets) }) };
 		const harness = createListHarness(store, [session]);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
 		const attention = new Map<string, IInboxSessionAttention>([[session.sessionId, { tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false }]]);
 		harness.instantiationService.stub(ISessionAttentionService, upcastPartial<ISessionAttentionService>({ sessionAttention: constObservable(attention) }));
 		const run = async (target: ISession | ISession[] = session) => CommandsRegistry.getCommand('sessionsViewPane.inboxMergePullRequest')!.handler(harness.instantiationService, target);
-		await run();
+		const first = run();
+		await started.p;
+		const blocked = assert.rejects(run(), /no longer available/);
+		await completed.complete();
+		await first;
+		await blocked;
 		await assert.rejects(run([session, session]), /no longer available/);
 		model.setInboxState([session], 'hold');
 		await assert.rejects(run(), /no longer available/);
 		model.setInboxState([session], undefined);
-		operations.set([{ ...operations.get()[0], status: SessionChangesetOperationStatus.Disabled }], undefined);
+		for (const operation of operations) {
+			operation.set([{ ...merge, status: SessionChangesetOperationStatus.Disabled }], undefined);
+		}
 		await assert.rejects(run(), /no longer available/);
-		assert.deepStrictEqual(calls, ['pr-merge']);
+		assert.deepStrictEqual(calls, ['branch:pr-merge']);
 	});
 
-	test('inbox merge menus are AI-gated and disable multi-selection', () => {
+	test('inbox merge checks every changeset for a running copy before selecting an idle operation', () => {
+		const built = buildTestSession({ id: 'merge', title: 'Merge', workspace: 'Project', repository: 'owner/repo', pullRequest: { number: 1, title: 'PR' } });
+		const merge: ISessionChangesetOperation = { id: 'pr-merge', label: 'Merge', scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle };
+		const operations = ['branch', 'uncommitted', 'session'].map(id => observableValue<readonly ISessionChangesetOperation[]>(id, [merge]));
+		const changesets = operations.map(operations => upcastPartial<ISessionChangeset>({ isEnabled: constObservable(true), operations }));
+		const session: ISession = { ...built.session, mainChat: constObservable({ ...built.mainChat.chat, changesets: constObservable(changesets) }) };
+		const results = operations.map(operations => {
+			operations.set([{ ...merge, status: SessionChangesetOperationStatus.Running }], undefined);
+			const result = getInboxPullRequestMergeOperation(session);
+			operations.set([merge], undefined);
+			return result;
+		});
+		assert.deepStrictEqual(results, [undefined, undefined, undefined]);
+	});
+
+	test('inbox merge is context-menu-only, AI-gated and disabled for multi-selection', () => {
 		const { grouping, contextKeyService } = createMenu();
 		grouping.set(SessionsGrouping.Inbox);
 		SessionItemCanMergePullRequestContext.bindTo(contextKeyService).set(true);
@@ -939,12 +1061,12 @@ suite('Sessions - View Menu', () => {
 		const multi = snapshot();
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({ available, multi, hidden: snapshot() }, {
-			available: [{ group: 'navigation', enabled: true }, { group: '1_state', enabled: true }],
-			multi: [{ group: 'navigation', enabled: false }, { group: '1_state', enabled: false }], hidden: [],
+			available: [{ group: '1_state', enabled: true }],
+			multi: [{ group: '1_state', enabled: false }], hidden: [],
 		});
 	});
 
-	test('inbox merge rejects local, resource-only, disabled, running and ambiguous operations', () => {
+	test('inbox merge rejects local, resource-only, disabled and running operations and ambiguous pull requests', () => {
 		const built = buildTestSession({ id: 'merge', title: 'Merge', workspace: 'Project', repository: 'owner/repo', pullRequest: { number: 1, title: 'PR' } });
 		const merge: ISessionChangesetOperation = { id: 'pr-merge', label: 'Merge', scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle };
 		const operations = observableValue<readonly ISessionChangesetOperation[]>('operations', []);
@@ -956,7 +1078,6 @@ suite('Sessions - View Menu', () => {
 			[{ ...merge, scopes: [SessionChangesetOperationScope.Resource] }],
 			[{ ...merge, status: SessionChangesetOperationStatus.Disabled }],
 			[{ ...merge, status: SessionChangesetOperationStatus.Running }],
-			[merge, merge],
 		].map(candidates => {
 			operations.set(candidates, undefined);
 			return getInboxPullRequestMergeOperation(session);
@@ -972,11 +1093,11 @@ suite('Sessions - View Menu', () => {
 			...session, workspace: constObservable({ ...workspace, folders: [...workspace.folders, ...other.folders] }),
 		}));
 		assert.deepStrictEqual({ rejected, available: getInboxPullRequestMergeOperation(session) }, {
-			rejected: Array(8).fill(undefined), available: { changeset, operation: merge },
+			rejected: Array(7).fill(undefined), available: { changeset, operation: merge },
 		});
 	});
 
-	test('inbox merge toolbar follows actual selection and ignores unrelated selected rows', async () => {
+	test('inbox merge context menu follows actual selection without adding an inline action', async () => {
 		const built = buildTestSession({ id: 'merge', title: 'Merge', workspace: 'Project', repository: 'owner/repo', pullRequest: { number: 1, title: 'PR' } });
 		const changeset = upcastPartial<ISessionChangeset>({
 			isEnabled: constObservable(true),
@@ -995,29 +1116,40 @@ suite('Sessions - View Menu', () => {
 		SessionsViewGroupingContext.bindTo(context).set(SessionsGrouping.Inbox);
 		harness.instantiationService.stub(IContextKeyService, context);
 		harness.instantiationService.stub(IMenuService, store.add(harness.instantiationService.createInstance(MenuService)));
+		let shown: IContextMenuDelegate | undefined;
+		harness.instantiationService.stub(IContextMenuService, {
+			showContextMenu: (delegate: IContextMenuDelegate) => { shown = delegate; },
+		});
 		const list = store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 			grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
 		}));
 		list.layout(600, 400);
 		list.reveal(session.resource);
-		const button = () => list.getItemRow({ session: session.resource })!.querySelector<HTMLElement>('.session-title-toolbar [aria-label="Merge Pull Request"]')!;
+		const row = list.getItemRow({ session: session.resource })!;
 		const select = async (sessions: readonly ISession[]) => {
 			assert.ok(list.setSelectedItems(sessions.map(session => ({ session: session.resource }))));
-			await timeout(100);
-			return button().getAttribute('aria-disabled') === 'true';
+			row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			assert.ok(shown);
+			return shown.getActions().find(action => action.id === 'sessionsViewPane.inboxMergePullRequest')!;
 		};
-		const single = await select([session]);
-		const multiple = await select([session, others[0]]);
-		button().click();
-		await timeout(0);
+		const single = (await select([session])).enabled;
+		await retry(async () => assert.ok(row.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]')), 10, 100);
+		const inlineMerge = !!row.querySelector('.session-title-toolbar [aria-label="Merge Pull Request"]');
+		const inlineAcknowledge = !!row.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]');
+		const multipleAction = await select([session, others[0]]);
+		const multiple = multipleAction.enabled;
+		await shown!.actionRunner!.run(multipleAction, shown!.getActionsContext?.());
 		const blockedCalls = harness.commandService.calls.filter(call => call.commandId === 'sessionsViewPane.inboxMergePullRequest');
-		const unrelated = await select(others);
-		const restored = await select([session]);
-		button().click();
-		await timeout(0);
+		const unrelated = (await select(others)).enabled;
+		const restoredAction = await select([session]);
+		const restored = restoredAction.enabled;
+		await shown!.actionRunner!.run(restoredAction, shown!.getActionsContext?.());
 		const calls = harness.commandService.calls.filter(call => call.commandId === 'sessionsViewPane.inboxMergePullRequest');
-		assert.deepStrictEqual({ single, multiple, unrelated, restored, blockedCalls, calls }, {
-			single: false, multiple: true, unrelated: false, restored: false, blockedCalls: [],
+		assert.deepStrictEqual({
+			single, multiple, unrelated, restored, blockedCalls, calls, inlineMerge, inlineAcknowledge,
+		}, {
+			single: true, multiple: false, unrelated: true, restored: true, blockedCalls: [],
+			inlineMerge: false, inlineAcknowledge: true,
 			calls: [{ commandId: 'sessionsViewPane.inboxMergePullRequest', args: [[session]] }],
 		});
 	});
@@ -1060,16 +1192,31 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('application filter command opens the Sessions view before showing its filter menu', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
-		const calls: string[] = [];
-		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'openView', async (id: string) => {
-			calls.push(id);
-			return upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push('showApplicationFilters') });
-		});
-		await CommandsRegistry.getCommand(SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID)!.handler(instantiationService);
+	test('application filter command opens the registered Sessions view, and uses an embedded one only without it', async () => {
+		const run = async (registered: boolean, embedded: boolean) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const calls: string[] = [];
+			const view = (name: string) => upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push(`${name}.showApplicationFilters`) });
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+				openView: async (id: string) => {
+					calls.push(`open ${id}`);
+					return registered ? view('registered') as never : null;
+				},
+			}));
+			instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => embedded ? view('embedded') : undefined }));
+			await CommandsRegistry.getCommand(SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID)!.handler(instantiationService);
+			return calls;
+		};
 
-		assert.deepStrictEqual(calls, ['sessions.workbench.view.sessionsView', 'showApplicationFilters']);
+		assert.deepStrictEqual({
+			registeredAndEmbedded: await run(true, true),
+			embeddedOnly: await run(false, true),
+			neither: await run(false, false),
+		}, {
+			registeredAndEmbedded: ['open sessions.workbench.view.sessionsView', 'registered.showApplicationFilters'],
+			embeddedOnly: ['open sessions.workbench.view.sessionsView', 'embedded.showApplicationFilters'],
+			neither: ['open sessions.workbench.view.sessionsView'],
+		});
 	});
 
 	test('opens the filter menu with Created In focused and returns focus to the list', () => {
@@ -1219,28 +1366,31 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('offers Worktree grouping, and Show while grouping by worktree, only outside the Agents window', () => {
-		const { snapshot, contextKeyService, grouping } = createMenu();
-		const state = () => ({
-			grouping: snapshot(Menus.SessionsViewGrouping).map(item => item.title),
-			show: snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Show'),
-			showEntries: snapshot(Menus.SessionsViewShow).map(item => item.title),
-		});
-		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
-		grouping.set(SessionsGrouping.Worktree);
-		// The Agents window offers no Worktree grouping, also if a grouping of worktree were set
-		sessionsWindow.set(true);
-		const agentsWindow = state();
-		sessionsWindow.set(false);
-		grouping.set(SessionsGrouping.Workspace);
-		const editorWindow = snapshot(Menus.SessionsViewGrouping).map(item => item.title);
-		grouping.set(SessionsGrouping.Worktree);
-		const byWorktree = state();
+	test('Show Automation Runs chooses the automation listing setting while Automations are enabled', async () => {
+		const { snapshot, run, contextKeyService, configurationService } = createMenu();
+		const entry = () => snapshot(Menus.SessionsViewFilter).filter(item => item.submenu === Menus.SessionsViewAutomationRuns.id);
+		const disabled = entry();
+		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+		const enabled = entry();
+		const defaults = snapshot(Menus.SessionsViewAutomationRuns);
+		await run(`sessionsViewPane.showAutomationRuns.${AutomationSessionsListMode.Always}`);
 
-		assert.deepStrictEqual({ agentsWindow, editorWindow, byWorktree }, {
-			agentsWindow: { grouping: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'], show: false, showEntries: [] },
-			editorWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'],
-			byWorktree: { grouping: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'], show: true, showEntries: ['Recent', 'All'] },
+		assert.deepStrictEqual({
+			disabled,
+			enabled,
+			defaults,
+			checked: snapshot(Menus.SessionsViewAutomationRuns).filter(item => item.checked).map(item => item.title),
+			updates: configurationService.updates,
+		}, {
+			disabled: [],
+			enabled: [{ title: 'Show Automation Runs', group: '3_visibility', submenu: Menus.SessionsViewAutomationRuns.id }],
+			defaults: [
+				{ title: 'Always', group: '1_modes', checked: false },
+				{ title: 'After Reply', group: '1_modes', checked: true },
+				{ title: 'Never', group: '1_modes', checked: false },
+			],
+			checked: ['Always'],
+			updates: [[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always]],
 		});
 	});
 
@@ -1279,8 +1429,6 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: true },
-				// Outside the Agents window, which this menu is not marked as
-				{ title: 'Worktree', group: '1_group', checked: false, enabled: true },
 				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			environmentShow: [
@@ -1297,7 +1445,6 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: false },
-				{ title: 'Worktree', group: '1_group', checked: false, enabled: true },
 				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			show: [
