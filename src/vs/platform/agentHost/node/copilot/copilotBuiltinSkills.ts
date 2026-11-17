@@ -346,7 +346,7 @@ ${modelRouterNamedRoutesExample}
 
 - \`name\` (optional) is what the chat shows for the route: lowercase letters, digits and single hyphens, each used once. Routes with a name may use the same model, for example the same model at two effort levels; a route without one may not share its model.
 - \`guidance\` on a route (optional, at most 4000 characters) is given to the chat's main agent, not to the decision model. Write it as instructions for that kind of work: the steps to take, and the skills and custom agents to use, by name. The agent already has the user's skills and custom agents, so naming one is enough; a custom agent runs on the model its own file names, else the chat's.
-- A chat gets the guidance of the route its first message is routed to, and keeps it. So \`switching: auto\` can't be used when a route has \`guidance\`. A router chosen in a chat that already has messages picks models but brings no guidance; it is also lost when VS Code restarts. Start a new chat to get it.
+- A chat has the guidance of the route it is on. With \`switching: first-turn\` that is the route of its first routed message. With \`switching: auto\`, a chat that moves to another route gets that route's guidance in place of the earlier one. A router chosen in a chat that already has messages brings the guidance of the route it picks.
 - One route is enough when it has \`guidance\`.
 - The router's own \`guidance\`, at the top of the file, is different: it is for the routing decision.
 
