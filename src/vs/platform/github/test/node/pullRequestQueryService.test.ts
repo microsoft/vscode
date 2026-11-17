@@ -894,8 +894,9 @@ suite('PullRequestQueryService', () => {
 				},
 			}),
 		});
-		const removed = (reason: string, beforeCommit: string | null, actor = 'github-merge-queue') =>
-			({ __typename: 'RemovedFromMergeQueueEvent', id: `RFMQE_${reason}`, createdAt: '2026-11-17T07:09:23Z', reason, actor: { login: actor }, beforeCommit: beforeCommit ? { oid: beforeCommit } : null });
+		const removed = (reason: string, beforeCommit: string | null, actor = 'github-merge-queue') => ({
+			__typename: 'RemovedFromMergeQueueEvent', id: `RFMQE_${reason}`, createdAt: '2026-11-17T07:09:23Z', reason, actor: { login: actor }, beforeCommit: beforeCommit ? { oid: beforeCommit } : null,
+		});
 		await withServer(async server => {
 			server.enqueue(
 				mergeability([removed('failed_checks', 'group-1')]),
