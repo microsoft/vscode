@@ -15,8 +15,8 @@ export class GitHubPRCIFetcher {
 	constructor(readonly client: GitHubApiClient, private readonly _logService: ILogService) { }
 
 	getCheckRuns(owner: string, repo: string, ref: string, token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubCICheck[]> {
-		return this.client.withClient(async (client, signal) => {
-			const checks = await client.checks.listRuns({ owner, repo }, ref, signal, {
+		return this.client.withClient(async (client, cancellationToken) => {
+			const checks = await client.checks.listRuns({ owner, repo }, ref, cancellationToken, {
 				...options,
 				caller: options?.caller ?? 'githubPRCIFetcher',
 				query: { page: 1, per_page: 100 },
@@ -27,16 +27,16 @@ export class GitHubPRCIFetcher {
 	}
 
 	rerunFailedJobs(owner: string, repo: string, runId: number, token?: CancellationToken): Promise<void> {
-		return this.client.withClient((client, signal) =>
-			client.actions.rerunFailedJobs({ owner, repo }, runId, signal, { caller: 'githubPRCIFetcher' }), token);
+		return this.client.withClient((client, cancellationToken) =>
+			client.actions.rerunFailedJobs({ owner, repo }, runId, cancellationToken, { caller: 'githubPRCIFetcher' }), token);
 	}
 
 	getCheckRunAnnotations(owner: string, repo: string, checkRunId: number, token?: CancellationToken): Promise<string> {
-		return this.client.withClient(async (client, signal) => {
+		return this.client.withClient(async (client, cancellationToken) => {
 			const repository = { owner, repo };
 			const sections: string[] = [];
 			try {
-				const { output } = await client.checks.getRun(repository, checkRunId, signal, { caller: 'githubPRCIFetcher' });
+				const { output } = await client.checks.getRun(repository, checkRunId, cancellationToken, { caller: 'githubPRCIFetcher' });
 				if (output.title) {
 					sections.push(`# ${output.title}`);
 				}
@@ -47,13 +47,13 @@ export class GitHubPRCIFetcher {
 					sections.push(output.text);
 				}
 			} catch (error) {
-				if (signal.aborted || isCancellationError(error)) {
+				if (cancellationToken.isCancellationRequested || isCancellationError(error)) {
 					throw error;
 				}
 				this._logService.warn('[GitHubPRCIFetcher] Failed to read check output', error);
 			}
 			try {
-				const annotations = await client.checks.listAnnotations(repository, checkRunId, signal, {
+				const annotations = await client.checks.listAnnotations(repository, checkRunId, cancellationToken, {
 					caller: 'githubPRCIFetcher',
 					query: { page: 1, per_page: 100 },
 					maxPages: 100,
@@ -64,7 +64,7 @@ export class GitHubPRCIFetcher {
 					).join('\n'));
 				}
 			} catch (error) {
-				if (signal.aborted || isCancellationError(error)) {
+				if (cancellationToken.isCancellationRequested || isCancellationError(error)) {
 					throw error;
 				}
 				this._logService.warn('[GitHubPRCIFetcher] Failed to read check annotations', error);

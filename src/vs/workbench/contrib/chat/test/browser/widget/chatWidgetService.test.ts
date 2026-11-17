@@ -218,7 +218,7 @@ suite('ChatWidgetService', () => {
 			const oldWidget = createWidget(session);
 			const emptyOldWidget = createWidget(undefined);
 			const hostWidget = upcastPartial<IChatWidget>({});
-			const view = { widget: oldWidget, focus: () => calls.push('view.focus'), loadSession: async () => { calls.push('view.loadSession'); } };
+			const view = { widget: oldWidget, shownSession: constObservable(undefined), focus: () => calls.push('view.focus'), loadSession: async () => { calls.push('view.loadSession'); }, reportShown: (_resource: URI, reason: string) => calls.push(`view.reportShown ${reason}`) };
 			instantiationService.stub(IEditorGroupsService, { groups: [] });
 			instantiationService.stub(IViewsService, {
 				getViewWithId: (() => view) as unknown as IViewsService['getViewWithId'],
@@ -275,7 +275,7 @@ suite('ChatWidgetService', () => {
 
 			const widget = await service.openSession(session);
 
-			assert.deepStrictEqual({ shown: widget === oldWidget, calls }, { shown: true, calls: [`openView ${ChatViewId}`, 'view.focus'] });
+			assert.deepStrictEqual({ shown: widget === oldWidget, calls }, { shown: true, calls: [`openView ${ChatViewId}`, 'view.focus', 'view.reportShown open'] });
 		});
 	});
 });

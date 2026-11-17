@@ -36,6 +36,8 @@ export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.grou
 
 export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
 
+export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAutoAdvance';
+
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
 

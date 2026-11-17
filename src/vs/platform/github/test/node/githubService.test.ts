@@ -3,31 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { GitHubCredentialService } from '../../common/githubCredentialService.js';
 import { GitHubQueryService } from '../../common/githubQueryServiceImpl.js';
 import { GitHubService } from '../../common/githubService.js';
-import { GitHubClientOptions, GitHubCredentialChange, GitHubServiceOptions } from '../../common/githubTypes.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
+import { GitHubClientOptions, GitHubCredentialChange, GitHubServiceOptions } from '../../common/githubTypes.js';
 import { PullRequestMutationService } from '../../common/pullRequestMutationService.js';
 import { PullRequestResourceService } from '../../common/pullRequestResourceService.js';
-import { nodeFetch } from './nodeFetch.js';
-import { gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 import { getGitHubClientInternals } from '../common/githubClientTestUtils.js';
+import { nodeFetch } from './nodeFetch.js';
+import { ProgrammableGitHubServer, gitHubJsonResponse, gitHubRestStep } from './programmableGitHubServer.js';
+
 
 function clientOptions(apiBaseUri = 'https://api.github.com', sessionId = 'session', scopes: readonly string[] = ['repo']): GitHubClientOptions {
 	return { apiBaseUri, graphQlUri: `${apiBaseUri}/graphql`, authorization: { providerId: 'github', sessionId, scopes } };
 }
 
-function signal(): AbortSignal { return new AbortController().signal; }
+function cancellationToken(): CancellationToken { return CancellationToken.None; }
 
 class TestLogService extends NullLogService {
 	readonly messages: string[] = [];
@@ -87,7 +90,7 @@ suite('GitHubService', () => {
 		retained.dispose();
 		equivalent.dispose();
 		const recreated = disposables.add(service.acquireClient(clientOptions(undefined, 'session', ['repo', 'user:email'])));
-		await assert.rejects(first.object.credentials.getCredential(signal()), /disposed/);
+		await assert.rejects(first.object.credentials.getCredential(cancellationToken()), /disposed/);
 		assert.deepStrictEqual({ shared, preserved, isolatedScopes: narrow.object !== first.object, isolatedHost: enterprise.object !== first.object, recreated: recreated.object !== first.object }, {
 			shared: true, preserved: true, isolatedScopes: true, isolatedHost: true, recreated: true,
 		});
@@ -112,16 +115,16 @@ suite('GitHubService', () => {
 		});
 		const first = disposables.add(service.acquireClient(clientOptions(undefined, 'first'))).object;
 		const second = disposables.add(service.acquireClient(clientOptions(undefined, 'second'))).object;
-		const credentials = await Promise.all([first.credentials.getCredential(signal()), second.credentials.getCredential(signal())]);
+		const credentials = await Promise.all([first.credentials.getCredential(cancellationToken()), second.credentials.getCredential(cancellationToken())]);
 		let invalidations = 0;
 		disposables.add(getGitHubClientInternals(first).onDidInvalidate(() => { invalidations++; }));
 		tokens.delete('first');
 		changes.fire({ providerId: 'github', sessionIds: ['first'] });
-		const secondAgain = await second.credentials.getCredential(signal());
-		await assert.rejects(first.credentials.getCredential(signal()), /disposed/);
+		const secondAgain = await second.credentials.getCredential(cancellationToken());
+		await assert.rejects(first.credentials.getCredential(cancellationToken()), /disposed/);
 		assert.deepStrictEqual({
 			accounts: credentials.map(credential => credential.account.accountId),
-			aborted: credentials.map(credential => credential.signal.aborted),
+			aborted: credentials.map(credential => credential.cancellationToken.isCancellationRequested),
 			invalidations, sameSecond: secondAgain === credentials[1],
 		}, { accounts: ['101', '202'], aborted: [true, false], invalidations: 1, sameSecond: true });
 	});
@@ -144,10 +147,10 @@ suite('GitHubService', () => {
 		const request = { method: 'GET' as const, url: 'https://api.github.com/resource' };
 		const pending = Array.from({ length: 10 }, (_, index) => getGitHubClientInternals(first.object).transport.rest(account, 'token', {
 			...request, url: `${request.url}?page=${index}`, caller: `caller-${index % 2}`,
-		}, signal()));
+		}, cancellationToken()));
 		const rejected = Promise.all(pending.map(request => assert.rejects(request, /disposed/)));
 		await started.p;
-		const peer = getGitHubClientInternals(second.object).transport.rest(account, 'token', request, signal());
+		const peer = getGitHubClientInternals(second.object).transport.rest(account, 'token', request, cancellationToken());
 		await timeout(0);
 		const beforeRelease = calls;
 		first.dispose();
@@ -165,7 +168,7 @@ suite('GitHubService', () => {
 			const client = index % 2 ? first : second;
 			return getGitHubClientInternals(client).transport.rest({ host: 'api.github.com', accountId: String(index % 2) }, 'token', {
 				method: 'GET', url: `https://api.github.com/resource?page=${index}`,
-			}, signal()).then(() => 'success', error => error.kind);
+			}, cancellationToken()).then(() => 'success', error => error.kind);
 		});
 		await timeout(0);
 		service.dispose();
@@ -173,26 +176,26 @@ suite('GitHubService', () => {
 	});
 
 	test('releasing one lease does not cancel another lease of the same client', async () => {
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const response = new DeferredPromise<Response>();
 		let calls = 0;
 		const service = setup({
-			fetch: async (_url, init) => {
+			fetch: async (_url, init, fetchToken) => {
 				calls++;
-				assert.ok(init?.signal);
-				await started.complete(init.signal);
+				assert.ok(fetchToken);
+				await started.complete(fetchToken);
 				return response.p;
 			}
 		});
 		const first = disposables.add(service.acquireClient(clientOptions()));
 		const peer = disposables.add(service.acquireClient(clientOptions()));
 		const account = { host: 'api.github.com', accountId: '101' };
-		const pending = getGitHubClientInternals(peer.object).transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/resource' }, signal());
+		const pending = getGitHubClientInternals(peer.object).transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/resource' }, cancellationToken());
 		const active = await started.p;
 		first.dispose();
 		await response.complete(new Response('{}'));
 		await pending;
-		assert.deepStrictEqual({ calls, aborted: active.aborted, same: first.object === peer.object }, { calls: 1, aborted: false, same: true });
+		assert.deepStrictEqual({ calls, aborted: active.isCancellationRequested, same: first.object === peer.object }, { calls: 1, aborted: false, same: true });
 	});
 
 	for (const change of ['release', 'revoke'] as const) {
@@ -207,22 +210,21 @@ suite('GitHubService', () => {
 				},
 			});
 			const first = disposables.add(service.acquireClient(clientOptions()));
-			await assert.rejects(first.object.credentials.getCredential(signal()), { kind: 'rateLimit' });
+			await assert.rejects(first.object.credentials.getCredential(cancellationToken()), { kind: 'rateLimit' });
 			if (change === 'release') {
 				first.dispose();
 			} else {
 				changes.fire({ providerId: 'github', sessionIds: ['session'] });
 			}
 			const replacement = disposables.add(service.acquireClient(clientOptions())).object;
-			const controller = new AbortController();
-			const reason = new Error('cancelled');
-			const rejected = assert.rejects(replacement.credentials.getCredential(controller.signal), error => error === reason);
+			const controller = disposables.add(new CancellationTokenSource());
+			const rejected = assert.rejects(replacement.credentials.getCredential(controller.token), isCancellationError);
 			await timeout(0);
 			const duringCooldown = calls;
-			controller.abort(reason);
+			controller.cancel();
 			await rejected;
 			const unrelated = disposables.add(service.acquireClient(clientOptions(undefined, 'unrelated'))).object;
-			await unrelated.credentials.getCredential(signal());
+			await unrelated.credentials.getCredential(cancellationToken());
 			assert.deepStrictEqual({ duringCooldown, calls }, { duringCooldown: 1, calls: 2 });
 		});
 	}
@@ -250,10 +252,10 @@ suite('GitHubService', () => {
 				});
 				try {
 					const first = disposables.add(service.acquireClient(clientOptions()));
-					const credential = await first.object.credentials.getCredential(signal());
+					const credential = await first.object.credentials.getCredential(cancellationToken());
 					await assert.rejects(getGitHubClientInternals(first.object).transport.rest(credential.account, credential.token, {
 						method: 'GET', url: `https://api.github.com${resource}`,
-					}, signal()), { kind: 'rateLimit' });
+					}, cancellationToken()), { kind: 'rateLimit' });
 					token = 'replacement-token';
 					if (change === 'release') {
 						first.dispose();
@@ -261,7 +263,7 @@ suite('GitHubService', () => {
 						changes.fire({ providerId: 'github', sessionIds: ['session'] });
 					}
 					const replacement = disposables.add(service.acquireClient(clientOptions()));
-					await replacement.object.credentials.getCredential(signal());
+					await replacement.object.credentials.getCredential(cancellationToken());
 					assert.deepStrictEqual(requests, [
 						{ path: '/user', at: 0 },
 						{ path: resource, at: 0 },
@@ -304,10 +306,10 @@ suite('GitHubService', () => {
 			});
 			try {
 				const first = disposables.add(service.acquireClient(clientOptions()));
-				const credential = await first.object.credentials.getCredential(signal());
+				const credential = await first.object.credentials.getCredential(cancellationToken());
 				await getGitHubClientInternals(first.object).transport.rest(credential.account, credential.token, {
 					method: 'GET', url: 'https://api.github.com/repos/owner/repo',
-				}, signal());
+				}, cancellationToken());
 				token = 'replacement-token';
 				if (change === 'release') {
 					first.dispose();
@@ -315,11 +317,11 @@ suite('GitHubService', () => {
 					changes.fire({ providerId: 'github', sessionIds: ['session'] });
 				}
 				const replacement = disposables.add(service.acquireClient(clientOptions())).object;
-				await replacement.query.hydrateResources([{ kind: 'repository', ref: { ...credential.account, owner: 'owner', repo: 'repo' } }], signal());
-				const renewed = await replacement.credentials.getCredential(signal());
+				await replacement.query.hydrateResources([{ kind: 'repository', ref: { ...credential.account, owner: 'owner', repo: 'repo' } }], cancellationToken());
+				const renewed = await replacement.credentials.getCredential(cancellationToken());
 				await assert.rejects(getGitHubClientInternals(replacement).transport.rest(renewed.account, renewed.token, {
 					method: 'GET', url: 'https://api.github.com/repos/owner/repo', deadline: Date.now() + 100,
-				}, signal()), { kind: 'timeout' });
+				}, cancellationToken()), { kind: 'timeout' });
 				assert.deepStrictEqual({ requests }, {
 					requests: [
 						{ path: '/user', at: 0 }, { path: '/repos/owner/repo', at: 0 },
@@ -346,9 +348,9 @@ suite('GitHubService', () => {
 		});
 		try {
 			const client = disposables.add(service.acquireClient(clientOptions())).object;
-			await assert.rejects(client.credentials.getCredential(signal()), { kind: 'rateLimit' });
+			await assert.rejects(client.credentials.getCredential(cancellationToken()), { kind: 'rateLimit' });
 			token = 'replacement-token';
-			await client.credentials.getCredential(signal());
+			await client.credentials.getCredential(cancellationToken());
 			assert.deepStrictEqual(requests, [0, 5_000]);
 		} finally {
 			service.dispose();
@@ -383,20 +385,20 @@ suite('GitHubService', () => {
 		});
 		try {
 			const client = disposables.add(service.acquireClient(clientOptions())).object;
-			const credential = await client.credentials.getCredential(signal());
+			const credential = await client.credentials.getCredential(cancellationToken());
 			const delays = {
 				rest: getGitHubClientInternals(client).transport.rateLimits.getRequestDelay(credential.account, 'core'),
 				core: getGitHubClientInternals(client).transport.rateLimits.getDelay(credential.account, 'core'),
 				graphql: getGitHubClientInternals(client).transport.rateLimits.getRequestDelay(credential.account, 'graphql'),
 			};
-			await client.query.hydrateResources([{ kind: 'repository', ref: { ...credential.account, owner: 'owner', repo: 'repo' } }], signal());
+			await client.query.hydrateResources([{ kind: 'repository', ref: { ...credential.account, owner: 'owner', repo: 'repo' } }], cancellationToken());
 			const request = { method: 'GET' as const, url: 'https://api.github.com/repos/owner/repo' };
 			await assert.rejects(getGitHubClientInternals(client).transport.rest(credential.account, credential.token, {
 				...request, deadline: Date.now() + 100,
-			}, signal()), { kind: 'timeout' });
+			}, cancellationToken()), { kind: 'timeout' });
 			token = 'replacement-token';
-			const renewed = await client.credentials.getCredential(signal());
-			await getGitHubClientInternals(client).transport.rest(renewed.account, renewed.token, request, signal());
+			const renewed = await client.credentials.getCredential(cancellationToken());
+			await getGitHubClientInternals(client).transport.rest(renewed.account, renewed.token, request, cancellationToken());
 			assert.deepStrictEqual({ requests, delays }, {
 				requests: [
 					{ path: '/user', at: 0 }, { path: '/graphql', at: 0 }, { path: '/graphql', at: 0 },
@@ -414,14 +416,14 @@ suite('GitHubService', () => {
 		try {
 			const first = disposables.add(service.acquireClient(clientOptions()));
 			const peer = disposables.add(service.acquireClient(clientOptions(undefined, 'session', ['repo', 'user:email'])));
-			const credential = await first.object.credentials.getCredential(signal());
-			const peerCredential = await peer.object.credentials.getCredential(signal());
+			const credential = await first.object.credentials.getCredential(cancellationToken());
+			const peerCredential = await peer.object.credentials.getCredential(cancellationToken());
 			getGitHubClientInternals(first.object).transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
 				status: 429, headers: { 'Retry-After': '5', 'x-ratelimit-resource': 'core' },
 			}));
 			first.dispose();
 			const start = Date.now();
-			const retained = await peer.object.credentials.getCredential(signal());
+			const retained = await peer.object.credentials.getCredential(cancellationToken());
 			assert.deepStrictEqual({ sameCredential: retained === peerCredential, elapsed: Date.now() - start }, {
 				sameCredential: true, elapsed: 0,
 			});
@@ -442,15 +444,15 @@ suite('GitHubService', () => {
 		});
 		try {
 			const client = disposables.add(service.acquireClient(clientOptions())).object;
-			const credential = await client.credentials.getCredential(signal());
+			const credential = await client.credentials.getCredential(cancellationToken());
 			getGitHubClientInternals(client).transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
 				status: 429, headers: { 'Retry-After': '5' },
 			}));
 			token = 'superseded-token';
-			const obsolete = client.credentials.getCredential(signal());
+			const obsolete = client.credentials.getCredential(cancellationToken());
 			await timeout(1);
 			token = 'latest-token';
-			const replacement = client.credentials.getCredential(signal());
+			const replacement = client.credentials.getCredential(cancellationToken());
 			const parked = await obsolete;
 			await replacement;
 			assert.deepStrictEqual({ tokens, parked: parked.token }, { tokens: ['Bearer first-token', 'Bearer latest-token'], parked: 'latest-token' });
@@ -464,15 +466,14 @@ suite('GitHubService', () => {
 		const service = setup({ fetch: async () => { calls++; return new Response(null, { status: 401 }); } });
 		for (let attempt = 0; attempt < 2; attempt++) {
 			const reference = disposables.add(service.acquireClient(clientOptions()));
-			await assert.rejects(reference.object.credentials.getCredential(signal()), { kind: 'authentication' });
+			await assert.rejects(reference.object.credentials.getCredential(cancellationToken()), { kind: 'authentication' });
 			reference.dispose();
 		}
 		const reference = disposables.add(service.acquireClient(clientOptions()));
-		const controller = new AbortController();
-		const reason = new Error('cancelled');
-		const rejected = assert.rejects(reference.object.credentials.getCredential(controller.signal), error => error === reason);
+		const controller = disposables.add(new CancellationTokenSource());
+		const rejected = assert.rejects(reference.object.credentials.getCredential(controller.token), isCancellationError);
 		await timeout(0);
-		controller.abort(reason);
+		controller.cancel();
 		await rejected;
 		assert.strictEqual(calls, 2);
 	});
@@ -500,10 +501,10 @@ suite('GitHubService', () => {
 				},
 			})).object;
 			const request = { method: 'GET' as const, url: 'https://api.github.com/resource' };
-			await getGitHubClientInternals(first).transport.rest(account, 'first-token', request, signal());
+			await getGitHubClientInternals(first).transport.rest(account, 'first-token', request, cancellationToken());
 			await Promise.all([
-				getGitHubClientInternals(first).transport.rest(account, 'first-token', request, signal()),
-				getGitHubClientInternals(second).transport.rest(account, 'second-token', request, signal()),
+				getGitHubClientInternals(first).transport.rest(account, 'first-token', request, cancellationToken()),
+				getGitHubClientInternals(second).transport.rest(account, 'second-token', request, cancellationToken()),
 			]);
 			assert.deepStrictEqual(seen, [
 				{ token: 'Bearer first-token', etag: null },
@@ -540,7 +541,7 @@ suite('GitHubService', () => {
 			telemetrySource: 'agentHost',
 		}, new NullLogService(), telemetry);
 		const client = disposables.add(service.acquireClient(clientOptions('https://private-host.example', 'private-session'))).object;
-		await client.credentials.getCredential(signal());
+		await client.credentials.getCredential(cancellationToken());
 		service.dispose();
 		const summary = events.find(event => event.name === 'githubRequestSummary')?.data;
 		assert.deepStrictEqual({ source: summary?.source, requests: summary?.requests, attempts: summary?.wireAttempts, containsPrivateData: JSON.stringify(events).includes('private') }, {
@@ -555,7 +556,7 @@ suite('GitHubService', () => {
 			fetch: async (_url, init) => { requests.push(new Headers(init?.headers)); return new Response('{"id":101}'); },
 		});
 		const client = disposables.add(service.acquireClient(clientOptions())).object;
-		await client.credentials.getCredential(signal());
+		await client.credentials.getCredential(cancellationToken());
 		assert.deepStrictEqual(requests.map(headers => ({
 			application: headers.get('X-Client-Application'), source: headers.get('X-Client-Source'),
 			feature: headers.get('X-Client-Feature'), retry: headers.get('X-Is-Retry'),
@@ -615,7 +616,7 @@ suite('GitHubService', () => {
 			server.enqueue(gitHubRestStep({ method: 'GET', path: '/user', response: gitHubJsonResponse({ id: 101 }) }));
 			const service = setup();
 			const client = disposables.add(service.acquireClient(clientOptions(server.apiBaseUrl))).object;
-			assert.deepStrictEqual((await client.credentials.getCredential(signal())).account, { host: new URL(server.apiBaseUrl).host, accountId: '101' });
+			assert.deepStrictEqual((await client.credentials.getCredential(cancellationToken())).account, { host: new URL(server.apiBaseUrl).host, accountId: '101' });
 			server.assertSatisfied();
 		});
 	});

@@ -13,8 +13,8 @@ export class GitHubPullRequestsFetcher {
 	constructor(private readonly _client: GitHubApiClient) { }
 
 	getPullRequests(owner: string, repo: string, cursor?: string): Promise<IGitHubPullRequestsPage> {
-		return this._client.withClient(async (client, signal) => {
-			const connection = await client.pullRequests.listConnection({ owner, repo }, signal, { caller: 'githubPullRequestsFetcher', query: { first: 100, after: cursor } });
+		return this._client.withClient(async (client, cancellationToken) => {
+			const connection = await client.pullRequests.listConnection({ owner, repo }, cancellationToken, { caller: 'githubPullRequestsFetcher', query: { first: 100, after: cursor } });
 			if (!connection) {
 				throw new GitHubRequestError(`GitHub repository not found: ${owner}/${repo}`, 'notFound');
 			}
@@ -35,8 +35,8 @@ export class GitHubPullRequestsFetcher {
 	}
 
 	private _getPullRequestsByQuery(query: string, reviewRequestedFromViewer: boolean, assignedToViewer: boolean): Promise<readonly IGitHubPullRequestSummary[]> {
-		return this._client.withClient(async (client, signal) => {
-			const connection = await client.search.pullRequests(query, signal, { caller: 'githubPullRequestsFetcher', query: { first: 100 } });
+		return this._client.withClient(async (client, cancellationToken) => {
+			const connection = await client.search.pullRequests(query, cancellationToken, { caller: 'githubPullRequestsFetcher', query: { first: 100 } });
 			return (connection.nodes ?? []).filter(isDefined).map(pullRequest => mapPullRequest(pullRequest, reviewRequestedFromViewer, assignedToViewer));
 		});
 	}

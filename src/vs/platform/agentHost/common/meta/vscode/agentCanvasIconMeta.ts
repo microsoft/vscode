@@ -19,6 +19,10 @@ const pngSignatureBase64 = 'iVBORw0KGgoAAAANSUhEUg';
 export const MAX_CANVAS_ICON_DATA_URI_LENGTH = 350_000;
 /** The largest PNG file that encodes to a data URI within {@link MAX_CANVAS_ICON_DATA_URI_LENGTH}. */
 export const MAX_CANVAS_ICON_BYTES = Math.floor((MAX_CANVAS_ICON_DATA_URI_LENGTH - pngDataUriPrefix.length) / 4) * 3;
+/** The most pixels a canvas icon may declare, so that no image decoder expands a small, highly compressed one into a huge bitmap. */
+export const MAX_CANVAS_ICON_PIXELS = 4 * 1024 * 1024;
+/** The Base64 length of the PNG signature and IHDR chunk header that end with the image's width and height. */
+const pngHeaderBase64Length = 32;
 
 /** Canvas state with the metadata VS Code hosts add; the protocol's canvas state declares none. */
 export type CanvasStateWithMeta = CanvasState & { readonly _meta?: Readonly<Record<string, unknown>> };
@@ -32,12 +36,32 @@ export function toCanvasIconDataUri(png: Uint8Array): string {
 	return `${pngDataUriPrefix}${btoa(binary)}`;
 }
 
-/** Whether `value` is a canvas icon: a bounded Base64 data URI of a PNG image, which renders no active content. */
+/**
+ * Whether `value` is a canvas icon: a bounded Base64 data URI of a PNG image, which renders no active content, whose
+ * header declares a non-empty image of at most {@link MAX_CANVAS_ICON_PIXELS}. Any host can send one, so clients check it.
+ */
 export function isCanvasIconDataUri(value: unknown): value is string {
-	return typeof value === 'string'
-		&& value.length <= MAX_CANVAS_ICON_DATA_URI_LENGTH
-		&& value.startsWith(pngDataUriPrefix + pngSignatureBase64)
-		&& /^[A-Za-z0-9+/]+={0,2}$/.test(value.slice(pngDataUriPrefix.length));
+	if (typeof value !== 'string'
+		|| value.length > MAX_CANVAS_ICON_DATA_URI_LENGTH
+		|| !value.startsWith(pngDataUriPrefix + pngSignatureBase64)) {
+		return false;
+	}
+	const payload = value.slice(pngDataUriPrefix.length);
+	// Padding may only end the payload, so a longer payload starts with whole, unpadded groups that always decode.
+	if (payload.length <= pngHeaderBase64Length || payload.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(payload)) {
+		return false;
+	}
+	const header = atob(payload.slice(0, pngHeaderBase64Length));
+	return isBoundedPngSize(readUint32(header, 16), readUint32(header, 20));
+}
+
+/** Whether a PNG image of `width` by `height` pixels is one a canvas icon may be. */
+export function isBoundedPngSize(width: number, height: number): boolean {
+	return width > 0 && height > 0 && width * height <= MAX_CANVAS_ICON_PIXELS;
+}
+
+function readUint32(bytes: string, offset: number): number {
+	return ((bytes.charCodeAt(offset) << 24) >>> 0) + (bytes.charCodeAt(offset + 1) << 16) + (bytes.charCodeAt(offset + 2) << 8) + bytes.charCodeAt(offset + 3);
 }
 
 /** Returns `state` showing `icon`, a canvas icon data URI, or showing none, and keeps its other metadata. */
