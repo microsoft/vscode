@@ -33,7 +33,7 @@ import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -130,6 +130,8 @@ import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
+import { getScheduledRequestsCardKey, renderScheduledRequestsCard } from './sessionScheduledRequestsCard.js';
+import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -1652,6 +1654,7 @@ const SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS = 'external-application-b
 
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
+	scheduledIndicator?: { readonly resource: URI; readonly element: HTMLElement };
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleRow: HTMLElement;
@@ -1726,6 +1729,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'session-list-inset-row';
 
+	/** The scheduled-messages card each row template shows from its clock. */
+	private readonly scheduledCards = new WeakMap<ISessionItemTemplate, { readonly key: string; readonly element: HTMLElement; readonly store: DisposableStore }>();
+
 	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
 
@@ -1774,6 +1780,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			/** While searching, the field a session matched in that neither its row, through `shownTexts`, nor its section headers show. */
 			getSearchHint?: (session: ISession, shownTexts: readonly string[]) => ISessionSearchHint | undefined;
 			scheduledSessionResources?: IObservable<ReadonlySet<string>>;
+			/** Each session's scheduled messages, by session resource, for the card its clock shows. */
+			scheduledRequests?: IObservable<ReadonlyMap<string, readonly IChatScheduledRequest[]>>;
+			focusSession?: (session: ISession) => void;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1790,6 +1799,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
+		private readonly notificationService: INotificationService,
 	) {
 	}
 
@@ -1929,20 +1939,103 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		return false;
 	}
 
+	private renderScheduledIndicatorHover(element: ISession, indicator: HTMLElement, template: ISessionItemTemplate): void {
+		const store = template.elementDisposables;
+		const scheduledRequests = this.options.scheduledRequests;
+		const getRequests = () => scheduledRequests?.get().get(getComparisonKey(element.resource)) ?? [];
+		const run = async (requestId: string, actionId: string) => {
+			this.hoverService.hideHover(true);
+			try {
+				const request = getRequests().find(request => request.id === requestId);
+				const action = request?.actions.find(action => action.id === actionId)
+					?? (request?.editAction?.id === actionId ? request.editAction : undefined);
+				if (!action?.enabled) {
+					throw new Error(localize('scheduledSessionActionUnavailable', "This scheduled message has changed. Open its session to manage it."));
+				}
+				await action.run();
+			} catch (error) {
+				this.notificationService.error(error);
+			}
+		};
+		const hoverOptions = (): IDelayedHoverOptions => {
+			const requests = getRequests();
+			if (!requests.length) {
+				return { content: localize('scheduledSessionIndicator', "Has scheduled messages"), appearance: { showPointer: true } };
+			}
+			// Keep open-card actions alive when the list re-renders the same row.
+			const key = getScheduledRequestsCardKey(requests);
+			let card = this.scheduledCards.get(template);
+			if (card?.key !== key) {
+				if (!card) {
+					template.disposables.add(toDisposable(() => this.scheduledCards.get(template)?.store.dispose()));
+				}
+				card?.store.dispose();
+				const cardStore = new DisposableStore();
+				card = { key, store: cardStore, element: renderScheduledRequestsCard(requests, cardStore, run) };
+				this.scheduledCards.set(template, card);
+			}
+			return {
+				content: card.element,
+				additionalClasses: ['session-scheduled-card-hover'],
+				position: { hoverPosition: HoverPosition.RIGHT },
+				persistence: { hideOnHover: false },
+				appearance: { showPointer: true },
+			};
+		};
+		store.add(this.hoverService.setupDelayedHover(indicator, hoverOptions));
+		if (!scheduledRequests) {
+			return;
+		}
+		indicator.classList.add('actionable');
+		indicator.tabIndex = 0;
+		indicator.removeAttribute('aria-hidden');
+		indicator.setAttribute('role', 'button');
+		indicator.setAttribute('aria-label', localize('showScheduledMessages', "Show Scheduled Messages"));
+		const showHover = () => {
+			this.hoverService.hideHover(true);
+			indicator.focus();
+			this.hoverService.showInstantHover({
+				...hoverOptions(), target: indicator, trapFocus: true, persistence: { hideOnHover: false, sticky: true },
+			}, true);
+		};
+		store.add(Gesture.ignoreTarget(indicator));
+		for (const type of [DOM.EventType.MOUSE_OVER, DOM.EventType.POINTER_DOWN, DOM.EventType.MOUSE_DOWN, DOM.EventType.POINTER_UP, DOM.EventType.MOUSE_UP, DOM.EventType.DBLCLICK]) {
+			store.add(DOM.addDisposableListener(indicator, type, e => e.stopPropagation()));
+		}
+		store.add(DOM.addDisposableListener(indicator, DOM.EventType.CLICK, e => {
+			DOM.EventHelper.stop(e, true);
+			showHover();
+		}));
+		store.add(DOM.addStandardDisposableListener(indicator, DOM.EventType.KEY_DOWN, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+				showHover();
+			}
+		}));
+	}
+
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
 		const scheduledSessionResources = this.options.scheduledSessionResources;
 		if (scheduledSessionResources) {
-			const indicator = DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' });
-			template.compactHoverDescription.after(indicator);
-			template.elementDisposables.add(toDisposable(() => indicator.remove()));
+			let scheduledIndicator = template.scheduledIndicator;
+			if (!scheduledIndicator || !isEqual(scheduledIndicator.resource, element.resource)) {
+				scheduledIndicator?.element.remove();
+				const indicator = DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' });
+				template.compactHoverDescription.after(indicator);
+				template.scheduledIndicator = scheduledIndicator = { resource: element.resource, element: indicator };
+			}
+			const indicator = scheduledIndicator.element;
 			template.elementDisposables.add(autorun(reader => {
-				indicator.classList.toggle('visible', scheduledSessionResources.read(reader).has(element.resource.toString()));
+				const visible = scheduledSessionResources.read(reader).has(element.resource.toString());
+				const hadFocus = DOM.isAncestorOfActiveElement(indicator);
+				indicator.classList.toggle('visible', visible);
+				if (!visible && hadFocus) {
+					this.options.focusSession?.(element);
+				}
 			}));
-			template.elementDisposables.add(this.hoverService.setupDelayedHover(indicator, {
-				content: localize('scheduledSessionIndicator', "Has scheduled messages"),
-				appearance: { showPointer: true },
-			}));
+			this.renderScheduledIndicatorHover(element, indicator, template);
 		}
 		setSessionGroupDepth(template.container, this.options.getGroupDepth?.(element) ?? 0);
 		template.container.closest('.monaco-list-row')?.classList.remove(SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS);
@@ -4557,6 +4650,7 @@ interface ISessionsListControlBaseOptions {
 	readonly schedulingEnabled?: IObservable<boolean>;
 	readonly scheduledSessions?: IObservable<readonly IPendingSessionItem[]>;
 	readonly scheduledSessionResources?: IObservable<ReadonlySet<string>>;
+	readonly scheduledRequests?: IObservable<ReadonlyMap<string, readonly IChatScheduledRequest[]>>;
 	readonly sectionRowHeight?: number;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
@@ -5143,6 +5237,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getGroupDepth: session => this.getRowGroupDepth(session),
 				getSearchHint,
 				scheduledSessionResources: this.options.scheduledSessionResources,
+				scheduledRequests: this.options.scheduledRequests,
+				focusSession: session => {
+					const tree = this.getTree(session);
+					if (tree.hasElement(session)) {
+						tree.setFocus([session]);
+					}
+					tree.domFocus();
+				},
 			},
 			approvalModel,
 			undefined,
@@ -5158,6 +5260,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.labelService,
 			agentSessionsService,
 			voicePlaybackService,
+			this.notificationService,
 		);
 		this._sessionRenderer = sessionRenderer;
 
@@ -8885,8 +8988,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	/** Whether {@link onContextMenu} shows a menu of `element`'s own. */
+	private hasItemContextMenu(element: SessionListItem): boolean {
+		if (isSessionShowMore(element) || isSessionPlaceholder(element)) {
+			return false;
+		}
+		if (isSessionSection(element)) {
+			return element.id === AUTOMATIONS_SECTION_ID || !!element.pinnedCanvas || !(isShortcutSection(element.id) || element.pendingItems);
+		}
+		return true;
+	}
+
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
+		// The menu of an item is the list's own: a host that shows its own context menu, such as the view the list is in, does not
+		// show it over the item's. Empty space and rows without a menu leave it to the host.
+		if (element && this.hasItemContextMenu(element)) {
+			DOM.EventHelper.stop(e.browserEvent, true);
+		}
 		if (element && isPendingSessionItem(element)) {
 			this.showPendingSessionContextMenu(element, e.anchor);
 			return;
@@ -9392,7 +9511,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Whether the list includes the session before its source filters apply. */
 	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return this._sessionsListModelService.isSessionListed(session, reader, this.filters.isShowAutomationRuns(reader));
+		return this._sessionsListModelService.isSessionListed(session, reader);
 	}
 
 	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {
@@ -11013,6 +11132,7 @@ export class SessionsFlatList extends Disposable {
 		@IOpenerService openerService: IOpenerService,
 		@ILabelService labelService: ILabelService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService notificationService: INotificationService,
 	) {
 		super();
 
@@ -11072,6 +11192,7 @@ export class SessionsFlatList extends Disposable {
 			labelService,
 			agentSessionsService,
 			voicePlaybackService,
+			notificationService,
 		);
 
 		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, session => session.status.get(), this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);

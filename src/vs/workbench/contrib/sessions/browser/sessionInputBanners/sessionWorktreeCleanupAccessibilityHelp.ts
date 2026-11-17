@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { localize } from '../../../../nls.js';
-import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { localize } from '../../../../../nls.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { SessionWorktreeCleanupEditorFocusedContext } from '../../common/contextkeys.js';
 
 /**
  * Editor-scoped accessibility help for the Worktree Cleanup editor. It replaces the
@@ -25,7 +25,7 @@ export class SessionWorktreeCleanupAccessibilityHelp implements IAccessibleViewI
 	getProvider(_accessor: ServicesAccessor) {
 		const previouslyFocused = getActiveElement();
 		const content: string[] = [
-			localize('sessionWorktreeCleanupHelp.allWorktreesOverview', "You are in the Worktree Cleanup editor. It lists local agent session worktrees with an available cleanup action, plus worktrees being measured or cleaned up and confirmed removals from this editor. Remote worktrees and other worktrees that cannot currently be cleaned up are hidden. Normal cleanup commits uncommitted changes before removing a worktree. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree from committed changes."),
+			localize('sessionWorktreeCleanupHelp.allWorktreesOverview', "You are in the Worktree Cleanup editor. It lists local and connected remote agent session worktrees with an available cleanup action, plus worktrees being measured or cleaned up and confirmed removals from this editor. Remote rows and cleanup confirmations identify the host. A remote host without cleanup support or a disconnected host cannot be cleaned up; its rows explain that you must connect or update the host and refresh. Disconnection does not confirm removal. Other worktrees that cannot currently be cleaned up are hidden. Normal cleanup commits uncommitted changes before removing a worktree. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree from committed changes."),
 			localize('sessionWorktreeCleanupHelp.workspaceAndAgeMenus', "Use the Filter by Inactivity menu above the table to filter by inactivity starting at one day, or choose Any Time to include sessions used today. When worktrees belong to multiple workspaces, use the Filter by Workspace menu to show one workspace or All Workspaces. The menu buttons announce the current choices, and the active options are checked in each menu. Use Tab to reach the toolbar, arrow keys to move between its buttons, and Enter or Space to open a menu. Escape closes it. Filters limit both the table and cleanup selection. Changing workspace clears the selection. Filters remain available when no worktrees match."),
 			localize('sessionWorktreeCleanupHelp.activeMeasurementProgress', "A progress indicator is shown while worktree storage is being measured and disappears when the scan completes. You can select worktrees and start cleanup without waiting for size estimates. Sessions marked as done are not measured."),
 			localize('sessionWorktreeCleanupHelp.cachedActiveSizes', "Supported hosts save worktree sizes in the session database. Opening or refreshing cleanup reuses unchanged idle sizes and measures new, changed, or active worktrees. Done sessions are excluded from disk scans; their cleanup status can still be refreshed. Automatic storage hint checks use the same saved sizes and are limited to once an hour through existing triggers, without a recurring timer."),
@@ -38,7 +38,7 @@ export class SessionWorktreeCleanupAccessibilityHelp implements IAccessibleViewI
 			localize('sessionWorktreeCleanupHelp.batchLifecycle', "Confirmed cleanup continues when this editor closes. Reopening reconnects to queued and pending requests and retains scheduling errors for otherwise eligible worktrees. Closing does not cancel accepted host removals. Pending work cannot be submitted twice, and one scheduling failure does not stop the rest of the batch. The batch summary reports only pending work and confirmed removals, independently of filters. Rows update in place as cleanup progresses. Confirmed removals remain visible with zero disk usage, no checkbox or cleanup action, and usable session links until this editor closes."),
 			localize('sessionWorktreeCleanupHelp.failedCleanup', "Refresh inventory to check current host state. To retry a scheduling failure, select its worktree and activate Clean Up Worktrees. Failed host removals remain hidden. A failed or unavailable existence check is not confirmed removal."),
 			localize('sessionWorktreeCleanupHelp.collapsedSettings', "Automatic Cleanup is collapsed above the inventory. Focus its gear-labeled heading and press Enter or Space to expand it. In short windows, the controls and settings scroll separately above the inventory, without scrolling the inventory inside either area. Changes are saved immediately. Checkboxes enable automatic completion or deletion of merged pull request sessions; adjacent inputs set retention days. Another checkbox controls storage cleanup suggestions."),
-			localize('sessionWorktreeCleanupHelp.reopen', "Return to this editor any time by running Open Worktree Cleanup from the Command Palette or the Sessions More Actions menu."),
+			localize('sessionWorktreeCleanupHelp.reopen', "In either the editor window or the Agents Window, return here by running Open Worktree Cleanup from the Command Palette or the Sessions More Actions menu. In the editor window, it is also in the Chat view's More Actions menu, even when the Sessions list is hidden. Cleanup includes known sessions outside the current workspace, even when the Sessions list is filtered to that workspace."),
 			localize('sessionWorktreeCleanupHelp.close', "Use {0} to close the Worktree Cleanup modal. Focus returns to the previous editor or control.", '<keybinding:workbench.action.closeModalEditor>'),
 		];
 		return new AccessibleContentProvider(

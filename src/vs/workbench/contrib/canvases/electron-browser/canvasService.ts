@@ -713,6 +713,12 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	private removeOwner(owner: ICanvasOwner): void {
+		// Establish pending closes before presentation changes reconcile the still-published draft.
+		for (const [key, input] of this.inputs) {
+			if (isCanvasOwner(input.reference, owner)) {
+				void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
+			}
+		}
 		for (const [key, presentation] of this.presentations) {
 			if (isCanvasOwner(presentation.reference, owner)) {
 				this.deletePresentation(key);
@@ -723,11 +729,6 @@ export class CanvasService extends Disposable implements ICanvasService {
 				this.deleteDismissed(key);
 				this.requests.delete(key);
 				this.pendingRequests.delete(key);
-			}
-		}
-		for (const [key, input] of this.inputs) {
-			if (isCanvasOwner(input.reference, owner)) {
-				void this.closeInput(key, input).catch(error => this.reportError('Failed to close canvas', error));
 			}
 		}
 	}

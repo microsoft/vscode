@@ -1447,8 +1447,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const provider = createProvider(disposables, connection, { noConnection: result === 'disconnected' });
 			provider.seedSessions([createSession('existence', {
 				session: URI.parse('other-host:/opaque/session'),
-				project: { uri: toAgentHostUri(URI.file('/repo'), 'test-host'), displayName: 'repo' },
-				workingDirectory: toAgentHostUri(URI.file('/repo.worktrees/existence'), 'test-host'),
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/existence'),
 			})]);
 			const check = provider.sessionWorktreeExists(provider.getSessions()[0].sessionId);
 			if (result === 'permission' || result === 'unavailable' || result === 'unsupported') {
@@ -1506,6 +1506,61 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			],
 			unchanged: true,
 		});
+	});
+
+	test('remote cleanup capabilities and existence follow the owning connection across reconnects', async () => {
+		connection.handshakeState.set({
+			...connection.handshakeState.get(), _meta: {
+				'vscode.worktreeCleanup': true, 'vscode.prepareSessionWorktreeCleanup': true, 'vscode.managedWorktrees': true,
+			}
+		}, undefined);
+		const calls: string[] = [];
+		connection.prepareSessionWorktreeCleanup = async () => { };
+		connection.sessionWorktreeCleanup = async () => ({ state: 'pending' });
+		connection.listManagedWorktrees = async () => [];
+		connection.cleanupManagedWorktree = async (repository, worktree) => { calls.push(`${repository.toString()} ${worktree.toString()}`); };
+		connection.resourceResolve = async () => { throw new ProtocolError(AhpErrorCodes.NotFound, 'Removed'); };
+		const provider = createProvider(disposables, connection);
+		const worktree = {
+			repository: connection.resourceUris.fromAgentHost(URI.file('/repo')).toString(),
+			worktree: connection.resourceUris.fromAgentHost(URI.file('/repo.worktrees/task')).toString(),
+			branch: 'agents/task', cleanupStatus: { state: 'unknown' as const },
+		};
+		const supported = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup];
+		provider.clearConnection();
+		const disconnected = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup, await provider.managedWorktreeExists(worktree)];
+		await assert.rejects(provider.cleanupManagedWorktree(worktree), /Connect to this worktree's host/);
+		provider.setConnection(connection);
+		await provider.cleanupManagedWorktree(worktree);
+		const reconnected = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup, await provider.managedWorktreeExists(worktree)];
+		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: undefined }, undefined);
+		assert.deepStrictEqual({ supported, disconnected, reconnected, unsupported: [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup], calls }, {
+			supported: [true, true], disconnected: [false, false, undefined], reconnected: [true, true, false], unsupported: [false, false],
+			calls: ['file:///repo file:///repo.worktrees/task'],
+		});
+	});
+
+	test('cleanup capabilities follow live availability without replacing the connection', () => {
+		const liveConnection = disposables.add(new class extends MockAgentConnection {
+			override readonly connectionAvailable = observableValue(this, true);
+		}());
+		liveConnection.handshakeState.set({
+			...liveConnection.handshakeState.get(), _meta: {
+				'vscode.worktreeCleanup': true, 'vscode.prepareSessionWorktreeCleanup': true, 'vscode.managedWorktrees': true,
+			}
+		}, undefined);
+		liveConnection.prepareSessionWorktreeCleanup = async () => { };
+		liveConnection.sessionWorktreeCleanup = async () => ({ state: 'pending' });
+		liveConnection.listManagedWorktrees = async () => [];
+		liveConnection.cleanupManagedWorktree = async () => { };
+		const provider = createProvider(disposables, liveConnection);
+		const capabilities = () => [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup];
+		const states = [capabilities()];
+		liveConnection.connectionAvailable.set(false, undefined);
+		states.push(capabilities());
+		liveConnection.connectionAvailable.set(true, undefined);
+		states.push(capabilities());
+		assert.deepStrictEqual(states, [[true, true], [false, false], [true, true]]);
 	});
 
 	suite('Copilot head-branch PR metadata', () => {

@@ -35,6 +35,8 @@ export const Menus = {
 	SessionsViewHarness: new MenuId('SessionsViewHarness'),
 	SessionsViewWorktree: new MenuId('SessionsViewWorktree'),
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
+	/** When automation runs also appear in the Sessions list, a submenu of {@link SessionsViewFilter}. */
+	SessionsViewAutomationRuns: new MenuId('SessionsViewAutomationRuns'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	SidebarCustomizationsEntryPoint: new MenuId('SessionsSidebarCustomizationsEntryPoint'),
 	SidebarAgentHost: new MenuId('SessionsSidebarAgentHost'),

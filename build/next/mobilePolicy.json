@@ -166,6 +166,7 @@
 		"src/vs/workbench/contrib/opener/browser/opener.contribution.ts",
 		"src/vs/workbench/contrib/scm/browser/quickDiff.contribution.ts",
 		"src/vs/workbench/contrib/scm/browser/scm.service.contribution.ts",
+		"src/vs/workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanup.contribution.ts",
 		"src/vs/workbench/contrib/search/browser/searchQuickAccess.contribution.ts",
 		"src/vs/workbench/contrib/share/browser/share.contribution.ts",
 		"src/vs/workbench/contrib/snippets/browser/snippets.service.contribution.ts",

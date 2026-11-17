@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AuthenticateParams, type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
@@ -17,6 +17,7 @@ import { IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibil
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 import { flushAgentHostTelemetry } from './agentHostTelemetryService.js';
 import { getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
+import { IAgentHostAuthenticationController } from './agentHostAuthenticationService.js';
 import { CategorizedConnectionError } from '../common/connectionTelemetry.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
@@ -40,7 +41,12 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@IAgentHostSystemWakeService private readonly _systemWake: IAgentHostSystemWakeService,
 		@IAgentHostMacAccessibilityTrustService private readonly _macAccessibilityTrust: IAgentHostMacAccessibilityTrustService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostAuthenticationController private readonly _authenticationController: IAgentHostAuthenticationController,
 	) { }
+
+	setHostExecutionCredentials(credentials: readonly AuthenticateParams[]): Promise<void> {
+		return this._runMutation(async () => this._authenticationController.setHostExecutionCredentials(credentials));
+	}
 
 	setMissionControl(service: MissionControlEnvironment | undefined): void {
 		this._missionControl = service;

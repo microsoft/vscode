@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
@@ -25,13 +27,14 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 
 suite('SessionsListFilters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const listAll = () => true;
 
-	function createFilters(storage = store.add(new InMemoryStorageService())): SessionsListFilters {
-		return store.add(new SessionsListFilters(storage, store.add(new NullLogService()), upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
+	function createFilters(storage = store.add(new InMemoryStorageService()), configurationService: IConfigurationService = new TestConfigurationService()): SessionsListFilters {
+		return store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configurationService, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 	}
 
 	test('tells apart worktree folders whose paths differ only in case where their file system does, such as an agent host\'s', () => {
@@ -48,7 +51,7 @@ suite('SessionsListFilters', () => {
 			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
 		};
 		const sessions = [inFolder('main', '/work/repo'), inFolder('upper', '/work/repo.worktrees/Fix'), inFolder('lower', '/work/repo.worktrees/fix')];
-		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), uriIdentityService));
+		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), new TestConfigurationService(), uriIdentityService));
 		const available = getWorktreeFilterKeys(sessions, listAll, uriIdentityService.extUri);
 		const options = getSessionFilterOptions(sessions, [], listAll, uriIdentityService.extUri).filter(option => option.filter.kind === 'worktree');
 		const visible = (label: string) => {
@@ -553,35 +556,87 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
-	test('persists, resets, and restores the show automation runs choice', () => {
-		const storage = store.add(new InMemoryStorageService());
-		const filters = createFilters(storage);
-		const initial = filters.isShowAutomationRuns();
-		filters.setShowAutomationRuns(true);
-		const restored = createFilters(storage);
-		const reloaded = restored.isShowAutomationRuns();
-		const restore = restored.capture();
-		restored.reset();
-		const reset = restored.isShowAutomationRuns();
-		restore();
+	class MigrationConfigurationService extends TestConfigurationService {
+		writable = true;
+		readonly updates: unknown[][] = [];
+		override async updateValue(key: string, value: unknown, ...rest: unknown[]): Promise<void> {
+			this.updates.push([key, value, ...rest]);
+			if (this.writable) {
+				await this.setUserConfiguration(key, value);
+			}
+		}
+	}
 
-		assert.deepStrictEqual({ initial, reloaded, reset, undo: restored.isShowAutomationRuns() }, {
-			initial: false,
-			reloaded: true,
-			reset: false,
-			undo: true,
+	test('moves an enabled Show Automation Runs filter to the automation listing setting where it takes effect', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const configurationService = new MigrationConfigurationService({ [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: AutomationSessionsListMode.AfterReply });
+		const load = async (stored?: readonly [string, boolean][]) => {
+			if (stored) {
+				storage.store('sessionsListControl.filters', JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const filters = createFilters(storage, configurationService);
+			await timeout(0);
+			return { scheduledOnly: filters.isScheduledOnly(), stored: storage.get('sessionsListControl.filters', StorageScope.PROFILE) };
+		};
+
+		const enabled = await load([['showAutomationRuns', true], ['scheduledOnly', true]]);
+		const reloaded = await load();
+		const disabled = await load([['showAutomationRuns', false]]);
+
+		assert.deepStrictEqual({ enabled, reloaded, disabled, setting: configurationService.getValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING), updates: configurationService.updates }, {
+			enabled: { scheduledOnly: true, stored: JSON.stringify([['scheduledOnly', true]]) },
+			reloaded: enabled,
+			disabled: { scheduledOnly: false, stored: undefined },
+			setting: AutomationSessionsListMode.Always,
+			updates: [[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always]],
 		});
 	});
 
-	test('tracks the show automation runs choice through a reader', () => {
-		const filters = createFilters();
-		const states: boolean[] = [];
-		store.add(autorun(reader => states.push(filters.isShowAutomationRuns(reader))));
+	test('retries a failed Show Automation Runs migration without overwriting a later choice of the setting', async () => {
+		const configurationService = new MigrationConfigurationService({ [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: AutomationSessionsListMode.AfterReply });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		configurationService.writable = false;
+		const setMode = (mode: AutomationSessionsListMode) => configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode);
+		const withEnabledFilter = () => {
+			const storage = store.add(new InMemoryStorageService());
+			storage.store('sessionsListControl.filters', JSON.stringify([['showAutomationRuns', true]]), StorageScope.PROFILE, StorageTarget.USER);
+			return storage;
+		};
+		const isPending = (storage: InMemoryStorageService) => storage.get('sessionsListControl.filters', StorageScope.PROFILE) !== undefined;
+		const load = async (storage: InMemoryStorageService) => {
+			createFilters(storage, configurationService);
+			await timeout(0);
+			return isPending(storage);
+		};
 
-		filters.setShowAutomationRuns(true);
-		filters.setShowAutomationRuns(false);
+		// Changed in Settings while the app was closed
+		const closed = withEnabledFilter();
+		const failed = await load(closed);
+		const retried = await load(closed);
+		setMode(AutomationSessionsListMode.Never);
+		const changedWhileClosed = await load(closed);
 
-		assert.deepStrictEqual(states, [false, true, false]);
+		// Chosen during the session whose write failed, even the value that session saw
+		setMode(AutomationSessionsListMode.AfterReply);
+		const open = withEnabledFilter();
+		await load(open);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+			affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+			change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+		const chosenInSession = isPending(open);
+		const reloadedAfterChoice = await load(open);
+
+		assert.deepStrictEqual({ failed, retried, changedWhileClosed, chosenInSession, reloadedAfterChoice, writes: configurationService.updates.length }, {
+			failed: true,
+			retried: true,
+			changedWhileClosed: false,
+			chosenInSession: false,
+			reloadedAfterChoice: false,
+			writes: 3,
+		});
 	});
 
 	test('keeps cached application groups when a remote disconnects and tracks metadata hydration', () => {
