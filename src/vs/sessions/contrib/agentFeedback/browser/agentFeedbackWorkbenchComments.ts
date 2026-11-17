@@ -624,16 +624,21 @@ function whenAgentFeedbackComment(capability: CommentCapability): ContextKeyExpr
 }
 
 /**
- * The actions of agent feedback comments, laid out like in the agent feedback widget: the actions of the `inline` group
- * are shown next to the comment, and the others in its More Actions menu.
+ * An action of agent feedback comments and the menu groups that it is shown in.
  */
-const commentActions: readonly {
+interface IAgentFeedbackCommentActionDescriptor {
 	readonly id: string;
 	readonly title: ILocalizedString;
 	readonly icon: ThemeIcon;
 	readonly action: AgentFeedbackCommentAction;
 	readonly menus: readonly { readonly capability: CommentCapability; readonly group: string; readonly order: number }[];
-}[] = [
+}
+
+/**
+ * The actions of agent feedback comments, laid out like in the agent feedback widget: the actions of the `inline` group
+ * are shown next to the comment, and the others in its More Actions menu.
+ */
+const commentActions: readonly IAgentFeedbackCommentActionDescriptor[] = [
 	{
 		id: 'agentFeedback.comment.share',
 		title: localize2('agentFeedback.comment.share', "Share Comment with Agent"),
