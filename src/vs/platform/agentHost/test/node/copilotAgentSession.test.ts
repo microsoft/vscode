@@ -18448,20 +18448,20 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('user.message', { content: 'start', interactionId: 'interaction' } as SessionEventPayload<'user.message'>['data']);
 			const originalTurn = session['_currentTurn'].value!;
 			await session.sendSteering({ id: 'steer-1', message: { text: 'first steering', origin: { kind: MessageKind.User } } });
-			mockSession.fire('user.message', { content: 'first steering', interactionId: 'interaction' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('user.message', { content: 'first steering', interactionId: 'interaction', delivery: 'steering' } as SessionEventPayload<'user.message'>['data']);
 			const first = session.currentTurnId;
 			await session.sendSteering({ id: 'steer-2', message: { text: 'second steering', origin: { kind: MessageKind.User } } });
-			mockSession.fire('user.message', { content: 'second steering', interactionId: 'interaction' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('user.message', { content: 'second steering', interactionId: 'interaction', delivery: 'steering' } as SessionEventPayload<'user.message'>['data']);
 			const second = session.currentTurnId;
 			session.resetTurnState('independent');
 			mockSession.fire('user.message', { content: 'new request', interactionId: 'new-interaction' } as SessionEventPayload<'user.message'>['data']);
 			assert.deepStrictEqual({
 				oldRoutingReleased: originalTurn.interactionIds.size === 0,
 				edges: telemetryService.events.filter(event => event.name === 'agentHost.turnSteered').map(event => ({
-					turn: event.data.turnId, previous: event.data.previousTurnId, original: event.data.originalTurnId,
+					turn: event.data.turnId, previous: event.data.steeredFromTurn, original: event.data.originalTurnId,
 				})),
-				associations: telemetryService.events.filter(event => event.name === 'agentHost.turnInteractionCorrelated').map(event => ({
-					turn: event.data.turnId, original: event.data.originalTurnId,
+				associations: ['original', first!, second!, 'independent'].map(turn => ({
+					turn, original: session.turnInteractionCorrelation.get(turn)?.originalTurnId,
 				})),
 			}, {
 				oldRoutingReleased: true,
@@ -18663,22 +18663,23 @@ Use the attached image as context.
 					turnId: 'steering-sdk-turn',
 					interactionId: sameInteraction ? 'original-interaction' : 'new-interaction',
 				} as SessionEventPayload<'assistant.turn_start'>['data']);
-				const interimOrigin = session['_currentTurn'].value?.originalTurnId;
+				const interimOrigin = session.turnInteractionCorrelation.get(successor!)?.originalTurnId;
 				sendGate.complete('steering-message');
 				await sending;
 				mockSession.fire('user.message', {
 					content: 'steer', messageId: 'steering-message',
+					delivery: sameInteraction ? 'steering' : 'idle',
 					interactionId: sameInteraction ? 'original-interaction' : 'new-interaction',
 				} as SessionEventPayload<'user.message'>['data']);
 				assert.deepStrictEqual({
 					interimOrigin,
 					edges: telemetryService.events.filter(event => event.name === 'agentHost.turnSteered').map(event => ({
-						turn: event.data.turnId, previous: event.data.previousTurnId, original: event.data.originalTurnId,
+						turn: event.data.turnId, previous: event.data.steeredFromTurn, original: event.data.originalTurnId,
 					})),
-					original: session['_currentTurn'].value?.originalTurnId,
+					original: session.turnInteractionCorrelation.get(successor!)?.originalTurnId,
 				}, {
 					interimOrigin: undefined,
-					edges: sameInteraction ? [{ turn: successor, previous: 'original', original: 'original' }] : [],
+					edges: [{ turn: successor, previous: 'original', original: sameInteraction ? 'original' : successor }],
 					original: sameInteraction ? 'original' : successor,
 				});
 			});

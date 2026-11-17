@@ -750,6 +750,15 @@ export interface IAgentTokenUsageSummary {
 	readonly knownCacheReadTokens?: number;
 }
 
+/** Observed provider interactions and steering lineage, not a universal causal root. */
+export interface IAgentTurnInteraction {
+	readonly sdkSessionId: string;
+	readonly originalTurnId?: string;
+	readonly steeredFromTurn?: string;
+	readonly interactionIds: readonly string[];
+	readonly interactionIdsTruncated: boolean;
+}
+
 /** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
 export interface IAgentTurnTokenUsage {
 	readonly summaries: readonly IAgentTokenUsageSummary[];
@@ -2307,6 +2316,9 @@ export interface IAgent {
 
 	/** Read observed usage at terminal dispatch for this exact owning turn, excluding descendants and later delivery. */
 	getTurnTokenUsage?(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined;
+
+	/** Capture bounded, observed provider interactions and steering lineage without I/O. */
+	getTurnInteraction?(chat: URI, turnId: string): IAgentTurnInteraction | undefined;
 
 	/** Record the host-remapped turn for a completed provider model call. */
 	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;

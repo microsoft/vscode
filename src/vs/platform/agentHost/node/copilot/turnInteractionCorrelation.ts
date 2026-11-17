@@ -4,91 +4,120 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LRUCache } from '../../../../base/common/map.js';
+import type { SessionEventPayload } from '@github/copilot-sdk';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import type { IAgentTurnInteraction } from '../../common/agent.js';
 
-type InteractionEvidence = 'userMessage' | 'assistantTurnStart' | 'modelCall';
+export interface ISteeringTurnContext {
+	readonly turnId: string;
+	readonly originalTurnId: string | undefined;
+	readonly interactionIds: readonly string[];
+}
 
-type TurnInteractionEvent = {
-	sdkSessionId: string;
-	turnId: string;
-	interactionId: string;
-	originalTurnId: string | undefined;
-	evidence: InteractionEvidence;
-};
-
-type TurnInteractionClassification = {
-	owner: 'amunger';
-	comment: 'Records observed many-to-many host-turn/runtime-interaction associations, independently of execution routing. Not proof of a human initiator or complete descendant attribution.';
-	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SDK session scope of the runtime interaction.' };
-	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host execution turn identified by the SDK boundary or exact model-call mapping.' };
-	interactionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Runtime interaction identifier; may be shared by multiple execution turns.' };
-	originalTurnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'First host turn in an observed root steering chain; absent when its lineage is unavailable. Not a cross-chat originating trigger.' };
-	evidence: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Source of the association: userMessage, assistantTurnStart, or modelCall.' };
-};
+interface ITurnInteractionState {
+	originalTurnId?: string;
+	steeredFromTurn?: string;
+	interactions: Set<string>;
+	truncated: boolean;
+	steering?: ISteeringTurnContext;
+}
 
 type TurnSteeringEvent = {
 	sdkSessionId: string;
 	turnId: string;
-	previousTurnId: string;
-	originalTurnId: string;
+	steeredFromTurn: string;
+	originalTurnId: string | undefined;
+	runtimeDelivery: 'steering' | 'idle' | 'queued' | 'unknown';
+	attributionStatus: 'confirmed' | 'newRequest' | 'interactionMismatch' | 'unknown';
 };
 
 type TurnSteeringClassification = {
 	owner: 'amunger';
-	comment: 'Links a promoted steering execution turn to the execution it interrupted and the original turn of that chain. Does not change execution ownership.';
-	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SDK session scope of the steering chain.' };
-	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'New host execution turn for consumed steering.' };
-	previousTurnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host execution turn interrupted by the steering message.' };
-	originalTurnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'First host execution turn in this observed steering chain.' };
+	comment: 'Records host steering promotion and the runtime echo evidence. Only confirmed continuity carries the earlier original turn; disagreement is explicit and does not change execution.';
+	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SDK session scope.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host execution turn created by steering promotion.' };
+	steeredFromTurn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Execution the host considered the steering predecessor; not proof of runtime continuity.' };
+	originalTurnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Confirmed steering origin, or this turn for an explicit new runtime request. Absent if unresolved.' };
+	runtimeDelivery: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Runtime user-message delivery: steering, idle, queued, or unknown.' };
+	attributionStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'confirmed means steering delivery shares a predecessor interaction; newRequest means explicit non-steering delivery; interactionMismatch or unknown retains unresolved origin.' };
 };
 
-/** Bounded analytical evidence only; never used to route SDK events or infer a call's owner. */
+/** Analytical snapshots only; active SDK event routing keeps its own turn-scoped lifetime. */
 export class TurnInteractionCorrelation {
-	private readonly _originalTurns: LRUCache<string, string>;
-	private readonly _reported: LRUCache<string, true>;
+	private readonly _turns: LRUCache<string, ITurnInteractionState>;
 
 	constructor(
 		private readonly _sdkSessionId: string,
 		private readonly _telemetryService: ITelemetryService,
 		cacheLimit = 1000,
+		private readonly _interactionLimit = 64,
 	) {
-		this._originalTurns = new LRUCache(cacheLimit);
-		this._reported = new LRUCache(cacheLimit);
+		this._turns = new LRUCache(cacheLimit);
 	}
 
-	startTurn(turnId: string, originalTurnId = turnId): void {
-		this._originalTurns.set(turnId, originalTurnId);
+	startTurn(turnId: string): void {
+		this._turns.set(turnId, { originalTurnId: turnId, interactions: new Set(), truncated: false });
 	}
 
-	deferTurnOrigin(turnId: string): void {
-		this._originalTurns.delete(turnId);
+	getSteeringContext(turnId: string): ISteeringTurnContext {
+		const state = this._turns.get(turnId);
+		return { turnId, originalTurnId: state?.originalTurnId, interactionIds: [...state?.interactions ?? []] };
 	}
 
-	steer(turnId: string, previousTurnId: string, originalTurnId: string): void {
-		this.startTurn(turnId, originalTurnId);
-		this._telemetryService.publicLog2<TurnSteeringEvent, TurnSteeringClassification>('agentHost.turnSteered', {
-			sdkSessionId: this._sdkSessionId, turnId, previousTurnId, originalTurnId,
+	prepareSteering(turnId: string, previous: ISteeringTurnContext): void {
+		this._turns.set(turnId, {
+			steeredFromTurn: previous.turnId, steering: previous,
+			interactions: new Set(), truncated: false,
 		});
 	}
 
-	record(turnId: string, interactionId: string, evidence: InteractionEvidence): void {
-		const originalTurnId = this._originalTurns.get(turnId);
-		const key = JSON.stringify([turnId, interactionId, originalTurnId]);
-		if (this._reported.get(key)) {
+	resolveSteering(turnId: string, interactionId: string | undefined, delivery: SessionEventPayload<'user.message'>['data']['delivery']): void {
+		const state = this._turns.get(turnId);
+		const previous = state?.steering;
+		if (!state || !previous) {
 			return;
 		}
-		this._reported.set(key, true);
-		this._telemetryService.publicLog2<TurnInteractionEvent, TurnInteractionClassification>('agentHost.turnInteractionCorrelated', {
-			sdkSessionId: this._sdkSessionId,
-			turnId,
-			interactionId,
-			originalTurnId,
-			evidence,
+		const runtimeDelivery = delivery === 'steering' || delivery === 'idle' || delivery === 'queued' ? delivery : 'unknown';
+		const shared = !!interactionId && previous.interactionIds.includes(interactionId);
+		const attributionStatus = runtimeDelivery === 'idle' || runtimeDelivery === 'queued' ? 'newRequest'
+			: runtimeDelivery === 'steering' && shared && previous.originalTurnId ? 'confirmed'
+				: runtimeDelivery === 'steering' && interactionId && previous.interactionIds.length > 0 && !shared ? 'interactionMismatch' : 'unknown';
+		state.originalTurnId = attributionStatus === 'confirmed' ? previous.originalTurnId : attributionStatus === 'newRequest' ? turnId : undefined;
+		state.steering = undefined;
+		this._telemetryService.publicLog2<TurnSteeringEvent, TurnSteeringClassification>('agentHost.turnSteered', {
+			sdkSessionId: this._sdkSessionId, turnId, steeredFromTurn: previous.turnId,
+			originalTurnId: state.originalTurnId, runtimeDelivery, attributionStatus,
 		});
+	}
+
+	record(turnId: string, interactionId: string): void {
+		let state = this._turns.get(turnId);
+		if (!state) {
+			state = { interactions: new Set(), truncated: false };
+			this._turns.set(turnId, state);
+		}
+		if (state.interactions.has(interactionId)) {
+			return;
+		}
+		if (state.interactions.size < this._interactionLimit) {
+			state.interactions.add(interactionId);
+		} else {
+			state.truncated = true;
+		}
+	}
+
+	get(turnId: string): IAgentTurnInteraction | undefined {
+		const state = this._turns.get(turnId);
+		return state ? {
+			sdkSessionId: this._sdkSessionId,
+			...(state.originalTurnId ? { originalTurnId: state.originalTurnId } : {}),
+			...(state.steeredFromTurn ? { steeredFromTurn: state.steeredFromTurn } : {}),
+			interactionIds: [...state.interactions],
+			interactionIdsTruncated: state.truncated,
+		} : undefined;
 	}
 
 	clear(): void {
-		this._originalTurns.clear();
-		this._reported.clear();
+		this._turns.clear();
 	}
 }

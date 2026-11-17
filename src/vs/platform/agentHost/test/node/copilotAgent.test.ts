@@ -335,6 +335,7 @@ function chatScopes(agent: CopilotAgent) {
 
 function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknown, chatUri?: URI): void {
 	const chatSession = stub as CopilotAgentSession;
+	Object.assign(chatSession, { turnInteractionCorrelation: chatSession.turnInteractionCorrelation ?? new TurnInteractionCorrelation(sdkSessionId, new TestDataTelemetryService()) });
 	chatSession.refreshModelConfiguration ??= () => { };
 	chatSession.clientToolsRequireRestart ??= () => false;
 	(chatSession as { canvasRuntimeEnabled?: boolean }).canvasRuntimeEnabled ??= false;
@@ -7077,12 +7078,7 @@ suite('CopilotAgent', () => {
 			{ turn: 'subagent-turn', diagnostics: { ahCorrelationOutcome: 'mappingAvailable' } },
 			{ turn: 'original-logical-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: true } },
 		]);
-		assert.deepStrictEqual(interactionTelemetry.events.map(event => ({
-			turn: event.data.turnId, interaction: event.data.interactionId,
-		})), [
-			{ turn: 'subagent-turn', interaction: 'interaction' },
-			{ turn: 'original-logical-turn', interaction: 'interaction' },
-		]);
+		assert.deepStrictEqual(interactionTelemetry.events, []);
 	});
 
 	test('reads turn usage from the exact provider chat with explicit child ownership', async () => {

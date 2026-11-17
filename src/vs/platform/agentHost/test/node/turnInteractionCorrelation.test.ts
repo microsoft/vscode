@@ -11,63 +11,67 @@ import { TurnInteractionCorrelation } from '../../node/copilot/turnInteractionCo
 suite('TurnInteractionCorrelation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('preserves many-to-many associations and repeated steering without merging independent turns', () => {
+	test('enriches snapshots across repeated steering without emitting mapping events', () => {
 		const telemetry = new TestDataTelemetryService();
 		const correlation = new TurnInteractionCorrelation('sdk', telemetry);
 		correlation.startTurn('root');
-		correlation.record('root', 'interaction-1', 'userMessage');
-		correlation.record('root', 'interaction-1', 'assistantTurnStart');
-		correlation.steer('steering-1', 'root', 'root');
-		correlation.record('steering-1', 'interaction-1', 'userMessage');
-		correlation.steer('steering-2', 'steering-1', 'root');
-		correlation.record('steering-2', 'interaction-1', 'userMessage');
-		correlation.record('steering-2', 'interaction-2', 'modelCall');
-		correlation.startTurn('independent');
-		correlation.record('independent', 'interaction-1', 'userMessage');
-
-		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, ...event.data })), [
-			{ name: 'agentHost.turnInteractionCorrelated', sdkSessionId: 'sdk', turnId: 'root', interactionId: 'interaction-1', originalTurnId: 'root', evidence: 'userMessage' },
-			{ name: 'agentHost.turnSteered', sdkSessionId: 'sdk', turnId: 'steering-1', previousTurnId: 'root', originalTurnId: 'root' },
-			{ name: 'agentHost.turnInteractionCorrelated', sdkSessionId: 'sdk', turnId: 'steering-1', interactionId: 'interaction-1', originalTurnId: 'root', evidence: 'userMessage' },
-			{ name: 'agentHost.turnSteered', sdkSessionId: 'sdk', turnId: 'steering-2', previousTurnId: 'steering-1', originalTurnId: 'root' },
-			{ name: 'agentHost.turnInteractionCorrelated', sdkSessionId: 'sdk', turnId: 'steering-2', interactionId: 'interaction-1', originalTurnId: 'root', evidence: 'userMessage' },
-			{ name: 'agentHost.turnInteractionCorrelated', sdkSessionId: 'sdk', turnId: 'steering-2', interactionId: 'interaction-2', originalTurnId: 'root', evidence: 'modelCall' },
-			{ name: 'agentHost.turnInteractionCorrelated', sdkSessionId: 'sdk', turnId: 'independent', interactionId: 'interaction-1', originalTurnId: 'independent', evidence: 'userMessage' },
-		]);
+		correlation.record('root', 'i1');
+		correlation.prepareSteering('b', correlation.getSteeringContext('root'));
+		correlation.resolveSteering('b', 'i1', 'steering');
+		correlation.record('b', 'i1');
+		correlation.prepareSteering('c', correlation.getSteeringContext('b'));
+		correlation.resolveSteering('c', 'i1', 'steering');
+		correlation.record('c', 'i1');
+		correlation.record('c', 'i2');
+		correlation.startTurn('next');
+		correlation.record('next', 'i1');
+		assert.deepStrictEqual({
+			originals: ['root', 'b', 'c', 'next'].map(turn => correlation.get(turn)?.originalTurnId),
+			interactions: correlation.get('c')?.interactionIds,
+			events: telemetry.events.map(event => [event.name, event.data.steeredFromTurn, event.data.originalTurnId, event.data.attributionStatus]),
+		}, {
+			originals: ['root', 'root', 'root', 'next'],
+			interactions: ['i1', 'i2'],
+			events: [['agentHost.turnSteered', 'root', 'root', 'confirmed'], ['agentHost.turnSteered', 'b', 'root', 'confirmed']],
+		});
 	});
 
-	test('retains delayed evidence without guessing a child origin and bounds history', () => {
-		const telemetry = new TestDataTelemetryService();
-		const correlation = new TurnInteractionCorrelation('sdk', telemetry, 2);
-		correlation.startTurn('old');
-		correlation.startTurn('new');
-		correlation.record('old', 'old-interaction', 'modelCall');
-		correlation.record('child', 'old-interaction', 'modelCall');
-		correlation.startTurn('newest');
-		correlation.record('old', 'another-interaction', 'modelCall');
-		correlation.record('new', 'evicted-interaction', 'modelCall');
-		correlation.clear();
-		correlation.record('new', 'new-interaction', 'modelCall');
-
-		assert.deepStrictEqual(telemetry.events.map(event => ({
-			turn: event.data.turnId, original: event.data.originalTurnId,
-		})), [
-			{ turn: 'old', original: 'old' },
-			{ turn: 'child', original: undefined },
-			{ turn: 'old', original: 'old' },
-			{ turn: 'new', original: undefined },
-			{ turn: 'new', original: undefined },
-		]);
-	});
-
-	test('refines an idle-race association only after the steering echo proves its origin', () => {
+	test('distinguishes runtime new requests, mismatched steering and missing evidence', () => {
 		const telemetry = new TestDataTelemetryService();
 		const correlation = new TurnInteractionCorrelation('sdk', telemetry);
-		correlation.startTurn('successor');
-		correlation.deferTurnOrigin('successor');
-		correlation.record('successor', 'interaction', 'assistantTurnStart');
-		correlation.steer('successor', 'previous', 'original');
-		correlation.record('successor', 'interaction', 'userMessage');
-		assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'agentHost.turnInteractionCorrelated').map(event => event.data.originalTurnId), [undefined, 'original']);
+		correlation.startTurn('root');
+		correlation.record('root', 'i1');
+		for (const [turn, interaction, delivery] of [
+			['new', 'i2', 'idle'], ['queued', 'i2', 'queued'], ['mismatch', 'i2', 'steering'], ['missing', 'i1', undefined],
+		] as const) {
+			correlation.prepareSteering(turn, correlation.getSteeringContext('root'));
+			correlation.resolveSteering(turn, interaction, delivery);
+		}
+		assert.deepStrictEqual(telemetry.events.map(event => [event.data.turnId, event.data.originalTurnId, event.data.attributionStatus]), [
+			['new', 'new', 'newRequest'], ['queued', 'queued', 'newRequest'], ['mismatch', undefined, 'interactionMismatch'], ['missing', undefined, 'unknown'],
+		]);
+	});
+
+	test('bounds history and interaction lists while keeping snapshots immutable and child origins unknown', () => {
+		const correlation = new TurnInteractionCorrelation('sdk', new TestDataTelemetryService(), 2, 2);
+		correlation.startTurn('old');
+		correlation.record('old', 'a');
+		const snapshot = correlation.get('old');
+		correlation.record('old', 'b');
+		correlation.record('old', 'b');
+		correlation.record('old', 'c');
+		const capped = correlation.get('old');
+		correlation.record('child', 'a');
+		const child = correlation.get('child');
+		correlation.startTurn('new');
+		assert.deepStrictEqual({
+			snapshot, capped: capped?.interactionIds, truncated: capped?.interactionIdsTruncated,
+			childOriginal: child?.originalTurnId, evicted: correlation.get('old'),
+		}, {
+			snapshot: { sdkSessionId: 'sdk', originalTurnId: 'old', interactionIds: ['a'], interactionIdsTruncated: false },
+			capped: ['a', 'b'], truncated: true, childOriginal: undefined, evicted: undefined,
+		});
+		correlation.clear();
+		assert.strictEqual(correlation.get('new'), undefined);
 	});
 });
