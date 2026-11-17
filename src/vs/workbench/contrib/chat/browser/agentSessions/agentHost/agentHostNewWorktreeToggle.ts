@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { getWindow } from '../../../../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -23,7 +25,7 @@ import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/ch
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
 import { AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, IAgentHostWorktreeSendChoiceService } from './agentHostWorktreeSendChoice.js';
-import { markOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { markOnboardingTarget, resolveOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import './media/agentHostChatInputPicker.css';
@@ -40,15 +42,40 @@ export const ChatAgentHostNewWorktreeSelected = new RawContextKey<boolean>('chat
  * Parallel callout anchors while it asks about the chat that the control shows now ({@link IAgentHostWorktreeSendChoiceService.pendingSendChoice}),
  * until disposed. The control owns its element; the service only tells which chat it asks about.
  */
-export function markWorktreeSendChoiceTarget(element: HTMLElement, sendChoice: IAgentHostWorktreeSendChoiceService, sessionResource: () => URI | undefined): IDisposable {
+export function markWorktreeSendChoiceTarget(element: HTMLElement, sendChoice: IAgentHostWorktreeSendChoiceService, sessionResource: () => URI | undefined, onDidChangeSessionResource: Event<unknown>): IDisposable {
+	const store = new DisposableStore();
+	// The callout keeps the element it anchored on: once the control shows another chat, the question about the chat it showed
+	// ends unanswered, rather than staying on the other chat's control. One that goes ends it too, unless a control of the same
+	// chat replaces it, as where its toolbar renders again, which the callout then shows on.
+	let shown = sessionResource();
+	store.add(toDisposable(() => {
+		const resource = shown;
+		const pending = sendChoice.pendingSendChoice.get();
+		if (resource && pending && extUriBiasedIgnorePathCase.isEqual(resource, pending)) {
+			const targetWindow = getWindow(element);
+			queueMicrotask(() => {
+				if (!resolveOnboardingTarget(targetWindow, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID)) {
+					sendChoice.cancelSendChoice(resource);
+				}
+			});
+		}
+	}));
+	store.add(onDidChangeSessionResource(() => {
+		const next = sessionResource();
+		if (shown && !(next && extUriBiasedIgnorePathCase.isEqual(shown, next))) {
+			sendChoice.cancelSendChoice(shown);
+		}
+		shown = next;
+	}));
 	// A callout run has no scope: it matches only the control of the chat it asks about, and every other control is out of scope
-	return markOnboardingTarget(element, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, {
+	store.add(markOnboardingTarget(element, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, {
 		scope: () => {
 			const resource = sessionResource();
 			const pending = sendChoice.pendingSendChoice.get();
 			return resource && pending && extUriBiasedIgnorePathCase.isEqual(resource, pending) ? undefined : (resource?.toString() ?? '');
 		},
-	});
+	}));
+	return store;
 }
 
 /**
@@ -211,6 +238,11 @@ export function createNewWorktreeCheckboxViewItem(action: IAction, options: IAct
  * of the workbench's toolbars and chip rows (`size: 14`, its check at the compact codicon size), with the chips' text.
  */
 class ChatInputCheckboxActionViewItem extends CheckboxActionViewItem {
+
+	private readonly _onDidChangeSessionResource = this._register(new Emitter<void>());
+	/** The chat widget of its toolbar's context, as it can be set again, and where that widget shows another chat. */
+	private readonly _widgetListener = this._register(new MutableDisposable());
+
 	constructor(
 		context: unknown,
 		action: IAction,
@@ -224,7 +256,17 @@ class ChatInputCheckboxActionViewItem extends CheckboxActionViewItem {
 		super.render(container);
 		container.classList.add('chat-input-checkbox-item');
 		// The chat it shows is its toolbar's, as the action runs for it
-		this._register(markWorktreeSendChoiceTarget(container, this._sendChoice, () => (this._context as IChatExecuteActionContext | undefined)?.widget?.viewModel?.sessionResource));
+		this._register(markWorktreeSendChoiceTarget(container, this._sendChoice, () => this._widget()?.viewModel?.sessionResource, this._onDidChangeSessionResource.event));
+	}
+
+	override setActionContext(newContext: unknown): void {
+		super.setActionContext(newContext);
+		this._widgetListener.value = this._widget()?.onDidChangeViewModel(() => this._onDidChangeSessionResource.fire());
+		this._onDidChangeSessionResource.fire();
+	}
+
+	private _widget() {
+		return (this._context as IChatExecuteActionContext | undefined)?.widget;
 	}
 }
 

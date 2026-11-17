@@ -243,7 +243,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 
 	override render(container: HTMLElement): void {
 		this._container = container;
-		this._register(markWorktreeSendChoiceTarget(container, this._sendChoice, () => this._sessionResource()));
+		this._register(markWorktreeSendChoiceTarget(container, this._sendChoice, () => this._sessionResource(), this._widget.onDidChangeViewModel));
 		this._chromeKey = undefined;
 		// Its icon's font can load after it was measured with a fallback: measured again as it is next laid out
 		this._fontsListener.value = dom.addDisposableListener(dom.getWindow(container).document.fonts, 'loadingdone', () => this._chromeKey = undefined);

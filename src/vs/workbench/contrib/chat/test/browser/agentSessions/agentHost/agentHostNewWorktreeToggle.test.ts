@@ -20,6 +20,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { ChatAgentHostNewWorktreeSelected, ChatAgentHostNewWorktreeToggleVisible, createNewWorktreeCheckboxViewItem, ToggleAgentHostNewWorktreeAction } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, IAgentHostWorktreeSendChoiceService } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { resolveOnboardingTarget } from '../../../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
@@ -44,7 +45,8 @@ suite('Agent host New Worktree checkbox', () => {
 		instantiation.stub(IMenuService, store.add(instantiation.createInstance(MenuService)));
 		// The chat whose send the Work in Parallel callout asks about, which the checkbox of that chat anchors
 		const pendingSendChoice = observableValue<URI | undefined>('pendingSendChoice', undefined);
-		instantiation.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice }));
+		const cancelled: string[] = [];
+		instantiation.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice, cancelSendChoice: (resource: URI) => { cancelled.push(resource.path); } }));
 		// A local agent host's new chat in a window with a single local folder, which has no worktrees
 		context.createKey(ChatContextKeys.enabled.key, true);
 		context.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
@@ -62,7 +64,8 @@ suite('Agent host New Worktree checkbox', () => {
 			actionViewItemProvider: (action, options) => createNewWorktreeCheckboxViewItem(action, options, instantiation),
 		}));
 		const chat = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
-		const widget = { name: 'the chat widget', viewModel: { sessionResource: chat } };
+		const onDidChangeViewModel = store.add(new Emitter<void>());
+		const widget = { name: 'the chat widget', viewModel: { sessionResource: chat }, onDidChangeViewModel: onDidChangeViewModel.event };
 		toolbar.context = { widget };
 		const item = () => root.querySelector<HTMLElement>('.checkbox-action-item');
 		const checkbox = () => item()?.querySelector<HTMLElement>('.monaco-custom-toggle');
@@ -86,15 +89,25 @@ suite('Agent host New Worktree checkbox', () => {
 		sessionIsEmpty.set(false);
 		await settle();
 		const started = state();
+		// While it asks about its chat, the chat input shows another: that question ends; and the one about the other chat, once
+		// the checkbox goes with no other control of that chat
 		pendingSendChoice.set(chat, undefined);
+		const other = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-3' });
+		widget.viewModel = { sessionResource: other };
+		onDidChangeViewModel.fire();
+		const cancelledOnOtherChat = [...cancelled];
+		pendingSendChoice.set(other, undefined);
 		toolbar.dispose();
 		const afterDisposed = !!resolveOnboardingTarget(mainWindow, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID);
+		await settle();
 
-		assert.deepStrictEqual({ unchecked, checked, started, anchored, afterDisposed, runs: runs.map(run => (run as unknown[])[0]), context: (runs[0] as unknown[])[1] }, {
+		assert.deepStrictEqual({ unchecked, checked, started, anchored, cancelledOnOtherChat, cancelled, afterDisposed, runs: runs.map(run => (run as unknown[])[0]), context: (runs[0] as unknown[])[1] }, {
 			unchecked: { glyph: false, label: 'New Worktree', role: 'checkbox', checked: 'false', disabled: false },
 			checked: { glyph: false, label: 'New Worktree', role: 'checkbox', checked: 'true', disabled: false },
 			started: { glyph: false, label: 'New Worktree', role: 'checkbox', checked: 'true', disabled: true },
 			anchored: { ownChat: true, otherChat: false, none: false },
+			cancelledOnOtherChat: ['/untitled-1'],
+			cancelled: ['/untitled-1', '/untitled-3'],
 			afterDisposed: false,
 			runs: [ToggleAgentHostNewWorktreeAction.ID, ToggleAgentHostNewWorktreeAction.ID],
 			context: { widget },

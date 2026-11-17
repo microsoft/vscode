@@ -148,22 +148,6 @@ export async function openPreparedAgentHostChat(resource: URI, open: () => Promi
 	return opened;
 }
 
-/** Opens a new chat of the local agent host in the Chat view that starts in a new worktree; `undefined` where it cannot. */
-async function openLocalAgentHostChatInWorktree(accessor: ServicesAccessor): Promise<URI | undefined> {
-	const contribution = accessor.get(IChatSessionsService).getChatSessionContribution(SessionType.AgentHostCopilot);
-	const notificationService = accessor.get(INotificationService);
-	if (!contribution || !accessor.get(IAgentHostEnablementService).enabled.get()) {
-		notificationService.warn(localize('chat.newAgentHostChat.unavailable', "A new chat cannot start here, as the agent host is not available in this window."));
-		return undefined;
-	}
-	const instantiationService = accessor.get(IInstantiationService);
-	const openOptions = { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar };
-	const folderService = accessor.get(IAgentHostNewSessionFolderService);
-	const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
-	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), folderService, provisional, accessor.get(IAgentHostConnectionsService), notificationService);
-	return resource && openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource })), folderService, provisional);
-}
-
 export class NewChatInWorktreeAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.newChatInWorktree';
 	constructor() {
@@ -187,8 +171,22 @@ export class NewChatInWorktreeAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<URI | undefined> {
-		return openLocalAgentHostChatInWorktree(accessor);
+	/** Opens a new chat of the local agent host in the Chat view that starts in a new worktree; `undefined` where it cannot. */
+	override async run(accessor: ServicesAccessor): Promise<URI | undefined> {
+		const contribution = accessor.get(IChatSessionsService).getChatSessionContribution(SessionType.AgentHostCopilot);
+		const enablementService = accessor.get(IAgentHostEnablementService);
+		const notificationService = accessor.get(INotificationService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const folderService = accessor.get(IAgentHostNewSessionFolderService);
+		const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
+		const connectionsService = accessor.get(IAgentHostConnectionsService);
+		if (!contribution || !enablementService.enabled.get()) {
+			notificationService.warn(localize('chat.newAgentHostChat.unavailable', "A new chat cannot start here, as the agent host is not available in this window."));
+			return undefined;
+		}
+		const openOptions = { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar };
+		const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), folderService, provisional, connectionsService, notificationService);
+		return resource && openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource })), folderService, provisional);
 	}
 }
 

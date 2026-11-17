@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -107,6 +107,12 @@ export interface IAgentHostWorktreeSendChoiceService {
 	requestSendChoice(resource: URI): Promise<WorktreeSendChoice>;
 
 	/**
+	 * Ends the callout asking about the chat of `resource`, if it shows, unanswered: as where it could not show, the chat
+	 * works in the folder and nothing is remembered. Such as once the control that anchors it shows another chat.
+	 */
+	cancelSendChoice(resource: URI): void;
+
+	/**
 	 * Whether another chat of the agent host, not archived, worked in `folder` itself within the last day, as
 	 * {@link isRecentChatInFolder} decides over all sessions: when another chat surface asks of its new chat `draft`.
 	 */
@@ -153,7 +159,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	/** New chats whose send is held, from deciding until it goes on: a request sent again meanwhile is not sent twice. */
 	private readonly _holding = new ResourceSet();
 	/** The callout shown now: one at a time, as the onboarding engine joins runs of the same scenario. */
-	private _asking: { readonly resource: URI; useWorktree: boolean } | undefined;
+	private _asking: { readonly resource: URI; readonly cancellation: CancellationTokenSource; useWorktree: boolean } | undefined;
 	private readonly _pendingSendChoice = observableValue<URI | undefined>(this, undefined);
 	readonly pendingSendChoice: IObservable<URI | undefined> = this._pendingSendChoice;
 	/** Asks one after another, so that each has its own chat and answer. */
@@ -313,6 +319,12 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		}
 	}
 
+	cancelSendChoice(resource: URI): void {
+		if (this._asking && extUriBiasedIgnorePathCase.isEqual(this._asking.resource, resource)) {
+			this._asking.cancellation.cancel();
+		}
+	}
+
 	async requestSendChoice(resource: URI): Promise<WorktreeSendChoice> {
 		return this._rememberedChoice() ?? this._askAndRemember(resource);
 	}
@@ -346,15 +358,20 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	 * such as where no such control shows to anchor it.
 	 */
 	private async _ask(resource: URI): Promise<WorktreeSendChoice | undefined> {
-		const asking = this._asking = { resource, useWorktree: false };
+		const asking = this._asking = { resource, cancellation: new CancellationTokenSource(), useWorktree: false };
 		this._pendingSendChoice.set(resource, undefined);
 		try {
-			const outcome = await this._onboardingService.runScenario(AGENT_HOST_WORKTREE_SEND_CHOICE_ID, CancellationToken.None);
+			const outcome = await this._onboardingService.runScenario(AGENT_HOST_WORKTREE_SEND_CHOICE_ID, asking.cancellation.token);
+			if (asking.cancellation.token.isCancellationRequested) {
+				// Ended for its chat, such as as its control showed another: no answer, whatever the callout reported
+				return undefined;
+			}
 			// Use New Worktree completes it; Continue in Folder and Escape skip it
 			return outcome === OnboardingOutcome.Completed && asking.useWorktree ? 'worktree'
 				: outcome === OnboardingOutcome.Skipped ? 'folder'
 					: undefined;
 		} finally {
+			asking.cancellation.dispose();
 			this._asking = undefined;
 			this._pendingSendChoice.set(undefined, undefined);
 		}

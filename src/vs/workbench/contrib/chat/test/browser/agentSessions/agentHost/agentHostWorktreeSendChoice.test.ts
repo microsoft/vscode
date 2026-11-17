@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, append } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
@@ -20,11 +20,20 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { ResolveSessionConfigResult } from '../../../../../../../platform/agentHost/common/state/protocol/channels-root/commands.js';
+import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
+import { DialogService } from '../../../../../../services/dialogs/common/dialogService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+import { TestHostService, TestLayoutService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../../../test/common/workbenchTestServices.js';
+import { OnboardingScenarioService } from '../../../../../onboarding/browser/onboardingService.js';
+import { SpotlightPresentation } from '../../../../../onboarding/browser/spotlight/spotlightPresentation.js';
+import { onboardingPresentationRegistry } from '../../../../../onboarding/common/onboardingPresentation.js';
 import { resolveOnboardingTarget } from '../../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../../onboarding/common/onboardingRegistry.js';
@@ -61,7 +70,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 	const NOW = Date.UTC(2026, 10, 16, 12);
 	const HOUR = 60 * 60 * 1000;
 
-	function createWindow(options: { readonly firstChatIn?: URI; readonly firstChatArchived?: boolean; readonly isolations?: readonly string[]; readonly ai?: boolean }) {
+	function createWindow(options: { readonly firstChatIn?: URI; readonly firstChatArchived?: boolean; readonly isolations?: readonly string[]; readonly ai?: boolean; readonly realCallout?: boolean }) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true });
@@ -139,7 +148,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 				disposables.add({ dispose: () => domNode.remove() });
 				control = append(domNode, $('.action-item', undefined, 'New Worktree'));
 				// It marks itself as where the callout anchors while the service asks about its chat, as the chat input's controls do
-				disposables.add(markWorktreeSendChoiceTarget(control, service, () => resource));
+				disposables.add(markWorktreeSendChoiceTarget(control, service, () => resource, Event.None));
 				controls.set(key, control);
 			}
 			return control;
@@ -162,9 +171,23 @@ suite('Agent host Work in Parallel choice on send', () => {
 		let answer: Answer = 'continue';
 		// As the onboarding service does, a run of a scenario that is running already joins it
 		let running: Promise<OnboardingOutcome> | undefined;
-		instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
-			runScenario: (id: string) => running ??= run(id).finally(() => { running = undefined; }),
-		}));
+		if (options.realCallout) {
+			// The onboarding service and its spotlight callout, as the workbench has them
+			const storage = disposables.add(new InMemoryStorageService());
+			instantiationService.stub(IOnboardingScenarioService, disposables.add(new OnboardingScenarioService(
+				storage, contextKeyService, configuration, disposables.add(new TestLifecycleService()),
+				new NullWorkbenchAssignmentService(), NullTelemetryService,
+				disposables.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+			)));
+			const layout = new class extends TestLayoutService {
+				override getContainer() { return mainWindow.document.body; }
+			}();
+			disposables.add(onboardingPresentationRegistry.register(disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService))));
+		} else {
+			instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+				runScenario: (id: string) => running ??= run(id).finally(() => { running = undefined; }),
+			}));
+		}
 		const run = async (id: string): Promise<OnboardingOutcome> => {
 			const step = (onboardingScenarioRegistry.getScenario(id)!.presentation.payload as ISpotlightPayload).steps[0];
 			const element = resolveOnboardingTarget(mainWindow, step.targetId)?.element;
@@ -234,7 +257,8 @@ suite('Agent host Work in Parallel choice on send', () => {
 		// The service as the chat inputs and the New Worktree toggle reach it
 		instantiationService.stub(IAgentHostWorktreeSendChoiceService, service);
 		const setWorktreeSupport = (on: boolean) => configuration.setUserConfiguration(ChatConfiguration.EditorWindowEnableWorktree, on);
-		return { instantiationService, newDraft, show, chosen, setWorktreeSupport, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, controlOf, dispose: () => disposables.dispose() };
+		const storage = instantiationService.get(IStorageService);
+		return { storage, instantiationService, newDraft, show, chosen, setWorktreeSupport, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, controlOf, dispose: () => disposables.dispose() };
 	}
 
 	test('asks of a new chat in the folder only after another chat of the agent host was active in the folder itself within the last day', () => {
@@ -639,6 +663,45 @@ suite('Agent host Work in Parallel choice on send', () => {
 
 		// The Chat view's Continue in Folder is remembered first, so the later ask applies it without a callout
 		assert.deepStrictEqual({ aborted, askedWhileHeld, askedOn, sent: window.sent, answered }, { aborted: 'folder', askedWhileHeld: 2, askedOn: ['control', 'draft'], sent: ['folder'], answered: 'folder' });
+	});
+
+	test('ends the question about a chat unanswered once the control its callout shows on shows another chat, or goes: it works in the folder, and nothing is remembered', async () => {
+		const results: Record<string, unknown> = {};
+		for (const how of ['retarget', 'dispose'] as const) {
+			const window = createWindow({ firstChatIn: primary, realCallout: true });
+			const asked = window.newDraft();
+			const other = window.newDraft();
+			// One control, as the chat input's checkbox or folder chip, showing the chat it asks about and then another
+			let current = asked;
+			const onDidChange = new Emitter<void>();
+			const domNode = append(mainWindow.document.body, $('div'));
+			const control = append(domNode, $('.action-item', undefined, 'New Worktree'));
+			const marker = markWorktreeSendChoiceTarget(control, window.service, () => current, onDidChange.event);
+			const asking = window.service.requestSendChoice(asked);
+			const callout = () => mainWindow.document.querySelector<HTMLElement>('.spotlight-callout');
+			await retry(async () => assert.ok(callout()), 10, 50);
+			if (how === 'retarget') {
+				current = other;
+				onDidChange.fire();
+			} else {
+				marker.dispose();
+				domNode.remove();
+			}
+			// A callout that still shows is answered on the control as it is now
+			await timeout(0);
+			Array.from(callout()?.querySelectorAll<HTMLElement>('.monaco-button') ?? []).find(button => button.textContent === 'Use New Worktree')?.click();
+			const answer = await asking;
+			results[how] = { answer, remembered: window.storage.get(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, StorageScope.PROFILE), pending: window.service.pendingSendChoice.get(), callout: !!callout() };
+			marker.dispose();
+			domNode.remove();
+			onDidChange.dispose();
+			window.dispose();
+		}
+
+		assert.deepStrictEqual(results, {
+			retarget: { answer: 'folder', remembered: undefined, pending: undefined, callout: false },
+			dispose: { answer: 'folder', remembered: undefined, pending: undefined, callout: false },
+		});
 	});
 
 	test('does not apply a new worktree to a new chat whose chat input closed while it asked', async () => {
