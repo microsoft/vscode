@@ -16,6 +16,18 @@ import { ArtifactDetailsViewState, artifactViewKey, IArtifactAutopilotGroupViewD
 
 type EnumOption = Extract<ArtifactAutomationOption, { kind: 'enum' }>;
 
+/** A value chosen in the controls that the provider has not confirmed yet. */
+interface IUnconfirmedValue {
+	readonly value: boolean | string;
+	/**
+	 * Set for a new policy of a rule that is on, which is not consent to turn it on: the value is saved only while the
+	 * provider still has the rule on, so a rule turned off meanwhile, such as by another client, stays off.
+	 */
+	readonly requiresEnabled: boolean;
+	/** Set once a write takes the value. */
+	submitted?: boolean;
+}
+
 /** Normalizes provider rules and owns consent commands, independently of their controls. */
 export class ArtifactAutopilotModel extends Disposable {
 	private readonly changed = observableSignal(this);
@@ -26,7 +38,7 @@ export class ArtifactAutopilotModel extends Disposable {
 	 * Values chosen in the controls that the provider has not confirmed yet, by integration and option. The controls show
 	 * them at once, so rules can be changed in quick succession while their writes are saved one after another.
 	 */
-	private readonly unconfirmed = new Map<string, Map<string, boolean | string>>();
+	private readonly unconfirmed = new Map<string, Map<string, IUnconfirmedValue>>();
 	private readonly writes = new SequencerByKey<string>();
 	readonly data: IObservable<readonly IArtifactAutopilotGroupViewData[]>;
 
@@ -74,8 +86,7 @@ export class ArtifactAutopilotModel extends Disposable {
 
 	/** The option's value as the controls show it: the user's unconfirmed choice, else the provider's. */
 	private value(contribution: ArtifactContributionSnapshot, option: ArtifactAutomationOption): boolean | string | undefined {
-		const unconfirmed = this.unconfirmed.get(contribution.integrationId);
-		return unconfirmed?.has(option.id) ? unconfirmed.get(option.id) : contribution.configuration.values[option.id];
+		return this.unconfirmed.get(contribution.integrationId)?.get(option.id)?.value ?? contribution.configuration.values[option.id];
 	}
 
 	private contribution(integrationId: string): ArtifactContributionSnapshot | undefined {
@@ -196,16 +207,18 @@ export class ArtifactAutopilotModel extends Disposable {
 			if (!selected || this._store.isDisposed) {
 				return;
 			}
-			if (enabled) {
-				await this.save(integrationId, { [optionId]: selected.value });
-				return;
-			}
 			const current = this.contribution(integrationId);
 			const currentOption = current?.options.find(option => option.id === optionId);
 			const value = selected.value;
 			if (!current || currentOption?.kind !== 'enum' || !currentOption.choices.some(choice => choice.value === value && choice.value !== currentOption.disabledValue)
-				|| isArtifactOptionEnabled(currentOption, this.value(current, currentOption))) {
+				|| isArtifactOptionEnabled(currentOption, this.value(current, currentOption)) !== enabled) {
 				throw new Error(localize('artifactPolicyChanged', "This Autopilot rule changed while selecting a policy. Choose the policy again."));
+			}
+			if (enabled) {
+				// Combined with the user's own enablement that has not been sent yet, the policy is part of that consent.
+				const pending = this.unconfirmed.get(integrationId)?.get(optionId);
+				await this.save(integrationId, { [optionId]: value }, pending && !pending.submitted ? pending.requiresEnabled : true);
+				return;
 			}
 			this.state.preparedPolicies.set(id, value);
 			status(localize('artifactPolicySelected', "Selected {0} for {1}. This Autopilot rule remains off.", selected.label, option.label));
@@ -238,7 +251,7 @@ export class ArtifactAutopilotModel extends Disposable {
 	 * Shows the values at once and writes them after the integration's earlier writes, each against the revision the
 	 * previous one produced. Values changed while a write is in flight are combined into the next write.
 	 */
-	private async save(integrationId: string, values: Readonly<Record<string, boolean | string>>): Promise<void> {
+	private async save(integrationId: string, values: Readonly<Record<string, boolean | string>>, requiresEnabled = false): Promise<void> {
 		if (!Object.keys(values).length) {
 			return;
 		}
@@ -248,7 +261,7 @@ export class ArtifactAutopilotModel extends Disposable {
 			this.unconfirmed.set(integrationId, unconfirmed);
 		}
 		for (const [optionId, value] of Object.entries(values)) {
-			unconfirmed.set(optionId, value);
+			unconfirmed.set(optionId, { value, requiresEnabled });
 		}
 		this.changed.trigger(undefined);
 		await this.writes.queue(integrationId, () => this.write(integrationId));
@@ -260,23 +273,41 @@ export class ArtifactAutopilotModel extends Disposable {
 			return;
 		}
 		const submitted = new Map(unconfirmed);
+		for (const entry of submitted.values()) {
+			entry.submitted = true;
+		}
 		try {
 			const contribution = this.contribution(integrationId);
 			if (!contribution) {
 				throw new Error(localize('artifactAutopilot.providerUnavailable', "This Autopilot provider is no longer available."));
 			}
-			const values = Object.fromEntries([...submitted].filter(([optionId, value]) => contribution.configuration.values[optionId] !== value));
-			const changed = Object.keys(values);
-			if (!changed.length) {
-				return;
+			// Checked against the state written to, whose revision rejects the write if the rules change before it applies.
+			const values: Record<string, boolean | string> = {};
+			const turnedOff: string[] = [];
+			for (const [optionId, entry] of submitted) {
+				const option = contribution.options.find(option => option.id === optionId);
+				if (entry.requiresEnabled && (!option || !isArtifactOptionEnabled(option, contribution.configuration.values[optionId]))) {
+					if (typeof entry.value === 'string') {
+						this.state.preparedPolicies.set(artifactViewKey(integrationId, optionId), entry.value);
+					}
+					turnedOff.push(option?.label ?? optionId);
+				} else if (contribution.configuration.values[optionId] !== entry.value) {
+					values[optionId] = entry.value;
+				}
 			}
-			await this.model.configure(integrationId, contribution.configuration.revision, values);
-			const option = changed.length === 1 ? contribution.options.find(option => option.id === changed[0]) : undefined;
-			status(option ? localize('artifactAutomationSaved', "Autopilot rule updated: {0}", option.label) : localize('artifactAutopilot.saved', "Artifact Autopilot updated."));
+			const changed = Object.keys(values);
+			if (changed.length) {
+				await this.model.configure(integrationId, contribution.configuration.revision, values);
+				const option = changed.length === 1 ? contribution.options.find(option => option.id === changed[0]) : undefined;
+				status(option ? localize('artifactAutomationSaved', "Autopilot rule updated: {0}", option.label) : localize('artifactAutopilot.saved', "Artifact Autopilot updated."));
+			}
+			if (turnedOff.length) {
+				throw new Error(localize('artifactPolicyRuleTurnedOff', "{0} was turned off before its new policy was saved, so it stays off. Turning it on again uses the selected policy.", turnedOff.join(', ')));
+			}
 		} finally {
 			// Values changed again during the write stay for the next one; the others are confirmed now, or failed and show the provider's again.
-			for (const [optionId, value] of submitted) {
-				if (unconfirmed.get(optionId) === value) {
+			for (const [optionId, entry] of submitted) {
+				if (unconfirmed.get(optionId) === entry) {
 					unconfirmed.delete(optionId);
 				}
 			}

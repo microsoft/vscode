@@ -2744,6 +2744,68 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
+		test('a policy picked for an enabled rule cannot re-enable it after another update turns it off', async () => {
+			const f = fixture();
+			const quickInput = store.add(f.instantiation.createInstance(QuickInputService));
+			f.instantiation.stub(IQuickInputService, quickInput);
+			const a = f.artifact();
+			useEnumAutomation(a, 'always');
+			updateContribution(a, contribution => ({
+				...contribution,
+				options: [{ id: 'fix', kind: 'boolean', label: 'Auto Fix CI', description: 'Repair failed checks.', actionIds: ['fix'], maxAttempts: 3, defaultValue: false }, ...contribution.options],
+				configuration: { ...contribution.configuration, revision: 5, values: { fix: false, merge: 'always' } },
+			}));
+			const panel = await open(f, a);
+			button(panel, 'Autopilot').click();
+			const choose = async (label: string) => {
+				button(panel, label).click();
+				await settle(f);
+				return () => {
+					const choice = f.host.querySelectorAll<HTMLElement>('.quick-input-widget .monaco-list-row')[1];
+					choice.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+					choice.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, button: 0 }));
+				};
+			};
+			const turnOffMerge = (revision: number) => updateContribution(a, contribution => ({
+				...contribution, configuration: { ...contribution.configuration, revision, values: { ...contribution.configuration.values, merge: 'off' } },
+			}));
+
+			// Turned off while the picker is open.
+			const pickWhileOpen = await choose('Always');
+			turnOffMerge(6);
+			pickWhileOpen();
+			await settle(f);
+			const whilePicking = { writes: a.configured.length, merge: a.snapshot.get().contributions[0].configuration.values.merge };
+
+			// Turned off after the pick, while its write waits for an earlier write.
+			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, revision: 7, values: { ...contribution.configuration.values, merge: 'always' } } }));
+			await settle(f);
+			const earlierWrite = new DeferredPromise<void>();
+			a.setConfigureResult(earlierWrite.p);
+			panel.querySelectorAll<HTMLElement>('.artifact-autopilot-rule [role="switch"]')[0].click();
+			await settle(f);
+			const pickBeforeWrite = await choose('Always');
+			pickBeforeWrite();
+			await settle(f);
+			turnOffMerge(8);
+			await earlierWrite.complete();
+			await settle(f);
+
+			assert.deepStrictEqual({
+				whilePicking, writes: a.configured, values: a.snapshot.get().contributions[0].configuration.values,
+				merge: panel.querySelectorAll('.artifact-autopilot-rule [role="switch"]')[1].getAttribute('aria-checked'),
+				policy: panel.querySelector('.artifact-autopilot-policy')?.textContent, errors: f.errors,
+			}, {
+				whilePicking: { writes: 0, merge: 'off' },
+				writes: [{ integrationId: 'test', revision: 7, values: { fix: true } }],
+				values: { fix: true, merge: 'off' }, merge: 'false', policy: 'When No Changes Were Made',
+				errors: [
+					'The artifact operation failed: This Autopilot rule changed while selecting a policy. Choose the policy again.',
+					'The artifact operation failed: Merge Automatically When Ready was turned off before its new policy was saved, so it stays off. Turning it on again uses the selected policy.',
+				],
+			});
+		});
+
 		test('enum choices stay visible while unavailable and failed enablement does not discard the prepared value', async () => {
 			const f = fixture();
 			let picks = 0;
