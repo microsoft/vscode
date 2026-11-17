@@ -253,9 +253,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
 	/**
 	 * In Single, what was typed in its new-session composers as they closed or parked their input, the latest last: each new
-	 * composer takes the latest, as it has one new session at a time.
+	 * composer takes the latest, as it has one new session at a time. Not loaded from what it stored until first needed
+	 * ({@link _keptComposerInputs}).
 	 */
-	private readonly _keptComposerInputs: IChatDraft[] = [];
+	private _kept: IChatDraft[] | undefined;
 	/** What was typed in each composer whose tab is closing, kept once it closed: not when its close is vetoed. */
 	private readonly _closingComposerInputs = new WeakMap<EditorInput, IChatDraft>();
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
@@ -304,7 +305,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// What a closed composer kept is for the next one in Single only
 		this._register(autorun(reader => {
 			if (this._chatTabsMode.read(reader) === SessionsChatTabsMode.Multiple) {
-				this._keptComposerInputs.length = 0;
+				this._kept = [];
 			}
 		}));
 
@@ -417,7 +418,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 		const resource = createChatWindowComposerResource();
 		// What was typed in the composer it closed or parked last, in Single
-		const input = this._isSingle() ? this._keptComposerInputs.pop() : undefined;
+		const input = this._isSingle() ? this._keptComposerInputs().pop() : undefined;
 		const composer = this.composers.create(resource, { target, ...this.getComposerFolderOptions(), ...(input ? { input: { input } } : {}) }, session => this.openChat(session, undefined));
 		await this._open(this._addChat(resource, composer), options);
 	}
@@ -449,6 +450,15 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 	}
 
+	/**
+	 * What its composers kept, loaded from what it stored once, as first needed: also when the window started with the chat part
+	 * hidden, which restores no tabs.
+	 */
+	private _keptComposerInputs(): IChatDraft[] {
+		this._kept ??= this._isSingle() ? [...this._readStored()?.kept ?? []] : [];
+		return this._kept;
+	}
+
 	parkComposerInput(): boolean {
 		if (!this._isSingle()) {
 			return false;
@@ -459,7 +469,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		if (!input) {
 			return false;
 		}
-		this._keptComposerInputs.push(input);
+		this._keptComposerInputs().push(input);
 		return true;
 	}
 
@@ -547,10 +557,6 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 	private async _restoreChats(): Promise<void> {
 		const stored = this._readStored();
-		// What its composers kept, for its next ones, also as it shows no chats
-		if (this._isSingle()) {
-			this._keptComposerInputs.splice(0, this._keptComposerInputs.length, ...stored?.kept ?? []);
-		}
 		const claimed: URI[] = [];
 		const chats: AgentsChatPartChat[] = [];
 		for (const value of stored?.chats ?? []) {
@@ -798,7 +804,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._partStore.add(toDisposable(() => {
 			this._closingAll = true;
 			part.forceClose();
-			this._keptComposerInputs.length = 0;
+			this._kept = [];
 		}));
 		// After the part, whose context is scoped in it
 		this._partStore.add(scopedContextKeyService);
@@ -839,7 +845,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				const kept = this._closingComposerInputs.get(editor);
 				if (kept) {
 					this._closingComposerInputs.delete(editor);
-					this._keptComposerInputs.push(kept);
+					this._keptComposerInputs().push(kept);
 				}
 				const closedChat = this._closingChatTabs.get(editor);
 				this._closingChatTabs.delete(editor);
@@ -932,7 +938,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 		// In Single, most recent first, to show again in that order as it closes them
 		const inputs = this._part.groups.flatMap(group => this._isSingle() ? group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE) : group.editors).filter(input => this._chats.has(input));
-		const kept = this._isSingle() ? this._keptComposerInputs : [];
+		const kept = this._isSingle() ? this._keptComposerInputs() : [];
 		if (!inputs.length && !kept.length) {
 			this._storageService.remove(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			return;

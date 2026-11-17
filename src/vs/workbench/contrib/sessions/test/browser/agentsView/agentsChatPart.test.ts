@@ -342,6 +342,14 @@ suite('AgentsChatPartService', () => {
 				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
 				return raw ? (parse(raw) as { readonly input?: unknown }[]).map(composer => fromStoredChatDraft(composer.input)).map(draft => ({ input: draft.inputText, attachments: draft.attachments.map(attachment => attachment.name) })) : [];
 			},
+			/** The attachments of the chat part's composers, as they store them: their resources. */
+			composerAttachments: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly input?: unknown }[]).flatMap(composer => fromStoredChatDraft(composer.input).attachments.map(attachment => URI.isUri(attachment.value) ? attachment.value.toString() : String(attachment.value))) : [];
+			},
+			/** Restores the chat part as the editor window does as it starts: not while the layout hides it. */
+			startWindow: () => restoreAgentsChatPart(instantiationService.get(IWorkbenchLayoutService), instantiationService.get(IContextKeyService), () => service),
 			/** What the chat part's composers aim at, and what was typed in them, as they store them. */
 			composerStates: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
@@ -1029,6 +1037,53 @@ suite('AgentsChatPartService', () => {
 			sent: { reused: { tabs: ['composer'], drafts: ['E'] }, next: ['D', ''] },
 			closed: { reused: { tabs: ['composer'], drafts: ['E'] }, next: ['E', 'D'] },
 		});
+	});
+
+	test('in Single, a kept draft comes back with the first new composer after a reload that starts with the chat part hidden, with its attachments, and only once', async () => {
+		const attachments = [
+			upcastPartial<IChatRequestVariableEntry>({ id: 'drive', name: 'a.ts', kind: 'file', value: URI.from({ scheme: 'file', path: '/c:/Users/me/a.ts' }) }),
+			upcastPartial<IChatRequestVariableEntry>({ id: 'unc', name: 'b.ts', kind: 'file', value: URI.from({ scheme: 'file', authority: 'server', path: '/share/b.ts' }) }),
+		];
+		const run = async (keep: 'closed' | 'parked') => {
+			const composer = createChatWindowComposerResource();
+			const first = createService({
+				chatTabs: SessionsChatTabsMode.Single, visible: true,
+				stored: JSON.stringify({ chats: [composer.toString()], active: 0 }),
+				storedComposers: stringify([{ resource: composer, input: toStoredChatDraft({ inputText: 'D', attachments }) }]),
+			});
+			await first.service.restore();
+			if (keep === 'closed') {
+				// Closing its last chat, the composer, hides the chat part
+				await first.part.activeGroup.closeEditor(first.part.activeGroup.activeEditor!);
+			} else {
+				first.service.parkComposerInput();
+				first.hide();
+			}
+			const hiddenAfterFirst = !first.layout().visible;
+
+			// The window starts again with the chat part hidden: it restores no tabs; New Chat shows it
+			const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: first.save() });
+			await second.startWindow();
+			await second.service.openComposer(undefined, { newComposer: true });
+			const restored = { drafts: second.composerDrafts().map(draft => draft.input), attachments: second.composerAttachments() };
+			await second.service.closeAllChats();
+
+			const third = createService({ chatTabs: SessionsChatTabsMode.Single, stored: second.save() });
+			await third.startWindow();
+			await third.service.openComposer(undefined, { newComposer: true });
+			return { hiddenAfterFirst, restored, afterAnotherReload: third.composerDrafts().map(draft => draft.input) };
+		};
+		const expected = { hiddenAfterFirst: true, restored: { drafts: ['D'], attachments: ['file:///c%3A/Users/me/a.ts', 'file://server/share/b.ts'] }, afterAnotherReload: [''] };
+
+		assert.deepStrictEqual({ closed: await run('closed'), parked: await run('parked') }, { closed: expected, parked: expected });
+	});
+
+	test('in Single, the kept drafts it stored that are no drafts are skipped, and the others come back', async () => {
+		const { service, startWindow, composerDrafts } = createService({ chatTabs: SessionsChatTabsMode.Single, stored: stringify({ chats: [], active: 0, kept: [toStoredChatDraft({ inputText: 'D', attachments: [] }), { bogus: true }, 42] }) });
+		await startWindow();
+		await service.openComposer(undefined, { newComposer: true });
+
+		assert.deepStrictEqual(composerDrafts().map(draft => draft.input), ['D']);
 	});
 
 	test('in Single, a parked draft is stored with the chat part and restored once after a reload, with its attachments', async () => {
