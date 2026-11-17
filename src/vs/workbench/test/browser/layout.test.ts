@@ -387,6 +387,23 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('the auxiliary bar hides Maximize while any claim is held, and tells only as it starts and stops', () => {
+		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+		const events: boolean[] = [];
+		store.add(layout.onDidChangeAuxiliaryBarMaximizeHidden(hidden => events.push(hidden)));
+		const steps: Record<string, unknown> = { initial: layout.isAuxiliaryBarMaximizeHidden() };
+		const first = layout.hideAuxiliaryBarMaximize();
+		steps.claimed = layout.isAuxiliaryBarMaximizeHidden();
+		const second = layout.hideAuxiliaryBarMaximize();
+		first.dispose();
+		first.dispose();
+		steps.oneLeft = layout.isAuxiliaryBarMaximizeHidden();
+		second.dispose();
+		steps.released = layout.isAuxiliaryBarMaximizeHidden();
+		steps.events = events;
+		assert.deepStrictEqual(steps, { initial: false, claimed: true, oneLeft: true, released: false, events: [true, false] });
+	});
+
 	test('hides the chat part with the editor for a maximized panel and shows it again with the editor, as showing the chat part does', () => {
 		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
 		const visible = () => ({ chat: layout.isVisible(Parts.CHAT_PART), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), panel: layout.isVisible(Parts.PANEL_PART) });
