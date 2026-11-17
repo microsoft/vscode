@@ -124,7 +124,7 @@ import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
-import { ChatSubmitRequestCancelled, ChatSubmitRequestResult, IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService, IChatSubmitRequestResult } from '../chatSubmitRequestHandlerService.js';
 import { getChatPetListPadding, IChatPetPlatformOccupation } from './chatPetWidget.js';
 import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
@@ -4116,7 +4116,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const sourceModel = this.viewModel.model;
 			const sourceInput = this.input;
 			const sourceAttachments = this._getAttachmentIds();
-			let preSubmitResult: ChatSubmitRequestResult;
+			let preSubmitResult: IChatSubmitRequestResult;
 			this._preSubmitInFlight = true;
 			try {
 				preSubmitResult = await this.chatSubmitRequestHandlerService.tryHandle({
@@ -4126,16 +4126,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} finally {
 				this._preSubmitInFlight = false;
 			}
-			// A handler may hold the submission: where the widget closed, hid or moved to another chat meanwhile, or the
+			// A handler that held the submission: where the widget closed, hid or moved to another chat meanwhile, or the
 			// draft was edited, it is neither sent nor cleared, so the draft stays as it is with its own chat
-			if (this._store.isDisposed || !this.visible || this.input !== sourceInput || this.viewModel?.model !== sourceModel
-				|| this.getInput() !== inputValue || !equals(this._getAttachmentIds(), sourceAttachments)) {
+			if (preSubmitResult.held && (this._store.isDisposed || !this.visible || this.input !== sourceInput || this.viewModel?.model !== sourceModel
+				|| this.getInput() !== inputValue || !equals(this._getAttachmentIds(), sourceAttachments))) {
 				return;
 			}
-			if (preSubmitResult === ChatSubmitRequestCancelled) {
+			if (preSubmitResult.outcome === ChatSubmitRequestOutcome.Cancelled) {
 				return;
 			}
-			if (preSubmitResult) {
+			if (preSubmitResult.outcome === ChatSubmitRequestOutcome.Handled) {
 				this.setInput('');
 				return;
 			}

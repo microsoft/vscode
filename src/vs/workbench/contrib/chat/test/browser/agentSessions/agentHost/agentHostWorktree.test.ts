@@ -31,12 +31,13 @@ import { IWorkspaceEditingService } from '../../../../../../services/workspaces/
 import { TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { AgentHostWorktreeContribution } from '../../../../browser/agentSessions/agentHost/agentHostWorktree.contribution.js';
+import { AgentHostWorktreeChatResolverService, IAgentHostWorktreeChatResolverService } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeChatResolver.js';
+import { IAgentHostWorktreeLocations } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeLocationsService.js';
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { IChatViewHostService, IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatSessionCommitEvent, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
-import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 
@@ -48,7 +49,7 @@ suite('AgentHostWorktree', () => {
 	const created = URI.file('/work/vscode.worktrees/created');
 
 	/** The feature in a window whose folder is at `at`, recording the moves it asks for, the chats it opens and its experiment triggers. */
-	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error }) {
+	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error; readonly folderForms?: Record<string, string> }) {
 		const worktrees = options.worktrees ?? [worktree, created];
 		const marks: string[] = [];
 		const terminal = upcastPartial<ITerminalInstance>({
@@ -95,13 +96,16 @@ suite('AgentHostWorktree', () => {
 		const onDidChangeSessionLayer = store.add(new Emitter<void>());
 		/** The sessions of the Chat view's list that are archived, by their resource. */
 		const archived = new Set<string>();
-		const sessionSources = store.add(new AgentHostWorktreeSessionSources());
-		store.add(sessionSources.registerSource({
-			getWorkingDirectory: (chat: URI) => { const path = sessionLayerDirectories.get(chat.toString()); return path ? URI.file(path) : undefined; },
-			getWorkingDirectories: () => [...sessionLayerDirectories.values()].map(path => URI.file(path)),
+		// As the session layer registers its resolver: a chat of it works where the layer says
+		const chatResolver = store.add(new AgentHostWorktreeChatResolverService());
+		store.add(chatResolver.registerResolver({
 			onDidChange: onDidChangeSessionLayer.event,
+			resolve: (chat: URI) => {
+				const path = sessionLayerDirectories.get(chat.toString());
+				return chat.scheme === 'ahp-chat' ? { workingDirectory: path ? URI.file(path) : undefined, isArchived: false } : undefined;
+			},
 		}));
-		instantiationService.stub(IAgentHostWorktreeSessionSources, sessionSources);
+		instantiationService.stub(IAgentHostWorktreeChatResolverService, chatResolver);
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
 			getSession: (resource: URI) => {
 				const path = workingDirectories.get(resource.toString());
@@ -170,6 +174,11 @@ suite('AgentHostWorktree', () => {
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
+		// The provider the contribution registers while worktree support is on, which knows the real paths of the window's folders
+		instantiationService.stub(IAgentHostWorktreeLocations, upcastPartial<IAgentHostWorktreeLocations>({
+			id: 'agentHost.sessionWorktrees',
+			getFolderForms: (folder: URI) => options.folderForms?.[folder.path] ? [folder, URI.file(options.folderForms[folder.path])] : [folder],
+		}));
 		const contribution = store.add(instantiationService.createInstance(AgentHostWorktreeContribution));
 
 		const show = (resource: URI, reason: IChatViewHostShownSession['reason'] = 'open') => shownSession.set({ resource, reason }, undefined);
@@ -655,6 +664,20 @@ suite('AgentHostWorktree', () => {
 			opened: ['/work/vscode.worktrees/feature'],
 			moves: ['/work/vscode.worktrees/feature', '/work/vscode', '/work/vscode.worktrees/created (automatic)'],
 		});
+	});
+
+	test('follows a chat working in another form of a folder of the window, such as its real path, to that folder as the window names it', async () => {
+		const chat = (id: string) => URI.from({ scheme: 'ahp-chat', path: `/${id}` });
+		const feature = createWorktree({ enabled: true, at: worktree, folderForms: { '/work/vscode': '/private/work/vscode', '/work/vscode.worktrees/feature': '/private/work/vscode.worktrees/feature' } });
+		feature.sessionLayerDirectories.set(chat('here').toString(), '/private/work/vscode.worktrees/feature');
+		feature.sessionLayerDirectories.set(chat('primary').toString(), '/private/work/vscode');
+		feature.show(chat('here'));
+		await settle();
+		const here = [...feature.moves];
+		feature.show(chat('primary'));
+		await settle();
+
+		assert.deepStrictEqual({ here, moves: feature.moves }, { here: [], moves: ['/work/vscode'] });
 	});
 
 	test('a working directory that changes back to where the folder is while it follows the previous one is followed once that settles', async () => {

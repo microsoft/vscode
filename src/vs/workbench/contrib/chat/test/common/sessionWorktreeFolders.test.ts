@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getSessionWorktreeFolder, getWorktreeFilterOptions } from '../../common/sessionWorktreeFolders.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getSessionWorktreeFolder, getWorktreeFilterOptions, WorktreeLastSessions } from '../../common/sessionWorktreeFolders.js';
 
 suite('getWorktreeFilterOptions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,6 +20,34 @@ suite('getWorktreeFilterOptions', () => {
 		}, {
 			sameParentName: ['repo (one)', 'fix (one/repo.worktrees)', 'repo (two)', 'fix (two/repo.worktrees)'],
 			otherAuthority: ['repo (/work)', 'fix (/work/repo.worktrees)', 'repo (server/work)', 'fix (server/work/repo.worktrees)'],
+		});
+	});
+});
+
+suite('WorktreeLastSessions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('remembers one session per folder and each session at the folder it was last shown in, the most recent folders only, and follows a session that replaces it or is forgotten', () => {
+		const sessions = new WorktreeLastSessions(2);
+		const changes = [
+			sessions.remember('a', 's1'),
+			sessions.remember('a', 's1'),
+			sessions.remember('b', 's1'),
+			sessions.remember('a', 's2'),
+		];
+		const moved = sessions.entries();
+		sessions.remember('c', 's3');
+		const limited = sessions.entries();
+		const replaced = sessions.replace('s3', 's4');
+		const forgotten = sessions.forget('s2');
+
+		assert.deepStrictEqual({ changes, moved, limited, replaced, forgotten, entries: sessions.entries() }, {
+			changes: [true, false, true, true],
+			moved: [['b', 's1'], ['a', 's2']],
+			limited: [['a', 's2'], ['c', 's3']],
+			replaced: true,
+			forgotten: true,
+			entries: [['c', 's4']],
 		});
 	});
 });

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
-import { URI } from '../../../base/common/uri.js';
-import { localize } from '../../../nls.js';
-import { getRepositoryRootFromWorktree } from './worktreePaths.js';
+import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { getRepositoryRootFromWorktree } from '../../../../platform/agentHost/common/worktreePaths.js';
 
 /**
  * Where a session works, as the sessions lists' Worktrees filter sees it: `folder` is a worktree of the git repository at
@@ -114,14 +114,27 @@ export interface IWorktreeFilterSession {
 	readonly time: number;
 }
 
-/** The session last shown of each worktree folder, by its Worktrees filter key: the most recent folders only. */
+/**
+ * The session last shown of each worktree folder, by its Worktrees filter key ({@link getWorktreeFilterKey}): the most recent
+ * folders only, the most recent last. A session is the last one of one folder only, the one it was last shown in.
+ */
 export class WorktreeLastSessions {
 
 	private readonly _sessions = new Map<string, string>();
 
 	constructor(private readonly _limit = 50) { }
 
-	remember(worktree: string, session: string): void {
+	/** Remembers `session` as the last one of `worktree`, and returns whether that changed anything. */
+	remember(worktree: string, session: string): boolean {
+		const latest = [...this._sessions].at(-1);
+		if (latest && latest[0] === worktree && latest[1] === session) {
+			return false;
+		}
+		for (const [known, remembered] of [...this._sessions]) {
+			if (remembered === session) {
+				this._sessions.delete(known);
+			}
+		}
 		this._sessions.delete(worktree);
 		this._sessions.set(worktree, session);
 		for (const oldest of this._sessions.keys()) {
@@ -130,10 +143,40 @@ export class WorktreeLastSessions {
 			}
 			this._sessions.delete(oldest);
 		}
+		return true;
 	}
 
 	get(worktree: string): string | undefined {
 		return this._sessions.get(worktree);
+	}
+
+	/** Remembers `to` where `from` is remembered, such as a session that replaced it; returns whether it was. */
+	replace(from: string, to: string): boolean {
+		let changed = false;
+		for (const [worktree, session] of this._sessions) {
+			if (session === from) {
+				this._sessions.set(worktree, to);
+				changed = true;
+			}
+		}
+		return changed;
+	}
+
+	/** Forgets `session` wherever it is remembered; returns whether it was. */
+	forget(session: string): boolean {
+		let changed = false;
+		for (const [worktree, remembered] of [...this._sessions]) {
+			if (remembered === session) {
+				this._sessions.delete(worktree);
+				changed = true;
+			}
+		}
+		return changed;
+	}
+
+	/** The remembered folders and their sessions, the oldest first. */
+	entries(): readonly (readonly [worktree: string, session: string])[] {
+		return [...this._sessions];
 	}
 }
 

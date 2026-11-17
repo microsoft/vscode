@@ -28,14 +28,13 @@ import { IOnboardingScenarioService } from '../../../../onboarding/common/onboar
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatWidgetService } from '../../chat.js';
-import { ChatSubmitRequestCancelled, ChatSubmitRequestResult, IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestOutcome, IChatSubmitRequest, IChatSubmitRequestHandlerService, IChatSubmitRequestResult } from '../../chatSubmitRequestHandlerService.js';
 import { isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { getWorktreeControl } from './agentHostNewWorktreeToggle.js';
 import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
-import { IAgentHostWorktreeSessionSources } from './agentHostWorktreeSessionSources.js';
 
 export const AGENT_HOST_WORKTREE_SEND_CHOICE_ID = 'chat.agentHost.worktreeSendChoice';
 const AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID = 'chat.agentHost.worktreeSendChoice.control';
@@ -71,18 +70,17 @@ export function isRecentChatInFolder(sessions: readonly IWorktreeSendChoiceSessi
 }
 
 /**
- * `sessions` as {@link isRecentChatInFolder} reads them: where each works as `getWorkingDirectory` says, such as the editor
- * window's session sources, else as its metadata does; and when it was last active, its last request, else, without one,
- * when it was made.
+ * `sessions` as {@link isRecentChatInFolder} reads them: where each works, as its metadata says; and when it was last active,
+ * its last request, else, without one, when it was made.
  */
-export function toWorktreeSendChoiceSessions(sessions: readonly IAgentSession[], getWorkingDirectory?: (resource: URI) => URI | undefined): IWorktreeSendChoiceSession[] {
+export function toWorktreeSendChoiceSessions(sessions: readonly IAgentSession[]): IWorktreeSendChoiceSession[] {
 	return sessions.map(session => {
 		const path = session.metadata?.worktreePath ?? session.metadata?.workingDirectoryPath;
 		return {
 			resource: session.resource,
 			isAgentHost: isLocalAgentHostTarget(session.providerType),
 			isArchived: session.isArchived(),
-			workingDirectory: getWorkingDirectory?.(session.resource) ?? (typeof path === 'string' && path ? URI.file(path) : undefined),
+			workingDirectory: typeof path === 'string' && path ? URI.file(path) : undefined,
 			lastActivity: session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created,
 		};
 	});
@@ -133,7 +131,6 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		@IChatSubmitRequestHandlerService submitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
-		@IAgentHostWorktreeSessionSources private readonly _sessionSources: IAgentHostWorktreeSessionSources,
 		@IAgentHostNewSessionFolderService private readonly _folderService: IAgentHostNewSessionFolderService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
@@ -154,31 +151,34 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 				} catch (error) {
 					onUnexpectedError(error);
 					// Sent as it is only where it still works in the folder; else kept in the input, never sent elsewhere
-					return this._worksInFolder(request.sessionResource) ? false : this._cancel();
+					return this._worksInFolder(request.sessionResource) ? { outcome: ChatSubmitRequestOutcome.Continue, held: true } : this._cancel();
 				}
 			},
 		}));
 	}
 
 	/**
-	 * Returns `false` where the request goes on, and {@link ChatSubmitRequestCancelled} where it stays in the input unsent:
-	 * where it is sent again while held (ChatWidget does not, holding it itself), or where it cannot work where chosen.
+	 * Continues the request, or cancels it so that it stays in the input unsent: where it is sent again while held (ChatWidget
+	 * does not, holding it itself), or where it cannot work where chosen. Once it asks or changes where the chat works, the
+	 * request was held.
 	 */
-	private async _tryHandle(request: IChatSubmitRequest): Promise<ChatSubmitRequestResult> {
+	private async _tryHandle(request: IChatSubmitRequest): Promise<IChatSubmitRequestResult> {
 		const resource = request.sessionResource;
 		if (this._holding.has(resource)) {
 			// The held request goes on once decided; this one is neither sent as well nor cleared
-			return ChatSubmitRequestCancelled;
+			return { outcome: ChatSubmitRequestOutcome.Cancelled };
 		}
-		if (!this._isNewChatInFolder(resource) || !this._hasRecentChatInFolder(resource)) {
-			return false;
+		if (!this._mayBeNewChatInFolder(resource)) {
+			return { outcome: ChatSubmitRequestOutcome.Continue };
+		}
+		// The one reader of where the chat works for this send
+		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
+		if (!this._isNewChatInFolder(resource, choices) || !this._hasRecentChatInFolder(resource) || !choices.canWorkInNewWorktree()) {
+			choices.dispose();
+			return { outcome: ChatSubmitRequestOutcome.Continue };
 		}
 		this._holding.add(resource);
-		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
 		try {
-			if (!choices.canWorkInNewWorktree()) {
-				return false;
-			}
 			const widget = this._chatWidgetService.getWidgetBySessionResource(resource);
 			const control = widget && getWorktreeControl(widget.domNode);
 			const choice = this._rememberedChoice() ?? (control ? await this._askAndRemember(control) : 'folder');
@@ -186,7 +186,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 			if (choice === 'worktree' && this._chatWidgetService.getWidgetBySessionResource(resource) === widget && !await this._applyNewWorktree(choices)) {
 				return this._cancel();
 			}
-			return false;
+			return { outcome: ChatSubmitRequestOutcome.Continue, held: true };
 		} finally {
 			choices.dispose();
 			this._holding.delete(resource);
@@ -232,9 +232,9 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		}
 	}
 
-	private _cancel(): typeof ChatSubmitRequestCancelled {
+	private _cancel(): IChatSubmitRequestResult {
 		this._notificationService.error(localize('agentHost.worktreeSendChoice.notSent', "This chat could not start in a new worktree nor go back to the folder, so its request was not sent. It is still in the chat input."));
-		return ChatSubmitRequestCancelled;
+		return { outcome: ChatSubmitRequestOutcome.Cancelled, held: true };
 	}
 
 	async askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice> {
@@ -284,24 +284,21 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	 * window, that would work in the window's own folder: not in a new worktree, not without a workspace, and not where the
 	 * user chose where it works.
 	 */
-	private _isNewChatInFolder(resource: URI): boolean {
-		if (!/^agent-host-/.test(resource.scheme) || !isUntitledChatSession(resource)
-			|| this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) !== true
-			|| this._environmentService.isSessionsWindow || this._environmentService.remoteAuthority
-			|| this._folderService.isIsolationChosen(resource) || this._folderService.isNoWorkspace(resource) || this._folderService.isNewWorktree(resource)) {
+	private _isNewChatInFolder(resource: URI, choices: AgentHostWorktreeFolderChoices): boolean {
+		if (!this._mayBeNewChatInFolder(resource) || !choices.isActive() || choices.isNewWorktreeSelected()) {
 			return false;
-		}
-		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
-		try {
-			if (!choices.isActive() || choices.isNewWorktreeSelected()) {
-				return false;
-			}
-		} finally {
-			choices.dispose();
 		}
 		const primary = this._primaryFolder();
 		const folder = this._folderService.getFolder(resource) ?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 		return !!primary && !!folder && extUriBiasedIgnorePathCase.isEqual(folder, primary);
+	}
+
+	/** What {@link _isNewChatInFolder} tells without reading where the chat works. */
+	private _mayBeNewChatInFolder(resource: URI): boolean {
+		return isLocalAgentHostTarget(resource.scheme) && isUntitledChatSession(resource)
+			&& this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) === true
+			&& !this._environmentService.isSessionsWindow && !this._environmentService.remoteAuthority
+			&& !this._folderService.isIsolationChosen(resource) && !this._folderService.isNoWorkspace(resource) && !this._folderService.isNewWorktree(resource);
 	}
 
 	private _hasRecentChatInFolder(draft: URI): boolean {
@@ -310,7 +307,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	}
 
 	isRecentChatInFolder(folder: URI, draft: URI): boolean {
-		const sessions = toWorktreeSendChoiceSessions(this._agentSessionsService.model.sessions, resource => this._sessionSources.getWorkingDirectory(resource));
+		const sessions = toWorktreeSendChoiceSessions(this._agentSessionsService.model.sessions);
 		return isRecentChatInFolder(sessions, folder, draft, this._now());
 	}
 

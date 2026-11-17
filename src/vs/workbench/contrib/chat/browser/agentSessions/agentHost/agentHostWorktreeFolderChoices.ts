@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
@@ -25,9 +24,7 @@ import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../..
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IAgentSessionsService } from '../agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
-import { IAgentHostWorktreeSessionSources } from './agentHostWorktreeSessionSources.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
@@ -59,7 +56,8 @@ export const IAgentHostWorktreeLocationsCache = createDecorator<IAgentHostWorktr
 
 /**
  * The worktrees of the window's folder, read once for all the chat inputs and folder chips of the window that ask for them:
- * at the first ask, then again only as they may have changed, such as as a session comes to work in a new worktree.
+ * at the first ask, then again as the folder location service tells they changed, such as as a session comes to work in a
+ * new worktree.
  */
 export interface IAgentHostWorktreeLocationsCache {
 	readonly _serviceBrand: undefined;
@@ -75,6 +73,7 @@ export interface IAgentHostWorktreeLocationsCache {
 	refresh(): void;
 }
 
+/** A synchronous read cache of the location service's locations, fed only from that service, not a second source of them. */
 export class AgentHostWorktreeLocationsCache extends Disposable implements IAgentHostWorktreeLocationsCache {
 
 	declare readonly _serviceBrand: undefined;
@@ -93,8 +92,6 @@ export class AgentHostWorktreeLocationsCache extends Disposable implements IAgen
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
-		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
-		@IAgentHostWorktreeSessionSources sessionSources: IAgentHostWorktreeSessionSources,
 	) {
 		super();
 		const refreshIfAsked = () => {
@@ -109,13 +106,8 @@ export class AgentHostWorktreeLocationsCache extends Disposable implements IAgen
 				refreshIfAsked();
 			}
 		}));
-		// A session can come to work in a new worktree meanwhile, such as one in the background: once for many changes
-		const refreshForSessions = this._register(new RunOnceScheduler(refreshIfAsked, 500));
-		this._register(Event.any(agentSessionsService.model.onDidChangeSessions, sessionSources.onDidChange)(() => {
-			if (this._asked && this.isActive()) {
-				refreshForSessions.schedule();
-			}
-		}));
+		// As its provider tells the worktrees changed, such as as a session comes to work in a new one
+		this._register(_folderLocationService.onDidChangeLocations(refreshIfAsked));
 	}
 
 	isActive(): boolean {

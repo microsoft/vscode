@@ -49,7 +49,7 @@ import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../.
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentChangeEvent } from '../../../browser/attachments/chatAttachmentModel.js';
-import { ChatSubmitRequestCancelled, IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService, IChatSubmitRequestResult } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -2706,7 +2706,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		chatService.sendRequest.resolves(sent);
 		const chatSubmitRequestHandlerService = mockObject<IChatSubmitRequestHandlerService>()();
 		const customizationHarnessService = mockObject<ICustomizationHarnessService>()();
-		chatSubmitRequestHandlerService.tryHandle.resolves(false);
+		chatSubmitRequestHandlerService.tryHandle.resolves({ outcome: ChatSubmitRequestOutcome.Continue });
 		const chatAttachmentResolveService = mockObject<IChatAttachmentResolveService>()();
 		chatAttachmentResolveService.resolveDirectoryImages.resolves([]);
 		const parser = upcastPartial<ChatRequestParser>({
@@ -2962,7 +2962,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		for (const handled of [false, true]) {
 			test(`a submission a submit handler holds is neither sent nor cleared after its ${change} changes (${handled ? 'handled' : 'not handled'})`, async () => {
 				const fixture = createSubmissionWidget();
-				const held = new DeferredPromise<boolean>();
+				const held = new DeferredPromise<IChatSubmitRequestResult>();
 				fixture.chatSubmitRequestHandlerService.tryHandle.returns(held.p);
 				const sending = fixture.widget.acceptInput();
 				await timeout(0);
@@ -2987,7 +2987,7 @@ suite('ChatWidget - acceptInput submission', () => {
 						fixture.attachments.add({ kind: 'file', id: 'added-while-held', name: 'file.ts', value: URI.file('/workspace/file.ts') });
 						break;
 				}
-				await held.complete(handled);
+				await held.complete({ outcome: handled ? ChatSubmitRequestOutcome.Handled : ChatSubmitRequestOutcome.Continue, held: true });
 				await sending;
 
 				assert.deepStrictEqual({
@@ -3002,13 +3002,13 @@ suite('ChatWidget - acceptInput submission', () => {
 
 	test('a submission while a submit handler holds another is not sent, and the held one is sent once', async () => {
 		const fixture = createSubmissionWidget();
-		const held = new DeferredPromise<boolean>();
+		const held = new DeferredPromise<IChatSubmitRequestResult>();
 		fixture.chatSubmitRequestHandlerService.tryHandle.returns(held.p);
 		const first = fixture.widget.acceptInput();
 		await timeout(0);
 		await fixture.widget.acceptInput();
 		const whileHeld = { asked: fixture.chatSubmitRequestHandlerService.tryHandle.callCount, requests: fixture.chatService.sendRequest.callCount, inputCleared: fixture.input.setValue.callCount };
-		await held.complete(false);
+		await held.complete({ outcome: ChatSubmitRequestOutcome.Continue, held: true });
 		await first;
 
 		assert.deepStrictEqual({ whileHeld, requests: fixture.chatService.sendRequest.callCount }, { whileHeld: { asked: 1, requests: 0, inputCleared: 0 }, requests: 1 });
@@ -3016,16 +3016,16 @@ suite('ChatWidget - acceptInput submission', () => {
 
 	test('text edited and submitted again while a submit handler holds the draft is kept, and sent once when submitted after', async () => {
 		const fixture = createSubmissionWidget();
-		const held = new DeferredPromise<boolean>();
+		const held = new DeferredPromise<IChatSubmitRequestResult>();
 		fixture.chatSubmitRequestHandlerService.tryHandle.returns(held.p);
 		const first = fixture.widget.acceptInput();
 		await timeout(0);
 		fixture.parsedInput.text = 'Edited while held';
 		await fixture.widget.acceptInput();
-		await held.complete(false);
+		await held.complete({ outcome: ChatSubmitRequestOutcome.Continue, held: true });
 		await first;
 		const afterHold = { requests: fixture.chatService.sendRequest.callCount, inputCleared: fixture.input.setValue.callCount };
-		fixture.chatSubmitRequestHandlerService.tryHandle.resolves(false);
+		fixture.chatSubmitRequestHandlerService.tryHandle.resolves({ outcome: ChatSubmitRequestOutcome.Continue });
 		await fixture.widget.acceptInput();
 
 		assert.deepStrictEqual({ afterHold, sent: fixture.chatService.sendRequest.getCalls().map(call => call.args[1]) }, { afterHold: { requests: 0, inputCleared: 0 }, sent: ['Edited while held'] });
@@ -3033,10 +3033,23 @@ suite('ChatWidget - acceptInput submission', () => {
 
 	test('a submission a submit handler cancels is neither sent nor cleared', async () => {
 		const fixture = createSubmissionWidget();
-		fixture.chatSubmitRequestHandlerService.tryHandle.resolves(ChatSubmitRequestCancelled);
+		fixture.chatSubmitRequestHandlerService.tryHandle.resolves({ outcome: ChatSubmitRequestOutcome.Cancelled });
 		await fixture.widget.acceptInput();
 
 		assert.deepStrictEqual({ requests: fixture.chatService.sendRequest.callCount, inputCleared: fixture.input.setValue.callCount }, { requests: 0, inputCleared: 0 });
+	});
+
+	test('a submission a submit handler answers without holding it is sent as it answers, without checking what changed meanwhile', async () => {
+		const fixture = createSubmissionWidget();
+		const answer = new DeferredPromise<IChatSubmitRequestResult>();
+		fixture.chatSubmitRequestHandlerService.tryHandle.returns(answer.p);
+		const sending = fixture.widget.acceptInput();
+		await timeout(0);
+		fixture.attachments.add({ kind: 'file', id: 'added-meanwhile', name: 'file.ts', value: URI.file('/workspace/file.ts') });
+		await answer.complete({ outcome: ChatSubmitRequestOutcome.Continue });
+		await sending;
+
+		assert.deepStrictEqual({ requests: fixture.chatService.sendRequest.callCount }, { requests: 1 });
 	});
 
 	for (const changeModel of [true, false]) {

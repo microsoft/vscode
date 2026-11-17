@@ -11,7 +11,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { getWorktreeFilterKey } from '../../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
+import { getWorktreeFilterKey } from '../../../common/sessionWorktreeFolders.js';
 import { AgentSessionsWorktreeOpener } from '../../../browser/agentSessions/agentSessionsWorktreeOpener.js';
 import { IChatViewHostService, IChatViewHostShownSession } from '../../../browser/chatViewHost.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';

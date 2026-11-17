@@ -35,11 +35,10 @@ import { registerWorktreeControl } from '../../../../browser/agentSessions/agent
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeFolderChoices, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
 import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, IAgentHostWorktreeSendChoiceService, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
-import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
-import { ChatSubmitRequestCancelled, ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../browser/chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestHandlerService, ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService } from '../../../../browser/chatSubmitRequestHandlerService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -119,7 +118,6 @@ suite('Agent host Work in Parallel choice on send', () => {
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
 			model: upcastPartial<IAgentSessionsService['model']>({ sessions: earlier ? [earlier] : [] }),
 		}));
-		instantiationService.stub(IAgentHostWorktreeSessionSources, disposables.add(new AgentHostWorktreeSessionSources()));
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		const warnings: string[] = [];
 		const errorMessages: string[] = [];
@@ -193,9 +191,9 @@ suite('Agent host Work in Parallel choice on send', () => {
 		/** Sends the first request of `draft`, as ChatWidget does through its submit handlers. */
 		const send = async (draft: URI) => {
 			const result = await submit.tryHandle({ sessionResource: draft, input: 'hello' });
-			if (result === ChatSubmitRequestCancelled) {
+			if (result.outcome === ChatSubmitRequestOutcome.Cancelled) {
 				kept.push(draft);
-			} else if (!result) {
+			} else if (result.outcome === ChatSubmitRequestOutcome.Continue) {
 				sent.push(isolations.get(draft.toString()) ?? 'folder');
 			}
 		};
@@ -248,7 +246,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		});
 	});
 
-	test('reads agent sessions as the predicate does: where they work, by the given lookup else their metadata, and their last activity', () => {
+	test('reads agent sessions as the predicate does: where they work, by their metadata, and their last activity', () => {
 		const at = (path: string, overrides: Partial<IAgentSession> = {}) => upcastPartial<IAgentSession>({
 			resource: URI.from({ scheme: SessionType.AgentHostCopilot, path }), providerType: SessionType.AgentHostCopilot, isArchived: () => false,
 			metadata: { worktreePath: '/work/vscode.worktrees/feature', workingDirectoryPath: '/work/vscode' },
@@ -258,9 +256,8 @@ suite('Agent host Work in Parallel choice on send', () => {
 			at('/ended'),
 			at('/started', { metadata: { workingDirectoryPath: '/work/vscode' }, timing: { created: 1, lastRequestStarted: 2, lastRequestEnded: undefined } }),
 			at('/new', { providerType: 'local', isArchived: () => true, metadata: undefined, timing: { created: 1, lastRequestStarted: undefined, lastRequestEnded: undefined } }),
-			at('/fromSource'),
 		];
-		const read = toWorktreeSendChoiceSessions(sessions, resource => resource.path === '/fromSource' ? primary : undefined)
+		const read = toWorktreeSendChoiceSessions(sessions)
 			.map(session => ({ path: session.resource.path, isAgentHost: session.isAgentHost, isArchived: session.isArchived, workingDirectory: session.workingDirectory?.path, lastActivity: session.lastActivity }));
 
 		assert.deepStrictEqual(read, [
@@ -268,7 +265,6 @@ suite('Agent host Work in Parallel choice on send', () => {
 			{ path: '/ended', isAgentHost: true, isArchived: false, workingDirectory: '/work/vscode.worktrees/feature', lastActivity: 3 },
 			{ path: '/started', isAgentHost: true, isArchived: false, workingDirectory: '/work/vscode', lastActivity: 2 },
 			{ path: '/new', isAgentHost: false, isArchived: true, workingDirectory: undefined, lastActivity: 1 },
-			{ path: '/fromSource', isAgentHost: true, isArchived: false, workingDirectory: '/work/vscode', lastActivity: 3 },
 		]);
 	});
 

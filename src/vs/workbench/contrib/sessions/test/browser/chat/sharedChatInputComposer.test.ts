@@ -44,7 +44,7 @@ import { IChatService } from '../../../../chat/common/chatService/chatService.js
 import { ComposerInputSnapshot, IComposerInputSnapshot, IComposerSendAttempt, readNewChatDraftState } from '../../../common/newChatDraftState.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
-import { ChatSubmitRequestCancelled, ChatSubmitRequestResult } from '../../../../chat/browser/chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestOutcome, IChatSubmitRequestResult } from '../../../../chat/browser/chatSubmitRequestHandlerService.js';
 
 suite('SharedChatInputComposer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,7 +52,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { submitOverride?: INewChatComposerInputOptions['submitOverride']; shouldPersistInput?: () => boolean; sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; getSavedDraftId?: () => string | undefined; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<ChatSubmitRequestResult>; session?: IObservable<{ resource: URI; providerId: string; sessionId: string } | undefined> } = {}) {
+	function createComposer(options: { submitOverride?: INewChatComposerInputOptions['submitOverride']; shouldPersistInput?: () => boolean; sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; getSavedDraftId?: () => string | undefined; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean | IChatSubmitRequestResult>; session?: IObservable<{ resource: URI; providerId: string; sessionId: string } | undefined> } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -157,7 +157,8 @@ suite('SharedChatInputComposer', () => {
 			logService: new NullLogService(),
 			notificationService: { error: (message: string | Error) => { errors.push(String(message)); }, warn: (message: string) => { warnings.push(message); } },
 			chatSlashCommandService: slashCommands,
-			chatSubmitRequestHandlerService: { tryHandle: (request: { input: string }) => options.tryHandle?.(request.input) ?? Promise.resolve(false) },
+			// As the service answers for its handlers: a handler's `true` handled the request, its `false` went on
+			chatSubmitRequestHandlerService: { tryHandle: async (request: { input: string }) => { const answer = await options.tryHandle?.(request.input) ?? false; return typeof answer === 'boolean' ? { outcome: answer ? ChatSubmitRequestOutcome.Handled : ChatSubmitRequestOutcome.Continue } : answer; } },
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
 		return { composer, widget, executeToolbarElement, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, warnings, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
@@ -815,7 +816,7 @@ suite('SharedChatInputComposer', () => {
 	});
 
 	test('a request a submit handler cancels is neither sent nor cleared, and keeps its input', async () => {
-		const { composer, state } = createComposer({ tryHandle: async () => ChatSubmitRequestCancelled });
+		const { composer, state } = createComposer({ tryHandle: async () => ({ outcome: ChatSubmitRequestOutcome.Cancelled }) });
 		const sent = await composer.submit();
 		assert.deepStrictEqual({ sent, requests: state().requests, input: state().input }, {
 			sent: false,

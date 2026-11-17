@@ -1395,32 +1395,6 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('offers Worktree grouping, and Show while grouping by worktree, only outside the Agents window', () => {
-		const { snapshot, contextKeyService, grouping } = createMenu();
-		const state = () => ({
-			grouping: snapshot(Menus.SessionsViewGrouping).map(item => item.title),
-			show: snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Show'),
-			showEntries: snapshot(Menus.SessionsViewShow).map(item => item.title),
-		});
-		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
-		grouping.set(SessionsGrouping.Worktree);
-		// The Agents window offers no Worktree grouping, also if a grouping of worktree were set
-		sessionsWindow.set(true);
-		const agentsWindow = state();
-		sessionsWindow.set(false);
-		grouping.set(SessionsGrouping.Workspace);
-		const editorWindow = snapshot(Menus.SessionsViewGrouping).map(item => item.title);
-		grouping.set(SessionsGrouping.Worktree);
-		const byWorktree = state();
-
-		assert.deepStrictEqual({ refused, superseded, opened, failed: { opened: menu.opened.length - opened.length, errors: errors.map(error => (error as Error).message) } }, {
-			refused: { asked: ['first'], opened: [], shown: 'main' },
-			superseded: [],
-			opened: ['first'],
-			failed: { opened: 0, errors: ['trust failed'] },
-		});
-	});
-
 	test('offers no Worktrees filter in the Agents window, where a folder selected in an editor window selects nothing', () => {
 		const inFolder = (id: string, path: string): ISession => {
 			const root = URI.file(path);

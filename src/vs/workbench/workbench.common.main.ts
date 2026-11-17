@@ -246,6 +246,7 @@ import './contrib/sessions/providers/agentsView/browser/agentsViewProviders.cont
 // Worktree support of the editor window, not of the Agents window or its mobile package
 import './contrib/chat/browser/agentSessions/agentHost/agentHostWorktree.contribution.js';
 import './contrib/sessions/browser/agentsView/agentHostWorktreeComposerFolders.js';
+import './contrib/sessions/browser/agentsView/agentHostWorktreeChatResolver.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 

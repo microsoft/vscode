@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { getWorktreeFilterKey, getWorktreeSessionToOpen, IWorktreeFilterSession, WorktreeLastSessions } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
+import { getWorktreeFilterKey, getWorktreeSessionToOpen, IWorktreeFilterSession, WorktreeLastSessions } from '../../common/sessionWorktreeFolders.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatViewHostService } from '../chatViewHost.js';
 import { getAgentSessionWorktreeFolder } from './agentSessionsFilter.js';

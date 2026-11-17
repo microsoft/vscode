@@ -481,6 +481,7 @@ export class SessionsView extends ViewPane {
 		));
 		// In the view's context, so that its keys, such as `inSessionsView`, apply in the list, also where a host embeds the view
 		const listInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		const inSessionsWindow = this.scopedContextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true;
 		const sessionsControl = this.sessionsControl = this._register(listInstantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			pendingSections: derived(this, reader => {
 				const claimedDraftIds = this.scheduledChatsService.claimedDraftIds.read(reader);
@@ -524,9 +525,9 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
-			offersWorktreeFilter: this.allowWorktreeGrouping,
+			offersWorktreeFilter: !inSessionsWindow,
 			// An editor window shows no chats without a workspace while it has a folder
-			listsQuickChats: listsQuickChatsIn(!this.allowWorktreeGrouping, this.workspaceContextService),
+			listsQuickChats: listsQuickChatsIn(inSessionsWindow, this.workspaceContextService),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {

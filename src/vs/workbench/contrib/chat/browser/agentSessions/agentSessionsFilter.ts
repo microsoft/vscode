@@ -9,7 +9,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { registerAction2, Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, ISessionWorktreeFolder, IWorktreeFilterOption } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
+import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, ISessionWorktreeFolder, IWorktreeFilterOption } from '../../common/sessionWorktreeFolders.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';

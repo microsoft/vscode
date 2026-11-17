@@ -37,7 +37,7 @@ const localAgentHostWhen = ContextKeyExpr.and(
 	RemoteNameContext.isEqualTo(''),
 	IsSessionsWindowContext.negate(),
 	// Not while New Chat opens in the chat area (`ChatPartEnabledContext`, #348358), which cannot start a chat in a
-	// worktree yet
+	// worktree yet. TODO@sandy081 use `ChatPartEnabledContext` by reference once it is available to contrib/chat (#348358)
 	ContextKeyExpr.not('chatPartEnabled'),
 );
 

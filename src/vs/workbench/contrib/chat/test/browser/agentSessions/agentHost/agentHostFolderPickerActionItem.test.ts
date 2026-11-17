@@ -35,7 +35,6 @@ import { IAgentHostCustomizationService } from '../../../../browser/agentSession
 import { AgentHostFolderPickerActionItem, FOLDER_PICKER_LIST_CLASS } from '../../../../browser/agentSessions/agentHost/agentHostFolderPickerActionItem.js';
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { AgentHostWorktreeLocationsCache, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -67,6 +66,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			onDidChangeProviders: Event.None,
 			onDidChangeLocation: Event.None,
+			onDidChangeLocations: Event.None,
 			canSetLocation: () => true,
 			getLocations: async () => [] as IFolderLocation[],
 			getLocation: () => undefined,
@@ -75,7 +75,6 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => folder, isNoWorkspace: () => false, getDefaultFolder: () => undefined }));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
-		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({ onDidChangeCustomizations: Event.None, getClientWorkingDirectoryUris: () => [] }));
 		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({ getRepository: () => undefined }));
@@ -150,6 +149,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			onDidChangeProviders: Event.None,
 			onDidChangeLocation: Event.None,
+			onDidChangeLocations: Event.None,
 			canSetLocation: () => true,
 			getLocations: async () => [] as IFolderLocation[],
 			getLocation: () => undefined,
@@ -158,7 +158,6 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: onDidChangeFolder.event, getFolder: () => noWorkspace || started ? undefined : selected, isNoWorkspace: () => noWorkspace, getDefaultFolder: () => undefined }));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
-		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
 		// A started session, such as a restored one, which works in the scratch folder the agent host created for it if it has no workspace
 		const scratch = URI.file('/home/.copilot/chats/3e215af6-5a8e-4060-b25e-0d2f1c9a7b41');
@@ -399,6 +398,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			onDidChangeProviders: Event.None,
 			onDidChangeLocation: Event.None,
+			onDidChangeLocations: Event.None,
 			canSetLocation: () => true,
 			getLocations: async () => [] as IFolderLocation[],
 			getLocation: () => undefined,
@@ -413,7 +413,6 @@ suite('AgentHostFolderPickerActionItem', () => {
 			getPreparedSessionConfig: () => undefined,
 		}));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
-		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({
 			onDidChangeCustomizations: onDidChangeCustomizations.event,

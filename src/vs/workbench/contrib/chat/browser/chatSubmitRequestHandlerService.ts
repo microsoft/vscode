@@ -17,27 +17,37 @@ export interface IChatSubmitRequest {
 	readonly input: string;
 }
 
-/**
- * A handler's answer to a submission: `true` where it handled it, so it is not sent and the input is cleared; `false` where
- * the normal send goes on; {@link ChatSubmitRequestCancelled} where it is neither sent nor cleared, the input kept as it is.
- * A caller that reads only truthiness treats a cancelled submission as handled.
- */
-export type ChatSubmitRequestResult = boolean | typeof ChatSubmitRequestCancelled;
+/** What becomes of a submission that the handlers were offered. */
+export enum ChatSubmitRequestOutcome {
+	/** The normal send goes on. */
+	Continue = 'continue',
+	/** A handler handled it: it is not sent, and the input is cleared. */
+	Handled = 'handled',
+	/** A handler stopped it: it is neither sent nor cleared, the input kept as it is. */
+	Cancelled = 'cancelled',
+}
 
-/** A submission that a handler stopped: it is not sent, and the input keeps it. */
-export const ChatSubmitRequestCancelled = 'cancelled';
+/** The handlers' answer to a submission. */
+export interface IChatSubmitRequestResult {
+	readonly outcome: ChatSubmitRequestOutcome;
+	/**
+	 * Whether a handler held the submission while it waited on something else, such as the user's answer: the chat, its
+	 * input or the draft may have changed meanwhile, which the caller checks before it acts on the outcome.
+	 */
+	readonly held?: boolean;
+}
 
-/** Handler offered a chat input submission before the normal send path. */
+/** Handler offered a chat input submission before the normal send path: `true` where it handled it, `false` where the send goes on. */
 export interface IChatSubmitRequestHandler {
 	readonly id: string;
-	tryHandle(request: IChatSubmitRequest): Promise<ChatSubmitRequestResult>;
+	tryHandle(request: IChatSubmitRequest): Promise<boolean | IChatSubmitRequestResult>;
 }
 
 /** Registry for provider-specific pre-submit chat handlers. */
 export interface IChatSubmitRequestHandlerService {
 	readonly _serviceBrand: undefined;
 	register(handler: IChatSubmitRequestHandler): IDisposable;
-	tryHandle(request: IChatSubmitRequest): Promise<ChatSubmitRequestResult>;
+	tryHandle(request: IChatSubmitRequest): Promise<IChatSubmitRequestResult>;
 }
 
 /** Default sequential first-match implementation of the submit handler registry. */
@@ -57,13 +67,16 @@ export class ChatSubmitRequestHandlerService implements IChatSubmitRequestHandle
 		});
 	}
 
-	async tryHandle(request: IChatSubmitRequest): Promise<ChatSubmitRequestResult> {
+	async tryHandle(request: IChatSubmitRequest): Promise<IChatSubmitRequestResult> {
+		let held = false;
 		for (const handler of this._handlers) {
-			const result = await handler.tryHandle(request);
-			if (result) {
-				return result;
+			const answer = await handler.tryHandle(request);
+			const result = typeof answer === 'boolean' ? { outcome: answer ? ChatSubmitRequestOutcome.Handled : ChatSubmitRequestOutcome.Continue } : answer;
+			held ||= !!result.held;
+			if (result.outcome !== ChatSubmitRequestOutcome.Continue) {
+				return { outcome: result.outcome, held };
 			}
 		}
-		return false;
+		return { outcome: ChatSubmitRequestOutcome.Continue, held };
 	}
 }
