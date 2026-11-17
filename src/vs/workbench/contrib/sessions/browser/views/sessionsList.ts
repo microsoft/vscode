@@ -4776,6 +4776,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private refreshPending = false;
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly inboxObserver = this._register(new MutableDisposable());
+	/** Inbox placements computed by {@link inboxObserver}, reused while building the tree. */
+	private inboxPlacements: ReadonlyMap<string, IInboxPlacement> | undefined;
 	private readonly inboxDemand = this._register(new MutableDisposable());
 	private readonly sessionChatsUpdate = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
@@ -6030,18 +6032,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const sorting = this.options.sorting();
 		this.updateInboxDemand();
 		this.inboxObserver.clear();
+		this.inboxPlacements = undefined;
 		if (inbox && this.visible) {
-			let initial = true;
+			let rendered: ReadonlyMap<string, IInboxPlacement> | undefined;
 			this.inboxObserver.value = autorun(reader => {
 				const attention = this.sessionAttentionService.sessionAttention.read(reader);
+				const placements = new Map<string, IInboxPlacement>();
 				for (const session of filtered) {
-					session.updatedAt.read(reader);
-					getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, attention.get(session.sessionId));
+					const sessionAttention = attention.get(session.sessionId);
+					placements.set(session.sessionId, {
+						section: getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, sessionAttention),
+						priority: getSessionInboxPriority(session, sessionAttention, reader),
+						updatedAt: session.updatedAt.read(reader).getTime(),
+					});
 				}
-				if (!initial) {
+				this.inboxPlacements = placements;
+				// Attention is one map that changes whenever any session's notifications do;
+				// rebuild the tree only when a rendered placement or order actually moved.
+				if (rendered && !inboxPlacementsEqual(rendered, placements)) {
 					this.scheduleListUpdate();
 				}
-				initial = false;
+				rendered ??= placements;
 			});
 		}
 		const sortKeyForGrouping = (s: ISession, srt: SessionsSorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt));
@@ -7305,6 +7316,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		} else {
 			this.inboxObserver.clear();
+			this.inboxPlacements = undefined;
 			this.inboxAutoAdvanceSpotlight.clear();
 		}
 	}
@@ -8858,8 +8870,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	/** Whether {@link onContextMenu} shows a menu of `element`'s own. */
+	private hasItemContextMenu(element: SessionListItem): boolean {
+		if (isSessionShowMore(element) || isSessionPlaceholder(element)) {
+			return false;
+		}
+		if (isSessionSection(element)) {
+			return element.id === AUTOMATIONS_SECTION_ID || !!element.pinnedCanvas || !(isShortcutSection(element.id) || element.pendingItems);
+		}
+		return true;
+	}
+
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
+		// The menu of an item is the list's own: a host that shows its own context menu, such as the view the list is in, does not
+		// show it over the item's. Empty space and rows without a menu leave it to the host.
+		if (element && this.hasItemContextMenu(element)) {
+			DOM.EventHelper.stop(e.browserEvent, true);
+		}
 		if (element && isPendingSessionItem(element)) {
 			this.showPendingSessionContextMenu(element, e.anchor);
 			return;
@@ -9380,7 +9408,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private getInboxSection(session: ISession, reader?: IReader): SessionInboxSection {
-		return getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, this.sessionAttentionService.sessionAttention.read(reader).get(session.sessionId));
+		const placement = reader ? undefined : this.inboxPlacements?.get(session.sessionId);
+		return placement?.section ?? getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, this.sessionAttentionService.sessionAttention.read(reader).get(session.sessionId));
 	}
 
 	private canAcknowledgeInboxSession(session: ISession, reader?: IReader): boolean {
@@ -9490,7 +9519,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private getInboxPriority(session: ISession): InboxNotificationPriority {
-		return getSessionInboxPriority(session, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
+		return this.inboxPlacements?.get(session.sessionId)?.priority
+			?? getSessionInboxPriority(session, this.sessionAttentionService.sessionAttention.get().get(session.sessionId));
 	}
 
 	isRenderedInCustomGroup(session: ISession): boolean {
@@ -10532,11 +10562,7 @@ export function groupSessionsForList(
 	}
 
 	sections.push(...(grouping === SessionsGrouping.Inbox
-		? sessionInboxSections.map(id => ({
-			id,
-			label: getSessionInboxSectionLabel(id),
-			sessions: sortSessions(regular.filter(session => getInboxSection(session) === id), sorting).sort((a, b) => getInboxPriority(a) - getInboxPriority(b)),
-		}))
+		? groupByInboxSection(regular, sorting, getInboxSection, getInboxPriority)
 		: grouping === SessionsGrouping.Workspace
 			? groupByWorkspace(regular)
 			: grouping === SessionsGrouping.Repository
@@ -10556,6 +10582,44 @@ export function groupSessionsForList(
 	}
 
 	return sections;
+}
+
+/** Buckets sessions into the Inbox sections the list renders, classifying each session once. */
+function groupByInboxSection(sessions: ISession[], sorting: SessionsSorting, getInboxSection: (session: ISession) => SessionInboxSection, getInboxPriority: (session: ISession) => InboxNotificationPriority): ISessionSection[] {
+	const buckets = new Map<SessionInboxSection, ISession[]>(sessionInboxSections.map(id => [id, []]));
+	const priorities = new Map<ISession, InboxNotificationPriority>();
+	for (const session of sessions) {
+		const bucket = buckets.get(getInboxSection(session));
+		if (bucket) {
+			bucket.push(session);
+			priorities.set(session, getInboxPriority(session));
+		}
+	}
+	return sessionInboxSections.map(id => ({
+		id,
+		label: getSessionInboxSectionLabel(id),
+		sessions: sortSessions(buckets.get(id)!, sorting).sort((a, b) => priorities.get(a)! - priorities.get(b)!),
+	}));
+}
+
+/** Where a session renders in Inbox mode, plus the inputs that decide its order there. */
+interface IInboxPlacement {
+	readonly section: SessionInboxSection;
+	readonly priority: InboxNotificationPriority;
+	readonly updatedAt: number;
+}
+
+function inboxPlacementsEqual(a: ReadonlyMap<string, IInboxPlacement>, b: ReadonlyMap<string, IInboxPlacement>): boolean {
+	if (a.size !== b.size) {
+		return false;
+	}
+	for (const [id, placement] of a) {
+		const other = b.get(id);
+		if (!other || other.section !== placement.section || other.priority !== placement.priority || other.updatedAt !== placement.updatedAt) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function getSessionInboxSectionLabel(section: typeof sessionInboxSections[number]): string {

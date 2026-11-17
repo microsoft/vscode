@@ -195,8 +195,10 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		try {
 			const { session, outcome } = await this.login(attempt);
 			this.assertCurrent(attempt);
-			const choice = outcome.kind === 'ready' ? outcome.choice : outcome.choices.find(offered => sameServiceAccount(offered, context.choice));
-			if (!choice || !sameServiceAccount(choice, context.choice)) {
+			// TODO: Compare the account name again once github/copilot-agent-runtime#35781 gives a Microsoft 365 account a stable one. The runtime names it per sign-in, so only its service can match; the attempt already pins the Entra account by ID.
+			const isSelected = (offered: ICopilotServiceChoice) => context.choice.service === 'm365' ? sameService(offered, context.choice) : sameServiceAccount(offered, context.choice);
+			const choice = outcome.kind === 'ready' ? outcome.choice : outcome.choices.find(isSelected);
+			if (!choice || !isSelected(choice)) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The selected Copilot service is no longer available.');
 			}
 			if (outcome.kind === 'choiceRequired') {
