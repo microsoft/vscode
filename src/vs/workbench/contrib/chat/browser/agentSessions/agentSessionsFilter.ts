@@ -8,6 +8,8 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -78,6 +80,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -90,6 +93,13 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	private registerListeners(): void {
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => this.updateFilterActions()));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+				this.updateFilterActions();
+				// Let the sessions list re-render its archived section label.
+				this._onDidChange.fire();
+			}
+		}));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
 	}
@@ -301,11 +311,12 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private registerArchivedActions(disposables: DisposableStore, menuId: MenuId): void {
 		const that = this;
+		const title = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
 		disposables.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `agentSessions.filter.toggleExcludeArchived.${menuId.id.toLowerCase()}`,
-					title: localize('agentSessions.filter.archived', 'Archived'),
+					title,
 					menu: {
 						id: menuId,
 						group: '3_props',

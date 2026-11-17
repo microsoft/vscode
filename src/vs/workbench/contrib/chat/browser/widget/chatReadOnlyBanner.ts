@@ -9,7 +9,8 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { localize } from '../../../../../nls.js';
+import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording, getChatSessionArchivedReadOnlyMessage } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
@@ -27,11 +28,14 @@ export class ChatReadOnlyBanner extends Disposable {
 	private readonly hover = this._register(new MutableDisposable<IDisposable>());
 	private action: { label: string; tooltip?: string; run(): Promise<void> } | undefined;
 	private runningAction: typeof this.action;
+	/** Whether the banner shows its default message rather than one a caller set. */
+	private showsDefaultMessage = true;
 
 	constructor(
-		private readonly defaultMessage: string = localize('chatReadOnlyBanner.archivedMessage', "Archived sessions are read-only."),
+		private readonly defaultMessage: string | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -53,13 +57,21 @@ export class ChatReadOnlyBanner extends Disposable {
 		this.setAction();
 
 		this.setVisible(false);
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (this.showsDefaultMessage && e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+				this.setMessage();
+			}
+		}));
 	}
 
 	get visible(): boolean {
 		return this._visible;
 	}
 
-	setMessage(message = this.defaultMessage): void {
+	setMessage(message?: string): void {
+		this.showsDefaultMessage = message === undefined;
+		message ??= this.defaultMessage ?? getChatSessionArchivedReadOnlyMessage(getChatSessionArchiveActionWording(this.configurationService));
 		if (this.text.textContent !== message) {
 			this.text.textContent = message;
 			this.hover.value = this.hoverService.setupDelayedHover(this.text, { content: message });

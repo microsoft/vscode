@@ -1285,6 +1285,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		private readonly sorter: ITreeSorter<IAgentSession>,
 		private readonly repositoryGroupLimit?: number,
 		private readonly archivesAvailable?: () => boolean,
+		private readonly archivedSectionLabel: () => string = () => AgentSessionSectionLabels[AgentSessionSection.Archived],
 	) {
 		super();
 
@@ -1357,7 +1358,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 					const existing = sections.find((section): section is IAgentSessionSection => isAgentSessionSection(section) && section.section === AgentSessionSection.Archived);
 					const section: IAgentSessionSection = {
 						section: AgentSessionSection.Archived,
-						label: AgentSessionSectionLabels[AgentSessionSection.Archived],
+						label: this.archivedSectionLabel(),
 						sessions: existing?.sessions ?? [],
 					};
 					if (existing) {
@@ -1457,7 +1458,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	private groupSessionsByDate(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
 		const sortBy = this.filter?.sortResults?.();
-		const groupedSessions = groupAgentSessionsByDate(sortedSessions, sortBy);
+		const groupedSessions = groupAgentSessionsByDate(sortedSessions, sortBy, this.archivedSectionLabel());
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -1527,7 +1528,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		if (archivedSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.Archived,
-				label: AgentSessionSectionLabels[AgentSessionSection.Archived],
+				label: this.archivedSectionLabel(),
 				sessions: archivedSessions,
 			});
 		}
@@ -1706,7 +1707,7 @@ export const AgentSessionSectionLabels = {
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
 
-export function groupAgentSessionsByDate(sessions: IAgentSession[], sortBy?: AgentSessionsSorting): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDate(sessions: IAgentSession[], sortBy?: AgentSessionsSorting, archivedLabel = AgentSessionSectionLabels[AgentSessionSection.Archived]): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -1746,7 +1747,7 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[], sortBy?: Age
 		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
 		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
-		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: AgentSessionSectionLabels[AgentSessionSection.Archived], sessions: archivedSessions }],
+		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: archivedLabel, sessions: archivedSessions }],
 	]);
 }
 
