@@ -88,6 +88,8 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		@IEditorWindowSessionsPresenterService private readonly _presenterService: IEditorWindowSessionsPresenterService,
 		@IEditorWindowSessionsRuntime private readonly _sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IAgentsChatPartFrame private readonly _frame: IAgentsChatPartFrame,
+		// Delayed: created only once a callback uses it, not as the window starts
+		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
 	) {
 		super();
 	}
@@ -177,7 +179,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			if (store.isDisposed) {
 				return;
 			}
-			const restored = this.enabled.get() ? restoreAgentsChatPart(this._layoutService, this._contextKeyService, () => this._chatPart()) : undefined;
+			const restored = this.enabled.get() ? restoreAgentsChatPart(this._layoutService, this._contextKeyService, () => this._chatPart) : undefined;
 			visible?.set(this._layoutService.isVisible(Parts.CHAT_PART));
 			return restored;
 		}).catch(onUnexpectedError);
@@ -210,10 +212,6 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		return visible;
 	}
 
-	private _chatPart(): IAgentsChatPartService {
-		return this._instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService));
-	}
-
 	/** The chat part as the presenter of the window's sessions; what reads it without needing it does not create it. */
 	private _createPresenter(): IEditorWindowSessionsPresenter {
 		// Of the frame: reading it as the chat part is being created does not create it again
@@ -221,11 +219,11 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		const existing = () => created.get() ? content.get() : undefined;
 		return {
 			activeChat: derived(reader => created.read(reader) ? content.read(reader)?.activeChat.read(reader) : undefined),
-			openChat: (session, chatResource, options) => this._chatPart().openChat(session, chatResource, options),
-			openComposer: (target, options) => this._chatPart().openComposer(target, options),
+			openChat: (session, chatResource, options) => this._chatPart.openChat(session, chatResource, options),
+			openComposer: (target, options) => this._chatPart.openComposer(target, options),
 			closeChat: async chatResource => existing()?.closeChat(chatResource),
 			isShowing: chatResource => !!existing()?.isShowing(chatResource),
-			focus: () => this._chatPart().focus(),
+			focus: () => this._chatPart.focus(),
 		};
 	}
 }
