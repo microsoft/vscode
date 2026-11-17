@@ -693,9 +693,22 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('listens to the views only while it has an anchor view to follow', () => {
+		const { layout, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+		const listening = () => viewEvents.location.hasListeners();
+
+		const withoutAnchor = listening();
+		layout.setChatPartAnchor({ viewId: 'sessions' });
+		const anchored = listening();
+		layout.setChatPartAnchor({ viewId: 'sessions' });
+		const anchoredAgain = listening();
+		layout.setChatPartAnchor(undefined);
+
+		assert.deepStrictEqual({ withoutAnchor, anchored, anchoredAgain, cleared: listening() }, { withoutAnchor: false, anchored: true, anchoredAgain: true, cleared: false });
+	});
+
 	test('follows its anchor view through the events of the views as they move, deregister and register again', () => {
-		const { layout, middle, anchor, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
-		store.add((Reflect.get(layout, 'followChatPartAnchor') as () => { dispose(): void }).call(layout));
+		const { middle, anchor, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		const container = upcastPartial<ViewContainer>({ id: 'test.chatPartAnchor' });
 		const view = upcastPartial<IViewDescriptor>({ id: 'sessions', name: { value: 'Sessions', original: 'Sessions' } });

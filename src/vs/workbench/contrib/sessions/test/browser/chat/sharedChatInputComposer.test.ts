@@ -51,7 +51,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { submitOverride?: INewChatComposerInputOptions['submitOverride']; shouldPersistInput?: () => boolean; sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; getSavedDraftId?: () => string | undefined; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean> } = {}) {
+	function createComposer(options: { submitOverride?: INewChatComposerInputOptions['submitOverride']; shouldPersistInput?: () => boolean; sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; getSavedDraftId?: () => string | undefined; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean>; session?: IObservable<{ resource: URI; providerId: string; sessionId: string } | undefined> } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -130,7 +130,7 @@ suite('SharedChatInputComposer', () => {
 			options: {
 				submitOverride: options.submitOverride,
 				shouldPersistInput: options.shouldPersistInput,
-				session: constObservable(options.tryHandle ? { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' } : undefined),
+				session: options.session ?? constObservable(options.tryHandle ? { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' } : undefined),
 				canSchedule: constObservable(!!options.scheduleRequest),
 				scheduleRequest: options.scheduleRequest,
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
@@ -474,6 +474,20 @@ suite('SharedChatInputComposer', () => {
 		});
 	}
 
+	for (const confirmed of [true, false]) {
+		test(`a submit is submitting from before the host confirms it until it is ${confirmed ? 'sent' : 'refused'}, so its host doesn't retarget it meanwhile`, async () => {
+			const confirmation = new DeferredPromise<boolean>();
+			const snapshot = new ComposerInputSnapshot();
+			const { composer } = createComposer({ confirmSend: confirmation, focused: true, inputSnapshot: snapshot });
+			const sending = composer.submit(false);
+			const whileConfirming = { submitting: snapshot.isSubmitting, attempt: !!snapshot.get().attempt };
+			confirmation.complete(confirmed);
+			await sending;
+
+			assert.deepStrictEqual({ whileConfirming, after: snapshot.isSubmitting }, { whileConfirming: { submitting: true, attempt: false }, after: false });
+		});
+	}
+
 	test('focused as it opens, such as by New Session in a chat window, its input is the chat widget that has focus last, so Enter sends it, not the chat focused before', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, {});
@@ -772,6 +786,46 @@ suite('SharedChatInputComposer', () => {
 			});
 		});
 	}
+
+	test('a request waiting on a submit handler is sent for its own draft only: not once the composer moved to another with the same input, which keeps it and says so, nor once it was closed; also where the handler acted on it, which clears neither and says nothing, while one it acted on for its own draft clears the input as before', async () => {
+		const results = [];
+		for (const [change, handled] of [['switched', false], ['closed', false], ['switched', true], ['closed', true], ['unchanged', true]] as const) {
+			const handling = new DeferredPromise<boolean>();
+			const session = observableValue<{ resource: URI; providerId: string; sessionId: string } | undefined>('session', { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' });
+			const { composer, widget, state } = createComposer({ tryHandle: () => handling.p, session });
+			const sending = composer.submit();
+			await timeout(0);
+			if (change === 'switched') {
+				session.set({ resource: URI.parse('session:/2'), providerId: 'provider', sessionId: '2' }, undefined);
+			} else if (change === 'closed') {
+				composer.dispose();
+				widget.input = undefined;
+			}
+			handling.complete(handled);
+			const sent = await sending;
+			results.push({ change, handled, sent, requests: state().requests.length, warnings: state().warnings.length, input: state().input.text });
+		}
+
+		assert.deepStrictEqual(results, [
+			{ change: 'switched', handled: false, sent: false, requests: 0, warnings: 1, input: 'Build it' },
+			{ change: 'closed', handled: false, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'switched', handled: true, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'closed', handled: true, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'unchanged', handled: true, sent: true, requests: 0, warnings: 0, input: '' },
+		]);
+	});
+
+	test('a request sent again while a submit handler holds the first is ignored: the first is sent once', async () => {
+		const handling = new DeferredPromise<boolean>();
+		let handled = 0;
+		const { composer, state } = createComposer({ tryHandle: () => { handled++; return handling.p; } });
+		const first = composer.submit();
+		await timeout(0);
+		const again = await composer.submit();
+		handling.complete(false);
+
+		assert.deepStrictEqual({ again, first: await first, handled, requests: state().requests.map(request => request.query) }, { again: false, first: true, handled: 1, requests: ['Build it'] });
+	});
 
 	test('a send whose session does not get ready in time is not sent, gives its input back as it was and says so', () => runWithFakedTimers({}, async () => {
 		const { composer, inputTransitions, state } = createComposer({ canSendRequest: false, focused: true });
