@@ -202,7 +202,8 @@ function getWriteBoundary(editFile: URI, workspaceInfo: IWorkspaceInfo, workspac
 		if (isIsolationEnabled(workspaceInfo) && !workspaceService.getWorkspaceFolder(workingDirectory)) {
 			return { kind: 'isolation', root: workingDirectory, trustedRoots: [workingDirectory] };
 		}
-		return { kind: 'workingDirectory', root: workingDirectory, trustedRoots: workspaceFolder ? [workingDirectory, workspaceFolder] : [workingDirectory] };
+		// The protected-file check is relative to the working directory, so a link must stay inside it.
+		return { kind: 'workingDirectory', root: workingDirectory, trustedRoots: [workingDirectory] };
 	}
 	if (workspaceFolder) {
 		return { kind: 'workspace', root: workspaceFolder, trustedRoots: [workspaceFolder] };

@@ -603,6 +603,10 @@ describe('CopilotCLI permissionHelpers', () => {
 				fs.symlinkSync(workspaceRoot, path.join(worktreeRoot, 'linked-workspace'), linkType);
 				fs.symlinkSync(outsideRoot, path.join(sessionRoot, 'linked-outside'), linkType);
 				fs.symlinkSync(workspaceRoot, path.join(tempRoot, 'linked-workspace'), linkType);
+				// A dangling link: writing through it creates its missing target outside the workspace.
+				fs.symlinkSync(path.join(outsideRoot, 'missing'), path.join(workspaceRoot, 'linked-missing'), linkType);
+				const nestedWorkingDirectory = makeDir('workspace', 'subdir');
+				fs.symlinkSync(workspaceRoot, path.join(nestedWorkingDirectory, 'linked-root'), linkType);
 
 				const workspace = URI.file(workspaceRoot);
 				const linkedWorkspace = URI.file(path.join(tempRoot, 'linked-workspace'));
@@ -630,7 +634,8 @@ describe('CopilotCLI permissionHelpers', () => {
 						return result.kind;
 					}
 					const message = String(invokeTool.mock.calls.at(-1)![1].input.message).toLowerCase();
-					return resolvedTarget && message.includes(fs.realpathSync(resolvedTarget).toLowerCase()) ? 'prompted with resolved target' : 'prompted';
+					const expectedTarget = resolvedTarget && (fs.existsSync(resolvedTarget) ? fs.realpathSync(resolvedTarget) : resolvedTarget);
+					return expectedTarget && message.includes(expectedTarget.toLowerCase()) ? 'prompted with resolved target' : 'prompted';
 				};
 
 				expect({
@@ -643,6 +648,14 @@ describe('CopilotCLI permissionHelpers', () => {
 					isolatedLinkIntoWorkspace: await write(path.join(worktreeRoot, 'linked-workspace', 'notes.txt'), isolated, foldersService(workspace), insideFile),
 					sessionState: await write(path.join(sessionRoot, 'plan.md'), inWorkspace, foldersService(workspace)),
 					sessionStateLinkOutside: await write(path.join(sessionRoot, 'linked-outside', 'script.sh'), inWorkspace, foldersService(workspace), outsideScript),
+					danglingLinkOutside: await write(path.join(workspaceRoot, 'linked-missing', 'new.sh'), inWorkspace, foldersService(workspace), path.join(outsideRoot, 'missing', 'new.sh')),
+					danglingLinkItselfOutside: await write(path.join(workspaceRoot, 'linked-missing'), inWorkspace, foldersService(workspace), path.join(outsideRoot, 'missing')),
+					nestedWorkingDirectoryLinkIntoWorkspace: await write(
+						path.join(nestedWorkingDirectory, 'linked-root', '.vscode', 'settings.json'),
+						makeWorkspaceInfo({ folder: URI.file(nestedWorkingDirectory) }),
+						foldersService(workspace),
+						path.join(workspaceRoot, '.vscode', 'settings.json'),
+					),
 				}).toEqual({
 					insideWorkspace: 'approve-once',
 					protectedInsideWorkspace: 'prompted',
@@ -653,6 +666,9 @@ describe('CopilotCLI permissionHelpers', () => {
 					isolatedLinkIntoWorkspace: 'prompted with resolved target',
 					sessionState: 'approve-once',
 					sessionStateLinkOutside: 'prompted with resolved target',
+					danglingLinkOutside: 'prompted with resolved target',
+					danglingLinkItselfOutside: 'prompted with resolved target',
+					nestedWorkingDirectoryLinkIntoWorkspace: 'prompted with resolved target',
 				});
 			} finally {
 				if (previousCopilotHome === undefined) {
