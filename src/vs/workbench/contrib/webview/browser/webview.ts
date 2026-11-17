@@ -108,6 +108,8 @@ export interface WebviewOptions {
 
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	/** Enable the Fullscreen API for host-owned content. Defaults to false. */
+	readonly allowFullscreen?: boolean;
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 
 	/** Host-owned actions prepended to this webview's context menu. */
