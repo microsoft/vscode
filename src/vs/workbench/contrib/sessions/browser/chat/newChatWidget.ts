@@ -2706,9 +2706,11 @@ export class NewChatWidget extends Disposable {
 		if (!folderUri || !workspace) {
 			this._changingEnvironment = true;
 			try {
+				// Without a workspace to offer, such as an extension's host of jobs, working without one is the choice.
+				const onlyNoWorkspace = environment.kind === 'remote' && !this._workspacePicker.offersWorkspaces(environment);
 				if ((environment.kind === 'local' || environment.kind === 'remote' || this._workspaceOptOutTarget.get())
-					&& (session?.isQuickChat?.get() || this._workspaceOptOutEnabled.get())) {
-					this._workspacePicker.selectNoWorkspace(false);
+					&& (session?.isQuickChat?.get() || this._workspaceOptOutEnabled.get() || onlyNoWorkspace)) {
+					this._workspacePicker.selectNoWorkspace(false, !onlyNoWorkspace);
 					await this._onWorkspaceSelected(undefined);
 				} else {
 					this._workspacePicker.clearSelection();
