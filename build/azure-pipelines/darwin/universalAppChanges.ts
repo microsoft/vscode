@@ -18,6 +18,8 @@ const affectingFiles = [
 	/^build\/darwin\//,
 	/^build\/azure-pipelines\/darwin\//,
 	/^build\/\.moduleignore/,
+	// The patches and headers of the native dependencies that the install builds
+	/^build\/npm\/(?:patches|headers)\//,
 	/^(?:build\/)?(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.pnpmfile\.mjs)$/,
 	// The Node.js version of the build
 	/^\.nvmrc$/,
@@ -28,12 +30,13 @@ const affectingFiles = [
 
 /**
  * The build scripts that package the client (build/gulpfile.vscode.ts) and merge the clients
- * (create-universal-app.ts), the esbuild scripts that bundle the built-in extensions (build/lib/extensions.ts loads them by file name),
+ * (create-universal-app.ts), the install scripts (build/npm/preinstall.ts and postinstall.ts), the esbuild scripts that bundle the built-in extensions (build/lib/extensions.ts loads them by file name),
  * and the files that they import, transitively, relative to the repository.
  */
 export function packagingFiles(root: string): Set<string> {
 	const files = new Set<string>();
-	const pending = ['build/gulpfile.vscode.ts', 'build/darwin/create-universal-app.ts'];
+	// The install scripts of package.json shape node_modules, which the clients package
+	const pending = ['build/gulpfile.vscode.ts', 'build/darwin/create-universal-app.ts', 'build/npm/preinstall.ts', 'build/npm/postinstall.ts'];
 	for (const extension of readdirSync(path.join(root, 'extensions'), { withFileTypes: true }).filter(entry => entry.isDirectory())) {
 		for (const file of readdirSync(path.join(root, 'extensions', extension.name))) {
 			if (/^\.?esbuild[\w.]*\.mts$/.test(file)) {
