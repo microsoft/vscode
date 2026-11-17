@@ -10,13 +10,11 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IPowerService, PowerSaveBlockerType } from '../../../../../workbench/services/power/common/powerService.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_KEEP_AWAKE_ON_BATTERY_SETTING, SESSIONS_KEEP_AWAKE_SETTING, SessionsKeepAwake } from '../../electron-browser/sessionsKeepAwake.js';
+import { SessionsKeepAwake } from '../../electron-browser/sessionsKeepAwake.js';
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
@@ -41,15 +39,8 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
 class TestPowerService extends mock<IPowerService>() {
 
-	private readonly _onDidChangeOnBatteryPower = new Emitter<boolean>();
-	override readonly onDidChangeOnBatteryPower = this._onDidChangeOnBatteryPower.event;
-
 	readonly calls: string[] = [];
 	private _nextId = 1;
-
-	override async isOnBatteryPower(): Promise<boolean> {
-		return false;
-	}
 
 	override async startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number> {
 		const id = this._nextId++;
@@ -60,14 +51,6 @@ class TestPowerService extends mock<IPowerService>() {
 	override async stopPowerSaveBlocker(id: number): Promise<boolean> {
 		this.calls.push(`stop ${id}`);
 		return true;
-	}
-
-	setOnBattery(value: boolean): void {
-		this._onDidChangeOnBatteryPower.fire(value);
-	}
-
-	dispose(): void {
-		this._onDidChangeOnBatteryPower.dispose();
 	}
 }
 
@@ -83,23 +66,11 @@ function createSession(environment: string, initialStatus: SessionStatus) {
 suite('SessionsKeepAwake', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(configuration: Record<string, boolean> = {}) {
+	function setup() {
 		const management = store.add(new TestSessionsManagementService());
-		const power = store.add(new TestPowerService());
-		const configurationService = new TestConfigurationService({
-			[SESSIONS_KEEP_AWAKE_SETTING]: true,
-			[SESSIONS_KEEP_AWAKE_ON_BATTERY_SETTING]: true,
-			...configuration,
-		});
-		const keepAwake = store.add(new SessionsKeepAwake(management, power, configurationService, new NullLogService()));
-		return { management, power, configurationService, keepAwake };
-	}
-
-	function changeSetting(configurationService: TestConfigurationService, key: string, value: boolean): void {
-		configurationService.setUserConfiguration(key, value);
-		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-			override affectsConfiguration(section: string) { return section === key; }
-		});
+		const power = new TestPowerService();
+		const keepAwake = store.add(new SessionsKeepAwake(management, power, new NullLogService()));
+		return { management, power, keepAwake };
 	}
 
 	test('holds only while an agent on this computer works and releases after a delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -139,30 +110,10 @@ suite('SessionsKeepAwake', () => {
 		assert.deepStrictEqual(power.calls, ['start prevent-app-suspension 1']);
 	}));
 
-	test('releases right away when turned off or on battery with the battery setting off', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { management, power, configurationService } = setup({ [SESSIONS_KEEP_AWAKE_ON_BATTERY_SETTING]: false });
-		management.add(createSession('local', SessionStatus.InProgress).session);
-		await timeout(0);
-
-		power.setOnBattery(true);
-		await timeout(0);
-		power.setOnBattery(false);
-		await timeout(0);
-		changeSetting(configurationService, SESSIONS_KEEP_AWAKE_SETTING, false);
-		await timeout(0);
-
-		assert.deepStrictEqual(power.calls, [
-			'start prevent-app-suspension 1',
-			'stop 1',
-			'start prevent-app-suspension 2',
-			'stop 2',
-		]);
-	}));
-
 	test('stops a blocker that starts after the hold was released', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { management, power, configurationService } = setup();
+		const { management, power, keepAwake } = setup();
 		management.add(createSession('local', SessionStatus.InProgress).session);
-		changeSetting(configurationService, SESSIONS_KEEP_AWAKE_SETTING, false);
+		keepAwake.dispose();
 		await timeout(0);
 
 		assert.deepStrictEqual(power.calls, ['start prevent-app-suspension 1', 'stop 1']);

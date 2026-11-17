@@ -8,7 +8,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { SESSIONS_APPLICATION_BADGE_DEFAULT, SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT, SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING, SESSIONS_APPLICATION_BADGE_SETTING, SessionsApplicationBadge } from './sessionsApplicationBadge.js';
-import { SESSIONS_KEEP_AWAKE_DEFAULT, SESSIONS_KEEP_AWAKE_ON_BATTERY_DEFAULT, SESSIONS_KEEP_AWAKE_ON_BATTERY_SETTING, SESSIONS_KEEP_AWAKE_SETTING, SessionsKeepAwake } from './sessionsKeepAwake.js';
+import { SessionsKeepAwake } from './sessionsKeepAwake.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -43,18 +43,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				},
 			},
 			default: SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT,
-		},
-		[SESSIONS_KEEP_AWAKE_SETTING]: {
-			type: 'boolean',
-			tags: ['preview'],
-			markdownDescription: localize('sessions.keepAwakeWhileWorking', "Controls whether the computer is kept from idle-sleeping while an agent on this computer is working. The hold is released shortly after the work ends. Closing the lid or choosing Sleep still puts the computer to sleep."),
-			default: SESSIONS_KEEP_AWAKE_DEFAULT,
-		},
-		[SESSIONS_KEEP_AWAKE_ON_BATTERY_SETTING]: {
-			type: 'boolean',
-			tags: ['preview'],
-			markdownDescription: localize('sessions.keepAwakeOnBattery', "Controls whether {0} also applies while the computer is running on battery power.", `\`#${SESSIONS_KEEP_AWAKE_SETTING}#\``),
-			default: SESSIONS_KEEP_AWAKE_ON_BATTERY_DEFAULT,
 		},
 	},
 });

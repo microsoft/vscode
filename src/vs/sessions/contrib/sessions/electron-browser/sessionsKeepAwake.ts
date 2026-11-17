@@ -5,19 +5,12 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { autorun, derived, IReader, observableFromEvent } from '../../../../base/common/observable.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IPowerService } from '../../../../workbench/services/power/common/powerService.js';
 import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-
-export const SESSIONS_KEEP_AWAKE_SETTING = 'sessions.keepAwakeWhileWorking';
-export const SESSIONS_KEEP_AWAKE_DEFAULT = true;
-export const SESSIONS_KEEP_AWAKE_ON_BATTERY_SETTING = 'sessions.keepAwakeOnBattery';
-export const SESSIONS_KEEP_AWAKE_ON_BATTERY_DEFAULT = true;
 
 /**
  * Returns whether an agent on this computer is working. Sessions in the cloud or on a
@@ -46,24 +39,15 @@ export class SessionsKeepAwake extends Disposable implements IWorkbenchContribut
 	constructor(
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IPowerService private readonly _powerService: IPowerService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
-		const enabled = observableConfigValue(SESSIONS_KEEP_AWAKE_SETTING, SESSIONS_KEEP_AWAKE_DEFAULT, configurationService);
-		const enabledOnBattery = observableConfigValue(SESSIONS_KEEP_AWAKE_ON_BATTERY_SETTING, SESSIONS_KEEP_AWAKE_ON_BATTERY_DEFAULT, configurationService);
-		const onBattery = this._observeOnBatteryPower();
 		const sessions = observableFromEvent(this, sessionsManagementService.onDidChangeSessions, () => sessionsManagementService.getSessions());
-
-		const allowed = derived(this, reader => enabled.read(reader) && (enabledOnBattery.read(reader) || !onBattery.read(reader)));
 		const working = derived(this, reader => isLocalSessionWorking(sessions.read(reader), reader));
 
 		this._register(autorun(reader => {
-			if (!allowed.read(reader)) {
-				this._releaseScheduler.cancel();
-				this._hold.clear();
-			} else if (working.read(reader)) {
+			if (working.read(reader)) {
 				this._releaseScheduler.cancel();
 				if (!this._hold.value) {
 					this._hold.value = this._acquire();
@@ -72,17 +56,6 @@ export class SessionsKeepAwake extends Disposable implements IWorkbenchContribut
 				this._releaseScheduler.schedule();
 			}
 		}));
-	}
-
-	private _observeOnBatteryPower(): IObservable<boolean> {
-		const onBattery = observableValue(this, false);
-		this._register(this._powerService.onDidChangeOnBatteryPower(value => onBattery.set(value, undefined)));
-		this._powerService.isOnBatteryPower().then(value => {
-			if (!this._store.isDisposed) {
-				onBattery.set(value, undefined);
-			}
-		}, error => this._logService.error('[SessionsKeepAwake] Failed to read the power source', error));
-		return onBattery;
 	}
 
 	private _acquire(): IDisposable {
