@@ -15,16 +15,22 @@ export type NewSessionWorktreeSendChoice = 'worktree' | 'folder';
 /**
  * Decides, as the first request of a new session that would work in its folder is sent, whether it works in a new worktree
  * of the folder instead: such as when another chat recently worked in that folder, as the user chose once or chooses now
- * in a callout on the composer's New Worktree control.
+ * in a callout on the New Worktree control of the draft's composer. It holds no UI: the composer marks its own control as
+ * the callout's target ({@link targetId}) while the provider asks about its draft ({@link pendingSendChoice}).
  */
 export interface INewSessionWorktreeSendChoiceProvider {
+	/** The onboarding target id that the callout anchors on: the New Worktree control of the draft asked about. */
+	readonly targetId: string;
+	/** The draft that the provider asks about now, until it has the answer. */
+	readonly pendingSendChoice: IObservable<URI | undefined>;
 	/** Whether another chat recently worked in `folder` itself, other than the session of `draft`: only then is there a choice. */
 	isRecentChatInFolder(folder: URI, draft: URI): boolean;
 	/**
-	 * Where the session works: as the user chose once, else as the user chooses now in a callout on `control`, while the send
-	 * waits. `undefined` is no answer, such as where it could not ask: the session then works in its folder.
+	 * Where the session of `draft` works: as the user chose once, else as the user chooses now in a callout on the New Worktree
+	 * control of the draft's composer, while the send waits. `undefined` is no answer, such as where it could not ask: the
+	 * session then works in its folder.
 	 */
-	askWorktreeOnSend(control: HTMLElement): Promise<NewSessionWorktreeSendChoice | undefined>;
+	requestSendChoice(draft: URI): Promise<NewSessionWorktreeSendChoice | undefined>;
 }
 
 export const INewSessionWorktreeSendChoiceService = createDecorator<INewSessionWorktreeSendChoiceService>('newSessionWorktreeSendChoiceService');

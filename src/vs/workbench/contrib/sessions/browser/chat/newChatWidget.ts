@@ -48,6 +48,7 @@ import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, I
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
 import { INewSessionWorktreeSendChoiceProvider, INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
+import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -1702,8 +1703,8 @@ export class NewChatWidget extends Disposable {
 		const provider = this.worktreeSendChoiceService.provider.get();
 		const newWorktree = this._newWorktree;
 		const folder = session.workspace.get()?.folders[0]?.root;
-		const control = this._getWorktreeSendChoiceControl();
-		if (!provider || !newWorktree || !folder || !control || isSessionCreated(session) || session.isQuickChat?.get()
+		// Without a control of its own, there is nothing that the provider's question could anchor on
+		if (!provider || !newWorktree || !folder || !this._getWorktreeSendChoiceControl() || isSessionCreated(session) || session.isQuickChat?.get()
 			|| !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled)
 			|| this._pendingWorktreePlacement.get()
 			|| !newWorktree.isAvailable() || newWorktree.isSelected() || newWorktree.isUserChosen()
@@ -1716,7 +1717,7 @@ export class NewChatWidget extends Disposable {
 			let choice: NewSessionWorktreeSendChoice | undefined;
 			try {
 				// `undefined` is no answer, such as where the question could not be shown: the request is sent in the folder.
-				choice = await provider.askWorktreeOnSend(control);
+				choice = await provider.requestSendChoice(session.resource);
 			} catch (error) {
 				// Nothing changed yet: the request is sent in the folder, as it would have been
 				onUnexpectedError(error);
@@ -1760,6 +1761,30 @@ export class NewChatWidget extends Disposable {
 			onUnexpectedError(error);
 			return false;
 		}
+	}
+
+	/**
+	 * Marks `element` as the target of the registered provider's callout ({@link INewSessionWorktreeSendChoiceProvider.targetId})
+	 * while the provider asks about the composer's draft and `element` is where the composer offers New Worktree now.
+	 */
+	private _markWorktreeSendChoiceTarget(element: HTMLElement): IDisposable {
+		return autorun(reader => {
+			const provider = this.worktreeSendChoiceService.provider.read(reader);
+			if (!provider) {
+				return;
+			}
+			reader.store.add(markOnboardingTarget(element, provider.targetId, { scope: () => this._getWorktreeSendChoiceScope(provider, element) }));
+		});
+	}
+
+	/**
+	 * The onboarding scope of `element` as the target of `provider`'s callout, read as the callout looks for its target. A
+	 * callout run has no scope: it matches only the control of the draft it asks about, every other one is out of scope.
+	 */
+	private _getWorktreeSendChoiceScope(provider: INewSessionWorktreeSendChoiceProvider, element: HTMLElement): string | undefined {
+		const resource = this._session.get()?.resource;
+		const pending = provider.pendingSendChoice.get();
+		return resource && pending && isEqual(resource, pending) && this._getWorktreeSendChoiceControl() === element ? undefined : (resource?.toString() ?? '');
 	}
 
 	/** Where the composer offers New Worktree: its checkbox while shown, else its workspace picker. */
@@ -2603,6 +2628,7 @@ export class NewChatWidget extends Disposable {
 				this._environmentWorkspaceChanged.read(reader);
 				this._session.read(reader);
 			}, this.hoverService, this._newChatInput.pickerHoverDelegate));
+			store.add(this._markWorktreeSendChoiceTarget(this._newWorktreeCheckbox.element));
 		}
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
@@ -2618,6 +2644,7 @@ export class NewChatWidget extends Disposable {
 		const environmentPicker = store.add(new MutableDisposable<ReturnType<SessionEnvironmentPicker['render']>>());
 		const repositoryControlsHost = presentation.repositoryControlsHost;
 		this._workspacePickerRow = row;
+		store.add(this._markWorktreeSendChoiceTarget(row));
 		this._workspaceRepositoryControlsHost = repositoryControlsHost;
 		this._workspaceSessionOptionsHost = sessionOptions;
 		this._renderSessionTypePicker(sessionOptions, false);

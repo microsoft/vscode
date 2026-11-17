@@ -15,7 +15,7 @@ import { CancellationError, errorHandler, isCancellationError } from '../../../.
 import { createErrorWithActions, isErrorWithActions } from '../../../../../base/common/errorMessage.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -33,6 +33,7 @@ import { ISessionsProvidersService, SessionsProvidersService } from '../../../..
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
 import { NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
 import { NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
+import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { NewWorktreeChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
 import { IChatSubmitRequest } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
@@ -459,6 +460,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
 	readonly _onDidChangeChatPetPlatform: Emitter<void>;
 	readonly telemetryService: ITelemetryService;
+	_markWorktreeSendChoiceTarget(element: HTMLElement): IDisposable;
 }
 
 interface ISelectNoWorkspaceHarness {
@@ -2055,6 +2057,7 @@ suite('NewChatWidget', () => {
 					sessionTypePicker: { render: () => { } },
 				},
 				_renderSessionTypePicker: () => { },
+				_markWorktreeSendChoiceTarget: () => Disposable.None,
 				_workspacePickerRow: undefined,
 				_workspaceSessionOptionsHost: undefined,
 				_workspaceOptOutTarget: target,
@@ -2167,6 +2170,7 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_renderSessionTypePicker: (target, isQuickChat) => renderSessionTypePicker.call(harness, target, isQuickChat),
+			_markWorktreeSendChoiceTarget: () => Disposable.None,
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
 			_workspaceOptOutTarget: constObservable(undefined),
@@ -5348,8 +5352,10 @@ suite('NewChatWidget', () => {
 								recentIn = `${askedDraft.path} in ${askedFolder.path}`;
 								return options.recent ?? true;
 							},
-							askWorktreeOnSend: askedControl => {
-								calls.push(`ask ${recentIn}${askedControl === control ? ' on its control' : ''}`);
+							targetId: 'test.worktreeSendChoice',
+							pendingSendChoice: constObservable(undefined),
+							requestSendChoice: askedDraft => {
+								calls.push(`ask ${recentIn}${extUri.isEqual(askedDraft, draft) ? ' for its draft' : ''}`);
 								return answer.p.then(choice => {
 									available = options.availableOnAnswer ?? available;
 									return choice;
@@ -5417,6 +5423,40 @@ suite('NewChatWidget', () => {
 					}, { noProvider: none, aiOff: none, quickChat: none, noNewWorktree: none, newWorktree: none, userChose: none, requestedPlacement: none, noRecentChat: none, noControl: none, anotherChat: none });
 				});
 
+				test('marks only its control where it offers New Worktree now as the target of the provider\'s question, while the provider asks about its draft', () => {
+					const mark = Reflect.get(NewChatWidget.prototype, '_markWorktreeSendChoiceTarget') as (this: object, element: HTMLElement) => IDisposable;
+					const store = disposables.add(new DisposableStore());
+					const pending = observableValue<URI | undefined>('pendingSendChoice', undefined);
+					const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+					const registration = store.add(new DisposableStore());
+					registration.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: pending, isRecentChatInFolder: () => true, requestSendChoice: async () => undefined }));
+					const container = append(mainWindow.document.body, $('div'));
+					store.add(toDisposable(() => container.remove()));
+					const [checkbox, picker] = ['checkbox', 'picker'].map(name => {
+						const element = append(container, $(`div.${name}`));
+						element.style.width = element.style.height = '10px';
+						return element;
+					});
+					let current: HTMLElement | undefined = checkbox;
+					const harness = { worktreeSendChoiceService, _session: constObservable(upcastPartial<ISession>({ resource: draft })), _getWorktreeSendChoiceControl: () => current, _getWorktreeSendChoiceScope: Reflect.get(NewChatWidget.prototype, '_getWorktreeSendChoiceScope') };
+					store.add(mark.call(harness, checkbox));
+					store.add(mark.call(harness, picker));
+					const target = () => findOnboardingTarget(mainWindow, 'test.worktreeSendChoice')?.className;
+
+					const notAsking = target();
+					pending.set(draft, undefined);
+					const asking = target();
+					current = picker;
+					const inPicker = target();
+					pending.set(URI.parse('agent-host-copilotcli:/untitled-other'), undefined);
+					const anotherDraft = target();
+					pending.set(draft, undefined);
+					registration.dispose();
+					const noProvider = target();
+
+					assert.deepStrictEqual({ notAsking, asking, inPicker, anotherDraft, noProvider }, { notAsking: undefined, asking: 'checkbox', inPicker: 'picker', anotherDraft: undefined, noProvider: undefined });
+				});
+
 				test('a provider that fails to tell of recent chats never costs the request', async () => {
 					const failing = harness({ recent: new Error('recent failed') });
 					const errors: unknown[] = [];
@@ -5446,9 +5486,9 @@ suite('NewChatWidget', () => {
 					await sending;
 
 					assert.deepStrictEqual({ held, sent, calls }, {
-						held: { sent: false, calls: ['ask /untitled-draft in /repo on its control'] },
+						held: { sent: false, calls: ['ask /untitled-draft in /repo for its draft'] },
 						sent: true,
-						calls: ['ask /untitled-draft in /repo on its control', 'New Worktree true'],
+						calls: ['ask /untitled-draft in /repo for its draft', 'New Worktree true'],
 					});
 				});
 
@@ -5462,8 +5502,8 @@ suite('NewChatWidget', () => {
 					}
 
 					assert.deepStrictEqual(results, [
-						{ taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
-						{ taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
+						{ taken: false, calls: ['ask /untitled-draft in /repo for its draft'] },
+						{ taken: false, calls: ['ask /untitled-draft in /repo for its draft'] },
 					]);
 				});
 
@@ -5490,8 +5530,8 @@ suite('NewChatWidget', () => {
 					}
 
 					assert.deepStrictEqual(results, [
-						{ change: 'switchDraft', taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
-						{ change: 'close', taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
+						{ change: 'switchDraft', taken: false, calls: ['ask /untitled-draft in /repo for its draft'] },
+						{ change: 'close', taken: false, calls: ['ask /untitled-draft in /repo for its draft'] },
 					]);
 				});
 
@@ -5510,7 +5550,7 @@ suite('NewChatWidget', () => {
 						again: true,
 						heldWhileApplying: true,
 						first: false,
-						calls: ['ask /untitled-draft in /repo on its control', 'New Worktree true'],
+						calls: ['ask /untitled-draft in /repo for its draft', 'New Worktree true'],
 					});
 				});
 
@@ -5518,7 +5558,7 @@ suite('NewChatWidget', () => {
 					const { calls, answer, send } = harness({ applies: Promise.resolve(false) });
 					answer.complete('worktree');
 
-					assert.deepStrictEqual({ taken: await send(), calls }, { taken: false, calls: ['ask /untitled-draft in /repo on its control', 'New Worktree true', 'warning'] });
+					assert.deepStrictEqual({ taken: await send(), calls }, { taken: false, calls: ['ask /untitled-draft in /repo for its draft', 'New Worktree true', 'warning'] });
 				});
 
 				test('as its agent settles New Worktree: taken, it is sent there, also where it can no longer change; rejected after showing it, or settled without it, it is reported and sent in the folder, once back there; neither, or where it cannot be told, it is not sent and the draft kept', async () => {
@@ -5564,7 +5604,7 @@ suite('NewChatWidget', () => {
 							const newWorktree = instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true));
 							const warnings: string[] = [];
 							const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
-							store.add(worktreeSendChoiceService.registerProvider({ isRecentChatInFolder: () => true, askWorktreeOnSend: async () => 'worktree' }));
+							store.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: constObservable(undefined), isRecentChatInFolder: () => true, requestSendChoice: async () => 'worktree' }));
 							const handling = handle.call({
 								worktreeSendChoiceService,
 								_session: current,
@@ -5619,7 +5659,7 @@ suite('NewChatWidget', () => {
 					}
 
 					assert.deepStrictEqual({ unavailable: unavailableResult, failingTaken, reported: errors.map(error => (error as Error).message) }, {
-						unavailable: { taken: false, calls: ['ask /untitled-draft in /repo on its control', 'warning'] },
+						unavailable: { taken: false, calls: ['ask /untitled-draft in /repo for its draft', 'warning'] },
 						failingTaken: false,
 						reported: ['provider failed'],
 					});
