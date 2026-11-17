@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
@@ -288,7 +289,11 @@ export class BulkEditService extends Disposable implements IBulkEditService {
 		} catch (err) {
 			// console.log('apply FAILED');
 			// console.log(err);
-			this._logService.error(err);
+			if (isCancellationError(err)) {
+				this._logService.debug('bulkEditService#apply was cancelled', label ?? '');
+			} else {
+				this._logService.error(err);
+			}
 			throw err;
 		} finally {
 			this._performingEdits--;

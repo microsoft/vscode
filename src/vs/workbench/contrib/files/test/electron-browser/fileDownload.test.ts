@@ -211,4 +211,63 @@ suite('Files - FileDownload', () => {
 
 		assert.strictEqual((await fileService.readFile(destination)).value.toString(), 'precious');
 	});
+
+	test('downloads a folder nested deeper than the resolve limit', async () => {
+		let deep = URI.from({ scheme: sourceScheme, path: '/folder/deep' });
+		for (let i = 0; i < 25; i++) {
+			deep = joinPath(deep, `d${i}`);
+		}
+		await fileService.createFolder(deep);
+		await fileService.writeFile(joinPath(deep, 'leaf.txt'), VSBuffer.fromString('deep'));
+
+		const destination = URI.file('/downloads/folder');
+		dialogService.setSaveDialogResult(destination);
+
+		// must terminate: the size resolution limits concurrent resolves
+		// and would deadlock on deep trees if the recursion itself were
+		// queued through the limiter
+		await download.download([createExplorerItem(URI.from({ scheme: sourceScheme, path: '/folder' }), true)]);
+
+		let copiedLeaf = joinPath(destination, 'deep');
+		for (let i = 0; i < 25; i++) {
+			copiedLeaf = joinPath(copiedLeaf, `d${i}`);
+		}
+		assert.strictEqual((await fileService.readFile(joinPath(copiedLeaf, 'leaf.txt'))).value.toString(), 'deep');
+	});
+
+	test('cancelling a replace download mid-transfer keeps the existing destination', async () => {
+		const destination = URI.file('/downloads/a.txt');
+		await fileService.writeFile(destination, VSBuffer.fromString('precious'));
+		dialogService.setSaveDialogResult(destination);
+
+		sourceProvider.openBarrier = new DeferredPromise<void>();
+
+		const downloadPromise = download.download([createExplorerItem(URI.from({ scheme: sourceScheme, path: '/folder/a.txt' }), false)]);
+
+		// Cancel while the copy to the temporary location is underway
+		await sourceProvider.onOpen.p;
+		progressService.cancel();
+		sourceProvider.openBarrier.complete();
+
+		await downloadPromise;
+
+		assert.strictEqual((await fileService.readFile(destination)).value.toString(), 'precious');
+
+		// no temporary download locations are left behind
+		const downloadsFolder = await fileService.resolve(URI.file('/downloads'));
+		assert.deepStrictEqual(downloadsFolder.children?.map(child => child.name), ['a.txt']);
+	});
+
+	test('a replace download only replaces the destination when it completed', async () => {
+		const destination = URI.file('/downloads/a.txt');
+		await fileService.writeFile(destination, VSBuffer.fromString('precious'));
+		dialogService.setSaveDialogResult(destination);
+
+		await download.download([createExplorerItem(URI.from({ scheme: sourceScheme, path: '/folder/a.txt' }), false)]);
+
+		assert.strictEqual((await fileService.readFile(destination)).value.toString(), 'a'.repeat(100));
+
+		const downloadsFolder = await fileService.resolve(URI.file('/downloads'));
+		assert.deepStrictEqual(downloadsFolder.children?.map(child => child.name), ['a.txt']);
+	});
 });

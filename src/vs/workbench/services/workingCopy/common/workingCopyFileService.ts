@@ -13,6 +13,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { IFileService, FileOperation, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IWorkingCopyService } from './workingCopyService.js';
 import { IWorkingCopy } from './workingCopy.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -443,23 +444,31 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 					stats.push(await this.fileService.move(source, target, overwrite));
 				} else {
 
-					// Remember whether the target existed upfront: when the
-					// copy is cancelled before any content was transferred, a
-					// pre-existing target must not be deleted by the cleanup
-					const targetExisted = await this.fileService.exists(target);
+					// When the target already exists, copy to a temporary
+					// sibling first and only move it into place when the
+					// copy has completed, so that cancelling the copy never
+					// harms the existing target
+					const { extUri } = this.uriIdentityService;
+					const targetExists = await this.fileService.exists(target);
+					const copyTarget = targetExists ? extUri.joinPath(extUri.dirname(target), `.${extUri.basename(target)}.${generateUuid().substring(0, 8)}.vsctmp`) : target;
 
-					let copyStarted = false;
 					try {
-						stats.push(await this.fileService.copy(source, target, overwrite, () => copyStarted = true, token));
+						const stat = await this.fileService.copy(source, copyTarget, targetExists ? false : overwrite, undefined, token);
+						if (targetExists) {
+							stats.push(await this.fileService.move(copyTarget, target, true));
+						} else {
+							stats.push(stat);
+						}
 					} catch (error) {
 
-						// Best effort cleanup of a partially copied target
-						// when the copy was cancelled, unless the target
-						// existed before and the copy never got to transfer
-						// any content to it
-						if (isCancellationError(error) && (!targetExisted || copyStarted)) {
+						// Best effort cleanup of the partially copied target
+						// when the copy was cancelled, or of the temporary
+						// copy location on any error. A pre-existing target
+						// is never deleted: it is only replaced by the final
+						// move above once the copy has completed.
+						if (isCancellationError(error) || targetExists) {
 							try {
-								await this.fileService.del(target, { recursive: true });
+								await this.fileService.del(copyTarget, { recursive: true });
 							} catch (error) {
 								// ignore
 							}

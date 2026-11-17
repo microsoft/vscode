@@ -1134,6 +1134,23 @@ flakySuite('Disk File Service', function () {
 		cts.dispose();
 	});
 
+	test('copy - a replace completes when cancelled mid-copy', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		const source = URI.file(join(testDir, 'lorem.txt'));
+		const target = URI.file(join(testDir, 'small.txt'));
+
+		// once the pre-existing target has been deleted for the overwrite,
+		// cancellation is no longer honoured so that a confirmed replace
+		// never loses the user's data without leaving the replacement
+		const cts = new CancellationTokenSource();
+		await service.copy(source, target, true, () => cts.cancel(), cts.token);
+
+		assert.strictEqual(readFileSync(target.fsPath).toString(), readFileSync(source.fsPath).toString());
+
+		cts.dispose();
+	});
+
 	test('copy - cancellation before copying keeps an existing target', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 

@@ -32,6 +32,7 @@ import { createSingleCallFunction } from '../../../../base/common/functional.js'
 import { coalesce } from '../../../../base/common/arrays.js';
 import { canceled, isCancellationError } from '../../../../base/common/errors.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -65,7 +66,11 @@ export class TransferProgressReporter implements IDisposable {
 	private static readonly REPORT_INTERVAL = 1000;
 
 	private readonly progressScheduler: RunOnceWorker<IProgressStep>;
-	private readonly startTime: number;
+
+	// The clock starts lazily with the first transfer activity so that
+	// time spent in dialogs between creating the reporter and the first
+	// transferred byte does not lower the reported transfer rate
+	private startTime: number | undefined = undefined;
 
 	private filesTotal: number;
 	private filesTransferred = 0;
@@ -83,7 +88,6 @@ export class TransferProgressReporter implements IDisposable {
 		private readonly now: () => number = () => Date.now()
 	) {
 		this.filesTotal = filesTotal;
-		this.startTime = this.now();
 
 		this.progressScheduler = new RunOnceWorker<IProgressStep>(steps => {
 			const step = steps[steps.length - 1];
@@ -111,6 +115,7 @@ export class TransferProgressReporter implements IDisposable {
 	 * Signals that the transfer of another file has started.
 	 */
 	startFile(): void {
+		this.startTime ??= this.now();
 		this.filesTransferred++;
 	}
 
@@ -118,6 +123,7 @@ export class TransferProgressReporter implements IDisposable {
 	 * Reports byte progress for the file that is currently being transferred.
 	 */
 	report(name: string, fileSize: number, fileBytesTransferred: number, bytesTransferredDelta: number): void {
+		this.startTime ??= this.now();
 		this.totalBytesTransferred += bytesTransferredDelta;
 
 		if (typeof this.totalBytes === 'number' && this.totalBytes > 0) {
@@ -701,6 +707,8 @@ export class FileDownload {
 
 	private static readonly LAST_USED_DOWNLOAD_PATH_STORAGE_KEY = 'workbench.explorer.downloadPath';
 
+	private static readonly MAX_PARALLEL_RESOLVES = 20; // aligned with BrowserFileUpload.MAX_PARALLEL_UPLOADS
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -747,14 +755,27 @@ export class FileDownload {
 			return;
 		}
 
-		// Native: use the file service to get at the contents. Resolve the
-		// number of files and the total number of bytes across the entire
-		// selection upfront, so that a single reporter can report accurate
-		// determinate progress over all sources.
+		// Native: use the file service to get at the contents. Ask for every
+		// destination first so that the user is not kept waiting on size
+		// resolution between dialogs, then resolve the number of files and
+		// the total number of bytes across the entire selection, so that a
+		// single reporter can report accurate determinate progress over all
+		// sources.
+		const downloads: { source: IDownloadSource; destination: URI }[] = [];
+		for (const source of sources) {
+			const destination = await this.promptForDownloadDestination(source, progress);
+			if (!destination) {
+				cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
+				return;
+			}
+
+			downloads.push({ source, destination });
+		}
+
 		const fileSizes = new ResourceMap<number>();
 		let filesTotal = 0;
 		let totalBytes = 0;
-		for (const source of sources) {
+		for (const { source } of downloads) {
 			const sizes = await this.resolveDownloadSize(source.resource, cts.token);
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -767,12 +788,12 @@ export class FileDownload {
 
 		const reporter = new TransferProgressReporter(filesTotal, totalBytes, downloadProgressMessages, progress);
 		try {
-			for (const source of sources) {
+			for (const { source, destination } of downloads) {
 				if (cts.token.isCancellationRequested) {
 					return;
 				}
 
-				await this.doDownloadNative(source, reporter, fileSizes, progress, cts);
+				await this.doDownloadNative(source, destination, reporter, fileSizes, cts);
 			}
 		} finally {
 			reporter.dispose();
@@ -922,7 +943,7 @@ export class FileDownload {
 		operation.reporter.report(name, fileSize, operation.fileBytesDownloaded, bytesDownloaded);
 	}
 
-	private async doDownloadNative(explorerItem: IDownloadSource, reporter: TransferProgressReporter, fileSizes: ResourceMap<number>, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+	private async promptForDownloadDestination(explorerItem: IDownloadSource, progress: IProgress<IProgressStep>): Promise<URI | undefined> {
 		progress.report({ message: explorerItem.name });
 
 		let defaultUri: URI;
@@ -949,52 +970,60 @@ export class FileDownload {
 
 			// Remember as last used download folder
 			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
 
-			// Remember whether the destination existed upfront: when the
-			// download is cancelled before any content was transferred, a
-			// pre-existing destination must not be deleted by the cleanup
-			const destinationExisted = await this.fileService.exists(destination);
+		return destination;
+	}
 
-			// Perform download, reporting progress as bytes are being copied.
-			// The file service reports the total number of bytes copied per
-			// file, so we keep track of the last reported value per file to
-			// compute the delta.
-			const lastBytesCopied = new ResourceMap<number>();
-			let downloadStarted = false;
-			try {
-				await this.fileService.copy(explorerItem.resource, destination, true, ({ resource, bytesCopied }) => {
-					downloadStarted = true;
+	private async doDownloadNative(explorerItem: IDownloadSource, destination: URI, reporter: TransferProgressReporter, fileSizes: ResourceMap<number>, cts: CancellationTokenSource): Promise<void> {
 
-					let last = lastBytesCopied.get(resource);
-					if (last === undefined) {
-						reporter.startFile();
-						last = 0;
-					}
-					lastBytesCopied.set(resource, bytesCopied);
+		// When the destination already exists, download into a temporary
+		// sibling first and only move it into place when the download has
+		// completed, so that cancelling the download never harms the
+		// existing destination
+		const destinationExists = await this.fileService.exists(destination);
+		const downloadTarget = destinationExists ? joinPath(dirname(destination), `.${basename(destination)}.${generateUuid().substring(0, 8)}.vsctmp`) : destination;
 
-					reporter.report(basename(resource), fileSizes.get(resource) ?? 0, bytesCopied, bytesCopied - last);
-				}, cts.token);
-			} catch (error) {
-				if (!isCancellationError(error)) {
-					throw error;
+		// Perform download, reporting progress as bytes are being copied.
+		// The file service reports the total number of bytes copied per
+		// file, so we keep track of the last reported value per file to
+		// compute the delta.
+		const lastBytesCopied = new ResourceMap<number>();
+		try {
+			await this.fileService.copy(explorerItem.resource, downloadTarget, !destinationExists, ({ resource, bytesCopied }) => {
+				let last = lastBytesCopied.get(resource);
+				if (last === undefined) {
+					reporter.startFile();
+					last = 0;
 				}
+				lastBytesCopied.set(resource, bytesCopied);
 
-				// Best effort cleanup of partially downloaded files and
-				// folders when the user canceled, unless the destination
-				// existed before and the copy never got to transfer any
-				// content to it
-				if (!destinationExisted || downloadStarted) {
-					try {
-						await this.fileService.del(destination, { recursive: true });
-					} catch (error) {
-						this.logService.warn(error);
-					}
-				}
-			} finally {
-				reporter.flush();
+				reporter.report(basename(resource), fileSizes.get(resource) ?? 0, bytesCopied, bytesCopied - last);
+			}, cts.token);
+
+			if (destinationExists) {
+				await this.fileService.move(downloadTarget, destination, true);
 			}
-		} else {
-			cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
+		} catch (error) {
+
+			// Best effort cleanup of the partially downloaded files and
+			// folders when the user canceled, or of the temporary download
+			// location on any error. A pre-existing destination is never
+			// deleted: it is only replaced by the final move above once
+			// the download has completed.
+			if (isCancellationError(error) || destinationExists) {
+				try {
+					await this.fileService.del(downloadTarget, { recursive: true });
+				} catch (error) {
+					this.logService.warn(error);
+				}
+			}
+
+			if (!isCancellationError(error)) {
+				throw error;
+			}
+		} finally {
+			reporter.flush();
 		}
 	}
 
@@ -1010,6 +1039,12 @@ export class FileDownload {
 			totalBytes += size;
 		};
 
+		// Limit how many folders are resolved at the same time to not
+		// overwhelm the (potentially remote) file system with requests.
+		// Only the `resolve` calls go through the limiter, never the
+		// recursion itself: a task that would await its children's
+		// queued tasks while holding a slot can deadlock the limiter.
+		const resolveLimiter = new Limiter<IFileStatWithMetadata>(FileDownload.MAX_PARALLEL_RESOLVES);
 		const resolveFolder = async (stat: IFileStatWithMetadata): Promise<void> => {
 			if (token.isCancellationRequested || !stat.children) {
 				return;
@@ -1017,7 +1052,7 @@ export class FileDownload {
 
 			await Promises.settled(stat.children.map(async child => {
 				if (child.isDirectory) {
-					await resolveFolder(await this.fileService.resolve(child.resource, { resolveMetadata: true }));
+					await resolveFolder(await resolveLimiter.queue(() => this.fileService.resolve(child.resource, { resolveMetadata: true })));
 				} else {
 					addFile(child.resource, child.size);
 				}

@@ -850,7 +850,18 @@ export class FileService extends Disposable implements IFileService {
 
 		// delete as needed (unless target is same resurce with different path case)
 		if (exists && !isSameResourceWithDifferentPathCase && overwrite && !atomic) {
+			if (token?.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
 			await this.del(target, { recursive: true });
+
+			// stop honouring cancellation from here on: the existing target
+			// is gone, so aborting now would lose the user's data without
+			// leaving a replacement (callers that need to stay cancellable
+			// throughout should copy to a temporary location and move it
+			// into place instead of passing `overwrite`)
+			token = undefined;
 		}
 
 		// Atomic sibling replacement already validated the source and thus its parent.

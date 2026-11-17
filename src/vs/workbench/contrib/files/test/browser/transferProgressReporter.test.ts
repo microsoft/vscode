@@ -93,6 +93,18 @@ suite('Files - TransferProgressReporter', () => {
 		assert.deepStrictEqual(steps, [{ message: '1 of 3 files (100B/s)' }]);
 	});
 
+	test('rate is measured from the first transfer activity, not from creation', () => {
+		const { reporter, steps, setTime } = createReporter(1);
+
+		setTime(9000); // reporter idles while e.g. a save dialog is open
+		reporter.startFile();
+		setTime(10000);
+		reporter.report('big.bin', 10 * ByteSize.MB, 10 * ByteSize.MB, 10 * ByteSize.MB);
+		reporter.flush();
+
+		assert.deepStrictEqual(steps, [{ message: 'big.bin (10.00MB of 10.00MB, 10.00MB/s)' }]);
+	});
+
 	test('reports percentage increments when the total number of bytes is known', () => {
 		const { reporter, steps, setTime } = createReporter(2, 1000);
 
