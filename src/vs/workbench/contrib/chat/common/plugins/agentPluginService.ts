@@ -84,6 +84,8 @@ export interface IAgentPlugin {
 	readonly policyEnablement?: IObservable<boolean | undefined>;
 	/** Compatibility view for consumers that only distinguish policy-blocked plugins. */
 	readonly policyBlocked?: IObservable<boolean>;
+	/** Whether the user's GitHub Team assigns this plugin. Provenance only; undefined when no runtime reports it. */
+	readonly teamProvided?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). */
 	remove?(): Promise<boolean>;
 	/** Persists global enablement through the runtime that owns this installation. */

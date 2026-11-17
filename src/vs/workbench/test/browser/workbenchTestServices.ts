@@ -148,6 +148,7 @@ import { IChatEntitlementService } from '../../services/chat/common/chatEntitlem
 import { ChatSideChatService, IChatSideChatService } from '../../contrib/chat/common/chatSideChatService.js';
 import { IChatThinkingTitleService } from '../../contrib/chat/common/chatThinkingTitleService.js';
 import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../contrib/chat/common/localChatAvailability.js';
+import { stubChatViewSessionsListService } from '../../contrib/chat/test/common/chatViewSessionsListServiceTestUtils.js';
 import { ChatRequestOriginService, IChatRequestOriginService } from '../../contrib/chat/common/chatRequestOrigin.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
@@ -398,6 +399,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 	instantiationService.stub(IChatSideChatService, disposables.add(new ChatSideChatService()));
 	instantiationService.stub(ILocalChatAvailabilityService, disposables.add(new LocalChatAvailabilityService()));
+	stubChatViewSessionsListService(instantiationService);
 	instantiationService.stub(IChatThinkingTitleService, { getCachedTitle: () => undefined, generateTitle: async () => undefined });
 	instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
 	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
@@ -677,6 +679,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidAddContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
 	onDidChangeAuxiliaryBarMaximized = Event.None;
+	onDidChangeAuxiliaryBarMaximizeHidden = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
@@ -714,6 +717,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	toggleMaximizedAuxiliaryBar(): void { }
 	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
 	isAuxiliaryBarMaximized(): boolean { return false; }
+	hideAuxiliaryBarMaximize(): IDisposable { return Disposable.None; }
+	isAuxiliaryBarMaximizeHidden(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }

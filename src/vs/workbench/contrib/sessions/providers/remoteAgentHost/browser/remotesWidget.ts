@@ -28,8 +28,10 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agen
 import { GITHUB_ENVIRONMENTS_DOCS_URL, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { WSL_INSTALL_DOCS_URL } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../../../platform/extensions/common/extensions.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -64,6 +66,10 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		label: localize('remotes.empty.environments', "No GitHub environments available."),
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
 		documentation: { label: localize('remotes.docs.environments', "GitHub Environments Setup Guide"), href: GITHUB_ENVIRONMENTS_DOCS_URL },
+	},
+	extension: {
+		label: localize('remotes.empty.extensions', "No remotes registered by extensions."),
+		description: localize('remotes.empty.extensions.description', "Extensions that provide agent hosts list them here while they are enabled."),
 	},
 };
 
@@ -111,6 +117,7 @@ export class RemotesWidget extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._register(model);
@@ -243,9 +250,9 @@ export class RemotesWidget extends Disposable {
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('RemotesWidget', () => this.layout(), dom.getWindow(this.domNode)));
 		this._register(resizeObserver.observe(this.domNode));
 		this._register(autorun(reader => {
-			this.model.remotes.read(reader);
+			const remotes = this.model.remotes.read(reader);
 			this.model.tunnelAuthenticationRequired.read(reader);
-			this.kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader));
+			this.kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader), remotes.some(remote => remote.kind === 'extension'));
 			this.render();
 		}));
 	}
@@ -280,6 +287,8 @@ export class RemotesWidget extends Disposable {
 				void this.manageRemote(entry.remote.id, 'locationPreference');
 			} else if (action === 'githubEnvironment' && entry.remote.gitHubEnvironment?.state !== 'unavailable' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
 				void this.manageRemote(entry.remote.id, 'githubEnvironment');
+			} else if (action === 'showExtension' && entry.remote.contributedBy) {
+				void this.showExtension(entry.remote.contributedBy.extensionId);
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote.id, 'updateServer');
 			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && entry.remote.canDelete)) {
@@ -314,6 +323,15 @@ export class RemotesWidget extends Disposable {
 	private async openDocumentation(href: string): Promise<void> {
 		try {
 			await this.openerService.open(href);
+		} catch (error) {
+			this.notificationService.error(error);
+		}
+	}
+
+	/** Shows the extension's page, where disabling or uninstalling it removes the remotes it registers. */
+	private async showExtension(extensionId: string): Promise<void> {
+		try {
+			await this.commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, extensionId);
 		} catch (error) {
 			this.notificationService.error(error);
 		}
@@ -430,7 +448,7 @@ export class RemotesWidget extends Disposable {
 
 	private getFilteredRemotes(): readonly ICustomizationRemote[] {
 		return this.model.remotes.get().filter(remote => this.kinds.includes(remote.kind)
-			&& `${remote.name} ${remote.detail} ${remoteKindLabels[remote.kind]}`.toLowerCase().includes(this.query));
+			&& `${remote.name} ${remote.detail} ${remote.contributedBy?.displayName ?? ''} ${remoteKindLabels[remote.kind]}`.toLowerCase().includes(this.query));
 	}
 
 	private getEmptyEntry(kind: RemoteKind, hasRemotes = false): IRemoteEmptyEntry {
@@ -606,6 +624,9 @@ export class RemotesWidget extends Disposable {
 		if (gitHubEnvironment) {
 			label = localize('remotes.accessibleGitHubEnvironment', "{0}. {1}", label, gitHubEnvironment);
 		}
+		if (remote.contributedBy) {
+			label = localize('remotes.accessibleContributedBy', "{0}. Registered by the {1} extension", label, remote.contributedBy.displayName);
+		}
 		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;
 	}
 
@@ -621,6 +642,7 @@ export class RemotesWidget extends Disposable {
 			case 'wsl': return localize('remotes.wslRefreshWarning', "Could not refresh WSL distributions. Check that WSL is available. See the Window log for more details.");
 			case 'tunnel': return localize('remotes.tunnelRefreshWarning', "Could not refresh tunnels. Check your sign-in and network connection. See the Window log for more details.");
 			case 'environment': return localize('remotes.environmentRefreshWarning', "Could not refresh environments. Check your GitHub sign-in and network connection. See the Window log for more details.");
+			case 'extension': return undefined;
 		}
 	}
 

@@ -355,6 +355,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
+	readonly onDidChangeAuxiliaryBarMaximizeHidden = Event.None;
 
 	private readonly _onDidChangeAuxiliaryBarFloating = this._register(new Emitter<boolean>());
 	readonly onDidChangeAuxiliaryBarFloating = this._onDidChangeAuxiliaryBarFloating.event;
@@ -3306,6 +3307,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	isAuxiliaryBarMaximized(): boolean {
+		return false; // Maximize not supported
+	}
+
+	hideAuxiliaryBarMaximize(): IDisposable {
+		return Disposable.None; // Maximize not supported
+	}
+
+	isAuxiliaryBarMaximizeHidden(): boolean {
 		return false; // Maximize not supported
 	}
 

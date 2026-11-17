@@ -496,11 +496,12 @@ export class FloatingWidgetSizeModel {
 
 	/**
 	 * The width that the widget is shown at: the preferred width, but, unless a reply or comment is being written, no
-	 * wider than its content can fill. The user can still make the widget wider.
+	 * wider than its content can fill. A short comment is still shown at a comfortable width, rather than squeezed down
+	 * to its content. The user can still make the widget wider.
 	 */
 	getDefaultWidth(content: IFloatingWidgetContentWidths, preferredWidth: number, isEditing: boolean): number {
 		const range = this.getWidthRange(content);
-		return clamp(isEditing ? preferredWidth : Math.min(preferredWidth, content.natural), range.min, range.max);
+		return clamp(isEditing ? preferredWidth : Math.min(preferredWidth, Math.max(content.natural, DEFAULT_MIN_WIDTH)), range.min, range.max);
 	}
 
 	/**
