@@ -405,7 +405,7 @@ export class BrowserViewInspector extends Disposable {
 		}
 	}
 
-	private async _startInspection(selection: IActiveSelection, options: IBrowserElementSelectionOptions): Promise<boolean> {
+	private async _startInspection(selection: IActiveSelection, options: IBrowserElementSelectionOptions): Promise<void> {
 		// The selection is already registered, so cancellation during attach is caught by the identity check below.
 		await this._ensureAttached();
 		await this._queueInspectionOperation(async () => {
@@ -417,7 +417,6 @@ export class BrowserViewInspector extends Disposable {
 				await this.browser.emulator.setElementSelectionActive(true);
 			}
 		});
-		return this._activeSelection.value === selection && selection.options === options;
 	}
 
 	private _queueInspectionOperation(operation: () => Promise<void>): Promise<void> {
