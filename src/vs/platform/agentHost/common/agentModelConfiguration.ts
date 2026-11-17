@@ -12,6 +12,20 @@ import { isObject } from '../../../base/common/types.js';
 /** Model-configuration key for the selected context-window size, in tokens. */
 export const ContextSizeConfigKey = 'contextSize';
 
+/**
+ * @deprecated Legacy key that stored the resolved tier string (`'default'` / `'long_context'`)
+ * directly. Replaced by the numeric {@link ContextSizeConfigKey}; Copilot still reads it from persisted
+ * selections, before {@link ContextSizeConfigKey}, for backward compatibility.
+ */
+export const ContextTierConfigKey = 'contextTier';
+
+/** Copilot's alias of the `thinkingLevel` key, which Copilot reads when that key is absent. */
+export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
+
+/** The context windows that can be requested without naming a size: a model's standard window, or its largest. */
+export const modelContextTiers = ['default', 'long_context'] as const;
+export type ModelContextTier = typeof modelContextTiers[number];
+
 export const agentModelConfigurationReportKey = 'vscode.modelConfiguration';
 
 export interface IAgentModelConfigurationOptions {
@@ -118,6 +132,14 @@ export function modelConfigurationSourceKey(key: string): string {
 export function isModelConfigurationDefault(configuration: Readonly<Record<string, unknown>> | undefined, key: string): boolean {
 	const source = configuration?.[modelConfigurationSourceKey(key)];
 	return source === 'default' || source === 'managed';
+}
+
+/**
+ * The context-window size a tier selects from a model's context-size property: its first (standard) window for
+ * `default`, its last (largest) for `long_context`.
+ */
+export function getContextSizeForTier(property: ConfigPropertySchema | undefined, tier: ModelContextTier): JsonPrimitive | undefined {
+	return tier === 'long_context' ? property?.enum?.at(-1) : property?.enum?.[0];
 }
 
 /**
