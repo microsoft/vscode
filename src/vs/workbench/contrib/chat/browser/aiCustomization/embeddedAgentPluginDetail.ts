@@ -18,7 +18,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../b
 import { Schemas } from '../../../../../base/common/network.js';
 import { asTextOrError, IRequestService } from '../../../../../platform/request/common/request.js';
 import { localize } from '../../../../../nls.js';
-import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { getGitHubRepositorySourceUri, getGitHubRepositoryUri, getMarketplacePluginRepositoryUri, getMarketplacePluginSourceUri, IMarketplacePlugin } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { ContributionEnablementState, isContributionEnabled } from '../../common/enablement.js';
@@ -44,7 +44,7 @@ import type { IContextMenuProvider } from '../../../../../base/browser/contextme
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { getTeamProvidedPluginTooltip, isTeamProvidedVisible, TeamProvidedTag } from './customizationTeamProvenance.js';
-import { autorun, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, IReader, waitForState } from '../../../../../base/common/observable.js';
 import { detectPluginFormat, getPluginManifestComponent, parsePlugin, readMarkdownComponents, readPluginManifest, resolvePluginComponentDirs } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -195,6 +195,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly pluginRepositoryDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private current: IAgentPluginItem | undefined;
+	private isTeamProvided: ((item: IInstalledPluginItem, reader: IReader | undefined) => boolean) | undefined;
 	private primaryActionButton: Button | undefined;
 	private narrowLayout = false;
 	private readonly readmeRenderGuard = new PluginReadmeRenderGuard();
@@ -306,7 +307,12 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		return this.primaryActionButton;
 	}
 
-	setInput(item: IAgentPluginItem): void {
+	/**
+	 * Shows `item`. `isTeamProvided` decides whether an installed plugin is shown as managed by the user's GitHub Team;
+	 * the runtime reports that per session, so the plugin alone may not know it.
+	 */
+	setInput(item: IAgentPluginItem, isTeamProvided?: (item: IInstalledPluginItem, reader: IReader | undefined) => boolean): void {
+		this.isTeamProvided = isTeamProvided;
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
 		this.current = item;
@@ -317,7 +323,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.inputStateAutorun.value = autorun(reader => {
 				item.plugin.enablement.read(reader);
 				const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
-				item.plugin.teamProvided?.read(reader);
+				this.readTeamProvided(item, reader);
 				item.plugin.version?.read(reader);
 				const installations = this.marketplaceInstallService.installations.read(reader);
 				const repository = getPluginRepository(item, installations);
@@ -347,6 +353,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.installWaitDisposables.clear();
 		this.contributionLoadDisposables.clear();
 		this.current = undefined;
+		this.isTeamProvided = undefined;
 		this.inputStateAutorun.clear();
 		this.renderItem();
 	}
@@ -426,9 +433,14 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	/** Shows the Team tag for an installed plugin the user's GitHub Team assigns, unless the organization manages it. */
 	private updateTeamTag(): void {
 		const item = this.current;
-		const teamProvided = item?.kind === AgentPluginItemKind.Installed
-			&& isTeamProvidedVisible(item.plugin.teamProvided?.get(), getPluginPolicyEnablement(item.plugin) !== undefined);
+		const teamProvided = item?.kind === AgentPluginItemKind.Installed && this.readTeamProvided(item, undefined);
 		this.teamTag.update(teamProvided ? getTeamProvidedPluginTooltip() : undefined);
+	}
+
+	private readTeamProvided(item: IInstalledPluginItem, reader: IReader | undefined): boolean {
+		return this.isTeamProvided
+			? this.isTeamProvided(item, reader)
+			: isTeamProvidedVisible(item.plugin.teamProvided?.read(reader), getPluginPolicyEnablement(item.plugin, reader) !== undefined);
 	}
 
 	private renderTitleActions(item: IAgentPluginItem): void {

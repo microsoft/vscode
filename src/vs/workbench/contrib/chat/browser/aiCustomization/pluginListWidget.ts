@@ -2610,7 +2610,7 @@ export class PluginListWidget extends Disposable {
 	 * Whether to show an installed plugin as provided by the user's GitHub Team. Team assignment follows the
 	 * signed-in account, so either the runtime's installation or the plugin's session plugin may report it.
 	 */
-	private isInstalledPluginTeamProvided(item: IInstalledPluginItem, reader?: IReader): boolean {
+	isInstalledPluginTeamProvided(item: IInstalledPluginItem, reader?: IReader): boolean {
 		const team = item.plugin.teamProvided?.read(reader) || this.getSessionPluginItem(item)?.teamProvided;
 		return isTeamProvidedVisible(team, this.getInstalledPluginOrganizationControl(item, reader) !== undefined);
 	}
