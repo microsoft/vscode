@@ -7005,6 +7005,33 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('sessionRemoved preserves identities through every list controller removal delta', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService));
+			const backend = URI.parse('host-session://owner/session?revision=one');
+			agentHostService.addSession({ session: backend, provider: 'copilot', startTime: 1000, modifiedTime: 2000, summary: 'A' });
+			const controllers = [0, 1].map(() => createSessionListController(disposables, instantiationService, agentHostService));
+			await Promise.all(controllers.map(controller => controller.refresh(CancellationToken.None)));
+			const resource = connections.findSessionResource(backend)!;
+			const removals: { resources: URI[]; advertised: URI | undefined }[] = [];
+			for (const controller of controllers) {
+				disposables.add(controller.onDidChangeChatSessionItems(delta => {
+					removals.push({ resources: [...(delta.removed ?? [])], advertised: connections.findSessionResource(backend) });
+				}));
+			}
+			agentHostService.fireNotification({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				removals,
+				remainingItems: controllers.map(controller => controller.items.length),
+				advertised: connections.findSessionResource(backend),
+			}, {
+				removals: [{ resources: [resource], advertised: resource }, { resources: [resource], advertised: resource }],
+				remainingItems: [0, 0],
+				advertised: undefined,
+			});
+		});
+
 		test('refresh keeps both sessions after the backend list reorders (order not significant)', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 

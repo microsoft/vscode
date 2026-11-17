@@ -40,6 +40,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	private readonly _sessionResolutionPolicies = new Map<string, IAgentHostSessionResolutionPolicy>();
 	private readonly _backendSessions = new ResourceMap<{ readonly backend: URI; readonly authority: string; readonly provider: string }>();
 	private readonly _frontendByBackend = new Map<string, URI>();
+	private readonly _pendingSessionRemovals = new Set<string>();
 	private _resolutionBatchDepth = 0;
 	private _resolutionBatchDirty = false;
 	private readonly _connectionListeners = this._register(new DisposableMap<IAgentConnection, DisposableStore>());
@@ -115,6 +116,8 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 					store.add(connection.onDidNotification(notification => {
 						if (notification.type === 'root/sessionAdded') {
 							this.registerSessionResource(URI.parse(notification.summary.resource), info.authority, notification.summary.provider);
+						} else if (notification.type === 'root/sessionRemoved') {
+							this._removeSessionResource(URI.parse(notification.session), info.authority);
 						}
 					}));
 				}
@@ -200,10 +203,12 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	}
 
 	registerSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY, advertisedProvider?: string): URI {
+		const identityKey = this._backendIdentityKey(backendSession, authority);
 		const prefix = authority === AMBIENT_AGENT_HOST_AUTHORITY ? LOCAL_AGENT_HOST_SCHEME_PREFIX : remoteAgentHostSessionTypeAuthorityPrefix(authority);
 		if (!advertisedProvider) {
 			const known = this.findSessionResource(backendSession, authority);
 			if (known) {
+				this._pendingSessionRemovals.delete(identityKey);
 				return known;
 			}
 		}
@@ -219,9 +224,9 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 			throw new Error(`Conflicting backend identities for ${resource.toString()}`);
 		}
 		this._backendSessions.set(resource.with({ fragment: '' }), { backend: backendSession, authority, provider });
+		this._pendingSessionRemovals.delete(identityKey);
 		if (!previous) {
 			// The first frontend resource registered for an identity wins, as with an insertion-ordered scan.
-			const identityKey = this._backendIdentityKey(backendSession, authority);
 			if (!this._frontendByBackend.has(identityKey)) {
 				this._frontendByBackend.set(identityKey, resource.with({ fragment: '' }));
 			}
@@ -260,6 +265,26 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 
 	findSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
 		return this._frontendByBackend.get(this._backendIdentityKey(backendSession, authority));
+	}
+
+	private _removeSessionResource(backendSession: URI, authority: string): void {
+		const key = this._backendIdentityKey(backendSession, authority);
+		if (!this._frontendByBackend.has(key) || this._pendingSessionRemovals.has(key)) {
+			return;
+		}
+		this._pendingSessionRemovals.add(key);
+		// Notification consumers still need the advertised identity to project their removal deltas.
+		queueMicrotask(() => {
+			if (!this._pendingSessionRemovals.delete(key) || this._store.isDisposed || !this._frontendByBackend.delete(key)) {
+				return;
+			}
+			for (const [resource, entry] of this._backendSessions) {
+				if (entry.authority === authority && isEqual(entry.backend, backendSession)) {
+					this._backendSessions.delete(resource);
+				}
+			}
+			this._fireSessionResolutionChanged();
+		});
 	}
 
 	private _backendIdentityKey(backendSession: URI, authority: string): string {

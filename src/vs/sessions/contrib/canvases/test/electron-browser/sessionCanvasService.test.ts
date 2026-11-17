@@ -31,7 +31,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../../workbench/services/sessions/common/session.js';
 import { IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
@@ -113,6 +113,8 @@ suite('SessionCanvasService', () => {
 		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('customView', undefined);
 		const sessionChanges = store.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = store.add(new Emitter<IChatDeletedEvent>());
+		const draftDiscarded = store.add(new Emitter<ISession>());
+		const draftReplaced = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const definition: ISessionCanvasDefinition = {
 			canvasId: 'preview',
 			extensionId: 'user:preview',
@@ -126,6 +128,8 @@ suite('SessionCanvasService', () => {
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionChanges.event,
 			onDidDeleteChat: chatDeleted.event,
+			onDidDiscardNewSession: draftDiscarded.event,
+			onDidReplaceNewDraftSession: draftReplaced.event,
 			listCanvases: async () => [definition],
 			openCanvas: async (_session, _chat, canvas, instanceId) => { definitionOpens.push({ canvas, instanceId }); },
 		});
@@ -217,7 +221,7 @@ suite('SessionCanvasService', () => {
 			activeCustomView.set(reference ? upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }) : undefined, tx);
 			pinnedCanvases.show(reference);
 		});
-		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setAcquireNetworkHandler, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
+		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, draftDiscarded, draftReplaced, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setAcquireNetworkHandler, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
 	}
 
 	function owner(session: ITestSessionWithChat, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -1042,6 +1046,88 @@ suite('SessionCanvasService', () => {
 		assert.strictEqual(opened.length, 2);
 	});
 
+	for (const kind of ['discarded', 'replaced'] as const) {
+		test(`releases canvas owners and closes inputs of ${kind} drafts`, async () => {
+			const harness = createHarness();
+			await Promise.all(harness.openSettled);
+			const input = harness.opened[0];
+			harness.setFindEditorsHandler(() => [{ editor: input, groupId: 1 }]);
+			const removed: string[] = [];
+			store.add(harness.contextService.onDidRemoveOwner(owner => removed.push(owner.session.toString())));
+			if (kind === 'discarded') {
+				harness.activeSession.set(undefined, undefined);
+				harness.draftDiscarded.fire(harness.session);
+			} else {
+				harness.draftReplaced.fire({ from: harness.session, to: { ...harness.session, resource: URI.parse('agent-host-session:/replacement') } });
+				harness.activeSession.set(undefined, undefined);
+			}
+			await Promise.all(harness.closeSettled);
+			const removedOnDraftEvent = [...removed];
+			harness.sessionChanges.fire({ added: [], changed: [], removed: [harness.session] });
+			harness.activeSession.set(harness.session, undefined);
+			assert.deepStrictEqual({
+				removed,
+				removedOnDraftEvent,
+				closed: harness.closeCount,
+				reopened: harness.opened.length,
+				oldInputDisposed: input.isDisposed(),
+			}, { removed: [harness.session.resource.toString()], removedOnDraftEvent: [harness.session.resource.toString()], closed: 1, reopened: 2, oldInputDisposed: true });
+		});
+
+		test(`forgets dismissed canvases of ${kind} drafts`, () => {
+			const harness = createHarness();
+			harness.opened[0].dispose();
+			if (kind === 'discarded') {
+				harness.activeSession.set(undefined, undefined);
+				harness.draftDiscarded.fire(harness.session);
+			} else {
+				harness.draftReplaced.fire({ from: harness.session, to: { ...harness.session, resource: URI.parse('agent-host-session:/replacement') } });
+				harness.activeSession.set(undefined, undefined);
+			}
+			harness.activeSession.set(harness.session, undefined);
+			assert.strictEqual(harness.opened.length, 2);
+		});
+
+		test(`repeated ${kind} drafts do not retain canvas owners`, () => {
+			const harness = createHarness(true, []);
+			const removed: string[] = [];
+			store.add(harness.contextService.onDidRemoveOwner(owner => removed.push(owner.session.toString())));
+			for (let i = 0; i < 36; i++) {
+				const chat = { ...harness.chat, resource: URI.parse(`agent-host-chat:/draft-${i}/main`) };
+				const draft = {
+					...harness.session,
+					resource: URI.parse(`agent-host-session:/draft-${i}`),
+					activeChat: constObservable(chat),
+					chats: constObservable([chat]),
+				};
+				harness.activeSession.set(draft, undefined);
+				if (kind === 'discarded') {
+					harness.activeSession.set(undefined, undefined);
+					harness.draftDiscarded.fire(draft);
+				} else {
+					harness.draftReplaced.fire({ from: draft, to: harness.session });
+				}
+				harness.activeSession.set(harness.session, undefined);
+			}
+			assert.deepStrictEqual({
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retention without a test-only API.
+				retainedOwners: harness.contextService['knownOwners'].size,
+				removed: removed.length,
+			}, { retainedOwners: 1, removed: 36 });
+		});
+	}
+
+	test('keeps canvas state when a replacement reuses the draft resource', () => {
+		const harness = createHarness();
+		harness.opened[0].dispose();
+		const removed: string[] = [];
+		store.add(harness.contextService.onDidRemoveOwner(owner => removed.push(owner.session.toString())));
+		harness.draftReplaced.fire({ from: harness.session, to: { ...harness.session } });
+		harness.activeSession.set(undefined, undefined);
+		harness.activeSession.set(harness.session, undefined);
+		assert.deepStrictEqual({ removed, opened: harness.opened.length }, { removed: [], opened: 1 });
+	});
+
 	test('forgets dismissed canvases when the owning session is archived', () => {
 		const { activeSession, isArchived, opened, session, sessionChanges } = createHarness();
 		opened[0].dispose();
@@ -1417,7 +1503,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, onDidDiscardNewSession: Event.None, onDidReplaceNewDraftSession: Event.None }),
 			upcastPartial<IEditorGroupsService>({
 				get activeGroup() { return upcastPartial<IEditorGroup>({ windowId: activeWindowId }); },
 				mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup, groups: [activeGroup, canvasGroup], windowId: 1 }),
@@ -1460,7 +1546,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			upcastPartial<ISessionHostService>({ getHostOfChat: chat => isEqual(chat, owner.chat) ? chatWindowHost : undefined }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, onDidDiscardNewSession: Event.None, onDidReplaceNewDraftSession: Event.None }),
 			upcastPartial<IEditorGroupsService>({
 				get activeGroup() { return upcastPartial<IEditorGroup>({ windowId: activeGroupWindowId }); },
 				mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ activeGroup: mainGroup, groups: [mainGroup], windowId: 1 }),
@@ -1489,7 +1575,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, getSessionForChatResource: () => undefined }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, onDidDiscardNewSession: Event.None, onDidReplaceNewDraftSession: Event.None, getSessionForChatResource: () => undefined }),
 			upcastPartial<IEditorGroupsService>({}),
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
@@ -1521,7 +1607,7 @@ suite('SessionCanvasService', () => {
 		const contextService = store.add(new SessionCanvasContextService(
 			sessionHostServiceOf(store, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable([]), windowSessions: constObservable([]) }),
 			focusedSessionHostServiceOf(constObservable(undefined)),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, getSessionForChatResource: () => undefined }),
+			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, onDidDeleteChat: Event.None, onDidDiscardNewSession: Event.None, onDidReplaceNewDraftSession: Event.None, getSessionForChatResource: () => undefined }),
 			editorGroupsService,
 			new SessionEditorWorkingSetService(),
 			upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None }),
@@ -1579,6 +1665,8 @@ suite('SessionCanvasService', () => {
 			upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
 				onDidDeleteChat: Event.None,
+				onDidDiscardNewSession: Event.None,
+				onDidReplaceNewDraftSession: Event.None,
 				getSessionForChatResource: () => undefined,
 				getSession: resource => [mainWindowSession, chatWindowSession, otherSession].find(session => session.resource.toString() === resource.toString()),
 			}),
@@ -1656,6 +1744,8 @@ suite('SessionCanvasService', () => {
 					getSessionForChatResource: resource => isEqual(resource, chatA.resource) ? { session, chat: chatA } : isEqual(resource, chatB.resource) ? { session: sessionB, chat: sessionBChats.get()[0] } : undefined,
 					onDidChangeSessions: Event.None,
 					onDidDeleteChat: Event.None,
+					onDidDiscardNewSession: Event.None,
+					onDidReplaceNewDraftSession: Event.None,
 				}),
 				upcastPartial<IEditorGroupsService>({
 					activeGroup: upcastPartial<IEditorGroup>({ windowId: 1 }),
