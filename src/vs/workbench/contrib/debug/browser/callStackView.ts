@@ -419,7 +419,7 @@ export class CallStackView extends ViewPane {
 			return;
 		}
 
-		const updateSelectionAndReveal = (element: IStackFrame | IDebugSession) => {
+		const updateSelectionAndReveal = (element: IStackFrame | IThread | IDebugSession) => {
 			this.ignoreSelectionChangedEvent = true;
 			try {
 				this.tree.setSelection([element]);
@@ -438,7 +438,6 @@ export class CallStackView extends ViewPane {
 
 		const thread = this.debugService.getViewModel().focusedThread;
 		const session = this.debugService.getViewModel().focusedSession;
-		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (!thread) {
 			if (!session) {
 				this.tree.setSelection([]);
@@ -454,7 +453,11 @@ export class CallStackView extends ViewPane {
 				await this.tree.expand(thread);
 			} catch (e) { }
 
-			const toReveal = stackFrame || session;
+			const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+			const stackFrame = focusedStackFrame?.thread === thread
+				? thread.getCallStack().find(frame => frame.getId() === focusedStackFrame.getId()) ?? (this.tree.hasNode(focusedStackFrame) ? focusedStackFrame : undefined)
+				: undefined;
+			const toReveal = stackFrame || (thread.session.getAllThreads().length > 1 ? thread : session);
 			if (toReveal) {
 				updateSelectionAndReveal(toReveal);
 			}
