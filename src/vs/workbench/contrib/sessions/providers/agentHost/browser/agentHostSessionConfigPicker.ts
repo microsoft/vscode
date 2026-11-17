@@ -43,7 +43,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, isWorktreeSessionIsolation, writeSessionIsolation } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, readSessionIsolation, writeSessionIsolation } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../chat/common/chatPermissionWarnings.js';
@@ -180,8 +180,6 @@ function getCreateBranchSourceItems(head: SessionConfigValueItem, sources: reado
 	const defaultValues = [
 		defaultRemoteBranchName && `refs/remotes/${defaultRemoteBranchName}`,
 		defaultBranchName && `refs/heads/${defaultBranchName}`,
-		// Older hosts provide ordinary completions, which name local branches without a ref prefix.
-		defaultBranchName,
 	];
 	const defaultSources: SessionConfigValueItem[] = [];
 	for (const value of defaultValues) {
@@ -1091,7 +1089,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const workspace = config && getSessionWorkspaceProperties(config.schema);
 		const branch = workspace?.baseBranch;
 		// New Worktree creates its own branch when the session starts.
-		if (workspace && isWorktreeSessionIsolation(workspace.isolation, config?.values[workspace.isolationKey] ?? workspace.isolation?.schema.default)) {
+		if (!config || !workspace || readSessionIsolation(workspace.isolation, config.values[workspace.isolationKey] ?? workspace.isolation?.schema.default) !== 'folder') {
 			return undefined;
 		}
 		if (!branch?.schema.enumDynamic || !isSessionConfigWritable(branch.schema, true)) {
@@ -1109,7 +1107,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 * Coordinates branch creation from the current HEAD or a selected source, then asks the host to create it.
 	 * @param from Whether to ask for a starting branch or tag before asking for the new branch name.
 	 */
-	protected async _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, from = false): Promise<void> {
+	protected async _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, branches: readonly SessionConfigValueItem[], from = false): Promise<void> {
 		if (!this._isCurrentSession(provider, sessionId) || this._isPickerDisabled(provider, sessionId, property)) {
 			return;
 		}
@@ -1137,10 +1135,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			inputDisposables.add(loading.onDidHide(() => cancellation.cancel()));
 			loading.show();
 			this._trackCreateBranchInputFocus(provider, sessionId, focusProperty, inputDisposables);
-			const [branches, sourceDetails] = await raceCancellationError(Promise.all([
-				provider.getSessionConfigCompletions(sessionId, property),
-				provider.getBranchCreationSources?.(sessionId),
-			]), cancellation.token);
+			const sourceDetails = await raceCancellationError(provider.getBranchCreationSources?.(sessionId) ?? Promise.resolve(undefined), cancellation.token);
 			// Keep any text entered while the branch lists were loading.
 			const loadingValue = loading.value;
 			if (!this._isCurrentSession(provider, sessionId)) {
@@ -1155,7 +1150,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (from) {
 				// Rich sources include remote branches and tags; older hosts provide only ordinary completions.
 				const { defaultBranchName, defaultRemoteBranchName } = this._getRepositoryBranchState(sessionId);
-				const items = getCreateBranchSourceItems(head, sourceDetails?.length ? sourceDetails : branches, defaultBranchName, defaultRemoteBranchName);
+				const sources = sourceDetails?.some(source => source.value === 'HEAD')
+					? sourceDetails
+					: branches.map(source => ({ ...source, value: `refs/heads/${source.value}` }));
+				const items = getCreateBranchSourceItems(head, sources, defaultBranchName, defaultRemoteBranchName);
 				const sourcePromise = this._quickInputService.pick(items, {
 					value: loadingValue,
 					placeHolder: localize('agentHostSessionConfig.createBranch.selectSource', "Select a branch or tag to create the new branch from"),
@@ -1242,18 +1240,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 	}
 
-	private _withCreateBranchAction(provider: IAgentHostSessionsProvider, sessionId: string, property: string, isBranchPicker: boolean, items: IActionListItem<IConfigPickerItem>[]): IActionListItem<IConfigPickerItem>[] {
+	private _withCreateBranchAction(provider: IAgentHostSessionsProvider, sessionId: string, property: string, isBranchPicker: boolean, items: IActionListItem<IConfigPickerItem>[], branchCompletions: readonly SessionConfigValueItem[] | undefined): IActionListItem<IConfigPickerItem>[] {
 		return isBranchPicker && this._getCreateBranchChangeset(provider, sessionId)
 			? [...items, ...(items.length ? [{ kind: ActionListItemKind.Separator }] : []), {
 				kind: ActionListItemKind.Action,
 				label: CREATE_BRANCH_LABEL,
 				group: { title: '', icon: Codicon.gitBranchCreate },
-				item: { id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, value: '', label: CREATE_BRANCH_LABEL, run: () => { void this._createBranch(provider, sessionId, property).catch(onUnexpectedError); } },
+				item: { id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, value: '', label: CREATE_BRANCH_LABEL, run: () => { void this._createBranch(provider, sessionId, property, branchCompletions ?? []).catch(onUnexpectedError); } },
 			}, {
 				kind: ActionListItemKind.Action,
 				label: CREATE_BRANCH_FROM_LABEL,
 				group: { title: '', icon: Codicon.gitBranchCreate },
-				item: { id: `${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}:from`, value: '', label: CREATE_BRANCH_FROM_LABEL, run: () => { void this._createBranch(provider, sessionId, property, true).catch(onUnexpectedError); } },
+				item: { id: `${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}:from`, value: '', label: CREATE_BRANCH_FROM_LABEL, run: () => { void this._createBranch(provider, sessionId, property, branchCompletions ?? [], true).catch(onUnexpectedError); } },
 			}]
 			: items;
 	}
@@ -1462,7 +1460,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			...repositoryState,
 			isWorktree: isolationKey !== undefined && config?.values[isolationKey] === 'worktree',
 			onShowChanges,
-		}, getOrganizationDefaultApprovalLevel(this._configurationService)));
+		}, getOrganizationDefaultApprovalLevel(this._configurationService)), branchCompletions);
 		if (optionItems.length === 0) {
 			return;
 		}
@@ -1483,7 +1481,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				isWorktree: isolationKey !== undefined && filteredConfig?.values[isolationKey] === 'worktree',
 				query,
 				onShowChanges,
-			}, getOrganizationDefaultApprovalLevel(this._configurationService)));
+			}, getOrganizationDefaultApprovalLevel(this._configurationService)), branchCompletions);
 		};
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
@@ -2015,7 +2013,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		);
 		trigger.setAttribute('aria-expanded', 'false');
 		if (createBranchSelected) {
-			await this._createBranch(provider, sessionId, branchProperty, createBranchSelected === 'from');
+			await this._createBranch(provider, sessionId, branchProperty, branchCompletions ?? [], createBranchSelected === 'from');
 		} else if (this._isCurrentSession(provider, sessionId)) {
 			trigger.focus();
 		}

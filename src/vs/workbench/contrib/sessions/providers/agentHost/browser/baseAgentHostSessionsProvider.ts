@@ -6067,18 +6067,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (sourceWorkspace && findDevContainerSample(sourceWorkspace)) {
 			return;
 		}
-		if (newSession.workspaceUri) {
-			void newSession.waitForConfigResolution().then(() => {
-				if (this._getNewSession(newSession.sessionId) === newSession) {
-					return newSession.loadBranches(connection);
-				}
-				return undefined;
-			}).catch(error => {
-				if (this._getNewSession(newSession.sessionId) === newSession) {
-					this._logService.warn(`[${this.id}] Failed to load branches for ${newSession.sessionId}: ${error}`);
-				}
-			});
-		}
 
 		// Defense-in-depth: never eagerly spawn an agent backend in an
 		// untrusted folder. The interactive trust prompt lives at folder-pick

@@ -8082,8 +8082,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			label: `branch-${index}`,
 		}));
 		const first = provider.createNewSession(URI.file('/project-one'), provider.sessionTypes[0].id);
-		const firstBranches = await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch);
 		await waitForSessionConfig(provider, first, () => !provider.isSessionConfigResolving(first.sessionId, first.mainChat.get().resource).get());
+		const requestsBeforeFirstPicker = agentHost.branchCompletionRequests.length;
+		const firstBranches = await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch);
 		await provider.setSessionConfigValue(first.sessionId, first.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 		await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch);
 
@@ -8092,11 +8093,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const secondBranches = await provider.getSessionConfigCompletions(second.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
+			requestsBeforeFirstPicker,
 			firstBranches: firstBranches.length,
 			disposedBranches: await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch),
 			secondBranches: secondBranches.length,
 			requests: agentHost.branchCompletionRequests.map(request => ({ workingDirectory: request.workingDirectory?.toString(), property: request.property, query: request.query })),
 		}, {
+			requestsBeforeFirstPicker: 0,
 			firstBranches: 30,
 			disposedBranches: [],
 			secondBranches: 30,
@@ -8195,18 +8198,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const barrier = agentHost.branchCompletionBarrier = new DeferredPromise<void>();
 		const first = provider.createNewSession(URI.file('/project-one'), provider.sessionTypes[0].id);
 		await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
+		const inFlight = provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch);
+		await timeout(0);
+		const requestsBeforeDiscard = agentHost.branchCompletionRequests.length;
 		provider.deleteNewSession(first.sessionId);
 		const second = provider.createNewSession(URI.file('/project-two'), provider.sessionTypes[0].id);
 		barrier.complete();
+		await inFlight;
+		agentHost.branchCompletionItems = [{ value: 'new-branch', label: 'new-branch' }];
 		const secondBranches = await provider.getSessionConfigCompletions(second.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
+			requestsBeforeDiscard,
 			first: await provider.getSessionConfigCompletions(first.sessionId, SessionConfigKey.Branch),
 			second: secondBranches,
 			requestCount: agentHost.branchCompletionRequests.length,
 		}, {
+			requestsBeforeDiscard: 1,
 			first: [],
-			second: [{ value: 'main', label: 'main' }],
+			second: [{ value: 'new-branch', label: 'new-branch' }],
 			requestCount: 2,
 		});
 	});

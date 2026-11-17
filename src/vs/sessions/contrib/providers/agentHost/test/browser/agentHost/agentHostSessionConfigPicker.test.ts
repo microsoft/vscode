@@ -195,8 +195,10 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
 	completions: readonly SessionConfigValueItem[] = [];
 	branchCreationSources: readonly SessionConfigValueItem[] = [];
+	readonly trackedSessionConfigOperations: Promise<void>[] = [];
 	readonly completionQueries: (string | undefined)[] = [];
 	completionBarrier: DeferredPromise<void> | undefined;
+	branchCreationSourcesBarrier: DeferredPromise<void> | undefined;
 
 	constructor(
 		private readonly _emitter: Emitter<string>,
@@ -218,7 +220,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		};
 		this._emitter.fire(sessionId);
 	}
-	trackSessionConfigOperation(_sessionId: string, _operation: Promise<void>): void { }
+	trackSessionConfigOperation(_sessionId: string, operation: Promise<void>): void {
+		this.trackedSessionConfigOperations.push(operation);
+	}
 	async getSessionConfigCompletions(_sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]> {
 		this.completionQueries.push(query);
 		await this.completionBarrier?.p;
@@ -227,7 +231,10 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 			: this.completions.filter(item => item.value.toLowerCase().includes(query.toLowerCase()));
 	}
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
-	async getBranchCreationSources(): Promise<readonly SessionConfigValueItem[]> { return this.branchCreationSources; }
+	async getBranchCreationSources(): Promise<readonly SessionConfigValueItem[]> {
+		await this.branchCreationSourcesBarrier?.p;
+		return this.branchCreationSources;
+	}
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
 	set(config: ResolveSessionConfigResult, resolving: boolean): void {
@@ -289,8 +296,8 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 class TestAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 	branchCreation: Promise<void> | undefined;
 
-	protected override _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, from?: boolean): Promise<void> {
-		return this.branchCreation = super._createBranch(provider, sessionId, property, from);
+	protected override _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, branches: readonly SessionConfigValueItem[], from = false): Promise<void> {
+		return this.branchCreation = super._createBranch(provider, sessionId, property, branches, from);
 	}
 }
 
@@ -548,15 +555,20 @@ suite('Agent Host Session Config Picker', () => {
 			const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item))!.item!);
 			await timeout(0);
 			const callsBeforeCreation = services.provider.setSessionConfigValueCalls;
+			const trackedOperations = services.provider.trackedSessionConfigOperations.length;
 			created.complete();
 			await creation;
 			assert.deepStrictEqual({
 				callsBeforeCreation,
+				trackedOperations,
+				completionQueries: services.provider.completionQueries,
 				invocations: services.checkoutInvocations,
 				selection: services.provider.config.values.branch,
 				label: branchLabel(container),
 			}, {
 				callsBeforeCreation: 0,
+				trackedOperations: 1,
+				completionQueries: [undefined],
 				invocations: [{
 					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
 					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'HEAD' } },
@@ -566,6 +578,16 @@ suite('Agent Host Session Config Picker', () => {
 			});
 		});
 	}
+
+	test('does not offer branch creation when the provider isolation is unknown', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		const config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.config = { ...config, values: { ...config.values, [SessionConfigKey.Isolation]: 'unknown' } };
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		assert.strictEqual(services.actionWidget.items.some(item => getCreateBranchAction(item.item)), false);
+	});
 
 	for (const headLabel of ['HEAD (main, abc1234)', 'HEAD (Detached at abc1234)']) {
 		test(`identifies the current commit in the branch naming prompt: ${headLabel}`, async () => {
@@ -647,25 +669,33 @@ suite('Agent Host Session Config Picker', () => {
 					{ value: 'refs/tags/v1', label: 'v1' },
 				];
 			} else {
-				services.provider.branchCreationSources = [];
-				services.provider.completions = ['feature', 'main'].map(value => ({ value, label: value }));
+				services.provider.branchCreationSources = ['feature', 'main', 'refs/tags/v1'].map(value => ({ value, label: value }));
+				services.provider.completions = ['feature', 'main', 'refs/tags/v1'].map(value => ({ value, label: value }));
 			}
 			let rows: (string | undefined)[] = [];
 			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
 				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> & { canPickMany: true }): Promise<T[] | undefined>;
 				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
 				override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[]): Promise<T | T[] | undefined> {
-					rows = (await picks).map(item => item.type === 'separator' ? `--- ${item.label}` : item.label);
-					return undefined;
+					const items = await picks;
+					rows = items.map(item => item.type === 'separator' ? `--- ${item.label}` : item.label);
+					return host === 'older' ? items.find((item): item is T => item.type !== 'separator' && item.label === 'refs/tags/v1') : undefined;
 				}
+				override async input() { return 'feature/new'; }
 			}());
 			const { container } = renderPicker(store, services);
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
 			await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'from')!.item!);
-			assert.deepStrictEqual(rows, host === 'rich'
-				? ['--- Default Branch', 'origin/main', 'main', '--- Current Branch', 'HEAD (feature, abc1234)', '--- Branches', 'feature', '--- Remote Branches', 'origin/feature', '--- Tags', 'v1']
-				: ['--- Default Branch', 'main', '--- Current Branch', 'HEAD (Commit Details Unavailable)', '--- Branches', 'feature']);
+			assert.deepStrictEqual({
+				rows,
+				operationMeta: services.checkoutInvocations[0]?._meta,
+			}, {
+				rows: host === 'rich'
+					? ['--- Default Branch', 'origin/main', 'main', '--- Current Branch', 'HEAD (feature, abc1234)', '--- Branches', 'feature', '--- Remote Branches', 'origin/feature', '--- Tags', 'v1']
+					: ['--- Default Branch', 'main', '--- Current Branch', 'HEAD (Commit Details Unavailable)', '--- Branches', 'feature', 'refs/tags/v1'],
+				operationMeta: host === 'older' ? { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'refs/heads/refs/tags/v1' } } : undefined,
+			});
 		});
 	}
 
@@ -720,7 +750,7 @@ suite('Agent Host Session Config Picker', () => {
 			const { container } = renderAttachedPicker(store, services);
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
-			const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
+			const barrier = services.provider.branchCreationSourcesBarrier = new DeferredPromise<void>();
 			const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === command)!.item!);
 			try {
 				const input = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget input.input')!;
@@ -750,7 +780,7 @@ suite('Agent Host Session Config Picker', () => {
 				const { container } = renderAttachedPicker(store, services);
 				branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 				await timeout(0);
-				const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
+				const barrier = services.provider.branchCreationSourcesBarrier = new DeferredPromise<void>();
 				const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === command)!.item!);
 				try {
 					await timeout(0);
@@ -815,7 +845,7 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderAttachedPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
+		const barrier = services.provider.branchCreationSourcesBarrier = new DeferredPromise<void>();
 		const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'current')!.item!);
 		await barrier.error(new Error('Reference query failed'));
 		await creation;
@@ -960,7 +990,7 @@ suite('Agent Host Session Config Picker', () => {
 				prompt: nameShown ? 'Enter a name for the new branch, starting from \'dev\'.' : undefined,
 				invocations: outcome === 'created' ? [{
 					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'dev' } },
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'refs/heads/dev' } },
 				}] : [],
 				writes: outcome === 'created' ? [{ sessionId: SESSION_ID, property: 'branch', value: 'feature/new' }] : [],
 			});
