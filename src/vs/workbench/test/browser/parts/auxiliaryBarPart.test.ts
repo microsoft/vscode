@@ -15,7 +15,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
-import { AuxiliaryBarMaximizedContext, AuxiliaryBarMaximizeHiddenContext } from '../../../common/contextkeys.js';
+import { AuxiliaryBarMaximizedContext, AuxiliaryBarMaximizeHiddenContext, ChatPartEnabledContext, ChatPartVisibleContext } from '../../../common/contextkeys.js';
 import '../../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
 
 import '../../../browser/media/part.css';
@@ -113,20 +113,45 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 suite('Auxiliary Bar - Maximize action', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/** Whether the secondary side bar's title offers the action that maximizes it, or restores it while it is maximized. */
-	function offered(state: { maximizeHidden: boolean; maximized: boolean }): boolean {
+	interface IState { readonly claim: boolean; readonly maximized: boolean; readonly chatPartEnabled: boolean; readonly chatPartVisible: boolean }
+
+	const normal: IState = { claim: false, maximized: false, chatPartEnabled: false, chatPartVisible: false };
+
+	/** Whether the title menu offers the toggle, and whether the maximize and toggle commands are enabled. */
+	function availability(state: IState) {
 		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
-		AuxiliaryBarMaximizeHiddenContext.bindTo(contextKeyService).set(state.maximizeHidden);
+		AuxiliaryBarMaximizeHiddenContext.bindTo(contextKeyService).set(state.claim);
 		AuxiliaryBarMaximizedContext.bindTo(contextKeyService).set(state.maximized);
+		ChatPartEnabledContext.bindTo(contextKeyService).set(state.chatPartEnabled);
+		ChatPartVisibleContext.bindTo(contextKeyService).set(state.chatPartVisible);
 		const item = MenuRegistry.getMenuItems(MenuId.AuxiliaryBarTitle).filter(isIMenuItem).find(i => i.command.id === 'workbench.action.toggleMaximizedAuxiliaryBar');
-		return !!item && contextKeyService.contextMatchesRules(item.when);
+		const enabled = (id: string) => contextKeyService.contextMatchesRules(MenuRegistry.getCommand(id)?.precondition);
+		return {
+			menu: !!item && contextKeyService.contextMatchesRules(item.when),
+			maximize: enabled('workbench.action.maximizeAuxiliaryBar'),
+			toggle: enabled('workbench.action.toggleMaximizedAuxiliaryBar'),
+		};
 	}
 
-	test('is not offered while the view container does not offer to maximize, except to restore while maximized', () => {
+	test('is offered normally, and when the chat part is only registered but not shown', () => {
 		assert.deepStrictEqual({
-			offeredNormally: offered({ maximizeHidden: false, maximized: false }),
-			hidden: offered({ maximizeHidden: true, maximized: false }),
-			restoreWhileMaximized: offered({ maximizeHidden: true, maximized: true }),
-		}, { offeredNormally: true, hidden: false, restoreWhileMaximized: true });
+			normal: availability(normal),
+			registeredButHidden: availability({ ...normal, chatPartEnabled: true }),
+		}, {
+			normal: { menu: true, maximize: true, toggle: true },
+			registeredButHidden: { menu: true, maximize: true, toggle: true },
+		});
+	});
+
+	test('is not offered while the chat part is shown or the view container does not offer to maximize, except to restore while maximized', () => {
+		assert.deepStrictEqual({
+			chatPartVisible: availability({ ...normal, chatPartEnabled: true, chatPartVisible: true }),
+			claim: availability({ ...normal, claim: true }),
+			restoreWhileMaximized: availability({ ...normal, claim: true, chatPartEnabled: true, chatPartVisible: true, maximized: true }),
+		}, {
+			chatPartVisible: { menu: false, maximize: false, toggle: false },
+			claim: { menu: false, maximize: false, toggle: false },
+			restoreWhileMaximized: { menu: true, maximize: false, toggle: true },
+		});
 	});
 });
