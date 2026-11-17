@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, ISettableObservable, observableFromEvent, observableValue, runOnChange } from '../../../../../../base/common/observable.js';
@@ -74,6 +75,10 @@ export class ChatViewPaneHost implements IChatViewHost {
 	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
 		if (options?.ownChat) {
 			const view = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options.preserveFocus);
+			// A later request, such as an open, superseded it while the view opened: its new chat would replace what that shows
+			if (options.token?.isCancellationRequested) {
+				return false;
+			}
 			return !!view && await view.newChat(target, options);
 		}
 		const view = this.viewsService.isViewVisible(ChatViewId) ? this.viewsService.getViewWithId<ChatViewPane>(ChatViewId) : undefined;
@@ -374,11 +379,25 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		this.step({ kind: 'newChatStart' });
 		const request = this.state.get().request;
 		const superseded = () => this.state.get().request !== request;
+		// Tells the hosts, as they start the new chat, once a later request superseded it
+		const cts = new CancellationTokenSource();
+		const supersession = runOnChange(this.state, state => {
+			if (state.request !== request) {
+				cts.cancel();
+			}
+		});
+		const hostOptions = { ...options, token: cts.token };
 		let host = this.host;
-		let taken = await host.newChat?.(target, options) ?? false;
-		if (!taken && options?.ownChat && host !== this.chatViewHost && !superseded()) {
-			host = this.chatViewHost;
-			taken = await host.newChat?.(target, options) ?? false;
+		let taken: boolean;
+		try {
+			taken = await host.newChat?.(target, hostOptions) ?? false;
+			if (!taken && options?.ownChat && host !== this.chatViewHost && !superseded()) {
+				host = this.chatViewHost;
+				taken = await host.newChat?.(target, hostOptions) ?? false;
+			}
+		} finally {
+			supersession.dispose();
+			cts.dispose();
 		}
 		// Superseded meanwhile, a New Chat is handled, whether or not a host took it: neither the Chat view nor the chat widget
 		// that New Chat acts on starts a new chat, which would replace what a later request shows, and it claims nothing

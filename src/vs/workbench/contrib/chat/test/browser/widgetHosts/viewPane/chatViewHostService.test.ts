@@ -33,7 +33,7 @@ suite('ChatViewHostService', () => {
 	}
 
 	/** The service over a Chat view that records what is asked of it, of the views service and of the layout. */
-	function createService(options: { readonly chatVisible?: boolean; readonly widgetCreatedLater?: boolean } = {}) {
+	function createService(options: { readonly chatVisible?: boolean; readonly widgetCreatedLater?: boolean; readonly firstOpenView?: Promise<void> } = {}) {
 		const calls: string[] = [];
 		const widget = upcastPartial<ChatWidget>({});
 		const created = new DeferredPromise<ChatWidget>();
@@ -52,9 +52,17 @@ suite('ChatViewHostService', () => {
 			reportShown: (resource: URI, reason: string) => { calls.push(`reportShown ${resource.toString()} ${reason}`); },
 			beginSessionsListSuppression: () => { calls.push('suppress'); return toDisposable(() => calls.push('unsuppress')); },
 		});
+		// The first open of the view waits for it, such as a view that is slow to create
+		let firstOpenView = options.firstOpenView;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
-			openView: (async (id: string, focus?: boolean) => { calls.push(`openView ${id} focus=${focus}`); return view; }) as IViewsService['openView'],
+			openView: (async (id: string, focus?: boolean) => {
+				calls.push(`openView ${id} focus=${focus}`);
+				const opening = firstOpenView;
+				firstOpenView = undefined;
+				await opening;
+				return view;
+			}) as IViewsService['openView'],
 			isViewVisible: () => !!options.chatVisible,
 			onDidChangeViewVisibility: viewVisibility.event,
 			getViewWithId: (<T>() => (viewCreated ? view : undefined) as T | null) as IViewsService['getViewWithId'],
@@ -594,5 +602,20 @@ suite('ChatViewHostService', () => {
 			'the Chat view shows a chat that a leaves to it: chat view #4',
 			'a host that went asks: unchanged',
 		]);
+	});
+
+	test('a New Chat of its own waiting for the Chat view to open does not start its new chat once a newer open superseded it', async () => {
+		const opening = new DeferredPromise<void>();
+		const { service, view, calls } = createService({ firstOpenView: opening.p });
+		Object.assign(view, { newChat: async () => { calls.push('view.newChat'); return true; } });
+		const newChat = service.newChat(undefined, { ownChat: true });
+		await service.openSession(URI.parse('test:/newer'));
+		opening.complete();
+		const handled = await newChat;
+
+		assert.deepStrictEqual({ handled, calls: calls.filter(call => call === 'view.newChat' || call.startsWith('loadSession')) }, {
+			handled: true,
+			calls: ['loadSession test:/newer reason=undefined'],
+		});
 	});
 });
