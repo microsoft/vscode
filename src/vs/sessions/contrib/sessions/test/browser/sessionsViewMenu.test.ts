@@ -280,6 +280,64 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('Inbox offers connected and disconnected environments without sessions and labels their connection status', () => {
+		const harness = createListHarness(store, []);
+		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
+		const connected = observableValue('connected', false);
+		const providers = [
+			upcastPartial<ISessionsProvider>({
+				id: 'connected-host',
+				environment: { id: 'connected-host', label: 'Connected Host', isConnected: constObservable(true) },
+			}),
+			upcastPartial<ISessionsProvider>({
+				id: 'disconnected-host',
+				environment: { id: 'disconnected-host', label: 'Disconnected Host', isConnected: connected },
+			}),
+		];
+		const environments = getSessionFilterEnvironments(providers);
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
+			constObservable([]), constObservable(environments.environments), constObservable(environments.localEnvironmentIds)));
+		const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
+		const snapshot = () => {
+			trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			const rows = [...mainWindow.document.querySelectorAll('.action-widget .monaco-list-row')].map(row => ({
+				label: row.querySelector('.title')?.textContent,
+				description: row.querySelector('.description')?.textContent ?? '',
+				accessible: row.getAttribute('aria-label'),
+			}));
+			actionWidgetService.hide(true);
+			return rows;
+		};
+		const before = snapshot();
+		trigger.click();
+		const disconnected = [...mainWindow.document.querySelectorAll<HTMLElement>('.action-widget .monaco-list-row .title')]
+			.find(item => item.textContent === 'Disconnected Host');
+		assert.ok(disconnected);
+		disconnected.click();
+		const selected = { scope: filters.inboxScope, label: trigger.textContent, focused: getActiveElement() === trigger };
+		connected.set(true, undefined);
+		assert.deepStrictEqual({ before, selected, after: snapshot(), label: trigger.textContent }, {
+			before: [
+				{ label: 'All Environments', description: '', accessible: 'All Environments' },
+				{ label: 'This Computer', description: '', accessible: 'This Computer' },
+				{ label: 'Cloud', description: '', accessible: 'Cloud' },
+				{ label: 'Connected Host', description: 'Connected', accessible: 'Connected Host, Connected' },
+				{ label: 'Disconnected Host', description: 'Disconnected', accessible: 'Disconnected Host, Disconnected' },
+			],
+			selected: { scope: { environment: { id: 'disconnected-host', label: 'Disconnected Host' }, workspace: undefined }, label: 'Disconnected: Disconnected Host', focused: true },
+			after: [
+				{ label: 'All Environments', description: '', accessible: 'All Environments' },
+				{ label: 'This Computer', description: '', accessible: 'This Computer' },
+				{ label: 'Cloud', description: '', accessible: 'Cloud' },
+				{ label: 'Connected Host', description: 'Connected', accessible: 'Connected Host, Connected' },
+				{ label: 'Disconnected Host', description: 'Connected', accessible: 'Disconnected Host, Connected' },
+			],
+			label: 'Disconnected Host',
+		});
+	});
+
 	test('environment filters exclude this computer sharing registrations as their identity becomes known', () => {
 		const github = observableValue<LocalAgentHostRegistration | undefined>('github', undefined);
 		const tunnel = observableValue<LocalAgentHostRegistration | undefined>('tunnel', undefined);
