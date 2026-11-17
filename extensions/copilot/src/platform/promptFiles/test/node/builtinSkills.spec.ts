@@ -51,7 +51,7 @@ suite('built-in skills', () => {
 			'Create `<extension-dir>/extension.mjs`.',
 			'node --check "<extension-dir>/extension.mjs"',
 			'Creating plugin files alone does not make the canvas discoverable.',
-			'@microsoft/copilot-sdk/extension',
+			'@github/copilot-sdk/extension',
 			'createCanvas',
 			'CanvasError',
 			'joinSession',

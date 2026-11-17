@@ -41,8 +41,8 @@ Before writing:
 
 Create `<extension-dir>/extension.mjs`. When the extension only contributes canvases (and native tools), also create `<extension-dir>/extension.json` so the runtime can list the canvas without starting the extension; see [Start on first use](#start-on-first-use).
 
-- Use ES modules and import `createCanvas`, `CanvasError`, and `joinSession` from `@microsoft/copilot-sdk/extension`.
-- Do not create a `package.json` or install `@microsoft/copilot-sdk`; the runtime resolves it automatically.
+- Use ES modules and import `createCanvas`, `CanvasError`, and `joinSession` from `@github/copilot-sdk/extension`.
+- Do not create a `package.json` or install `@github/copilot-sdk`; the runtime resolves it automatically.
 - Never write to stdout with `console.log`. Use `session.log()` for diagnostics.
 - Bind embedded HTTP servers to `127.0.0.1` on an ephemeral port.
 - Return an HTTP URL from `open()`. Do not place credentials or private state in the URL.
@@ -98,27 +98,25 @@ Otherwise write the canvas declarations to `extension.json`:
 }
 ```
 
-- Each canvas entry takes the same fields as `createCanvas()` without its handlers: `id`, `displayName`, `description`, and optionally `icon`, `inputSchema`, and `actions` (`name`, and optionally `description` and `inputSchema`). Native tools go in a `tools` array in the manifest and register through `joinSession({ tools: { definitions: tools } })`.
+- Each canvas entry takes the same fields as `createCanvas()` without its handlers: `id`, `displayName`, `description`, and optionally `icon`, `inputSchema`, and `actions` (`name`, and optionally `description` and `inputSchema`). Native tools go in a `tools` array, declared as for `joinSession({ tools })`.
 - Omit optional fields that have no value; never write `null`. Unknown fields, another `version`, or a file larger than 256 KiB make the runtime ignore `extension.json` and start the extension eagerly, reporting only a diagnostic.
 - `icon` is an optional PNG path relative to the entry point, inside the extension directory, such as `./icon.png`. Use a small square image. Hosts show their default icon when it is missing or unsuitable.
 - Import the same declarations in `extension.mjs` and add only handlers, so the two cannot drift. When the registered canvas differs from `extension.json`, the runtime rejects its first open and withdraws the canvas until the extensions reload.
 - Call `await joinSession(...)` and set up its listeners at the module's top level, so they finish before the module finishes loading. The runtime waits for that point before it delivers the first open, and fails the activation when `joinSession()` was not called by then.
 
 ```js
-import { CanvasError, createCanvas, joinSession } from '@microsoft/copilot-sdk/extension';
+import { CanvasError, createCanvas, joinSession } from '@github/copilot-sdk/extension';
 import declaration from './extension.json' with { type: 'json' };
 
 const actionHandlers = { add_item: async ({ instanceId, input }) => { /* ... */ } };
 
 const session = await joinSession({
-	canvases: {
-		definitions: declaration.canvases.map(canvas => createCanvas({
-			...canvas,
-			...(canvas.actions ? { actions: canvas.actions.map(action => ({ ...action, handler: actionHandlers[action.name] })) } : {}),
-			open: async ({ instanceId, input }) => { /* ... */ },
-			onClose: async ({ instanceId }) => { /* ... */ },
-		})),
-	},
+	canvases: declaration.canvases.map(canvas => createCanvas({
+		...canvas,
+		...(canvas.actions ? { actions: canvas.actions.map(action => ({ ...action, handler: actionHandlers[action.name] })) } : {}),
+		open: async ({ instanceId, input }) => { /* ... */ },
+		onClose: async ({ instanceId }) => { /* ... */ },
+	})),
 });
 ```
 
