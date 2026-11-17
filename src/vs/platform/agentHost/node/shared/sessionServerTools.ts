@@ -893,6 +893,16 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	};
 }
 
+/**
+ * The model selection of a chat `create_session` creates: an explicit `model` starts from its own defaults, an
+ * omitted one from the calling chat's selection. `undefined` leaves the model to the provider.
+ *
+ * @param inherited The calling chat's selection, when the new chat uses the calling chat's agent.
+ */
+function resolveCreatedModelSelection(args: IResolvedCreateSessionArgs, inherited: ModelSelection | undefined): ModelSelection | undefined {
+	return args.model === undefined ? inherited : { id: args.model.id };
+}
+
 /** Decodes the {@link SessionStatus} bit-flags into readable names for the agent. */
 function describeSessionStatusBits(status: SessionStatus): string[] {
 	const names: string[] = [];
@@ -1178,6 +1188,8 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		if (args.workspace !== undefined && isChatWorkspacelessInSession(await accessor.getSession(currentSession), source)) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.`);
 		}
+		// The calling chat's model is inherited only by a chat of the same agent.
+		const model = resolveCreatedModelSelection(args, currentProvider === defaults?.provider ? defaults?.model : undefined);
 		// A requested folder joins the session and is assigned only to the new chat.
 		const prepared = args.workspace !== undefined
 			? await accessor.prepareChatWorkingDirectory(currentSession, args.workspace, { ...getChatWorkingDirectoryOptions(args.worktree, defaults?.isolation, args.prompt), ...(credentials ? { credentialSource: credentials } : {}) })
@@ -1188,7 +1200,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 				session: currentSession,
 				prompt: args.prompt,
 				title: args.title,
-				model: args.model,
+				...(model !== undefined ? { model } : {}),
 				...(prepared !== undefined ? { workingDirectories: [prepared.directory] } : {}),
 				...(harnessProvider !== undefined && harnessProvider !== sessionProvider ? { provider: harnessProvider } : {}),
 			}, source, sourceTurnId, prepared?.associateWithChat);
@@ -1216,6 +1228,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	}
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
 	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
+	const model = resolveCreatedModelSelection(args, defaults?.model);
 	let isolation: 'folder' | 'worktree' | undefined;
 	if (workspace !== undefined) {
 		isolation = 'worktree';
@@ -1235,7 +1248,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		...(credentials ? { credentials } : {}),
 		...(workspace !== undefined ? { workingDirectories: [workspace] } : {}),
 		...(provider !== undefined ? { provider } : {}),
-		...(args.model !== undefined ? { model: { id: args.model.id } } : defaults?.model !== undefined ? { model: defaults.model } : {}),
+		...(model !== undefined ? { model } : {}),
 		...(inheritsSourceProvider && defaults?.activeClient !== undefined ? { activeClient: { ...defaults.activeClient, tools: [] } } : {}),
 		...(configValues !== undefined ? { config: configValues } : {}),
 		...(currentSession !== undefined && source !== undefined ? {
@@ -1324,6 +1337,14 @@ interface IResolvedCreateChatArgs {
 	readonly prompt: string;
 	readonly title?: string;
 	readonly model?: IAgentModelInfo;
+}
+
+/** A chat to create and start, with its model already resolved. */
+interface ICreateChatRequest {
+	readonly session: URI;
+	readonly prompt: string;
+	readonly title?: string;
+	readonly model?: ModelSelection;
 	readonly workingDirectories?: readonly URI[];
 	/** The agent of the new chat when it differs from its session's. */
 	readonly provider?: AgentProvider;
@@ -1374,19 +1395,15 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 
-async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
+async function createChat(accessor: ISessionServerToolAccessor, args: ICreateChatRequest, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
-	const defaults = source ? accessor.getCreationDefaults(source, sourceTurnId) : undefined;
-	const targetProvider = args.provider ?? (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
-	// The calling chat's model is inherited only by a chat of the same agent.
-	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chat = URI.parse(mintPeerChatUri(chatUriFormatOf(accessor.getDefaultChat(args.session.toString())), args.session.toString()));
 	await onChatAllocated?.(chat);
 	await accessor.createChat(args.session, chat, {
 		...(args.provider !== undefined ? { provider: args.provider } : {}),
 		title: args.title,
-		model,
+		model: args.model,
 		...(args.workingDirectories !== undefined ? { workingDirectories: args.workingDirectories } : {}),
 	}, credentials);
 	if (args.title !== undefined) {
@@ -1404,7 +1421,12 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateChatResult> {
 	const sessions = await accessor.listSessions();
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
-	return createChat(accessor, getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession), source, sourceTurnId);
+	const { model: requestedModel, ...args } = getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession);
+	const defaults = source ? accessor.getCreationDefaults(source, sourceTurnId) : undefined;
+	const targetProvider = (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
+	// The calling chat's model is inherited only by a chat of the same agent.
+	const model = requestedModel !== undefined ? { id: requestedModel.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
+	return createChat(accessor, { ...args, ...(model !== undefined ? { model } : {}) }, source, sourceTurnId);
 }
 
 /** Builds the model-facing `create_chat` result. */
