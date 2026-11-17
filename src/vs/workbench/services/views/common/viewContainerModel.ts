@@ -73,7 +73,7 @@ class ViewDescriptorsState extends Disposable {
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
-		this._register(this.sharedLayoutStateService.onDidChangeValue(this.globalViewsStateStorageId, this._store)(() => this.onDidStorageChange()));
+		this._register(this.sharedLayoutStateService.getValueChangeEvent(this.globalViewsStateStorageId, this._store)(() => this.onDidStorageChange()));
 
 		this.state = this.initialize();
 

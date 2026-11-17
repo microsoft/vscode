@@ -260,7 +260,7 @@ export class PaneCompositeBar extends Disposable {
 				this.updateCompositeBarItemsFromStorage(true);
 				this.saveCachedViewContainers();
 			}));
-			this._register(this.sharedLayoutStateService.onDidChangeValue(this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
+			this._register(this.sharedLayoutStateService.getValueChangeEvent(this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
 		});
 	}
 

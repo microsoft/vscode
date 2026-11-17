@@ -59,7 +59,8 @@
     "devDeviceId",
     "languageModelProxy",
     "agentSessionsWorkspace",
-    "linkPresentation"
+    "linkPresentation",
+    "windowLayouts"
   ],
   "private": true,
   "activationEvents": [],

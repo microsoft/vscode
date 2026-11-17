@@ -36,10 +36,14 @@ export interface ISharedLayoutStateService {
 	readonly onDidChange: Event<string>;
 
 	/**
-	 * Fires when the value of the given key changes, in this window or in another
-	 * window, or because this window switched between the shared state and a local copy.
+	 * Returns an event that fires when the value of the given key changes, in this window
+	 * or in another window, or because this window switched between the shared state and
+	 * a local copy.
+	 *
+	 * Not named like an event on purpose: until the service is created, the proxy of a
+	 * delayed service treats members starting with `onDid` or `onWill` as events.
 	 */
-	onDidChangeValue(key: string, disposable: DisposableStore): Event<string>;
+	getValueChangeEvent(key: string, disposable: DisposableStore): Event<string>;
 
 	/**
 	 * Returns the value of the given key, or the fallback value if it has no value.
@@ -110,7 +114,7 @@ export class SharedLayoutStateService extends Disposable implements ISharedLayou
 		}));
 	}
 
-	onDidChangeValue(key: string, disposable: DisposableStore): Event<string> {
+	getValueChangeEvent(key: string, disposable: DisposableStore): Event<string> {
 		this.keys.add(key);
 		return Event.filter(this._onDidChangeValue.event, changedKey => changedKey === key, disposable);
 	}

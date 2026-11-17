@@ -6,10 +6,13 @@
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { SharedLayoutStateService } from '../../common/sharedLayoutState.js';
+import { ISharedLayoutStateService, SharedLayoutStateService } from '../../common/sharedLayoutState.js';
 
 suite('SharedLayoutStateService', () => {
 
@@ -21,7 +24,7 @@ suite('SharedLayoutStateService', () => {
 		storageService.store('key', 'shared', StorageScope.PROFILE, StorageTarget.USER);
 		const changes: string[] = [];
 		const store = disposables.add(new DisposableStore());
-		store.add(testObject.onDidChangeValue('key', store)(key => changes.push(key)));
+		store.add(testObject.getValueChangeEvent('key', store)(key => changes.push(key)));
 		testObject.get('empty', 'fallback');
 
 		testObject.setLocalState(testObject.getState());
@@ -43,5 +46,24 @@ suite('SharedLayoutStateService', () => {
 			key: 'changed in another window',
 			changes: ['key', 'key']
 		});
+	});
+
+	test('the event for changes of a value can be used before a delayed instance of the service is created', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+			[IStorageService, storageService],
+			[ILogService, new NullLogService()],
+			[ISharedLayoutStateService, new SyncDescriptor(SharedLayoutStateService, undefined, true)]
+		), true));
+		const changes: string[] = [];
+		const store = disposables.add(new DisposableStore());
+
+		instantiationService.invokeFunction(accessor => {
+			const sharedLayoutStateService = accessor.get(ISharedLayoutStateService);
+			store.add(sharedLayoutStateService.getValueChangeEvent('key', store)(key => changes.push(key)));
+		});
+		storageService.store('key', 'value', StorageScope.PROFILE, StorageTarget.USER);
+
+		assert.deepStrictEqual(changes, ['key']);
 	});
 });

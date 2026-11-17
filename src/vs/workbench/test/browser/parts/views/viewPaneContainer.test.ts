@@ -44,6 +44,7 @@ suite('ViewPaneContainer', () => {
 			override readonly visibleViewDescriptors = [];
 			override readonly onDidAddVisibleViewDescriptors = Event.None;
 			override readonly onDidRemoveVisibleViewDescriptors = Event.None;
+			override readonly onDidMoveVisibleViewDescriptors = Event.None;
 			override readonly onDidChangeActiveViewDescriptors = Event.None;
 			override setSizes() { }
 		}();
