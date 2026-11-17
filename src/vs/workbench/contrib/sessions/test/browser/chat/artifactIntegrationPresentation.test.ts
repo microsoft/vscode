@@ -1683,6 +1683,33 @@ suite('Artifact Integration Presentation', () => {
 		});
 	});
 
+	test('switches change at once and can be clicked in quick succession while the provider saves and refreshes', async () => {
+		const f = fixture();
+		const a = f.artifact();
+		const panel = await open(f, a);
+		const toggles = [...panel.querySelectorAll<HTMLButtonElement>('.artifact-autopilot-rule [role="switch"]')];
+		const state = () => toggles.map(toggle => ({ checked: toggle.getAttribute('aria-checked'), disabled: toggle.disabled }));
+		const write = new DeferredPromise<void>();
+		a.setConfigureResult(write.p);
+		toggles[0].click();
+		// Every Autopilot change makes the provider refresh the resource, which keeps showing its last known state.
+		updateContribution(a, c => ({ ...c, view: { ...c.view, availability: { kind: 'stale', reason: 'Refreshing.' } } }));
+		await settle(f);
+		toggles[1].click();
+		toggles[2].click();
+		await settle(f);
+		const saving = { toggles: state(), writes: a.configured.length };
+		await write.complete();
+		await settle(f);
+		const on = { checked: 'true', disabled: false };
+		assert.deepStrictEqual({ saving, saved: state(), configured: a.configured, errors: f.errors }, {
+			saving: { toggles: [on, on, on], writes: 1 }, saved: [on, on, on],
+			configured: [
+				{ integrationId: 'test', revision: 4, values: { fix: true } }, { integrationId: 'test', revision: 5, values: { reviews: true, merge: true } },
+			], errors: [],
+		});
+	});
+
 	test('new-consent restrictions never prevent revoking a previously enabled rule', async () => {
 		const f = fixture();
 		const a = f.artifact();

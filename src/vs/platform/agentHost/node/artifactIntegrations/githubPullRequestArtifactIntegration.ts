@@ -500,7 +500,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					const repair = option.id === 'addressReviews' || option.id === 'fixCI' || option.id === 'resolveConflicts';
 					const unchangedMerge = option.id === 'merge' && configuration.values.merge === 'ifUnchanged';
 					const pendingSettings = option.id === 'markReady' && this.configuration.getSessionConfigValues(context.session)?.[gitHubPullRequestArtifactWorkspaceSettingsKey(context.artifact.id)] === undefined;
-					const available = !!open && availability.kind === 'available' && (!repair || !!context.artifact.origin)
+					// A refresh, which follows every Autopilot change, keeps the last known state; automation waits for current state before acting.
+					const available = !!open && (availability.kind === 'available' || availability.kind === 'stale') && (!repair || !!context.artifact.origin)
 						&& !pendingSettings && (!unchangedMerge || (workspace?.kind === 'ready' && !workspace.checkout.dirty));
 					return {
 						id: option.id, available,
