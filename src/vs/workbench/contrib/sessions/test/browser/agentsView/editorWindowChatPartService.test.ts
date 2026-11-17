@@ -18,17 +18,36 @@ import { ILifecycleService } from '../../../../../services/lifecycle/common/life
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { EditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
-import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { AgentsChatPartFrame, IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
 import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { SessionChangesEditorInput } from '../../../../sessionChanges/browser/sessionChangesEditorInput.js';
+
+/**
+ * The instantiation service of the editor factory as the window's editors start, which the factory keeps for the editor
+ * serializers registered later, also of other tests: shared, and never disposed, as editor tests have it.
+ */
+let editorFactoryServices: TestInstantiationService | undefined;
+function editorFactoryInstantiationService(): TestInstantiationService {
+	editorFactoryServices ??= new TestInstantiationService();
+	return editorFactoryServices;
+}
 
 suite('EditorWindowChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** The service, as the window starts with the chat part shown or not, recording what it does. */
-	function createService(state: { visible: boolean }) {
+	function createService(state: { visible: boolean }, frame?: IAgentsChatPartFrame) {
 		const events: string[] = [];
 		const ownsNewChat: IObservable<boolean>[] = [];
 		const layoutService = upcastPartial<IWorkbenchLayoutService>({
@@ -62,13 +81,13 @@ suite('EditorWindowChatPartService', () => {
 			layoutService,
 			contextKeyService,
 			upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }),
-			upcastPartial<IChatViewHostService>({ registerHost: () => { events.push('register host'); return toDisposable(() => events.push('unregister host')); } }),
+			upcastPartial<IChatViewHostService>({ register: () => { events.push('register host'); return toDisposable(() => events.push('unregister host')); } }),
 			upcastPartial<IEditorWindowSessionsPresenterService>({
 				registerPresenter: () => { events.push('register presenter'); return toDisposable(() => events.push('unregister presenter')); },
 				registerComposerHolder: () => { events.push('register composer holder'); return toDisposable(() => events.push('unregister composer holder')); },
 			}),
 			upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { events.push('hold providers'); return toDisposable(() => events.push('release providers')); } }),
-			upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
+			frame ?? upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
 		));
 		return { service, events, ownsNewChat };
 	}
@@ -99,7 +118,7 @@ suite('EditorWindowChatPartService', () => {
 		]);
 	});
 
-	test('while chats do not open in it, it neither restores nor shows, and the Chat view keeps its chats; once they do, it replaces the Chat view; its composers hold the providers throughout', async () => {
+	test('while chats do not open in it, it neither restores nor shows, and the Chat view keeps its chats, and until they first do, the window has only its empty part; once they do, it replaces the Chat view, and its composers hold the providers from then on', async () => {
 		const enabled = observableValue('enabled', false);
 		const { service, events } = createService({ visible: true });
 		const step = (label: string) => events.push(`-- ${label}`);
@@ -114,14 +133,32 @@ suite('EditorWindowChatPartService', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual(events, [
-			'create part', 'hold providers', 'register composer holder', 'anchor chat',
+			'create part', 'anchor chat',
 			'hide',
 			'-- chats open in the chat part',
-			'register host', 'register presenter',
+			'hold providers', 'register composer holder', 'register host', 'register presenter',
 			'-- they no longer do',
 			'unregister host', 'deactivate host', 'unregister presenter',
 			'anchor undefined', 'release providers', 'unregister composer holder',
 		]);
+	});
+
+	test('resolving it creates no part, also once its delayed frame is created, as at idle, after the workbench created its grid: enabling it does, as the window starts', async () => {
+		const registered: string[] = [];
+		const frameServices = disposables.add(new TestInstantiationService());
+		frameServices.stub(IThemeService, new TestThemeService());
+		frameServices.stub(IStorageService, disposables.add(new TestStorageService()));
+		frameServices.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ registerPart: part => { registered.push(part.getId()); return toDisposable(() => { }); } }));
+		const frame = disposables.add(frameServices.createInstance(AgentsChatPartFrame));
+		const { service } = createService({ visible: false }, frame);
+		const beforeEnable = registered.splice(0);
+
+		const enabled = service.enable({ anchorViewId: 'view', anchorPriority: 1, enabled: constObservable(false) });
+		const onEnable = registered.splice(0);
+		enabled.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ beforeEnable, onEnable }, { beforeEnable: [], onEnable: [Parts.CHAT_PART] });
 	});
 
 	test('a feature that enables it twice with the same options keeps it until it disposes both', async () => {
@@ -138,6 +175,24 @@ suite('EditorWindowChatPartService', () => {
 		assert.deepStrictEqual({ afterFirst, afterBoth: service.enabled.get() }, {
 			afterFirst: { enabled: true, events: ['create part', 'hold providers', 'register composer holder', 'register host', 'register presenter', 'anchor list', 'anchor list', 'anchor list'] },
 			afterBoth: false,
+		});
+	});
+
+	test('restores a Changes editor saved as the window closed also while chats do not open in it, and provisions the sessions of its changes as it does', async () => {
+		const { service, events } = createService({ visible: false });
+		disposables.add(service.enable({ anchorViewId: 'chat', anchorPriority: 1, enabled: constObservable(false) }));
+		const beforeRestore = [...events];
+
+		// The window restores a Changes editor that it saved, as its editors start
+		const editorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+		editorFactoryInstantiationService().invokeFunction(accessor => editorFactory.start(accessor));
+		const serializer = editorFactory.getEditorSerializer(SessionChangesEditorInput.ID);
+		const restored = serializer?.deserialize(upcastPartial<IInstantiationService>({ createInstance: () => upcastPartial<EditorInput>({}) }), JSON.stringify({ multiDiffSourceUri: 'session-changes:/session' }));
+
+		assert.deepStrictEqual({ beforeRestore, restored: !!restored, afterRestore: events.slice(beforeRestore.length) }, {
+			beforeRestore: ['create part', 'anchor chat'],
+			restored: true,
+			afterRestore: ['hold providers', 'register composer holder'],
 		});
 	});
 

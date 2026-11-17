@@ -118,8 +118,8 @@ async function runNewChatCommand(accessor: ServicesAccessor, args: unknown[]): P
 	const instantiationService = accessor.get(IInstantiationService);
 
 	// For the Chat view, such as from its title, a host that replaces it may start the new chat itself: once it shows, so that
-	// a request that follows, such as of Run Prompt in New Chat, goes to it
-	if ((!actionContext || isChatViewTitleActionContext(actionContext)) && await chatViewHostService.newChat()) {
+	// a request that follows, such as of Run Prompt in New Chat, goes to it. Without one, New Chat runs as it always did.
+	if ((!actionContext || isChatViewTitleActionContext(actionContext)) && chatViewHostService.replaced.get() && await chatViewHostService.newChat()) {
 		return;
 	}
 

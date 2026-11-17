@@ -35,7 +35,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { RemoteAgentHostHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatWindow, IChatWindowOpenOptions } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
@@ -74,7 +74,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const session = createTestSession('Session').session;
 		const chatResource = session.mainChat.get().resource.with({ fragment: 'additional-chat' });
 		const chat = { ...session.mainChat.get(), resource: chatResource };
-		const sessions = [{ ...session, chats: { get: () => [session.mainChat.get(), chat] } }];
+		const sessions = [{ ...session, chats: constObservable([session.mainChat.get(), chat]) }];
 		const management = {
 			_getMergedSessions: () => sessions,
 			_getAllSessions: () => sessions,

@@ -238,10 +238,12 @@ suite('ChatWidgetService', () => {
 
 		test('a Chat view that still holds the session is not shown or returned instead of what the replacement host shows', async () => {
 			const { calls, service, hostService, oldWidget, hostWidget } = setUp();
-			store.add(hostService.registerHost(upcastPartial<IChatViewHost>({
-				reveal: async () => { calls.push('host.reveal'); return hostWidget; },
-				openSession: async () => { calls.push('host.openSession'); return hostWidget; },
-			})));
+			store.add(hostService.register({
+				host: upcastPartial<IChatViewHost>({
+					reveal: async () => { calls.push('host.reveal'); return hostWidget; },
+					openSession: async () => { calls.push('host.openSession'); return hostWidget; },
+				})
+			}));
 			const registration = service.register(oldWidget);
 			store.add(registration);
 
@@ -262,9 +264,11 @@ suite('ChatWidgetService', () => {
 
 		test('a Chat view widget without a session is revealed by the replacement host, which may show none', async () => {
 			const { calls, service, hostService, emptyOldWidget } = setUp();
-			store.add(hostService.registerHost(upcastPartial<IChatViewHost>({
-				reveal: async () => { calls.push('host.reveal'); return undefined; },
-			})));
+			store.add(hostService.register({
+				host: upcastPartial<IChatViewHost>({
+					reveal: async () => { calls.push('host.reveal'); return undefined; },
+				})
+			}));
 
 			const revealed = await service.reveal(emptyOldWidget);
 

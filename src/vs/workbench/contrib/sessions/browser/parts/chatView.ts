@@ -141,7 +141,7 @@ export interface INewSessionDraftHost {
 
 /** What a hosted composer creates its drafts for ({@link INewSessionDraftHost.requestedTarget}). */
 export interface INewSessionTarget {
-	/** The folder of the drafts; none for a workspace-less quick chat. */
+	/** The folder of the drafts; none for a workspace-less quick chat, which only the Agents window has: an editor window's drafts work in its folder. */
 	readonly folderUri?: URI;
 	readonly providerId?: string;
 	readonly sessionTypeId?: string;
@@ -157,6 +157,11 @@ export interface INewSessionTarget {
 	 * picked; a draft that cannot is not created elsewhere.
 	 */
 	readonly requireDevContainer?: boolean;
+	/**
+	 * Whether the first draft of {@link folderUri} works in a new worktree of it (`worktree`), as the user chose New
+	 * Worktree for it. A draft whose agent cannot is reported, not created in the folder silently.
+	 */
+	readonly placement?: 'worktree';
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */
@@ -199,6 +204,11 @@ export interface IChatViewInputOptions {
 export interface ISessionViewHostOptions {
 	/** Whether the session header shows above the chats; `true` by default. */
 	readonly showHeader?: boolean;
+	/**
+	 * Whether a new-session composer shows the session header too, titled as a new session, rather than hiding it until its
+	 * session is created; `false` by default.
+	 */
+	readonly showComposerHeader?: boolean;
 	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
 	readonly showActivityBar?: boolean;
 	/** Options of the inputs of the chats. */

@@ -51,7 +51,7 @@ import { ISessionDraftsService, SessionDraftsService } from '../sessionDraftsSer
 import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChatsService.js';
 import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
 import { NullChatWindowService } from '../../../chatWindow/browser/nullChatWindowService.js';
-import { EditorWindowMainSessionHost } from '../agentsView/editorWindowMainSessionHost.js';
+import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { DefaultChatViewFactory } from '../chat/defaultChatViewFactory.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../chat/newChatVoice.js';
@@ -67,6 +67,10 @@ import { EditorWindowSessionsService } from '../agentsView/editorWindowSessionsS
 import { EditorWindowSessionsNavigationHost } from '../agentsView/editorWindowSessionsNavigationHost.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenterService } from './editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsRuntime, IEditorWindowSessionsRuntime } from './editorWindowSessionsRuntime.js';
+import { AgentsChatPartFrame, IAgentsChatPartFrame } from '../agentsView/agentsChatPartFrame.js';
+import { AgentsChatPartService, IAgentsChatPartService } from '../agentsView/agentsChatPart.js';
+import { EditorWindowChatPartService, IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
+import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from './editorWindowComposerFolders.js';
 
 // The sessions services of an editor window, for the sessions features it can host. Every one is created only as it is
 // first used, and nothing in the window uses them until such a feature does.
@@ -109,6 +113,8 @@ registerEditorWindowSessionsSingleton(ISessionDraftsService, SessionDraftsServic
 registerEditorWindowSessionsSingleton(IScheduledChatsService, ScheduledChatsService, InstantiationType.Delayed);
 // Editor windows open no separate chat windows: the chats' input toolbars, which inject it, find none
 registerEditorWindowSessionsSingleton(IChatWindowService, NullChatWindowService, InstantiationType.Delayed);
+// The chat that the window's host shows, which features bind
+registerEditorWindowSessionsSingleton(IEditorWindowShownChatService, EditorWindowShownChatService, InstantiationType.Delayed);
 // Not delayed: hosts are compared by identity, which a delayed proxy would not keep. It does nothing until a feature binds what it shows
 registerEditorWindowSessionsSingleton(ISessionHost, EditorWindowMainSessionHost, InstantiationType.Eager);
 // As the Agents window's, so that its chats show over the chat background the user picked
@@ -125,3 +131,10 @@ registerEditorWindowSessionsSingleton(ISessionsNavigationService, EditorWindowSe
 registerEditorWindowSessionsSingleton(IEditorWindowSessionsPresenterService, EditorWindowSessionsPresenterService, InstantiationType.Delayed);
 // Holds the sessions providers for the features that enable it, while what they show shows
 registerEditorWindowSessionsSingleton(IEditorWindowSessionsRuntime, EditorWindowSessionsRuntime, InstantiationType.Delayed);
+
+// The chat part, which shows chats of sessions in tabs beside the editor area, once a feature enables it
+registerEditorWindowSessionsSingleton(IEditorWindowChatPartService, EditorWindowChatPartService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(IAgentsChatPartService, AgentsChatPartService, InstantiationType.Delayed);
+// The folders that the window's new-session composers offer, which reading does not create the chat part for
+registerEditorWindowSessionsSingleton(IEditorWindowComposerFoldersService, EditorWindowComposerFoldersService, InstantiationType.Delayed);
