@@ -191,13 +191,14 @@ export class NewChatInWorktreeAction extends Action2 {
 		}
 		const folder = workspaceContextService.getWorkspace().folders.at(0)?.uri;
 		// As New Chat: a host that replaces the Chat view starts it, of the local agent host, whatever session type its
-		// new chats start with otherwise. Where none does or it does not take it, the Chat view does.
+		// new chats start with otherwise. Where none does or it does not take it, the Chat view does, prepared here: not as
+		// a new chat of its own (`ownChat`), which the service would leave to the Chat view's default new chat.
 		if (folder && chatViewHostService.replaced.get() && await chatViewHostService.newChat({
 			folder,
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			sessionType: contribution.type.slice(LOCAL_AGENT_HOST_SCHEME_PREFIX.length),
 			placement: 'worktree',
-		}, { ownChat: true })) {
+		})) {
 			return undefined;
 		}
 		const openOptions = { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar };
