@@ -11,6 +11,8 @@ import { registerAction2, Action2, MenuId } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
+import { runOnChange } from '../../../../../base/common/observable.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
@@ -78,6 +80,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILocalChatAvailabilityService private readonly localChatAvailabilityService: ILocalChatAvailabilityService,
 	) {
 		super();
 
@@ -92,6 +95,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
+		this._register(runOnChange(this.localChatAvailabilityService.hidden, () => this._onDidChange.fire()));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
@@ -400,6 +404,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	exclude(session: IAgentSession): boolean {
+		// Local chats are not shown while a feature hides them, such as one that opens the chats in the chat part
+		if (session.providerType === AgentSessionProviders.Local && this.localChatAvailabilityService.hidden.get()) {
+			return true;
+		}
+
 		const providerFilter = this.chatSessionsService.getChatSessionContribution(session.providerType)?.sessionListGroup ?? session.providerType;
 		if (this.options.allowedProviders && !this.options.allowedProviders.includes(providerFilter as AgentSessionProviders)) {
 			return true;
