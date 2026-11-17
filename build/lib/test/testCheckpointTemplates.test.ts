@@ -387,7 +387,7 @@ suite('Product test checkpoint templates', () => {
 			})),
 			copilotSetup: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
 			copilotTests: ['${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}'],
-			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],
+			agentHostSmoke: ['${{ if and(eq(parameters.VSCODE_ARCH, \'x64\'), eq(parameters.VSCODE_BUILD_SERVER, true), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\'))) }}'],
 			selectedIds: availableIds,
 			selectionsMatchTests: true,
 			copilotCheckpoints: ['copilot-unit', 'copilot-simulation', 'copilot-prompt', 'copilot-extension', 'copilot-completions-core', 'copilot-sanity'],
@@ -620,7 +620,7 @@ suite('Product test checkpoint templates', () => {
 			ciBuild: true,
 			noProductTestSelection: true,
 			defaultTestIds: [],
-			packagedHostGuards: [`\${{ if and(eq(parameters.VSCODE_ARCH, '${platform === 'darwin' ? 'arm64' : 'x64'}'), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'))) }}`],
+			packagedHostGuards: [`\${{ if and(eq(parameters.VSCODE_ARCH, '${platform === 'darwin' ? 'arm64' : 'x64'}'), eq(parameters.VSCODE_BUILD_SERVER, true), or(ne(parameters.VSCODE_CIBUILD, true), eq(length(parameters.VSCODE_TEST_IDS), 0), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'))) }}`],
 			productTestGuards: ['${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}'],
 			repeatedTestJobs: 3,
 		})));
