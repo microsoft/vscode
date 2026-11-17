@@ -366,16 +366,16 @@ export function relativePath(from: string, to: string): string {
 	return relativePathWithNoFallback(from, to) ?? relative(from, to);
 }
 
-export function relativePathWithNoFallback(from: string, to: string): string | undefined {
+export function relativePathWithNoFallback(from: string, to: string, platform: PathPlatform = currentPathPlatform): string | undefined {
 	// There are cases in which the `from` path may contain a trailing separator at
 	// the end (ex: "C:\", "\\server\folder\" (Windows) or "/" (Linux/macOS)) which
 	// is by design as documented in https://github.com/nodejs/node/issues/1765. If
 	// the trailing separator is missing, we add it.
-	if (from.charAt(from.length - 1) !== sep) {
-		from += sep;
+	if (from.charAt(from.length - 1) !== platform.path.sep) {
+		from += platform.path.sep;
 	}
 
-	if (isDescendant(from, to) && from.length < to.length) {
+	if (isDescendant(from, to, platform) && from.length < to.length) {
 		return to.substring(from.length);
 	}
 

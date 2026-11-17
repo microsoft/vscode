@@ -8,7 +8,7 @@ import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseG
 import * as assert from 'assert';
 import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
-import { isDescendant, pathEquals, splitInChunks } from '../util';
+import { isDescendant, pathEquals, relativePathWithNoFallback, splitInChunks } from '../util';
 
 suite('git', () => {
 	suite('Git process input', () => {
@@ -853,6 +853,37 @@ suite('git', () => {
 				pathEquals('/', '/repo', posix),
 				pathEquals('/Repo', '/repo', posix),
 			], [true, true, true, true, false, true, true, false, false]);
+		});
+
+		test('macOS: posix paths compared case-insensitively', () => {
+			const macOS = { path: path.posix, ignoreCase: true };
+			assert.deepStrictEqual([
+				isDescendant('/', '/Repo', macOS),
+				isDescendant('/Users/Repo/', '/users/repo/src', macOS),
+				pathEquals('/Repo/', '/repo', macOS),
+				pathEquals('/', '/repo', macOS),
+			], [true, true, true, false]);
+		});
+
+		test('relativePathWithNoFallback from a root', () => {
+			assert.deepStrictEqual([
+				relativePathWithNoFallback('C:\\', 'C:\\Repo\\a.txt', windows),
+				relativePathWithNoFallback('c:', 'C:\\Repo\\a.txt', windows),
+				relativePathWithNoFallback('\\\\server\\share\\', '\\\\server\\share\\repo\\a.txt', windows),
+				relativePathWithNoFallback('C:\\Repo\\', 'C:\\Repo\\a.txt', windows),
+				relativePathWithNoFallback('C:\\', 'D:\\Repo\\a.txt', windows),
+				relativePathWithNoFallback('/', '/repo/a.txt', posix),
+			], ['Repo\\a.txt', 'Repo\\a.txt', 'repo\\a.txt', 'a.txt', undefined, 'repo/a.txt']);
+		});
+
+		test('defaults to the current platform', () => {
+			const cwd = process.cwd();
+			const root = path.parse(cwd).root;
+			assert.deepStrictEqual([
+				isDescendant(root, cwd),
+				pathEquals(root, root),
+				relativePathWithNoFallback(root, path.join(root, 'repo', 'a.txt')),
+			], [true, true, path.join('repo', 'a.txt')]);
 		});
 	});
 });
