@@ -1348,7 +1348,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			try {
 				await this._accountService.authenticateSession(raw, plan.client, plan.accountContext, runtime.cancellationToken ?? CancellationToken.None);
 			} catch (error) {
-				// A resume does not sign in, so a conversation left without its account could never be used.
+				// A new conversation has no history to keep, so one that cannot be signed in is removed.
 				await raw.disconnect().catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to disconnect unauthenticated session`, cleanupError));
 				await plan.client.deleteSession(plan.sessionId).catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to delete unauthenticated session`, cleanupError));
 				throw error;
@@ -1360,6 +1360,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ICopilotSessionConfig, runtime: ICopilotSessionRuntime, trustWorkingDirectory?: SessionConfig['trustWorkingDirectory'], resetAutoTier = false): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
+			if (plan.kind === 'resume' && plan.accountContext) {
+				// TODO: Remove once the SDK takes the Microsoft account when opening a session: github/copilot-agent-runtime#40998. The runtime keeps the sign-in only with the open session, so a reopened one has none. Its history is kept if this fails.
+				await this._accountService.authenticateSession(raw, plan.client, plan.accountContext, runtime.cancellationToken ?? CancellationToken.None);
+			}
 			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
 			await raw.rpc.agent.list();
 			const nativeAgent = getNativeAgentSelection(plan);
