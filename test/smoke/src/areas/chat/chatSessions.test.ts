@@ -145,8 +145,6 @@ async function preseedChatSessionProfile(userDataDir: string | undefined, mockSe
 		'chat.disableAIFeatures': false,
 		'chat.agentHost.claudeAgent.enabled': true,
 		'github.copilot.chat.backgroundAgent.enabled': true,
-		// The extension-host Copilot CLI provider is being retired; run as after its removal.
-		'github.copilot.chat.cli.legacyProvider.enabled': false,
 		'chat.tools.riskAssessment.enabled': false,
 		...settings,
 	}, undefined, '\t'));

@@ -1612,11 +1612,6 @@
         "displayName": "Copilot"
       },
       {
-        "vendor": "copilotcli",
-        "displayName": "Copilot CLI",
-        "when": "false"
-      },
-      {
         "vendor": "anthropic",
         "displayName": "Anthropic",
         "configuration": {
@@ -2327,71 +2322,6 @@
         "title": "%github.copilot.command.triggerPermissiveSignIn%"
       },
       {
-        "command": "github.copilot.cli.sessions.delete",
-        "title": "%github.copilot.command.deleteAgentSession%",
-        "icon": "$(close)",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "agents.github.copilot.cli.deleteSessions",
-        "title": "%github.copilot.command.deleteAgentSession%",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "github.copilot.cli.sessions.resumeInTerminal",
-        "title": "%github.copilot.command.cli.sessions.resumeInTerminal%",
-        "icon": "$(terminal)",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "github.copilot.cli.sessions.rename",
-        "title": "%github.copilot.command.cli.sessions.rename%",
-        "icon": "$(edit)",
-        "category": "Copilot CLI",
-        "enablement": "!sessionItem.isMultiSelection"
-      },
-      {
-        "command": "github.copilot.cli.sessions.setTitle",
-        "title": "%github.copilot.command.cli.sessions.setTitle%",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "github.copilot.cli.sessions.openRepository",
-        "title": "%github.copilot.command.cli.sessions.openRepository%",
-        "icon": "$(folder-opened)",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "github.copilot.cli.sessions.openWorktreeInNewWindow",
-        "title": "%github.copilot.command.cli.sessions.openWorktreeInNewWindow%",
-        "icon": "$(folder-opened)",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "github.copilot.cli.sessions.openWorktreeInTerminal",
-        "title": "%github.copilot.command.cli.sessions.openWorktreeInTerminal%",
-        "icon": "$(terminal)",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "github.copilot.cli.sessions.copyWorktreeBranchName",
-        "title": "%github.copilot.command.cli.sessions.copyWorktreeBranchName%",
-        "icon": "$(copy)",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "github.copilot.cli.sessions.commitToWorktree",
-        "title": "%github.copilot.command.cli.sessions.commitToWorktree%",
-        "icon": "$(git-commit)",
-        "category": "Copilot CLI"
-      },
-      {
-        "command": "github.copilot.cli.sessions.commitToRepository",
-        "title": "%github.copilot.command.cli.sessions.commitToRepository%",
-        "icon": "$(git-commit)",
-        "category": "Copilot CLI"
-      },
-      {
         "command": "github.copilot.cli.newSession",
         "title": "%github.copilot.command.cli.newSession%",
         "icon": "$(terminal)",
@@ -2937,75 +2867,6 @@
         "enablement": "github.copilot.extensionUnification.activated && !isWeb && github.copilot.completions.hasMultipleModels"
       },
       {
-        "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges",
-        "title": "%github.copilot.command.applyCopilotCLIAgentSessionChanges%",
-        "enablement": "!chatSessionRequestInProgress",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
-        "title": "%github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply%",
-        "enablement": "!chatSessionRequestInProgress",
-        "icon": "$(git-stash-pop)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
-        "title": "%github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge%",
-        "enablement": "!chatSessionRequestInProgress",
-        "icon": "$(git-merge)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
-        "title": "%github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync%",
-        "enablement": "!chatSessionRequestInProgress",
-        "icon": "$(sync)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.sessions.commit",
-        "title": "%github.copilot.command.sessions.commit%",
-        "enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
-        "icon": "$(git-commit)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.sessions.commitAndSync",
-        "title": "%github.copilot.command.sessions.commitAndSync%",
-        "enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
-        "icon": "$(sync)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.sessions.sync",
-        "title": "%github.copilot.command.sessions.sync%",
-        "enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
-        "icon": "$(sync)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-        "title": "%github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR%",
-        "enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
-        "icon": "$(git-pull-request-create)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-        "title": "%github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR%",
-        "enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
-        "icon": "$(git-pull-request-draft)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.sessions.discardChanges",
-        "title": "%github.copilot.command.sessions.discardChanges%",
-        "enablement": "!chatSessionRequestInProgress",
-        "icon": "$(discard)",
-        "category": "GitHub Copilot"
-      },
-      {
         "command": "github.copilot.chat.copilotCLI.addFileReference",
         "title": "%github.copilot.command.chat.copilotCLI.addFileReference%",
         "enablement": "github.copilot.chat.copilotCLI.hasSession",
@@ -3058,19 +2919,6 @@
       {
         "command": "github.copilot.chat.cloudSessions.clearCaches",
         "title": "%github.copilot.command.cloudSessions.clearCaches.title%",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.sessions.refreshChanges",
-        "title": "%github.copilot.command.sessions.refreshChanges%",
-        "icon": "$(refresh)",
-        "category": "GitHub Copilot"
-      },
-      {
-        "command": "github.copilot.sessions.initializeRepository",
-        "title": "%github.copilot.command.sessions.initializeRepository%",
-        "enablement": "!chatSessionRequestInProgress",
-        "icon": "$(repo)",
         "category": "GitHub Copilot"
       }
     ],
@@ -4832,188 +4680,6 @@
               "experimental"
             ]
           },
-          "github.copilot.chat.cli.mcp.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.mcp.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.mcp.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced",
-              "experimental"
-            ],
-            "agentsWindow": {
-              "default": true
-            }
-          },
-          "github.copilot.chat.cli.sandbox.enabled": {
-            "type": "string",
-            "enum": [
-              "off",
-              "on",
-              "allowNetwork"
-            ],
-            "enumDescriptions": [
-              "%github.copilot.config.cli.sandbox.enabled.offDescription%",
-              "%github.copilot.config.cli.sandbox.enabled.onDescription%",
-              "%github.copilot.config.cli.sandbox.enabled.allowNetworkDescription%"
-            ],
-            "default": "off",
-            "markdownDescription": "%github.copilot.config.cli.sandbox.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.sandbox.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced",
-              "experimental"
-            ]
-          },
-          "github.copilot.chat.cli.branchSupport.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.cli.branchSupport.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.branchSupport.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ],
-            "agentsWindow": {
-              "default": true
-            }
-          },
-          "github.copilot.chat.cli.planExitMode.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.planExitMode.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.planExitMode.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ]
-          },
-          "github.copilot.chat.cli.autoModel.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.autoModel.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ]
-          },
-          "github.copilot.chat.agent.modelDetails.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.chat.agent.modelDetails.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.chat.agent.modelDetails.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ]
-          },
-          "github.copilot.chat.cli.planCommand.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.planCommand.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ]
-          },
-          "github.copilot.chat.cli.lazyLoadSessionItem.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.lazyLoadSessionItem.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.lazyLoadSessionItem.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ],
-            "agentsWindow": {
-              "default": false
-            }
-          },
-          "github.copilot.chat.cli.aiGenerateBranchNames.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.aiGenerateBranchNames.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.aiGenerateBranchNames.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ]
-          },
-          "github.copilot.chat.cli.forkSessions.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.forkSessions.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.forkSessions.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ]
-          },
-          "github.copilot.chat.cli.isolationOption.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.isolationOption.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.isolationOption.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ],
-            "agentsWindow": {
-              "default": true
-            }
-          },
-          "github.copilot.chat.cli.autoCommit.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.autoCommit.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.autoCommit.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced",
-              "experimental"
-            ],
-            "agentsWindow": {
-              "default": false
-            }
-          },
-          "github.copilot.chat.cli.sessionController.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.sessionController.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ],
-            "agentsWindow": {
-              "default": false,
-              "readOnly": true
-            }
-          },
-          "github.copilot.chat.cli.legacyProvider.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.legacyProvider.enabled%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ]
-          },
-          "github.copilot.chat.cli.sessionControllerForSessionsApp.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.cli.sessionControllerForSessionsApp.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.sessionControllerForSessionsApp.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ]
-          },
           "github.copilot.chat.cli.terminalLinks.enabled": {
             "type": "boolean",
             "default": true,
@@ -5021,19 +4687,6 @@
             "tags": [
               "advanced"
             ]
-          },
-          "github.copilot.chat.cli.remote.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.cli.remote.enabled%",
-            "markdownDeprecationMessage": "%github.copilot.config.cli.remote.enabled.deprecationMessage%",
-            "deprecationMessageSeverity": "info",
-            "tags": [
-              "advanced"
-            ],
-            "agentsWindow": {
-              "default": false
-            }
           },
           "github.copilot.chat.searchSubagent.enabled": {
             "type": "boolean",
@@ -5413,11 +5066,6 @@
       ],
       "chat/input/editing/sessionToolbar": [
         {
-          "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
-          "when": "chatSessionType == copilotcli && workbenchState != empty && !isSessionsWindow",
-          "group": "navigation@0"
-        },
-        {
           "command": "github.copilot.chat.checkoutPullRequestReroute",
           "when": "chatSessionType == copilot-cloud-agent && chatSessionPullRequest != 'none' && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
           "group": "navigation@0"
@@ -5431,55 +5079,6 @@
           "command": "github.copilot.chat.cloudSessions.openPullRequestForTask",
           "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanOpenPullRequest && !isSessionsWindow",
           "group": "navigation@0"
-        }
-      ],
-      "agents/changes/actions/primary": [
-        {
-          "command": "github.copilot.sessions.initializeRepository",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",
-          "group": "0_init@1"
-        },
-        {
-          "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
-          "group": "1_merge@1"
-        },
-        {
-          "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
-          "group": "1_merge@2"
-        },
-        {
-          "command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
-          "group": "2_pull_request@1"
-        },
-        {
-          "command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && sessions.hasBranchChanges && !sessions.isAgentHostSession",
-          "group": "2_pull_request@2"
-        },
-        {
-          "command": "github.copilot.sessions.commit",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
-          "group": "3_commit@1"
-        },
-        {
-          "command": "github.copilot.sessions.commitAndSync",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
-          "group": "3_commit@2"
-        },
-        {
-          "command": "github.copilot.sessions.sync",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
-          "group": "4_sync@1"
-        }
-      ],
-      "agents/change/inline": [
-        {
-          "command": "github.copilot.sessions.discardChanges",
-          "when": "sessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !sessionIsArchived && !sessions.isAgentHostSession",
-          "group": "navigation@2"
         }
       ],
       "chat/contextUsage/actions": [
@@ -5521,23 +5120,11 @@
           "when": "false"
         },
         {
-          "command": "agents.github.copilot.cli.deleteSessions",
-          "when": "config.github.copilot.chat.cli.legacyProvider.enabled && !github.copilot.chat.cli.legacyProviderDisabled"
-        },
-        {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
         },
         {
           "command": "github.copilot.debug.extensionState",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.commitToWorktree",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.commitToRepository",
           "when": "false"
         },
         {
@@ -5733,38 +5320,6 @@
           "when": "false"
         },
         {
-          "command": "github.copilot.cli.sessions.delete",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.resumeInTerminal",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.rename",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.setTitle",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.openRepository",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.openWorktreeInNewWindow",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.openWorktreeInTerminal",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.cli.sessions.copyWorktreeBranchName",
-          "when": "false"
-        },
-        {
           "command": "github.copilot.cloud.sessions.openInBrowser",
           "when": "false"
         },
@@ -5774,30 +5329,6 @@
         },
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
           "when": "false"
         },
         {
@@ -5823,30 +5354,6 @@
         {
           "command": "github.copilot.nes.captureExpected.submit",
           "when": "github.copilot.inlineEditsEnabled"
-        },
-        {
-          "command": "github.copilot.sessions.commit",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.sessions.commitAndSync",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.sessions.sync",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.sessions.discardChanges",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.sessions.refreshChanges",
-          "when": "false"
-        },
-        {
-          "command": "github.copilot.sessions.initializeRepository",
-          "when": "false"
         }
       ],
       "view/title": [
@@ -6151,48 +5658,7 @@
           "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges && git.activeResourceHasMergeConflicts && chatSetupCompleted"
         }
       ],
-      "multiDiffEditor/content": [
-        {
-          "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges",
-          "when": "resourceScheme == copilotcli-worktree-changes && workbenchState != empty && !isSessionsWindow"
-        }
-      ],
       "chat/chatSessions": [
-        {
-          "command": "github.copilot.cli.sessions.delete",
-          "when": "chatSessionType == copilotcli",
-          "group": "1_edit@10"
-        },
-        {
-          "command": "github.copilot.cli.sessions.rename",
-          "when": "chatSessionType == copilotcli",
-          "group": "1_edit@4"
-        },
-        {
-          "command": "github.copilot.cli.sessions.openWorktreeInNewWindow",
-          "when": "chatSessionType == copilotcli && !isSessionsWindow",
-          "group": "2_open@1"
-        },
-        {
-          "command": "github.copilot.cli.sessions.openWorktreeInTerminal",
-          "when": "chatSessionType == copilotcli",
-          "group": "2_open@2"
-        },
-        {
-          "command": "github.copilot.cli.sessions.copyWorktreeBranchName",
-          "when": "chatSessionType == copilotcli",
-          "group": "2_open@3"
-        },
-        {
-          "command": "github.copilot.cli.sessions.resumeInTerminal",
-          "when": "chatSessionType == copilotcli",
-          "group": "2_open@4"
-        },
-        {
-          "command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges",
-          "when": "chatSessionType == copilotcli && workbenchState != empty && !isSessionsWindow",
-          "group": "3_apply@0"
-        },
         {
           "command": "github.copilot.cloud.sessions.openInBrowser",
           "when": "chatSessionType == copilot-cloud-agent",
@@ -6204,25 +5670,11 @@
           "group": "1_edit@10"
         }
       ],
-      "chatSessions/item/context": [
-        {
-          "command": "github.copilot.cli.sessions.rename",
-          "when": "sessionType == copilotcli && sessionProviderId == default-copilot",
-          "group": "4_manage@2"
-        }
-      ],
       "chat/multiDiff/context": [
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
           "when": "chatSessionType == copilot-cloud-agent && !github.copilot.prExtensionInstalled",
           "group": "inline@1"
-        }
-      ],
-      "chat/input/editing/sessionTitleToolbar": [
-        {
-          "command": "github.copilot.sessions.refreshChanges",
-          "when": "sessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
-          "group": "9_refresh@1"
         }
       ]
     },
@@ -6561,62 +6013,6 @@
     ],
     "chatSessions": [
       {
-        "type": "copilotcli",
-        "name": "cli",
-        "displayName": "Copilot CLI",
-        "icon": "$(copilot)",
-        "welcomeTitle": "Copilot CLI",
-        "welcomeMessage": "Run tasks in the background with the Copilot CLI",
-        "inputPlaceholder": "Run tasks in the background with the Copilot CLI, type `#` for adding context",
-        "order": 1,
-        "canDelegate": true,
-        "description": "%github.copilot.session.providerDescription.background%",
-        "when": "config.github.copilot.chat.backgroundAgent.enabled && config.github.copilot.chat.cli.legacyProvider.enabled && !github.copilot.chat.cli.legacyProviderDisabled",
-        "supportsAutoModel": true,
-        "requiresCopilotSignIn": true,
-        "capabilities": {
-          "supportsFileAttachments": true,
-          "supportsProblemAttachments": true,
-          "supportsToolAttachments": false,
-          "supportsImageAttachments": true,
-          "supportsSymbolAttachments": true,
-          "supportsSearchResultAttachments": true,
-          "supportsSourceControlAttachments": true,
-          "supportsPromptAttachments": true,
-          "supportsHandOffs": true
-        },
-        "commands": [
-          {
-            "name": "delegate",
-            "description": "Delegate chat session to cloud agent and create associated PR",
-            "when": "config.github.copilot.chat.cloudAgent.enabled"
-          },
-          {
-            "name": "compact",
-            "description": "%github.copilot.command.cli.compact.description%"
-          },
-          {
-            "name": "plan",
-            "description": "%github.copilot.command.cli.plan.description%",
-            "when": "config.github.copilot.chat.cli.planCommand.enabled"
-          },
-          {
-            "name": "fleet",
-            "description": "%github.copilot.command.cli.fleet.description%",
-            "when": "false"
-          },
-          {
-            "name": "remote",
-            "description": "%github.copilot.command.cli.remote.description%",
-            "when": "config.github.copilot.chat.cli.remote.enabled"
-          }
-        ],
-        "customAgentTarget": "github-copilot",
-        "requiresCustomModels": true,
-        "autoAttachReferences": true,
-        "useRequestToPopulateBuiltInPickers": true
-      },
-      {
         "type": "copilot-cloud-agent",
         "alternativeIds": [
           "copilot-swe-agent"
@@ -6893,7 +6289,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.73",
     "@google/genai": "1.30.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

@@ -69,8 +69,7 @@ const esbuildScriptsByExtension: Record<string, { readonly script: string; reado
 	// Builds the bundles that ship, without the test bundles that would make the integration tests run
 	// the extension tests too. The source maps go to `dist-sourcemaps`, which the product build uploads
 	// (see `build/azure-pipelines/copilot/upload-sourcemaps-steps.yml`). The script ends with Copilot's
-	// postinstall, which deletes and copies again `node_modules/@github/copilot/sdk`, whose declarations
-	// the type check reads.
+	// postinstall.
 	'copilot': { script: '.esbuild.mts', args: ['--sourcemaps', '--shipped-bundles-only'], typeCheckAfterBuild: true },
 };
 
@@ -211,7 +210,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string, 
 	// Ensure those externals are included in the packaged built-in extension.
 	const packagedDependenciesByExtension: Record<string, string[]> = {
 		'git': ['@vscode/fs-copyfile'],
-		'copilot': ['@github/copilot', '@vscode/copilot-typescript-server-plugin'],
+		'copilot': ['@vscode/copilot-typescript-server-plugin'],
 	};
 	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
 
@@ -588,9 +587,7 @@ export function getSharedExtensionDependencyStream(folder: string, destination: 
  * Packages the built-in Copilot extension like the other local extensions (see
  * {@link doPackageLocalExtensionsStream}), on its own because the platform Compile jobs build it
  * after preparing it (see `build/azure-pipelines/copilot/builtin-steps.yml`). Its packaged
- * dependencies hold the parts of `node_modules` that Copilot loads at runtime, with the native files
- * of the build machine, which packaging the product replaces with those of the target platform (see
- * `prepareBuiltInCopilotRipgrepShim` in `copilot.ts`).
+ * dependencies hold the parts of `node_modules` that Copilot loads at runtime.
  */
 export function packageCopilotExtensionStream(): Stream {
 	const extensionPath = path.join(root, 'extensions', 'copilot');
