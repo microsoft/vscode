@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { type ContextItem, type RequestContext, KnownSources } from '../../../../platform/languageServer/common/languageContextService';
+import { type ContextItem, type RequestContext } from '../../../../platform/languageServer/common/languageContextService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
@@ -71,17 +71,13 @@ class InflightRequestInfo {
 
 	public readonly document: string;
 	public readonly position: vscode.Position;
-	public readonly requestId: string;
-	public readonly source: KnownSources | string;
 	public readonly serverPromise: Thenable<protocol.ComputeContextResponse>;
 
 	private readonly tokenSource: vscode.CancellationTokenSource;
 
-	constructor(document: vscode.TextDocument, position: vscode.Position, context: RequestContext, tokenSource: vscode.CancellationTokenSource, serverPromise: Thenable<protocol.ComputeContextResponse>) {
+	constructor(document: vscode.TextDocument, position: vscode.Position, tokenSource: vscode.CancellationTokenSource, serverPromise: Thenable<protocol.ComputeContextResponse>) {
 		this.document = document.uri.toString();
 		this.position = position;
-		this.requestId = context.requestId;
-		this.source = context.source ?? KnownSources.unknown;
 		this.tokenSource = tokenSource;
 		this.serverPromise = serverPromise;
 	}
@@ -112,10 +108,6 @@ class OnTimeoutData {
 		this.document = document.uri.toString();
 		this.version = document.version;
 		this.position = position;
-	}
-
-	addRunnableResult(result: ResolvedRunnableResult): void {
-		this.runnableResults.push(result);
 	}
 
 	addRunnableResults(results: readonly ResolvedRunnableResult[]): void {
@@ -241,7 +233,7 @@ export class TS6LanguageContextService extends AbstractTSLanguageContextService 
 			let inflightRequest: InflightRequestInfo | undefined = undefined;
 			try {
 				const promise: Thenable<protocol.ComputeContextResponse> = vscode.commands.executeCommand('typescript.tsserverRequest', '_.copilot.context', args, TS6LanguageContextService.ExecConfig, token);
-				inflightRequest = new InflightRequestInfo(document, position, context, tokenSource, promise);
+				inflightRequest = new InflightRequestInfo(document, position, tokenSource, promise);
 				this.inflightCachePopulationRequest = inflightRequest;
 				response = await promise;
 			} finally {

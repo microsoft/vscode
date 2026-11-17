@@ -80,12 +80,10 @@ export type ContextComputedEvent = {
 
 export type OnCachePopulatedEvent = ContextComputedEvent & { items: ReadonlyArray<ResolvedRunnableResult> };
 export type OnContextComputedEvent = ContextComputedEvent & { items: ReadonlyArray<ContextItem> };
-export type OnContextComputedOnTimeoutEvent = ContextComputedEvent & { items: ReadonlyArray<ContextItem> };
 
 export interface IInternalLanguageContextService extends ILanguageContextService {
 	onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
 	onContextComputed: vscode.Event<OnContextComputedEvent>;
-	onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
 }
 
 export type Stats = {
@@ -236,18 +234,6 @@ export class ContextItemResultBuilder implements ContextItemSummary {
 			}
 			Stats.yielded(this.stats);
 			yield { item: converted, size: protocol.ContextItem.sizeInChars(item) };
-		}
-	}
-
-	public *convert(runnableResult: ResolvedRunnableResult): IterableIterator<ContextItem> {
-		Stats.update(this.stats, runnableResult);
-		for (const item of runnableResult.items) {
-			const converted = ContextItemResultBuilder.doConvert(item, runnableResult.priority, (this.counter++).toString());
-			if (converted === undefined) {
-				continue;
-			}
-			Stats.yielded(this.stats);
-			yield converted;
 		}
 	}
 

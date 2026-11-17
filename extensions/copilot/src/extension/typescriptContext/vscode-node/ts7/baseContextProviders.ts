@@ -9,28 +9,17 @@ import { version } from '@typescript/native';
 import { ModuleKind, SignatureKind, SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/async';
 import {
 	ScriptTarget,
-	SyntaxKind,
-	isArrowFunction,
-	isBlock,
+	SyntaxKind, isBlock,
 	isCallExpression,
-	isElementAccessExpression,
-	isFunctionDeclaration,
-	isFunctionExpression,
-	isIdentifier,
-	isImportDeclaration,
-	isIntersectionTypeNode,
-	isNamedImports,
+	isElementAccessExpression, isIdentifier,
+	isImportDeclaration, isNamedImports,
 	isNamespaceImport,
-	isPropertyAccessExpression,
-	isTypeLiteralNode,
-	isTypeReferenceNode,
-	isUnionTypeNode,
-	type FunctionLikeDeclaration,
+	isPropertyAccessExpression, type FunctionLikeDeclaration,
 	type ImportDeclaration,
 	type Node,
 	type SourceFile,
 	type TypeNode,
-	type VariableDeclaration,
+	type VariableDeclaration
 } from '@typescript/native/ast';
 import * as protocol from '../../common/serverProtocol';
 import {
@@ -512,12 +501,4 @@ export abstract class FunctionLikeContextProvider extends ContextProvider {
 	}
 
 	protected abstract getTypeExcludes(project: Project, context: RequestContext): Promise<Set<NativeSymbol>>;
-}
-
-export function isFunctionContextNode(node: Node): node is FunctionLikeDeclaration {
-	return isFunctionDeclaration(node) || isFunctionExpression(node) || isArrowFunction(node);
-}
-
-export function isCompositeTypeNode(node: TypeNode): boolean {
-	return isTypeReferenceNode(node) || isTypeLiteralNode(node) || isUnionTypeNode(node) || isIntersectionTypeNode(node);
 }

@@ -194,46 +194,6 @@ export class TelemetrySender {
 		}
 	}
 
-	public sendRequestOnTimeoutTelemetry(context: RequestContext, data: ContextItemSummary, cacheState: CacheState): void {
-		const stats = data.stats;
-		const items = stats.items;
-		const totalSize = stats.totalSize;
-		/* __GDPR__
-			"typescript-context-plugin.completion-context.on-timeout" : {
-				"owner": "dirkb",
-				"comment": "Telemetry for copilot inline completion context on timeout",
-				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request correlation id" },
-				"opportunityId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The opportunity id" },
-				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The source of the request" },
-				"total": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of context items", "isMeasurement": true },
-				"snippets": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of code snippets", "isMeasurement": true },
-				"traits": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of traits", "isMeasurement": true },
-				"yielded": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of yielded items", "isMeasurement": true },
-				"items": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Detailed information about each context item delivered." },
-				"totalSize": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total size of all context items", "isMeasurement": true },
-				"cacheState": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The cache state for the onTimeout request" }
-			}
-		*/
-		this.telemetryService.sendMSFTTelemetryEvent(
-			'typescript-context-plugin.completion-context.on-timeout',
-			{
-				requestId: context.requestId,
-				opportunityId: context.opportunityId ?? 'unknown',
-				source: context.source ?? KnownSources.unknown,
-				items: JSON.stringify(items),
-				cacheState: cacheState.toString()
-			},
-			{
-				total: stats.total,
-				snippets: stats.snippets,
-				traits: stats.traits,
-				yielded: stats.yielded,
-				totalSize: totalSize
-			}
-		);
-		this.logService.debug(`TypeScript Copilot context on timeout: [${context.requestId}, ${JSON.stringify(stats, undefined, 0)}]`);
-	}
-
 	public sendRequestFailureTelemetry(context: RequestContext, data: { error: protocol.ErrorCode; message: string; stack?: string }): void {
 		/* __GDPR__
 			"typescript-context-plugin.completion-context.failed" : {
