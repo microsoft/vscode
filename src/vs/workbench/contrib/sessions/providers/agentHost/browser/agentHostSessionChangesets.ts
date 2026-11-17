@@ -181,7 +181,7 @@ export function createChatChangesets(
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
 	currentTurnChanges?: IObservable<IAgentHostCurrentTurnChanges | undefined>,
-	defaultChangesetKind: DefaultChangesetKind | undefined = options.defaultChangesetKind,
+	defaultChangesetKindObs: IObservable<DefaultChangesetKind | undefined> = constObservable(options.defaultChangesetKind),
 ): IObservable<readonly ISessionChangeset[] | undefined> {
 	const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 		options,
@@ -199,6 +199,7 @@ export function createChatChangesets(
 	let lastSessionCatalogue: readonly Changeset[] | undefined;
 	let lastChatUri: URI | undefined;
 	let lastDefaultChatUri: string | undefined;
+	let lastDefaultChangesetKind: DefaultChangesetKind | undefined;
 	let lastChangesets: readonly ISessionChangeset[] | undefined;
 	const currentTurnFileChanges = currentTurnChanges
 		? derived(reader => currentTurnChanges.read(reader)?.changes)
@@ -211,7 +212,8 @@ export function createChatChangesets(
 			return undefined;
 		}
 		const defaultChatUri = sessionState?.defaultChat;
-		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri
+		const defaultChangesetKind = defaultChangesetKindObs.read(reader);
+		if (isEqual(chatUri, lastChatUri) && defaultChatUri === lastDefaultChatUri && defaultChangesetKind === lastDefaultChangesetKind
 			&& chatState.changesets === lastChatCatalogue && sessionState?.changesets === lastSessionCatalogue && lastChangesets !== undefined) {
 			return lastChangesets;
 		}
@@ -226,6 +228,7 @@ export function createChatChangesets(
 		lastSessionCatalogue = sessionState?.changesets;
 		lastChatUri = chatUri;
 		lastDefaultChatUri = defaultChatUri;
+		lastDefaultChangesetKind = defaultChangesetKind;
 		lastChangesets = createChangesets(sessionUri, options, isActiveSessionObs, resolvedCatalogue.map(({ changeset, owner }) => ({
 			...changeset,
 			uriTemplate: resolveChangesetUriTemplate((owner === 'session' ? sessionUri : chatUri).toString(), changeset.uriTemplate),

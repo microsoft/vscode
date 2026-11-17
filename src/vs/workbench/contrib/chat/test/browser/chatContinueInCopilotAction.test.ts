@@ -299,7 +299,7 @@ suite('Continue in Copilot policy recovery', () => {
 				// The panel is the Chat view, as in the workbench
 				services.stub(IViewDescriptorService, {});
 				services.stub(IWorkbenchLayoutService, {});
-				services.stub(IChatViewHostService, services.createInstance(ChatViewHostService));
+				services.stub(IChatViewHostService, store.add(services.createInstance(ChatViewHostService)));
 				const action = new ContinueChatInCopilotAction();
 				// The policy move runs on its own when the panel opens a chat, and when the user chooses it in an editor.
 				const execute = () => services.invokeFunction(accessor => action.run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: source, inputUri, ...(sidebar ? { trigger: 'automatic' } : {}) }));

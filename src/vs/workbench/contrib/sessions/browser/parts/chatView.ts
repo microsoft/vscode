@@ -26,6 +26,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../commo
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import type { INewSessionInputPresentation } from '../newSessionInputPresentation.js';
+import type { INewSessionPresentation } from '../newSessionPresentation.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -60,9 +61,9 @@ export interface IChatViewBackground {
  */
 export interface IChatViewOptions {
 	readonly newSessionInput?: INewSessionInputPresentation;
+	readonly newSessionPresentation?: INewSessionPresentation;
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
-	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
 	readonly background?: IChatViewBackground;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
@@ -93,6 +94,10 @@ export interface IChatViewOptions {
 	readonly newSessionDraft?: INewSessionDraftHost;
 }
 
+export interface INewSessionViewOptions extends IChatViewOptions {
+	readonly newSessionPresentation: INewSessionPresentation;
+}
+
 /**
  * The host of a new-session composer outside the main window's grid ({@link IChatViewOptions.newSessionDraft}).
  */
@@ -116,6 +121,11 @@ export interface INewSessionDraftHost {
 	 * offers no other. Unset, it offers any workspace.
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/**
+	 * Fires as the host aims the composer at another folder, such as the location the window's folder moved to: the composer
+	 * creates its draft for it, unless it sent its session already.
+	 */
+	readonly onDidRetarget?: Event<INewSessionTarget>;
 	/** How its workspace picker shows one of its {@link allowedFolders}, such as a linked checkout of a window's folder. */
 	getFolderPresentation?(folderUri: URI): IAllowedFolderPresentation | undefined;
 	/** Opens a session the composer started in the background, in the composer's own window. */
@@ -131,7 +141,7 @@ export interface INewSessionDraftHost {
 
 /** What a hosted composer creates its drafts for ({@link INewSessionDraftHost.requestedTarget}). */
 export interface INewSessionTarget {
-	/** The folder of the drafts; none for a workspace-less quick chat. */
+	/** The folder of the drafts; none for a workspace-less quick chat, which only the Agents window has: an editor window's drafts work in its folder. */
 	readonly folderUri?: URI;
 	readonly providerId?: string;
 	readonly sessionTypeId?: string;
@@ -147,6 +157,11 @@ export interface INewSessionTarget {
 	 * picked; a draft that cannot is not created elsewhere.
 	 */
 	readonly requireDevContainer?: boolean;
+	/**
+	 * Whether the first draft of {@link folderUri} works in a new worktree of it (`worktree`), as the user chose New
+	 * Worktree for it. A draft whose agent cannot is reported, not created in the folder silently.
+	 */
+	readonly placement?: 'worktree';
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */
@@ -175,6 +190,11 @@ export interface IChatViewInputOptions {
 	readonly minLines?: number;
 	/** Whether the status pills of the session show above the input; `true` by default. */
 	readonly showPills?: boolean;
+	/**
+	 * Whether the changes of an Agent Host session show as a working set above the input, with Keep and Undo, in place of
+	 * its Changes pill, as the editor window's chat shows them. Never in the Agents window; `false` by default.
+	 */
+	readonly workingSet?: boolean;
 }
 
 /**
@@ -184,6 +204,11 @@ export interface IChatViewInputOptions {
 export interface ISessionViewHostOptions {
 	/** Whether the session header shows above the chats; `true` by default. */
 	readonly showHeader?: boolean;
+	/**
+	 * Whether a new-session composer shows the session header too, titled as a new session, rather than hiding it until its
+	 * session is created; `false` by default.
+	 */
+	readonly showComposerHeader?: boolean;
 	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
 	readonly showActivityBar?: boolean;
 	/** Options of the inputs of the chats. */

@@ -472,6 +472,9 @@ export class MissionControlSharingService extends Disposable implements IMission
 				case 'authorization':
 					message = localize('missionControlSharing.connectionAuthorization', "GitHub did not allow this connection. Check your account and organization settings.");
 					break;
+				case 'throttled':
+					message = localize('missionControlSharing.connectionThrottled', "GitHub is limiting requests right now. Please try again later.");
+					break;
 				case 'network':
 				case 'dns':
 					message = localize('missionControlSharing.connectionFailed', "Could not connect to GitHub. Please try again. See the Agent Host log for details.");

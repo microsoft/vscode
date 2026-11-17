@@ -80,6 +80,7 @@ import { continueInPanelChat, IInlineChatSession, IInlineChatSessionService } fr
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { IInlineChatSessionResolver, IInlineChatSessionResolution } from '../../browser/inlineChatSessionResolver.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { ILocalChatAvailabilityService } from '../../../chat/common/localChatAvailability.js';
 
 const agentHostContribution: ResolvedChatSessionsExtensionPoint = {
 	type: SessionType.AgentHostCopilot,
@@ -473,6 +474,7 @@ suite('Inline Chat panel handoff', () => {
 		services.stub(IStorageService, storage);
 		services.stub(IWorkspaceContextService, new TestContextService());
 		services.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
+		services.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		services.stub(IManagedSettingsService, new NullManagedSettingsService());
 		services.stub(IAccountPolicyGateService, { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 		const session: IInlineChatSession = new class extends mock<IInlineChatSession>() {

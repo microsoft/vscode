@@ -9,7 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, combinedDisposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, autorun, constObservable, derived, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -62,7 +62,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../../../../canvases/common/canvas.js';
-import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { AgentHostSessionInputPills, AgentHostSessionWorkingSet, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
@@ -186,6 +186,13 @@ suite('AgentHostSessionInputPills', () => {
 		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({}));
 		return instantiationService;
 	};
+	/** Provides the services of the session's working set, which the pills create, to `instantiationService`; it keeps its own label service. */
+	function stubWorkingSetServices(instantiationService: ReturnType<typeof createInstantiationService>, connectionsService: IAgentHostConnectionsService, provisionalSessions: IAgentHostUntitledProvisionalSessionService, configurationService: IConfigurationService, notificationService: INotificationService): void {
+		instantiationService.stub(IAgentHostConnectionsService, connectionsService);
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, provisionalSessions);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, notificationService);
+	}
 	function createSessionInputPills(
 		widget: ChatWidget,
 		connectionsService: IAgentHostConnectionsService,
@@ -197,10 +204,11 @@ suite('AgentHostSessionInputPills', () => {
 		openerService: IOpenerService,
 		visibility: SessionChatPillVisibility
 	): AgentHostSessionInputPills {
+		// What the session's working set, which the pills create, injects
+		stubWorkingSetServices(instantiationService, connectionsService, noProvisionalSessions, configurationService, notificationService);
 		return store.add(new AgentHostSessionInputPills(
 			widget,
 			false,
-			connectionsService,
 			browserViewService,
 			clipboardService,
 			configurationService,
@@ -208,12 +216,9 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			noProvisionalSessions,
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
 			instantiationService.get(ITelemetryService),
 		));
 	}
@@ -324,7 +329,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService; nativeHost?: boolean }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService; nativeHost?: boolean; workingSetOnly?: boolean }) {
 		const instantiationService = createInstantiationService();
 		if (options?.telemetryService) {
 			instantiationService.stub(ITelemetryService, options.telemetryService);
@@ -372,16 +377,26 @@ suite('AgentHostSessionInputPills', () => {
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
 		let workingSetKeep: IChatSessionWorkingSetKeep | undefined;
 		let workingSetRegistrations = 0;
+		// What the input's working set shows: the registered changes without the files the input kept itself
+		const registeredChanges = observableValue<IObservable<readonly IEditSessionEntryDiff[] | undefined> | undefined>('registeredChanges', undefined);
+		const keptInInput = observableValue<ReadonlySet<string>>('keptInInput', new Set());
+		const sessionWorkingSetDiffs = derived(reader => (registeredChanges.read(reader)?.read(reader) ?? []).filter(diff => !keptInInput.read(reader).has(diff.modifiedURI.toString())));
 		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
+		// Whether the input shows: not while the chat is read-only without its input
+		const inputVisible = observableValue('inputVisible', true);
 		const widget = upcastPartial<ChatWidget>({
 			domNode: persistentContent,
+			inputVisible,
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 				supportsSessionWorkingSet: options?.supportsSessionWorkingSet ?? true,
+				sessionWorkingSetDiffs,
 				registerSessionFileChanges: (changes, undo, keep) => {
 					workingSetRegistrations++;
+					registeredChanges.set(changes, undefined);
 					return combinedDisposable(
+						toDisposable(() => registeredChanges.set(undefined, undefined)),
 						autorun(reader => {
 							workingSetChanges = changes.read(reader);
 							workingSetUndo = undo?.read(reader);
@@ -481,13 +496,28 @@ suite('AgentHostSessionInputPills', () => {
 				return !!options?.workingSetUndo;
 			}
 		}
-		const pills = store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
+		// An input that shows the session's pills itself binds only the working set, as a session's chat outside the Agents
+		// window does; what each creates is recorded, so that it is seen to create none of the pills' sources
+		const created: string[] = [];
+		const createInstance = instantiationService.createInstance.bind(instantiationService) as (ctor: unknown, ...args: unknown[]) => unknown;
+		instantiationService.createInstance = ((ctor: unknown, ...args: unknown[]) => {
+			created.push((ctor as { name?: string }).name ?? String(ctor));
+			return createInstance(ctor, ...args);
+		}) as typeof instantiationService.createInstance;
+		const pills = options?.workingSetOnly
+			? store.add(instantiationService.createInstance(AgentHostSessionWorkingSet, widget, { workingSetOnly: true }))
+			: store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
 		return {
 			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
+			/** The classes created through the instantiation service, by name. */
+			created: () => created,
+			setInputVisible: (visible: boolean) => inputVisible.set(visible, undefined),
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
 			workingSetKeep: () => workingSetKeep,
 			workingSetRegistrations: () => workingSetRegistrations,
+			/** Keeps files in the input itself, as its working set does for a host without Accept Changes. */
+			keepInInput: (diffs: readonly IEditSessionEntryDiff[]) => keptInInput.set(new Set([...keptInInput.get(), ...diffs.map(diff => diff.modifiedURI.toString())]), undefined),
 			backgroundActivityPillSections: () => backgroundActivityPillSections,
 			setWorkingSetEnabled: async (enabled: boolean) => {
 				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -1701,6 +1731,7 @@ suite('AgentHostSessionInputPills', () => {
 		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
 		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -1716,15 +1747,21 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChange: provisionalChanged.event,
 			get: () => provisionalBackend,
 		});
+		// What the session's working set, which the pills create, injects
+		stubWorkingSetServices(instantiationService, connectionsService, provisionalSessions, configurationService, notificationService);
 		store.add(new AgentHostSessionInputPills(
-			widget, false, connectionsService, browserViewService, clipboardService,
-			configurationService, editorService, instantiationService, openerService, visibility,
-			provisionalSessions,
+			widget,
+			false,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
 			instantiationService.get(ITelemetryService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
@@ -2204,6 +2241,7 @@ suite('AgentHostSessionInputPills', () => {
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -2364,10 +2402,10 @@ suite('AgentHostSessionInputPills', () => {
 				actionLabels: [
 					'Copy Pull Request URL',
 					'Pin Live pull request 332982',
-					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
+					'Remove "Chat: unify Agent Host status pills across chat surfaces" Artifact',
 					'Copy Pull Request URL',
 					'Pin Live pull request 335387',
-					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
+					'Remove "sessions: preserve recorded issue titles in pills" Artifact',
 				],
 			},
 			issue: {
@@ -2540,6 +2578,7 @@ suite('AgentHostSessionInputPills', () => {
 			document.body.appendChild(persistentContent);
 			store.add(toDisposable(() => persistentContent.remove()));
 			const widget = upcastPartial<ChatWidget>({
+				inputVisible: constObservable(true),
 				inputPart: upcastPartial<ChatInputPart>({
 					persistentContentContainerElement: persistentContent,
 					registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -3142,7 +3181,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	function createSessionWorkingSetPills(options?: { connectionAuthority?: string; resourceUris?: IAgentHostResourceUriMapper }) {
+	function createSessionWorkingSetPills(options?: { connectionAuthority?: string; resourceUris?: IAgentHostResourceUriMapper; workingSetOnly?: boolean; withoutWorkingSet?: boolean }) {
 		const errors: string[] = [];
 		const confirmations: Pick<IConfirmation, 'title' | 'message' | 'primaryButton' | 'type'>[] = [];
 		let confirmed = false;
@@ -3152,7 +3191,7 @@ suite('AgentHostSessionInputPills', () => {
 			chats: [],
 			changesets: [
 				{ label: 'Session Changes', uriTemplate: 'vendor-diff:/opaque/session-changes', changeKind: ChangesetKind.Session },
-				{ label: 'Working Set', uriTemplate: 'vendor-diff:/opaque/working-set', changeKind: ChangesetKind.WorkingSet },
+				...(options?.withoutWorkingSet ? [] : [{ label: 'Working Set', uriTemplate: 'vendor-diff:/opaque/working-set', changeKind: ChangesetKind.WorkingSet }]),
 			],
 		});
 		const harness = createActivityPills(session, upcastPartial<ChatState>({
@@ -3161,6 +3200,7 @@ suite('AgentHostSessionInputPills', () => {
 		}), undefined, options?.connectionAuthority ?? 'remote-test', undefined, undefined, {
 			getUriLabel: labelService.getUriLabel,
 			resourceUris: options?.resourceUris,
+			workingSetOnly: options?.workingSetOnly,
 			dialogService: upcastPartial<IDialogService>({
 				confirm: async ({ title, message, primaryButton, type }) => {
 					confirmations.push({ title, message, primaryButton, type });
@@ -3308,6 +3348,72 @@ suite('AgentHostSessionInputPills', () => {
 			withoutAcceptChanges: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: true },
 			withoutWorkingSet: { changeset: 'vendor-diff:/opaque/session-changes', files: ['file.ts'], keep: undefined, undo: undefined },
 			errors: [],
+		});
+	});
+
+	test('binds only the working set for an input that shows the session\'s pills itself, with the same Keep and Undo', async () => {
+		const { harness, setOperations, readState } = createSessionWorkingSetPills({ workingSetOnly: true });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+
+		assert.deepStrictEqual({ workingSet: readState(), changesPillHidden: harness.pills.changesPillHidden.get(), pills: harness.persistentContent.childElementCount }, {
+			workingSet: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: true, undo: true },
+			changesPillHidden: true,
+			pills: 0,
+		});
+	});
+
+	test('an input that shows only the working set creates none of the pills\' sources, only the working set\'s binding', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+
+		assert.deepStrictEqual(harness.created(), ['AgentHostSessionWorkingSet']);
+	});
+
+	test('an input that shows only the working set shows the Changes pill again once the working set shows no files, and the pill offers to show the working set again', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
+		const operations = [acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)];
+		setOperations(operations);
+		await harness.setWorkingSetEnabled(true);
+		const actions = () => harness.pills.getChangesPillContextMenuActions().map(action => action.label);
+		const withFiles = { hidden: harness.pills.changesPillHidden.get(), actions: actions() };
+		// Keep empties the working set: the session's other changes are reachable through the Changes pill again
+		harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({ status: ChangesetStatus.Ready, files: [], operations }));
+		const afterKeep = { hidden: harness.pills.changesPillHidden.get(), actions: actions() };
+		// Show Pill turned the working set off: the Changes pill offers to show it again
+		await harness.setWorkingSetEnabled(false);
+
+		assert.deepStrictEqual({ withFiles, afterKeep, workingSetOff: { hidden: harness.pills.changesPillHidden.get(), actions: actions() } }, {
+			withFiles: { hidden: true, actions: [] },
+			afterKeep: { hidden: false, actions: [] },
+			workingSetOff: { hidden: false, actions: ['Show Working Set'] },
+		});
+	});
+
+	test('the Changes pill shows while the input that shows the working set hides, such as in a read-only chat, and hides again as the input shows', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const withInput = harness.pills.changesPillHidden.get();
+		harness.setInputVisible(false);
+		const readOnly = harness.pills.changesPillHidden.get();
+		harness.setInputVisible(true);
+
+		assert.deepStrictEqual({ withInput, readOnly, inputAgain: harness.pills.changesPillHidden.get() }, { withInput: true, readOnly: false, inputAgain: true });
+	});
+
+	test('an input that shows only the working set of a host without a Working Set shows the Changes pill again once it kept every file itself', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true, withoutWorkingSet: true });
+		setOperations([discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const withFiles = { keptByHost: !!harness.workingSetKeep(), hidden: harness.pills.changesPillHidden.get() };
+		// Session Changes has no Accept Changes: Keep hides the files in the input, which still lists them as changes
+		harness.keepInInput(harness.workingSetChanges() ?? []);
+
+		assert.deepStrictEqual({ withFiles, afterKeep: { changes: harness.workingSetChanges()?.length, hidden: harness.pills.changesPillHidden.get() } }, {
+			withFiles: { keptByHost: false, hidden: true },
+			afterKeep: { changes: 1, hidden: false },
 		});
 	});
 
@@ -3579,6 +3685,7 @@ suite('AgentHostSessionInputPills', () => {
 		store.add(toDisposable(() => persistentContent.remove()));
 		let persistentContentHeight: number | undefined;
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -3664,6 +3771,7 @@ suite('AgentHostSessionInputPills', () => {
 		store.add(toDisposable(() => persistentContent.remove()));
 		let persistentContentHeight: number | undefined;
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -3829,6 +3937,7 @@ suite('AgentHostSessionInputPills', () => {
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -3981,6 +4090,7 @@ suite('AgentHostSessionInputPills', () => {
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -4023,10 +4133,12 @@ suite('AgentHostSessionInputPills', () => {
 		] as const);
 
 		const errors: string[] = [];
+		const pillNotificationService = upcastPartial<INotificationService>({ error: error => errors.push(String(error)) });
+		// What the session's working set, which the pills create, injects
+		stubWorkingSetServices(instantiationService, connectionsService, noProvisionalSessions, configurationService, pillNotificationService);
 		store.add(new AgentHostSessionInputPills(
 			widget,
 			false,
-			connectionsService,
 			browserViewService,
 			clipboardService,
 			configurationService,
@@ -4034,12 +4146,9 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			noProvisionalSessions,
 			labelService,
-			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
+			pillNotificationService,
 			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
 			instantiationService.get(ITelemetryService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
@@ -4049,7 +4158,7 @@ suite('AgentHostSessionInputPills', () => {
 			copied.push(await clipboardService.readText());
 		}
 		connection.removeSessionArtifactError = new Error('write failed');
-		await dropdownActions.find(action => action.label === 'Remove Reference Preview from Session')?.run();
+		await dropdownActions.find(action => action.label === 'Remove "Preview" Reference')?.run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
@@ -4065,16 +4174,16 @@ suite('AgentHostSessionInputPills', () => {
 			dropdownActionLabels: [
 				'Copy Commit URL',
 				'Pin Commit',
-				'Remove Reference Commit from Session',
+				'Remove "Commit" Reference',
 				'Copy Website URL',
 				'Pin Preview',
-				'Remove Reference Preview from Session',
+				'Remove "Preview" Reference',
 				'Copy Path',
 				'Pin README.md',
-				'Remove Reference README from Session',
+				'Remove "README" Reference',
 				'Copy URI',
 				'Pin Chat settings',
-				'Remove Reference Chat settings from Session',
+				'Remove "Chat settings" Reference',
 			],
 			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],
 			copied: [
@@ -4139,6 +4248,7 @@ suite('AgentHostSessionInputPills', () => {
 		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
 		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -4212,6 +4322,7 @@ suite('AgentHostSessionInputPills', () => {
 		store.add(toDisposable(() => persistentContent.remove()));
 		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,

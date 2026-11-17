@@ -777,6 +777,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/mobile",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/search",
 			"project": "vscode-sessions"
 		},

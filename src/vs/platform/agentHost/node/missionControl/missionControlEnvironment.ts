@@ -17,7 +17,7 @@ import { emitConnectionDiagnostic, getConnectionDiagnosticError, traceConnection
 import { parseGitHubRequestId, parseRetryAfter } from '../../../github/common/client/headers.js';
 import { isRetryableMissionControlError, MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay, parseMissionControlError } from '../../../github/common/missionControl/missionControlError.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
-import { parseGroupName } from '../../common/webPubSub/groups.js';
+import { parseGroupName, type ParsedGroup } from '../../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from './missionControlControl.js';
@@ -26,6 +26,7 @@ import { MissionControlAuthentication, MissionControlSealing, resolveMissionCont
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 import { MissionControlOwnerMismatchError } from '../../common/missionControlEnvironment.js';
+import { CategorizedConnectionError, type CategorizedConnectionErrorCode } from '../../common/connectionTelemetry.js';
 
 interface IEnvironmentResponse {
 	readonly id: string;
@@ -92,9 +93,26 @@ function heartbeatRetryAfter(value: string, now: number): number | undefined {
 	return Math.max(0, delay);
 }
 
+/** Categorizes an operation's failure at its source; raw causes such as errno codes are not specific enough to categorize globally. */
+async function withErrorCategory<T>(code: CategorizedConnectionErrorCode, message: string, operation: () => Promise<T>): Promise<T> {
+	try {
+		return await operation();
+	} catch (error) {
+		throw new CategorizedConnectionError(code, message, { cause: error });
+	}
+}
+
+function parseLane(name: string, uid: string, eid: string): ParsedGroup {
+	try {
+		return parseGroupName(name, { expected: { uid, eid } });
+	} catch (error) {
+		throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid lane', { cause: error });
+	}
+}
+
 function parseEnvironment(value: unknown): IEnvironmentResponse {
 	if (!value || typeof value !== 'object') {
-		throw new Error('Mission Control returned an invalid environment');
+		throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid environment');
 	}
 	const environment = value as Partial<IEnvironmentResponse>;
 	const wps = environment.webpubsub;
@@ -107,11 +125,11 @@ function parseEnvironment(value: unknown): IEnvironmentResponse {
 		|| (environment.user_id !== undefined && environment.user_id !== owner) || environment.kind !== 'user-local'
 		|| typeof wps?.url !== 'string' || typeof wps.access_token !== 'string' || !wps.access_token
 		|| wps.subprotocol !== RELIABLE_JSON_SUBPROTOCOL || typeof wps.groups?.control !== 'string') {
-		throw new Error('Mission Control returned an invalid user-local environment');
+		throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid user-local environment');
 	}
 	if (wps.session_events_formats !== undefined && (!Array.isArray(wps.session_events_formats)
 		|| wps.session_events_formats.length > 256 || wps.session_events_formats.some(value => typeof value !== 'string'))) {
-		throw new Error('Mission Control returned invalid session-event formats');
+		throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned invalid session-event formats');
 	}
 	return { ...environment, id: environment.id, kind: 'user-local', user_id: owner, owner_id: owner, owner_type: 'user', webpubsub: wps };
 }
@@ -183,7 +201,7 @@ export class MissionControlEnvironment extends Disposable {
 	configure(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
 		if (!options) {
 			if (withdrawingAccountId !== undefined && this._ownerAccount !== undefined && withdrawingAccountId !== this._ownerAccount) {
-				return Promise.reject(new Error('Only the Agent Host owner can withdraw Mission Control registration'));
+				return Promise.reject(new CategorizedConnectionError('AgentHostConflict', 'Only the Agent Host owner can withdraw Mission Control registration'));
 			}
 			const registered = this._environment;
 			const previous = this._options;
@@ -226,7 +244,7 @@ export class MissionControlEnvironment extends Disposable {
 		return {
 			name: this._options?.name ?? this._host.name,
 			kind: 'user-local',
-			compute_id: await this._computeId(),
+			compute_id: await withErrorCategory('AgentHostFileSystem', 'Mission Control could not persist its compute identity', () => this._computeId()),
 			capabilities,
 			labels: { embedder: 'vscode' },
 			...(this._sealing.value ? { encryption_keys: this._sealing.value.advertisedKeys } : {}),
@@ -259,57 +277,58 @@ export class MissionControlEnvironment extends Disposable {
 
 	private async _configure(options: IMissionControlOptions, epoch: number): Promise<void> {
 		if (this._store.isDisposed) {
-			throw new Error('Mission Control environment service is disposed');
+			throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control environment service is disposed');
 		}
 		if (epoch !== this._configurationEpoch) {
 			return;
 		}
-		const endpoint = new URL(options.baseUrl);
-		if ((options.live ? endpoint.protocol !== 'https:' : endpoint.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname))
+		const endpoint = URL.canParse(options.baseUrl) ? new URL(options.baseUrl) : undefined;
+		if (!endpoint || (options.live ? endpoint.protocol !== 'https:' : endpoint.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname))
 			|| (options.live && endpoint.pathname !== '/')
 			|| endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !options.credential || !options.accountId || (!options.live && options.roots.length === 0)
 			|| (options.useLocalCredentials !== undefined && typeof options.useLocalCredentials !== 'boolean')
 			|| (options.name !== undefined && !options.name.trim())) {
-			throw new Error('Mission Control requires a safe origin, credential, account, and project roots');
+			throw new CategorizedConnectionError('AgentHostInvalidConfiguration', 'Mission Control requires a safe origin, credential, account, and project roots');
 		}
 		if (this._ownerAccount && this._ownerAccount !== options.accountId) {
 			throw new MissionControlOwnerMismatchError('Agent Host already belongs to another local account; restart the process to change owners');
 		}
 		const identityApiBase = this._getIdentityApiBase();
-		if (options.live && (new URL(identityApiBase).protocol !== 'https:' || (this._identityApiBase && this._identityApiBase !== identityApiBase))) {
-			throw new Error('Mission Control requires a stable HTTPS GitHub identity authority');
+		if (options.live && (!URL.canParse(identityApiBase) || new URL(identityApiBase).protocol !== 'https:' || (this._identityApiBase && this._identityApiBase !== identityApiBase))) {
+			throw new CategorizedConnectionError('AgentHostInvalidConfiguration', 'Mission Control requires a stable HTTPS GitHub identity authority');
 		}
 		const owner = options.live ? await resolveMissionControlOwner(this._host.fetch, identityApiBase, options.credential) : options.accountId;
 		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 			return;
 		}
 		if (options.live && identityApiBase !== this._getIdentityApiBase()) {
-			throw new Error('GitHub identity authority changed during Mission Control configuration');
+			throw new CategorizedConnectionError('AgentHostConflict', 'GitHub identity authority changed during Mission Control configuration');
 		}
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
 			throw new MissionControlOwnerMismatchError('Credential does not match the Agent Host owner');
 		}
-		const roots = await Promise.all(options.roots.map(root => realpath(root)));
-		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(project => realpath(project)));
-		const defaultDirectory = options.defaultDirectory === undefined ? undefined : await realpath(options.defaultDirectory);
+		const resolveDirectory = (path: string) => withErrorCategory('AgentHostFileSystem', 'Mission Control could not resolve a shared directory', () => realpath(path));
+		const roots = await Promise.all(options.roots.map(resolveDirectory));
+		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(resolveDirectory));
+		const defaultDirectory = options.defaultDirectory === undefined ? undefined : await resolveDirectory(options.defaultDirectory);
 		options = { ...options, projects, defaultDirectory };
 		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 			return;
 		}
 		if (options.live && identityApiBase !== this._getIdentityApiBase()) {
-			throw new Error('GitHub identity authority changed during Mission Control configuration');
+			throw new CategorizedConnectionError('AgentHostConflict', 'GitHub identity authority changed during Mission Control configuration');
 		}
 		if (!roots.every(root => root.startsWith('/') || /^[A-Za-z]:\\/.test(root))) {
-			throw new Error('Mission Control projects must be absolute local directories');
+			throw new CategorizedConnectionError('AgentHostInvalidConfiguration', 'Mission Control projects must be absolute local directories');
 		}
 		if (this._options && (this._options.baseUrl !== options.baseUrl || this._options.name !== options.name || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
 			|| (!options.live && JSON.stringify(this._roots) !== JSON.stringify(roots)))) {
-			throw new Error('Mission Control is already configured; disable it before changing its scope');
+			throw new CategorizedConnectionError('AgentHostConflict', 'Mission Control is already configured; disable it before changing its scope');
 		}
 		let executionAuthenticationChanged = false;
 		if (options.useLocalCredentials !== undefined) {
 			if (!this._host.configureExecutionAuthentication) {
-				throw new Error('Host execution authentication configuration is unavailable');
+				throw new CategorizedConnectionError('AgentHostInvalidConfiguration', 'Host execution authentication configuration is unavailable');
 			}
 			executionAuthenticationChanged = this._host.configureExecutionAuthentication(options.useLocalCredentials);
 		} else if (this._options?.useLocalCredentials !== undefined) {
@@ -355,7 +374,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._recoveryStopped = false;
 		try {
 			if (options.live) {
-				await MissionControlSealing.ready();
+				await withErrorCategory('AgentHostUnavailable', 'Mission Control credential sealing is unavailable', () => MissionControlSealing.ready());
 				if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 					return;
 				}
@@ -476,7 +495,7 @@ export class MissionControlEnvironment extends Disposable {
 
 	private async _doRequest(path: string, body: Record<string, unknown> | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
 		if (!options) {
-			throw new Error('Mission Control is disabled');
+			throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control is disabled');
 		}
 		const generation = this._generation;
 		const response = await this._host.fetch(new URL(path, `${options.baseUrl.replace(/\/$/, '')}/`), {
@@ -525,7 +544,7 @@ export class MissionControlEnvironment extends Disposable {
 			return await response.json();
 		} catch (error) {
 			if (error instanceof SyntaxError) {
-				throw new Error('Mission Control returned invalid JSON');
+				throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned invalid JSON', { cause: error });
 			}
 			throw error;
 		}
@@ -555,7 +574,7 @@ export class MissionControlEnvironment extends Disposable {
 		}
 		if (this._recoveryStopped) {
 			if (waitForRetry) {
-				throw new Error('Mission Control request recovery stopped; reconfigure the environment to reconnect.');
+				throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control request recovery stopped; reconfigure the environment to reconnect.');
 			}
 			return;
 		}
@@ -640,7 +659,7 @@ export class MissionControlEnvironment extends Disposable {
 				return false;
 			}
 			if (!reply || typeof reply !== 'object' || Array.isArray(reply)) {
-				throw new Error('Mission Control returned an invalid token bootstrap');
+				throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid token bootstrap');
 			}
 			const token = reply as { url?: unknown; wps_endpoint?: unknown; expires_at?: unknown };
 			const cached = this._environment.webpubsub;
@@ -651,10 +670,10 @@ export class MissionControlEnvironment extends Disposable {
 			if (bootstrap.url !== cached.url || bootstrap.subprotocol !== cached.subprotocol || bootstrap.hub !== cached.hub
 				|| JSON.stringify(Object.entries(bootstrap.groups).sort()) !== JSON.stringify(Object.entries(cached.groups).sort())) {
 				this._requiresBootstrap = true;
-				throw new Error('Mission Control token refresh changed the environment bootstrap');
+				throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control token refresh changed the environment bootstrap');
 			}
 			if (typeof token.expires_at !== 'string' || !Number.isFinite(Date.parse(token.expires_at)) || Date.parse(token.expires_at) <= Date.now()) {
-				throw new Error('Mission Control returned an invalid token expiry');
+				throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid token expiry');
 			}
 			this._tokenExpiresAt = Date.parse(token.expires_at);
 			this._environment = { ...this._environment, webpubsub: bootstrap };
@@ -669,7 +688,7 @@ export class MissionControlEnvironment extends Disposable {
 		let remoteControl: Record<string, unknown> | undefined;
 		if (options.live && options.ignoreRemoteControlPolicy !== true) {
 			if (!this._host.getRemoteControlPolicy) {
-				throw new Error('Cannot register before reading device remote-control policy');
+				throw new CategorizedConnectionError('AgentHostUnavailable', 'Cannot register before reading device remote-control policy');
 			}
 			remoteControl = await this._boundedRegistrationWork(this._host.getRemoteControlPolicy(), 'remote-control policy');
 		}
@@ -700,20 +719,20 @@ export class MissionControlEnvironment extends Disposable {
 		}
 		const response = parseEnvironment(reply);
 		if (response.user_id !== this._canonicalOwner || (this._environment && (response.id !== this._environment.id || response.owner_id !== this._environment.owner_id))) {
-			throw new Error('Mission Control environment owner changed');
+			throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control environment owner changed');
 		}
-		parseGroupName(response.webpubsub.groups.control, { expected: { uid: response.user_id, eid: response.id } });
+		parseLane(response.webpubsub.groups.control, response.user_id, response.id);
 		if (!response.webpubsub.groups.control.endsWith('.control')) {
-			throw new Error('Mission Control returned an invalid control lane');
+			throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid control lane');
 		}
 		this._environment = response;
 		if (options.live && this._host.createMirror && (!this._mirror.value || this._mirrorEnvironment !== response.id)) {
 			if (!response.webpubsub.groups.ingest_ack) {
-				throw new Error('Mission Control returned no durable ingest acknowledgement lane');
+				throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned no durable ingest acknowledgement lane');
 			}
-			const group = parseGroupName(response.webpubsub.groups.ingest_ack, { expected: { uid: response.user_id, eid: response.id } });
+			const group = parseLane(response.webpubsub.groups.ingest_ack, response.user_id, response.id);
 			if (group.scope !== 'env' || group.lane !== 'ingest-ack') {
-				throw new Error('Mission Control returned an invalid ingest acknowledgement lane');
+				throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid ingest acknowledgement lane');
 			}
 			this._mirrorAttachment.clear();
 			this._mirrorSource.clear();
@@ -727,7 +746,7 @@ export class MissionControlEnvironment extends Disposable {
 		if (response.webpubsub.expires_at !== undefined) {
 			const expiry = Date.parse(response.webpubsub.expires_at);
 			if (!Number.isFinite(expiry) || expiry <= Date.now()) {
-				throw new Error('Mission Control returned an invalid token expiry');
+				throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned an invalid token expiry');
 			}
 			this._tokenExpiresAt = expiry;
 		}
@@ -749,7 +768,7 @@ export class MissionControlEnvironment extends Disposable {
 			}
 			const keys = (jwks as { keys?: IMissionControlSigningKey[] } | null)?.keys;
 			if (!Array.isArray(keys) || keys.length === 0 || keys.length > 64) {
-				throw new Error('Mission Control returned no usable signing keys');
+				throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control returned no usable signing keys');
 			}
 			if (this._verifier) {
 				this._verifier.updateKeys(keys);
@@ -770,11 +789,11 @@ export class MissionControlEnvironment extends Disposable {
 		const sealing = this._sealing.value;
 		const verifier = this._verifier;
 		if (!verifier) {
-			throw new Error('Mission Control signing keys are unavailable');
+			throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control signing keys are unavailable');
 		}
 		const identityApiBase = this._identityApiBase;
 		if (sealing && !identityApiBase) {
-			throw new Error('Mission Control identity authority is unavailable');
+			throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control identity authority is unavailable');
 		}
 		const server = new MissionControlProtocolServer(
 			response.webpubsub, response.user_id, response.id,
@@ -846,7 +865,7 @@ export class MissionControlEnvironment extends Disposable {
 			if (generation === this._generation && this._options === options && this._server.value === server) {
 				const refreshed = parseEnvironment(reply);
 				if (refreshed.id !== response.id || refreshed.owner_id !== response.owner_id) {
-					throw new Error('Mission Control environment owner changed');
+					throw new CategorizedConnectionError('AgentHostInvalidResponse', 'Mission Control environment owner changed');
 				}
 				this._environment = {
 					...this._environment!,
@@ -863,7 +882,8 @@ export class MissionControlEnvironment extends Disposable {
 	private async _boundedRegistrationWork<T>(operation: Promise<T>, metadata: string): Promise<T> {
 		const result = await raceTimeout(operation.then(value => ({ value })), registrationMetadataTimeout);
 		if (!result) {
-			throw new Error(`Mission Control registration metadata timed out (${metadata})`);
+			// Not `timeout`: the client retries timeouts, and slow local metadata would delay setup by minutes.
+			throw new CategorizedConnectionError('AgentHostUnavailable', `Mission Control registration metadata timed out (${metadata})`);
 		}
 		return result.value;
 	}

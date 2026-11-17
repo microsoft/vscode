@@ -11,7 +11,7 @@ import { Action, toAction } from '../../../../../base/common/actions.js';
 import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -42,20 +42,24 @@ import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../../services/sessi
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext } from '../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
-import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
+import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
+import { INewSessionWorktreeSendChoiceProvider, INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
+import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
-import { getStoredSessionOptionsExpanded, SessionOptionsRow, storeSessionOptionsExpanded } from './sessionOptionsRow.js';
-import { IconOnlySessionPickers } from './iconOnlySessionPickers.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
 import { INewChatComposerInputOptions, NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
-import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from './sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getPickedSessionCreationEnvironment, getRemoteSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from './sessionEnvironmentPicker.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { IChatViewOptions, INewSessionDraftHost, INewSessionTarget } from '../parts/chatView.js';
+import { IChatViewOptions, INewSessionDraftHost, INewSessionTarget, INewSessionViewOptions } from '../parts/chatView.js';
+import { INewSessionPresentationController } from '../newSessionPresentation.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerFocusOptions, ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
@@ -88,7 +92,7 @@ import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
 import { Menus } from '../menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/chatConstants.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/chatConstants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../../common/welcomePhrases.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../common/sessionComparison.js';
@@ -153,6 +157,15 @@ export function isSessionEnvironmentPickerEnabled(configurationService: IConfigu
 		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true;
 }
 
+/** A requested new worktree ({@link INewSessionTarget.placement}) for the draft of {@link folderUri}, once created. */
+interface IPendingWorktreePlacement {
+	readonly folderUri: URI;
+	/** The draft that the creation of {@link folderUri}'s draft installed, or that replaced it since; unset while it runs. */
+	readonly sessionId: string | undefined;
+	/** The draft shown as it was requested, which never takes it. */
+	readonly previousSessionId: string | undefined;
+}
+
 /**
  * Whether focus is in an input, a textarea or an editor. A workspace selection the user didn't make, such as
  * the folder handoff of an Agents window that finishes during startup, must not move focus away from there, or
@@ -174,6 +187,11 @@ export class NewChatWidget extends Disposable {
 	private readonly _savingScheduledDraft = observableValue(this, false);
 	private readonly _restoringSavedDraft = observableValue(this, false);
 	private readonly _savedDraftTargetUnavailable = observableValue(this, false);
+	/**
+	 * The requested target's draft that is yet to work in a new worktree ({@link INewSessionTarget.placement}): the folder
+	 * whose draft is being created, then the draft that creation installed, which alone takes it.
+	 */
+	private readonly _pendingWorktreePlacement = observableValue<IPendingWorktreePlacement | undefined>(this, undefined);
 	private _savedDraftTargetSessionId: string | undefined;
 	private _inputContentElement: HTMLElement | undefined;
 	private readonly _preserveCustomView: boolean;
@@ -196,6 +214,8 @@ export class NewChatWidget extends Disposable {
 	private readonly _environmentPicker: SessionEnvironmentPicker;
 	/** New Worktree, for a composer restricted to its folders, such as an editor window's. */
 	private readonly _newWorktree: NewWorktreeChoice | undefined;
+	/** Whether the composer offers New Worktree as a checkbox beside its workspace picker, instead of in the picker. */
+	private readonly _newWorktreeCheckboxVisible: IObservable<boolean>;
 	private _changingEnvironment = false;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
 	private _inputController: INewSessionInputController | undefined;
@@ -221,10 +241,15 @@ export class NewChatWidget extends Disposable {
 	 */
 	private readonly _activeEmptyState = this._register(disposableObservableValue<NoAgentHostEmptyState | undefined>(this, undefined));
 	private _workspacePickerRow: HTMLElement | undefined;
+	/** The New Worktree checkbox beside the workspace picker, once rendered. */
+	private _newWorktreeCheckbox: NewWorktreeCheckbox | undefined;
+	/** The drafts whose first request waits while the user is asked where it works. */
+	private readonly _askingWorktreeOnSend = new Set<string>();
+	/** Whether the composer is in an editor window, which has no chat without a workspace, unlike the Agents window. */
+	private readonly _inEditorWindow: boolean;
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
-	private readonly _sessionOptionsExpanded = observableValue(this, true);
-	private readonly _iconOnlyPickers: IconOnlySessionPickers;
+	private _presentation: INewSessionPresentationController | undefined;
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 	private _welcomeMessageTitle: HTMLElement | undefined;
 	private _welcomePetPlatform: HTMLElement | undefined;
@@ -240,8 +265,6 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	private readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
-	private readonly _screenReaderOptimized: IObservable<boolean>;
-	private readonly _collapsedSessionOptionsShowIcons: IObservable<boolean>;
 	private readonly _showWelcomePhrases: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
@@ -263,7 +286,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	constructor(
-		private readonly options: IChatViewOptions & {
+		private readonly options: INewSessionViewOptions & {
 			readonly inputVisible?: IObservable<boolean>;
 			readonly petHostPreferred?: IObservable<boolean>;
 			readonly initialAttachments?: readonly IChatRequestVariableEntry[];
@@ -290,6 +313,8 @@ export class NewChatWidget extends Disposable {
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IChatSubmitRequestHandlerService chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -297,10 +322,12 @@ export class NewChatWidget extends Disposable {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
+		@INewSessionWorktreeSendChoiceService private readonly worktreeSendChoiceService: INewSessionWorktreeSendChoiceService,
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
 		this._draftHost = options.newSessionDraft;
+		this._inEditorWindow = !this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key);
 		this._detached = this._preserveCustomView || !!this._draftHost;
 		this._savedDraftComposer = this._detached ? undefined : sessionDraftsService.createComposer();
 		this._draftSlot = this._draftHost?.slot ?? this.sessionsManagementService.defaultNewSessionSlot;
@@ -311,8 +338,6 @@ export class NewChatWidget extends Disposable {
 		this._register(this._newSessionCreation);
 		// A send outlives the composer, which is then no longer the latest place of any send.
 		this._register(toDisposable(() => this._lastBackgroundSendOptions = undefined));
-
-		this._restoreSessionOptionsExpanded();
 
 		// The session of the pane that hosts the composer, which shows its draft.
 		this._paneSession = options.session ?? constObservable(undefined);
@@ -341,17 +366,6 @@ export class NewChatWidget extends Disposable {
 				event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)),
 			() => isSessionEnvironmentPickerEnabled(this.configurationService),
 		);
-		this._screenReaderOptimized = observableFromEvent(
-			this,
-			this.accessibilityService.onDidChangeScreenReaderOptimized,
-			() => this.accessibilityService.isScreenReaderOptimized(),
-		);
-		this._collapsedSessionOptionsShowIcons = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING)),
-			() => this.configurationService.getValue<boolean>(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
-		);
-		this._iconOnlyPickers = this._register(this.instantiationService.createInstance(IconOnlySessionPickers, element => this._newChatInput.getRepositoryControlId(element)));
 		this._showWelcomePhrases = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_PHRASES_SETTING)),
@@ -400,9 +414,8 @@ export class NewChatWidget extends Disposable {
 			this._environmentWorkspaceChanged.read(reader);
 			const providerId = this._workspacePicker?.selectedResolved?.providerId ?? session?.providerId;
 			const selectedProvider = providerId ? this.sessionsProvidersService.getProvider(providerId) : undefined;
-			const selected = picked
-				? environments.find(environment => environment.id === picked.id) ?? picked
-				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider,
+			const selected = (picked && getPickedSessionCreationEnvironment(picked, environments, this.sessionsProvidersService.getProviders()))
+				?? getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested, selectedProvider,
 					this._workspacePicker?.preselectionSource === NewSessionWorkspacePreselectionSource.CheckedWorkspace);
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
@@ -420,6 +433,15 @@ export class NewChatWidget extends Disposable {
 		// {@link WorkspacePicker} is fine — phones never run there.
 		const draftHostAllowedFolders = this._draftHost?.allowedFolders;
 		this._newWorktree = draftHostAllowedFolders && this.instantiationService.createInstance(NewWorktreeChoice, this._session, derived(this, reader => draftHostAllowedFolders.read(reader).length > 0));
+		this._newWorktreeCheckboxVisible = this._createNewWorktreeCheckboxVisible(this._newWorktree, draftHostAllowedFolders);
+		const newWorktree = this._newWorktree;
+		if (newWorktree) {
+			// As its first request is sent in its folder, the draft can be asked to work in a new worktree instead
+			this._register(chatSubmitRequestHandlerService.register({
+				id: 'newSession.worktreeSendChoice',
+				tryHandle: request => this._handleWorktreeSendChoice(request),
+			}));
+		}
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			environment: this._environment,
@@ -428,8 +450,7 @@ export class NewChatWidget extends Disposable {
 				&& (!this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true),
 			onUserSelection: () => {
 				this._savedDraftComposer?.cancelRecovery();
-				this._savedDraftTargetUnavailable.set(false, undefined);
-				newSessionComposerService.notifyUserWorkspaceSelection();
+				this._onUserWorkspaceSelection();
 			},
 			whenSelectionAccepted: async () => {
 				const session = this._pendingWorkspaceCreation ? (await this._pendingWorkspaceCreation).session : this._session.get();
@@ -448,12 +469,13 @@ export class NewChatWidget extends Disposable {
 				}
 				return undefined;
 			},
-			// A composer restricted to its folders, such as an editor window's, also offers No Workspace beside them
-			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
+			// An editor window, whose composers are the ones restricted to its folders, has no chat without a workspace: none is
+			// offered, and one chosen elsewhere is not restored. The Agents window's composers offer it.
+			getNoWorkspaceOption: this._inEditorWindow || this._draftHost?.allowedFolders ? undefined : () => this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
-			newWorktree: this._newWorktree,
+			newWorktree: newWorktree && this._getPickerNewWorktree(newWorktree),
 		}));
 		if (this._newWorktree) {
 			// The user's choice, or the default, settles after the configuration's last change: the trigger shows what it settled on
@@ -470,6 +492,7 @@ export class NewChatWidget extends Disposable {
 			const activeSession = this._session.read(reader);
 			activeSession?.isQuickChat?.read(reader);
 			this._draftHost?.allowedFolders?.read(reader);
+			this._applyRequestedWorktreePlacement();
 			this._newWorktree?.applyDefault();
 			this._workspacePicker.refreshTriggerLabel();
 			if (!activeSession) {
@@ -486,6 +509,7 @@ export class NewChatWidget extends Disposable {
 				this._syncWorkspacePickerDevContainerMode(activeSession, false, WorkspaceSelectionOrigin.SessionSync);
 				this._environmentWorkspaceChanged.trigger(undefined);
 				// Its isolation, such as New Worktree, shows in the trigger
+				this._applyRequestedWorktreePlacement();
 				this._newWorktree?.applyDefault();
 				this._workspacePicker.refreshTriggerLabel();
 			}));
@@ -526,7 +550,7 @@ export class NewChatWidget extends Disposable {
 				return this._isComparisonPending(reader, comparisonConfigResolving);
 			})));
 		const canSendRequest = derived(reader => {
-			if (this._savingScheduledDraft.read(reader) || this._restoringSavedDraft.read(reader) || this._savedDraftTargetUnavailable.read(reader)) {
+			if (this._savingScheduledDraft.read(reader) || this._restoringSavedDraft.read(reader) || this._savedDraftTargetUnavailable.read(reader) || !!this._pendingWorktreePlacement.read(reader)) {
 				return false;
 			}
 			const scheduled = this._savedDraftComposer?.preview.read(reader);
@@ -798,6 +822,14 @@ export class NewChatWidget extends Disposable {
 		}
 		if (this._draftHost) {
 			this._register(this._reseedAfterFailedSend(this._draftHost));
+			// Its host aims it at another folder, such as where the window's folder moved: its draft is created there
+			if (this._draftHost.onDidRetarget) {
+				this._register(this._draftHost.onDidRetarget(target => {
+					if (!isSessionCreated(this._session.get())) {
+						this._seedRequestedTarget(target);
+					}
+				}));
+			}
 		}
 
 		// Comment 2: Re-evaluate the tip when the selected model changes, because
@@ -893,6 +925,8 @@ export class NewChatWidget extends Disposable {
 		this._register(toDisposable(() => composerFocus.reset()));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = this._inputContentElement = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		this._presentation = this._register(this.options.newSessionPresentation.create(false, this.instantiationService));
+		this._presentation.render(chatWidgetContainer, chatWidgetContent);
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
 		this._welcomeMessageTitle = welcomeMessageTitle;
@@ -1002,7 +1036,6 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
-			chatWidgetContent.classList.add('experimental-new-session-composer');
 			this._newChatInput.placeRepositoryControls(
 				!isQuickChat || isWorkspacePickerQuickChat
 					? this._workspaceRepositoryControlsHost
@@ -1045,7 +1078,7 @@ export class NewChatWidget extends Disposable {
 				getInputValue: () => this._newChatInput.getInputValue(),
 				onDidChangeInput: this._newChatInput.onDidChangeInput,
 				focusInput: () => this.focusInput(),
-				revealIsolationPicker: () => this._sessionOptionsExpanded.set(true, undefined),
+				revealIsolationPicker: () => this._presentation?.revealOptions?.(),
 				openIsolationPicker: () => this.focusWorktreePicker({ focusValue: 'worktree' }),
 				banners,
 			}, this.instantiationService));
@@ -1284,6 +1317,11 @@ export class NewChatWidget extends Disposable {
 		}
 		if (restoredFolderUri) {
 			void this._createNewSession(restoredFolderUri);
+		} else if (this._inEditorWindow) {
+			const folderUri = this._getEditorWindowFolder();
+			if (folderUri) {
+				this._seedRequestedTarget({ folderUri });
+			}
 		} else {
 			void this._restoreNoWorkspaceDraft();
 		}
@@ -1305,6 +1343,11 @@ export class NewChatWidget extends Disposable {
 				this._seedRequestedTarget(target);
 			} else if (folderUri) {
 				void this._createNewSession(folderUri);
+			} else if (this._inEditorWindow) {
+				const windowFolderUri = this._getEditorWindowFolder();
+				if (windowFolderUri) {
+					this._seedRequestedTarget({ folderUri: windowFolderUri });
+				}
 			} else {
 				this.selectNoWorkspace(undefined, { userSelection: false });
 			}
@@ -1564,6 +1607,37 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
+	/** New Worktree in the workspace picker: not while the checkbox beside it offers it. */
+	private _getPickerNewWorktree(newWorktree: NewWorktreeChoice): IWorkspacePickerNewWorktreeOption {
+		return {
+			isAvailable: () => !this._newWorktreeCheckboxVisible.get() && newWorktree.isAvailable(),
+			isSelected: () => newWorktree.isSelected(),
+			setSelected: selected => newWorktree.setSelected(selected),
+		};
+	}
+
+	/**
+	 * Whether a composer restricted to its folders offers New Worktree as a checkbox: where AI features are on, none of its
+	 * folders has a worktree to pick from, its draft can work in a new worktree, and the Chat view shows the sessions list
+	 * that has no No Workspace of its own.
+	 */
+	private _createNewWorktreeCheckboxVisible(newWorktree: NewWorktreeChoice | undefined, allowedFolders: IObservable<readonly URI[]> | undefined): IObservable<boolean> {
+		if (!newWorktree || !allowedFolders) {
+			return constObservable(false);
+		}
+		const chatEnabled = observableFromEvent(this, Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([ChatContextKeys.enabled.key]))), () => this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled));
+		// The Sessions list of the Chat view, by the setting's ID, as the Chat view's own New Worktree checkbox reads it
+		const sessionsListEnabled = observableConfigValue<boolean>('chat.viewSessions.sessionsList.enabled', false, this.configurationService);
+		return derived(this, reader => {
+			if (!chatEnabled.read(reader) || sessionsListEnabled.read(reader)) {
+				return false;
+			}
+			this._environmentWorkspaceChanged.read(reader);
+			this._session.read(reader);
+			return !allowedFolders.read(reader).some(folder => this._draftHost?.getFolderPresentation?.(folder)?.kind === 'worktree') && newWorktree.isAvailable();
+		});
+	}
+
 	private _seedRequestedTarget(target: INewSessionTarget): void {
 		const pick = target.sessionTypeId ? { providerId: target.providerId, sessionTypeId: target.sessionTypeId } : undefined;
 		if (target.folderUri) {
@@ -1573,9 +1647,173 @@ export class NewChatWidget extends Disposable {
 			}
 			// Not persisted: the main composer's last workspace stays its own.
 			this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, ...(target.requireDevContainer ? { preferDevContainer: true } : {}), persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
-			void this._createNewSession(target.folderUri, pick);
+			const placement: IPendingWorktreePlacement | undefined = target.placement === 'worktree' ? { folderUri: target.folderUri, sessionId: undefined, previousSessionId: this._session.get()?.sessionId } : undefined;
+			this._pendingWorktreePlacement.set(placement, undefined);
+			const creation = this._createNewSession(target.folderUri, pick);
+			if (placement) {
+				void creation.then(result => this._bindWorktreePlacement(placement, result), () => this._bindWorktreePlacement(placement, undefined));
+			}
+		} else if (this._inEditorWindow) {
+			// An editor window has no chat without a workspace: the draft works in the window's folder
+			const folderUri = this._getEditorWindowFolder();
+			if (folderUri) {
+				this._seedRequestedTarget({ ...target, folderUri });
+			} else {
+				this._pendingWorktreePlacement.set(undefined, undefined);
+			}
 		} else {
+			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._selectRequestedNoWorkspace(target);
+		}
+	}
+
+	/** The folder of a draft in an editor window that nothing else aims at one: the picked folder, else the window's first. */
+	private _getEditorWindowFolder(): URI | undefined {
+		return this._workspacePicker.selectedFolderUri ?? this._draftHost?.allowedFolders?.get()[0];
+	}
+
+	/** The user picked a workspace: a saved draft's unavailable target and a requested new worktree no longer apply. */
+	private _onUserWorkspaceSelection(): void {
+		this._savedDraftTargetUnavailable.set(false, undefined);
+		// The user's own choice of workspace wins over the requested placement
+		this._pendingWorktreePlacement.set(undefined, undefined);
+		this.newSessionComposerService.notifyUserWorkspaceSelection();
+	}
+
+	private _warnNewWorktreeUnavailable(): void {
+		this.notificationService.warn(localize('newChatWidget.newWorktreeUnavailable', "This agent cannot start a session in a new worktree. The new chat works in the folder."));
+	}
+
+	/**
+	 * As the first request of the draft is sent and it would work in its folder, asks the registered provider whether it
+	 * works in a new worktree instead ({@link INewSessionWorktreeSendChoiceService}), while the send waits, and applies the
+	 * answer; the send then goes out once, where chosen. Never where the user chose for the draft, nor with AI features off.
+	 * Returns whether it took the request in place of the send: only one sent again while it asks, as the first is sent.
+	 */
+	private async _handleWorktreeSendChoice(request: IChatSubmitRequest): Promise<boolean> {
+		const session = this._session.get();
+		if (!session || !isEqual(request.sessionResource, session.resource)) {
+			return false;
+		}
+		if (this._askingWorktreeOnSend.has(session.sessionId)) {
+			return true;
+		}
+		const provider = this.worktreeSendChoiceService.provider.get();
+		const newWorktree = this._newWorktree;
+		const folder = session.workspace.get()?.folders[0]?.root;
+		const control = this._getWorktreeSendChoiceControl();
+		if (!provider || !newWorktree || !folder || !control || isSessionCreated(session) || session.isQuickChat?.get()
+			|| !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled)
+			|| this._pendingWorktreePlacement.get()
+			|| !newWorktree.isAvailable() || newWorktree.isSelected() || newWorktree.isUserChosen()
+			|| !this._isRecentChatInFolder(provider, folder, session.resource)) {
+			return false;
+		}
+		// Held from the question to the answer applied: the send then goes out once, from the composer.
+		this._askingWorktreeOnSend.add(session.sessionId);
+		try {
+			let choice: NewSessionWorktreeSendChoice | undefined;
+			try {
+				// `undefined` is no answer, such as where the question could not be shown: the request is sent in the folder.
+				choice = await provider.askWorktreeOnSend(control);
+			} catch (error) {
+				// Nothing changed yet: the request is sent in the folder, as it would have been
+				onUnexpectedError(error);
+				return false;
+			}
+			// Only to the draft it asked for: one the user switched from or closed meanwhile is not sent by the composer.
+			const isSourceDraft = () => !this._store.isDisposed && this._session.get()?.sessionId === session.sessionId;
+			if (choice !== 'worktree' || !isSourceDraft()) {
+				return false;
+			}
+			// As the draft is once its agent settled the write, not as the write tells: an agent can take the write without
+			// New Worktree, or reject it after it showed New Worktree. Read as it is, also where it can no longer change.
+			const applied = newWorktree.isAvailable() && await newWorktree.setSelected(true) && newWorktree.getIsolation() === 'worktree';
+			if (applied || !isSourceDraft()) {
+				return false;
+			}
+			if (newWorktree.getIsolation() !== 'folder') {
+				await newWorktree.setSelected(false);
+			}
+			if (!isSourceDraft()) {
+				return false;
+			}
+			// Only in its folder, as its agent tells, is it sent there
+			if (newWorktree.getIsolation() !== 'folder') {
+				// Neither in a new worktree as chosen, nor in its folder: not sent, and the draft is kept for the user.
+				this.notificationService.error(localize('newChatWidget.worktreeSendChoiceFailed', "The request was not sent because the new chat could not be set up to work in a new worktree or in its folder. Your draft was kept."));
+				throw new CancellationError();
+			}
+			this._warnNewWorktreeUnavailable();
+		} finally {
+			this._askingWorktreeOnSend.delete(session.sessionId);
+		}
+		return false;
+	}
+
+	/** Never at the cost of the request: where the provider fails to tell, there is no choice. */
+	private _isRecentChatInFolder(provider: INewSessionWorktreeSendChoiceProvider, folder: URI, draft: URI): boolean {
+		try {
+			return provider.isRecentChatInFolder(folder, draft);
+		} catch (error) {
+			onUnexpectedError(error);
+			return false;
+		}
+	}
+
+	/** Where the composer offers New Worktree: its checkbox while shown, else its workspace picker. */
+	private _getWorktreeSendChoiceControl(): HTMLElement | undefined {
+		const checkbox = this._newWorktreeCheckboxVisible.get() ? this._newWorktreeCheckbox?.element : undefined;
+		const control = checkbox ?? this._workspacePickerRow;
+		return control?.isConnected ? control : undefined;
+	}
+
+	/** Whether `session` works in `folderUri`. */
+	private _isDraftOfFolder(session: ISession, folderUri: URI): boolean {
+		return !!session.workspace.get()?.folders.some(folder => this.uriIdentityService.extUri.isEqual(folder.root, folderUri) || this.uriIdentityService.extUri.isEqual(folder.workingDirectory, folderUri));
+	}
+
+	/**
+	 * Binds `placement` to the draft its creation installed, and applies it; drops it where the creation installed none, such
+	 * as one the user declined to trust the folder of, or one that a newer creation superseded, or once the composer is gone.
+	 */
+	private _bindWorktreePlacement(placement: IPendingWorktreePlacement, result: IOpenNewSessionResult | undefined): void {
+		if (this._pendingWorktreePlacement.get() !== placement) {
+			return;
+		}
+		const session = result?.session;
+		const installed = !!session && !this._store.isDisposed && this._session.get()?.sessionId === session.sessionId;
+		this._pendingWorktreePlacement.set(installed ? { ...placement, sessionId: session.sessionId } : undefined, undefined);
+		this._applyRequestedWorktreePlacement();
+	}
+
+	/**
+	 * Makes the draft that the requested target's creation installed work in a new worktree, once and as the user's own
+	 * choice, as soon as its agent's configuration of it is known; it cannot be sent before. Another draft, such as the one
+	 * shown while the creation runs, takes nothing. A new draft of the same folder that replaces the installed one, such as
+	 * of an agent that connected since, takes it instead; any other draft cancels it. An agent that cannot work in a new
+	 * worktree is reported, and the draft stays in its folder.
+	 */
+	private _applyRequestedWorktreePlacement(): void {
+		let placement = this._pendingWorktreePlacement.get();
+		const session = this._session.get();
+		if (!placement?.sessionId || !session || isSessionCreated(session)) {
+			return;
+		}
+		if (session.sessionId !== placement.sessionId) {
+			if (session.sessionId === placement.previousSessionId || !this._isDraftOfFolder(session, placement.folderUri)) {
+				this._pendingWorktreePlacement.set(undefined, undefined);
+				return;
+			}
+			placement = { ...placement, sessionId: session.sessionId };
+			this._pendingWorktreePlacement.set(placement, undefined);
+		}
+		if (this._newWorktree?.isAvailable()) {
+			this._pendingWorktreePlacement.set(undefined, undefined);
+			this._newWorktree.setSelected(true);
+		} else if (!this._newWorktree || this._newWorktree.isResolved()) {
+			this._pendingWorktreePlacement.set(undefined, undefined);
+			this._warnNewWorktreeUnavailable();
 		}
 	}
 
@@ -1855,8 +2093,9 @@ export class NewChatWidget extends Disposable {
 		if (this._savedDraftComposer?.isRestoring) {
 			return;
 		}
-		// A hosted composer creates the drafts of what its host requests, and waits for its agent itself.
-		if (this._draftHost?.requestedTarget?.get()) {
+		// A hosted composer creates the drafts of what its host requests, and waits for its agent itself; an editor window
+		// has no chat without a workspace.
+		if (this._draftHost?.requestedTarget?.get() || this._inEditorWindow) {
 			return;
 		}
 		if (this._workspaceSelectionCleared && !this._workspacePicker.isNoWorkspaceSelected()) {
@@ -2177,6 +2416,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): ISession | undefined {
+		// Only the Agents window has chats without a workspace
+		if (this._inEditorWindow) {
+			return undefined;
+		}
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		const userSelection = selectionOptions?.userSelection !== false;
@@ -2257,6 +2500,9 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
+		if (this._inEditorWindow) {
+			return undefined;
+		}
 		const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.get();
 		const environment = this._environment.get();
 		if (environment?.kind === 'container') {
@@ -2329,7 +2575,8 @@ export class NewChatWidget extends Disposable {
 			selectionChanged.read(reader);
 			return !!this._workspaceOptOutTarget.read(reader)
 				&& !!this._workspacePicker.selectedFolderUri
-				// A composer restricted to its folders, such as an editor window's, always creates its sessions in one
+				// A composer in an editor window, or restricted to its folders, always creates its sessions in one
+				&& !this._inEditorWindow
 				&& !this._draftHost?.allowedFolders?.read(reader).length;
 		});
 		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
@@ -2350,29 +2597,25 @@ export class NewChatWidget extends Disposable {
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		], undefined, this._newChatInput.pickerHoverDelegate);
-		store.add(this._renderPlaceRow(container, row));
+		if (this._newWorktree) {
+			this._newWorktreeCheckbox = store.add(new NewWorktreeCheckbox(row, this._newWorktree, this._newWorktreeCheckboxVisible, reader => {
+				this._environmentWorkspaceChanged.read(reader);
+				this._session.read(reader);
+			}, this.hoverService, this._newChatInput.pickerHoverDelegate));
+		}
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
 				logSettingExperimentTrigger(this.telemetryService, WORKSPACE_OPT_OUT_SETTING);
 			}
 		}));
-		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
-			user: 'NewChatWidget.sessionOptions',
+		const presentation = store.add(this._presentation!.renderWorkspaceOptions(container, row, {
 			hoverDelegate: this._newChatInput.pickerHoverDelegate,
-			screenReaderOptimized: this._screenReaderOptimized,
-			expanded: this._sessionOptionsExpanded,
-			collapsedShowIcons: this._collapsedSessionOptionsShowIcons,
-			setExpanded: expanded => this._setSessionOptionsExpandedFromUser(expanded),
-			// The icons-vs-hidden setting only changes what a collapsed tray shows, so log the
-			// experiment trigger when the composer actually reaches that collapsed state — before
-			// the setting is read, so both arms count and users who never collapse don't dilute it.
-			onDidCollapse: () => logSettingExperimentTrigger(this.telemetryService, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
+			getRepositoryControlId: element => this._newChatInput.getRepositoryControlId(element),
 			onDidChangeLayout: () => this._onDidChangeChatPetPlatform.fire(),
-			iconOnlyPickers: this._iconOnlyPickers,
 		}));
-		const sessionOptions = sessionOptionsRow.details;
+		const sessionOptions = presentation.sessionTypePickerHost;
 		const environmentPicker = store.add(new MutableDisposable<ReturnType<SessionEnvironmentPicker['render']>>());
-		const repositoryControlsHost = sessionOptionsRow.repositoryControlsHost;
+		const repositoryControlsHost = presentation.repositoryControlsHost;
 		this._workspacePickerRow = row;
 		this._workspaceRepositoryControlsHost = repositoryControlsHost;
 		this._workspaceSessionOptionsHost = sessionOptions;
@@ -2392,13 +2635,13 @@ export class NewChatWidget extends Disposable {
 			} else {
 				environmentPicker.clear();
 			}
-			sessionOptionsRow.layout();
+			presentation.layout?.();
 		}));
 		store.add(autorun(reader => {
 			const isVisible = this._environmentPicker.isVisible.read(reader);
 			this._newChatInput.pickerVisibility.setVisible('environment', isVisible);
 		}));
-		sessionOptionsRow.layout();
+		presentation.layout?.();
 		this._newChatInput.pickerVisibility.setVisible('workspace', true);
 		store.add(toDisposable(() => {
 			if (this._workspacePickerRow === row) {
@@ -2575,10 +2818,6 @@ export class NewChatWidget extends Disposable {
 			&& supportsWorktreeIsolation;
 	}
 
-	private _renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable {
-		return this.options.renderNewSessionHeader?.(container, chipRow) ?? Disposable.None;
-	}
-
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
@@ -2601,49 +2840,32 @@ export class NewChatWidget extends Disposable {
 	}
 
 	focusEnvironmentPicker(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._environmentPicker.showPicker();
 	}
 
 	focusHarnessPicker(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._newChatInput.sessionTypePicker.showPicker();
 	}
 
 	focusBranchPicker(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._newChatInput.pickerVisibility.focusPicker('branch');
 	}
 
 	focusWorktreePicker(options?: ISessionPickerFocusOptions): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._newChatInput.pickerVisibility.focusPicker('worktree', options);
 	}
 
 	focusSyncAction(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._newChatInput.pickerVisibility.focusPicker('sync');
 	}
 
 	openModelComparison(): void {
 		this._newChatInput.modelPicker?.openComparison?.();
-	}
-
-	/** Restores an explicit user choice, or uses the experiment-controlled initial state. */
-	private _restoreSessionOptionsExpanded(): void {
-		const storedExpanded = getStoredSessionOptionsExpanded(this.storageService);
-		let initialExpanded = storedExpanded ?? true;
-		const hasCreatedSession = this._usage.createdSessionCount > 0;
-		if (storedExpanded === undefined && !hasCreatedSession) {
-			logSettingExperimentTrigger(this.telemetryService, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
-			initialExpanded = this.configurationService.getValue<boolean>(NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING) ?? true;
-		}
-		this._sessionOptionsExpanded.set(initialExpanded, undefined);
-	}
-
-	private _setSessionOptionsExpandedFromUser(expanded: boolean): void {
-		this._sessionOptionsExpanded.set(expanded, undefined);
-		storeSessionOptionsExpanded(this.storageService, expanded);
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
