@@ -1032,12 +1032,14 @@ export class CopilotCustomizationInstallations extends Disposable {
 		candidate: InstallableCatalogCandidate | undefined,
 	): IAgentCustomizationInstallationConfigurationRequest {
 		const choices = new Map<string, IConfigurableMcpChoice & { readonly preview?: IMcpPackagePreview }>();
-		for (const { choice, serverPackage, serverRemote } of configurable) {
-			const configuration = plan.configurationChanges[plan.transportChoices.indexOf(choice)];
+		for (const { choice: planned, serverPackage, serverRemote } of configurable) {
+			const configuration = plan.configurationChanges[plan.transportChoices.indexOf(planned)];
+			const choice = serverPackage ? withMcpCardPackageValues(planned, serverPackage) : planned;
 			const preview = serverPackage && describeMcpPackage(serverPackage);
 			const hostFields = serverPackage ? localPackageFields : serverRemote ? remoteFields : undefined;
 			if (configuration && configuration.operation === 'add' && configuration.scope === 'user' && configuration.configKey === plan.target.configKey
-				&& (!serverPackage || preview !== undefined)
+				// A package the host could not write is refused now rather than after its values were collected.
+				&& (!serverPackage || preview !== undefined && canWriteMcpPackage(serverPackage, choice.requiredValues))
 				&& (!hostFields || configuration.secretReferences.length === 0 && configuration.changedFields.every(field => hostFields.has(field)))
 			) {
 				choices.set(choice.choiceId, { choice, configuration, serverPackage, serverRemote, preview });
@@ -1927,11 +1929,76 @@ function describeMcpPackage(serverPackage: IMcpServerPackage): IMcpPackagePrevie
 	}
 }
 
+/**
+ * A named argument the card gives no value, description or default, such as `--rm`, or `--from`
+ * ahead of the positional value it takes. Like the local installer, the host writes it as a bare
+ * flag and never asks for it. A boolean one is a switch, so it stays a question.
+ */
+function isMcpFixedFlag(entry: IMcpServerArgument): boolean {
+	return entry.type === 'named' && !entry.value && !entry.description && entry.default === undefined
+		&& entry.format !== 'boolean' && !entry.choices?.length && !Object.keys(entry.variables ?? {}).length;
+}
+
+/** The only variable of a repeated argument. Such an argument is written once per value supplied for that variable. */
+function getMcpRepeatedVariable(entry: { readonly isRepeated?: boolean; readonly variables?: IMcpServerVariableInput['variables'] }): string | undefined {
+	const names = entry.isRepeated ? Object.keys(entry.variables ?? {}) : [];
+	return names.length === 1 && entry.variables?.[names[0]].value === undefined ? names[0] : undefined;
+}
+
+/**
+ * Corrects the values a plan asks for against the verified card package, which says what the plan
+ * does not: a fixed flag is not a value, and a repeated argument's variable is supplied once per
+ * repetition and only has to be supplied when the card requires it.
+ */
+function withMcpCardPackageValues(choice: McpTransportChoice, serverPackage: IMcpServerPackage): McpTransportChoice {
+	const fixed = new Set<string>();
+	const repeated = new Map<string, boolean>();
+	const read = (entries: readonly IMcpServerArgument[] | undefined, category: string) => {
+		for (const entry of entries ?? []) {
+			const variable = getMcpRepeatedVariable(entry);
+			if (entry.type === 'named' && isMcpFixedFlag(entry)) {
+				fixed.add(`${category}\0${entry.name}`);
+			} else if (variable !== undefined) {
+				repeated.set(`${category}\0${variable}`, !!(entry.isRequired || entry.variables?.[variable].isRequired));
+			}
+		}
+	};
+	read(serverPackage.runtimeArguments, 'runtime-argument');
+	read(serverPackage.packageArguments, 'package-argument');
+	return {
+		...choice,
+		requiredValues: choice.requiredValues.flatMap(value => {
+			const key = `${value.category}\0${value.key}`;
+			const required = repeated.get(key);
+			return fixed.has(key) ? [] : required === undefined ? [value] : [{ ...value, isRepeated: true, required }];
+		}),
+	};
+}
+
+/** Whether the host can write a package once every declared value is supplied. */
+function canWriteMcpPackage(serverPackage: IMcpServerPackage, declared: readonly McpTransportChoice['requiredValues'][number][]): boolean {
+	const inputs = declared.map(value => ({
+		category: value.category,
+		key: value.key,
+		value: value.kind === 'enum' ? value.enumValues[0] ?? 'value' : value.valueType === 'boolean' ? 'true' : value.valueType === 'number' ? '0' : 'value',
+	}));
+	try {
+		toMcpPackageConfiguration(withMcpPackageValues(serverPackage, declared, inputs));
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 /** The `(category, key)` of every value placed inside a template (a URL or nested variable), which can't be omitted. */
 function mcpTemplateValueKeys(serverPackage: IMcpServerPackage | undefined, serverRemote: RemoteTransport | undefined): ReadonlySet<string> {
 	const keys = new Set<string>();
-	const nested = (entries: readonly IMcpServerVariableInput[] | undefined, category: string) => {
+	const nested = (entries: readonly (IMcpServerVariableInput & { readonly isRepeated?: boolean })[] | undefined, category: string) => {
 		for (const entry of entries ?? []) {
+			// A repeated argument without values is left out, so its variable can be omitted.
+			if (getMcpRepeatedVariable(entry) !== undefined) {
+				continue;
+			}
 			for (const name of Object.keys(entry.variables ?? {})) {
 				keys.add(`${category}\0${name}`);
 			}
@@ -1958,7 +2025,9 @@ function mcpTemplateValueKeys(serverPackage: IMcpServerPackage | undefined, serv
  * optional entry is dropped. Like the runtime, a named argument set to `true`
  * becomes a bare flag and one set to `false` is dropped. Every declared value
  * must land in exactly one place; otherwise the package is refused rather than
- * guessed.
+ * guessed. A fixed flag is written as it is, except that it is left out with
+ * the repeated argument after it when that argument has no values. A repeated
+ * argument with one variable is written once per value of that variable.
  */
 function withMcpPackageValues(serverPackage: IMcpServerPackage, declared: readonly McpTransportChoice['requiredValues'][number][], inputs: IAgentCustomizationInstallationAnswers['inputs']): IMcpServerPackage {
 	const unsupported = () => new CustomizationInstallationFailure('invalid-request', localize('copilot.customizationInstallation.mcpPackageInputsRequired', "This MCP package requires additional configuration that Browse cannot collect yet."));
@@ -1973,22 +2042,37 @@ function withMcpPackageValues(serverPackage: IMcpServerPackage, declared: readon
 		}
 		return entry.type === 'named' && value === 'true' ? [{ type: 'named', name: entry.name }] : [{ ...entry, value }];
 	};
-	const args = (entries: readonly IMcpServerArgument[] | undefined, category: string) => entries?.flatMap((entry, index): IMcpServerArgument[] => {
-		const key = entry.type === 'named' ? entry.name : entry.valueHint ?? `argument-${index}`;
-		if (entry.isRepeated) {
-			// A repeated argument is written once per submitted value; nested templates can't be repeated.
-			if (entry.variables && Object.keys(entry.variables).length) {
-				throw unsupported();
+	const args = (entries: readonly IMcpServerArgument[] | undefined, category: string) => {
+		const written = entries?.map((entry, index): IMcpServerArgument[] => {
+			if (isMcpFixedFlag(entry)) {
+				return [entry];
 			}
-			const values = entry.value ? undefined : takeAll(category, key);
-			return values ? values.flatMap(value => withValue(entry, value)) : [entry];
-		}
-		const resolved = resolve(entry, category, key);
-		if (resolved.kind === 'keep') {
-			return [resolved.entry];
-		}
-		return resolved.kind === 'omit' ? [] : withValue(entry, resolved.value);
-	});
+			const variable = getMcpRepeatedVariable(entry);
+			if (variable !== undefined) {
+				const values = takeAll(category, variable);
+				return values ? values.map(value => ({ ...entry, variables: { [variable]: { ...entry.variables?.[variable], value } } })) : [entry];
+			}
+			const key = entry.type === 'named' ? entry.name : entry.valueHint ?? `argument-${index}`;
+			if (entry.isRepeated) {
+				// A repeated argument is written once per submitted value; a template with several variables can't be repeated.
+				if (entry.variables && Object.keys(entry.variables).length) {
+					throw unsupported();
+				}
+				const values = entry.value ? undefined : takeAll(category, key);
+				return values ? values.flatMap(value => withValue(entry, value)) : [entry];
+			}
+			const resolved = resolve(entry, category, key);
+			if (resolved.kind === 'keep') {
+				return [resolved.entry];
+			}
+			return resolved.kind === 'omit' ? [] : withValue(entry, resolved.value);
+		});
+		// A fixed flag introduces the repeated argument after it, so it is left out when that argument has no values.
+		return written?.flatMap((argument, index) => {
+			const next = entries?.[index + 1];
+			return entries && isMcpFixedFlag(entries[index]) && next?.type === 'positional' && next.isRepeated && !written[index + 1].length ? [] : argument;
+		});
+	};
 	const resolved: IMcpServerPackage = {
 		...serverPackage,
 		environmentVariables,
