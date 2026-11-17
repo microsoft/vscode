@@ -229,6 +229,10 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		await this.openSessionsInGrid(sessions, options);
 	}
 
+	async openSessionInSlot(session: ISession, _targetSessionId: string | undefined, options?: IOpenSessionOptions): Promise<void> {
+		await this.openSessionsInGrid([session], options);
+	}
+
 	async openSessionsInGrid(sessions: readonly ISession[], options?: IOpenSessionOptions): Promise<void> {
 		for (const session of sessions) {
 			await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
