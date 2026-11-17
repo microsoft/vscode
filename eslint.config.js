@@ -1713,8 +1713,7 @@ export default [
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/standalone/~',
-						'@vscode/tree-sitter-wasm', // type import
-						'@vscode/diff/core' // bundled by the standalone editor's worker (bundledDiffComputer.ts)
+						'@vscode/tree-sitter-wasm' // type import
 					]
 				},
 				{
@@ -1735,8 +1734,7 @@ export default [
 						'vs/base/~',
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
-						'vs/editor/~',
-						'vs/editor/standalone/~'
+						'vs/editor/~'
 					]
 				},
 				{

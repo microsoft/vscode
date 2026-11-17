@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDiffComputer as IExternalDiffComputer, createDiffComputer as createExternalDiffComputer } from '@vscode/diff';
+// #if MONACO
+// import { createTsDiffComputer } from '@vscode/diff/core';
+// #endif
 import { resolveAmdNodeModulePath } from '../../../amdX.js';
 import { LineRange } from '../core/ranges/lineRange.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
@@ -19,30 +22,21 @@ let externalModulePromise: Promise<ExternalDiffModule> | undefined;
 
 function loadExternalModule(): Promise<ExternalDiffModule> {
 	if (!externalModulePromise) {
+		// #if MONACO
+		// // The standalone editor's users bundle `@vscode/diff` like any other dependency; it has no wasm there.
+		// externalModulePromise = Promise.resolve({ createDiffComputer: async () => createTsDiffComputer() });
+		// #else
 		const url = resolveAmdNodeModulePath('@vscode/diff', 'dist/index.js');
 		// Use a runtime-computed URL to keep bundlers from rewriting the import.
 		externalModulePromise = import(/* webpackIgnore: true */ /* @vite-ignore */ `${url}`) as Promise<ExternalDiffModule>;
+		// #endif
 	}
 	return externalModulePromise;
 }
 
 const externalComputers = new Map<boolean, Promise<ILinesDiffComputer>>();
 
-let bundledComputer: ILinesDiffComputer | undefined;
-
-/**
- * Makes `@vscode/diff` available without loading it from `node_modules` at runtime. The standalone editor calls this
- * with the package's TypeScript backend, which its users' bundlers include like any other dependency. That backend
- * is then used for `advanced-external` and `advanced-wasm`.
- */
-export function setBundledExternalDiffComputer(computer: IExternalDiffComputer): void {
-	bundledComputer = new ExternalLinesDiffComputer(computer);
-}
-
-export function getExternalLinesDiffComputer(useWasm: boolean): ILinesDiffComputer | Promise<ILinesDiffComputer> {
-	if (bundledComputer) {
-		return bundledComputer;
-	}
+export function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
 	let computer = externalComputers.get(useWasm);
 	if (!computer) {
 		computer = loadExternalModule().then(m => createExternalLinesDiffComputer(m, useWasm));
