@@ -64,7 +64,7 @@ import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } fr
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { openOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -974,12 +974,15 @@ suite('AutomationsCardsWidget', () => {
 
 	test('template onboarding opens templates without expanding disabled automations', async () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
-		automationService.setAutomations([automation({ enabled: false })]);
+		automationService.setAutomations([automation({ enabled: false }), automation({ id: 'shared', ownership: 'repository' })]);
 		const templates = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
 		const disabled = widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
+		templates.open = false;
 		const before = [templates.open, disabled.open];
 
-		await openOnboardingTarget(widget.element.querySelector<HTMLElement>('[data-onboarding-id="sessions.automations.templates"]')!);
+		const target = resolveOnboardingTarget(getWindow(widget.element), 'sessions.automations.templates');
+		assert.ok(target);
+		await target.open?.();
 
 		assert.deepStrictEqual({ before, after: [templates.open, disabled.open] }, { before: [false, false], after: [true, false] });
 	});
@@ -2996,7 +2999,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('keeps template disclosure choices when saved automations update', () => {
+	test('keeps plugin templates available and moves focus out of hidden built-in templates', () => {
 		const { agentPluginService, automationService, widget } = setup();
 		agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
 			uri: URI.file('/plugins/review'),
@@ -3014,23 +3017,25 @@ suite('AutomationsCardsWidget', () => {
 				},
 			}]),
 		})]);
-		automationService.setAutomations([automation()]);
-
 		const builtInSection = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates');
 		const pluginSection = widget.element.querySelector<HTMLDetailsElement>('.automations-plugin-templates');
 		assert.ok(builtInSection);
 		assert.ok(pluginSection);
+		builtInSection.querySelector('summary')!.focus();
+		automationService.setAutomations([automation()]);
 		automationService.setAutomations([automation({ name: 'Updated review' })]);
 
 		assert.deepStrictEqual({
 			builtInDisplay: builtInSection.style.display,
 			builtInSectionOpen: builtInSection.open,
+			focusedCard: document.activeElement?.getAttribute('aria-label'),
 			pluginContainerDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
 			pluginTemplateNames: Array.from(pluginSection.querySelectorAll('.automations-template-card-name-text'), element => element.textContent),
 			pluginSectionOpen: pluginSection.open,
 		}, {
-			builtInDisplay: '',
+			builtInDisplay: 'none',
 			builtInSectionOpen: false,
+			focusedCard: 'Edit automation Updated review',
 			pluginContainerDisplay: '',
 			pluginTemplateNames: ['Weekly review'],
 			pluginSectionOpen: false,
@@ -3399,7 +3404,7 @@ suite('AutomationsCardsWidget', () => {
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
 			appearsAfterCards: true,
-			templatesDisplay: '',
+			templatesDisplay: 'none',
 		});
 	});
 
@@ -3831,7 +3836,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual(refreshErrors, [String(failure)]);
 	});
 
-	test('collapses built-in templates when saved automations become available', () => {
+	test('hides built-in templates when saved automations become available', () => {
 		const { automationService, widget } = setup();
 
 		automationService.setAutomations([automation()]);
@@ -3843,8 +3848,87 @@ suite('AutomationsCardsWidget', () => {
 			builtInOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')?.open,
 		}, {
 			savedCards: 1,
-			templatesDisplay: '',
+			templatesDisplay: 'none',
 			builtInOpen: false,
+		});
+	});
+
+	test('built-in templates follow the in-view creation empty state through catalogue changes', () => {
+		const { automationService, widget } = setup();
+		automationService.setCatalogueState('ready');
+		const personal = automation();
+		const shared = automation({ id: 'shared', ownership: 'repository' });
+		const disabledPersonal = automation({ enabled: false });
+		const disabledShared = automation({ ...shared, enabled: false });
+		const catalogues = [
+			[],
+			[shared],
+			[personal, shared],
+			[shared],
+			[disabledPersonal, shared],
+			[disabledPersonal],
+			[disabledShared],
+			[],
+		];
+
+		assert.deepStrictEqual(catalogues.map(items => {
+			automationService.setAutomations(items);
+			const builtIn = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
+			return {
+				visible: builtIn.checkVisibility(),
+				expanded: builtIn.open,
+				accessible: buildAutomationsAccessibleContent(items, [], 'ready').includes('\nBuilt-in Templates\n'),
+			};
+		}), [
+			{ visible: true, expanded: true, accessible: true },
+			{ visible: true, expanded: true, accessible: true },
+			{ visible: false, expanded: false, accessible: false },
+			{ visible: true, expanded: true, accessible: true },
+			{ visible: true, expanded: true, accessible: true },
+			{ visible: false, expanded: false, accessible: false },
+			{ visible: false, expanded: false, accessible: false },
+			{ visible: true, expanded: true, accessible: true },
+		]);
+	});
+
+	test('places built-in templates before shared automations and preserves focus across updates', () => {
+		const { automationService, agentPluginService, widget } = setup();
+		automationService.setCatalogueState('ready');
+		const shared = automation({ id: 'shared', ownership: 'repository' });
+		automationService.setAutomations([shared]);
+		const builtIn = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
+		const summary = builtIn.querySelector('summary')!;
+		summary.focus();
+		const headings = () => Array.from(widget.element.querySelectorAll('.automations-ownership-title, .automations-template-section-title'))
+			.filter(element => element.checkVisibility()).map(element => element.textContent);
+		const initialOrder = headings();
+		automationService.setAutomations([{ ...shared, name: 'Updated shared automation' }]);
+		const retainedFocus = document.activeElement === summary;
+		agentPluginService.setPlugins([upcastPartial<IAgentPlugin>({
+			uri: URI.file('/plugins/review'),
+			label: 'Review plugin',
+			enablement: constObservable(ContributionEnablementState.EnabledProfile),
+			automations: constObservable([{
+				uri: URI.file('/plugins/review/automations/review.automation.md'),
+				blueprint: { version: 1, id: 'review', name: 'Review', description: 'Review changes.', prompt: 'Review changes.', schedule: shared.schedule },
+			}]),
+		})]);
+		const withPlugin = headings();
+		const templateSectionCount = widget.element.querySelectorAll('.automations-built-in-templates').length;
+		automationService.setAutomations([]);
+		const emptyOrder = headings();
+		const accessible = buildAutomationsAccessibleContent([shared], [], 'ready');
+
+		assert.deepStrictEqual({
+			initialOrder, retainedFocus, withPlugin, templateSectionCount, emptyOrder,
+			accessibleOrder: accessible.split('\n').filter(line => ['Your automations', 'Built-in Templates', 'Shared automations'].includes(line)),
+		}, {
+			initialOrder: ['Your automations', 'Built-in Templates', 'Shared automations'],
+			retainedFocus: true,
+			withPlugin: ['Your automations', 'Built-in Templates', 'Shared automations', 'Templates from Plugins'],
+			templateSectionCount: 1,
+			emptyOrder: ['Built-in Templates', 'Templates from Plugins'],
+			accessibleOrder: ['Your automations', 'Built-in Templates', 'Shared automations'],
 		});
 	});
 
@@ -4002,7 +4086,7 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			createCalls: [submitted],
 			activeElementLabel: 'Edit automation Customized issue triage',
-			templateVisible: '',
+			templateVisible: 'none',
 			builtInOpen: false,
 		});
 	});
@@ -4053,7 +4137,7 @@ suite('AutomationsCardsWidget', () => {
 				beforeCreate: { templatesVisible: true, emptyClaimVisible: false, catalogueStatusVisible: true },
 				createCalls: [submitted],
 				catalogueState,
-				templateDisplay: '',
+				templateDisplay: 'none',
 				builtInOpen: false,
 				cardLabel: 'Edit automation Local review',
 				warningVisible: catalogueState !== 'loading',
@@ -4191,7 +4275,8 @@ suite('AutomationsCardsWidget', () => {
 			},
 		};
 		automationService.setCatalogueState('ready');
-		automationService.setAutomations([automation()]);
+		const shared = automation({ ownership: 'repository' });
+		automationService.setAutomations([shared]);
 		const section = widget.element.querySelector<HTMLDetailsElement>('.automations-ownership-section');
 		const template = widget.element.querySelector<HTMLButtonElement>('.automations-template-card');
 		assert.ok(section);
@@ -4203,7 +4288,7 @@ suite('AutomationsCardsWidget', () => {
 		await timeout(0);
 		const created = automationService.createdAutomation;
 		assert.ok(created);
-		automationService.setAutomations([automation(), created]);
+		automationService.setAutomations([shared, created]);
 		assert.deepStrictEqual({
 			expanded: section.open,
 			focused: document.activeElement?.getAttribute('aria-label'),
@@ -6177,7 +6262,7 @@ suite('AutomationsCardsWidget', () => {
 		], [false, true, false]);
 	});
 
-	test('accessible view shows built-in and plugin templates with saved automations', () => {
+	test('accessible view shows only plugin templates with saved personal automations', () => {
 		const pluginTemplate = {
 			...AUTOMATION_TEMPLATES[0],
 			id: 'plugin-template',
@@ -6195,10 +6280,52 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			includesPluginSection: true,
 			includesPluginTemplate: true,
-			includesBuiltInSection: true,
-			includesBuiltInTemplate: true,
+			includesBuiltInSection: false,
+			includesBuiltInTemplate: false,
 		});
 	});
+
+	for (const sendLaterEnabled of [false, true]) {
+		test(`accessible template visibility matches the widget with Send Later enabled=${sendLaterEnabled}`, async () => {
+			const { automationService, configurationService, instantiationService, widget } = setup();
+			await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, sendLaterEnabled);
+			instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+			stubSessionsHostLayout(instantiationService);
+			const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help')!;
+			const view = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
+			const schedule: IAutomationSchedule = { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+			const pending = automation({ id: 'pending', name: 'Pending scheduled chat', purpose: 'scheduledChat', schedule });
+			const hiddenShared = automation({ id: 'hidden-shared', ownership: 'repository', isCreatedByCurrentUser: false });
+			const catalogues = [
+				[pending],
+				[{ ...pending, oneTimeDispatchedAt: '2027-01-01T10:00:00.000Z' }],
+				[automation({ schedule })],
+				[pending, automation({ id: 'shared', ownership: 'repository' })],
+				[hiddenShared],
+				[{ ...hiddenShared, enabled: false }],
+				[pending, hiddenShared],
+			];
+
+			assert.deepStrictEqual(catalogues.map(items => {
+				automationService.setAutomations(items);
+				const helpProvider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+				const viewProvider = disposables.add(instantiationService.invokeFunction(accessor => view.getProvider(accessor))!);
+				return {
+					widget: widget.element.querySelector<HTMLElement>('.automations-built-in-templates')!.checkVisibility(),
+					help: helpProvider.provideContent().includes('Built-in Templates section'),
+					view: viewProvider.provideContent().includes('\nBuilt-in Templates\n'),
+				};
+			}), [
+				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
+				{ widget: false, help: false, view: false },
+				{ widget: false, help: false, view: false },
+				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
+				{ widget: true, help: true, view: true },
+				{ widget: true, help: true, view: true },
+				{ widget: sendLaterEnabled, help: sendLaterEnabled, view: sendLaterEnabled },
+			]);
+		});
+	}
 
 	test('accessibility help describes visible templates independently of catalogue completeness', () => {
 		const { automationService, instantiationService } = setup();
@@ -6224,7 +6351,7 @@ suite('AutomationsCardsWidget', () => {
 			populatedCatalogueHelp: describesBuiltInTemplates(),
 		}, {
 			emptyCatalogueHelp: [true, true, true, true],
-			populatedCatalogueHelp: true,
+			populatedCatalogueHelp: false,
 		});
 	});
 

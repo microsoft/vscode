@@ -127,6 +127,14 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				this.removeOwners(owner => ownsSession(owner, session));
 			}
 		}));
+		this._register(this.sessionsManagementService.onDidDiscardNewSession(session => {
+			this.removeOwners(owner => ownsSession(owner, session));
+		}));
+		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
+			if (!isEqual(from.resource, to.resource)) {
+				this.removeOwners(owner => ownsSession(owner, from));
+			}
+		}));
 		this._register(this.sessionsManagementService.onDidDeleteChat(({ session, chatResource }) => {
 			this.removeOwners(owner => ownsSession(owner, session) && isEqual(owner.chat, chatResource));
 		}));

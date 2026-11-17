@@ -96,7 +96,7 @@ import { INewSessionComposerService } from '../../../../../workbench/contrib/ses
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -284,11 +284,10 @@ export class AutomationsCardsWidget extends Disposable {
 		const visibleAutomations = derived(this, reader => {
 			configurationChanged.read(reader);
 			const sendLaterEnabled = configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true;
-			return getAutomationsViewContent(
+			return getVisibleAutomations(getAutomationsViewContent(
 				this.automationService.automations.read(reader), [],
 				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
-			).automations.filter(automation =>
-				!sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined);
+			).automations, sendLaterEnabled);
 		});
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
@@ -505,13 +504,6 @@ class AutomationCardsSection extends Disposable {
 		}));
 		this.templatesContainer = DOM.append(parent, $('.automations-templates'));
 		this.templatesContainer.style.display = 'none';
-		this._register(markOnboardingTarget(this.templatesContainer, AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID, {
-			open: () => {
-				if (this.builtInTemplatesSection) {
-					this.builtInTemplatesSection.open = true;
-				}
-			},
-		}));
 		this.dropOverlay = DOM.append(this.focusRoot, $('.automations-drop-overlay'));
 		this.dropOverlay.setAttribute('role', 'status');
 		this.dropOverlay.setAttribute('aria-live', 'polite');
@@ -631,17 +623,18 @@ class AutomationCardsSection extends Disposable {
 			if (rendered.emptyState) {
 				rendered.emptyState.style.display = group.automations.length === 0 ? '' : 'none';
 			}
-			const currentSection = this.container.children.item(groupIndex);
+			const currentSection = Array.from(this.container.children).filter(child => child !== this.builtInTemplatesSection)[groupIndex];
 			if (currentSection !== rendered.section) {
-				this.container.insertBefore(rendered.section, currentSection);
+				this.container.insertBefore(rendered.section, currentSection ?? null);
 			}
 			this.renderCardsInto(rendered.grid, group.automations);
 		}
 		this.renderCardsInto(this.disabledSection.grid, disabledAutomations);
 		this.disabledSection.section.style.display = disabledAutomations.length > 0 ? '' : 'none';
 
+		const showBuiltInTemplates = hasEmptyAutomationSection(automations);
 		if (!this.builtInTemplatesUserToggled) {
-			const defaultExpanded = automations.length === 0;
+			const defaultExpanded = showBuiltInTemplates;
 			if (this.builtInTemplatesExpanded !== defaultExpanded) {
 				this.builtInTemplatesExpanded = defaultExpanded;
 				if (this.builtInTemplatesSection) {
@@ -664,11 +657,20 @@ class AutomationCardsSection extends Disposable {
 			this.renderTemplates(templates);
 			this.renderedTemplates = templates;
 		}
+		if (this.builtInTemplatesSection) {
+			this.builtInTemplatesSection.style.display = showBuiltInTemplates ? '' : 'none';
+			const sharedSection = showBuiltInTemplates ? this.ownershipSections.get('repository')?.section : undefined;
+			const parent = sharedSection ? this.container : this.templatesContainer;
+			const nextSibling = sharedSection ?? this.pluginTemplatesSection ?? null;
+			if (this.builtInTemplatesSection.parentElement !== parent || this.builtInTemplatesSection.nextSibling !== nextSibling) {
+				parent.insertBefore(this.builtInTemplatesSection, nextSibling);
+			}
+		}
 
 		this.updatePluginTemplateUnreadState(
 			this.pluginTemplatesUserToggled || (catalogueState === 'ready' && automations.length === 0)
 		);
-		const showTemplateSections = templates.length > 0;
+		const showTemplateSections = templates.some(template => template.source || showBuiltInTemplates && this.builtInTemplatesSection?.parentElement === this.templatesContainer);
 		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
 
 		this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
@@ -684,7 +686,7 @@ class AutomationCardsSection extends Disposable {
 		if (!this.focusPendingAutomation() && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
 			if (disabledAutomations.length > 0 && this.disabledSection.grid.contains(activeElement) && !this.disabledSection.section.open) {
 				this.disabledSection.summary.focus();
-			} else if (!nextContainer.contains(activeElement) && !this.isVisibleDisabledElement(activeElement) && !(showTemplateSections && this.isVisibleTemplateElement(activeElement))) {
+			} else if (!nextContainer.contains(activeElement) && !this.isVisibleDisabledElement(activeElement) && !this.isVisibleTemplateElement(activeElement)) {
 				this.focusVisibleState(automations, catalogueState);
 			} else if (!DOM.isActiveElement(activeElement)) {
 				activeElement.focus();
@@ -734,12 +736,12 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private isVisibleTemplateElement(element: HTMLElement): boolean {
-		if (!this.templatesContainer.contains(element)) {
+		if (!this.templatesContainer.contains(element) && !this.builtInTemplatesSection?.contains(element)) {
 			return false;
 		}
 		const section = element.closest<HTMLDetailsElement>('details.automations-template-section');
 		const summary = element.closest<HTMLElement>('summary');
-		return !section || section.open || summary?.parentElement === section;
+		return !section || section.style.display !== 'none' && (section.open || summary?.parentElement === section);
 	}
 
 	private isVisibleDisabledElement(element: HTMLElement): boolean {
@@ -1127,6 +1129,7 @@ class AutomationCardsSection extends Disposable {
 
 	private renderTemplates(templates: readonly IAutomationTemplate[]): void {
 		this.templateDisposables.clear();
+		this.builtInTemplatesSection?.remove();
 		DOM.clearNode(this.templatesContainer);
 		const builtInTemplates = templates.filter(template => !template.source);
 		const pluginTemplates = templates.filter(template => !!template.source);
@@ -1148,6 +1151,13 @@ class AutomationCardsSection extends Disposable {
 				}
 			},
 		}).section;
+		this.templateDisposables.add(markOnboardingTarget(this.builtInTemplatesSection, AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID, {
+			open: () => {
+				if (this.builtInTemplatesSection) {
+					this.builtInTemplatesSection.open = true;
+				}
+			},
+		}));
 
 		if (pluginTemplates.length > 0) {
 			const rendered = this.renderTemplateSection({

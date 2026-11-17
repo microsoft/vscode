@@ -51,7 +51,13 @@ export function agentSessionApprovalId(info: IAgentSessionApprovalInfo): string 
  */
 export class AgentSessionApprovalModel extends Disposable {
 
-	private readonly _approvals = new Map<string, ISettableObservable<IAgentSessionApprovalInfo | undefined>>();
+	/** Live models and consumers own approval observables, not this lookup cache. */
+	private readonly _approvals = new Map<string, WeakRef<ISettableObservable<IAgentSessionApprovalInfo | undefined>>>();
+	private readonly _approvalsFinalizer = new FinalizationRegistry<string>(key => {
+		if (!this._approvals.get(key)?.deref()) {
+			this._approvals.delete(key);
+		}
+	});
 	private readonly _modelTrackers = this._register(new DisposableResourceMap());
 
 	constructor(
@@ -68,7 +74,7 @@ export class AgentSessionApprovalModel extends Disposable {
 				}
 				for (const model of removedValues) {
 					this._modelTrackers.deleteAndDispose(model.sessionResource);
-					this._approvals.get(model.sessionResource.toString())?.set(undefined, undefined);
+					this._approvals.get(model.sessionResource.toString())?.deref()?.set(undefined, undefined);
 				}
 			}
 		));
@@ -79,10 +85,11 @@ export class AgentSessionApprovalModel extends Disposable {
 	}
 
 	private _getOrCreateApproval(key: string): ISettableObservable<IAgentSessionApprovalInfo | undefined> {
-		let obs = this._approvals.get(key);
+		let obs = this._approvals.get(key)?.deref();
 		if (!obs) {
 			obs = observableValue<IAgentSessionApprovalInfo | undefined>(`sessionApproval.${key}`, undefined);
-			this._approvals.set(key, obs);
+			this._approvals.set(key, new WeakRef(obs));
+			this._approvalsFinalizer.register(obs, key);
 		}
 		return obs;
 	}
