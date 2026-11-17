@@ -17,7 +17,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
@@ -25,12 +25,13 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { DesktopEditorHeaderLayoutContext, HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
@@ -695,7 +696,17 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							DesktopLayoutContext,
 							ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
 							MainEditorAreaVisibleContext,
-							ContextKeyExpr.or(HasDockedDetailsContext, toggleMultiDiffEditorFileListContext))
+							ContextKeyExpr.or(
+								HasDockedDetailsContext,
+								toggleMultiDiffEditorFileListContext,
+								// With the editor header layout, the Changes tab also keeps the toggle while a
+								// session switch replaces the Changes editor, matching the changeset picker in
+								// the header.
+								ContextKeyExpr.and(
+									DesktopEditorHeaderLayoutContext,
+									ContextKeyExpr.or(
+										ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+										DesktopChangesEditorTransitionContext))))
 					}
 				});
 			}

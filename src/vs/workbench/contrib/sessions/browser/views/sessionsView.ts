@@ -60,7 +60,7 @@ import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { Menus } from '../menus.js';
+import { Menus, SessionsViewShowGroup } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
@@ -922,13 +922,13 @@ export class SessionsView extends ViewPane {
 			constructor() {
 				super({
 					id: 'sessionsViewPane.filterScheduled',
-					title: localize('scheduledOnly', "Scheduled Only"),
+					title: localize('showOnlyScheduled', "Show Only Scheduled"),
 					toggled: ContextKeyExpr.equals(contextKey.key, true),
 					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
 					menu: [{
-						id: Menus.SessionsViewFilter,
-						group: '3_visibility',
-						order: 0.6,
+						id: Menus.SessionsViewShow,
+						group: SessionsViewShowGroup.Visibility,
+						order: 2,
 						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
 					}],
 				});
@@ -1091,8 +1091,8 @@ export class SessionsView extends ViewPane {
 						title,
 						toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
 						menu: [{
-							id: Menus.SessionsViewFilter,
-							group: '3_visibility',
+							id: Menus.SessionsViewShow,
+							group: SessionsViewShowGroup.Visibility,
 							order: 1,
 						}]
 					});
