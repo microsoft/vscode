@@ -131,9 +131,10 @@ export interface IAgentSideEffectsOptions {
 	 * on the first send, or the picked folder) is resolved before the agent
 	 * materializes and its cwd is locked. Resolves to the working directories to
 	 * hand the agent (index 0 = process root), or `undefined` for workspace-less
-	 * sessions. Provided by {@link AgentService}.
+	 * sessions. `onResolved` allows checkpoints to start before base-branch persistence.
+	 * Provided by {@link AgentService}.
 	 */
-	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean }) => Promise<readonly URI[] | undefined>;
+	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string; credentials?: IAgentHostCredentialSource; agentMergeTurn?: boolean; onResolved?: (workingDirectories: readonly URI[]) => void }) => Promise<readonly URI[] | undefined>;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/** Resolves the recorded owner of a chat that may not be loaded. */
@@ -2239,22 +2240,15 @@ export class AgentSideEffects extends Disposable {
 			// for worktree sessions (created here on the first send) or the picked
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const agentMergeTurn = message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message);
-			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}) });
-			// Start the turn-start checkpoint as soon as the working directory is
-			// known so its git snapshot runs alongside the provider round-trips
-			// below instead of after them. It is still awaited before the message
-			// is sent, so the snapshot continues to reflect the tree the agent
-			// starts from. A turn cancelled before it got here never captures at
-			// all — the snapshot is expensive and would only be discarded.
-			// Rejections are marked handled here because the paths below can skip
-			// the await; the later `await` still surfaces them so a failed
-			// capture fails the turn exactly as it used to.
-			const shouldCheckpoint = !this._stateManager.isEphemeralSession(sessionChannel)
-				&& !this._cancelledTurnIds.get(turnChannel)?.has(turnId);
-			checkpointCapture = shouldCheckpoint
-				? this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories)
-				: undefined;
-			checkpointCapture?.catch(() => { /* surfaced by the await below */ });
+			// Directory-dependent snapshots can overlap base-branch persistence, but both must settle before dispatch.
+			const captureCheckpoint = (workingDirectories: readonly URI[] | undefined) => {
+				if (!checkpointCapture && !this._stateManager.isEphemeralSession(sessionChannel) && !this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+					checkpointCapture = this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, workingDirectories);
+					checkpointCapture.catch(() => { /* surfaced by the await below */ });
+				}
+			};
+			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}), onResolved: captureCheckpoint });
+			captureCheckpoint(resolvedWorkingDirectories);
 			const chatContext = this._chatContext(options.sessionChannel, chat);
 			const clientOperationContext = {
 				...chatContext,
