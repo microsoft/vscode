@@ -26,6 +26,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../commo
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import type { INewSessionInputPresentation } from '../newSessionInputPresentation.js';
+import type { INewSessionPresentation } from '../newSessionPresentation.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -60,9 +61,9 @@ export interface IChatViewBackground {
  */
 export interface IChatViewOptions {
 	readonly newSessionInput?: INewSessionInputPresentation;
+	readonly newSessionPresentation?: INewSessionPresentation;
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
-	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
 	readonly background?: IChatViewBackground;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
@@ -91,6 +92,10 @@ export interface IChatViewOptions {
 	 * host's slot, so they never replace or take the main window composer's draft, and the grid is never changed.
 	 */
 	readonly newSessionDraft?: INewSessionDraftHost;
+}
+
+export interface INewSessionViewOptions extends IChatViewOptions {
+	readonly newSessionPresentation: INewSessionPresentation;
 }
 
 /**

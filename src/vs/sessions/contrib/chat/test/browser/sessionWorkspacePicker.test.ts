@@ -59,6 +59,7 @@ import { NewChatWidget } from '../../../../../workbench/contrib/sessions/browser
 import { ICreateNewSessionOptions } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionTarget } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import '../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/defaultNewSessionPresentation.css';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { AutomationsWorkspacePicker, MobileAutomationsWorkspacePicker } from '../../../automations/browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../../automations/common/isolationGroupModel.js';

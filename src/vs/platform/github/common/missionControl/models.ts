@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiRequestOptions } from '../client/request.js';
 import { JsonValue } from '../client/types.js';
 
@@ -60,5 +61,5 @@ export interface ListModelsResponse {
 /** Model discovery through the approved Copilot API endpoint. */
 export interface IModelsClient {
 	/** GET /agents/swe/models: read the cloud agent catalog without UI filtering or normalization. */
-	list(signal: AbortSignal, options?: ApiRequestOptions): Promise<ListModelsResponse>;
+	list(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ListModelsResponse>;
 }

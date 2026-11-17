@@ -13,36 +13,36 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ArtifactRecord, getArtifactActionAvailability, IArtifactDetailsModel, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactRecord, IArtifactDetailsModel, getArtifactActionAvailability, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { ArtifactIntegrationService } from '../../../artifactIntegrations/common/artifactIntegrationService.js';
 import { ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptState, IArtifactIntegrationStorage, IArtifactRuntime } from '../../../artifactIntegrations/common/artifactRuntime.js';
-import { GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { RepositoryRef } from '../../../github/common/client/types.js';
 import { IActionsClient, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
 import { IPullRequestsClient } from '../../../github/common/core/pullRequests.js';
 import { IReviewsClient } from '../../../github/common/core/reviews.js';
-import { RepositoryRef } from '../../../github/common/client/types.js';
+import { GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
+import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestError } from '../../../github/common/githubTransport.js';
-import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { arePullRequestArtifactChecksReady, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
 import { ActionType, AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
-import { getPullRequestGroupPresentation, GitHubPullRequestArtifactIntegration } from '../../node/artifactIntegrations/githubPullRequestArtifactIntegration.js';
+import { GitHubPullRequestArtifactIntegration, getPullRequestGroupPresentation } from '../../node/artifactIntegrations/githubPullRequestArtifactIntegration.js';
 import { createPullRequestArtifactSnapshot } from '../common/githubPullRequestArtifactTestUtils.js';
 import { createTestGitHubService } from './testGitHubService.js';
 
@@ -105,7 +105,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			if (credentialError) {
 				throw credentialError;
 			}
-			return { account: { host: URI.parse(endpoint.getApiBaseUri()).authority, accountId }, token: 'test-token', generation: 1, signal: new AbortController().signal };
+			return { account: { host: URI.parse(endpoint.getApiBaseUri()).authority, accountId }, token: 'test-token', generation: 1, cancellationToken: CancellationToken.None };
 		}
 	}();
 	const client = new class extends mock<IGitHubClient>() {
