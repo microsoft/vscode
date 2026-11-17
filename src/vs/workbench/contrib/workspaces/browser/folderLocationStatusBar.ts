@@ -417,7 +417,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 				);
 				// The current entry: the folder, or the row of its worktrees
 				actionWidgetService.focusItemById(currentSeed ? worktreesId : uriIdentityService.extUri.getComparisonKey(primaryEntry.uri));
-				loadLocations(entries => actionWidgetService.updateItems(toActionItems(entries)), () => { });
+				// An open Worktrees submenu shows the resolved worktrees too
+				loadLocations(entries => actionWidgetService.updateItems(toActionItems(entries), undefined, { preserveHover: true }), () => { });
 			}).finally(() => {
 				cts.cancel();
 				store.dispose();
