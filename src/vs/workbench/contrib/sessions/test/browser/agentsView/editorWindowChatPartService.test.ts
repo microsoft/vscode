@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { runWhenGlobalIdle, timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -12,13 +12,15 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { EditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
+import { AgentsChatPartPresenter, EditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
 import { AgentsChatPartFrame, IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { ChangesMultiDiffSourceResolver } from '../../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -66,11 +68,15 @@ suite('EditorWindowChatPartService', () => {
 			contextMatchesRules: () => true,
 		});
 		const chatPart = upcastPartial<IAgentsChatPartService>({ restore: async () => { events.push('restore'); } });
+		const chatPartFrame = frame ?? upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) });
 		const instantiationService = upcastPartial<IInstantiationService>({
 			createInstance: (ctor: unknown, ...args: unknown[]) => {
 				if (ctor === AgentsChatViewHost) {
 					ownsNewChat.push(args[0] as IObservable<boolean>);
 					return upcastPartial<AgentsChatViewHost>({ deactivate: () => events.push('deactivate host') });
+				}
+				if (ctor === AgentsChatPartPresenter) {
+					return new AgentsChatPartPresenter(chatPartFrame, chatPart, layoutService, contextKeyService);
 				}
 				return toDisposable(() => { });
 			},
@@ -86,11 +92,35 @@ suite('EditorWindowChatPartService', () => {
 				registerComposerHolder: () => { events.push('register composer holder'); return toDisposable(() => events.push('unregister composer holder')); },
 			}),
 			upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { events.push('hold providers'); return toDisposable(() => events.push('release providers')); } }),
-			frame ?? upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
-			chatPart,
+			chatPartFrame,
 		));
 		return { service, events, ownsNewChat };
 	}
+
+	test('creates no chat part content while chats do not open in it, also once the window idles, though its service is delayed', async () => {
+		const created: string[] = [];
+		class ChatPartContent {
+			constructor() { created.push('chat part content'); }
+		}
+		const services = disposables.add(new TestInstantiationService(undefined, true));
+		services.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } }));
+		services.stub(IContextKeyService, upcastPartial<IContextKeyService>({ contextMatchesRules: () => true }));
+		services.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
+		services.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
+		services.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({}));
+		services.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({}));
+		services.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: undefined!, contentCreated: constObservable(false) }));
+		services.stubInstance(ChangesMultiDiffSourceResolver, { dispose: () => { } });
+		// As the window registers it: delayed, so that what takes it creates it as the window idles
+		services.set(IAgentsChatPartService, new SyncDescriptor(ChatPartContent, [], true) as unknown as IAgentsChatPartService);
+		const service = disposables.add(services.createInstance(EditorWindowChatPartService));
+
+		disposables.add(service.enable({ anchorViewId: 'chat', anchorPriority: 1, enabled: constObservable(false) }));
+		await timeout(0);
+		await new Promise<void>(resolve => disposables.add(runWhenGlobalIdle(() => resolve())));
+
+		assert.deepStrictEqual(created, []);
+	});
 
 	test('does nothing until a feature enables it; features share the chat part, which docks beside the anchor of the highest priority', async () => {
 		const { service, events } = createService({ visible: false });
