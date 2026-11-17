@@ -21,7 +21,9 @@ suite('Shared process GitHub fetch', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('does not resolve proxy or certificates after cancellation during initialization', async () => {
-		const configuration = new TestConfigurationService({ 'http.systemCertificates': true });
+		// On macOS, the proxy resolver preloads certificates when it is created if certificates are loaded from Node,
+		// and that shared initialization keeps running after the request is cancelled.
+		const configuration = new TestConfigurationService({ 'http.systemCertificates': true, 'http.systemCertificatesNode': false });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const lookups: string[] = [];
 		const fetch = createFetch(new class extends mock<INativeHostService>() {
