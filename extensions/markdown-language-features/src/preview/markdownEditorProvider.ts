@@ -24,8 +24,8 @@ import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
 import { codeBlockEditorPresentation, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from './markdownEditorRpc';
-import { MarkdownEditorRename } from './markdownEditorRename';
-import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
+import { MarkdownEditorRename, renameApi } from './markdownEditorRename';
+import { completionApi, MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
 import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
 import { MarkdownEditorNavigation } from './markdownEditorNavigation';
 import { MarkdownEditorSessionTelemetry, type MarkdownEditorViewState } from './markdownEditorTelemetry';
@@ -303,12 +303,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#telemetryReporter = telemetryReporter;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
 		// Editors still open when the extension deactivates (window closed or reloaded) end here.
-		this._register(new vscode.Disposable(() => {
-			for (const session of this.#telemetrySessions) {
-				session.end('shutdown');
-			}
-			this.#telemetrySessions.clear();
-		}));
+		this._register(new vscode.Disposable(() => this.endTelemetrySessions()));
 		this._register(new vscode.Disposable(() => {
 			void vscode.commands.executeCommand('setContext', 'markdownEditorFocus', false);
 		}));
@@ -504,16 +499,27 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 
 		const comments = this.#wireComments(document, editorWebview);
+		// Workspace edits made by this panel's own handlers (rename, completions, media paste)
+		const applyPanelEdit = async (edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): Promise<boolean> => {
+			const applied = await vscode.workspace.applyEdit(edit, metadata);
+			if (applied) {
+				telemetry?.session.recordEdit();
+			}
+			return applied;
+		};
 		const rename = new MarkdownEditorRename(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
-			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
+			{ ...renameApi, apply: applyPanelEdit });
 		const languageFeatures = new MarkdownEditorLanguageFeatures(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
-			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
+			{ ...completionApi, apply: applyPanelEdit });
 		const imagePaste = new MarkdownEditorImagePaste(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
 			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
-			request => editorWebview.renderer.readClipboardMedia(request));
+			request => editorWebview.renderer.readClipboardMedia(request),
+			applyPanelEdit);
 		const navigation = new MarkdownEditorNavigation(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
 			() => editorWebview.renderer, token => editorWebview.whenReady(token));
@@ -805,6 +811,14 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			onDidChangeLinkPresentationRules.dispose();
 			richLinks.dispose();
 		});
+	}
+
+	/** Reports the sessions of all open editors as ended by shutdown. */
+	public endTelemetrySessions(): void {
+		for (const session of this.#telemetrySessions) {
+			session.end('shutdown');
+		}
+		this.#telemetrySessions.clear();
 	}
 
 	#startTelemetrySession(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, readonly: boolean): { readonly session: MarkdownEditorSessionTelemetry; dispose(): void } {

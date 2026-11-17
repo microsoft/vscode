@@ -25,6 +25,16 @@ import { MdLinkOpener } from './util/openDocumentLink';
 import { registerUpdatePastedLinks } from './languageFeatures/updateLinksOnPaste';
 import { markdownLanguageIds } from './util/file';
 
+let flushOnDeactivate: (() => Promise<void>) | undefined;
+
+/**
+ * The extension host awaits this on window close or reload, before it disposes the
+ * subscriptions, so the telemetry of open Markdown editors is flushed.
+ */
+export async function deactivate(): Promise<void> {
+	await flushOnDeactivate?.();
+}
+
 export function activateShared(
 	context: vscode.ExtensionContext,
 	client: MdLanguageClient,
@@ -68,8 +78,12 @@ export function activateShared(
 	);
 	context.subscriptions.push(markdownEditorProvider);
 	// Subscriptions are disposed in order: keep the reporter alive until the Markdown editor
-	// has reported the sessions that end when the extension deactivates.
+	// has reported its open sessions, in case `deactivate` did not run.
 	context.subscriptions.push(telemetryReporter);
+	flushOnDeactivate = async () => {
+		markdownEditorProvider.endTelemetrySessions();
+		await telemetryReporter.dispose();
+	};
 	context.subscriptions.push(registerMarkdownEditorCommands(context, markdownEditorProvider));
 	context.subscriptions.push(vscode.window.registerCustomEditorProvider(
 		MarkdownEditorProvider.viewType,

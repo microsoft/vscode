@@ -6,7 +6,8 @@ import { default as VSCodeTelemetryReporter } from '@vscode/extension-telemetry'
 import * as vscode from 'vscode';
 
 export interface TelemetryReporter {
-	dispose(): void;
+	/** Flushes pending events; the returned promise resolves when they are sent. */
+	dispose(): void | Promise<void>;
 	sendTelemetryEvent(eventName: string, properties?: {
 		[key: string]: string;
 	}, measurements?: {
@@ -21,6 +22,7 @@ const nullReporter = new class NullTelemetryReporter implements TelemetryReporte
 
 class ExtensionReporter implements TelemetryReporter {
 	readonly #reporter: VSCodeTelemetryReporter;
+	#disposed: Promise<void> | undefined;
 
 	constructor(
 		aiKey: string
@@ -35,8 +37,9 @@ class ExtensionReporter implements TelemetryReporter {
 		this.#reporter.sendTelemetryEvent(eventName, properties, measurements);
 	}
 
-	dispose() {
-		this.#reporter.dispose();
+	dispose(): Promise<void> {
+		this.#disposed ??= Promise.resolve(this.#reporter.dispose()).then(() => { });
+		return this.#disposed;
 	}
 }
 
