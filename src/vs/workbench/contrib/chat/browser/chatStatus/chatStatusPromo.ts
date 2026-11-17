@@ -36,7 +36,6 @@ import { DISMISSED_PROMOS_STORAGE_KEY, SEEN_PROMOS_STORAGE_KEY } from '../chatPr
 import { addDismissedNotificationId, readDismissedNotificationIds } from '../widget/input/chatInputNotificationService.js';
 import { getModelProviderIcon } from '../widget/input/modelPicker/modelProviderIcons.js';
 import type { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 
 const TRY_MODEL_COMMAND_ID = '_chat.tryPromoModel';
 const TREATMENT = `config.${ChatConfiguration.ChatClosedPromoNotification}`;
@@ -92,7 +91,6 @@ export class ChatStatusPromo extends Disposable {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
-		@ILocalChatAvailabilityService private readonly localChatAvailabilityService: ILocalChatAvailabilityService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -263,7 +261,7 @@ export class ChatStatusPromo extends Disposable {
 	private resolveDefaultSessionType() {
 		return getDefaultNewChatSessionTypeAndReasonFromServices(
 			this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(),
-			this.agentHostEnablementService.enabled.get(), { localChatHidden: this.localChatAvailabilityService.hidden.get() }, this.agentHostEnablementService.managedSandboxEnforced.get(),
+			this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(),
 			requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 	}
 

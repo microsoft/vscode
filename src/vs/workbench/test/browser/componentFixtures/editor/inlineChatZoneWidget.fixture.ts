@@ -100,7 +100,6 @@ import '../../../../../editor/contrib/zoneWidget/browser/zoneWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../../contrib/chat/common/localChatAvailability.js';
 
 const SAMPLE_CODE = `import { useState, useEffect } from 'react';
 
@@ -332,7 +331,6 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override readonly managedSandboxEnforced = constObservable(false);
 				override readonly managedSandboxAllowsBypass = constObservable(true);
 			}());
-			reg.define(ILocalChatAvailabilityService, LocalChatAvailabilityService);
 			reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 			reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
 			reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());

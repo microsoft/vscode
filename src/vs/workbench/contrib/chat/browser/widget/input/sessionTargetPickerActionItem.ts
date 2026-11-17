@@ -43,7 +43,6 @@ import { IChatHarnessSwitchFeedbackSurveyService } from '../../feedbackSurvey/ch
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
-import { ILocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 
 
 export interface ISessionTypeItem {
@@ -192,7 +191,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IAgentSdkSetupService protected readonly agentSdkSetupService: IAgentSdkSetupService,
 		@IChatHarnessSwitchFeedbackSurveyService private readonly harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
-		@ILocalChatAvailabilityService private readonly localChatAvailabilityService: ILocalChatAvailabilityService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -275,11 +273,10 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			}
 		}));
 
-		// The managed sandbox floor is delivered by managed settings, not configuration, and a feature hides local chats
-		// without changing the configuration, so they need their own subscription to keep the visible harness list in sync.
+		// The managed sandbox floor is delivered by managed settings, not configuration, so it needs
+		// its own subscription to keep the visible harness list in sync.
 		this._register(autorun(reader => {
 			this.agentHostEnablementService.managedSandboxEnforced.read(reader);
-			this.localChatAvailabilityService.hidden.read(reader);
 			this._updateAgentSessionItems();
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -303,7 +300,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		this._promptForCopilotToLocalSwitch(previousTarget, sessionTypeItem.type);
 
 		if (!this._isSessionsWindow) {
-			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get(), this.localChatAvailabilityService.hidden.get());
+			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get());
 		}
 
 		if (this.delegate.setActiveSessionProvider) {
@@ -438,11 +435,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	 * {@link AgentSessionProviders.Local}.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), { localChatHidden: this.localChatAvailabilityService.hidden.get() }, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) as AgentSessionTarget;
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) as AgentSessionTarget;
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {
-		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.managedSandboxEnforced.get(), this.agentHostEnablementService.enabled.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService), this.localChatAvailabilityService.hidden.get());
+		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.managedSandboxEnforced.get(), this.agentHostEnablementService.enabled.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {

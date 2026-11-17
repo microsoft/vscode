@@ -36,11 +36,16 @@ import { ISessionsManagementService } from '../../../common/sessionsManagement.j
 import { ChangesMultiDiffSourceResolver } from '../../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatViewContainerId, ChatViewId, IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../../chat/common/localChatAvailability.js';
 import { ActiveAuxiliaryContext, RemoteNameContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, getDefaultNewChatSessionTypeAndReason } from '../../../../chat/common/constants.js';
+import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../chat/common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../../../chat/test/common/mockChatSessionsService.js';
+import { TestContextService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
 import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -82,8 +87,6 @@ suite('ChatViewOpenInChatPartContribution', () => {
 				return toDisposable(() => registrations.set(registrations.get() - 1, undefined));
 			},
 		}));
-		const localChatAvailability = store.add(new LocalChatAvailabilityService());
-		instantiationService.stub(ILocalChatAvailabilityService, localChatAvailability);
 		instantiationService.stub(IConfigurationService, configurationService);
 		const containerChanged = store.add(new Emitter<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>());
 		let chatViewContainer = ChatViewContainerId;
@@ -107,7 +110,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			runtime: runtimeOptions.map(o => o.viewIds),
 			runtimeHeld,
 		});
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, moveChatView, instantiationService, maximizeClaims: () => maximizeClaims };
 	}
 
 	test('is on only while the setting is on and the configured orientation is side by side', async () => {
@@ -162,18 +165,23 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		assert.deepStrictEqual({ on, off }, { on: true, off: false });
 	});
 
-	test('local chat is hidden while it is on, and back once it is off', async () => {
-		const { configurationService, localChatAvailability } = setup({ setting: false });
-		const setSetting = async (value: boolean) => {
-			await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
-			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
-		};
-		const steps = [localChatAvailability.hidden.get()];
-		await setSetting(true);
-		steps.push(localChatAvailability.hidden.get());
-		await setSetting(false);
-		steps.push(localChatAvailability.hidden.get());
-		assert.deepStrictEqual(steps, [false, true, false]);
+	test('leaves new local chats to the local chat setting while it is on', async () => {
+		const { configurationService, instantiationService } = setup({ setting: true });
+		const chatSessionsService = new MockChatSessionsService();
+		chatSessionsService.setContributions([{ type: SessionType.AgentHostClaude, name: 'claude', displayName: 'Claude', description: 'Claude' }]);
+		instantiationService.stub(IChatSessionsService, chatSessionsService);
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(IWorkspaceContextService, new TestContextService());
+		instantiationService.stub(IAgentHostEnablementService, upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(true), managedSandboxEnforced: constObservable(false) }));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		const newChatType = () => instantiationService.invokeFunction(accessor => getDefaultNewChatSessionTypeAndReason(accessor).sessionType);
+
+		await configurationService.setUserConfiguration(ChatConfiguration.DefaultToCopilotHarness, false);
+		const localOn = newChatType();
+		await configurationService.setUserConfiguration(ChatConfiguration.EditorLocalAgentEnabled, false);
+		const localOff = newChatType();
+
+		assert.deepStrictEqual({ localOn, localOff }, { localOn: localChatSessionType, localOff: SessionType.AgentHostClaude });
 	});
 
 	test('holds a Maximize claim only while the Chat view shows only the sessions', async () => {
@@ -248,7 +256,6 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IEditorWindowSessionsRuntime, { enable: () => toDisposable(() => { }) });
 			stub(IEditorWindowSessionsPresenterService, { registerPresenter: () => toDisposable(() => { }), registerComposerHolder: () => toDisposable(() => { }) });
 			stub(IAgentsChatPartFrame, { get part() { return undefined!; }, contentCreated: constObservable(false) });
-			stub(ILocalChatAvailabilityService, store.add(new LocalChatAvailabilityService()));
 			const owner = { session: { resource: agentSession }, chat: { resource: agentSession } };
 			stub(IAgentsChatPartService, { openChat: async () => { calls.push('chat part opens'); }, openComposer: async () => { calls.push('chat part composer'); }, activeChat: constObservable(undefined), isShowing: () => false });
 			stub(ISessionsManagementService, { getSessionForChatResource: (resource: URI) => resource.scheme === agentSession.scheme ? owner as never : undefined, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }) });

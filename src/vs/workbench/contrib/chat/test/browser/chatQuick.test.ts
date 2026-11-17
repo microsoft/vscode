@@ -45,7 +45,6 @@ import { IChatModel, IChatModelInputState, IChatRequestModel, IChatResponseModel
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
 import { ChatRequestVariableSet } from '../../common/attachments/chatVariableEntries.js';
-import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 
 suite('Quick Chat session routing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -96,7 +95,6 @@ suite('Quick Chat session routing', () => {
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
-		instantiationService.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		instantiationService.stub(IManagedSettingsService, managedSettings);
 		instantiationService.stub(IAccountPolicyGateService, { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
