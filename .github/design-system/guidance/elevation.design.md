@@ -23,7 +23,7 @@ Use an editor for content people need to read, edit, compare, or revisit. Use a 
 
 A temporary overlay is appropriate when leaving the current place would cost more than briefly covering it. Keep local help near its trigger; use Quick Input for a workspace-wide choice. If the task grows into sustained reading, several steps, or repeated comparisons, move it into an editor or view instead of adding another popup.
 
-The existing [modal editor](../../../workbench/browser/parts/editor/modalEditorPart.ts) is a separate, focused editor host, not a confirmation dialog or a new document type. Use it only when the feature needs that temporary, constrained context; retain its close and move-to-editor behavior where supported. Don't imitate it by placing an ordinary editor over a dimmed rectangle.
+The existing [modal editor](../../../src/vs/workbench/browser/parts/editor/modalEditorPart.ts) is a separate, focused editor host, not a confirmation dialog or a new document type. Use it only when the feature needs that temporary, constrained context; retain its close and move-to-editor behavior where supported. Don't imitate it by placing an ordinary editor over a dimmed rectangle.
 
 ## What makes elevation
 
@@ -107,7 +107,7 @@ The samples keep the same size, fill, and shape so only the shadow changes. They
 
 ## Shadow scale
 
-Reuse the `--vscode-shadow-*` CSS scale defined in [workbench styles](../../../workbench/browser/media/style.css). These are CSS shadow recipes, not distances, z-index values, or theme-color IDs.
+Reuse the `--vscode-shadow-*` CSS scale defined in [workbench styles](../../../src/vs/workbench/browser/media/style.css). These are CSS shadow recipes, not distances, z-index values, or theme-color IDs.
 
 The ramp is already shared; don't create another elevation scale for a feature. Its centered, soft shadows are workbench CSS values, not a theme-dependent lighting model. Surface colors and contours must carry the relationship when the shadow is subtle. The smaller steps don't establish a rule that ordinary controls or every card must cast shadows.
 
@@ -117,14 +117,14 @@ These are implemented treatments, not a requirement to make every surface look i
 
 | Surface | Existing treatment | Reuse |
 | --- | --- | --- |
-| Custom menus and submenus | `lg`, menu colors, component-owned border and corners; a theme-color shadow fallback outside the workbench ramp | [Menu styling](../../../base/browser/ui/menu/menu.ts) and [default styles](../browser/defaultStyles.ts) |
-| Editor and workbench hovers | `lg` with hover colors; their existing corner geometry differs | [Editor hover](../../../editor/contrib/hover/browser/hover.css), [workbench hover](../../hover/browser/hover.css) |
-| Custom select dropdowns | `lg`; native selects remain platform-owned | [SelectBox styles](../../../base/browser/ui/selectBox/selectBoxCustom.css) |
-| Quick Input | `xl`, Quick Input colors and its own focus lifecycle | [Quick Input styles](../../quickinput/browser/media/quickInput.css) |
-| Custom dialogs | `xl` on the dialog plus a separate wrapper shadow using `dialogShadow` from `widget.shadow` | [Dialog styles](../../../base/browser/ui/dialog/dialog.css), [style application](../../../base/browser/ui/dialog/dialog.ts) |
-| Notification toasts | `lg` on the list container; existing notification geometry | [Toast styles](../../../workbench/browser/parts/notifications/media/notificationsToasts.css) |
-| Modal editors | `xl` on their wrapper, editor fill and a blocking backdrop | [Modal editor styles](../../../workbench/browser/parts/editor/media/modalEditorPart.css) |
-| Workbench parts | `md` is used by title/activity bars; separate directional depth and active-tab recipes also exist | [Title bar](../../../workbench/browser/parts/titlebar/media/titlebarpart.css), [activity bar](../../../workbench/browser/parts/activitybar/media/activitybarpart.css), [shared recipes](../../../workbench/browser/media/style.css) |
+| Custom menus and submenus | `lg`, menu colors, component-owned border and corners; a theme-color shadow fallback outside the workbench ramp | [Menu styling](../../../src/vs/base/browser/ui/menu/menu.ts) and [default styles](../../../src/vs/platform/theme/browser/defaultStyles.ts) |
+| Editor and workbench hovers | `lg` with hover colors; their existing corner geometry differs | [Editor hover](../../../src/vs/editor/contrib/hover/browser/hover.css), [workbench hover](../../../src/vs/platform/hover/browser/hover.css) |
+| Custom select dropdowns | `lg`; native selects remain platform-owned | [SelectBox styles](../../../src/vs/base/browser/ui/selectBox/selectBoxCustom.css) |
+| Quick Input | `xl`, Quick Input colors and its own focus lifecycle | [Quick Input styles](../../../src/vs/platform/quickinput/browser/media/quickInput.css) |
+| Custom dialogs | `xl` on the dialog plus a separate wrapper shadow using `dialogShadow` from `widget.shadow` | [Dialog styles](../../../src/vs/base/browser/ui/dialog/dialog.css), [style application](../../../src/vs/base/browser/ui/dialog/dialog.ts) |
+| Notification toasts | `lg` on the list container; existing notification geometry | [Toast styles](../../../src/vs/workbench/browser/parts/notifications/media/notificationsToasts.css) |
+| Modal editors | `xl` on their wrapper, editor fill and a blocking backdrop | [Modal editor styles](../../../src/vs/workbench/browser/parts/editor/media/modalEditorPart.css) |
+| Workbench parts | `md` is used by title/activity bars; separate directional depth and active-tab recipes also exist | [Title bar](../../../src/vs/workbench/browser/parts/titlebar/media/titlebarpart.css), [activity bar](../../../src/vs/workbench/browser/parts/activitybar/media/activitybarpart.css), [shared recipes](../../../src/vs/workbench/browser/media/style.css) |
 
 Reuse the owning component before normalizing a difference. The ramp is shared, but shadow ownership, theme fallbacks, corners, and high-contrast suppression are not uniform across all consumers. For a new composition, let one outer surface own the shadow; don't add another shadow to the wrapper, body, and list inside it. Changes to an existing shared component need checks of its normal, high-contrast, native, and embedded uses rather than a feature-local override.
 
@@ -163,18 +163,18 @@ Prefer the existing component or service over a hand-built overlay. Its position
 
 | Need | Owner | Preserve |
 | --- | --- | --- |
-| Explain a symbol or control | Existing editor hover controller or [IHoverService](../../hover/browser/hover.ts) | Anchoring, keyboard entry, dismissal, and related-hover lifecycle |
-| Offer a short set of actions | [IContextMenuService](../../contextview/browser/contextView.ts) | Submenu navigation, cancellation, action handoff, and focus return |
-| Search for a file or command | [Quick Input](../../quickinput/common/quickInput.ts) | Filtering, selection, acceptance, Escape, and focus return |
-| Ask for a blocking decision | [IDialogService](../../dialogs/common/dialogs.ts) | Serialized dialogs, platform choice, accessible naming, and modality |
-| Report nonblocking progress or status | [INotificationService](../../notification/common/notification.ts) | Existing timing, action, focus, and notification-center behavior |
-| Host a genuinely new anchored surface | [IContextViewService](../../contextview/browser/contextView.ts) | Owner/container, layout, render disposal, and close lifecycle; the delegate still owns appropriate content and keyboard behavior |
+| Explain a symbol or control | Existing editor hover controller or [IHoverService](../../../src/vs/platform/hover/browser/hover.ts) | Anchoring, keyboard entry, dismissal, and related-hover lifecycle |
+| Offer a short set of actions | [IContextMenuService](../../../src/vs/platform/contextview/browser/contextView.ts) | Submenu navigation, cancellation, action handoff, and focus return |
+| Search for a file or command | [Quick Input](../../../src/vs/platform/quickinput/common/quickInput.ts) | Filtering, selection, acceptance, Escape, and focus return |
+| Ask for a blocking decision | [IDialogService](../../../src/vs/platform/dialogs/common/dialogs.ts) | Serialized dialogs, platform choice, accessible naming, and modality |
+| Report nonblocking progress or status | [INotificationService](../../../src/vs/platform/notification/common/notification.ts) | Existing timing, action, focus, and notification-center behavior |
+| Host a genuinely new anchored surface | [IContextViewService](../../../src/vs/platform/contextview/browser/contextView.ts) | Owner/container, layout, render disposal, and close lifecycle; the delegate still owns appropriate content and keyboard behavior |
 
 ### Keep one task in front
 
-- **Replace competing popups.** Opening an unrelated picker or menu should end the previous temporary task, not leave a trail of surfaces to dismiss. Keep the current selection or draft in the owning feature if it must survive. The shared [context view](../../../base/browser/ui/contextview/contextview.ts) replaces its visible delegate; the [hover service](../../hover/browser/hoverService.ts) hides hovers when a context menu opens.
+- **Replace competing popups.** Opening an unrelated picker or menu should end the previous temporary task, not leave a trail of surfaces to dismiss. Keep the current selection or draft in the owning feature if it must survive. The shared [context view](../../../src/vs/base/browser/ui/contextview/contextview.ts) replaces its visible delegate; the [hover service](../../../src/vs/platform/hover/browser/hoverService.ts) hides hovers when a context menu opens.
 - **Keep child surfaces subordinate.** A submenu or help hover inside an active surface may be necessary. Anchor it to that parent, preserve the parent while entering the child, and close descendants when the parent closes. Escape should dismiss the active child first and return to its trigger, without accidentally closing the whole task. Use the existing menu or hover lifecycle. The hover service bounds nesting; that safety limit is not a target for feature design.
-- **Avoid modal-over-modal workflows.** Put validation and recoverable errors in the current dialog. Move a longer task to an editor or replace the current step instead of opening a second custom modal. The [dialog service](../../../workbench/services/dialogs/common/dialogService.ts) queues requests, and the [browser handler](../../../workbench/browser/parts/dialogs/dialog.web.contribution.ts) and [desktop handler](../../../workbench/electron-browser/parts/dialogs/dialog.contribution.ts) process them one at a time. Don't await a queued dialog from content that prevents the current dialog from closing.
+- **Avoid modal-over-modal workflows.** Put validation and recoverable errors in the current dialog. Move a longer task to an editor or replace the current step instead of opening a second custom modal. The [dialog service](../../../src/vs/workbench/services/dialogs/common/dialogService.ts) queues requests, and the [browser handler](../../../src/vs/workbench/browser/parts/dialogs/dialog.web.contribution.ts) and [desktop handler](../../../src/vs/workbench/electron-browser/parts/dialogs/dialog.contribution.ts) process them one at a time. Don't await a queued dialog from content that prevents the current dialog from closing.
 - **Allow necessary confirmation, not arbitrary nesting.** Closing a dirty modal editor can require an existing save confirmation. That is a decision about leaving the current task, not permission to build a multi-dialog wizard. Use the owning editor/dialog services and verify focus returns to the editor on cancellation.
 
 For example, a context-menu action that needs confirmation should hand off to the dialog after the menu is dismissed. A configuration error in that dialog should be shown there, not in another modal. Choosing a value from a select inside it is a subordinate interaction, not a second blocking task.
@@ -183,7 +183,7 @@ For example, a context-menu action that needs confirmation should hand off to th
 
 Visual lift, paint order, and modality are separate choices. Changing a shadow does not change hit testing; raising z-index does not trap focus; `aria-modal` does not disable background controls.
 
-Start with the existing overlay host. The [z-index registry](../../layout/browser/zIndexRegistry.ts) defines named relative layers, but it does not own every current surface. Context views, Quick Input, dialogs, notifications, and modal editors also have host- or CSS-owned ordering. Do not copy their numeric values into a feature or treat the registry as a complete global stack.
+Start with the existing overlay host. The [z-index registry](../../../src/vs/platform/layout/browser/zIndexRegistry.ts) defines named relative layers, but it does not own every current surface. Context views, Quick Input, dialogs, notifications, and modal editors also have host- or CSS-owned ordering. Do not copy their numeric values into a feature or treat the registry as a complete global stack.
 
 For a genuinely new registered layer, use `registerZIndex` within the appropriate existing band rather than another magic number. For a child overlay, use the owner's supported hosting API instead. An ancestor's overflow, transform, opacity, or stacking context can trap or clip an ordinary descendant; a larger z-index cannot escape it. A browser top-layer popover follows different paint ordering from ordinary CSS stacking.
 
@@ -235,7 +235,7 @@ Test a child dropdown or submenu while the parent is open. Focus must remain vis
 
 ### Keep depth inexpensive
 
-Prefer a static shared shadow on one surface over layered blur effects on every descendant. Don't animate shadow blur, spread, or a large backdrop on hover or scroll. If an entrance needs motion, use the owning component's [motion contract](motion/motion.design.md), preserve reduced motion, and keep geometry and hit targets stable.
+Prefer a static shared shadow on one surface over layered blur effects on every descendant. Don't animate shadow blur, spread, or a large backdrop on hover or scroll. If an entrance needs motion, use the owning component's [motion contract](../../../src/vs/platform/theme/common/motion/motion.design.md), preserve reduced motion, and keep geometry and hit targets stable.
 
 Mount temporary content only while needed. Dispose listeners, observers, and child surfaces when their owner closes; don't leave an invisible full-window layer intercepting input. Reuse host layout instead of introducing per-frame geometry polling or repeated synchronous measurements during scrolling. Measure the actual scrolling, resizing, and opening scenario before adding compositing hints such as `will-change`.
 
@@ -253,20 +253,20 @@ Mount temporary content only while needed. Dispose listeners, observers, and chi
 
 ## Source contracts
 
-- [Workbench shadow ramp and preference overrides](../../../workbench/browser/media/style.css)
-- [Widget shadow and border colors](colors/editorColors.ts)
-- [Semantic surface colors](colors/semanticColors.ts)
-- [Radius and stroke tokens](sizes/baseSizes.ts)
-- [Editor hover styles](../../../editor/contrib/hover/browser/hover.css)
-- [Quick Input styles](../../quickinput/browser/media/quickInput.css)
-- [Custom-dialog styles](../../../base/browser/ui/dialog/dialog.css)
-- [Menu styling](../../../base/browser/ui/menu/menu.ts)
-- [Notification toast styles](../../../workbench/browser/parts/notifications/media/notificationsToasts.css)
-- [Modern UI part-shadow treatment](../../../workbench/contrib/modernUI/browser/media/shadows.css)
-- [Shared widget styles](../browser/defaultStyles.ts)
-- [Context view hosting and lifecycle](../../contextview/browser/contextViewService.ts)
-- [Context view positioning and popover implementation](../../../base/browser/ui/contextview/contextview.ts)
-- [Hover nesting and dismissal](../../hover/browser/hoverService.ts)
-- [Named stacking layers](../../layout/browser/zIndexRegistry.ts)
-- [Dialog queue](../../../workbench/common/dialogs.ts)
-- [Modal editor host](../../../workbench/browser/parts/editor/modalEditorPart.ts)
+- [Workbench shadow ramp and preference overrides](../../../src/vs/workbench/browser/media/style.css)
+- [Widget shadow and border colors](../../../src/vs/platform/theme/common/colors/editorColors.ts)
+- [Semantic surface colors](../../../src/vs/platform/theme/common/colors/semanticColors.ts)
+- [Radius and stroke tokens](../../../src/vs/platform/theme/common/sizes/baseSizes.ts)
+- [Editor hover styles](../../../src/vs/editor/contrib/hover/browser/hover.css)
+- [Quick Input styles](../../../src/vs/platform/quickinput/browser/media/quickInput.css)
+- [Custom-dialog styles](../../../src/vs/base/browser/ui/dialog/dialog.css)
+- [Menu styling](../../../src/vs/base/browser/ui/menu/menu.ts)
+- [Notification toast styles](../../../src/vs/workbench/browser/parts/notifications/media/notificationsToasts.css)
+- [Modern UI part-shadow treatment](../../../src/vs/workbench/contrib/modernUI/browser/media/shadows.css)
+- [Shared widget styles](../../../src/vs/platform/theme/browser/defaultStyles.ts)
+- [Context view hosting and lifecycle](../../../src/vs/platform/contextview/browser/contextViewService.ts)
+- [Context view positioning and popover implementation](../../../src/vs/base/browser/ui/contextview/contextview.ts)
+- [Hover nesting and dismissal](../../../src/vs/platform/hover/browser/hoverService.ts)
+- [Named stacking layers](../../../src/vs/platform/layout/browser/zIndexRegistry.ts)
+- [Dialog queue](../../../src/vs/workbench/common/dialogs.ts)
+- [Modal editor host](../../../src/vs/workbench/browser/parts/editor/modalEditorPart.ts)

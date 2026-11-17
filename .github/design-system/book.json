@@ -25,7 +25,8 @@
 		"src/vs/base/common/iconography.md": "src/vs/base/common/iconography.design.md",
 		"src/vs/platform/actionWidget/browser/dropdown-design.md": "src/vs/platform/actionWidget/browser/multi-select-dropdown.design.md",
 		"src/vs/platform/theme/common/colors/color-guidance.md": "src/vs/platform/theme/common/colors/colors.design.md",
-		"src/vs/platform/theme/common/elevation.md": "src/vs/platform/theme/common/elevation.design.md",
+		"src/vs/platform/theme/common/elevation.md": ".github/design-system/guidance/elevation.design.md",
+		"src/vs/platform/theme/common/elevation.design.md": ".github/design-system/guidance/elevation.design.md",
 		"src/vs/platform/theme/common/sizes/shape.md": "src/vs/platform/theme/common/sizes/shape.design.md",
 		"src/vs/platform/theme/common/sizes/size.md": "src/vs/platform/theme/common/sizes/size.design.md",
 		"src/vs/platform/theme/common/sizes/spacing.md": "src/vs/platform/theme/common/sizes/spacing.design.md",
@@ -42,6 +43,36 @@
 		"src/vs/platform/actionWidget/browser/dropdown.design.md": "src/vs/platform/actionWidget/browser/multi-select-dropdown.design.md"
 	},
 	"defaultTopic": "principles",
+	"references": {
+		"typography": [
+			{
+				"title": "WCAG 2.2: Text Spacing",
+				"url": "https://www.w3.org/WAI/WCAG22/Understanding/text-spacing.html",
+				"description": "The user-override test exposes clipped or lost content when line, paragraph, letter, and word spacing change; its test values are not default type tokens."
+			}
+		],
+		"colors": [
+			{
+				"title": "WCAG 2.2: Contrast (Minimum)",
+				"url": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+				"description": "Explains text-contrast thresholds and exceptions for large text and inactive controls, helping evaluate rendered foreground/background pairs rather than swatches."
+			}
+		],
+		"motion": [
+			{
+				"title": "WCAG 2.2: Animation from Interactions",
+				"url": "https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html",
+				"description": "Clarifies the AAA essential-motion exception and distinguishes interaction-triggered animation from automatic animation when evaluating reduced-motion behavior."
+			}
+		],
+		"accessibility": [
+			{
+				"title": "ARIA APG: Developing a Keyboard Interface",
+				"url": "https://www.w3.org/WAI/ARIA/apg/practices/keyboard-interface/",
+				"description": "Details tab-stop placement, focus versus selection, and navigation inside composite widgets, extending this topic's basic keyboard-operability checks."
+			}
+		]
+	},
 	"documentSources": [
 		{
 			"id": "product",
@@ -98,26 +129,41 @@
 			"page": "pages/principles.json"
 		},
 		{
-			"id": "layout",
-			"title": "Layout",
+			"id": "accessibility",
+			"title": "Accessibility",
 			"group": "Foundations",
-			"section": "layout",
+			"section": "accessibility",
 			"aliases": [],
 			"compare": true,
 			"fixture": false,
-			"renderer": "foundations",
-			"page": "pages/layout.json"
+			"hidden": false,
+			"renderer": "guidance",
+			"page": "pages/accessibility.json"
 		},
 		{
-			"id": "spacing",
-			"title": "Spacing",
+			"id": "content",
+			"title": "Content",
 			"group": "Foundations",
-			"section": "spacing",
+			"section": "content",
 			"aliases": [],
 			"compare": true,
-			"fixture": true,
-			"renderer": "foundations",
-			"page": "pages/spacing.json"
+			"fixture": false,
+			"hidden": false,
+			"renderer": "guidance",
+			"page": "pages/content.json"
+		},
+		{
+			"id": "tokens",
+			"title": "Design tokens",
+			"group": "Foundations",
+			"section": "tokens",
+			"aliases": [
+				"token lookup"
+			],
+			"compare": true,
+			"fixture": false,
+			"renderer": "tokens",
+			"page": "pages/tokens.json"
 		},
 		{
 			"id": "typography",
@@ -153,6 +199,39 @@
 			"page": "pages/theming.json"
 		},
 		{
+			"id": "layout",
+			"title": "Layout",
+			"group": "Foundations",
+			"section": "layout",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "pages/layout.json"
+		},
+		{
+			"id": "spacing",
+			"title": "Spacing",
+			"group": "Foundations",
+			"section": "spacing",
+			"aliases": [],
+			"compare": true,
+			"fixture": true,
+			"renderer": "foundations",
+			"page": "pages/spacing.json"
+		},
+		{
+			"id": "size",
+			"title": "Size",
+			"group": "Foundations",
+			"section": "size",
+			"aliases": [],
+			"compare": true,
+			"fixture": false,
+			"renderer": "foundations",
+			"page": "pages/size.json"
+		},
+		{
 			"id": "shape",
 			"title": "Shape",
 			"group": "Foundations",
@@ -162,17 +241,6 @@
 			"fixture": false,
 			"renderer": "foundations",
 			"page": "pages/shape.json"
-		},
-		{
-			"id": "elevation",
-			"title": "Elevation",
-			"group": "Foundations",
-			"section": "elevation",
-			"aliases": [],
-			"compare": true,
-			"fixture": false,
-			"renderer": "foundations",
-			"page": "pages/elevation.json"
 		},
 		{
 			"id": "stroke",
@@ -186,15 +254,15 @@
 			"page": "pages/stroke.json"
 		},
 		{
-			"id": "size",
-			"title": "Size",
+			"id": "elevation",
+			"title": "Elevation",
 			"group": "Foundations",
-			"section": "size",
+			"section": "elevation",
 			"aliases": [],
 			"compare": true,
 			"fixture": false,
 			"renderer": "foundations",
-			"page": "pages/size.json"
+			"page": "pages/elevation.json"
 		},
 		{
 			"id": "iconography",
@@ -233,41 +301,17 @@
 			"page": "pages/motion.json"
 		},
 		{
-			"id": "tokens",
-			"title": "Design tokens",
-			"group": "Foundations",
-			"section": "tokens",
+			"id": "modal",
+			"title": "Modal",
+			"group": "Components",
+			"section": "modal",
 			"aliases": [
-				"token lookup"
+				"management modal"
 			],
 			"compare": true,
 			"fixture": false,
-			"renderer": "tokens",
-			"page": "pages/tokens.json"
-		},
-		{
-			"id": "accessibility",
-			"title": "Accessibility",
-			"group": "Foundations",
-			"section": "accessibility",
-			"aliases": [],
-			"compare": true,
-			"fixture": false,
-			"hidden": false,
 			"renderer": "guidance",
-			"page": "pages/accessibility.json"
-		},
-		{
-			"id": "content",
-			"title": "Content",
-			"group": "Foundations",
-			"section": "content",
-			"aliases": [],
-			"compare": true,
-			"fixture": false,
-			"hidden": false,
-			"renderer": "guidance",
-			"page": "pages/content.json"
+			"page": "pages/modal.json"
 		},
 		{
 			"id": "documentation",
@@ -299,7 +343,7 @@
 		}
 	],
 	"components": {
-		"after": "tokens",
+		"after": "motion",
 		"page": "pages/components.json"
 	}
 }

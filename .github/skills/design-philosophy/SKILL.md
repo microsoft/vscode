@@ -231,7 +231,7 @@ Corner radius expresses the **surface family**, not a numeric height. Use these 
 
 Pills (radius ≈ half the height) are **fully round** (`--vscode-cornerRadius-circle`), not "a big radius."
 Existing Quick Input and custom-dialog shells use `cornerRadius.xLarge`; workbench hovers and notification containers have their own geometry. Don't restyle them to force this table onto every shipped component.
-- **Decision rule:** pick the family by the surface's **role**, not by taste or nesting depth. Use the [elevation guide](../../../src/vs/platform/theme/common/elevation.design.md) for existing shadow consumers, overlay ownership, modal decisions, stacking, and accessibility. Don't add a new shadow or z-index ramp per feature.
+- **Decision rule:** pick the family by the surface's **role**, not by taste or nesting depth. Use the [elevation guide](../../design-system/guidance/elevation.design.md) for existing shadow consumers, overlay ownership, modal decisions, stacking, and accessibility. Don't add a new shadow or z-index ramp per feature.
 - **Serves:** *Elevation is encoded* (5), *Room to breathe* (2).
 
 <a id="spacing-ramp"></a>

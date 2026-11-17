@@ -2,7 +2,7 @@
 	"version": 1,
 	"id": "elevation",
 	"renderer": "foundations",
-	"source": "src/vs/platform/theme/common/elevation.design.md",
+	"source": ".github/design-system/guidance/elevation.design.md",
 	"content": {
 		"construction": {
 			"caption": {

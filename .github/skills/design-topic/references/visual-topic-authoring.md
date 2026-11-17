@@ -38,24 +38,22 @@ The [book authoring conventions](../../../design-system/authoring.md) remain aut
 
 For assets, follow the subject's own format, theming, location, and accessibility requirements. For controls and motion, use the corresponding fixture and motion workflows. A static image is not an adequate replacement for a lesson about keyboard behavior or interruption.
 
-## Worked foundation: typography
+## Example artifact chains
 
-The existing [Typography page](../../../design-system/pages/typography.json) and [content](../../../design-system/content/foundations/typography.json) compose more than the [design specification](../../../../src/vs/platform/theme/common/sizes/typography.design.md). A complete authoring pass accounts for these teaching relationships:
+Choose the artifact chain that teaches the decision. These examples describe possible approaches, not the contents or implementation of any existing topic.
 
 | Goal | Artifact chain | Evaluation |
 | --- | --- | --- |
-| See hierarchy in a composition | Role-selection guidance; curated role/sample pairs; registered role sizes; composed-text specimen and its weight treatment. | The intended line leads and supporting text stays readable; verify the weight source separately from the size source. |
-| Distinguish emphasis from size | Emphasis guidance; the same sample and body role at registered regular/semibold weights; paired specimen. | Weight changes while size and sample remain matched. |
-| Recognize available roles | Role rules; registrations with semantic descriptions; role specimens. | Readers can connect the rendered difference to the role's job, including roles that share a size. |
-| Understand platform and language choices | Font-family guidance; extracted platform/language stacks; representative previews and fallback reference. | Labels explain platform/language scope; an unavailable font is not presented as guaranteed installed. |
-| Understand metric boundaries | Workbench baseline from source CSS; explanatory copy; reading-metrics guidance. | An implementation baseline is not mistaken for a registered, universal line-height or tracking scale. |
-| Apply the guidance accessibly | Topic accessibility rules and review checks; readable examples; semantic structure and text equivalents. | Visual styling is not confused with heading semantics or accessible control names. |
+| See hierarchy in a composition | Selection guidance; curated content/role pairs; current definitions; composed specimen. | The intended element leads and supporting content stays understandable. |
+| Distinguish alternatives | Decision rule; representative sample held constant; source-defined variants; matched comparison and caption. | The intended difference is visible without unrelated changes confounding it. |
+| Understand a control's behavior | Usage guidance; real component fixture; relevant states and input paths; explanation of transitions. | The example demonstrates authentic keyboard, focus, and state behavior rather than only its resting appearance. |
+| Understand contextual variation | Applicability guidance; relevant context data; representative variants and annotations. | Readers understand what changes across contexts and what remains invariant. |
+| Distinguish an implementation from a recommendation | Scoped guidance; extracted reference facts; clear applicability labels and source links. | An observed default is not presented as a universal requirement. |
+| Apply the guidance accessibly | Accessibility obligations; meaningful text equivalents; semantic structure; relevant interaction checks. | The lesson remains understandable without relying solely on sight, color, or motion. |
 
-The composition samples, matched-weight study, role examples, and family previews are substantive teaching artifacts. Replacing the document must not drop them; writing the document for a new topic must not count them as delivered unless the chapter actually provides them.
+Compositions, comparisons, diagrams, and interactive examples are substantive teaching artifacts. Replacing a document must not silently drop useful demonstrations; authoring a new topic must not count them as delivered unless the chapter actually provides them.
 
-Source backing needs verification per property: the existing composition resolves sizes from registrations but fixes its heading/body weights in the viewer, while the emphasis study resolves registered weights. The composition is therefore not a fully token-resolved example. When authoring or revising a specimen, check its actual data path rather than assuming that every property follows the same source.
-
-These are examples of artifact relationships, not a required Typography template. A menu topic may instead require open/focused/disabled states and real keyboard interaction; a spacing topic may need grouping comparisons and resizing behavior.
+Verify source backing per property and behavior. A specimen may resolve one dimension from a registry while fixing another in its renderer. Inspect the current data paths rather than assuming that every property follows the same source.
 
 ## Author explanations for visual material
 

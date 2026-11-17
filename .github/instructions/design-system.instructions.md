@@ -18,6 +18,6 @@ Keep recommendations distinct from draft guidance and observed implementation ex
 
 When adding guidance or examples, follow the [authoring conventions](../design-system/authoring.md). Update the existing owner rather than copying its content into another instruction, renderer, or document. Keep component and foundation prose beside its owning implementation; use `.github/design-system/guidance/` only for cross-cutting material without a narrower owner. Never put product guidance in the canvas extension.
 
-For writing, improving, or reviewing design-system topics, use the on-demand [design-system-topic-writing skill](../skills/design-system-topic-writing/SKILL.md).
+For writing, improving, or reviewing design-system topics, use the on-demand [design-topic skill](../skills/design-topic/SKILL.md).
 
 For motion design, tuning, or validation, use the on-demand [motion-design skill](../skills/motion-design/SKILL.md).

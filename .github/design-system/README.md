@@ -83,10 +83,11 @@ Read the relevant specifications before building or updating UI. No canvas insta
 | Spacing | [Spacing](../../src/vs/platform/theme/common/sizes/spacing.design.md) | [CSS token instructions](../instructions/design-tokens.instructions.md#spacing) |
 | Shape, size, and stroke | [Shape](../../src/vs/platform/theme/common/sizes/shape.design.md), [size](../../src/vs/platform/theme/common/sizes/size.design.md), [stroke](../../src/vs/platform/theme/common/sizes/stroke.design.md) | [Size registrations](../../src/vs/platform/theme/common/sizes/baseSizes.ts) |
 | Colors and theming | [Colors](../../src/vs/platform/theme/common/colors/colors.design.md), [theming](../../src/vs/platform/theme/common/theming.design.md) | [Color compatibility](../../src/vs/platform/theme/common/colors/COLORS.md), [theming workflow](../skills/ux-theming/SKILL.md) |
-| Elevation | [Elevation](../../src/vs/platform/theme/common/elevation.design.md) | Existing overlay, dialog, and layout owners linked from the specification |
+| Elevation | [Elevation](guidance/elevation.design.md) | Existing overlay, dialog, and layout owners linked from the specification |
 | Iconography | [Iconography](../../src/vs/base/common/iconography.design.md) | [Codicon definitions](../../src/vs/base/common/codicons.ts) |
 | Motion | [Motion](../../src/vs/platform/theme/common/motion/motion.design.md) | [Implementation contracts](../../src/vs/platform/theme/common/motion/MOTION.md), [motion workflow](../skills/motion-design/SKILL.md) |
 | Illustration | [Illustration](guidance/illustration.design.md) | The consuming feature's media and rendering code |
+| Management modals | [Modal](guidance/modal.design.md) | Shared host and three-scenario design guidance |
 | Cross-cutting requirements | [Design philosophy](../skills/design-philosophy/SKILL.md), [accessibility](../skills/accessibility/SKILL.md), [layout](../skills/ux-css-layout/SKILL.md), [writing](../instructions/coding-guidelines.instructions.md#ui-labels) | Existing instruction applicability and skill workflows remain in force |
 
 Use `<subject>.design.md` for additional authored intent, not API inventories, generated token tables, technical contracts, or book introductions. One specification can serve several chapters. Adding a file within the configured discovery scopes makes it searchable; composing it into a chapter still requires a source binding.

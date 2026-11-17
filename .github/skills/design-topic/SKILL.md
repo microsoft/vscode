@@ -1,9 +1,9 @@
 ---
-name: design-system-topic-writing
+name: design-topic
 description: 'Create, improve, or review complete VS Code design-system topics: guidance, visual explanations, examples, captions, source bindings, chapter composition, and validation. Use when authoring a topic or improving how it teaches design decisions.'
 ---
 
-# Design-system topic writing
+# Design topics
 
 Produce a coherent design-system topic that helps readers choose an approach, understand it through explanations and examples, apply it, and judge the result. The deliverable is the topic experience and its source artifacts, not a particular file format.
 
@@ -22,6 +22,8 @@ For review-only work, return prioritized findings with evidence and remedies rat
 ### 2. Establish the design contract
 
 Consult the [design philosophy](../design-philosophy/SKILL.md), relevant component specifications, and owning token registrations. Separate design recommendations from API facts and observed implementation.
+
+Discover the current sources for each task. Examples illustrate authoring techniques; they are not required reference topics or cached assessments of the documentation.
 
 - Prefer existing shared components and semantic roles over new styling recipes.
 - Check applicability to existing or new surfaces, window types, density, themes, and user settings.
@@ -128,4 +130,3 @@ Return the changed artifact set or review findings, checks performed, and materi
 ## Reference
 
 - [Visual topic authoring](references/visual-topic-authoring.md): choose and connect visual teaching, examples, source data, and chapter composition.
-- [Editorial case study](references/illustration-case-study.md): how purpose, decision flow, concise rules, and evaluation work together in an existing topic.

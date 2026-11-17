@@ -2,7 +2,7 @@
 
 The book is a human-first design reference, not a rendered instruction file. Explain choices through concise guidance and useful visualizations, backed by the actual specifications, tokens, and components. Keep complete source documents available through the document library and source links.
 
-For writing, improving, or reviewing a topic's guidance, use the [design-system topic-writing skill](../skills/design-system-topic-writing/SKILL.md). It covers decision-led structure, concise rules, accessibility, and evaluation. This document continues to own content placement and book composition.
+For writing, improving, or reviewing a topic's guidance, use the [design-topic skill](../skills/design-topic/SKILL.md). It covers decision-led structure, concise rules, accessibility, and evaluation. This document continues to own content placement and book composition.
 
 ## Choose the owner
 
@@ -127,6 +127,8 @@ Explanatory lists and extended examples read vertically. Reserve columns for com
 Reference actual source sections instead of copying their prose into a page definition. Keep source paths repository-relative and use stable headings or supported explicit anchors. Heading-based bindings need unique slugs across the source document; preserve existing slugs when practical, and update page bindings when sections move or change roles. A missing reference should produce an actionable failure, not an empty successful chapter.
 
 A page definition controls composition. It must not become a second token registry, a source-code snapshot, or an arbitrary executable page builder.
+
+Define further reading only in `book.json`'s `references` map, keyed by exact topic IDs, including generated `component-*` IDs. Each ordered `{ title, url, description }` entry needs a credential-free HTTPS URL and a specific reason to read beyond this topic. Prefer one to three authoritative links when useful; leave other topics unregistered. Keep contextual links with their owners and never scrape Markdown, skills, imports, or dependencies into reading lists.
 
 ### Bind prose to a visual reference
 
