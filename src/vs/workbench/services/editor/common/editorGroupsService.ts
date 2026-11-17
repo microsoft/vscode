@@ -678,6 +678,9 @@ export interface IContentPart extends IEditorPart {
 
 export interface IModalEditorPart extends IEditorPart {
 
+	/** Focus the modal's header actions from content rendered outside its DOM. */
+	focusToolbar(): void;
+
 	/**
 	 * Modal container of the editor part.
 	 */

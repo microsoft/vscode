@@ -16,7 +16,7 @@ import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../s
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetRevealer, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { IChatViewHostService } from '../chatViewHost.js';
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
@@ -27,6 +27,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	private _widgets: IChatWidget[] = [];
 	private _lastFocusedWidget: IChatWidget | undefined = undefined;
+	private readonly _revealers = new Set<IChatWidgetRevealer>();
 
 	private readonly _onDidAddWidget = this._register(new Emitter<IChatWidget>());
 	readonly onDidAddWidget = this._onDidAddWidget.event;
@@ -87,6 +88,13 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	}
 
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
+		for (const revealer of this._revealers) {
+			const widget = await revealer.revealWidget(preserveFocus);
+			if (widget) {
+				return widget;
+			}
+		}
+
 		const last = this.lastFocusedWidget;
 		// The Chat view's widgets are shown by the host of its chats, which may have replaced the Chat view: what it shows is the result
 		if (last && !(isIChatViewViewContext(last.viewContext) && last.viewContext.viewId === ChatViewId) && await this.reveal(last, preserveFocus)) {
@@ -98,6 +106,11 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
 		return this.chatViewHostService.reveal(preserveFocus);
+	}
+
+	registerWidgetRevealer(revealer: IChatWidgetRevealer): IDisposable {
+		this._revealers.add(revealer);
+		return toDisposable(() => this._revealers.delete(revealer));
 	}
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> {

@@ -18,7 +18,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ArtifactIntegrationsSettingId } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
@@ -203,6 +205,33 @@ suite('DesktopLayoutController', () => {
 			});
 		}
 	}
+
+	test('[review] checks do not reveal empty Changes when artifact integrations are enabled', async () => {
+		harness = createTestHarness(store, { activateAux: true, desktopLayout: true });
+		// The pull request artifact shows the checks, so the Changes view does not.
+		(harness.instaService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ArtifactIntegrationsSettingId, true);
+		store.add(harness.instaService.createInstance(TestDesktopController));
+		const session = makeSession(URI.parse('session:artifact-checks'));
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session], undefined);
+		await settle();
+		harness.activeEditorInput = makeChangesEditor(session.resource);
+		harness.onDidActiveEditorChange.fire();
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		await settle();
+		const initiallyHidden = !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		harness.ciChecksObs.set([{
+			id: 1, name: 'CI', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure,
+			startedAt: undefined, completedAt: undefined, detailsUrl: undefined,
+		}], undefined);
+		await settle();
+		assert.deepStrictEqual({
+			initiallyHidden, hiddenWithChecks: !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+		}, {
+			initiallyHidden: true, hiddenWithChecks: true,
+		});
+	});
 
 	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
 		for (const replaceResource of [false, true]) {

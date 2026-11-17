@@ -98,6 +98,7 @@ import { NullWorktreeSuggestionService } from '../../../../../workbench/contrib/
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionDraftsService, SessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { IScheduledChatsService } from '../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -668,6 +669,7 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			reg.defineInstance(ISessionsService, sessionsService);
 			reg.defineInstance(IFocusedSessionHostService, focusedSessionHostServiceOf(activeSessionObservable));
 			reg.define(ISessionDraftsService, SessionDraftsService);
+			reg.define(INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoiceService);
 			reg.defineInstance(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 				override getPendingNewSessionGroup() { return undefined; }
 			}());
