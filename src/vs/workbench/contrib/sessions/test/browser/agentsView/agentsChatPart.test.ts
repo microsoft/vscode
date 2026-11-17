@@ -16,7 +16,7 @@ import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../pl
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IChatViewHostService, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { parse } from '../../../../../../base/common/marshalling.js';
+import { parse, stringify } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { EditorInputWithOptions, EditorsOrder, IEditorPane, IVisibleEditorPane } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
@@ -28,14 +28,16 @@ import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../.
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
-import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, ChatWindowComposerModel, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, createChatWindowComposerResource, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { fromStoredChatDraft, toStoredChatDraft } from '../../../common/newChatDraftState.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
@@ -182,7 +184,7 @@ suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void>; readonly delayed?: boolean; readonly chatTabs?: SessionsChatTabsMode | null }) {
+	function createService(options?: { readonly stored?: string; readonly storedComposers?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void>; readonly delayed?: boolean; readonly chatTabs?: SessionsChatTabsMode | null }) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const contextKeyService = store.add(new ChangingContextKeyService());
@@ -193,6 +195,9 @@ suite('AgentsChatPartService', () => {
 		const storageService = instantiationService.get(IStorageService) as TestStorageService;
 		if (options?.stored !== undefined) {
 			storageService.store(CHAT_PART_EDITORS_STORAGE_KEY, options.stored, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+		if (options?.storedComposers !== undefined) {
+			storageService.store(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, options.storedComposers, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		// Its chats as tabs, unless a test asks for Single, or for the default (null)
@@ -316,6 +321,13 @@ suite('AgentsChatPartService', () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 				return storageService.get(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			},
+			/** What was typed in the chat part's composers, as they store it. */
+			composerInputs: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly input?: unknown }[]).map(composer => fromStoredChatDraft(composer.input).inputText) : [];
+			},
+			lifecycle: instantiationService.get(ILifecycleService) as TestLifecycleService,
 			/** The folders the chat part's composers aim at, as they store them. */
 			composerFolders: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
@@ -937,21 +949,38 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ layout: layout(), reused: part.activeGroup.activeEditor === first }, { layout: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true }, reused: true });
 	});
 
-	test('in Single, closing its new-session composer keeps what was typed in it for its next one, without asking', async () => {
-		const { service, part, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
-		const composerOf = (input: EditorInput | null) => input ? (service as unknown as { readonly _composerModels: Map<EditorInput, ChatWindowComposerModel> })._composerModels.get(input) : undefined;
-		await service.openChat(session, chatA);
-		await service.openComposer(undefined, { newComposer: true });
-		composerOf(part.activeGroup.activeEditor)!.input.set({ inputText: 'my draft', attachments: [] });
-		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
-		await timeout(0);
-		const afterClose = layout();
-		await service.openComposer(undefined, { newComposer: true });
+	test('in Single, closing its new-session composer keeps what was typed in it for its next one, without asking; not an empty one, not as it closes all its chats or the window shuts down, nor one that sent its session; leaving Single forgets it', async () => {
+		const composer = createChatWindowComposerResource();
+		const sentChat = upcastPartial<IChat>({ resource: URI.parse('test:/sent') });
+		const sent = upcastPartial<ISession>({ resource: URI.parse('test:/sentSession'), status: constObservable(SessionStatus.Completed), mainChat: constObservable(sentChat) });
+		/** Restores a composer with `typed` in it, as after a reload, closes it as `close` does, and opens a new session. */
+		const run = async (typed: string, close: (fixture: ReturnType<typeof createService>) => Promise<void>, options?: { readonly newSession?: IObservable<ISession | undefined> }) => {
+			const fixture = createService({
+				chatTabs: SessionsChatTabsMode.Single, visible: true, newSession: options?.newSession,
+				stored: JSON.stringify({ chats: [composer.toString()], active: 0 }),
+				storedComposers: stringify([{ resource: composer, input: toStoredChatDraft({ inputText: typed, attachments: [] }) }]),
+			});
+			await fixture.service.restore();
+			await close(fixture);
+			await timeout(0);
+			fixture.lifecycle.willShutdown = false;
+			await fixture.service.openComposer(undefined, { newComposer: true });
+			return fixture.composerInputs();
+		};
+		const closeTab = async ({ part }: ReturnType<typeof createService>) => { await part.activeGroup.closeEditor(part.activeGroup.activeEditor!); };
 
-		assert.deepStrictEqual({ afterClose, reopened: composerOf(part.activeGroup.activeEditor)?.input.get().input.inputText }, {
-			afterClose: { groups: [{ tabs: ['/a'], active: '/a' }], activeGroup: 0, visible: true },
-			reopened: 'my draft',
-		});
+		assert.deepStrictEqual({
+			typed: await run('my draft', closeTab),
+			empty: await run('', closeTab),
+			closeAll: await run('my draft', ({ service }) => service.closeAllChats()),
+			shutdown: await run('my draft', async fixture => { fixture.lifecycle.willShutdown = true; await closeTab(fixture); }),
+			sentSession: await run('my draft', closeTab, { newSession: constObservable(sent) }),
+			leftSingle: await run('my draft', async fixture => {
+				await closeTab(fixture);
+				fixture.setSetting(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Multiple);
+				fixture.setSetting(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+			}),
+		}, { typed: ['my draft'], empty: [''], closeAll: [''], shutdown: [''], sentSession: [''], leftSingle: [''] });
 	});
 
 	test('a chat that the user opens in the Chat view while no host replaces it, or in an editor, leaves the chats it keeps; not one the Chat view restores, nor one it shows while a host replaces it', async () => {

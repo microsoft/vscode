@@ -76,7 +76,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean } = {}) {
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean } = {}) {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
@@ -148,7 +148,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			},
 		}));
 		const localChatAvailability = store.add(new LocalChatAvailabilityService());
-		instantiationService.stub(ILocalChatAvailabilityService, localChatAvailability);
+		// Local chats can stay shown although the chat part holds them hidden, such as while another rule offers them
+		instantiationService.stub(ILocalChatAvailabilityService, options.localChatsShown ? upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false), hide: () => toDisposable(() => { }) }) : localChatAvailability);
 		instantiationService.stub(IConfigurationService, configurationService);
 		const containerChanged = store.add(new Emitter<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>());
 		let chatViewContainer = ChatViewContainerId;
@@ -488,6 +489,16 @@ suite('ChatViewOpenInChatPartContribution', () => {
 				onView: { input: 'hello', attachments: ['file-a'] },
 				partDraft: { input: 'hello', attachments: ['file-a'] },
 			});
+		});
+
+		test('a local chat stays in the Chat view with its input while local chats are not hidden', async () => {
+			const localChat = LocalChatSessionUri.forSession('local-a');
+			const { setSetting, handovers, widgets, shown } = setup({ chatViewShows: localChat, localChatsShown: true });
+			const source = new FakeChatWidget('hello', [attachment]);
+			widgets.set(localChat.toString(), source);
+			await setSetting(true);
+
+			assert.deepStrictEqual({ handovers, source: source.state, onPart: shown.part.get() }, { handovers: [], source: { input: 'hello', attachments: ['file-a'] }, onPart: undefined });
 		});
 
 		test('as it turns on, it waits for the chat part\'s host to be in use, and does not take the Chat view\'s chat for the chat part\'s', async () => {

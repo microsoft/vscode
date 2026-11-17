@@ -31,9 +31,9 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
-import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { getChatWindowMainPartOptions } from '../../../chatWindow/browser/chatWindow.js';
 import { enforceChatPartOptions } from '../../../chatWindow/browser/chatWindowService.js';
@@ -243,6 +243,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
 	/** In Single, what was typed in its new-session composer as it closed, for its next one: it has one new session at a time. */
 	private _closedComposerInput: IChatDraft | undefined;
+	/** What was typed in each composer whose tab is closing, kept once it closed: not when its close is vetoed. */
+	private readonly _closingComposerInputs = new WeakMap<EditorInput, IChatDraft>();
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
 
 	private _part: IContentPart | undefined;
@@ -283,6 +285,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	) {
 		super();
 		this._chatTabsMode = observableConfigValue<string>(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, this._configurationService);
+		// What a closed composer kept is for the next one in Single only
+		this._register(autorun(reader => {
+			if (this._chatTabsMode.read(reader) === SessionsChatTabsMode.Multiple) {
+				this._closedComposerInput = undefined;
+			}
+		}));
 
 		this.activeChat = derived(this, reader => {
 			const input = this._activeInput.read(reader);
@@ -742,6 +750,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._partStore.add(toDisposable(() => {
 			this._closingAll = true;
 			part.forceClose();
+			this._closedComposerInput = undefined;
 		}));
 		// After the part, whose context is scoped in it
 		this._partStore.add(scopedContextKeyService);
@@ -772,13 +781,18 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				if (this._chats.get(editor) && !this._chats.get(editor)?.isComposer) {
 					this._closingChatTabs.add(editor);
 				}
-				this._keepClosingComposerInput(editor);
+				this._captureClosingComposerInput(editor);
 			}));
 			store.add(group.onDidActiveEditorChange(() => {
 				updateActive();
 				this._hideIfEmpty();
 			}));
 			store.add(group.onDidCloseEditor(({ editor }) => {
+				const kept = this._closingComposerInputs.get(editor);
+				if (kept) {
+					this._closingComposerInputs.delete(editor);
+					this._closedComposerInput = kept;
+				}
 				const closedChat = this._closingChatTabs.delete(editor);
 				updateActive();
 				this._didCloseTab(closedChat);
@@ -798,14 +812,15 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	 * In Single, closing its new-session composer keeps what was typed in it, without asking, for its next one: not as it
 	 * closes all its chats or the window shuts down, nor a composer that sends its session.
 	 */
-	private _keepClosingComposerInput(editor: EditorInput): void {
+	private _captureClosingComposerInput(editor: EditorInput): void {
+		this._closingComposerInputs.delete(editor);
 		const composer = this._composerModels.get(editor);
 		if (!composer || !this._isSingle() || this._closingAll || this._lifecycleService.willShutdown || isSessionCreated(this._chats.get(editor)?.session.get()) || composer.input.isSubmitting) {
 			return;
 		}
 		const state = composer.input.get();
 		if (!state.attempt && (state.input.inputText || state.input.attachments.length)) {
-			this._closedComposerInput = state.input;
+			this._closingComposerInputs.set(editor, state.input);
 		}
 	}
 
