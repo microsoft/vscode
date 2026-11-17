@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { URI } from 'vscode-uri';
 import { Logger, measureAndLog } from './logger';
 import type { LaunchOptions } from './code';
-import { PlaywrightDriver } from './playwrightDriver';
+import { PlaywrightDriver, saveOrDeleteNetLog } from './playwrightDriver';
 
 const root = join(__dirname, '..', '..', '..');
 
@@ -202,7 +202,20 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const gotoPromise = measureAndLog(() => page.goto(url), 'page.goto()', logger);
 	const pageLoadedPromise = page.waitForLoadState('load');
 
-	await gotoPromise;
+	try {
+		await gotoPromise;
+	} catch (error) {
+		// No driver will close this browser, so keep its network log here
+		if (netLogPath) {
+			try {
+				await browser.close();
+			} catch {
+				// Ignore
+			}
+			await measureAndLog(() => saveOrDeleteNetLog(netLogPath, options.logsPath, true, logger), 'saveOrDeleteNetLog()', logger).catch(e => logger.log(`Error saving network log (${e})`));
+		}
+		throw error;
+	}
 
 	return { browser, context, page, pageLoadedPromise, videoStartedAt, netLogPath };
 }

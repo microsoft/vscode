@@ -10,7 +10,7 @@ import { createReadStream, createWriteStream, promises, readFileSync } from 'fs'
 import { promises as streamPromises } from 'stream';
 import { createGzip } from 'zlib';
 import { IWindowDriver } from './driver';
-import { measureAndLog } from './logger';
+import { Logger, measureAndLog } from './logger';
 import { LaunchOptions } from './code';
 import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
@@ -777,7 +777,7 @@ export class PlaywrightDriver {
 		// Chromium writes the network log when it closes
 		if (this.netLogPath) {
 			try {
-				await measureAndLog(() => this.saveOrDeleteNetLog(this.netLogPath!), 'saveOrDeleteNetLog()', this.options.logger);
+				await measureAndLog(() => saveOrDeleteNetLog(this.netLogPath!, this.options.logsPath, !this.workbenchRestored, this.options.logger), 'saveOrDeleteNetLog()', this.options.logger);
 			} catch (error) {
 				this.options.logger.log(`Error saving network log (${error})`);
 			}
@@ -786,19 +786,6 @@ export class PlaywrightDriver {
 		// Server: via `teardown`
 		if (this.serverProcess) {
 			await measureAndLog(() => teardown(this.serverProcess!, this.options.logger), 'teardown server process', this.options.logger);
-		}
-	}
-
-	private async saveOrDeleteNetLog(netLogPath: string): Promise<void> {
-		try {
-			if (!this.workbenchRestored) {
-				const target = join(this.options.logsPath, 'chromium-netlog.json.gz');
-				await promises.mkdir(this.options.logsPath, { recursive: true });
-				await streamPromises.pipeline(createReadStream(netLogPath), createGzip(), createWriteStream(target));
-				this.options.logger.log(`The workbench did not restore, so the Chromium network log was kept: ${target}`);
-			}
-		} finally {
-			await promises.rm(netLogPath, { force: true });
 		}
 	}
 
@@ -1108,6 +1095,23 @@ export class PlaywrightDriver {
 
 export function wait(ms: number): Promise<void> {
 	return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Keeps a gzipped copy of a closed browser's network log in `logsPath` when `keep` is
+ * set, and always deletes the raw log.
+ */
+export async function saveOrDeleteNetLog(netLogPath: string, logsPath: string, keep: boolean, logger: Logger): Promise<void> {
+	try {
+		if (keep) {
+			const target = join(logsPath, 'chromium-netlog.json.gz');
+			await promises.mkdir(logsPath, { recursive: true });
+			await streamPromises.pipeline(createReadStream(netLogPath), createGzip(), createWriteStream(target));
+			logger.log(`The workbench did not restore, so the Chromium network log was kept: ${target}`);
+		}
+	} finally {
+		await promises.rm(netLogPath, { force: true });
+	}
 }
 
 function findFrame(frameTree: Protocol.Page.FrameTree, urlPattern: string): Protocol.Page.Frame | undefined {
