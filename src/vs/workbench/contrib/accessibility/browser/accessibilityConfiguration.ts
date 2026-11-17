@@ -196,7 +196,7 @@ const configuration: IConfigurationNode = {
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
-			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding, edit its system-wide scope, and navigate to the results table in the keybindings editor.'),
+			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused and how to navigate to the results table.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
