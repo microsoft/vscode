@@ -42,6 +42,9 @@
 .monaco-workbench.agent-sessions-workbench .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options,
 .monaco-workbench .sessions-chat .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
 	background-color: color-mix(in srgb, var(--vscode-agentsChatInput-background) 75%, var(--session-view-background));
+	/* Outline the tray like the input it sits on. When the input and view share a background (light themes), the tint alone leaves the tray invisible. */
+	border-color: var(--vscode-contrastBorder, var(--vscode-agentsChatInput-border));
+	border-bottom-width: 0;
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
