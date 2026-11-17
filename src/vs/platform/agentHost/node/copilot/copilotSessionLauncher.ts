@@ -263,6 +263,11 @@ export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizat
 	].filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name));
 }
 
+/** The agent file forwarded under the given SDK name, which the runtime reports without a path. */
+export function getCopilotCustomAgentUri(customizations: ICopilotAppliedCustomizations, sdkName: string): URI | undefined {
+	return getCopilotCustomAgents(customizations).find(agent => (agent.sdkName ?? getSdkCustomAgentName(agent.uri)) === sdkName)?.uri;
+}
+
 export function getCopilotAgentSelection(customizations: ICopilotAppliedCustomizations, uri: string, restoreLegacyFlatSelection = false): { readonly uri: string; readonly name: string } | undefined {
 	const resource = URI.parse(uri);
 	const native = customizations.nativeAgents?.find(agent => isEqual(URI.parse(agent.uri), resource));
