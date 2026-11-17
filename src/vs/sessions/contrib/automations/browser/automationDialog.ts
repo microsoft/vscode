@@ -2018,7 +2018,10 @@ export function renderForm(
 		} finally {
 			if (!disposables.isDisposed) {
 				endDateButton.element.setAttribute('aria-expanded', 'false');
-				endDateButton.focus();
+				const activeElement = DOM.getActiveElement();
+				if (!activeElement || activeElement === DOM.getWindow(endDateButton.element).document.body) {
+					endDateButton.focus();
+				}
 			}
 		}
 	}));

@@ -3144,6 +3144,9 @@ suite('Automation dialog creation', () => {
 	}
 
 	test('saves a calendar selection as a fixed end date and preserves it on unrelated edits', async () => {
+		const now = new Date(2030, 4, 15, 12);
+		const clock = sinon.useFakeTimers({ now: now.getTime(), toFake: ['Date'] });
+		disposables.add(toDisposable(() => clock.restore()));
 		const dialog = openDialog();
 		dialog.setPrompt('Review changes');
 		dialog.container.querySelector<HTMLElement>('#automation-end-date')!.click();
@@ -3152,7 +3155,6 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');
-		const now = new Date();
 		const expected = new Date(now.getFullYear(), now.getMonth() + 1, 15, 9, 30).toISOString();
 		const existing: IAutomationDescriptor = { ...result.value, enabled: true, id: 'existing', createdAt: '', updatedAt: '' };
 		const edit = openDialog({ existing });
@@ -3209,6 +3211,57 @@ suite('Automation dialog creation', () => {
 			focused: true, conditions: buildAutomationDisableConditions(date),
 		});
 	});
+
+	test('the owning dialog yields calendar arrows and Tab navigation to the shared picker', async () => {
+		const clock = sinon.useFakeTimers({ now: new Date(2030, 4, 15, 12).getTime(), toFake: ['Date'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		const dialog = openDialog();
+		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+		dialog.container.querySelector<HTMLElement>('#automation-end-date')!.click();
+		const picker = dialog.quickInputService.widgets.at(-1)!;
+		assert.ok(DOM.isHTMLElement(picker.widget));
+		const widget = picker.widget;
+		const press = (target: HTMLElement, key: string, keyCode: number, shiftKey = false) => {
+			const event = new KeyboardEvent('keydown', { key, keyCode, shiftKey, bubbles: true, cancelable: true });
+			target.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const day = widget.querySelector<HTMLElement>('[role="gridcell"][tabindex="0"]')!;
+		press(day, 'ArrowRight', 39);
+		const nextDay = widget.querySelector<HTMLElement>('[role="gridcell"][tabindex="0"]')!;
+		const right = { day: nextDay.textContent, focused: document.activeElement === nextDay };
+		press(nextDay, 'ArrowLeft', 37);
+		const left = { day: widget.querySelector('[role="gridcell"][tabindex="0"]')?.textContent, focused: document.activeElement === day };
+		const time = widget.querySelector('select')!;
+		time.focus();
+		const tab = press(time, 'Tab', 9);
+		const shiftTab = press(time, 'Tab', 9, true);
+		const focusStayedInPicker = widget.contains(document.activeElement);
+		picker.hide();
+		await timeout(0);
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ right, left, tab, shiftTab, focusStayedInPicker }, {
+			right: { day: '16', focused: true }, left: { day: '15', focused: true },
+			tab: false, shiftTab: false, focusStayedInPicker: true,
+		});
+	});
+
+	for (const field of ['name', 'prompt']) {
+		test(`dismissing the calendar by focusing ${field} preserves that field's focus`, async () => {
+			const dialog = openDialog();
+			dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+			dialog.container.querySelector<HTMLElement>('#automation-end-date')!.click();
+			const target = field === 'name' ? dialog.nameInput : dialog.container.querySelector('textarea')!;
+			target.focus();
+			dialog.quickInputService.widgets.at(-1)!.hide();
+			await timeout(0);
+			const retainedFocus = document.activeElement === target;
+			dialog.cancelButton.click();
+			await dialog.result;
+			assert.strictEqual(retainedFocus, true);
+		});
+	}
 
 	test('hides the calendar for cloud and prevents silently dropping a local end date', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
