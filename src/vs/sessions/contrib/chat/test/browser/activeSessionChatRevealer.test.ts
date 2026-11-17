@@ -12,7 +12,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatViewId, IChatWidget, IChatWidgetService, IQuickChatService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatViewHostService } from '../../../../../workbench/contrib/chat/browser/chatViewHost.js';
 import { ChatWidgetService } from '../../../../../workbench/contrib/chat/browser/widget/chatWidgetService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
@@ -29,13 +30,14 @@ suite('ActiveSessionChatRevealer', () => {
 
 	test('reveals the chat of the focused host before the last focused widget or the Chat view', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
-		const openedViews: string[] = [];
+		let chatViewReveals = 0;
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ groups: [] }));
-		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
-			getViewWithId: () => null,
-			openView: async (id: string) => {
-				openedViews.push(id);
-				return null;
+		instantiationService.stub(IViewsService, {});
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
+			revealIfShowing: async () => undefined,
+			reveal: async () => {
+				chatViewReveals++;
+				return undefined;
 			},
 		}));
 		instantiationService.stub(IQuickChatService, {});
@@ -84,14 +86,14 @@ suite('ActiveSessionChatRevealer', () => {
 			withoutShownChat,
 			afterDispose,
 			focused,
-			openedViews,
+			chatViewReveals,
 		}, {
 			revealed: true,
 			revealedPreservingFocus: true,
 			withoutShownChat: undefined,
 			afterDispose: undefined,
 			focused: ['active'],
-			openedViews: [ChatViewId, ChatViewId],
+			chatViewReveals: 2,
 		});
 	});
 });
