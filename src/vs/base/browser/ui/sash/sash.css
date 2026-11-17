@@ -112,7 +112,7 @@
 }
 
 .monaco-enable-motion .monaco-sash:before {
-	transition: background-color 0.1s ease-out;
+	transition: background-color var(--vscode-motion-hover-change-duration, 100ms) var(--vscode-motion-hover-change-easing, ease-out);
 }
 
 .monaco-sash.hover:before,

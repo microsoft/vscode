@@ -8,10 +8,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { getMotionCssVariables, motionRecipes, resolveMotionRecipe } from '../../common/motion/motionRecipes.js';
 import { MotionTokenRegistry, motionTokenRegistry } from '../../common/motionRegistry.js';
 import { motionPresetBindings, resolveMotionPresetBinding } from '../../common/motion/motionPresetBindings.js';
-import { resolveMotionPreset } from '../../common/motion/motionPresets.js';
-
-const responsive = resolveMotionPreset('control').phases[0].response.durationMs;
-const settled = resolveMotionPreset('surface').phases[0].response.durationMs;
 
 suite('Motion recipes', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -19,8 +15,8 @@ suite('Motion recipes', () => {
 	test('primitive duration names are separate from preserved component timing', () => {
 		assert.deepStrictEqual({
 			primitives: motionTokenRegistry.getTokens().filter(token => token.id.startsWith('motion.duration.')).map(token => motionTokenRegistry.resolve(token.id)),
-			components: ['motion.scrollbar.exit.duration', 'motion.progress.duration'].map(id => motionTokenRegistry.getNumber(id, 'duration')),
-		}, { primitives: [0, 100, 150, 200, 250, 300, 1000], components: [responsive, 4000] });
+			components: ['motion.visibility.exit.duration', 'motion.progress.cycle.duration'].map(id => motionTokenRegistry.getNumber(id, 'duration')),
+		}, { primitives: [0, 100, 200, 300], components: [0, 4000] });
 	});
 
 	test('every animation recipe resolves with a finite reduced-motion alternative', () => {
@@ -32,10 +28,10 @@ suite('Motion recipes', () => {
 	});
 
 	test('surface and fade timings consume complete shared response pairs', () => {
-		assert.deepStrictEqual(['motion.surface.enter', 'motion.surface.exit', 'motion.fade.enter', 'motion.fade.exit']
+		assert.deepStrictEqual(['motion.surface.enter', 'motion.surface.exit', 'motion.visibility.enter', 'motion.visibility.exit']
 			.map(id => [id, resolveMotionRecipe(id).effect.duration]), [
-			['motion.surface.enter', settled], ['motion.surface.exit', responsive],
-			['motion.fade.enter', settled], ['motion.fade.exit', responsive],
+			['motion.surface.enter', 250], ['motion.surface.exit', 150],
+			['motion.visibility.enter', 100], ['motion.visibility.exit', 0],
 		]);
 	});
 
@@ -45,7 +41,7 @@ suite('Motion recipes', () => {
 			resolveMotionRecipe('motion.atom.translate.enter', { direction: 'inline-start', rtl: true }).effect.frames[0].transform,
 			resolveMotionRecipe('motion.atom.translate.enter', { direction: 'inline-end', rtl: true }).effect.frames[0].transform,
 			resolveMotionRecipe('motion.atom.translate.enter', { direction: 'block-start', rtl: true }).effect.frames[0].transform,
-			resolveMotionRecipe('motion.toast.enter', { direction: 'inline-end' }).effect.frames[0].transform,
+			resolveMotionRecipe('motion.notification.enter', { direction: 'inline-end' }).effect.frames[0].transform,
 		], ['translateX(-100%)', 'translateX(100%)', 'translateX(-100%)', 'translateY(-100%)', 'translateX(100%) scale(1)']);
 	});
 
@@ -60,15 +56,15 @@ suite('Motion recipes', () => {
 	test('transition composites preserve references rather than copying resolved values', () => {
 		const css = getMotionCssVariables();
 		assert.deepStrictEqual({
-			control: css['--vscode-motion-control-transition'],
-			controlPosition: css['--vscode-motion-control-position-transition'],
-			selection: css['--vscode-motion-selection-transition'],
-			disclosure: css['--vscode-motion-disclosure-exit-transition'],
+			control: css['--vscode-motion-state-change-transition'],
+			controlPosition: css['--vscode-motion-state-indicator-transition'],
+			selection: css['--vscode-motion-selection-change-transition'],
+			disclosure: css['--vscode-motion-disclosure-collapse-transition'],
 		}, {
-			control: 'background-color var(--vscode-motion-control-duration) var(--vscode-motion-control-easing), border-color var(--vscode-motion-control-duration) var(--vscode-motion-control-easing)',
-			controlPosition: 'transform var(--vscode-motion-control-duration) var(--vscode-motion-control-easing)',
-			selection: 'transform var(--vscode-motion-selection-duration) var(--vscode-motion-selection-easing), width var(--vscode-motion-selection-duration) var(--vscode-motion-selection-easing), scale var(--vscode-motion-press-duration) var(--vscode-motion-press-easing)',
-			disclosure: 'grid-template-rows var(--vscode-motion-disclosure-duration) var(--vscode-motion-disclosure-easing), opacity var(--vscode-motion-disclosure-opacity-duration) var(--vscode-motion-disclosure-opacity-easing), visibility var(--vscode-motion-duration-none) var(--vscode-motion-easing-linear) var(--vscode-motion-disclosure-duration)',
+			control: 'background-color var(--vscode-motion-state-change-duration) var(--vscode-motion-state-change-easing), border-color var(--vscode-motion-state-change-duration) var(--vscode-motion-state-change-easing)',
+			controlPosition: 'transform var(--vscode-motion-state-change-duration) var(--vscode-motion-state-change-easing)',
+			selection: 'transform var(--vscode-motion-selection-change-duration) var(--vscode-motion-selection-change-easing), width var(--vscode-motion-selection-change-duration) var(--vscode-motion-selection-change-easing), scale var(--vscode-motion-press-change-duration) var(--vscode-motion-press-change-easing)',
+			disclosure: 'grid-template-rows var(--vscode-motion-disclosure-geometry-duration) var(--vscode-motion-disclosure-geometry-easing), opacity var(--vscode-motion-disclosure-content-duration) var(--vscode-motion-disclosure-content-easing), visibility var(--vscode-motion-duration-none) var(--vscode-motion-easing-linear) var(--vscode-motion-disclosure-geometry-duration)',
 		});
 	});
 
@@ -76,11 +72,11 @@ suite('Motion recipes', () => {
 		const offsets = new MotionTokenRegistry([{ id: 'test.offset', kind: 'offset', value: { value: -4, unit: 'px' }, description: '' }]);
 		assert.deepStrictEqual({
 			distance: resolveMotionRecipe('motion.atom.translate.enter').effect.frames[0].transform,
-			steps: motionTokenRegistry.getValueCss('motion.matrix.easing', 'easing'),
+			steps: motionTokenRegistry.getValueCss('motion.spinner.cycle.easing', 'easing'),
 			offset: offsets.getValueCss('test.offset', 'offset'),
-			loop: resolveMotionRecipe('motion.progress.spin').effect.iterations,
-			angle: resolveMotionRecipe('motion.progress.spin').effect.frames[0].transform,
-		}, { distance: 'translateY(100%)', steps: 'steps(6, jump-none)', offset: '-4px', loop: Infinity, angle: 'rotate(0deg)' });
+			loop: resolveMotionRecipe('motion.spinner.cycle').effect.iterations,
+			angle: resolveMotionRecipe('motion.spinner.cycle').effect.frames[0].transform,
+		}, { distance: 'translateY(100%)', steps: 'steps(30)', offset: '-4px', loop: Infinity, angle: 'rotate(0deg)' });
 		assert.throws(() => motionTokenRegistry.getNumber('motion.easing.linear', 'duration'), /Expected motion duration/);
 		assert.throws(() => resolveMotionRecipe('motion.missing'), /not a keyframe animation/);
 		assert.throws(() => new MotionTokenRegistry([{ id: 'bad', kind: 'opacity', value: 2, description: '' }]), /Invalid motion opacity/);
@@ -88,9 +84,9 @@ suite('Motion recipes', () => {
 	});
 
 	test('compact spinner rotation never borrows the linear ProgressBar path timing', () => {
-		const spinner = resolveMotionRecipe('motion.progress.spin').effect;
+		const spinner = resolveMotionRecipe('motion.spinner.cycle').effect;
 		assert.deepStrictEqual({
-			barDuration: motionTokenRegistry.getNumber('motion.progress.duration', 'duration'),
+			barDuration: motionTokenRegistry.getNumber('motion.progress.cycle.duration', 'duration'),
 			spinnerDuration: spinner.duration,
 			spinnerEasing: spinner.easing,
 		}, { barDuration: 4000, spinnerDuration: 1500, spinnerEasing: 'steps(30)' });
@@ -101,15 +97,15 @@ suite('Motion recipes', () => {
 			const recipe = resolveMotionRecipe(`motion.atom.${atom}.enter`);
 			return { atom, frames: recipe.effect.frames, duration: recipe.effect.duration, reduced: recipe.reducedEffect };
 		}), [
-			{ atom: 'fade', frames: [{ opacity: 0 }, { opacity: 1 }], duration: settled, reduced: { frames: [{ opacity: 1, transform: 'none' }], duration: 0, delay: 0, easing: 'linear', iterations: 1, direction: 'normal' } },
-			{ atom: 'scale', frames: [{ transform: 'scale(0.97)' }, { transform: 'scale(1)' }], duration: settled, reduced: { frames: [{ transform: 'none' }], duration: 0, delay: 0, easing: 'linear', iterations: 1, direction: 'normal' } },
-			{ atom: 'translate', frames: [{ transform: 'translateY(100%)' }, { transform: 'translateY(0px)' }], duration: settled, reduced: { frames: [{ transform: 'none' }], duration: 0, delay: 0, easing: 'linear', iterations: 1, direction: 'normal' } },
+			{ atom: 'fade', frames: [{ opacity: 0 }, { opacity: 1 }], duration: 100, reduced: { frames: [{ opacity: 1, transform: 'none' }], duration: 0, delay: 0, easing: 'linear', iterations: 1, direction: 'normal' } },
+			{ atom: 'scale', frames: [{ transform: 'scale(0.97)' }, { transform: 'scale(1)' }], duration: 250, reduced: { frames: [{ transform: 'none' }], duration: 0, delay: 0, easing: 'linear', iterations: 1, direction: 'normal' } },
+			{ atom: 'translate', frames: [{ transform: 'translateY(100%)' }, { transform: 'translateY(0px)' }], duration: 300, reduced: { frames: [{ transform: 'none' }], duration: 0, delay: 0, easing: 'linear', iterations: 1, direction: 'normal' } },
 		]);
 	});
 
 	test('atom defaults inherit purpose timing rather than a universal speed variant', () => {
 		assert.deepStrictEqual(['fade', 'scale', 'translate'].map(atom => ['enter', 'exit'].map(phase => resolveMotionRecipe(`motion.atom.${atom}.${phase}`).effect.duration)),
-			[[settled, responsive], [settled, responsive], [settled, responsive]]);
+			[[100, 0], [250, 150], [300, 150]]);
 	});
 
 	test('resolved bindings do not mutate product defaults', () => {

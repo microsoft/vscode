@@ -20,13 +20,15 @@ Deprecated size names remain available in a collapsed compatibility section with
 
 ## Motion parameters
 
-Keep three categories distinct: the ordinary duration ramp, purpose parameters that preserve component defaults, and long compatibility cycles. A purpose default can be a literal or an alias; a literal switch or selection duration does not add a ramp step. Normal, gentle, and slow are starting points for restrained opt-in recipes, not a mandate to retime shipped feedback. Shared easing, distance, scale, opacity, delay, and iteration parameters retain their own property roles.
+Keep the base parameters, generated response pairs, semantic behavior bindings, and shared activity cadence distinct. A purpose default can be a literal or an alias; neither creates another base-ramp step. Response durations belong with their generated curves, not in the ordinary duration scale. Generic spinner and progress cycles are shared activity decisions, not additional transition speeds.
+
+The [motion naming contract](../../src/vs/platform/theme/common/motion/motion.design.md#token-roles-and-naming) uses behavior, phase or track, then parameter. This draft migrates its existing in-tree names together; adopted contracts require compatibility planning. Do not retain duplicate naming families or create a token for each example.
+
+Component-local matrix choreography, voice breathing, logo drawing, find-option signaling, and confetti parameters stay out of the design-token reference. Their typed options or CSS override hooks are implementation contracts, not shared design choices. Reuse the complete component; do not offer its internal tuning as a global scale.
 
 Project actual saved values and per-property tracks from the motion registry and recipe catalog. Do not replace a shorter press track with the selection duration or copy numbers into the renderer. Motion owns the purpose decision table, entry and exit relationships, reduced-motion contracts, and composition guidance. Its abstract comparisons isolate parameters; the existing component fixture owns the control examples.
 
-Olivia’s Phase2 audit and Fluent 2, Windows, and Atlassian inform guidance, not token values. Recommendations for fewer concurrent status signals remain future adoption guidance unless a product change has actually shipped.
-
-Keep design evidence distinct from current reproduction. The main source audit at `8fb60541` already records spinner and shimmer suppression and an off-by-default, reduced-motion-gated composer comet. Audit declaration counts are not counts of simultaneous animations or defects. Recheck actual state, scope, preference gates, and visibility before interpreting a composition as redundant.
+Design audits and external references inform guidance, not token values or claims of product-wide adoption. Counts of animation declarations are not counts of simultaneous animations or defects. Check actual state, scope, preference gates, and visibility before treating a composition as redundant.
 
 ## Scoped layout tokens
 

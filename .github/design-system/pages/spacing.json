@@ -4,9 +4,17 @@
 	"renderer": "foundations",
 	"content": "content/foundations/spacing.json",
 	"guidance": [
-		{ "id": "spacing-guidance", "title": "Using spacing", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "spacing" }
+		{
+			"id": "spacing-guidance",
+			"title": "Using spacing",
+			"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
+			"anchor": "give-each-interval-one-owner"
+		}
 	],
 	"sources": [
+		{
+			"file": "src/vs/platform/theme/common/sizes/spacing.design.md"
+		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},

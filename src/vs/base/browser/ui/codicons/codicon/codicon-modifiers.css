@@ -20,7 +20,7 @@
 .codicon-loading,
 .codicon-tree-item-loading::before {
 	/* Use steps to throttle FPS to reduce CPU usage */
-	animation: codicon-spin var(--vscode-motion-spinner-duration, 1.5s) var(--vscode-motion-spinner-easing, steps(30)) infinite;
+	animation: codicon-spin var(--vscode-motion-spinner-cycle-duration, 1.5s) var(--vscode-motion-spinner-cycle-easing, steps(30)) infinite;
 	/* Ensure rotation happens around exact center to prevent wobble */
 	transform-origin: center center;
 }

@@ -14,7 +14,6 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
-import { motionTokenRegistry } from '../../../../../platform/theme/common/motionRegistry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ChatConfiguration, ChatProgressAnimation } from '../../common/constants.js';
 import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../../common/widget/chatColors.js';
@@ -72,7 +71,7 @@ function observeVisibility(element: HTMLElement, onDidChange: (visible: boolean)
 /** Plays the product mark from a shared 120 Hz atlas, with a 60 Hz SVG fallback and static reduced-motion artwork. */
 export class ChatWorkingLogo extends Disposable {
 	readonly domNode: HTMLElement;
-	readonly drawDurationMs = motionTokenRegistry.getNumber('motion.logo.duration', 'duration');
+	readonly drawDurationMs = 2667;
 
 	private animationFrame: MutableDisposable<IDisposable> | undefined;
 	private readonly atlasRequest = this._register(new MutableDisposable<DisposableStore>());

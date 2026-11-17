@@ -2076,8 +2076,8 @@ export class ActionListWidget<T> extends Disposable {
 			{ ...frame, transform: `translateY(${(previous.top - current.top) / zoom}px)` },
 			{ ...frame, transform: 'translateY(0)' },
 		], {
-			duration: motionTokenRegistry.getNumber('motion.selection.duration', 'duration'),
-			easing: motionTokenRegistry.getValueCss('motion.selection.easing', 'easing'),
+			duration: motionTokenRegistry.getNumber('motion.selection.change.duration', 'duration'),
+			easing: motionTokenRegistry.getValueCss('motion.selection.change.easing', 'easing'),
 		});
 		this._itemMoveAnimation.value = toDisposable(() => animation.cancel());
 	}

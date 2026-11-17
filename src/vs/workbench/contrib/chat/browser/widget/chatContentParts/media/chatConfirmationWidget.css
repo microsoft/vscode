@@ -198,7 +198,7 @@
 	grid-template-rows: 1fr;
 	opacity: 1;
 	visibility: visible;
-	transition: var(--vscode-motion-disclosure-transition);
+	transition: var(--vscode-motion-disclosure-expand-transition);
 
 	> .chat-confirmation-widget-message-animation-inner {
 		min-height: 0;
@@ -212,7 +212,7 @@
 	grid-template-rows: 0fr;
 	opacity: 0;
 	visibility: hidden;
-	transition: var(--vscode-motion-disclosure-exit-transition);
+	transition: var(--vscode-motion-disclosure-collapse-transition);
 }
 
 .monaco-reduce-motion .chat-confirmation-widget-message-animation,

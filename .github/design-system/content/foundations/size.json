@@ -4,7 +4,7 @@
 	"status": "book-authored",
 	"intro": {
 		"$text": {
-			"file": "src/vs/platform/theme/common/sizes/size.md",
+			"file": "src/vs/platform/theme/common/sizes/size.design.md",
 			"heading": "Introduction"
 		}
 	},
@@ -13,7 +13,7 @@
 			"title": "Choose a glyph size",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/size.md",
+					"file": "src/vs/platform/theme/common/sizes/size.design.md",
 					"heading": "Choose a glyph size",
 					"paragraph": 0
 				}
@@ -24,7 +24,7 @@
 			"title": "Size reference",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/size.md",
+					"file": "src/vs/platform/theme/common/sizes/size.design.md",
 					"heading": "Size reference",
 					"paragraph": 0
 				}

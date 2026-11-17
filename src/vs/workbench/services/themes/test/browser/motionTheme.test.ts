@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { $, getWindow } from '../../../../../base/browser/dom.js';
 import '../../../../../base/browser/ui/codicons/codicon/codicon-modifiers.css';
+import '../../../../../base/browser/ui/sash/sash.css';
+import '../../../../../editor/browser/widget/diffEditor/style.css';
 import { HoverWidget } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 import { Radio } from '../../../../../base/browser/ui/radio/radio.js';
@@ -26,6 +28,33 @@ import { IWorkbenchThemeService } from '../../common/workbenchThemeService.js';
 
 suite('Motion theme export', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resize affordances share hover timing without changing their geometry', () => {
+		const host = $('.monaco-enable-motion');
+		document.body.append(host);
+		store.add(toDisposable(() => host.remove()));
+		for (const [name, value] of Object.entries(getMotionCssVariables())) {
+			host.style.setProperty(name, value);
+		}
+		const sash = $('.monaco-sash');
+		const editor = $('.monaco-editor');
+		const region = $('.diff-hidden-lines');
+		const handle = $('.top');
+		region.append(handle);
+		editor.append(region);
+		host.append(sash, editor);
+		const read = () => [
+			getWindow(host).getComputedStyle(sash, '::before'),
+			getWindow(host).getComputedStyle(handle),
+		].map(style => [style.transitionProperty, style.transitionDuration, style.transitionTimingFunction]);
+		const before = read();
+		host.style.setProperty('--vscode-motion-hover-change-duration', '75ms');
+		host.style.setProperty('--vscode-motion-hover-change-easing', 'linear');
+		assert.deepStrictEqual({ before, overridden: read() }, {
+			before: Array.from({ length: 2 }, () => ['background-color', '0.1s', 'cubic-bezier(0, 0, 0.58, 1)']),
+			overridden: Array.from({ length: 2 }, () => ['background-color', '0.075s', 'linear']),
+		});
+	});
 
 	test('workbench and webviews export the same alias graph in every color scheme', () => {
 		for (const scheme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
@@ -69,23 +98,24 @@ suite('Motion theme export', () => {
 		const style = (element: HTMLElement) => getWindow(element).getComputedStyle(element);
 		const durations = (value: string) => value.split(',').map(duration => Math.round(Number.parseFloat(duration) * 1000));
 		const responseDuration = Math.round(resolveMotionPreset('control').phases[0].response.durationMs);
+		const selectionDuration = Math.round(resolveMotionPreset('selection').phases[0].response.durationMs);
 		const visibilityDuration = Math.round(resolveMotionPreset('visibility').phases[0].response.durationMs);
 		const prefersReduction = getWindow(host).matchMedia('(prefers-reduced-motion: reduce)').matches;
 		assert.deepStrictEqual({
 			switchDuration: durations(style(setting.domNode).transitionDuration),
-			generatedCurve: style(setting.domNode).transitionTimingFunction.startsWith('linear('),
+			stateCurve: style(setting.domNode).transitionTimingFunction,
 			selectionDuration: durations(style(selection).transitionDuration),
 			hoverDuration: durations(style(hover.containerDomNode).animationDuration),
 			progressDuration: durations(style(bit).transitionDuration),
-		}, prefersReduction ? { switchDuration: [0], generatedCurve: false, selectionDuration: [0], hoverDuration: [0], progressDuration: [0] }
-			: { switchDuration: [responseDuration, responseDuration], generatedCurve: true, selectionDuration: [responseDuration, responseDuration, 100], hoverDuration: [visibilityDuration], progressDuration: [200] });
+		}, prefersReduction ? { switchDuration: [0], stateCurve: 'ease', selectionDuration: [0], hoverDuration: [0], progressDuration: [0] }
+			: { switchDuration: [responseDuration, responseDuration], stateCurve: 'ease, ease', selectionDuration: [selectionDuration, selectionDuration, 100], hoverDuration: [visibilityDuration], progressDuration: [200] });
 		host.classList.add('monaco-enable-motion');
 		assert.deepStrictEqual({
 			switchDuration: durations(style(setting.domNode).transitionDuration),
 			selectionDuration: durations(style(selection).transitionDuration),
 			hoverDuration: durations(style(hover.containerDomNode).animationDuration),
 			progressDuration: durations(style(bit).transitionDuration),
-		}, { switchDuration: [responseDuration, responseDuration], selectionDuration: [responseDuration, responseDuration, 100], hoverDuration: [visibilityDuration], progressDuration: [200] });
+		}, { switchDuration: [responseDuration, responseDuration], selectionDuration: [selectionDuration, selectionDuration, 100], hoverDuration: [visibilityDuration], progressDuration: [200] });
 		host.classList.remove('monaco-enable-motion');
 		progress.infinite();
 		assert.strictEqual(style(bit).animationDuration, prefersReduction ? '0s' : '4s');

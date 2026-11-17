@@ -4,27 +4,27 @@
 	"className": "CountBadge",
 	"summary": {
 		"$text": {
-			"file": "src/vs/base/browser/ui/countBadge/badge-design.md",
+			"file": "src/vs/base/browser/ui/countBadge/badge.design.md",
 			"heading": "Overview"
 		}
 	},
 	"usage": {
 		"$text": {
-			"file": "src/vs/base/browser/ui/countBadge/badge-design.md",
+			"file": "src/vs/base/browser/ui/countBadge/badge.design.md",
 			"heading": "Usage",
 			"list": true
 		}
 	},
 	"accessibility": {
 		"$text": {
-			"file": "src/vs/base/browser/ui/countBadge/badge-design.md",
+			"file": "src/vs/base/browser/ui/countBadge/badge.design.md",
 			"heading": "Accessibility",
 			"list": true
 		}
 	},
 	"preview": {
 		"$text": {
-			"file": "src/vs/base/browser/ui/countBadge/badge-design.md",
+			"file": "src/vs/base/browser/ui/countBadge/badge.design.md",
 			"heading": "Preview"
 		}
 	},

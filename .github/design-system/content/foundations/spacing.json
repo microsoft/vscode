@@ -4,7 +4,7 @@
 	"status": "book-authored",
 	"intro": {
 		"$text": {
-			"file": "src/vs/platform/theme/common/sizes/spacing.md",
+			"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 			"heading": "Introduction"
 		}
 	},
@@ -13,7 +13,7 @@
 			"title": "Make relationships visible",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 					"heading": "Make relationships visible",
 					"paragraph": 0
 				}
@@ -24,7 +24,7 @@
 			"title": "Give each interval one owner",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 					"heading": "Give each interval one owner",
 					"paragraph": 0
 				}
@@ -32,7 +32,7 @@
 			"paragraphs": [
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/sizes/spacing.md",
+						"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 						"heading": "Give each interval one owner",
 						"paragraph": 1
 					}
@@ -43,7 +43,7 @@
 			"title": "Choose a spacing pattern",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 					"heading": "Choose a spacing pattern",
 					"paragraph": 0
 				}
@@ -54,7 +54,7 @@
 			"title": "Spacing between controls",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 					"heading": "Spacing between controls",
 					"paragraph": 0
 				}
@@ -65,7 +65,7 @@
 			"title": "When space gets tight",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 					"heading": "When space gets tight",
 					"paragraph": 0
 				}
@@ -73,7 +73,7 @@
 			"paragraphs": [
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/sizes/spacing.md",
+						"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 						"heading": "When space gets tight",
 						"paragraph": 1
 					}
@@ -84,7 +84,7 @@
 			"title": "Spacing ramp",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/spacing.md",
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 					"heading": "Spacing ramp",
 					"paragraph": 0
 				}
@@ -92,7 +92,7 @@
 			"paragraphs": [
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/sizes/spacing.md",
+						"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
 						"heading": "Spacing ramp",
 						"paragraph": 1
 					}
@@ -103,29 +103,59 @@
 	"relationships": [
 		[
 			"Within a group",
-			"Keep a label, its control, and supporting text close enough to read as one unit."
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
+					"heading": "Within a group"
+				}
+			}
 		],
 		[
 			"Between groups",
-			"Use a larger break when the task or subject changes. Equal spacing at every level flattens the hierarchy."
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
+					"heading": "Between groups"
+				}
+			}
 		],
 		[
 			"Inside a surface",
-			"Use one consistent inset to align content and keep it clear of the boundary."
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
+					"heading": "Inside a surface"
+				}
+			}
 		]
 	],
 	"ownership": [
 		[
 			"Padding · inside a surface",
-			"The container owns the content inset. Align repeated rows to the same edge; keep the outer gutter separate from each control’s internal padding."
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
+					"heading": "Padding ownership"
+				}
+			}
 		],
 		[
 			"Gap · between siblings",
-			"The layout owns the interval between children. Use row and column gaps for wrapping groups; let the component keep its own hit target."
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
+					"heading": "Gap ownership"
+				}
+			}
 		],
 		[
 			"Margin · outside an element",
-			"Use it for a contextual separation such as the start of a new section. Account for adjacent margins and the parent layout before adding more."
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
+					"heading": "Margin ownership"
+				}
+			}
 		]
 	],
 	"preview": {

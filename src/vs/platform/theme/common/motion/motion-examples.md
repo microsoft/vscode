@@ -1,252 +1,219 @@
 # Motion chapter
 
-## Foundations
+The chapter moves from purpose and restraint to complete product patterns, then timing, implementation, accessibility, and evaluation. Examples are selected for the decision they explain, not to inventory every animated component.
 
-Choose how long a change needs, how it should unfold, and which properties explain it. Then combine those choices for transitions, ongoing work, awareness, or expression. In every case, keep input and the next action immediate.
+## Principles in practice
 
-## Duration
+| Principle | What to look for | What to change when it fails |
+| --- | --- | --- |
+| Purposeful | The change is easier to understand than its immediate, still alternative | Remove movement that explains no relationship or outcome |
+| Responsive | State, focus, and the next action respond now, even while visuals settle | Remove input delays and queued feedback; let new input replace old motion |
+| Natural | The origin, destination, and interruption remain understandable | Repair anchoring and continuity before tuning speed or adding effects |
+| Consistent | Equivalent behaviors use the same pattern | Reuse the owning component and preset, not a similar-looking effect |
+| Accessible | Meaning and control survive reduced motion, keyboard use, and concurrent work | Preserve static status, reading position, and actions; stop unnecessary rendering |
 
-Match the time to the job. Frequent feedback needs less time than a change someone must deliberately follow. Choose the shortest duration that makes the result legible. Focus, typing, and direct manipulation stay immediate; an animation must never postpone state, access, or the next action.
+These are evaluation questions, not five effects to add. The patterns below show how several principles work together.
 
-## Interaction timing
+## Product patterns
 
-Compare the durations at normal speed. Each band makes exactly the same change with the same linear pacing; only the time differs. These are timing studies, not product previews. The uses below explain where to start when designing a missing behavior, not new timing assignments for existing components.
-
-## Brief duration
-
-Use the briefest animated response for tactile feedback that may repeat with every click. Segmented selection's press response uses this duration: acknowledge contact without making a frequently used control feel heavy.
-
-## Short duration
-
-Give a local highlight or visibility change slightly more time when a press-length response would be too easy to miss. For example, a newly designed inline action reveal can use this as a starting point. Do not slow keyboard focus or add a delay before the action is available.
-
-## Moderate duration
-
-Use a moderate duration when the amount of change needs to remain readable between updates. Measured progress uses this duration to smooth the fill between reported values. The reported amount changes immediately; the animation adds no estimate of remaining work.
-
-## Gentle duration
-
-Allow a little more time for an occasional, more noticeable change. When designing a new contextual reveal, compare this with the moderate duration: keep the extra time only if it makes the information easier to notice. Repeated hover or press feedback rarely benefits.
-
-## Longer duration
-
-Reserve the longer end of everyday timing for a substantial change that is otherwise hard to follow. A new workspace-level reveal is a candidate only if the shorter choices feel abrupt in context. This is not a default for large elements, a reason to animate editor navigation, or a recommendation to slow existing surfaces.
-
-## Use duration in context
-
-For an existing behavior, keep its semantic preset's paired duration and easing. The switch and menu examples elsewhere use generated responses, not the base timings in this study. A response's quiet settling tail is not an input delay; compare when feedback becomes apparent as well as when it finishes.
-
-Long expressive sequences have their own choreography; they are not another everyday speed. Loading time, activity cycles, hover intent delays, and reading time are not transition durations. Use [Design tokens](?section=tokens#tokens-motion) for the complete reference.
-
-## Immediate feedback
-
-Use no transition for keyboard focus, typing, direct resizing, and rapid navigation. These changes already have a clear cause; animation would put feedback behind the action.
-
-## Focus caption
-
-The focus indicator appears immediately; it does not fade or travel.
-
-## Easing
-
-Easing distributes change over time. Choose a speed profile that explains the interaction, paired with its duration. A local acknowledgment should become apparent promptly; an arrival should settle into its destination; an ongoing activity should not imply a finish time. Do not add a curve because its graph looks interesting.
-
-## Curve illustration
-
-Read each curve with its scenario: the horizontal axis is elapsed time and the vertical axis is progress toward the destination. The diagrams play the paired timing at normal speed; use the product examples to judge whether that response suits the interaction.
-
-## Arrival use
-
-A prompt arrival followed by a quiet settle establishes a surface without holding up its actions. The [menu example](#motion-example-anchored-menu) shows this anchored arrival and its shorter departure. Use this pair for surface presence, not a long introductory flourish.
-
-## Departure use
-
-Departures should be quieter and shorter than arrivals. Release interaction immediately. Do not introduce a separate acceleration family until a real departure demonstrates a need that the existing presence preset cannot meet.
-
-## Local response
-
-Frequent changes should become apparent promptly and settle without overshoot. The [switch example](#motion-example-control) uses the responsive pair for contained acknowledgment, not a loading delay or a gesture simulation.
-
-## Change in place use
-
-A gentle start and finish can connect two persistent visual states. The [listening boundary](#motion-example-listening-color) uses a color crossfade while the input stays still. Do not apply this pacing to direct manipulation, typing, or repetitive whole-view fades.
-
-## Continuous use
-
-A constant rate suits interpolation between reported progress values. In [measured progress](#motion-example-progress), the fill moves only toward the latest reported amount. The curve must not manufacture progress or suggest acceleration toward an unknown completion time.
-
-## Visual changes
-
-Choose the property that explains the change. Combine properties only when each contributes useful information; keep unrelated content steady.
-
-## Fade
-
-Change visibility without implying movement. A soft reveal introduces supporting information in an already understood location, keeping the primary task steady. It supports **Purposeful** awareness and **Natural** continuity; it must not postpone readable content or access.
-
-## Scale
-
-A contained scale change can make a press feel tactile without moving its target or neighbors. The study below isolates the brief press response used by segmented selection. For surface presence, combine scale with opacity around a fixed origin, as in the [menu example](#motion-example-anchored-menu). Keep text crisp, allow rapid reversal, and remove nonessential zoom for reduced motion. Never zoom an entire view or stretch text to reveal content.
-
-## Position
-
-Connect a visible origin and destination. A selection indicator travels between choices while labels and hit targets stay steady. This preserves the relationship between old and new state (**Purposeful**) and makes the transition continuous (**Natural**) without delaying selection (**Responsive**). Reuse this pattern wherever a persistent indicator represents a change in place.
-
-## Color
-
-Reinforce a state while content stays in place. Color can support feedback or ongoing activity, but it must not be the only way to distinguish states.
-
-## Hover caption
-
-Supporting information becomes visible without moving the task or its target.
-
-## Selection caption
-
-Only the selection indicator travels; labels and hit targets remain stable.
-
-## Listening caption
-
-A changing boundary conveys active listening while the input content remains steady.
-
-## Best practices
-
-Start with intent, not an effect. Motion earns its place only when it helps someone understand or act; tokens make that decision consistent, but do not make it purposeful.
-
-## Best-practice steps
-
-1. **Name the benefit.** What needs acknowledgment, orientation, awareness, or expression? If no change becomes clearer, choose stillness.
-2. **Protect the task.** Identify what stays immediate and steady: state, focus, input, hit targets, and reading anchors.
-3. **Reuse the smallest fitting pattern.** Choose the relevant foundation and semantic preset before inventing a new curve or composition. Each animated property must contribute to the intent.
-4. **Respond before waiting.** Show pending work locally; keep useful content available. Reveal results when ready, never after a decorative delay. Motion can improve perceived performance, not shorten the operation or prove success.
-5. **Check the complete interaction.** At normal speed, try repeated input, interruption, failures, narrow layouts, and concurrent activity. Verify reduced motion, keyboard access, and cleanup. A smooth single playback is not enough.
-6. **Share only an earned difference.** If a missing behavior needs new timing, validate it in a real component first. Promote a token or preset only with an explicit purpose and applicability.
+Choose the situation, then compare the moving and still alternatives. Each example has one primary home. A timing diagram explains a parameter; a product example explains an interaction. Neither proves that the pattern fits every surface.
 
 ## Feedback
 
-Confirm the changed state close to the action. Keep selection, hover, and keyboard focus distinct. The visual response may settle, but the setting itself changes immediately.
+**Use when:** a persistent selection indicator helps connect the previous choice to the new one. The segmented control shows **Responsive** acknowledgment and **Natural** continuity: selection changes immediately while only the indicator travels.
+
+**Keep still:** labels, hit targets, and keyboard focus. A repeated action or already obvious state change may need no animation. Do not copy the indicator's movement onto every button, hover, or focus ring.
+
+**Evaluate:** change selection again before it settles. The newest choice must win without a jump back or queued playback. With reduced motion, the selected state must be equally clear.
+
+## Selection caption
+
+The selection indicator connects the old and new choices; labels and hit targets remain stable.
 
 ## Appear and dismiss
 
-Introduce a surface from a meaningful origin and let it settle into place. On dismissal, release interaction immediately and use a shorter, quieter departure. Reopening should interrupt the exit, not queue behind it.
+**Use when:** a deliberately opened popup needs to establish its relationship to a trigger. The menu shows **Purposeful** orientation through one bounded arrival, then stays settled during interaction.
 
-The menu below demonstrates both phases. Keep that relationship intact when combining opacity and scale; do not animate an already open surface again when its contents update.
+**Keep immediate:** keyboard focus, available actions, Escape, and dismissal. Use a quieter, shorter departure; the person already knows what is closing. Typing, filtering, and updates to an open popup must not replay its entrance.
 
-## Transitions
-
-Combine timing and properties to explain how a surface arrives, related content expands, or a result replaces what was there. Keep each transition tied to its origin and destination rather than applying a generic entrance to every update.
-
-## Layout transitions
-
-Use expansion when related detail needs to stay connected to its heading. Let surrounding content reflow while preserving the reading anchor, as in the disclosure below. Choose layout change rather than scaling text or floating detail over content that needs to move.
-
-## Content transitions
-
-Make waiting and arrival legible without interrupting the task. Acknowledge the request immediately and retain useful content while work continues; show activity only if the wait persists. When results are rendered, use a short opacity reveal in place for the first content or newly added results after an explicit refresh. Keep retained content fully visible, with its focus and reading position unchanged. This supports **Responsive** feedback and **Natural** continuity without animating the entire reading surface.
-
-Ready content is available immediately, even while its reveal settles. Never fade existing content to an empty frame, stagger a list's results, or replay entrances for streaming, filtering, and background updates. An unchanged result needs no animation. On failure, retain content and expose recovery rather than playing a success transition.
-
-## Reduced motion
-
-Keep the same content, state, and available actions with less movement. Remove nonessential travel, zoom, and repetition. Apply preference changes while motion is running, not only the next time a component opens.
-
-## Visibility change
-
-Reveal supplementary information on hover or keyboard focus without moving the primary task. Keep the target discoverable and ensure the information is available without precise pointer movement.
-
-## Toggle caption
-
-The state changes immediately; subtle thumb and color feedback make the acknowledgment easier to follow.
+**Evaluate:** open, close, and reopen before the exit finishes. The reopened menu must remain visible and correctly anchored. Reduced motion removes the entrance without changing focus or dismissal.
 
 ## Menu caption
 
-An anchored surface establishes its relationship to the trigger and stays settled during interaction.
+The menu establishes its anchor once, then rests while its actions are used.
+
+## Layout transitions
+
+**Use when:** related detail expands from a visible heading and the spatial connection would otherwise be hard to follow. The disclosure shows **Natural** continuity while preserving a reading anchor.
+
+**Keep still:** text size and the heading's position. Use no transition for sash dragging, window resizing, startup restoration, or rapid tree navigation. A disclosure pattern is not permission to animate workbench layout.
+
+**Evaluate:** reverse expansion halfway through, and use the header by keyboard. Collapsed content must leave the focus order immediately. If reflow causes poor frame pacing or loses the reading anchor, prefer the immediate disclosure.
 
 ## Disclosure caption
 
-Related detail expands from its heading while the reading anchor stays stable.
+Supporting detail expands from its heading without scaling the text.
+
+## Content transitions
+
+**Use when:** usable content first arrives, or an explicit refresh adds new results. The sessions example shows **Responsive** feedback without clearing readable content, and **Purposeful** arrival only for new results.
+
+**Keep still:** retained rows, the outer frame, navigation, focus, and scroll position. Show local pending status immediately; ready content never waits for a spinner or animation. Reveal new results together in place, not one row at a time.
+
+**Evaluate:** compare Fast, Slow, and Failure. Fast work must not flash a loading cue. Slow work must retain usable rows. Failure must keep the previous content and expose recovery. An unchanged refresh, background update, filtering, or streaming needs no result entrance.
 
 ## Waiting caption
 
-Retained rows stay readable and usable while the request runs. Newly added results reveal in place; the frame and navigation stay still. Fast responses skip the activity indicator, and failure keeps the previous content.
-
-## Notification caption
-
-A single arrival draws attention; the notice rests afterward.
-
-## Notification guidance
-
-Use one bounded arrival to make new information noticeable without taking focus. Keep the notice still while it is read; repeated emphasis would compete with the task. Routine notifications keep their normal auto-hide behavior, paused during interaction. Reading time is not part of the entrance duration.
-
-## Attention
-
-Draw attention once when relevant information arrives, then let its content carry the message. Use the [hover reveal](#motion-example-fade) for contextual information and a notification for a new event. Neither should repeatedly animate to remain noticeable.
+Retained rows remain usable during refresh. New results reveal in place; failure preserves the previous content.
 
 ## Progress
 
-Choose by what the operation knows. Use a compact activity cue for local work with an unknown total, a track for region-level work, and measured progress only when a meaningful total is available. These are ongoing signals, not longer entrance animations. Stop them when work finishes, fails, or needs input.
+Choose the information, not an animation style. Unknown work needs an honest activity status; measured progress needs a meaningful total. In both cases, keep cancellation, recovery, and a stable text description available.
 
-## Activity caption
-
-A small activity cue answers whether work is ongoing; stable text carries the status.
-
-## Generic loading
-
-Use a spinner for generic loading, waiting, and refreshing when the amount of work is unknown. Keep it close to the resource or status it describes.
+Use a conventional spinner for generic inline waiting and a track for region-level waiting. Agent work uses the established matrix, not a second spinner for the same operation. The two examples below teach different contracts: ongoing activity and reported amount.
 
 ## Agent status
 
-Use the dot matrix for an agent that is working, such as reasoning or running tools. Keep a text status alongside it; this is not a measurement of completion.
+**Use when:** an agent is actively working, such as reasoning or running tools. The matrix accompanies a stable status label; it does not estimate completion.
+
+**Stop when:** work completes, fails, pauses, is cancelled, or needs input. Input-needed uses a static question-mark icon and an actionable label. Hidden or disposed components must not keep decorative drawing alive.
+
+**Evaluate:** also inspect concurrent sessions and split chats. One locally restrained indicator can still contribute to a noisy window; let one cue lead for each operation.
 
 ## Patterned caption
 
-The matrix indicates active agent work. Input-needed states use a static question-mark icon and clear label.
-
-## Known progress caption
-
-The fill interpolates between reported values; the completed state remains visible.
+The matrix identifies active agent work, not the amount of work remaining.
 
 ## Measured progress
 
-Use measured progress when the operation supplies a meaningful total. Smooth the displayed fill between reports, but do not predict a completion time or animate toward work that has not been reported.
+**Use when:** the producer reports a meaningful amount and total. Update the accessible value immediately and interpolate the visible fill only toward the latest report.
 
-## Region loading
+**Do not:** animate toward an invented future amount, predict a finish time, or borrow a spring from a surface entrance. Sparse updates are an information gap, not a motion style.
 
-Use a track for waiting that belongs to a whole region; use a compact spinner for inline waiting. A moving segment communicates activity, not a percentage complete.
+**Evaluate:** complete, cancel, and replace the operation while the fill is moving. An old completion must not hide a new operation. Reduced motion retains the amount and outcome without interpolation.
 
-## Unknown progress caption
+## Known progress caption
 
-A constant-size segment passes through the track while the amount of remaining work is unknown.
+The fill follows reported values at a constant rate; it never invents progress.
 
-## Completion caption
+## Attention
 
-The target stays still through pending, success, and failure.
+Make relevant information noticeable once, then let its content carry the meaning. Contextual information should remain near its target; new events may use a notification. Errors and input-needed states require clear content and actions, not repeated shaking, flashing, or zooming.
 
-## Completion guidance
+## Notification guidance
 
-Reserve celebration for a meaningful, confirmed milestone. Acknowledge pending work immediately, but do not celebrate until the action succeeds. On failure, keep an actionable state instead. Reduced motion preserves the outcome without particles.
+**Use when:** a new non-blocking event needs awareness without taking focus. A bounded arrival supports **Purposeful** attention; a quiet resting state protects the primary task.
+
+**Keep separate:** arrival duration, reading time, and persistence. Routine notices retain their normal auto-hide behavior, paused during interaction. Persistent work or required attention needs the appropriate notification lifecycle, not a longer animation.
+
+**Evaluate:** continue typing as the notice arrives, then interact with its actions. It must not steal focus or repeatedly demand attention. Reduced motion keeps the same information, actions, and notification history.
+
+## Notification caption
+
+One arrival draws attention. The notice then rests while its information and actions remain available.
 
 ## Expression
 
-Use expression for an occasional welcome, a primary creative working moment, or a meaningful milestone. Choose one focal point and reuse the complete choreography. These scoped product examples are not timing defaults for routine controls; omit the effect when it would compete with the task.
+Expression is a deliberately different style for an occasional meaningful moment, not a slower version of ordinary feedback. Reuse a complete, established composition with one focal point. Character and illustration choices belong with Illustration; they are not extra loading or easing variants.
 
-## Working illustration caption
+The completion example tests the important boundary: a pending request is not success. Do not add a celebration to routine saves, every generated message, or each progress update.
 
-The illustration moves while its status message stays steady.
+## Completion guidance
 
-## Working illustration guidance
+**Use when:** a meaningful milestone is confirmed. Show pending feedback immediately, but celebrate only after success; preserve an actionable failure state.
 
-Use the established working illustration when one expressive cue can carry the primary agent-working state. Reuse its complete choreography; do not add a competing spinner for the same work or borrow its timing for ordinary controls.
+**Keep still:** the action target and completed result. Reduced motion omits particles and retains the outcome. Leaving the view or changing the preference stops the effect; returning must not replay a past milestone.
 
-## Image creation caption
+**Evaluate:** compare Success and Failure. If the effect does not add useful acknowledgment beyond the still result, omit it.
 
-The effect stays inside the future result area.
+## Completion caption
 
-## Image creation guidance
+Pending, success, and failure remain distinct. Celebration follows confirmed success only.
 
-For a visual creation task, an expressive preview can establish where the result will appear. Keep it contained in that destination and replace it when the result is ready. Its cadence indicates ongoing work, never how much work remains.
+## Foundations
 
-## Character caption
+Timing and properties support the pattern; they do not choose it. Reuse an existing component's complete behavior first. Use these studies to diagnose pacing or design a genuinely missing behavior, not to retime every widget.
 
-The character's movement is contained within its own space.
+## Duration
 
-## Character guidance
+Duration is how long the visual change takes, not how long someone waits for a response. Focus, typing, direct manipulation, and the next action stay immediate. Use the shortest duration that makes the change legible at its actual frequency and travel.
 
-Use character animation only in its established welcome or companion experience. Keep movement occasional and subordinate to the task, with a still alternative. Do not turn character choreography into a generic hover or loading treatment.
+## Interaction timing
+
+These three samples compare brief, moderate, and longer timing with identical geometry and linear pacing. Only duration changes. They are a timing study, not three prescribed product styles or proof that linear pacing fits a control.
+
+## Brief duration
+
+Brief timing suits frequently repeated tactile acknowledgment. Segmented selection's press response uses this base duration. A quick response should feel connected to input, not turn every click into a miniature event.
+
+## Moderate duration
+
+Moderate timing can make a bounded change readable between updates. Measured progress uses this base duration for interpolation between real reports; its semantic value changes immediately.
+
+## Longer duration
+
+More time is justified only when a shorter response is too abrupt to understand in context. More distance or visual weight may warrant it, but a larger element does not automatically deserve slower motion. Compare with the immediate alternative and reject a lingering response that adds no clarity.
+
+## Use duration in context
+
+The small base scale is available in [Design tokens](?section=tokens#tokens-motion). For product work, prefer the existing component's compact semantic pair over selecting a number from this study. Its established timing may sit between base steps; do not snap it to the scale. Activity cycles and expressive choreography remain separate.
+
+Sampled response experiments are authoring candidates, not shared defaults. Compare their visible settling with the established component before considering reuse. Loading delays, activity cycles, reading time, and expressive choreography are separate decisions.
+
+## Easing
+
+Choose the duration and speed profile together. State feedback retains the switch's compact `ease` pair; selection, popup presence, and disclosure retain their established Bézier pairs. Linear pacing suits opacity reveals and measured progress. A shared role does not require every component to use a spring or the same curve.
+
+## Curve illustration
+
+The horizontal axis is elapsed time; the vertical axis is progress toward a destination. The response study explains prompt change followed by settling. The linear study explains constant-rate interpolation. Inspect product behavior at normal speed before deciding either fits.
+
+## Local response
+
+Use the established state-feedback pair to acknowledge input promptly without moving its target. Popup presence uses a different, anchored arrival pair and a shorter departure. Preserve the relevant component's duration and curve together instead of substituting a generated response solely because it is smooth.
+
+## Continuous use
+
+Use linear pacing between reported progress values or for an established constant-rate activity. It communicates neither acceleration toward a finish nor a promise about completion time. It is not a default for menus, presses, or direct manipulation.
+
+## Property choices
+
+Choose the least change that explains the relationship. Multiple properties are justified only when each contributes, not because a preset or animation API makes them available.
+
+| Property | Useful contribution | Boundary |
+| --- | --- | --- |
+| Opacity | Reveal supporting or newly ready content in place | Do not blank readable content, delay access, or use opacity alone to hide focusable controls |
+| Position | Connect an indicator to its previous and next location | Keep labels and hit targets steady; derive travel from the component, not a global distance |
+| Scale | Establish depth at a fixed origin or provide a contained press response | Do not zoom the reading surface, stretch text, or move the hit target |
+| Color | Reinforce an existing state while contents stay steady | Keep a non-color distinction; use theme tokens and preserve contrast |
+| Layout | Make the relationship to expanding detail understandable | Preserve the reading anchor and measure reflow cost; direct resizing stays immediate |
+
+Judge properties together in the product pattern: a smooth isolated effect can still obscure content or move the wrong target.
+
+## Implementation choices
+
+Use one entry point for the decision you are making. A product pattern is guidance; a preset is reusable behavior; a response supplies paired timing; a token is a parameter. They are not four interchangeable catalogs.
+
+## Evaluation
+
+Start with the complete task, including its still alternative. Keep a change only when it improves recognition, orientation, or confidence without delaying action, obscuring content, adding competing signals, or doing unnecessary work.
+
+## Review questions
+
+| Symptom | Diagnose before tuning | Preferred correction |
+| --- | --- | --- |
+| The UI feels busy | Repetition, concurrent indicators, or several effects for one event | Remove redundant motion; let one cue and stable text carry the state |
+| The UI feels slow | Input gating, queued feedback, a long visible tail, or delayed ready content | Commit state now; replace old motion; shorten or remove the effect |
+| Content jumps or disappears | Lost anchors, whole-region fades, stale exit completions | Retain readable content and stable geometry; cancel stale work |
+| Similar controls feel unrelated | Different presets or component overrides for the same purpose | Reuse the owning component and shared behavior rather than adding an alias |
+| Reduced motion is ambiguous | A frozen spinner, missing status, or hidden recovery | Provide distinct static states and the same actions |
+| One example is smooth but the workbench is not | Concurrent rendering, layout cost, or hidden activity | Measure in the intended host and stop unnecessary work |
+
+## Review steps
+
+1. **Name the benefit and the alternative.** Explain what would be harder to understand without motion. If nothing would, choose stillness.
+2. **Choose the closest product pattern.** Identify its constraints and the next user action. Reuse the existing component before composing a new effect.
+3. **Protect state and geometry.** Keep focus, input, labels, hit targets, and reading anchors correct during repeated input and reversal.
+4. **Bind one timing decision.** Use the semantic preset or deliberate existing component cadence. Do not create a new token to fix a local anchor or lifecycle bug.
+5. **Validate the whole state sequence.** Check pending, working, paused, cancelled, input-needed, failure, and success where applicable. Include fast, slow, overlapping, and failed requests.
+6. **Keep only an earned improvement.** Compare normal and reduced motion, keyboard access, screen-reader status, theme contrast, narrow or enlarged layouts, concurrent work, and rendering after hiding or disposal.

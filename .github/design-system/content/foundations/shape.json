@@ -4,7 +4,7 @@
 	"status": "book-authored",
 	"intro": {
 		"$text": {
-			"file": "src/vs/platform/theme/common/sizes/shape.md",
+			"file": "src/vs/platform/theme/common/sizes/shape.design.md",
 			"heading": "Introduction"
 		}
 	},
@@ -13,7 +13,7 @@
 			"title": "Round by surface role",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/shape.md",
+					"file": "src/vs/platform/theme/common/sizes/shape.design.md",
 					"heading": "Round by surface role",
 					"paragraph": 0
 				}
@@ -24,7 +24,7 @@
 			"title": "Corner scale",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/shape.md",
+					"file": "src/vs/platform/theme/common/sizes/shape.design.md",
 					"heading": "Corner scale",
 					"paragraph": 0
 				}

@@ -4,7 +4,7 @@
 	"status": "book-authored",
 	"intro": {
 		"$text": {
-			"file": "src/vs/base/common/iconography.md",
+			"file": "src/vs/base/common/iconography.design.md",
 			"heading": "Introduction"
 		}
 	},

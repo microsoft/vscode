@@ -151,7 +151,7 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS} > .monaco-scrollable-element {
-		animation: context-view-menu-motion-open var(--vscode-motion-surface-enter-duration, ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms) var(--vscode-motion-surface-easing, ${CONTEXT_VIEW_MENU_MOTION_EASING}) backwards;
+		animation: context-view-menu-motion-open var(--vscode-motion-surface-enter-duration, ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms) var(--vscode-motion-surface-enter-easing, ${CONTEXT_VIEW_MENU_MOTION_EASING}) backwards;
 		box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
 		transform-origin: top left;
 		will-change: opacity;

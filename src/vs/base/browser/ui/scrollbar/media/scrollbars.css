@@ -15,7 +15,7 @@
 	/* Background rule added for IE9 - to allow clicks on dom node */
 	background:rgba(0,0,0,0);
 
-	transition: opacity var(--vscode-motion-duration-faster, 100ms) var(--vscode-motion-easing-linear, linear);
+	transition: opacity var(--vscode-motion-duration-short, 100ms) var(--vscode-motion-easing-linear, linear);
 	/* In front of peek view */
 	z-index: 11;
 }
@@ -24,7 +24,7 @@
 	pointer-events: none;
 }
 .monaco-scrollable-element > .invisible.fade {
-	transition: opacity var(--vscode-motion-scrollbar-exit-duration, 800ms) var(--vscode-motion-fade-easing, linear);
+	transition: opacity 800ms linear;
 }
 
 .disable-animations .monaco-scrollable-element > .visible,

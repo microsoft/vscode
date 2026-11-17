@@ -6,10 +6,8 @@
 import { localize } from '../../../nls.js';
 import { hasKey } from '../../../base/common/types.js';
 import { asCssVariableName } from './sizeUtils.js';
-import { MotionResponsePresetId, motionResponsePresets } from './motion/motionResponses.js';
 
 type MotionReference = { readonly ref: string };
-type MotionResponseReference = { readonly response: MotionResponsePresetId };
 type EasingValue = 'linear' | 'ease' | 'ease-in' | 'ease-out' | readonly [number, number, number, number] | { readonly steps: number; readonly position?: 'jump-none' };
 type DistanceValue = { readonly value: number; readonly unit: 'px' | '%' };
 
@@ -17,8 +15,8 @@ export type MotionToken = {
 	readonly id: string;
 	readonly description: string;
 } & (
-	| { readonly kind: 'duration'; readonly value: number | MotionReference | MotionResponseReference }
-	| { readonly kind: 'easing'; readonly value: EasingValue | MotionReference | MotionResponseReference }
+	| { readonly kind: 'duration'; readonly value: number | MotionReference }
+	| { readonly kind: 'easing'; readonly value: EasingValue | MotionReference }
 	| { readonly kind: 'delay' | 'scale' | 'opacity' | 'angle' | 'iterations'; readonly value: number | MotionReference }
 	| { readonly kind: 'distance' | 'offset'; readonly value: DistanceValue | MotionReference }
 );
@@ -27,10 +25,6 @@ type MotionValue = number | string | EasingValue | DistanceValue;
 
 function isReference(value: MotionToken['value']): value is MotionReference {
 	return typeof value === 'object' && 'ref' in value;
-}
-
-function isResponseReference(value: MotionToken['value']): value is MotionResponseReference {
-	return typeof value === 'object' && 'response' in value;
 }
 
 /** A built-in motion catalog that preserves semantic aliases in CSS output. */
@@ -74,14 +68,6 @@ export class MotionTokenRegistry {
 			}
 			token = target;
 		}
-		const responseReference = token.value;
-		if (isResponseReference(responseReference)) {
-			const response = motionResponsePresets.find(response => response.id === responseReference.response);
-			if (!response || token.kind !== 'duration' && token.kind !== 'easing') {
-				throw new Error(`Unknown motion response for token: ${token.id}`);
-			}
-			return token.kind === 'duration' ? response.durationMs : response.easing;
-		}
 		if (token.kind === 'distance' || token.kind === 'offset') {
 			const value = token.value;
 			if (isReference(value) || !Number.isFinite(value.value) || value.unit !== 'px' && value.unit !== '%' || token.kind === 'distance' && value.value < 0) {
@@ -91,7 +77,7 @@ export class MotionTokenRegistry {
 		}
 		if (token.kind === 'easing') {
 			const value = token.value;
-			if (isReference(value) || isResponseReference(value) || typeof value !== 'string' && (hasKey(value, { steps: true })
+			if (isReference(value) || typeof value !== 'string' && (hasKey(value, { steps: true })
 				? !Number.isInteger(value.steps) || value.position !== undefined && value.position !== 'jump-none' || value.steps < (value.position === 'jump-none' ? 2 : 1)
 				: !value.every(Number.isFinite) || value[0] < 0 || value[0] > 1 || value[2] < 0 || value[2] > 1)) {
 				throw new Error(`Invalid motion easing: ${token.id}`);
@@ -151,70 +137,44 @@ export class MotionTokenRegistry {
 }
 
 export const motionTokenRegistry = new MotionTokenRegistry([
-	{ id: 'motion.response.responsive.duration', kind: 'duration', value: { response: 'responsive' }, description: localize('motion.response.responsive.duration', "Generated responsive timing; use with its paired easing.") },
-	{ id: 'motion.response.responsive.easing', kind: 'easing', value: { response: 'responsive' }, description: localize('motion.response.responsive.easing', "Generated responsive curve; use with its paired duration.") },
-	{ id: 'motion.response.settled.duration', kind: 'duration', value: { response: 'settled' }, description: localize('motion.response.settled.duration', "Generated settled timing; use with its paired easing.") },
-	{ id: 'motion.response.settled.easing', kind: 'easing', value: { response: 'settled' }, description: localize('motion.response.settled.easing', "Generated settled curve; use with its paired duration.") },
 	{ id: 'motion.duration.none', kind: 'duration', value: 0, description: localize('motion.duration.none', "Immediate state change without animation.") },
-	{ id: 'motion.duration.faster', kind: 'duration', value: 100, description: localize('motion.duration.faster', "Brief tactile acknowledgment for small, frequently used controls, such as press feedback.") },
-	{ id: 'motion.duration.fast', kind: 'duration', value: 150, description: localize('motion.duration.fast', "Short local visibility or state changes that need a little more time to read than a press.") },
-	{ id: 'motion.duration.normal', kind: 'duration', value: 200, description: localize('motion.duration.normal', "Moderate changes within a stable region, including interpolation between reported progress values.") },
-	{ id: 'motion.duration.gentle', kind: 'duration', value: 250, description: localize('motion.duration.gentle', "More visual weight or travel within a bounded region, when extra time preserves orientation.") },
-	{ id: 'motion.duration.slow', kind: 'duration', value: 300, description: localize('motion.duration.slow', "Substantial spatial changes that need both endpoints to remain understandable; not routine control feedback.") },
-	{ id: 'motion.duration.ultraSlow', kind: 'duration', value: 1000, description: localize('motion.duration.ultraSlow', "Reserved for deliberately paced expressive choreography, not interaction or surface-transition defaults.") },
+	{ id: 'motion.duration.short', kind: 'duration', value: 100, description: localize('motion.duration.short', "Brief tactile acknowledgment for small, frequently used controls, such as press feedback.") },
+	{ id: 'motion.duration.medium', kind: 'duration', value: 200, description: localize('motion.duration.medium', "Moderate changes within a stable region, including interpolation between reported progress values.") },
+	{ id: 'motion.duration.long', kind: 'duration', value: 300, description: localize('motion.duration.long', "Substantial spatial changes that need both endpoints to remain understandable; not routine control feedback.") },
 	{ id: 'motion.easing.linear', kind: 'easing', value: 'linear', description: localize('motion.easing.linear', "Constant rate from start to finish.") },
-	{ id: 'motion.easing.easeInOut', kind: 'easing', value: [0.33, 0, 0.67, 1], description: localize('motion.easing.easeInOut', "Balanced acceleration and deceleration.") },
-	{ id: 'motion.control.duration', kind: 'duration', value: { ref: 'motion.response.responsive.duration' }, description: localize('motion.control.duration', "State-feedback settling duration; the setting changes immediately.") },
-	{ id: 'motion.control.easing', kind: 'easing', value: { ref: 'motion.response.responsive.easing' }, description: localize('motion.control.easing', "State-feedback response curve.") },
-	{ id: 'motion.selection.duration', kind: 'duration', value: { ref: 'motion.response.responsive.duration' }, description: localize('motion.selection.duration', "Selection-indicator settling duration; selection changes immediately.") },
-	{ id: 'motion.selection.easing', kind: 'easing', value: { ref: 'motion.response.responsive.easing' }, description: localize('motion.selection.easing', "Selection-indicator response curve.") },
-	{ id: 'motion.press.duration', kind: 'duration', value: { ref: 'motion.duration.faster' }, description: localize('motion.press.duration', "Duration of segmented selection press feedback.") },
-	{ id: 'motion.press.easing', kind: 'easing', value: [0, 0, 0.58, 1], description: localize('motion.press.easing', "Existing segmented selection press curve.") },
-	{ id: 'motion.press.scale', kind: 'scale', value: 0.96, description: localize('motion.press.scale', "Local press scale without changing the hit target.") },
-	{ id: 'motion.border.duration', kind: 'duration', value: { ref: 'motion.control.duration' }, description: localize('motion.border.duration', "State feedback for table resize boundaries; resizing remains immediate.") },
-	{ id: 'motion.border.easing', kind: 'easing', value: { ref: 'motion.control.easing' }, description: localize('motion.border.easing', "State-feedback response for a resize boundary.") },
-	{ id: 'motion.surface.enter.duration', kind: 'duration', value: { ref: 'motion.response.settled.duration' }, description: localize('motion.surface.enter.duration', "Anchored surface entrance duration.") },
-	{ id: 'motion.surface.exit.duration', kind: 'duration', value: { ref: 'motion.response.responsive.duration' }, description: localize('motion.surface.exit.duration', "Anchored surface dismissal duration; shorter than entrance.") },
-	{ id: 'motion.surface.easing', kind: 'easing', value: { ref: 'motion.response.settled.easing' }, description: localize('motion.surface.easing.alias', "Anchored surface entrance response curve.") },
-	{ id: 'motion.surface.exit.easing', kind: 'easing', value: { ref: 'motion.response.responsive.easing' }, description: localize('motion.surface.exit.easing', "Anchored surface dismissal response curve.") },
+	{ id: 'motion.easing.decelerate', kind: 'easing', value: [0, 0, 0.58, 1], description: localize('motion.easing.decelerate', "Prompt local feedback that slows toward its destination.") },
+	{ id: 'motion.hover.change.duration', kind: 'duration', value: { ref: 'motion.duration.short' }, description: localize('motion.hover.change.duration', "Brief pointer feedback on resize handles; direct resizing remains immediate.") },
+	{ id: 'motion.hover.change.easing', kind: 'easing', value: { ref: 'motion.easing.decelerate' }, description: localize('motion.hover.change.easing', "Decelerating pointer feedback without moving the target.") },
+	{ id: 'motion.state.change.duration', kind: 'duration', value: 120, description: localize('motion.state.change.duration', "Existing switch feedback duration; the setting changes immediately.") },
+	{ id: 'motion.state.change.easing', kind: 'easing', value: 'ease', description: localize('motion.state.change.easing', "Existing switch feedback curve; use with its duration.") },
+	{ id: 'motion.selection.change.duration', kind: 'duration', value: 160, description: localize('motion.selection.change.duration', "Existing segmented-selection travel duration; selection changes immediately.") },
+	{ id: 'motion.selection.change.easing', kind: 'easing', value: [0.2, 0.8, 0.2, 1], description: localize('motion.selection.change.easing', "Existing segmented-selection curve; use with its duration.") },
+	{ id: 'motion.press.change.duration', kind: 'duration', value: { ref: 'motion.duration.short' }, description: localize('motion.press.change.duration', "Duration of segmented selection press feedback.") },
+	{ id: 'motion.press.change.easing', kind: 'easing', value: { ref: 'motion.easing.decelerate' }, description: localize('motion.press.change.easing', "Brief tactile press response; use with its duration.") },
+	{ id: 'motion.press.change.scale', kind: 'scale', value: 0.96, description: localize('motion.press.change.scale', "Local press scale without changing the hit target.") },
+	{ id: 'motion.surface.enter.duration', kind: 'duration', value: 250, description: localize('motion.surface.enter.duration', "Existing Quick Pick and action-popup entrance duration.") },
+	{ id: 'motion.surface.exit.duration', kind: 'duration', value: 150, description: localize('motion.surface.exit.duration', "Existing popup dismissal duration; shorter than entrance.") },
+	{ id: 'motion.surface.enter.easing', kind: 'easing', value: [0.22, 1, 0.36, 1], description: localize('motion.surface.enter.easing', "Existing popup entrance curve; use with its duration.") },
+	{ id: 'motion.surface.exit.easing', kind: 'easing', value: { ref: 'motion.surface.enter.easing' }, description: localize('motion.surface.exit.easing', "Existing popup dismissal curve; use with its duration.") },
 	{ id: 'motion.surface.enter.scale', kind: 'scale', value: 0.97, description: localize('motion.surface.enter.scale', "Anchored surface entrance scale.") },
 	{ id: 'motion.surface.exit.scale', kind: 'scale', value: 0.99, description: localize('motion.surface.exit.scale', "Anchored surface dismissal scale.") },
-	{ id: 'motion.fade.enter.duration', kind: 'duration', value: { ref: 'motion.response.settled.duration' }, description: localize('motion.fade.enter.duration', "Contextual visibility entrance duration.") },
-	{ id: 'motion.fade.exit.duration', kind: 'duration', value: { ref: 'motion.response.responsive.duration' }, description: localize('motion.fade.exit.duration', "Contextual visibility departure duration.") },
-	{ id: 'motion.fade.easing', kind: 'easing', value: { ref: 'motion.response.settled.easing' }, description: localize('motion.fade.easing', "Contextual visibility response curve.") },
-	{ id: 'motion.content.duration', kind: 'duration', value: { ref: 'motion.response.responsive.duration' }, description: localize('motion.content.duration', "Ready-content reveal within a stable surface; never a delay before committing state.") },
-	{ id: 'motion.content.easing', kind: 'easing', value: { ref: 'motion.response.responsive.easing' }, description: localize('motion.content.easing', "Ready-content response curve, paired with its duration.") },
-	{ id: 'motion.toast.duration', kind: 'duration', value: { ref: 'motion.response.settled.duration' }, description: localize('motion.toast.duration', "Edge-anchored notification arrival duration.") },
-	{ id: 'motion.toast.easing', kind: 'easing', value: { ref: 'motion.response.settled.easing' }, description: localize('motion.toast.easing', "Edge-anchored notification response curve.") },
-	{ id: 'motion.scrollbar.exit.duration', kind: 'duration', value: { ref: 'motion.fade.exit.duration' }, description: localize('motion.scrollbar.exit.duration', "Contextual scrollbar departure; inactivity delay remains component-owned.") },
-	{ id: 'motion.progress.duration', kind: 'duration', value: 4000, description: localize('motion.progress.duration', "Indeterminate progress cycle duration.") },
-	{ id: 'motion.progress.easing', kind: 'easing', value: { ref: 'motion.easing.linear' }, description: localize('motion.progress.easing', "Indeterminate progress easing.") },
+	{ id: 'motion.visibility.enter.duration', kind: 'duration', value: { ref: 'motion.duration.short' }, description: localize('motion.visibility.enter.duration', "Existing hover reveal duration; intent delay remains separate.") },
+	{ id: 'motion.visibility.exit.duration', kind: 'duration', value: { ref: 'motion.duration.none' }, description: localize('motion.visibility.exit.duration', "Withdraw contextual information immediately; scrollbars retain their own departure cadence.") },
+	{ id: 'motion.visibility.enter.easing', kind: 'easing', value: { ref: 'motion.easing.linear' }, description: localize('motion.visibility.enter.easing', "Existing hover opacity pacing.") },
+	{ id: 'motion.visibility.exit.easing', kind: 'easing', value: { ref: 'motion.easing.linear' }, description: localize('motion.visibility.exit.easing', "Immediate contextual withdrawal without a decorative exit.") },
+	{ id: 'motion.content.enter.duration', kind: 'duration', value: { ref: 'motion.duration.short' }, description: localize('motion.content.enter.duration', "Brief ready-content reveal within a stable surface; never a delay before committing state.") },
+	{ id: 'motion.content.enter.easing', kind: 'easing', value: { ref: 'motion.easing.linear' }, description: localize('motion.content.enter.easing', "Simple opacity reveal; keep existing readable content still.") },
+	{ id: 'motion.notification.enter.duration', kind: 'duration', value: { ref: 'motion.duration.long' }, description: localize('motion.notification.enter.duration', "Existing notification arrival duration.") },
+	{ id: 'motion.notification.enter.easing', kind: 'easing', value: { ref: 'motion.easing.decelerate' }, description: localize('motion.notification.enter.easing', "Existing decelerating notification arrival curve.") },
+	{ id: 'motion.progress.cycle.duration', kind: 'duration', value: 4000, description: localize('motion.progress.cycle.duration', "Indeterminate progress cycle duration.") },
+	{ id: 'motion.progress.cycle.easing', kind: 'easing', value: { ref: 'motion.easing.linear' }, description: localize('motion.progress.cycle.easing', "Indeterminate progress easing.") },
 	{ id: 'motion.progress.longRunning.easing', kind: 'easing', value: { steps: 100 }, description: localize('motion.progress.longRunning.easing', "Lower-update-rate easing for long-running indeterminate progress.") },
-	{ id: 'motion.spinner.duration', kind: 'duration', value: 1500, description: localize('motion.spinner.duration', "Compact activity icon rotation cycle duration.") },
-	{ id: 'motion.spinner.easing', kind: 'easing', value: { steps: 30 }, description: localize('motion.spinner.easing', "Quantized compact activity rotation pacing.") },
-	{ id: 'motion.progress.determinate.duration', kind: 'duration', value: { ref: 'motion.duration.normal' }, description: localize('motion.progress.determinate.duration', "Known progress width interpolation duration; the value updates immediately.") },
-	{ id: 'motion.disclosure.duration', kind: 'duration', value: { ref: 'motion.response.settled.duration' }, description: localize('motion.disclosure.duration', "Expand or collapse content already associated with a disclosure header.") },
-	{ id: 'motion.disclosure.opacity.duration', kind: 'duration', value: { ref: 'motion.response.responsive.duration' }, description: localize('motion.disclosure.opacity.duration', "Content opacity settles before disclosure geometry finishes.") },
-	{ id: 'motion.disclosure.easing', kind: 'easing', value: { ref: 'motion.response.settled.easing' }, description: localize('motion.disclosure.easing', "Disclosure geometry response curve.") },
-	{ id: 'motion.disclosure.opacity.easing', kind: 'easing', value: { ref: 'motion.response.responsive.easing' }, description: localize('motion.disclosure.opacity.easing', "Disclosure content response curve.") },
-	{ id: 'motion.attention.duration', kind: 'duration', value: { ref: 'motion.duration.faster' }, description: localize('motion.attention.duration', "One interval of the existing find-option signal; not a general attention pattern.") },
-	{ id: 'motion.attention.easing', kind: 'easing', value: { ref: 'motion.easing.linear' }, description: localize('motion.attention.easing', "Existing find-option signal pacing; use stable states for errors and input needed.") },
-	{ id: 'motion.matrix.duration', kind: 'duration', value: 1820, description: localize('motion.matrix.duration', "Working dot-matrix cycle, not a measured completion estimate.") },
-	{ id: 'motion.matrix.easing', kind: 'easing', value: { steps: 6, position: 'jump-none' }, description: localize('motion.matrix.easing', "Stepped opacity changes for working dots.") },
-	{ id: 'motion.matrix.stagger', kind: 'delay', value: 130, description: localize('motion.matrix.stagger', "Phase interval between working dots.") },
-	{ id: 'motion.matrix.ring.duration', kind: 'duration', value: 1200, description: localize('motion.matrix.ring.duration', "Ring activity pulse cycle.") },
-	{ id: 'motion.logo.duration', kind: 'duration', value: 2667, description: localize('motion.logo.duration', "Working-logo drawing cycle; illustration phase boundaries stay owned by the component.") },
-	{ id: 'motion.voice.duration', kind: 'duration', value: 2300, description: localize('motion.voice.duration', "Base cycle for the listening rim; the component coordinates its layered oscillators.") },
-	{ id: 'motion.voice.fade.duration', kind: 'duration', value: 600, description: localize('motion.voice.fade.duration', "Fade between connected voice states without moving the input surface.") },
-	{ id: 'motion.confetti.launch.min', kind: 'duration', value: 210, description: localize('motion.confetti.launch.min', "Shortest completion-particle launch.") },
-	{ id: 'motion.confetti.launch.max', kind: 'duration', value: 290, description: localize('motion.confetti.launch.max', "Longest completion-particle launch.") },
-	{ id: 'motion.confetti.fall.min', kind: 'duration', value: 940, description: localize('motion.confetti.fall.min', "Shortest completion-particle fall.") },
-	{ id: 'motion.confetti.fall.max', kind: 'duration', value: 1220, description: localize('motion.confetti.fall.max', "Longest completion-particle fall.") },
-	{ id: 'motion.confetti.frame.duration', kind: 'duration', value: 40, description: localize('motion.confetti.frame.duration', "Quantized completion-particle sampling interval.") },
-	{ id: 'motion.confetti.pixel.size', kind: 'distance', value: { value: 4, unit: 'px' }, description: localize('motion.confetti.pixel.size', "Completion-particle size.") },
-	{ id: 'motion.confetti.distance.min', kind: 'distance', value: { value: 48, unit: 'px' }, description: localize('motion.confetti.distance.min', "Shortest completion-particle fall distance.") },
-	{ id: 'motion.confetti.distance.max', kind: 'distance', value: { value: 72, unit: 'px' }, description: localize('motion.confetti.distance.max', "Longest completion-particle fall distance.") },
-	{ id: 'motion.confetti.arc.min', kind: 'distance', value: { value: 24, unit: 'px' }, description: localize('motion.confetti.arc.min', "Smallest completion-particle launch arc.") },
-	{ id: 'motion.confetti.arc.max', kind: 'distance', value: { value: 44, unit: 'px' }, description: localize('motion.confetti.arc.max', "Largest completion-particle launch arc.") },
-	{ id: 'motion.confetti.drift', kind: 'distance', value: { value: 8, unit: 'px' }, description: localize('motion.confetti.drift', "Maximum completion-particle horizontal drift in either direction.") },
+	{ id: 'motion.spinner.cycle.duration', kind: 'duration', value: 1500, description: localize('motion.spinner.cycle.duration', "Compact activity icon rotation cycle duration.") },
+	{ id: 'motion.spinner.cycle.easing', kind: 'easing', value: { steps: 30 }, description: localize('motion.spinner.cycle.easing', "Quantized compact activity rotation pacing.") },
+	{ id: 'motion.progress.update.duration', kind: 'duration', value: { ref: 'motion.duration.medium' }, description: localize('motion.progress.update.duration', "Known progress width interpolation duration; the value updates immediately.") },
+	{ id: 'motion.progress.update.easing', kind: 'easing', value: { ref: 'motion.easing.linear' }, description: localize('motion.progress.update.easing', "Constant-rate interpolation only between reported progress values.") },
+	{ id: 'motion.disclosure.geometry.duration', kind: 'duration', value: 180, description: localize('motion.disclosure.geometry.duration', "Existing chat disclosure geometry duration.") },
+	{ id: 'motion.disclosure.content.duration', kind: 'duration', value: 140, description: localize('motion.disclosure.content.duration', "Existing chat disclosure opacity duration; finishes before geometry.") },
+	{ id: 'motion.disclosure.geometry.easing', kind: 'easing', value: [0.2, 0, 0, 1], description: localize('motion.disclosure.geometry.easing', "Existing chat disclosure curve; preserve the reading anchor.") },
+	{ id: 'motion.disclosure.content.easing', kind: 'easing', value: { ref: 'motion.disclosure.geometry.easing' }, description: localize('motion.disclosure.content.easing', "Existing disclosure opacity curve; use with the shorter content duration.") },
 ]);

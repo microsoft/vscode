@@ -68,12 +68,12 @@
 			"Build and review"
 		],
 		"motion": [
-			"Principles",
-			"Motion foundations",
-			"Motion recipes",
-			"Progress indication",
-			"Expression and delight",
-			"Accessibility"
+			"Purpose and restraint",
+			"Product patterns",
+			"Timing and properties",
+			"Presets and tokens",
+			"Accessibility",
+			"Evaluate and improve"
 		],
 		"elevation": [
 			"Layering model",

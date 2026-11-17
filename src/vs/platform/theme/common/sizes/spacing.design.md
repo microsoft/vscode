@@ -1,6 +1,6 @@
 # Spacing
 
-Design guidance and example descriptions. Referenced registrations own the implemented values.
+Authored guidance for grouping content and assigning spacing ownership. [baseSizes.ts](baseSizes.ts) owns the spacing ramp; component geometry and hit targets remain component-owned.
 
 Sources: [SKILL.md](../../../../../../.github/skills/design-philosophy/SKILL.md), [design-tokens.instructions.md](../../../../../../.github/instructions/design-tokens.instructions.md), [SKILL.md](../../../../../../.github/skills/ux-css-layout/SKILL.md).
 
@@ -37,6 +37,30 @@ Keep spacing within a field smaller than spacing between fields, even after cont
 Available steps for padding, margins, and gaps.
 
 The same tokens work horizontally and vertically. The name encodes the value: size160 is 16px.
+
+## Within a group
+
+Keep a label, its control, and supporting text close enough to read as one unit.
+
+## Between groups
+
+Use a larger break when the task or subject changes. Equal spacing at every level flattens the hierarchy.
+
+## Inside a surface
+
+Use one consistent inset to align content and keep it clear of the boundary.
+
+## Padding ownership
+
+The container owns the content inset. Align repeated rows to the same edge; keep the outer gutter separate from each control’s internal padding.
+
+## Gap ownership
+
+The layout owns the interval between children. Use row and column gaps for wrapping groups; let the component keep its own hit target.
+
+## Margin ownership
+
+Use it for a contextual separation such as the start of a new section. Account for adjacent margins and the parent layout before adding more.
 
 ## Keep a label and its icon together
 

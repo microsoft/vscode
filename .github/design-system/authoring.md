@@ -2,14 +2,18 @@
 
 The book is a human-first design reference, not a rendered instruction file. Explain choices through concise guidance and useful visualizations, backed by the actual specifications, tokens, and components. Keep complete source documents available through the document library and source links.
 
+For writing, improving, or reviewing a topic's guidance, use the [design-system topic-writing skill](../skills/design-system-topic-writing/SKILL.md). It covers decision-led structure, concise rules, accessibility, and evaluation. This document continues to own content placement and book composition.
+
 ## Choose the owner
 
 | Material | Where it belongs |
 | --- | --- |
-| Component-specific intent, usage, and accessibility | An existing specification beside the component, or a focused new Markdown document there |
+| Component-specific intent, usage, pitfalls, and accessibility | `<subject>.design.md` beside the component; reuse an existing specification rather than creating a parallel owner |
 | Feature behavior and cross-surface invariants | The feature's existing specification, respecting its change policy |
 | Product-wide guidance with an existing owner | That existing document, instruction, or skill |
-| Foundation guidance and example descriptions | Beside the owning registry or implementation; cross-cutting material without a narrower owner goes in `.github/design-system/guidance/` |
+| Foundation design guidance | `<subject>.design.md` beside the owning registry or implementation |
+| Example-specific explanations and captions | Beside the owning examples or foundation; keep specimen labels and controls out of general design rules |
+| Cross-cutting design guidance without a narrower owner | `.github/design-system/guidance/<subject>.design.md`; existing instruction and workflow documents retain their scope |
 | Structured curation and source bindings | `.github/design-system/content/`; prose is referenced from its owning Markdown, not copied here |
 | Topic order, aliases, content references, and example bindings | `.github/design-system/book.json` and `.github/design-system/pages/` |
 | Token values, APIs, and executable behavior | Product code and tests |
@@ -24,7 +28,7 @@ Existing document boundaries still apply. For example, a feature's state-ownersh
 
 ### Motion ownership
 
-[MOTION.md](../../src/vs/platform/theme/common/motion/MOTION.md) owns the motion foundation, [preset contract](../../src/vs/platform/theme/common/motion/MOTION.md#preset-contract), and [authoring method](../../src/vs/platform/theme/common/motion/MOTION.md#authoring-and-validation). The chapter presents Principles, Foundations, Best practices, and Accessibility. Select the human-relevant guidance and visualize the source values; don't mirror the specification's entire heading tree.
+[motion.design.md](../../src/vs/platform/theme/common/motion/motion.design.md) owns principles, foundations, pattern selection, token roles, and motion-specific accessibility. [MOTION.md](../../src/vs/platform/theme/common/motion/MOTION.md) owns integration contracts, measured behavior, technical validation, and implementation recipes. The page selects its primary design source and additional technical `sources` explicitly. Their heading slugs must be unique across those files. The chapter moves from purpose and restraint to product patterns, timing and properties, presets and tokens, accessibility, and evaluation; don't mirror the specifications' entire heading trees.
 
 Keep reusable definitions in the data-only [motionPresets.ts](../../src/vs/platform/theme/common/motion/motionPresets.ts) catalog, independent of legacy CSS IDs. [motionPresetBindings.ts](../../src/vs/platform/theme/common/motion/motionPresetBindings.ts) maps those definitions to product token defaults. [motionResponsePresets.json](../../src/vs/platform/theme/common/motion/motionResponsePresets.json) owns physical inputs; its compiler generates the paired timing in [motionResponses.ts](../../src/vs/platform/theme/common/motion/motionResponses.ts). The book projects those sources, including generated `responsive` and `settled` pairs, not a second derivation or copied numerical table. Properties, geometry, semantic state, focus, presence, interruption, and disposal still require component-owned design and implementation.
 
@@ -54,16 +58,48 @@ Duration studies compare the same change and pacing at explicit, source-resolved
 
 Use real components for recognizable product controls, not look-alikes built in the book's CSS. Abstract diagrams should be unmistakably diagrams. Foundations explain element-level choices and reusable composition patterns such as layout, presence, and content replacement. Best practices explain the intent-first decision process and reference those foundations instead of repeating their players. Keep expression and delight visible as a deliberate intent, not a collapsed miscellaneous gallery.
 
+Curate motion examples by distinct decisions, not component count. Each product pattern explains when to use it, what must stay immediate or still, and how to evaluate interruption and the reduced alternative. Prefer one complete scenario over several interchangeable controls. Keep parameter studies after the purpose decision, and do not invent five usage categories merely because a ramp has five values. Treat existing choreography as scoped evidence, not a recommendation to reuse its individual effects.
+
 ## Name files and topics
 
 - Use descriptive lowercase kebab-case for new page, content, module, and script filenames.
-- Keep `README.md` as the package entry point and preserve existing product specification names.
+- Use `<subject>.design.md` for authored design specifications: `button.design.md`, `motion.design.md`, and `typography.design.md`. Match the subject, not a class-name casing convention, and keep the document beside its owner.
+- Keep `README.md` as the package entry point. Technical contracts such as `MOTION.md` and `COLORS.md`, instruction files, skills, book introductions, and example descriptions do not need the design suffix.
 - Use a topic's stable semantic ID for its page filename. Do not encode display order, renderer implementation, dates, or draft status in IDs.
 - Preserve aliases and old deep links when a topic is renamed or consolidated.
 - Group authored content by subject, not by the agent or task that produced it.
 - Use ordinary Markdown for prose and JSON for structured catalog data and bindings. Do not hide application code or serialized HTML inside content files.
 - Use sentence-case headings that describe the reader's task or decision.
 - Do not create placeholder files for topics that have no authored content.
+
+### Change guidance with its owner
+
+Explain when to use a component or pattern, the mistakes to avoid, accessibility obligations, and any scoped exceptions that the API alone cannot communicate. Link to implemented values and signatures rather than copying them. Existing repository requirements remain authoritative; a filename does not promote draft or local guidance into a universal rule.
+
+Edit the owning Markdown once and review it with the relevant component or foundation maintainers. A prose edit should not require a viewer change. Update book bindings only when the chapter's selected sections change. Keep agent procedures and decisive instruction rules at their existing entry points, with links to the design specification; do not thin a skill merely to regularize filenames.
+
+When renaming a specification, update inbound Markdown links, JSON bindings, and filename-dependent reader tests together. Keep topic and example IDs stable. Document IDs are paths: preserve known book bookmarks through `documentAliases`, and do not leave a second editable copy at the old location. Ordinary authoring needs no alias or chapter entry.
+
+The book composes repository Markdown through `$text` or section bindings. Keep `.design.md` sources outside `pages/` and `content/`, which contain composition data rather than product guidance.
+
+### Button and Motion authoring pilots
+
+These are two scoped pattern tests, not a migration requirement for other topics.
+
+Button declares its design document once and selects qualified API member names in its existing component-family curation. The reader takes the title and Overview, Usage, Accessibility, and Preview sections from that Markdown by convention. Its API table derives declared types, optionality, declarations, and source locations from the selected TypeScript members; do not copy those facts into another JSON table. Keep additional usage constraints in the design document. Usage and Accessibility render through the shared Markdown reader, including inline code and source-relative links.
+
+Motion retains explicit section order, token/preset choices, and example relationships because those are deliberate editorial decisions. Its page can declare one `textSource` for repeated whole-section copy:
+
+```json
+{
+	"textSource": "src/vs/platform/theme/common/motion/motion-examples.md",
+	"description": { "$text": "Foundations" }
+}
+```
+
+The short binding selects a uniquely named section from that source. Explicit `$text` objects remain available for other documents, lists, or a deliberately selected lead paragraph. Missing sources or ambiguous headings fail rather than falling back to copied prose. This scoped shorthand is currently wired into the Motion reader only; do not apply it to another foundation without validating that reader's contract.
+
+When rolling out a new binding form, install a reader that accepts both forms before activating the new product metadata. Preserve live topics and old-book reading during the transition; remove the obsolete compatibility reference only after that reader is loaded.
 
 ## Compose a chapter
 
@@ -83,14 +119,14 @@ A page definition controls composition. It must not become a second token regist
 
 ### Bind prose to a visual reference
 
-Use an existing chapter as the starting point. For example, [Typography's page](pages/typography.json) selects its renderer and structured content, while [its Markdown](../../src/vs/platform/theme/common/sizes/typography.md) owns the authored specimen explanations.
+Use an existing chapter as the starting point. For example, [Typography's page](pages/typography.json) selects its renderer and structured content, while [its Markdown](../../src/vs/platform/theme/common/sizes/typography.design.md) owns the authored specimen explanations.
 
 Structured chapter content declares `version: 1`, its topic `id`, and `status: "book-authored"` (an authorship marker, not a package location or approval status). A `$text` binding reads a named section from a repository-relative Markdown source:
 
 ```json
 {
 	"$text": {
-		"file": "src/vs/platform/theme/common/sizes/typography.md",
+		"file": "src/vs/platform/theme/common/sizes/typography.design.md",
 		"heading": "Hierarchy and reading rhythm",
 		"paragraph": 0
 	}

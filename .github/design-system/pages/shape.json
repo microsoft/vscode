@@ -4,9 +4,17 @@
 	"renderer": "foundations",
 	"content": "content/foundations/shape.json",
 	"guidance": [
-		{ "id": "shape-guidance", "title": "Choosing a surface role", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "corner-radius" }
+		{
+			"id": "shape-guidance",
+			"title": "Choosing a surface role",
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "corner-radius"
+		}
 	],
 	"sources": [
+		{
+			"file": "src/vs/platform/theme/common/sizes/shape.design.md"
+		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},

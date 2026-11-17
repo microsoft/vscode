@@ -1,5 +1,7 @@
 # Color foundations and component aliases
 
+For design choices, semantic feedback, and accessibility, read [Colors design](colors.design.md). This document owns the existing alias and customization contract.
+
 Choose a color by its intended property and purpose, not by a matching hex value. The usage-oriented registrations in [semanticColors.ts](./semanticColors.ts) form the shared foundation. Component and feature registrations remain the public theming contract for existing UI.
 
 | Property | Purpose | Example foundation | Existing alias |
@@ -21,9 +23,4 @@ Aliases may retain a compatibility value where the intended foundation differs. 
 
 ## Usage
 
-- Reserve accent for a leading action. It is not a success or selection signal.
-- Use semantic colors only for meaningful states, paired with text or recognizable indicators.
-- Keep error text, error icons, message backgrounds, and borders separate. An icon color is not a message foreground.
-- Do not replace component-specific editor, Git, terminal, or testing colors with an unrelated role because the values match.
-- Keep hover, selection, and keyboard focus distinguishable. Use the owning widget's state styles.
-- Verify contrast on the rendered surface, including transparency, in light, dark, and both high-contrast themes. A token name or swatch alone does not guarantee contrast.
+Follow [the component-preservation guidance](colors.design.md#preserve-component-contracts).

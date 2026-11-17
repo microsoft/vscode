@@ -4,7 +4,7 @@
 	"status": "book-authored",
 	"intro": {
 		"$text": {
-			"file": "src/vs/platform/theme/common/sizes/typography.md",
+			"file": "src/vs/platform/theme/common/sizes/typography.design.md",
 			"heading": "Introduction"
 		}
 	},
@@ -13,7 +13,7 @@
 			"title": "Hierarchy and reading rhythm",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"file": "src/vs/platform/theme/common/sizes/typography.design.md",
 					"heading": "Hierarchy and reading rhythm",
 					"paragraph": 0
 				}
@@ -24,7 +24,7 @@
 			"title": "Weight and emphasis",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"file": "src/vs/platform/theme/common/sizes/typography.design.md",
 					"heading": "Weight and emphasis",
 					"paragraph": 0
 				}
@@ -35,7 +35,7 @@
 			"title": "UI type roles",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"file": "src/vs/platform/theme/common/sizes/typography.design.md",
 					"heading": "UI type roles",
 					"paragraph": 0
 				}
@@ -46,7 +46,7 @@
 			"title": "Reading metrics",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"file": "src/vs/platform/theme/common/sizes/typography.design.md",
 					"heading": "Reading metrics",
 					"paragraph": 0
 				}
@@ -57,7 +57,7 @@
 			"title": "Font families",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/sizes/typography.md",
+					"file": "src/vs/platform/theme/common/sizes/typography.design.md",
 					"heading": "Font families",
 					"paragraph": 0
 				}
@@ -65,7 +65,7 @@
 			"paragraphs": [
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/sizes/typography.md",
+						"file": "src/vs/platform/theme/common/sizes/typography.design.md",
 						"heading": "Font families",
 						"paragraph": 1
 					}
@@ -82,7 +82,12 @@
 		],
 		[
 			"fontSize.body1",
-			"Keep the main task readable. Use a quieter style for supporting context, and reserve strong emphasis for the information that needs to lead."
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/sizes/typography.design.md",
+					"heading": "Hierarchy in practice"
+				}
+			}
 		],
 		[
 			"fontSize.body2",

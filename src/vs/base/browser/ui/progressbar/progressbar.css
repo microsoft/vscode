@@ -24,7 +24,7 @@
 
 .monaco-progress-container.discrete .progress-bit {
 	left: 0;
-	transition: width var(--vscode-motion-progress-determinate-duration, 200ms) var(--vscode-motion-easing-linear, linear);
+	transition: width var(--vscode-motion-progress-update-duration, 200ms) var(--vscode-motion-progress-update-easing, linear);
 }
 
 .monaco-progress-container.discrete.done .progress-bit {
@@ -33,10 +33,10 @@
 
 .monaco-progress-container.infinite .progress-bit {
 	animation-name: progress;
-	animation-duration: var(--vscode-motion-progress-duration, 4000ms);
+	animation-duration: var(--vscode-motion-progress-cycle-duration, 4000ms);
 	animation-iteration-count: infinite;
 	transform: translate3d(0px, 0px, 0px);
-	animation-timing-function: var(--vscode-motion-progress-easing, linear);
+	animation-timing-function: var(--vscode-motion-progress-cycle-easing, linear);
 }
 
 .monaco-progress-container.infinite.infinite-long-running .progress-bit {

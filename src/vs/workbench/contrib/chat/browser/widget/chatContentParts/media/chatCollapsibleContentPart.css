@@ -23,11 +23,11 @@
 	}
 
 	&.chat-collapsible-content-animated > .chat-collapsible-content-animation {
-		transition: var(--vscode-motion-disclosure-transition);
+		transition: var(--vscode-motion-disclosure-expand-transition);
 	}
 
 	&.chat-collapsible-content-animated.chat-used-context-collapsed > .chat-collapsible-content-animation {
-		transition: var(--vscode-motion-disclosure-exit-transition);
+		transition: var(--vscode-motion-disclosure-collapse-transition);
 	}
 
 	&.chat-used-context-collapsed > .chat-collapsible-content-animation .chat-used-context-list {

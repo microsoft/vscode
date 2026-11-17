@@ -1,6 +1,6 @@
 # Colors
 
-Design guidance and example descriptions. Referenced registrations own the implemented values.
+Authored guidance for choosing color by purpose. Registrations own the current values; [COLORS.md](COLORS.md) owns compatibility with existing component colors and theme customizations.
 
 Sources: [COLORS.md](COLORS.md), [SKILL.md](../../../../../../.github/skills/ux-theming/SKILL.md).
 
@@ -45,3 +45,28 @@ Check the rendered foreground/background pair, including transparency. Aim for W
 ## Color reference
 
 Usage-oriented colors come first. Include component aliases when working on an existing widget or feature. The list compares four themes without switching or reloading the article.
+
+## Error feedback
+
+Explain what went wrong and how to recover
+
+## Warning feedback
+
+Explain the risk before someone makes a mistake
+
+## Information feedback
+
+Give useful context without implying a problem
+
+## Success feedback
+
+Confirm what completed; don’t use green for an ordinary action
+
+## Preserve component contracts
+
+- Reserve accent for a leading action. It is not a success or selection signal.
+- Use semantic colors only for meaningful states, paired with text or recognizable indicators.
+- Keep error text, error icons, message backgrounds, and borders separate. An icon color is not a message foreground.
+- Do not replace component-specific editor, Git, terminal, or testing colors with an unrelated role because the values match.
+- Keep hover, selection, and keyboard focus distinguishable. Use the owning widget's state styles.
+- Verify contrast on the rendered surface, including transparency, in light, dark, and both high-contrast themes. A token name or swatch alone does not guarantee contrast.

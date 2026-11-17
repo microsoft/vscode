@@ -5,7 +5,7 @@
 	"content": "content/foundations/elevation.json",
 	"sources": [
 		{
-			"file": "src/vs/platform/theme/common/elevation.md"
+			"file": "src/vs/platform/theme/common/elevation.design.md"
 		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
@@ -24,12 +24,12 @@
 			"title": "Depth cues"
 		},
 		{
-			"id": "elevation-scenarios",
-			"title": "Product scenarios"
-		},
-		{
 			"id": "elevation-shadows",
 			"title": "Shadow scale"
+		},
+		{
+			"id": "elevation-scenarios",
+			"title": "Product scenarios"
 		},
 		{
 			"id": "elevation-role",
@@ -37,7 +37,7 @@
 		},
 		{
 			"id": "elevation-guidance",
-			"title": "Themes and accessibility"
+			"title": "Accessibility and performance"
 		}
 	]
 }

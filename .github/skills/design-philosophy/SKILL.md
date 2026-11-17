@@ -149,9 +149,9 @@ An explanation shouldn't hide the thing it explains. A review card that covers t
 
 #### 5. Elevation is encoded, not eyeballed
 
-> **Ask:** *does this surface's roundness match how far it floats above what's beneath it?*
+> **Ask:** *does the surface treatment explain what belongs together, what overlaps, and where the next action is?*
 
-How rounded - and how raised - a surface is *means something*: it tells you where the surface sits in the stack. A floating overlay reads as more rounded than a control sitting flat inside a pane. Radius is chosen by the surface's role in the hierarchy, never by taste. (This serves both **Focused** and **Consistent**.)
+Use surface fill, contour, overlap, and a shared shadow to clarify ownership. Choose radius by the surface family, not a calculated distance. Visual lift, paint order, and modality are separate: a bigger shadow doesn't bring a popup forward, and a backdrop doesn't implement a modal. Reuse the owning component's complete treatment. (This serves both **Focused** and **Consistent**.)
 
 *Carried out by:* [elevation tiers](#elevation-tiers), [reveal-on-intent](#reveal-on-intent) (scroll shadows).
 
@@ -174,10 +174,10 @@ Sameness includes how something responds, not just its resting shape. The same i
 *Carried out by:* every move below - they *are* the shared scales. See especially [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
 
 > **Worked example - two mismatched dialogs**
-> - **See:** two dialogs open side by side; one has 8px corners, the other 6px - both are floating overlays.
+> - **See:** two equivalent custom menus use different corners and shadows.
 > - **Feeling:** not *Consistent* - the UI feels like it's drifting.
 > - **Principle:** breaks *Sameness signals sameness* (two equivalent surfaces look different for no reason) and *Elevation is encoded* (an overlay belongs on the Outer tier).
-> - **Move:** point both at the Outer radius token; the 6px was a literal someone typed instead of naming the tier.
+> - **Move:** reuse the shared menu's surface treatment rather than tuning each feature's wrapper.
 
 ### Delightful
 
@@ -221,16 +221,17 @@ Design-system spacing, radii, type roles, and colors should use a named token or
 <a id="elevation-tiers"></a>
 ### Elevation tiers - round by role, not by literal
 
-Corner radius encodes **how far a surface floats above the one beneath it**. Every rounded thing belongs to exactly one tier:
+Corner radius expresses the **surface family**, not a numeric height. Use these roles as starting points for new compositions; preserve the geometry of an existing shared component:
 
 | Tier | Radius | Token | What it is |
 |------|--------|-------|------------|
 | **Control** | 4px | `--vscode-cornerRadius-small` | interactible elements - buttons, inputs, list rows, tabs |
 | **Inner** | 6px | `--vscode-cornerRadius-medium` | non-control containers sitting *inside* a surface |
-| **Outer** | 8px | `--vscode-cornerRadius-large` | floating / overlay surfaces - menus, hovers, dialogs, toasts |
+| **Outer** | 8px | `--vscode-cornerRadius-large` | new local floating surfaces, such as custom menus and editor hovers |
 
 Pills (radius ≈ half the height) are **fully round** (`--vscode-cornerRadius-circle`), not "a big radius."
-- **Decision rule:** pick the tier by the surface's **role in the stack**, not by how the corner looks. A bug here sounds like *"this overlay is rounded at the control tier,"* never *"this needs more border-radius."*
+Existing Quick Input and custom-dialog shells use `cornerRadius.xLarge`; workbench hovers and notification containers have their own geometry. Don't restyle them to force this table onto every shipped component.
+- **Decision rule:** pick the family by the surface's **role**, not by taste or nesting depth. Use the [elevation guide](../../../src/vs/platform/theme/common/elevation.design.md) for existing shadow consumers, overlay ownership, modal decisions, stacking, and accessibility. Don't add a new shadow or z-index ramp per feature.
 - **Serves:** *Elevation is encoded* (5), *Room to breathe* (2).
 
 <a id="spacing-ramp"></a>

@@ -5,6 +5,8 @@ description: VS Code theming, color tokens, composited surfaces, interaction-sta
 
 This skill covers color registration, CSS variable usage, widget style patterns, focus indicators, and high-contrast theme requirements.
 
+For choosing an overlay, shadow ownership, popup nesting, and modal/stacking behavior, use the code-local [elevation guide](../../../src/vs/platform/theme/common/elevation.design.md). A theme token alone does not establish those interaction contracts.
+
 ---
 
 ## 1. Registering Colors

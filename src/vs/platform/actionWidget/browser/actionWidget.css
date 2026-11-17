@@ -19,7 +19,7 @@
 }
 
 :is(.modern-ui, .modern-ui-frosted-glass).monaco-enable-motion .action-widget.action-widget-animated {
-	animation: action-widget-dropdown-open var(--vscode-motion-surface-enter-duration, 250ms) var(--vscode-motion-surface-easing, cubic-bezier(0.22, 1, 0.36, 1)) backwards;
+	animation: action-widget-dropdown-open var(--vscode-motion-surface-enter-duration, 250ms) var(--vscode-motion-surface-enter-easing, cubic-bezier(0.22, 1, 0.36, 1)) backwards;
 	transform-origin: bottom left;
 	will-change: transform, opacity;
 }

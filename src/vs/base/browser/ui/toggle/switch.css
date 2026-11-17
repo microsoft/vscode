@@ -15,7 +15,7 @@
 	border-radius: var(--vscode-cornerRadius-circle);
 	background: color-mix(in srgb, var(--vscode-descriptionForeground) 36%, transparent);
 	cursor: pointer;
-	transition: var(--vscode-motion-control-transition, background-color 120ms ease, border-color 120ms ease);
+	transition: var(--vscode-motion-state-change-transition, background-color 120ms ease, border-color 120ms ease);
 }
 
 .monaco-switch.checked {
@@ -49,7 +49,7 @@
 	background-color: var(--vscode-button-foreground);
 	background-clip: padding-box;
 	transform: translateX(0);
-	transition: var(--vscode-motion-control-position-transition, transform 120ms ease);
+	transition: var(--vscode-motion-state-indicator-transition, transform 120ms ease);
 }
 
 .monaco-switch.checked .monaco-switch-thumb {

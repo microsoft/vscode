@@ -5,6 +5,9 @@
 	"content": "content/foundations/colors.json",
 	"sources": [
 		{
+			"file": "src/vs/platform/theme/common/colors/colors.design.md"
+		},
+		{
 			"file": "src/vs/platform/theme/common/colors/COLORS.md"
 		},
 		{

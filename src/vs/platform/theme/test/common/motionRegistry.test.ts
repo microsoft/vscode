@@ -11,14 +11,14 @@ import { resolveMotionPreset } from '../../common/motion/motionPresets.js';
 suite('Motion tokens', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('semantic control tokens share the generated response while press feedback stays independent', () => {
+	test('semantic feedback retains compact product timing instead of generated candidates', () => {
 		const response = resolveMotionPreset('control').phases[0].response;
-		assert.deepStrictEqual(Object.fromEntries(motionTokenRegistry.getTokens().filter(token => /^motion\.(control|selection|press|border)\./.test(token.id)).map(token => [token.id, motionTokenRegistry.resolve(token.id)])), {
-			'motion.control.duration': response.durationMs, 'motion.control.easing': response.easing,
-			'motion.selection.duration': response.durationMs, 'motion.selection.easing': response.easing,
-			'motion.press.duration': 100, 'motion.press.easing': [0, 0, 0.58, 1], 'motion.press.scale': 0.96,
-			'motion.border.duration': response.durationMs, 'motion.border.easing': response.easing,
+		assert.deepStrictEqual(Object.fromEntries(motionTokenRegistry.getTokens().filter(token => /^motion\.(state|selection|press)\./.test(token.id)).map(token => [token.id, motionTokenRegistry.resolve(token.id)])), {
+			'motion.state.change.duration': response.durationMs, 'motion.state.change.easing': response.easing,
+			'motion.selection.change.duration': 160, 'motion.selection.change.easing': [0.2, 0.8, 0.2, 1],
+			'motion.press.change.duration': 100, 'motion.press.change.easing': [0, 0, 0.58, 1], 'motion.press.change.scale': 0.96,
 		});
+		assert.deepStrictEqual(motionTokenRegistry.getTokens().filter(token => token.id.startsWith('motion.response.')), []);
 	});
 
 	test('CSS retains alias chains so primitive overrides propagate', () => {

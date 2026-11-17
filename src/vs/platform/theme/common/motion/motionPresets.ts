@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMotionFrame, IMotionRecipe } from '../../../../base/common/motion.js';
-import { deepClone, deepFreeze } from '../../../../base/common/objects.js';
+import { deepFreeze } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
-import { MotionResponsePresetId, motionResponsePresets } from './motionResponses.js';
+import { motionTokenRegistry } from '../motionRegistry.js';
 
 export type MotionPresetPhase = 'change' | 'enter' | 'exit' | 'geometry' | 'content';
 
@@ -32,12 +32,12 @@ interface IMotionPreset {
 	};
 	readonly phases: readonly {
 		readonly phase: MotionPresetPhase;
-		readonly response: MotionResponsePresetId;
+		readonly response: `motion.${string}`;
 		readonly tracks: readonly MotionPresetTrack[];
 	}[];
 }
 
-/** Reusable definitions independent of consumer tokens; components implement the stated requirements. */
+/** Reusable behavior references semantic timing pairs; components implement the stated requirements. */
 export const motionPresets = [
 	{
 		id: 'control',
@@ -47,7 +47,7 @@ export const motionPresets = [
 		intent: 'feedback', reducedMotion: 'immediate',
 		requirements: { geometry: 'component-owned', semanticState: 'immediate', focus: 'immediate', interruption: 'replace-from-current', lifecycle: 'component-owned' },
 		phases: [
-			{ phase: 'change', response: 'responsive', tracks: [
+			{ phase: 'change', response: 'motion.state.change', tracks: [
 				{ primitive: 'color', property: 'background-color' },
 				{ primitive: 'color', property: 'border-color' },
 				{ primitive: 'translate', property: 'transform' },
@@ -62,7 +62,7 @@ export const motionPresets = [
 		intent: 'feedback', reducedMotion: 'immediate',
 		requirements: { geometry: 'component-owned', semanticState: 'immediate', focus: 'immediate', interruption: 'replace-from-current', lifecycle: 'component-owned' },
 		phases: [
-			{ phase: 'change', response: 'responsive', tracks: [
+			{ phase: 'change', response: 'motion.selection.change', tracks: [
 				{ primitive: 'translate', property: 'transform' },
 				{ primitive: 'resize', property: 'width' },
 			] },
@@ -76,11 +76,11 @@ export const motionPresets = [
 		intent: 'reveal', reducedMotion: 'immediate',
 		requirements: { geometry: 'component-owned', semanticState: 'immediate', focus: 'immediate', interruption: 'replace-from-current', lifecycle: 'component-owned' },
 		phases: [
-			{ phase: 'enter', response: 'settled', tracks: [
+			{ phase: 'enter', response: 'motion.surface.enter', tracks: [
 				{ primitive: 'fade', property: 'opacity' },
 				{ primitive: 'scale', property: 'transform' },
 			] },
-			{ phase: 'exit', response: 'responsive', tracks: [
+			{ phase: 'exit', response: 'motion.surface.exit', tracks: [
 				{ primitive: 'fade', property: 'opacity' },
 				{ primitive: 'scale', property: 'transform' },
 			] },
@@ -94,8 +94,8 @@ export const motionPresets = [
 		intent: 'reflow', reducedMotion: 'immediate',
 		requirements: { geometry: 'component-owned', semanticState: 'immediate', focus: 'immediate', interruption: 'replace-from-current', lifecycle: 'component-owned' },
 		phases: [
-			{ phase: 'geometry', response: 'settled', tracks: [{ primitive: 'resize', property: 'grid-template-rows' }] },
-			{ phase: 'content', response: 'responsive', tracks: [{ primitive: 'fade', property: 'opacity' }] },
+			{ phase: 'geometry', response: 'motion.disclosure.geometry', tracks: [{ primitive: 'resize', property: 'grid-template-rows' }] },
+			{ phase: 'content', response: 'motion.disclosure.content', tracks: [{ primitive: 'fade', property: 'opacity' }] },
 		],
 	},
 	{
@@ -106,7 +106,7 @@ export const motionPresets = [
 		intent: 'awareness', reducedMotion: 'immediate',
 		requirements: { geometry: 'component-owned', semanticState: 'immediate', focus: 'immediate', interruption: 'replace-from-current', lifecycle: 'component-owned' },
 		phases: [
-			{ phase: 'enter', response: 'settled', tracks: [
+			{ phase: 'enter', response: 'motion.notification.enter', tracks: [
 				{ primitive: 'translate', property: 'transform' },
 				{ primitive: 'fade', property: 'opacity' },
 			] },
@@ -119,7 +119,7 @@ export const motionPresets = [
 		applicability: localize('motion.preset.contentReplacement.applicability', "First usable content after loading or new results after an explicit refresh; keep retained content still. Not background updates, frequent step navigation, keystrokes, streaming, or blanking readable content."),
 		intent: 'reveal', reducedMotion: 'immediate',
 		requirements: { geometry: 'component-owned', semanticState: 'immediate', focus: 'immediate', interruption: 'replace-from-current', lifecycle: 'component-owned' },
-		phases: [{ phase: 'enter', response: 'responsive', tracks: [{ primitive: 'fade', property: 'opacity' }] }],
+		phases: [{ phase: 'enter', response: 'motion.content.enter', tracks: [{ primitive: 'fade', property: 'opacity' }] }],
 	},
 	{
 		id: 'visibility',
@@ -129,8 +129,8 @@ export const motionPresets = [
 		intent: 'awareness', reducedMotion: 'immediate',
 		requirements: { geometry: 'component-owned', semanticState: 'immediate', focus: 'immediate', interruption: 'replace-from-current', lifecycle: 'component-owned' },
 		phases: [
-			{ phase: 'enter', response: 'settled', tracks: [{ primitive: 'fade', property: 'opacity' }] },
-			{ phase: 'exit', response: 'responsive', tracks: [{ primitive: 'fade', property: 'opacity' }] },
+			{ phase: 'enter', response: 'motion.visibility.enter', tracks: [{ primitive: 'fade', property: 'opacity' }] },
+			{ phase: 'exit', response: 'motion.visibility.exit', tracks: [{ primitive: 'fade', property: 'opacity' }] },
 		],
 	},
 ] as const satisfies readonly IMotionPreset[];
@@ -139,18 +139,19 @@ deepFreeze(motionPresets);
 
 export type MotionPresetId = typeof motionPresets[number]['id'];
 
-/** Resolve the generated duration and curve together without reading or changing consumer tokens. */
+/** Resolve the semantic duration and curve together without changing consumer tokens. */
 export function resolveMotionPreset(id: MotionPresetId) {
 	const definition = motionPresets.find(preset => preset.id === id);
 	if (!definition) {
 		throw new Error(`Unknown motion preset: ${id}`);
 	}
 	const phases = definition.phases.map(phase => {
-		const response = motionResponsePresets.find(response => response.id === phase.response);
-		if (!response) {
-			throw new Error(`Missing motion response: ${phase.response}`);
-		}
-		return deepFreeze({ phase: phase.phase, tracks: phase.tracks, response: deepClone(response) } as const);
+		const response = {
+			id: phase.response,
+			durationMs: motionTokenRegistry.getNumber(`${phase.response}.duration`, 'duration'),
+			easing: motionTokenRegistry.getValueCss(`${phase.response}.easing`, 'easing'),
+		};
+		return deepFreeze({ phase: phase.phase, tracks: phase.tracks, response } as const);
 	});
 	return Object.freeze({ definition, phases: Object.freeze(phases) });
 }

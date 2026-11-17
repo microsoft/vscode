@@ -5,6 +5,9 @@
 	"content": "content/foundations/theming.json",
 	"sources": [
 		{
+			"file": "src/vs/platform/theme/common/theming.design.md"
+		},
+		{
 			"file": ".github/skills/ux-theming/SKILL.md"
 		}
 	],

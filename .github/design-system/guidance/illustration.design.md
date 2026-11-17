@@ -78,7 +78,7 @@ Illustrations are SVG. Every fill and stroke uses a VS Code color token, so the 
 
 ### Animation
 
-Illustrations are static by default. This section covers only when an illustration itself moves. For timing, easing, reduced motion, and CPU cost, follow the [Motion](../../../src/vs/platform/theme/common/motion/MOTION.md) page.
+Illustrations are static by default. This section covers only when an illustration itself moves. For timing, easing, reduced motion, and CPU cost, follow the [Motion](../../../src/vs/platform/theme/common/motion/motion.design.md) page.
 
 - Animate only when the change is the idea, such as a before and after.
 - Move the accent, not the whole scene.

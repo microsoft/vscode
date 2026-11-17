@@ -4,7 +4,7 @@
 	"status": "book-authored",
 	"intro": {
 		"$text": {
-			"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+			"file": "src/vs/platform/theme/common/colors/colors.design.md",
 			"heading": "Introduction"
 		}
 	},
@@ -13,7 +13,7 @@
 			"title": "Choose color by purpose",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
 					"heading": "Choose color by purpose",
 					"paragraph": 0
 				}
@@ -21,14 +21,14 @@
 			"paragraphs": [
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"file": "src/vs/platform/theme/common/colors/colors.design.md",
 						"heading": "Choose color by purpose",
 						"paragraph": 1
 					}
 				},
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"file": "src/vs/platform/theme/common/colors/colors.design.md",
 						"heading": "Choose color by purpose",
 						"paragraph": 2
 					}
@@ -39,7 +39,7 @@
 			"title": "Let neutrals establish hierarchy",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
 					"heading": "Let neutrals establish hierarchy",
 					"paragraph": 0
 				}
@@ -50,7 +50,7 @@
 			"title": "Reserve accent for the leading action",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
 					"heading": "Reserve accent for the leading action",
 					"paragraph": 0
 				}
@@ -58,7 +58,7 @@
 			"paragraphs": [
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"file": "src/vs/platform/theme/common/colors/colors.design.md",
 						"heading": "Reserve accent for the leading action",
 						"paragraph": 1
 					}
@@ -69,7 +69,7 @@
 			"title": "Use semantic color only when it has meaning",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
 					"heading": "Use semantic color only when it has meaning",
 					"paragraph": 0
 				}
@@ -77,14 +77,14 @@
 			"paragraphs": [
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"file": "src/vs/platform/theme/common/colors/colors.design.md",
 						"heading": "Use semantic color only when it has meaning",
 						"paragraph": 1
 					}
 				},
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"file": "src/vs/platform/theme/common/colors/colors.design.md",
 						"heading": "Use semantic color only when it has meaning",
 						"paragraph": 2
 					}
@@ -95,7 +95,7 @@
 			"title": "Keep selection separate from focus",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
 					"heading": "Keep selection separate from focus",
 					"paragraph": 0
 				}
@@ -103,14 +103,14 @@
 			"paragraphs": [
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"file": "src/vs/platform/theme/common/colors/colors.design.md",
 						"heading": "Keep selection separate from focus",
 						"paragraph": 1
 					}
 				},
 				{
 					"$text": {
-						"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+						"file": "src/vs/platform/theme/common/colors/colors.design.md",
 						"heading": "Keep selection separate from focus",
 						"paragraph": 2
 					}
@@ -121,7 +121,7 @@
 			"title": "Color reference",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/colors/color-guidance.md",
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
 					"heading": "Color reference",
 					"paragraph": 0
 				}
@@ -146,19 +146,39 @@
 	"statusRoles": [
 		[
 			"Error",
-			"Explain what went wrong and how to recover"
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
+					"heading": "Error feedback"
+				}
+			}
 		],
 		[
 			"Warning",
-			"Explain the risk before someone makes a mistake"
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
+					"heading": "Warning feedback"
+				}
+			}
 		],
 		[
 			"Information",
-			"Give useful context without implying a problem"
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
+					"heading": "Information feedback"
+				}
+			}
 		],
 		[
 			"Success",
-			"Confirm what completed; don’t use green for an ordinary action"
+			{
+				"$text": {
+					"file": "src/vs/platform/theme/common/colors/colors.design.md",
+					"heading": "Success feedback"
+				}
+			}
 		]
 	],
 	"previews": {

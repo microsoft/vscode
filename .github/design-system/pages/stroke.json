@@ -4,9 +4,17 @@
 	"renderer": "foundations",
 	"content": "content/foundations/stroke.json",
 	"guidance": [
-		{ "id": "stroke-guidance", "title": "Using boundary strokes", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "stroke" }
+		{
+			"id": "stroke-guidance",
+			"title": "Using boundary strokes",
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "stroke"
+		}
 	],
 	"sources": [
+		{
+			"file": "src/vs/platform/theme/common/sizes/stroke.design.md"
+		},
 		{
 			"file": ".github/instructions/design-tokens.instructions.md"
 		},

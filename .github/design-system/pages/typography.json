@@ -4,10 +4,44 @@
 	"renderer": "typography",
 	"content": "content/foundations/typography.json",
 	"guidance": [
-		{ "id": "typography-role-guidance", "title": "Choosing a type role", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "font-size" },
-		{ "id": "typography-weight-guidance", "title": "Choosing emphasis", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "font-weight" }
+		{
+			"id": "typography-role-guidance",
+			"title": "Choosing a type role",
+			"file": "src/vs/platform/theme/common/sizes/typography.design.md",
+			"anchor": "ui-type-roles",
+			"before": "typography-styles"
+		},
+		{
+			"id": "typography-weight-guidance",
+			"title": "Choosing emphasis",
+			"file": "src/vs/platform/theme/common/sizes/typography.design.md",
+			"anchor": "weight-and-emphasis",
+			"before": "typography-emphasis"
+		},
+		{
+			"id": "typography-reading-guidance",
+			"title": "Reading metrics",
+			"file": "src/vs/platform/theme/common/sizes/typography.design.md",
+			"anchor": "reading-metrics",
+			"before": "typography-families"
+		},
+		{
+			"id": "typography-accessibility",
+			"title": "Accessibility",
+			"file": "src/vs/platform/theme/common/sizes/typography.design.md",
+			"anchor": "accessibility"
+		},
+		{
+			"id": "typography-review",
+			"title": "Build and review",
+			"file": "src/vs/platform/theme/common/sizes/typography.design.md",
+			"anchor": "build-and-review"
+		}
 	],
 	"sources": [
+		{
+			"file": "src/vs/platform/theme/common/sizes/typography.design.md"
+		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},

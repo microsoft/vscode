@@ -47,64 +47,61 @@ const hidden = { opacity: 0, scale: 1 };
 
 /** Purpose-based recipes; frames reference the same primitives consumed by product CSS. */
 export const motionRecipes: readonly MotionRecipeDefinition[] = [
-	{ id: 'motion.atom.fade.enter', atom: 'fade', purpose: localize('motion.atom.fade.enter', "Reveal without changing position"), duration: 'motion.fade.enter.duration', easing: 'motion.fade.easing',
+	{ id: 'motion.atom.fade.enter', atom: 'fade', purpose: localize('motion.atom.fade.enter', "Reveal without changing position"), duration: 'motion.visibility.enter.duration', easing: 'motion.visibility.enter.easing',
 		frames: [{ opacity: 0 }, { opacity: 1 }], reduced: 'instant' },
-	{ id: 'motion.atom.fade.exit', atom: 'fade', purpose: localize('motion.atom.fade.exit', "Dismiss without changing position"), duration: 'motion.fade.exit.duration', easing: 'motion.fade.easing',
+	{ id: 'motion.atom.fade.exit', atom: 'fade', purpose: localize('motion.atom.fade.exit', "Dismiss without changing position"), duration: 'motion.visibility.exit.duration', easing: 'motion.visibility.exit.easing',
 		frames: [{ opacity: 1 }, { opacity: 0 }], reduced: 'instant' },
-	{ id: 'motion.atom.scale.enter', atom: 'scale', purpose: localize('motion.atom.scale.enter', "Settle a surface at its anchor"), duration: 'motion.surface.enter.duration', easing: 'motion.surface.easing',
+	{ id: 'motion.atom.scale.enter', atom: 'scale', purpose: localize('motion.atom.scale.enter', "Settle a surface at its anchor"), duration: 'motion.surface.enter.duration', easing: 'motion.surface.enter.easing',
 		frames: [{ scale: 'motion.surface.enter.scale' }, { scale: 1 }], reduced: 'instant' },
 	{ id: 'motion.atom.scale.exit', atom: 'scale', purpose: localize('motion.atom.scale.exit', "Withdraw a surface at its anchor"), duration: 'motion.surface.exit.duration', easing: 'motion.surface.exit.easing',
 		frames: [{ scale: 1 }, { scale: 'motion.surface.exit.scale' }], reduced: 'instant' },
-	{ id: 'motion.atom.translate.enter', atom: 'translate', purpose: localize('motion.atom.translate.enter', "Connect a surface to its originating edge"), duration: 'motion.toast.duration', easing: 'motion.toast.easing',
+	{ id: 'motion.atom.translate.enter', atom: 'translate', purpose: localize('motion.atom.translate.enter', "Connect a surface to its originating edge"), duration: 'motion.notification.enter.duration', easing: 'motion.notification.enter.easing',
 		frames: [{ distance: { value: 100, unit: '%' } }, { distance: { value: 0, unit: 'px' } }], direction: 'block-end', reduced: 'instant' },
 	{ id: 'motion.atom.translate.exit', atom: 'translate', purpose: localize('motion.atom.translate.exit', "Return a surface toward its originating edge"), duration: 'motion.surface.exit.duration', easing: 'motion.surface.exit.easing',
 		frames: [{ distance: { value: 0, unit: 'px' } }, { distance: { value: 100, unit: '%' } }], direction: 'block-end', reduced: 'instant' },
-	{ id: 'motion.control', purpose: localize('motion.recipe.control', "Immediate switch feedback"), duration: 'motion.control.duration', easing: 'motion.control.easing', frames: [], reduced: 'instant', tracks: [
-		{ property: 'background-color', duration: 'motion.control.duration', easing: 'motion.control.easing' },
-		{ property: 'border-color', duration: 'motion.control.duration', easing: 'motion.control.easing' },
+	{ id: 'motion.state.change', purpose: localize('motion.recipe.control', "Immediate switch feedback"), duration: 'motion.state.change.duration', easing: 'motion.state.change.easing', frames: [], reduced: 'instant', tracks: [
+		{ property: 'background-color', duration: 'motion.state.change.duration', easing: 'motion.state.change.easing' },
+		{ property: 'border-color', duration: 'motion.state.change.duration', easing: 'motion.state.change.easing' },
 	] },
-	{ id: 'motion.control.position', purpose: localize('motion.recipe.control.position', "Switch thumb movement"), duration: 'motion.control.duration', easing: 'motion.control.easing', frames: [], reduced: 'instant', tracks: [
-		{ property: 'transform', duration: 'motion.control.duration', easing: 'motion.control.easing' },
+	{ id: 'motion.state.indicator', purpose: localize('motion.recipe.control.position', "Switch thumb movement"), duration: 'motion.state.change.duration', easing: 'motion.state.change.easing', frames: [], reduced: 'instant', tracks: [
+		{ property: 'transform', duration: 'motion.state.change.duration', easing: 'motion.state.change.easing' },
 	] },
-	{ id: 'motion.selection', purpose: localize('motion.recipe.selection', "Follow segmented selection without moving labels"), duration: 'motion.selection.duration', easing: 'motion.selection.easing', frames: [], reduced: 'instant', tracks: [
-		{ property: 'transform', duration: 'motion.selection.duration', easing: 'motion.selection.easing' },
-		{ property: 'width', duration: 'motion.selection.duration', easing: 'motion.selection.easing' },
-		{ property: 'scale', duration: 'motion.press.duration', easing: 'motion.press.easing' },
+	{ id: 'motion.selection.change', purpose: localize('motion.recipe.selection', "Follow segmented selection without moving labels"), duration: 'motion.selection.change.duration', easing: 'motion.selection.change.easing', frames: [], reduced: 'instant', tracks: [
+		{ property: 'transform', duration: 'motion.selection.change.duration', easing: 'motion.selection.change.easing' },
+		{ property: 'width', duration: 'motion.selection.change.duration', easing: 'motion.selection.change.easing' },
+		{ property: 'scale', duration: 'motion.press.change.duration', easing: 'motion.press.change.easing' },
 	] },
-	{ id: 'motion.border', purpose: localize('motion.recipe.border', "Reveal a table resize boundary"), duration: 'motion.border.duration', easing: 'motion.border.easing', frames: [], reduced: 'instant', tracks: [
-		{ property: 'border-color', duration: 'motion.border.duration', easing: 'motion.border.easing' },
-	] },
-	{ id: 'motion.press', purpose: localize('motion.recipe.press', "Confirm a press without changing layout"), duration: 'motion.press.duration', easing: 'motion.press.easing',
-		frames: [{ scale: 1 }, { scale: 'motion.press.scale', offset: 0.5 }, { scale: 1 }], reduced: 'static', tracks: [
-			{ property: 'scale', duration: 'motion.press.duration', easing: 'motion.press.easing' },
+	{ id: 'motion.press.change', purpose: localize('motion.recipe.press', "Confirm a press without changing layout"), duration: 'motion.press.change.duration', easing: 'motion.press.change.easing',
+		frames: [{ scale: 1 }, { scale: 'motion.press.change.scale', offset: 0.5 }, { scale: 1 }], reduced: 'static', tracks: [
+			{ property: 'scale', duration: 'motion.press.change.duration', easing: 'motion.press.change.easing' },
 		] },
-	{ id: 'motion.surface.enter', purpose: localize('motion.recipe.surface.enter', "Settle an anchored surface into place"), duration: 'motion.surface.enter.duration', easing: 'motion.surface.easing',
+	{ id: 'motion.surface.enter', purpose: localize('motion.recipe.surface.enter', "Settle an anchored surface into place"), duration: 'motion.surface.enter.duration', easing: 'motion.surface.enter.easing',
 		frames: [{ ...hidden, scale: 'motion.surface.enter.scale' }, visible], reduced: 'instant' },
 	{ id: 'motion.surface.exit', purpose: localize('motion.recipe.surface.exit', "Dismiss an anchored surface"), duration: 'motion.surface.exit.duration', easing: 'motion.surface.exit.easing',
 		frames: [visible, { ...hidden, scale: 'motion.surface.exit.scale' }], reduced: 'instant' },
-	{ id: 'motion.menu.enter', purpose: localize('motion.recipe.menu.enter', "Open a menu from its trigger"), duration: 'motion.surface.enter.duration', easing: 'motion.surface.easing',
+	{ id: 'motion.menu.enter', purpose: localize('motion.recipe.menu.enter', "Open a menu from its trigger"), duration: 'motion.surface.enter.duration', easing: 'motion.surface.enter.easing',
 		frames: [{ opacity: 0, scale: 'motion.surface.enter.scale' }, { opacity: 1, scale: 1 }], reduced: 'instant' },
 	{ id: 'motion.menu.exit', purpose: localize('motion.recipe.menu.exit', "Close a menu toward its trigger"), duration: 'motion.surface.exit.duration', easing: 'motion.surface.exit.easing',
 		frames: [{ opacity: 1, scale: 1 }, { opacity: 0, scale: 'motion.surface.exit.scale' }], reduced: 'instant' },
-	{ id: 'motion.toast.enter', purpose: localize('motion.recipe.toast.enter', "Arrive from the notification's anchored edge"), duration: 'motion.toast.duration', easing: 'motion.toast.easing',
+	{ id: 'motion.notification.enter', purpose: localize('motion.recipe.toast.enter', "Arrive from the notification's anchored edge"), duration: 'motion.notification.enter.duration', easing: 'motion.notification.enter.easing',
 		frames: [{ ...hidden, distance: { value: 100, unit: '%' } }, visible], direction: 'block-end', reduced: 'instant', tracks: [
-			{ property: 'transform', duration: 'motion.toast.duration', easing: 'motion.toast.easing' },
-			{ property: 'opacity', duration: 'motion.toast.duration', easing: 'motion.toast.easing' },
+			{ property: 'transform', duration: 'motion.notification.enter.duration', easing: 'motion.notification.enter.easing' },
+			{ property: 'opacity', duration: 'motion.notification.enter.duration', easing: 'motion.notification.enter.easing' },
 		] },
-	{ id: 'motion.fade.enter', purpose: localize('motion.recipe.fade.enter', "Non-spatial arrival"), duration: 'motion.fade.enter.duration', easing: 'motion.fade.easing', frames: [{ opacity: 0 }, { opacity: 1 }], reduced: 'instant' },
-	{ id: 'motion.fade.exit', purpose: localize('motion.recipe.fade.exit', "Non-spatial dismissal"), duration: 'motion.fade.exit.duration', easing: 'motion.fade.easing', frames: [{ opacity: 1 }, { opacity: 0 }], reduced: 'instant' },
-	{ id: 'motion.content.enter', purpose: localize('motion.recipe.content.enter', "Reveal ready content in a stable surface"), duration: 'motion.content.duration', easing: 'motion.content.easing', frames: [{ opacity: 0 }, { opacity: 1 }], reduced: 'instant' },
-	{ id: 'motion.progress.spin', purpose: localize('motion.recipe.progress.spin', "Indicate local work with stepped compact rotation"), duration: 'motion.spinner.duration', easing: 'motion.spinner.easing',
+	{ id: 'motion.visibility.enter', purpose: localize('motion.recipe.fade.enter', "Non-spatial arrival"), duration: 'motion.visibility.enter.duration', easing: 'motion.visibility.enter.easing', frames: [{ opacity: 0 }, { opacity: 1 }], reduced: 'instant' },
+	{ id: 'motion.visibility.exit', purpose: localize('motion.recipe.fade.exit', "Non-spatial dismissal"), duration: 'motion.visibility.exit.duration', easing: 'motion.visibility.exit.easing', frames: [{ opacity: 1 }, { opacity: 0 }], reduced: 'instant' },
+	{ id: 'motion.content.enter', purpose: localize('motion.recipe.content.enter', "Reveal ready content in a stable surface"), duration: 'motion.content.enter.duration', easing: 'motion.content.enter.easing', frames: [{ opacity: 0 }, { opacity: 1 }], reduced: 'instant' },
+	{ id: 'motion.spinner.cycle', purpose: localize('motion.recipe.progress.spin', "Indicate local work with stepped compact rotation"), duration: 'motion.spinner.cycle.duration', easing: 'motion.spinner.cycle.easing',
 		frames: [{ angle: 0 }, { angle: 360 }], iterations: Infinity, reduced: 'static' },
-	{ id: 'motion.disclosure', purpose: localize('motion.recipe.disclosure', "Reveal content beneath its existing header"), duration: 'motion.disclosure.duration', easing: 'motion.disclosure.easing', frames: [], reduced: 'instant', tracks: [
-		{ property: 'grid-template-rows', duration: 'motion.disclosure.duration', easing: 'motion.disclosure.easing' },
-		{ property: 'opacity', duration: 'motion.disclosure.opacity.duration', easing: 'motion.disclosure.opacity.easing' },
+	{ id: 'motion.disclosure.expand', purpose: localize('motion.recipe.disclosure', "Reveal content beneath its existing header"), duration: 'motion.disclosure.geometry.duration', easing: 'motion.disclosure.geometry.easing', frames: [], reduced: 'instant', tracks: [
+		{ property: 'grid-template-rows', duration: 'motion.disclosure.geometry.duration', easing: 'motion.disclosure.geometry.easing' },
+		{ property: 'opacity', duration: 'motion.disclosure.content.duration', easing: 'motion.disclosure.content.easing' },
 		{ property: 'visibility', duration: 'motion.duration.none', easing: 'motion.easing.linear' },
 	] },
-	{ id: 'motion.disclosure.exit', purpose: localize('motion.recipe.disclosure.exit', "Withdraw disclosure content before hiding it"), duration: 'motion.disclosure.duration', easing: 'motion.disclosure.easing', frames: [], reduced: 'instant', tracks: [
-		{ property: 'grid-template-rows', duration: 'motion.disclosure.duration', easing: 'motion.disclosure.easing' },
-		{ property: 'opacity', duration: 'motion.disclosure.opacity.duration', easing: 'motion.disclosure.opacity.easing' },
-		{ property: 'visibility', duration: 'motion.duration.none', easing: 'motion.easing.linear', delay: 'motion.disclosure.duration' },
+	{ id: 'motion.disclosure.collapse', purpose: localize('motion.recipe.disclosure.exit', "Withdraw disclosure content before hiding it"), duration: 'motion.disclosure.geometry.duration', easing: 'motion.disclosure.geometry.easing', frames: [], reduced: 'instant', tracks: [
+		{ property: 'grid-template-rows', duration: 'motion.disclosure.geometry.duration', easing: 'motion.disclosure.geometry.easing' },
+		{ property: 'opacity', duration: 'motion.disclosure.content.duration', easing: 'motion.disclosure.content.easing' },
+		{ property: 'visibility', duration: 'motion.duration.none', easing: 'motion.easing.linear', delay: 'motion.disclosure.geometry.duration' },
 	] },
 ];
 
@@ -150,7 +147,7 @@ export function resolveMotionRecipe(id: string, context: MotionRecipeContext = {
 		id, effect,
 		reducedEffect: {
 			frames: reducedFrames,
-			duration: definition.reduced === 'fade' ? registry.getNumber('motion.duration.faster', 'duration') : 0,
+			duration: definition.reduced === 'fade' ? registry.getNumber('motion.duration.short', 'duration') : 0,
 			delay: 0, easing: registry.getValueCss('motion.easing.linear', 'easing'), iterations: 1, direction: 'normal',
 		},
 	};

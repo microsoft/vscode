@@ -32,7 +32,7 @@ Use the shared surface-shadow scale. High-contrast and shadow settings can suppr
 
 ## Motion
 
-Duration and easing tokens are reusable parameters. Recipes keep their geometry and compose those parameters for a purpose; existing component tuning remains intact. Choose the relationship first, then reuse its recipe.
+Choose an existing component, semantic timing pair, or behavior preset first. Names follow behavior, phase or track, then parameter. Base durations, paired responses, and shared spinner or progress cycles serve distinct jobs. Component choreography and its override hooks are not global design tokens. Motion owns applicability, reduced-motion behavior, and evaluation.
 
 ## Scoped layout tokens
 

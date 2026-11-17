@@ -14,7 +14,7 @@
 }
 
 .modern-ui.monaco-enable-motion .quick-input-widget:not(.quick-input-widget-overlay) {
-	animation: quick-input-widget-open var(--vscode-motion-surface-enter-duration, 250ms) var(--vscode-motion-surface-easing, cubic-bezier(0.22, 1, 0.36, 1)) both;
+	animation: quick-input-widget-open var(--vscode-motion-surface-enter-duration, 250ms) var(--vscode-motion-surface-enter-easing, cubic-bezier(0.22, 1, 0.36, 1)) both;
 	transform-origin: top center;
 	will-change: transform, opacity;
 }

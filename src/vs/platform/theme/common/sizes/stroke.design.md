@@ -10,7 +10,7 @@ Use a stroke to separate or define a boundary. Stroke thickness, control dimensi
 
 ## Use strokes to define boundaries
 
-Use the {value} base stroke for standard dividers and control boundaries. Preserve stronger focus and contrast indicators where required.
+Use the registered base stroke for standard dividers and control boundaries. Preserve stronger focus and contrast indicators where required.
 
 ## Stroke reference
 

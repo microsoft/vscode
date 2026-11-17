@@ -15,11 +15,13 @@ Work in three layers - name the **feeling**, find the **principle** it breaks, t
   2. *Room to breathe* - does this feel cramped, tight, or jagged?
   3. *The interface explains itself* - could someone understand this at a glance?
   4. *One thing leads; the rest supports* - where does the eye go first?
-  5. *Elevation is encoded, not eyeballed* - does roundness match how far the surface floats?
+  5. *Elevation is encoded, not eyeballed* - does surface treatment explain ownership, overlap, and the next action?
   6. *Sameness signals sameness* - do two like things look identical, and is any difference intentional?
   7. *Delight earns its keep* - what does this help the user do?
-- **Moves (the mechanics):** elevation tiers (Control 4 / Inner 6 / Outer 8; pills fully round), the spacing ramp, the type ramp (roles + `regular`/`semiBold` only, no 500), two icon sizes (16 base / 12 compact), a 1px token for standard strokes, `--vscode-*` theme color, reveal-on-intent chrome, prefer a word to a mystery glyph.
+- **Moves (the mechanics):** surface families (Control / Inner / Outer; preserve component-owned geometry), the spacing ramp, the type ramp (roles + `regular`/`semiBold` only, no 500), two icon sizes (16 base / 12 compact), a 1px token for standard strokes, `--vscode-*` theme color, reveal-on-intent chrome, prefer a word to a mystery glyph.
 
 Reach for a **move** only *after* naming the feeling and the principle - never instead. Describe a bug by its role/tier/ramp (*"this overlay is rounded at the control tier"*), not its number (*"border-radius should be 6"*).
 
 **Full reference** (values, principles, moves, worked examples, phrasebook, and feedback guidance): the [`design-philosophy` skill](../skills/design-philosophy/SKILL.md). **Token mechanics:** [design-tokens.instructions.md](./design-tokens.instructions.md).
+
+For shadows, popup chains, modal decisions, and paint order, follow the code-local [elevation guide](../../src/vs/platform/theme/common/elevation.design.md). Visual lift, stacking, and modality are separate contracts; reuse their existing owners instead of copying CSS from a similar-looking surface.

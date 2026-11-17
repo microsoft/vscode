@@ -4,27 +4,27 @@
 	"className": "MultiSelectDropdown",
 	"summary": {
 		"$text": {
-			"file": "src/vs/platform/actionWidget/browser/dropdown-design.md",
+			"file": "src/vs/platform/actionWidget/browser/dropdown.design.md",
 			"heading": "Overview"
 		}
 	},
 	"usage": {
 		"$text": {
-			"file": "src/vs/platform/actionWidget/browser/dropdown-design.md",
+			"file": "src/vs/platform/actionWidget/browser/dropdown.design.md",
 			"heading": "Usage",
 			"list": true
 		}
 	},
 	"accessibility": {
 		"$text": {
-			"file": "src/vs/platform/actionWidget/browser/dropdown-design.md",
+			"file": "src/vs/platform/actionWidget/browser/dropdown.design.md",
 			"heading": "Accessibility",
 			"list": true
 		}
 	},
 	"preview": {
 		"$text": {
-			"file": "src/vs/platform/actionWidget/browser/dropdown-design.md",
+			"file": "src/vs/platform/actionWidget/browser/dropdown.design.md",
 			"heading": "Preview"
 		}
 	},

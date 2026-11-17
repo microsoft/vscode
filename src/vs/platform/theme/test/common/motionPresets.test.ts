@@ -71,7 +71,7 @@ suite('Motion presets', () => {
 		for (const value of [
 			motionPresets, motionPresets[0], motionPresets[0].requirements, motionPresets[0].phases[0].tracks,
 			motionPresetBindings, motionPresetBindings[0].phases[0].durationTokens,
-			preset.phases, preset.phases[0], preset.phases[0].response, preset.phases[0].response.source,
+			preset.phases, preset.phases[0], preset.phases[0].response,
 			effect, effect.effect, effect.effect.frames, effect.effect.frames[0], effect.reducedEffect.frames[0],
 			candidate.cssVariables, candidate.phases[0], candidate.definition.phases[0].durationTokens,
 		]) {
@@ -111,14 +111,14 @@ suite('Motion presets', () => {
 	});
 
 	test('bindings reject missing pairs, nonexistent phases, and incompatible token kinds', () => {
-		const phase = { phase: 'enter', durationTokens: ['motion.surface.enter.duration'], easingTokens: ['motion.surface.easing'] } as const;
+		const phase = { phase: 'enter', durationTokens: ['motion.surface.enter.duration'], easingTokens: ['motion.surface.enter.easing'] } as const;
 		const invalid: { phases: IMotionPresetBinding['phases']; error: RegExp }[] = [
 			{ phases: [], error: /Missing motion preset phases/ },
 			{ phases: [{ ...phase, phase: 'change' }], error: /Invalid or duplicate motion preset phase/ },
 			{ phases: [phase, phase], error: /Invalid or duplicate motion preset phase/ },
 			{ phases: [{ ...phase, durationTokens: [] }], error: /Incomplete motion response binding/ },
 			{ phases: [{ ...phase, easingTokens: [] }], error: /Incomplete motion response binding/ },
-			{ phases: [{ ...phase, durationTokens: ['motion.surface.easing'] }], error: /Expected motion duration/ },
+			{ phases: [{ ...phase, durationTokens: ['motion.surface.enter.easing'] }], error: /Expected motion duration/ },
 			{ phases: [{ ...phase, durationTokens: ['motion.surface.enter.scale'] }], error: /Expected motion duration/ },
 			{ phases: [{ ...phase, easingTokens: ['motion.surface.enter.duration'] }], error: /Expected motion easing/ },
 			{ phases: [{ ...phase, durationTokens: ['missing'] }], error: /Expected motion duration/ },

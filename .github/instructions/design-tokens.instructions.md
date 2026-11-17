@@ -57,7 +57,7 @@ Use the registered base stroke for standard borders and separators. Preserve str
 
 ## Motion
 
-Follow the [motion specification and authoring method](../../src/vs/platform/theme/common/motion/MOTION.md#authoring-and-validation). Choose by intent and reuse the owning component or recipe before composing properties. Keep state and focus immediate, honor effective reduced motion, and preserve theme-owned colors and anchor geometry.
+Follow the [motion specification and authoring method](../../src/vs/platform/theme/common/motion/motion.design.md#authoring-and-validation). Choose by intent and reuse the owning component or recipe before composing properties. Keep state and focus immediate, honor effective reduced motion, and preserve theme-owned colors and anchor geometry.
 
 Preserve shipped timing and curves when centralizing existing behavior. Compatibility parameters must not be snapped to the ordinary duration ramp.
 

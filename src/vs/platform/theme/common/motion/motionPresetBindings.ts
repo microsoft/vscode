@@ -22,39 +22,39 @@ export interface IMotionPresetBinding {
 export const motionPresetBindings = [
 	{
 		id: 'control', preset: 'control',
-		phases: [{ phase: 'change', durationTokens: ['motion.control.duration', 'motion.border.duration'], easingTokens: ['motion.control.easing', 'motion.border.easing'] }],
+		phases: [{ phase: 'change', durationTokens: ['motion.state.change.duration'], easingTokens: ['motion.state.change.easing'] }],
 	},
 	{
 		id: 'selection', preset: 'selection',
-		phases: [{ phase: 'change', durationTokens: ['motion.selection.duration'], easingTokens: ['motion.selection.easing'] }],
+		phases: [{ phase: 'change', durationTokens: ['motion.selection.change.duration'], easingTokens: ['motion.selection.change.easing'] }],
 	},
 	{
 		id: 'surface', preset: 'surface',
 		phases: [
-			{ phase: 'enter', durationTokens: ['motion.surface.enter.duration'], easingTokens: ['motion.surface.easing'] },
+			{ phase: 'enter', durationTokens: ['motion.surface.enter.duration'], easingTokens: ['motion.surface.enter.easing'] },
 			{ phase: 'exit', durationTokens: ['motion.surface.exit.duration'], easingTokens: ['motion.surface.exit.easing'] },
 		],
 	},
 	{
 		id: 'disclosure', preset: 'disclosure',
 		phases: [
-			{ phase: 'geometry', durationTokens: ['motion.disclosure.duration'], easingTokens: ['motion.disclosure.easing'] },
-			{ phase: 'content', durationTokens: ['motion.disclosure.opacity.duration'], easingTokens: ['motion.disclosure.opacity.easing'] },
+			{ phase: 'geometry', durationTokens: ['motion.disclosure.geometry.duration'], easingTokens: ['motion.disclosure.geometry.easing'] },
+			{ phase: 'content', durationTokens: ['motion.disclosure.content.duration'], easingTokens: ['motion.disclosure.content.easing'] },
 		],
 	},
 	{
 		id: 'notification', preset: 'notification',
-		phases: [{ phase: 'enter', durationTokens: ['motion.toast.duration'], easingTokens: ['motion.toast.easing'] }],
+		phases: [{ phase: 'enter', durationTokens: ['motion.notification.enter.duration'], easingTokens: ['motion.notification.enter.easing'] }],
 	},
 	{
 		id: 'replacement', preset: 'replacement',
-		phases: [{ phase: 'enter', durationTokens: ['motion.content.duration'], easingTokens: ['motion.content.easing'] }],
+		phases: [{ phase: 'enter', durationTokens: ['motion.content.enter.duration'], easingTokens: ['motion.content.enter.easing'] }],
 	},
 	{
 		id: 'visibility', preset: 'visibility',
 		phases: [
-			{ phase: 'enter', durationTokens: ['motion.fade.enter.duration'], easingTokens: ['motion.fade.easing'] },
-			{ phase: 'exit', durationTokens: ['motion.fade.exit.duration', 'motion.scrollbar.exit.duration'], easingTokens: ['motion.fade.easing'] },
+			{ phase: 'enter', durationTokens: ['motion.visibility.enter.duration'], easingTokens: ['motion.visibility.enter.easing'] },
+			{ phase: 'exit', durationTokens: ['motion.visibility.exit.duration'], easingTokens: ['motion.visibility.exit.easing'] },
 		],
 	},
 ] as const satisfies readonly IMotionPresetBinding[];

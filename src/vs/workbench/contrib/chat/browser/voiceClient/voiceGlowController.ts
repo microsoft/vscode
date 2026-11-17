@@ -7,7 +7,6 @@ import './media/voiceGlow.css';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { motionTokenRegistry } from '../../../../../platform/theme/common/motionRegistry.js';
 import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, VoiceRimMood } from './voiceGlow.js';
 
 export type { GlowThemeKind };
@@ -26,9 +25,10 @@ export type { GlowThemeKind };
  * light, and light dissolves — scaling it would read as the box "zooming", which
  * pulls the eye to a size change that isn't happening.
  */
-const FADE = `opacity ${motionTokenRegistry.getValueCss('motion.voice.fade.duration', 'duration')} ${motionTokenRegistry.getValueCss('motion.easing.easeInOut', 'easing')}`;
+const FADE_DURATION_MS = 600;
+const FADE = `opacity ${FADE_DURATION_MS}ms cubic-bezier(0.33, 0, 0.67, 1)`;
 /** How long a faded-out slot is kept mounted before its layer is torn down. */
-const FADE_OUT_MS = motionTokenRegistry.getNumber('motion.voice.fade.duration', 'duration') + 50;
+const FADE_OUT_MS = FADE_DURATION_MS + 50;
 
 /** Base strength of an active rim, before the audio level is applied. */
 const ACTIVE_RIM_STRENGTH = 1.02;
@@ -40,7 +40,7 @@ const RIM_LAYER_OPACITY = {
 } as const;
 
 /** Seconds for one full breath cycle. */
-const RIM_DURATION = motionTokenRegistry.getNumber('motion.voice.duration', 'duration') / 1000;
+const RIM_DURATION = 2.3;
 const RIM_REFERENCE_DURATION = 2.3;
 
 /**

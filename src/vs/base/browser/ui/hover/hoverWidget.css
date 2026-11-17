@@ -15,7 +15,7 @@
 }
 
 .monaco-hover.fade-in {
-	animation: monaco-hover-fade-in var(--vscode-motion-fade-enter-duration, 100ms) var(--vscode-motion-fade-easing, linear) backwards;
+	animation: monaco-hover-fade-in var(--vscode-motion-visibility-enter-duration, 100ms) var(--vscode-motion-visibility-enter-easing, linear) backwards;
 }
 
 @keyframes monaco-hover-fade-in {

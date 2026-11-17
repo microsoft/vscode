@@ -340,6 +340,18 @@
 		[
 			"button",
 			{
+				"design": "src/vs/base/browser/ui/button/button.design.md",
+				"api": [
+					"IButton.label",
+					"IButtonOptions.secondary",
+					"IButtonOptions.disabled",
+					"IButtonOptions.ariaLabel",
+					"IButton.onDidClick",
+					"ButtonBar.addButton",
+					"ButtonBar.addButtonWithDescription",
+					"ButtonBar.buttons",
+					"ButtonBar.clear"
+				],
 				"aliases": [
 					"split-button",
 					"dropdown-button",

@@ -4,7 +4,7 @@
 	"renderer": "guidance",
 	"content": "content/foundations/illustration.json",
 	"sources": [
-		{ "file": ".github/design-system/guidance/illustration.md" }
+		{ "file": ".github/design-system/guidance/illustration.design.md" }
 	],
 	"sections": [
 		{ "id": "illustration-principles", "title": "Principles" },
@@ -14,10 +14,10 @@
 		{ "id": "illustration-review", "title": "Build and review" }
 	],
 	"guidance": [
-		{ "id": "illustration-principles", "file": ".github/design-system/guidance/illustration.md", "heading": "Principles" },
-		{ "id": "illustration-usage", "file": ".github/design-system/guidance/illustration.md", "heading": "Usage" },
-		{ "id": "illustration-style", "file": ".github/design-system/guidance/illustration.md", "heading": "Visual style" },
-		{ "id": "illustration-accessibility", "file": ".github/design-system/guidance/illustration.md", "heading": "Accessibility" },
-		{ "id": "illustration-review", "file": ".github/design-system/guidance/illustration.md", "heading": "Build and review" }
+		{ "id": "illustration-principles", "file": ".github/design-system/guidance/illustration.design.md", "heading": "Principles" },
+		{ "id": "illustration-usage", "file": ".github/design-system/guidance/illustration.design.md", "heading": "Usage" },
+		{ "id": "illustration-style", "file": ".github/design-system/guidance/illustration.design.md", "heading": "Visual style" },
+		{ "id": "illustration-accessibility", "file": ".github/design-system/guidance/illustration.design.md", "heading": "Accessibility" },
+		{ "id": "illustration-review", "file": ".github/design-system/guidance/illustration.design.md", "heading": "Build and review" }
 	]
 }

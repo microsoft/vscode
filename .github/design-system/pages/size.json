@@ -4,9 +4,17 @@
 	"renderer": "foundations",
 	"content": "content/foundations/size.json",
 	"guidance": [
-		{ "id": "size-guidance", "title": "Choosing an icon size", "file": ".github/instructions/design-tokens.instructions.md", "anchor": "codicon-size" }
+		{
+			"id": "size-guidance",
+			"title": "Choosing an icon size",
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"anchor": "codicon-size"
+		}
 	],
 	"sources": [
+		{
+			"file": "src/vs/platform/theme/common/sizes/size.design.md"
+		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},

@@ -4,7 +4,7 @@
 	"status": "book-authored",
 	"intro": {
 		"$text": {
-			"file": "src/vs/platform/theme/common/theming.md",
+			"file": "src/vs/platform/theme/common/theming.design.md",
 			"heading": "Introduction"
 		}
 	},
@@ -13,7 +13,7 @@
 			"title": "Keep meaning in high contrast",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/theming.md",
+					"file": "src/vs/platform/theme/common/theming.design.md",
 					"heading": "Keep meaning in high contrast",
 					"paragraph": 0
 				}
@@ -24,7 +24,7 @@
 			"title": "Theme comparisons",
 			"description": {
 				"$text": {
-					"file": "src/vs/platform/theme/common/theming.md",
+					"file": "src/vs/platform/theme/common/theming.design.md",
 					"heading": "Theme comparisons",
 					"paragraph": 0
 				}

@@ -23,7 +23,7 @@
 
 .monaco-editor .diff-hidden-lines .top,
 .monaco-editor .diff-hidden-lines .bottom {
-	transition: background-color 0.1s ease-out;
+	transition: background-color var(--vscode-motion-hover-change-duration, 100ms) var(--vscode-motion-hover-change-easing, ease-out);
 	height: 4px;
 	background-color: transparent;
 	background-clip: padding-box;

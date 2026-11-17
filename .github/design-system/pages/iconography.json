@@ -5,6 +5,9 @@
 	"content": "content/foundations/iconography.json",
 	"sources": [
 		{
+			"file": "src/vs/base/common/iconography.design.md"
+		},
+		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},
 		{

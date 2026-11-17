@@ -94,7 +94,7 @@
 					"heading": "Motion"
 				}
 			},
-			"file": "src/vs/platform/theme/common/motion/MOTION.md",
+			"file": "src/vs/platform/theme/common/motion/motion.design.md",
 			"anchor": "## Foundations"
 		},
 		{
