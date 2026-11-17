@@ -88,7 +88,7 @@ import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
@@ -249,6 +249,35 @@ suite('Sessions - SessionsList', () => {
 			chat: ['archived-chat', 'chat', 'pinned-chat'],
 			kindAfterReset: 'chat',
 		})));
+	});
+
+	test('Work/Chat scope composes with the automation listing setting and explicit show or hide choices', () => {
+		const sessions = ['work', 'chat'].map(id => ({ ...createTestSession(id).session, isAutomation: constObservable(true) }));
+		const results = [AutomationSessionsListMode.Always, AutomationSessionsListMode.Never].map(mode => {
+			const harness = createListHarness(disposables, sessions);
+			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: mode });
+			harness.store.add(configurationService.onDidChangeConfigurationEmitter);
+			harness.instantiationService.stub(IConfigurationService, configurationService);
+			const model = harness.store.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const kind = observableValue<SessionsListKind>(disposables, 'work');
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				kind, grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				getCategory: session => session.sessionId === 'chat' ? 'chat' : 'work',
+			}));
+			const listed = () => sessions.filter(session => list.isSessionListed(session)).map(session => session.sessionId);
+			const work = listed();
+			kind.set('chat', undefined);
+			const chat = listed();
+			model.hideAutomationSessions([sessions[1]]);
+			const hidden = listed();
+			model.showAutomationSessions(sessions);
+			return { work, chat, hidden, shown: listed() };
+		});
+		assert.deepStrictEqual(results, [
+			{ work: ['work'], chat: ['chat'], hidden: [], shown: ['chat'] },
+			{ work: [], chat: [], hidden: [], shown: ['chat'] },
+		]);
 	});
 
 	test('Work groups by folder and Chat lists folder-backed sessions by date without folder headers', () => {

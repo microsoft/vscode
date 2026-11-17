@@ -155,7 +155,7 @@ export interface IAgentHostConnectionsService {
 	/** Records an exact backend identity and adapts only its frontend provider scheme. */
 	registerSessionResource(backendSession: URI, authority?: string, provider?: string): URI;
 
-	/** Binds a catalog resource to an acquired execution for the owner's lifetime. */
+	/** Binds a catalog resource to an acquired execution for the owner's lifetime, including while its backend is unpublished. */
 	registerSessionResourceAlias(resource: URI, backendSession: URI, authority: string, provider: string): IDisposable;
 
 	/** Looks up a frontend resource using its advertised backend identity on one connection. */

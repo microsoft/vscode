@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IReader } from '../../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 
 export type SessionFilter =
@@ -176,20 +178,24 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private static readonly INBOX_SCOPE_STORAGE_KEY = 'sessionsListControl.inboxScope';
-	private static readonly SHOW_AUTOMATION_RUNS_KEY = 'showAutomationRuns';
+	/** Retired: a filter that listed every automation run, now the `always` value of {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING}. */
+	private static readonly RETIRED_SHOW_AUTOMATION_RUNS_KEY = 'showAutomationRuns';
+	/** The setting's value when moving the retired filter to it last failed; a different value later is the user's choice. */
+	private static readonly SHOW_AUTOMATION_RUNS_MIGRATION_FAILED_AT_KEY = 'sessionsListControl.showAutomationRunsMigrationFailedAt';
 	private static readonly SCHEDULED_ONLY_KEY = 'scheduledOnly';
 	private readonly excluded: Map<string, boolean>;
+	private readonly showAutomationRunsMigration = this._register(new MutableDisposable());
 	private _inboxScope: IInboxScope = {};
 	get inboxScope(): IInboxScope { return this._inboxScope; }
 	get hasInboxScope(): boolean { return this._inboxScope.workspace !== undefined || this._inboxScope.environment !== undefined; }
 	get hasInboxWorkspaceScope(): boolean { return !!this._inboxScope.workspace && this._inboxScope.workspace !== 'none'; }
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
-	private readonly changeSignal = observableSignalFromEvent(this, this.onDidChange);
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this.excluded = new Map();
@@ -218,6 +224,51 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 				logService.warn('Unable to restore Inbox scope.', error);
 			}
 		}
+		this.migrateShowAutomationRuns(configurationService, logService);
+	}
+
+	/** Moves the retired filter's choice to the setting it duplicated. It is kept for a later retry until the setting lists every run or the user changes it, so a retry never overwrites their choice. */
+	private async migrateShowAutomationRuns(configurationService: IConfigurationService, logService: ILogService): Promise<void> {
+		const show = this.excluded.get(SessionsListFilters.RETIRED_SHOW_AUTOMATION_RUNS_KEY);
+		if (show === undefined) {
+			return;
+		}
+		const current = configurationService.getValue<AutomationSessionsListMode>(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING);
+		const failedAt = this.storageService.get(SessionsListFilters.SHOW_AUTOMATION_RUNS_MIGRATION_FAILED_AT_KEY, StorageScope.PROFILE);
+		if (!show || current === AutomationSessionsListMode.Always || (failedAt !== undefined && failedAt !== current)
+			|| configurationService.inspect(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING).policyValue !== undefined) {
+			this.retireShowAutomationRuns();
+			return;
+		}
+		try {
+			// Without a target, the value is written where it takes effect, such as over a workspace's value
+			await configurationService.updateValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always);
+		} catch (error) {
+			logService.error('Unable to migrate the Show Automation Runs filter to its setting.', error);
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		// A write can fail without rejecting, such as for invalid settings, so check whether it took effect
+		const written = configurationService.getValue<AutomationSessionsListMode>(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING);
+		if (written === AutomationSessionsListMode.Always) {
+			this.retireShowAutomationRuns();
+			return;
+		}
+		this.storageService.store(SessionsListFilters.SHOW_AUTOMATION_RUNS_MIGRATION_FAILED_AT_KEY, written, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.showAutomationRunsMigration.value = configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING)) {
+				this.retireShowAutomationRuns();
+			}
+		});
+	}
+
+	private retireShowAutomationRuns(): void {
+		this.showAutomationRunsMigration.clear();
+		this.storageService.remove(SessionsListFilters.SHOW_AUTOMATION_RUNS_MIGRATION_FAILED_AT_KEY, StorageScope.PROFILE);
+		if (this.excluded.delete(SessionsListFilters.RETIRED_SHOW_AUTOMATION_RUNS_KEY)) {
+			this.save();
+		}
 	}
 
 	isExcluded(filter: SessionFilter): boolean {
@@ -230,18 +281,6 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	setExcluded(filter: SessionFilter, excluded: boolean): void {
 		this.excluded.set(sessionFilterKey(filter), excluded);
-		this.save();
-	}
-
-	isShowAutomationRuns(reader?: IReader): boolean {
-		if (reader) {
-			this.changeSignal.read(reader);
-		}
-		return this.excluded.get(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY) ?? false;
-	}
-
-	setShowAutomationRuns(show: boolean): void {
-		this.excluded.set(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY, show);
 		this.save();
 	}
 
