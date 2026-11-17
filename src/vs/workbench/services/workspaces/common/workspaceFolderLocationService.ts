@@ -8,7 +8,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basenameOrAuthority } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -20,6 +20,11 @@ import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent
 interface IRegisteredProvider {
 	readonly provider: IWorkspaceFolderLocationProvider;
 	readonly builtIn: boolean;
+}
+
+/** Unlike `removeTrailingPathSeparator`, this also strips the separator of a UNC share root, which names the same location without it. */
+function withoutTrailingSeparator(uri: URI): URI {
+	return uri.path.length > 1 && uri.path.endsWith('/') ? uri.with({ path: uri.path.slice(0, -1) }) : uri;
 }
 
 export class WorkspaceFolderLocationService extends Disposable implements IWorkspaceFolderLocationService {
@@ -80,11 +85,12 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	async getFolderLocations(folder: IWorkspaceFolder, token: CancellationToken): Promise<IFolderLocation[]> {
 		const primary = this.getPrimaryLocation(folder);
-		const result: IFolderLocation[] = [{ uri: primary, label: basename(primary) }];
+		const result: IFolderLocation[] = [{ uri: primary, label: basenameOrAuthority(primary) }];
 		if (this.isAtAlternateLocation(folder) || this.canSetLocation(folder)) {
 			const extUri = this.uriIdentityService.extUri;
+			const primaryWithoutSeparator = withoutTrailingSeparator(primary);
 			for (const location of await this.getLocations(primary, token)) {
-				if (!extUri.isEqual(location.uri, primary)) {
+				if (!extUri.isEqual(withoutTrailingSeparator(location.uri), primaryWithoutSeparator)) {
 					result.push(location);
 				}
 			}

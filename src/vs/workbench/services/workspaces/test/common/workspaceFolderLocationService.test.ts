@@ -130,6 +130,28 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual(atPrimary.map(l => [l.uri.path, l.label]), [['/work/repo', 'repo'], ['/work/wt1', 'wt1']]);
 	});
 
+	test('the primary is labelled and deduplicated for Windows drive and UNC locations', async () => {
+		const file = (authority: string, path: string) => URI.from({ scheme: 'file', authority, path });
+		const worktree = file('', '/C:/work/wt1');
+		const cases = [
+			{ primary: file('', '/C:/work/repo'), label: 'repo', variants: [file('', '/c:/work/repo'), file('', '/C:/work/repo/')] },
+			{ primary: file('server', '/share/'), label: 'share', variants: [file('server', '/share')] },
+			{ primary: file('server', '/'), label: 'server', variants: [] }
+		];
+		const actual = [];
+		for (const { primary, variants } of cases) {
+			const service = disposables.add(createService(new Workspace('id', [folder(primary)], false, null, () => false)));
+			disposables.add(service.registerProvider(provider('x', [...variants.map(uri => ({ uri, label: 'variant' })), { uri: worktree, label: 'wt1' }])));
+			actual.push((await service.getFolderLocations(folder(primary), CancellationToken.None)).map(l => [l.uri.path, l.label]));
+		}
+
+		assert.deepStrictEqual(actual, [
+			[['/C:/work/repo', 'repo'], ['/C:/work/wt1', 'wt1']],
+			[['/share/', 'share'], ['/C:/work/wt1', 'wt1']],
+			[['/', 'server'], ['/C:/work/wt1', 'wt1']]
+		]);
+	});
+
 	test('folder identity and alternate location checks', () => {
 		const check = (workspace: Workspace) => disposables.add(createService(workspace)).isAtAlternateLocation(workspace.folders[0]);
 

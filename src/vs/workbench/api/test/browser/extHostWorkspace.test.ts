@@ -350,6 +350,21 @@ suite('ExtHostWorkspace', function () {
 		assert.deepStrictEqual([view().length, events.length], [2, 1]);
 	});
 
+	test('Resolving the locations of a Windows drive or UNC folder fires no event for the seeded primary', function () {
+		const cases = [
+			{ uri: URI.from({ scheme: 'file', path: '/C:/work/repo' }), name: 'repo', resolved: URI.from({ scheme: 'file', path: '/c:/work/repo' }), label: 'repo' },
+			{ uri: URI.from({ scheme: 'file', authority: 'server', path: '/' }), name: 'server', resolved: URI.from({ scheme: 'file', authority: 'server', path: '/' }), label: 'server' }
+		];
+		const events: number[] = [];
+		for (const { uri, name, resolved, label } of cases) {
+			const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(uri, 0, name)] }, new NullLogService());
+			store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
+			ws.$acceptWorkspaceFolderLocations([{ folder: uri, locations: [{ uri: resolved, label, isPrimary: true }] }]);
+		}
+
+		assert.strictEqual(events.length, 0);
+	});
+
 	test('A location switch is reported as removed and added and does not change the locations', function () {
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(URI.parse('foo:main'), 0, 'repo'), primary: URI.parse('foo:main') }] }, new NullLogService());
 		const locations = [
