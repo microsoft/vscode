@@ -365,16 +365,26 @@ suite('AgentHostCheckpointService', () => {
 
 	test('captures a missing baseline from the pre-turn tree before the agent can edit', async () => {
 		const trees = ['tree-before-first-turn', 'tree-after-first-turn'];
-		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => trees.shift(), { baseline: false, previous: false });
+		const { chat, commitCalls, gitService, session, service, workingDirectory } = createTestService(async () => trees.shift(), { baseline: false, previous: false });
+		let lookups = 0;
+		const revParse = gitService.revParse;
+		gitService.revParse = async (...args) => {
+			lookups++;
+			return revParse(...args);
+		};
 
 		await service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+		const turnStartLookups = lookups;
 		await service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
 
-		assert.deepStrictEqual(commitCalls, [
-			{ tree: 'tree-before-first-turn', parent: undefined },
-			{ tree: 'tree-before-first-turn', parent: 'commit-1' },
-			{ tree: 'tree-after-first-turn', parent: 'commit-2' },
-		]);
+		assert.deepStrictEqual({ turnStartLookups, commitCalls }, {
+			turnStartLookups: 1,
+			commitCalls: [
+				{ tree: 'tree-before-first-turn', parent: undefined },
+				{ tree: 'tree-before-first-turn', parent: 'commit-1' },
+				{ tree: 'tree-after-first-turn', parent: 'commit-2' },
+			],
+		});
 	});
 
 	test('discard waits for an in-flight turn-start capture', async () => {

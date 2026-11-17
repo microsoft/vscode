@@ -261,7 +261,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 						this.getBaselineCheckpoint(sessionUri, repositoryRootUri),
 					]);
 					if (tree) {
-						const baselineReady = hasBaseline || await this._ensureBaselineCheckpoint(sessionUri, repositoryRootUri, tree);
+						const baselineReady = hasBaseline || await this._createBaselineCheckpoint(sessionUri, repositoryRootUri, tree);
 						if (baselineReady) {
 							// Failed baseline writes remain eligible for retry through another folder.
 							completedRepositories.add(repositoryRootUri);
@@ -681,11 +681,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		return commitOid;
 	}
 
-	private async _ensureBaselineCheckpoint(sessionUri: URI, repositoryRootUri: URI, tree: string): Promise<boolean> {
-		if (await this.getBaselineCheckpoint(sessionUri, repositoryRootUri)) {
-			return true;
-		}
-
+	private async _createBaselineCheckpoint(sessionUri: URI, repositoryRootUri: URI, tree: string): Promise<boolean> {
 		const sanitized = this._sanitizedSessionId(sessionUri);
 		const baselineRefName = buildCheckpointRefName(sanitized, 0);
 		const commit = await this._gitService.commitTree(repositoryRootUri, tree, undefined, `Agent host session ${sanitized} - baseline checkpoint`);
