@@ -12512,6 +12512,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('tool.execution_complete', { toolCallId: 'read', success: true, result: { content: 'The review is done.' } });
 			await timeout(0);
 
+			const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'tc-task');
 			assert.deepStrictEqual({
 				messages: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'read'
 					? [action.invocationMessage]
@@ -12519,7 +12520,7 @@ suite('CopilotAgentSession', () => {
 						? [action.result.pastTenseMessage] : []),
 				parameters,
 			}, {
-				messages: [{ markdown: 'Read agent `catalog-perf`' }, { markdown: 'Read agent `catalog-perf`' }],
+				messages: [{ markdown: `Read agent [catalog\\-perf](${chat})` }, { markdown: `Read agent [catalog\\-perf](${chat})` }],
 				parameters: { agent_id: agentId, wait: false },
 			});
 		});
@@ -12565,6 +12566,7 @@ suite('CopilotAgentSession', () => {
 			for (const kind of notifications) {
 				mockSession.fire('system.notification', { content: 'Agent finished', kind });
 			}
+			const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'tc-task');
 			assert.deepStrictEqual({
 				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; })?.title] : []),
 				toolMessages: getActions(signals).flatMap(action => {
@@ -12578,15 +12580,15 @@ suite('CopilotAgentSession', () => {
 			}, {
 				chatTitles: restored ? [] : ['Fix Take-all ground pickup'],
 				toolMessages: [
-					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
+					{ markdown: `Read agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Read agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Write to agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Write to agent [Fix Take\\-all ground pickup](${chat})` },
 				],
 				notifications: [
-					'Background agent `Fix Take-all ground pickup` is complete',
-					'Background agent `Fix Take-all ground pickup` completed',
-					'Background agent `Fix Take-all ground pickup` failed',
+					`[Fix Take\\-all ground pickup](${chat}) is complete`,
+					`[Fix Take\\-all ground pickup](${chat}) completed`,
+					`[Fix Take\\-all ground pickup](${chat}) failed`,
 				],
 				coordinationParameters: { agent_id: agentId },
 			});
@@ -12640,12 +12642,13 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: { agent_id: 'agent-1', message: 'Follow up' } });
 		mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
 
+		const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'launch');
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
 			? [action.invocationMessage]
 			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
 				? [action.result.pastTenseMessage] : []), [
-			{ markdown: 'Write to agent `Review the history`' },
-			{ markdown: 'Write to agent `Review the history`' },
+			{ markdown: `Write to agent [Review the history](${chat})` },
+			{ markdown: `Write to agent [Review the history](${chat})` },
 		]);
 	});
 
@@ -12665,12 +12668,13 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: { agent_id: 'agent-1', message: 'Follow up' } });
 		mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
 
+		const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'launch');
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
 			? [action.invocationMessage]
 			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
 				? [action.result.pastTenseMessage] : []), [
-			{ markdown: 'Write to agent `History reviewer`' },
-			{ markdown: 'Write to agent `History reviewer`' },
+			{ markdown: `Write to agent [History reviewer](${chat})` },
+			{ markdown: `Write to agent [History reviewer](${chat})` },
 		]);
 	});
 
@@ -20252,6 +20256,17 @@ Use the attached image as context.
 			]);
 		});
 
+		test('agent notification links escape labels and destinations', () => {
+			const event: SessionEventPayload<'system.notification'> = {
+				id: 'notification', parentId: null, timestamp: '2026-09-08T00:00:00.000Z', type: 'system.notification',
+				data: { content: 'Agent finished', kind: { type: 'agent_completed', agentId: 'agent', agentType: 'task', status: 'completed' } },
+			};
+			assert.deepStrictEqual(buildCopilotSystemNotification(event, () => 'Review [x] `y` & <z>\nnext', () => 'ahp-chat://subagent/path(a) b'), {
+				messageText: '[Review \\[x\\] \\`y\\` \\& \\<z\\> next](ahp-chat://subagent/path\\(a\\)%20b) completed',
+				startsTurn: true,
+			});
+		});
+
 		test('agent activity titles retain the chat title truncation and markdown escaping', () => {
 			const descriptions = ['  Review `permissions`  ', `  ${'a'.repeat(80)}  `, '   '];
 			const titles = ['Review `permissions`', `${'a'.repeat(60)}\u2026`, 'reviewer'];
@@ -20300,6 +20315,28 @@ Use the attached image as context.
 				message: { text: 'Background agent `Investigate the issue` is complete', origin: { kind: MessageKind.SystemNotification } },
 				responseTurnId: turnStarted.turnId,
 				completedTurnId: turnStarted.turnId,
+			});
+		});
+
+		test('restored subagent completion starts a turn linked to its exact chat', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => {
+					mock.messages = toSessionEvents([
+						{ type: 'subagent.started', agentId: 'first', data: { toolCallId: 'task-first', agentName: 'review', agentDisplayName: 'First', agentDescription: '' } },
+						{ type: 'subagent.started', agentId: 'second', data: { toolCallId: 'task-second', agentName: 'review', agentDisplayName: 'Second', agentDescription: '' } },
+					]);
+				},
+			});
+			await session.getMessages();
+			mockSession.fire('system.notification', {
+				content: 'Finished',
+				kind: { type: 'agent_completed', agentId: 'second', agentType: 'review', status: 'failed' },
+			});
+			const childChat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'task-second');
+			assert.deepStrictEqual(getActions(signals).find(action => action.type === ActionType.ChatTurnStarted)?.message, {
+				text: `[Second](${childChat}) failed`,
+				origin: { kind: MessageKind.SystemNotification },
 			});
 		});
 
