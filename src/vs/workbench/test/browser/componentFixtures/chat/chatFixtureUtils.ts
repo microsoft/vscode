@@ -326,8 +326,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
 		override readonly onDidAddWidget = Event.None;
+		override readonly onDidRemoveWidget = Event.None;
 		override readonly onDidBackgroundSession = Event.None;
 		override readonly onDidChangeFocusedWidget = Event.None;
+		override readonly onDidChangeWidgetVisibility = Event.None;
 		override readonly onDidChangeFocusedSession = Event.None;
 		override getAllWidgets(): readonly IChatWidget[] { return []; }
 		override getWidgetByInputUri() { return undefined; }

@@ -301,6 +301,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				override readonly onDidRemoveWidget = Event.None;
 				override readonly onDidBackgroundSession = Event.None;
 				override readonly onDidChangeFocusedWidget = Event.None;
+				override readonly onDidChangeWidgetVisibility = Event.None;
 				override readonly onDidChangeFocusedSession = Event.None;
 				override getAllWidgets() { return widgetHolder.current ? [widgetHolder.current] : []; }
 				override getWidgetByInputUri() { return undefined; }
