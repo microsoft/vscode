@@ -225,6 +225,26 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { titles: ['eligible'], recoveryControls: 0, summary: '1 worktree. Estimated disk usage: 100B.' });
 	});
 
+	test('shows remote host identity and an unavailable reason without allowing selection', async () => {
+		const original = createUnlinkedWorktree('remote');
+		const worktree: ISessionWorktree = {
+			...original,
+			unlinkedWorktree: {
+				...original.unlinkedWorktree!,
+				worktree: URI.parse(original.unlinkedWorktree!.worktree).with({ scheme: 'vscode-remote', authority: 'ssh-remote+host' }).toString(),
+			},
+			cleanupUnavailableReason: 'Connect or update the host, then refresh.',
+		};
+		const { container, cleaned } = await openEditor([worktree]);
+		selectAllWorktrees(container);
+		assert.deepStrictEqual({
+			title: container.querySelector('.session-worktree-cleanup-session-link')?.textContent,
+			status: rowStatus(container.querySelector('.session-worktree-cleanup-row')!),
+			selected: container.querySelectorAll('.session-worktree-cleanup-row [aria-checked="true"]').length,
+			cleaned,
+		}, { title: 'agents/remote (ssh-remote+host)', status: worktree.cleanupUnavailableReason, selected: 0, cleaned: [] });
+	});
+
 	test('shows an honest empty state and keeps settings when nothing can be cleaned up', async () => {
 		const { container } = await openEditor([createWorktree('pinned', '/repos/app', 'pinned'), {
 			...createWorktree('locked', '/repos/app', 'archived'), cleanupStatus: { state: 'failed', message: 'initializing lock' },

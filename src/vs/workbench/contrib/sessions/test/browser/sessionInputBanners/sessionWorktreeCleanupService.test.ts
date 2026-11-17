@@ -17,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IAgentHostWorktreeCleanupStatus } from '../../../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -274,7 +275,7 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('excludes remote linked and unlinked worktrees before measuring or publishing inventory', async () => {
+	test('includes remote linked and unlinked worktrees and routes cleanup to their owning providers', async () => {
 		const local = createSession('local', oldDate());
 		const original = createSession('remote', oldDate());
 		const workspace = original.workspace.get()!;
@@ -298,22 +299,208 @@ suite('SessionWorktreeCleanupService', () => {
 		};
 		const measured: string[] = [];
 		const published: string[][] = [];
+		const cleaned: string[] = [];
+		const confirmations: string[] = [];
 		const service = disposables.add(createService([local, remote], true, session => {
 			measured.push(session.sessionId);
 			return 1;
 		}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
 			listManagedWorktrees: async () => [unlinked, remoteUnlinked],
+			canCleanupWorktree: () => true,
+			onArchive: async session => { cleaned.push(session.sessionId); },
+			onCleanup: async () => ({ state: 'pending' }),
+			cleanupManagedWorktree: async worktree => { cleaned.push(worktree.worktree); },
+			dialogService: upcastPartial<IDialogService>({ confirm: async options => { confirmations.push(typeof options.detail === 'string' ? options.detail : ''); return { confirmed: true }; } }),
 		}));
 		const rows = await service.getWorktrees(0, worktrees => published.push(worktrees.map(getWorktreeCleanupId)));
+		await service.cleanupWorktrees(rows);
 		assert.deepStrictEqual({
 			rows: rows.map(getWorktreeCleanupId),
 			measured,
 			publishedRemote: published.some(ids => ids.includes('remote') || ids.includes(getWorktreeCleanupId({ unlinkedWorktree: remoteUnlinked, sizeBytes: undefined, worktreeCount: 1 }))),
+			cleaned, hostInConfirmation: confirmations[0].includes('Remote hosts: remote'), remoteTitle: getWorktreeCleanupTitle(rows[1]),
 		}, {
-			rows: ['local', `managed:test:${unlinked.worktree}`],
-			measured: ['local'],
-			publishedRemote: false,
+			rows: ['local', 'remote', `managed:test:${unlinked.worktree}`, `managed:test:${remoteUnlinked.worktree}`],
+			measured: ['local', 'remote'],
+			publishedRemote: true,
+			cleaned: ['local', 'remote', unlinked.worktree, remoteUnlinked.worktree], hostInConfirmation: true, remoteTitle: 'remote (remote)',
 		});
+	});
+
+	for (const kind of agentHostConnectionKinds.filter(kind => kind.name !== 'local')) {
+		test(`retains unavailable remote rows and remeasures after reconnect (${kind.name})`, async () => {
+			const original = createSession('remote', oldDate());
+			const workspace = original.workspace.get()!;
+			const remote: ISession = {
+				...original,
+				workspace: constObservable({
+					...workspace,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: { ...folder.gitRepository!, uri: kind.toClient(folder.gitRepository!.uri), workTreeUri: kind.toClient(folder.gitRepository!.workTreeUri!) },
+					})),
+				}),
+			};
+			let connected = false;
+			let measurements = 0;
+			const service = disposables.add(createService([remote], true, () => { measurements++; return 100; }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+				canCleanupWorktree: () => connected,
+			}));
+			const unavailable = (await service.getWorktrees(0))[0];
+			await assert.rejects(service.cleanupWorktrees([unavailable]), /connected host with cleanup support/);
+			connected = true;
+			const available = (await service.getWorktrees(0))[0];
+			connected = false;
+			const disconnected = (await service.getWorktrees(0))[0];
+			service.setAvailableDiskSpace(1);
+			assert.deepStrictEqual({
+				measurements,
+				states: [unavailable, available, disconnected].map(row => ({ state: row.cleanupState, exists: row.worktreeExists, size: row.sizeBytes, unavailable: !!row.cleanupUnavailableReason })),
+				suggestion: service.suggestion.get(),
+			}, {
+				measurements: 1,
+				states: [
+					{ state: 'unavailable', exists: undefined, size: undefined, unavailable: true },
+					{ state: 'eligible', exists: undefined, size: 100, unavailable: false },
+					{ state: 'unavailable', exists: undefined, size: undefined, unavailable: true },
+				],
+				suggestion: undefined,
+			});
+		});
+	}
+
+	for (const kind of agentHostConnectionKinds.filter(kind => kind.name !== 'local')) {
+		test(`keeps case-distinct remote worktrees separate when cleaning one checkout (${kind.name})`, async () => {
+			const sessions = ['Task', 'task'].map(id => {
+				const session = createSession(id, oldDate());
+				const workspace = session.workspace.get()!;
+				return {
+					...session,
+					workspace: constObservable({
+						...workspace,
+						folders: workspace.folders.map(folder => ({
+							...folder,
+							gitRepository: {
+								...folder.gitRepository!,
+								uri: kind.toClient(URI.file('/repo')),
+								workTreeUri: kind.toClient(URI.file(`/repo.worktrees/${id}`)),
+							},
+						})),
+					}),
+				};
+			});
+			const archived: string[] = [];
+			const service = disposables.add(createService(sessions, true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+				canCleanupWorktree: () => true,
+				onArchive: async session => { archived.push(session.sessionId); },
+				onCleanup: async () => ({ state: 'pending' }),
+				dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			}));
+			const rows = await service.getWorktrees(0);
+			await service.cleanupWorktrees([rows[0]]);
+			assert.deepStrictEqual({ rows: rows.map(row => ({ id: getWorktreeCleanupId(row), count: row.worktreeCount })), archived }, {
+				rows: [{ id: 'Task', count: 1 }, { id: 'task', count: 1 }], archived: ['Task'],
+			});
+		});
+
+		test(`retains unscheduled remote worktrees through disconnection and reconciles on reconnect (${kind.name})`, async () => {
+			const worktree = {
+				...managedWorktree(),
+				repository: kind.toClient(URI.file('/repo')).toString(),
+				worktree: kind.toClient(URI.file('/repo.worktrees/unlinked')).toString(),
+			};
+			let connected = true;
+			let inventory = [worktree];
+			const service = disposables.add(createService([], true, () => undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+				canCleanupWorktree: () => connected,
+				listManagedWorktrees: async () => connected ? inventory : [],
+			}));
+			const initial = await service.getWorktrees(0);
+			connected = false;
+			const disconnected = await service.getWorktrees(0);
+			connected = true;
+			const reconnected = await service.getWorktrees(0);
+			connected = false;
+			await service.getWorktrees(0);
+			connected = true;
+			inventory = [];
+			const removed = await service.getWorktrees(0);
+			assert.deepStrictEqual({
+				states: [initial, disconnected, reconnected, removed].map(rows => rows.map(row => ({
+					id: getWorktreeCleanupId(row), exists: row.worktreeExists, unavailable: !!row.cleanupUnavailableReason,
+				}))),
+				operations: service.cleanupOperations.get(),
+			}, {
+				states: [
+					[{ id: `managed:test:${worktree.worktree}`, exists: true, unavailable: false }],
+					[{ id: `managed:test:${worktree.worktree}`, exists: undefined, unavailable: true }],
+					[{ id: `managed:test:${worktree.worktree}`, exists: true, unavailable: false }],
+					[],
+				],
+				operations: [],
+			});
+		});
+	}
+
+	test('does not group or deduplicate identical worktree paths on different hosts', async () => {
+		const original = createSession('same-path', oldDate());
+		const workspace = original.workspace.get()!;
+		const sessions = ['first', 'second'].map(authority => ({
+			...original, sessionId: authority,
+			workspace: constObservable({
+				...workspace,
+				folders: workspace.folders.map(folder => ({
+					...folder,
+					gitRepository: {
+						...folder.gitRepository!,
+						uri: folder.gitRepository!.uri.with({ scheme: 'vscode-remote', authority }),
+						workTreeUri: folder.gitRepository!.workTreeUri!.with({ scheme: 'vscode-remote', authority }),
+					},
+				})),
+			}),
+		}));
+		const worktrees = ['first', 'second'].map(authority => ({
+			...managedWorktree(), worktree: URI.file('/repo.worktrees/unlinked').with({ scheme: 'vscode-remote', authority }).toString(),
+		}));
+		const service = disposables.add(createService(sessions, true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			canCleanupWorktree: () => true,
+			listManagedWorktrees: async () => worktrees,
+		}));
+		const rows = await service.getWorktrees(0);
+		assert.deepStrictEqual(rows.map(row => ({ id: getWorktreeCleanupId(row), count: row.worktreeCount })), [
+			{ id: 'first', count: 1 }, { id: 'second', count: 1 },
+			...worktrees.map(worktree => ({ id: `managed:test:${worktree.worktree}`, count: 1 })),
+		]);
+	});
+
+	test('remote cleanup stays unverified after disconnect and confirms absence only after reconnect', async () => {
+		const worktree = {
+			...managedWorktree(),
+			worktree: URI.file('/repo.worktrees/unlinked').with({ scheme: 'vscode-remote', authority: 'host' }).toString(),
+		};
+		let connected = true;
+		let listed = true;
+		const service = disposables.add(createService([], true, () => undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			canCleanupWorktree: () => connected,
+			listManagedWorktrees: async () => listed ? [worktree] : [],
+			cleanupManagedWorktree: async () => { },
+			managedWorktreeExists: async () => connected ? false : undefined,
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		const rows = await service.getWorktrees(0);
+		await service.cleanupWorktrees(rows);
+		connected = false;
+		listed = false;
+		const disconnected = await service.refreshPendingCleanup(rows.map(getWorktreeCleanupId), 0);
+		const pending = service.cleanupOperations.get().map(operation => operation.state);
+		connected = true;
+		const reconnected = await service.refreshPendingCleanup(rows.map(getWorktreeCleanupId), 0);
+		assert.deepStrictEqual({
+			disconnected: disconnected.map(row => ({ exists: row.worktreeExists, size: row.sizeBytes, unavailable: !!row.cleanupUnavailableReason })),
+			pending,
+			reconnected: reconnected.map(row => ({ exists: row.worktreeExists, size: row.sizeBytes })),
+			operations: service.cleanupOperations.get(),
+		}, { disconnected: [{ exists: undefined, size: undefined, unavailable: true }], pending: ['pending'], reconnected: [{ exists: false, size: 0 }], operations: [] });
 	});
 
 	test('includes unlinked managed worktrees without measuring them or duplicating session paths', async () => {
@@ -2265,6 +2452,7 @@ function createService(
 		readonly onPrepare?: ISessionsManagementService['prepareSessionWorktreeCleanup'];
 		readonly onCleanup?: ISessionsManagementService['sessionWorktreeCleanup'];
 		readonly canForceWorktreeCleanup?: ISessionsManagementService['canForceWorktreeCleanup'];
+		readonly canCleanupWorktree?: ISessionsManagementService['canCleanupWorktree'];
 		readonly onExists?: ISessionsManagementService['sessionWorktreeExists'];
 		readonly onDidArchiveSession?: Event<ISession>;
 		readonly onDidUnarchiveSession?: Event<ISession>;
@@ -2281,6 +2469,7 @@ function createService(
 			prepareSessionWorktreeCleanup: async session => overrides.onPrepare?.(session),
 			sessionWorktreeCleanup: overrides.onCleanup,
 			canForceWorktreeCleanup: overrides.canForceWorktreeCleanup,
+			canCleanupWorktree: overrides.canCleanupWorktree,
 			sessionWorktreeExists: overrides.onExists ?? (async () => true),
 			onDidArchiveSession: overrides.onDidArchiveSession ?? Event.None,
 			onDidUnarchiveSession: overrides.onDidUnarchiveSession ?? Event.None,
