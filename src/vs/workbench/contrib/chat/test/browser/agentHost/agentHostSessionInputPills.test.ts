@@ -62,7 +62,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../../../../canvases/common/canvas.js';
-import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { AgentHostSessionInputPills, AgentHostSessionWorkingSet, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
@@ -186,6 +186,13 @@ suite('AgentHostSessionInputPills', () => {
 		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({}));
 		return instantiationService;
 	};
+	/** Provides the services of the session's working set, which the pills create, to `instantiationService`; it keeps its own label service. */
+	function stubWorkingSetServices(instantiationService: ReturnType<typeof createInstantiationService>, connectionsService: IAgentHostConnectionsService, provisionalSessions: IAgentHostUntitledProvisionalSessionService, configurationService: IConfigurationService, notificationService: INotificationService): void {
+		instantiationService.stub(IAgentHostConnectionsService, connectionsService);
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, provisionalSessions);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(INotificationService, notificationService);
+	}
 	function createSessionInputPills(
 		widget: ChatWidget,
 		connectionsService: IAgentHostConnectionsService,
@@ -197,10 +204,11 @@ suite('AgentHostSessionInputPills', () => {
 		openerService: IOpenerService,
 		visibility: SessionChatPillVisibility
 	): AgentHostSessionInputPills {
+		// What the session's working set, which the pills create, injects
+		stubWorkingSetServices(instantiationService, connectionsService, noProvisionalSessions, configurationService, notificationService);
 		return store.add(new AgentHostSessionInputPills(
 			widget,
 			false,
-			connectionsService,
 			browserViewService,
 			clipboardService,
 			configurationService,
@@ -208,12 +216,9 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			noProvisionalSessions,
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
 			instantiationService.get(ITelemetryService),
 		));
 	}
@@ -490,13 +495,22 @@ suite('AgentHostSessionInputPills', () => {
 			protected override get workingSetUndoEnabled() {
 				return !!options?.workingSetUndo;
 			}
-			protected override get workingSetOnly() {
-				return !!options?.workingSetOnly;
-			}
 		}
-		const pills = store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
+		// An input that shows the session's pills itself binds only the working set, as a session's chat outside the Agents
+		// window does; what each creates is recorded, so that it is seen to create none of the pills' sources
+		const created: string[] = [];
+		const createInstance = instantiationService.createInstance.bind(instantiationService) as (ctor: unknown, ...args: unknown[]) => unknown;
+		instantiationService.createInstance = ((ctor: unknown, ...args: unknown[]) => {
+			created.push((ctor as { name?: string }).name ?? String(ctor));
+			return createInstance(ctor, ...args);
+		}) as typeof instantiationService.createInstance;
+		const pills = options?.workingSetOnly
+			? store.add(instantiationService.createInstance(AgentHostSessionWorkingSet, widget, { workingSetOnly: true }))
+			: store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
 		return {
 			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
+			/** The classes created through the instantiation service, by name. */
+			created: () => created,
 			setInputVisible: (visible: boolean) => inputVisible.set(visible, undefined),
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
@@ -1733,15 +1747,21 @@ suite('AgentHostSessionInputPills', () => {
 			onDidChange: provisionalChanged.event,
 			get: () => provisionalBackend,
 		});
+		// What the session's working set, which the pills create, injects
+		stubWorkingSetServices(instantiationService, connectionsService, provisionalSessions, configurationService, notificationService);
 		store.add(new AgentHostSessionInputPills(
-			widget, false, connectionsService, browserViewService, clipboardService,
-			configurationService, editorService, instantiationService, openerService, visibility,
-			provisionalSessions,
+			widget,
+			false,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
 			labelService,
 			notificationService,
 			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
 			instantiationService.get(ITelemetryService),
 		));
 		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
@@ -3343,6 +3363,14 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('an input that shows only the working set creates none of the pills\' sources, only the working set\'s binding', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+
+		assert.deepStrictEqual(harness.created(), ['AgentHostSessionWorkingSet']);
+	});
+
 	test('an input that shows only the working set shows the Changes pill again once the working set shows no files, and the pill offers to show the working set again', async () => {
 		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
 		const operations = [acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)];
@@ -4105,10 +4133,12 @@ suite('AgentHostSessionInputPills', () => {
 		] as const);
 
 		const errors: string[] = [];
+		const pillNotificationService = upcastPartial<INotificationService>({ error: error => errors.push(String(error)) });
+		// What the session's working set, which the pills create, injects
+		stubWorkingSetServices(instantiationService, connectionsService, noProvisionalSessions, configurationService, pillNotificationService);
 		store.add(new AgentHostSessionInputPills(
 			widget,
 			false,
-			connectionsService,
 			browserViewService,
 			clipboardService,
 			configurationService,
@@ -4116,12 +4146,9 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService,
 			openerService,
 			visibility,
-			noProvisionalSessions,
 			labelService,
-			upcastPartial<INotificationService>({ error: error => errors.push(String(error)) }),
+			pillNotificationService,
 			instantiationService.get(ICommandService),
-			instantiationService.get(IDialogService),
-			instantiationService.get(IChatEditingService),
 			instantiationService.get(ITelemetryService),
 		));
 		persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();

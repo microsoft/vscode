@@ -629,6 +629,29 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	isPanelMaximized(): boolean;
 
 	/**
+	 * Emitted with whether the chat part is visible, when that changes. Hiding it with the editor area for a
+	 * maximized panel counts, and nothing is emitted while it stays as it is.
+	 */
+	readonly onDidChangeChatPartVisibility: Event<boolean>;
+
+	/**
+	 * Whether the window has a chat part, shown or not.
+	 */
+	hasChatPart(): boolean;
+
+	/**
+	 * Whether the editor area is hidden so that the chat part takes its space.
+	 */
+	isEditorHiddenByChat(): boolean;
+
+	/**
+	 * Hides the editor area so that the chat part takes its space, or shows it again.
+	 * Hiding requires a visible chat part. Opening an editor, hiding the chat part and
+	 * maximizing the panel show the editor area again.
+	 */
+	setEditorHiddenByChat(hidden: boolean): void;
+
+	/**
 	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.
 	 * Restores the previous layout if the auxiliary sidebar is already maximized.
 	 */
