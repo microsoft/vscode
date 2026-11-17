@@ -115,12 +115,12 @@ class MockApiClient extends mock<GitHubApiClient>() {
 		return response as T;
 	}
 
-	override async withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>, token = CancellationToken.None): Promise<T> {
+	override async withClient<T>(task: (client: IGitHubAccountClient, cancellationToken: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		this.tokens.push(token);
-		return task(this.account, new AbortController().signal);
+		return task(this.account, CancellationToken.None);
 	}
 }
 
@@ -428,8 +428,8 @@ suite('GitHubPRFetcher', () => {
 				pullRequests: new PullRequestsClient(new CoreClient(provider, provider)),
 			});
 			const api = new class extends mock<GitHubApiClient>() {
-				override withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>): Promise<T> {
-					return task(accountClient, new AbortController().signal);
+				override withClient<T>(task: (client: IGitHubAccountClient, cancellationToken: CancellationToken) => Promise<T>): Promise<T> {
+					return task(accountClient, CancellationToken.None);
 				}
 			}();
 			const result = await new GitHubPRFetcher(api).getPullRequest('owner', 'repo', 1);
@@ -1027,7 +1027,7 @@ suite('PullRequestChecksSource', () => {
 			}
 		}();
 
-		const checks = await new PullRequestChecksSource(gitHubService).subscribe('o', 'r', 1, 'after-push', new AbortController().signal);
+		const checks = await new PullRequestChecksSource(gitHubService).subscribe('o', 'r', 1, 'after-push', CancellationToken.None);
 		await checks.refresh(false);
 		await checks.refresh(true);
 		checks.dispose();

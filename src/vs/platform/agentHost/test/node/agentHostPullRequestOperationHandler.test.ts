@@ -3,28 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type Anthropic from '@anthropic-ai/sdk';
+import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
-import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
-import type { IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
-import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
-import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
-import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
-import { AgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
-import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { ApiRequestOptions } from '../../../github/common/client/request.js';
 import { SchemaError } from '../../../github/common/client/schema.js';
@@ -34,22 +22,34 @@ import { IRepositoriesClient, Repository } from '../../../github/common/core/rep
 import { PullRequestMergeMethod } from '../../../github/common/githubPullRequestService.js';
 import { GitHubRequestTimeoutError } from '../../../github/common/githubTypes.js';
 import { RequestFetch } from '../../../github/common/types.js';
-import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { createTestPullRequest, createTestPullRequestSummary } from './testGitHubService.js';
-import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import type Anthropic from '@anthropic-ai/sdk';
-import type { CCAModel } from '@vscode/copilot-api';
-import { AgentHostAuthenticationService, type IAgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
-import { chatTurnStarted } from '../common/chatActionBuilders.js';
-import type { IAgentBranchNameGenerator, IAgentBranchNameGeneratorRequest } from '../../node/shared/agentBranchNameGenerator.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
+import type { IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState, type AgentMergeConfiguration, type AgentMergeControllerState, type AgentMergeSessionOverrides } from '../../common/agentMerge.js';
-import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID, readPullRequestDetailsResult, type IPullRequestCreateOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { PREPARE_PULL_REQUEST_OPERATION_ID, createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, readPullRequestDetailsResult, type IPullRequestCreateOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { MessageKind, ResponsePartKind, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, type Turn } from '../../common/state/sessionState.js';
+import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
+import { AgentHostAuthenticationService, type IAgentHostAuthTokenChangeEvent, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { AgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
+import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import type { IAgentBranchNameGenerator, IAgentBranchNameGeneratorRequest } from '../../node/shared/agentBranchNameGenerator.js';
+import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { TestAgentHostGitService } from '../common/testAgentHostGitService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestPullRequest, createTestPullRequestSummary } from './testGitHubService.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -156,7 +156,7 @@ class TestGitHubClient {
 	capabilitiesError: Error | undefined;
 	apiAcquisitions = 0;
 	apiDisposals = 0;
-	readonly repositoryRequests: { repository: RepositoryRef; signal: AbortSignal; options?: ApiRequestOptions }[] = [];
+	readonly repositoryRequests: { repository: RepositoryRef; cancellationToken: CancellationToken; options?: ApiRequestOptions }[] = [];
 	onMutation: ((operation: string) => void) | undefined;
 	created = createTestPullRequestSummary(123, { node_id: 'PR_node_123' });
 	lastTitle: string | undefined;
@@ -171,7 +171,7 @@ class TestGitHubClient {
 		const client = this;
 		return new class extends mock<IGitHubAccountClient>() {
 			override readonly pullRequests = new class extends mock<IPullRequestsClient>() {
-				override async list(_repository: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+				override async list(_repository: RepositoryRef, _signal: CancellationToken, options?: ListPullRequestsOptions) {
 					const head = options?.query?.head;
 					assert.ok(head);
 					const separator = head.indexOf(':');
@@ -212,9 +212,9 @@ class TestGitHubClient {
 				}
 			}();
 			override readonly repositories = new class extends mock<IRepositoriesClient>() {
-				override async get(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
+				override async get(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Repository> {
 					client.calls.push(`repositories.get:${repository.owner}/${repository.repo}`);
-					client.repositoryRequests.push({ repository, signal, options });
+					client.repositoryRequests.push({ repository, cancellationToken, options });
 					if (client.capabilitiesError) {
 						throw client.capabilitiesError;
 					}
@@ -885,7 +885,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			assert.deepStrictEqual({
 				autoMergeAllowed: details.autoMergeAllowed,
 				mergeMethods: details.mergeMethods,
-				requests: client.repositoryRequests.map(({ repository, signal, options }) => ({ repository, options, aborted: signal.aborted })),
+				requests: client.repositoryRequests.map(({ repository, cancellationToken, options }) => ({ repository, options, aborted: cancellationToken.isCancellationRequested })),
 				leases: { acquired: client.apiAcquisitions, disposed: client.apiDisposals },
 			}, {
 				autoMergeAllowed: settings.auto,
@@ -1754,9 +1754,9 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			const pullRequest = createTestPullRequest(8, { title: 'Created title', node_id: 'PR8' });
 			const requests: string[] = [];
 			let created = false;
-			let createSignal: AbortSignal | undefined;
+			let createSignal: CancellationToken | undefined;
 			const service = disposables.add(new AgentHostGitHubService({
-				fetch: async (input, init) => {
+				fetch: async (input, init, fetchToken) => {
 					const path = new URL(String(input)).pathname;
 					requests.push(`${init?.method}:${path}:${new Headers(init?.headers).get('Authorization')}`);
 					if (path === '/user') {
@@ -1768,8 +1768,8 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					assert.strictEqual(path, '/repos/microsoft/vscode/pulls');
 					if (init?.method === 'POST') {
 						created = true;
-						assert.ok(init.signal);
-						createSignal = init.signal;
+						assert.ok(fetchToken);
+						createSignal = fetchToken;
 						if (scenario.renewal === 'during create') {
 							await createStarted.complete();
 							return createResponse.p;
@@ -1782,7 +1782,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					return new Response(JSON.stringify(created ? [pullRequest] : []));
 				},
 			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
-			const client = disposables.add(service.acquireRepositoryApiClient(new AbortController().signal));
+			const client = disposables.add(service.acquireRepositoryApiClient(CancellationToken.None));
 			let invalidations = 0;
 			disposables.add(client.onDidInvalidate(() => { invalidations++; }));
 			const source = disposables.add(new CancellationTokenSource());
@@ -1803,7 +1803,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					if (scenario.cancelled) {
 						source.cancel();
 					}
-					await client.pullRequests.list({ owner: 'microsoft', repo: 'vscode' }, new AbortController().signal, { query: { page: 2 } });
+					await client.pullRequests.list({ owner: 'microsoft', repo: 'vscode' }, CancellationToken.None, { query: { page: 2 } });
 					await createResponse.complete(new Response(JSON.stringify(pullRequest), { status: 201 }));
 				})(),
 			]);
@@ -1812,7 +1812,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				message: result?.message,
 				createdEvents,
 				invalidations,
-				interruptedCreate: scenario.renewal === 'during create' && createSignal?.aborted,
+				interruptedCreate: scenario.renewal === 'during create' && createSignal?.isCancellationRequested,
 				requests,
 			}, {
 				message: scenario.cancelled ? undefined : {
@@ -1860,7 +1860,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		const gitService = new TestGitService();
 		const gitHubClient = new TestGitHubClient();
 		const { handler, session, createdEvents } = setup(disposables, gitService, gitHubClient);
-		const cts = new CancellationTokenSource();
+		const cts = disposables.add(new CancellationTokenSource());
 		disposables.add(cts);
 		cts.cancel();
 
