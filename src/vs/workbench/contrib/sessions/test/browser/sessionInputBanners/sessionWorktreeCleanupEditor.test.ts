@@ -68,7 +68,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSession }));
 		const opened: string[] = [];
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ openSession: async resource => { opened.push(resource.toString()); return undefined; } }));
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ canOpenSession: async () => true, openSession: async resource => { opened.push(resource.toString()); return undefined; } }));
 		const errors: string[] = [];
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: error => errors.push(getErrorMessage(error)) }));
 		const container = dom.append(mainWindow.document.body, dom.$('div'));
@@ -1329,6 +1329,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			focusElement(link);
 			link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
 		}
+		await timeout(0);
 		assert.deepStrictEqual({
 			initialFocus,
 			focusedRow: table.getFocusedElements(),
@@ -1413,6 +1414,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('list.focusUp')!.handler(accessor));
 		const afterUp = table.getFocusedElements();
 		link.click();
+		await timeout(0);
 		assert.deepStrictEqual({
 			selectedWithoutOpening, focused, afterUp, opened,
 			linkFitsText: link.getBoundingClientRect().width < titleCell.getBoundingClientRect().width / 2,
@@ -1421,6 +1423,48 @@ suite('SessionWorktreeCleanupEditor', () => {
 			opened: ['test:/second'], linkFitsText: true,
 		});
 	});
+
+	for (const activation of ['link click', 'link keyboard', 'table keyboard']) {
+		test(`${activation} checks session trust before opening and reports trust errors`, async () => {
+			const { editor, container, opened, errors, instantiationService } = createEditor({
+				getWorktrees: async () => [createWorktree('outside-workspace', '/repos/other')],
+			});
+			const trust = new DeferredPromise<boolean>();
+			const checked: string[] = [];
+			let decision: Promise<boolean> = trust.p;
+			instantiationService.get(ISessionsService).canOpenSession = async session => {
+				checked.push(session.sessionId);
+				return decision;
+			};
+			await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+			const link = container.querySelector<HTMLElement>('.session-worktree-cleanup-session-link')!;
+			const activate = async () => {
+				if (activation === 'table keyboard') {
+					focusElement(container.querySelector<HTMLElement>('.monaco-list')!);
+					await instantiationService.invokeFunction(CommandsRegistry.getCommand('list.focusFirst')!.handler);
+					await instantiationService.invokeFunction(CommandsRegistry.getCommand('list.select')!.handler);
+				} else if (activation === 'link keyboard') {
+					link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				} else {
+					link.click();
+				}
+				await timeout(0);
+			};
+			await activate();
+			const pending = [...opened];
+			await trust.complete(false);
+			await timeout(0);
+			const declined = [...opened];
+			decision = Promise.resolve(true);
+			await activate();
+			decision = Promise.resolve(false).then(() => { throw new Error('Trust check failed'); });
+			await activate();
+			assert.deepStrictEqual({ pending, declined, opened, checked, errors }, {
+				pending: [], declined: [], opened: ['test:/outside-workspace'],
+				checked: ['outside-workspace', 'outside-workspace', 'outside-workspace'], errors: ['Trust check failed'],
+			});
+		});
+	}
 
 	test('selection is available while measuring and survives the final size update', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const worktree = createWorktree('measuring', '/repos/app');
@@ -1479,6 +1523,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			const link = row.querySelector<HTMLElement>('a')!;
 			const tabFocus = dom.getActiveElement() === row.querySelector('[role="checkbox"]');
 			link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			await timeout(0);
 			assert.deepStrictEqual({
 				reordered,
 				moved,
@@ -1528,6 +1573,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const link = row.querySelector<HTMLElement>('a')!;
 		const tabFocus = dom.getActiveElement() === link;
 		link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await timeout(0);
 		assert.deepStrictEqual({
 			queued,
 			busy: row.getAttribute('aria-busy'),
@@ -1633,6 +1679,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { checked: [['first', 'second']], rows: ['first', 'second'] });
 		await timeout(4_100);
 		firstLink.click();
+		await timeout(0);
 		assert.deepStrictEqual({
 			checked,
 			rows: [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')].map((row, index) => ({

@@ -12,6 +12,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { isStringArray } from '../../../../base/common/types.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -142,6 +143,17 @@ export interface ISessionsListModelService {
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
 
+const PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
+
+/** Reads stored pins for maintenance across profiles without changing profile-local list state. */
+export function readSessionPinnedIds(storageService: IStorageService): readonly string[] {
+	const ids = storageService.getObject(PINNED_SESSIONS_KEY, StorageScope.PROFILE, []);
+	if (!isStringArray(ids)) {
+		throw new Error(localize('sessionsList.invalidStoredPins', "Unable to read stored session pins."));
+	}
+	return ids;
+}
+
 /** How recently an unread session from before the Inbox's first use must have been modified to still be admitted. */
 const UNREAD_HISTORICAL_INBOX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -159,7 +171,6 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly INBOX_STATE_KEY = 'sessionsListControl.inboxState';
 	private static readonly SHOWN_AUTOMATION_SESSIONS_KEY = 'sessionsListControl.shownAutomationSessions';
 	private static readonly HIDDEN_AUTOMATION_SESSIONS_KEY = 'sessionsListControl.hiddenAutomationSessions';
@@ -195,7 +206,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	) {
 		super();
 
-		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
+		this._pinnedSessionIds = this.loadSet(PINNED_SESSIONS_KEY);
 		this.loadInboxState();
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SessionsListModelService.INBOX_STATE_KEY, this._store)(e => {
 			if (e.external) {
@@ -340,7 +351,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				this._shownAutomationSessionIds.set(shown, tx);
 				this._hiddenAutomationSessionIds.set(hidden, tx);
 			});
-			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+			this.saveSet(PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			this.saveSet(SessionsListModelService.READ_MIGRATION_DONE_KEY, this._migratedReadSessionIds);
 			this.saveSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY, shown);
 			this.saveSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY, hidden);
@@ -377,7 +388,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return;
 		}
 		this._pinnedSessionIds.add(session.sessionId);
-		this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+		this.saveSet(PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
 	}
 
@@ -386,7 +397,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return;
 		}
 		this._pinnedSessionIds.delete(session.sessionId);
-		this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+		this.saveSet(PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
 	}
 
@@ -398,7 +409,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			}
 		}
 		if (changed.length > 0) {
-			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+			this.saveSet(PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			this._onDidChange.fire({ changes: changed });
 		}
 	}
@@ -765,7 +776,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
 		if (this._pinnedSessionIds.delete(session.sessionId)) {
-			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+			this.saveSet(PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
 		}
 		changes.push(...this.updateAutomationListing([session], (shown, hidden, sessionId) => {

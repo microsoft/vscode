@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { registerWorkbenchContribution2 } from '../../../../common/contributions.js';
 import { EditorWindowWorktreeCleanup } from './editorWindowWorktreeCleanup.js';
 import { registerEditorWindowSessionsSingleton } from './editorWindowSessionsServices.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
@@ -48,6 +48,7 @@ import { GitHubService, IGitHubService } from '../github/githubService.js';
 import '../sessionAttentionService.js';
 import { FocusedSessionHostService, SessionHostService } from '../sessionHostService.js';
 import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
+import { SessionWorktreeCleanupEditor } from '../sessionInputBanners/sessionWorktreeCleanupEditor.js';
 import { ISessionsListModelService, SessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionDraftsService, SessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChatsService.js';
@@ -78,7 +79,7 @@ import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService
 
 // The sessions services of an editor window, for the sessions features it can host. Every one is created only as it is
 // first used, and nothing in the window uses them until such a feature does.
-registerWorkbenchContribution2(EditorWindowWorktreeCleanup.ID, EditorWindowWorktreeCleanup, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(EditorWindowWorktreeCleanup.ID, EditorWindowWorktreeCleanup, { editorTypeId: SessionWorktreeCleanupEditor.ID });
 registerEditorWindowSessionsSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);

@@ -46,6 +46,7 @@ import { localize } from '../../../../../nls.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { SessionWorktreeCleanupEditorFocusedContext } from '../../common/contextkeys.js';
 import { ISessionsService } from '../sessionsService.js';
@@ -706,11 +707,17 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			if (event.element && event.browserEvent instanceof dom.getWindow(container).KeyboardEvent && (!event.browserEvent.target || event.browserEvent.target === this.tableFocusElements.get(table))) {
 				const worktree = this.displayWorktreesById.get(event.element)!;
 				if (worktree.session) {
-					void this.sessionsService.openSession(worktree.session.resource).catch(error => this.notificationService.error(error));
+					void this.openSession(worktree.session).catch(error => this.notificationService.error(error));
 				}
 			}
 		}));
 		return table;
+	}
+
+	private async openSession(session: ISession): Promise<void> {
+		if (await this.sessionsService.canOpenSession(session)) {
+			await this.sessionsService.openSession(session.resource);
+		}
 	}
 
 	private createWorktreeCellRenderer(column: WorktreeColumn): ITableRenderer<string, IWorktreeCellTemplate> {
@@ -1008,7 +1015,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			const openSession = () => {
 				const session = template.worktree?.session;
 				if (session) {
-					void this.sessionsService.openSession(session.resource).catch(error => this.notificationService.error(error));
+					void this.openSession(session).catch(error => this.notificationService.error(error));
 				} else if (template.worktree?.unlinkedWorktree) {
 					this.hoverService.showInstantHover({ ...this.cellHoverOptions, target: titleLink, content: getWorktreePath(template.worktree, this.labelService) }, true);
 				}
