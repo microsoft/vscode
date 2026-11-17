@@ -211,7 +211,6 @@
 		"sash"
 	],
 	// --- Workbench ---
-	"multiDiffEditor.experimental.fileList": true,
 	"azureMcp.enabledServices": [
 		"kusto" // Needed for kusto tool in data.prompt.md
 	],

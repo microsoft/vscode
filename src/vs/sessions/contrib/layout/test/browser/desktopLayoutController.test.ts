@@ -40,7 +40,7 @@ import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
@@ -1958,12 +1958,12 @@ suite('DesktopLayoutController', () => {
 	test('[desktop] Toggle Details targets the multi diff file list while docked and the widget while floating', () => {
 		createDesktopController();
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		const configurationService = new TestConfigurationService({ [multiDiffEditorExperimentalFileListSetting]: true });
+		const configurationService = new TestConfigurationService();
 		const createGroup = (activeEditorId: string): IEditorGroup => {
 			const scopedContextKeyService = store.add(new ContextKeyService(configurationService));
 			MainEditorAreaVisibleContext.bindTo(scopedContextKeyService).set(true);
 			ActiveEditorContext.bindTo(scopedContextKeyService).set(activeEditorId);
-			// A group keeps the key of a multi diff editor pane that is no longer active.
+			// A group can keep the key of an editor pane that is no longer active.
 			MultiDiffEditorFileListAvailableContext.bindTo(scopedContextKeyService).set(true);
 			return new class extends mock<IEditorGroup>() {
 				override readonly scopedContextKeyService = scopedContextKeyService;
@@ -1974,7 +1974,7 @@ suite('DesktopLayoutController', () => {
 		const activeEditorPane = { group: multiDiffEditorGroup };
 		harness.instaService.stub(IEditorService, 'activeEditorPane', activeEditorPane);
 		harness.instaService.stub(IEditorGroupsService, 'getGroup', (groupId: number) => groupId === 2 ? multiDiffEditorGroup : undefined);
-		const fileListVisible = observableMultiDiffEditorFileListVisible({}, configurationService, harness.storageService, store);
+		const fileListVisible = observableMultiDiffEditorFileListVisible({}, constObservable(true), harness.storageService, store);
 		const handler = CommandsRegistry.getCommand(TOGGLE_DETAILS_COMMAND_ID)?.handler;
 		assert.ok(handler, 'Toggle Details command should be registered');
 		const toggle = (activeGroup: IEditorGroup, ...args: unknown[]) => {
