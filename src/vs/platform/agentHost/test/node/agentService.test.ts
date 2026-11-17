@@ -39577,6 +39577,8 @@ suite('AgentService (node dispatcher)', () => {
 
 				test('promoting a chat of a restored sponsored session, whose chat has no credential context yet, still gives the new session its principal', async () => {
 					const env = await setupCredentials({ source: '1', target: undefined });
+					// Let the original host finish its deferred catalog state writes, so they don't race the restarted host's promotion.
+					await env.service.whenCatalogReconciliationIdle();
 					const restarted = restartedHost(env, env.orchestrator);
 					env.agent.sessionMetadataOverrides = { workingDirectories: [URI.file('/repo')] };
 					await restarted.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'ambient' });
