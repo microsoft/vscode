@@ -98,7 +98,8 @@ suite('BrowserViewInspector', () => {
 			override readonly url = 'https://example.com';
 			override readonly ipc = new EventEmitter() as Electron.IpcMain;
 			override isDestroyed() { return false; }
-			override postMessage() { }
+			readonly messages: string[] = [];
+			override postMessage(channel: string) { this.messages.push(channel); }
 		};
 	}
 
@@ -317,5 +318,29 @@ suite('BrowserViewInspector', () => {
 			mainAdopted: !!registry.getByFrame(mainFrame),
 			liveIframeAdopted: !!registry.getByFrame(liveIframe),
 		}, { pendingTokens: ['main-token-2', 'live-token'], mainAdopted: true, liveIframeAdopted: true });
+	});
+
+	test('sends theme changes to preload frames that were never adopted', () => {
+		const { inspector, webContents } = createInspector();
+		const frame = createFrame();
+		webContents.emit('ipc-message', { senderFrame: frame }, 'vscode:browserView:preloadReady', 'token');
+		frame.messages.length = 0;
+
+		inspector.setTheme({ focusBorder: '#fff' } as Parameters<typeof inspector.setTheme>[0]);
+
+		assert.deepStrictEqual(frame.messages, ['vscode:browserView:setTheme']);
+	});
+
+	test('does not wait again for a frame whose adoption already timed out', async () => {
+		const { inspector, webContents } = createInspector();
+		const frame = createFrame();
+		webContents.emit('ipc-message', { senderFrame: frame }, 'vscode:browserView:preloadReady', 'token');
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect state without exposing test-only API.
+		inspector['_adoptionTimedOut'].add(frame);
+
+		const start = Date.now();
+		const handle = await inspector.getElementHandle(1 as never, frame);
+
+		assert.deepStrictEqual({ handle, fast: Date.now() - start < 500 }, { handle: undefined, fast: true });
 	});
 });

@@ -775,6 +775,11 @@ export class BrowserView extends Disposable {
 		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 
+	/** Whether the underlying view is currently shown. */
+	isVisible(): boolean {
+		return this._view.getVisible();
+	}
+
 	/**
 	 * Set the visibility of this view
 	 */

@@ -102,6 +102,7 @@ export class BrowserViewInspector extends Disposable {
 
 	private readonly _registry = this._register(new FrameInspectorRegistry());
 	private _attachPromise: Promise<void> | undefined;
+	private readonly _adoptionTimedOut = new WeakSet<Electron.WebFrameMain>();
 	private readonly _sessionListeners = this._register(new DisposableMap<ICDPConnection, DisposableStore>());
 
 	constructor(private readonly browser: BrowserView) {
@@ -215,7 +216,7 @@ export class BrowserViewInspector extends Disposable {
 	private async _getFrameInspector(frame: Electron.WebFrameMain): Promise<BrowserViewFrameInspector | undefined> {
 		await this._ensureAttached();
 		const existing = this._registry.getByFrame(frame);
-		if (existing || this._store.isDisposed || !this._registry.isPendingFrame(frame)) {
+		if (existing || this._store.isDisposed || this._adoptionTimedOut.has(frame) || !this._registry.isPendingFrame(frame)) {
 			return existing;
 		}
 		const store = new DisposableStore();
@@ -231,7 +232,12 @@ export class BrowserViewInspector extends Disposable {
 		} finally {
 			store.dispose();
 		}
-		return this._registry.getByFrame(frame);
+		const adopted = this._registry.getByFrame(frame);
+		if (!adopted) {
+			// Don't stall every later lookup on a frame that already failed to adopt.
+			this._adoptionTimedOut.add(frame);
+		}
+		return adopted;
 	}
 
 	/**
@@ -342,6 +348,16 @@ export class BrowserViewInspector extends Disposable {
 
 	setTheme(theme: IBrowserViewTheme): void {
 		this._theme = theme;
+		// Frames that are not adopted yet (the debugger may never attach) still run the preload.
+		for (const frame of this._registry.pendingFrames) {
+			if (!frame.detached && !frame.isDestroyed()) {
+				try {
+					frame.postMessage('vscode:browserView:setTheme', theme);
+				} catch {
+					// The frame went away.
+				}
+			}
+		}
 		// Broadcast to all known inspectors
 		for (const inspector of this._registry.inspectors) {
 			inspector.setTheme(theme);
@@ -637,6 +653,8 @@ class FrameInspectorRegistry extends Disposable {
 	getByFrame(frame: Electron.WebFrameMain): BrowserViewFrameInspector | undefined {
 		return this._byFrame.get(frame);
 	}
+
+	get pendingFrames(): Iterable<Electron.WebFrameMain> { return this._pendingFrames.values(); }
 
 	/** Whether the frame's preload is ready and waiting for its CDP context. */
 	isPendingFrame(frame: Electron.WebFrameMain): boolean {
