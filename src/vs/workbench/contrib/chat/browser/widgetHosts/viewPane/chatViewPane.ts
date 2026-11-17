@@ -70,9 +70,10 @@ import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { IChatViewHostShownSession } from '../../chatViewHost.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
-import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -118,6 +119,33 @@ type ChatViewPaneOpenedClassification = {
 	comment: 'Event fired when the chat view pane is opened';
 };
 
+type ChatViewSessionsLayout = {
+	configuredOrientation: 'stacked' | 'sideBySide';
+	effectiveOrientation: 'stacked' | 'sideBySide';
+	sessionsVisible: boolean;
+	sessionsEnabled: boolean;
+	position: 'left' | 'right';
+	chatViewLocation: 'auxiliaryBar' | 'sidebar' | 'panel';
+	chatViewMaximized: boolean;
+};
+
+type ChatViewSessionsLayoutEvent = ChatViewSessionsLayout & {
+	reason: 'initial' | 'orientationChanged' | 'visibilityChanged';
+};
+
+type ChatViewSessionsLayoutClassification = {
+	configuredOrientation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured orientation of the sessions list (`chat.viewSessions.orientation`): stacked or sideBySide.' };
+	effectiveOrientation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The orientation of the sessions list actually in use, which falls back to stacked when the chat view is too narrow for side by side.' };
+	sessionsVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the sessions list is shown in the chat view.' };
+	sessionsEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the sessions list is enabled in the chat view (`chat.viewSessions.enabled`).' };
+	position: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which side of the chat the side by side sessions list is on: left or right.' };
+	chatViewLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Where the chat view is located: auxiliaryBar, sidebar or panel.' };
+	chatViewMaximized: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the chat view is in the secondary side bar and the secondary side bar is maximized.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the layout is reported: initial (first time the chat view is shown in the window), orientationChanged or visibilityChanged.' };
+	owner: 'sandy081';
+	comment: 'Reports the layout of the sessions list in the chat view, to measure how the sessions list in the chat view is used.';
+};
+
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private readonly memento: Memento<IChatViewPaneState>;
@@ -142,6 +170,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
+	/** Why the view sets the chat it shows, while it sets it: it restores the chat it last showed, or the user brought one up. */
+	private _showReason: IChatViewHostShownSession['reason'] = 'open';
+	private readonly _shownSession = observableValue<IChatViewHostShownSession | undefined>(this, undefined);
+	/** How often it reported the chat it shows ({@link shownSession}): whether a load reported its chat itself. */
+	private _shownReports = 0;
+	/** The chat the view shows, and whether it shows it as the user brought it up or as it restored it. */
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined> = this._shownSession;
 	private readonly customizationMigrationsAvailable = observableValue(this, false);
 	/**
 	 * Session resource of the last-focused chat widget, or this pane's own
@@ -312,7 +347,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			const modelRef = await this.chatService.acquireOrLoadSession(e.committed, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidCommitSession');
-			await this.showModel(CancellationToken.None, modelRef);
+			// The chat the first request made: a session the user did not pick
+			await this.showModel(CancellationToken.None, modelRef, undefined, undefined, undefined, undefined, 'commit');
 		}));
 
 		// Layout changes
@@ -351,7 +387,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
-							await this.showModel(cts.token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
+							await this.showModel(cts.token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason, 'restore');
 						} finally {
 							this._widget.setVisible(wasVisible);
 						}
@@ -365,6 +401,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				restoringSession.finally(() => {
 					if (this.restoringSession === restoringSession) {
 						this.restoringSession = undefined;
+						this.sessionsLayoutScheduler?.schedule();
 					}
 				});
 			}
@@ -860,6 +897,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerSash: Sash | undefined;
 	private readonly sessionsViewerSashDisposables = this._register(new MutableDisposable<DisposableStore>());
 
+	/** Reports the sessions list layout once it settled, so a resize reports at most one change. Accessed with `?.` because tests invoke pane methods on partial hosts. */
+	private readonly sessionsLayoutScheduler = this._register(new RunOnceScheduler(() => this.reportSessionsLayout(), 1000));
+	private lastReportedSessionsLayout: ChatViewSessionsLayout | undefined;
+	/** Number of in-flight {@link loadSession} calls, during which the reported sessions layout is not settled. */
+	private _loadingSessionCount = 0;
+
 	private createSessionsControl(parent: HTMLElement): AgentSessionsControl {
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
@@ -875,7 +918,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Toolbar
 		const sessionsToolbarContainer = append(sessionsTitleContainer, $('.agent-sessions-toolbar'));
 		const sessionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionsToolbarContainer, MenuId.AgentSessionsToolbar, {
-			menuOptions: { shouldForwardArgs: true }
+			menuOptions: { shouldForwardArgs: true },
+			telemetrySource: 'agentSessionsToolbar'
 		}));
 
 		// Sessions Filter
@@ -913,7 +957,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return openEvent;
 			},
 		}));
-		this._register(this.onDidChangeBodyVisibility(() => sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible)));
+		this._register(this.onDidChangeBodyVisibility(() => {
+			sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
+			this.sessionsLayoutScheduler?.schedule();
+		}));
 
 		sessionsToolbar.context = sessionsControl;
 
@@ -1001,11 +1048,55 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsViewerVisible = newSessionsContainerVisible;
 		this.sessionsControl?.setVisible(this.isBodyVisible() && newSessionsContainerVisible);
 		this.sessionsViewerVisibilityContext.set(newSessionsContainerVisible);
+		this.sessionsLayoutScheduler?.schedule();
 
 		return {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
 			visible: newSessionsContainerVisible
 		};
+	}
+
+	private reportSessionsLayout(): void {
+		if (!this.sessionsContainer || !this.lastDimensions || !this.isBodyVisible()) {
+			return; // not rendered, laid out or shown yet
+		}
+
+		if (this.restoringSession || this._loadingSessionCount > 0 || this._sessionsListSuppressionCount > 0) {
+			return; // session is restoring, loading or transitioning, sessions visibility is not settled
+		}
+
+		const { position, location } = this.getViewPositionAndLocation();
+
+		let chatViewLocation: ChatViewSessionsLayout['chatViewLocation'];
+		switch (location) {
+			case ViewContainerLocation.Sidebar: chatViewLocation = 'sidebar'; break;
+			case ViewContainerLocation.Panel: chatViewLocation = 'panel'; break;
+			default: chatViewLocation = 'auxiliaryBar'; break;
+		}
+
+		const layout: ChatViewSessionsLayout = {
+			configuredOrientation: this.sessionsViewerOrientationConfiguration,
+			effectiveOrientation: this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide ? 'sideBySide' : 'stacked',
+			sessionsVisible: this.sessionsViewerVisible,
+			sessionsEnabled: !!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled),
+			position: position === Position.RIGHT ? 'right' : 'left',
+			chatViewLocation,
+			chatViewMaximized: chatViewLocation === 'auxiliaryBar' && this.layoutService.isAuxiliaryBarMaximized(),
+		};
+
+		let reason: ChatViewSessionsLayoutEvent['reason'];
+		if (!this.lastReportedSessionsLayout) {
+			reason = 'initial';
+		} else if (this.lastReportedSessionsLayout.effectiveOrientation !== layout.effectiveOrientation) {
+			reason = 'orientationChanged';
+		} else if (this.lastReportedSessionsLayout.sessionsVisible !== layout.sessionsVisible) {
+			reason = 'visibilityChanged';
+		} else {
+			return; // no change since last report
+		}
+
+		this.lastReportedSessionsLayout = layout;
+		this.telemetryService.publicLog2<ChatViewSessionsLayoutEvent, ChatViewSessionsLayoutClassification>('chatViewSessionsLayout', { ...layout, reason });
 	}
 
 	private refreshSessionsControlVisibility(): void {
@@ -1043,6 +1134,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
+	private readonly _widgetCreated = new DeferredPromise<ChatWidget>();
+	/** Resolves to {@link widget} once the view creates it, as its body first renders. */
+	get whenWidget(): Promise<ChatWidget> { return this._widgetCreated.p; }
+
 	private titleControl: ChatViewTitleControl | undefined;
 
 	private createChatControl(parent: HTMLElement): ChatWidget {
@@ -1058,7 +1153,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Chat Widget
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-		this._widget = this._register(scopedInstantiationService.createInstance(
+		const widget = this._register(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
 			{ viewId: this.id },
@@ -1095,7 +1190,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,
 			}));
-		this._widget.render(chatControlsContainer, parent);
+		this._widget = widget;
+		widget.render(chatControlsContainer, parent);
+		// What waits for the widget gets it once it is rendered, as the body renders, once
+		this._widgetCreated.complete(widget);
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this._widget, 'auto'));
 
 		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
@@ -1153,10 +1251,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		// Track the active chat model and reveal it in the sessions control if side-by-side
-		this._register(chatWidget.onDidChangeViewModel(() => {
+		this._register(chatWidget.onDidChangeViewModel(e => {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
 			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
+			this.onDidChangeShownModel(e);
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
@@ -1289,13 +1388,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		restoringSession.finally(() => {
 			if (this.restoringSession === restoringSession) {
 				this.restoringSession = undefined;
+				this.sessionsLayoutScheduler?.schedule();
 			}
 		});
 	}
 
 	private async _applyModel(token: CancellationToken): Promise<void> {
 		const session = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
-		await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
+		await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason, 'restore');
 	}
 
 	/**
@@ -1405,7 +1505,46 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			&& sessionType === localChatSessionType;
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
+	/**
+	 * Reports the chat of `sessionResource` as one that the user brought up, also where the view shows it already, such as
+	 * one it restored, or one the user picks again in a sessions list, which is reported again.
+	 */
+	reportOpened(sessionResource: URI): void {
+		this.reportShown(sessionResource, 'open');
+	}
+
+	/**
+	 * Reports the chat of `sessionResource` as one that it restores, also where the view shows it already as opened, such
+	 * as the last chat of where the user moved the window's folder.
+	 */
+	reportRestored(sessionResource: URI): void {
+		this.reportShown(sessionResource, 'restore');
+	}
+
+	/** Reports the chat of `sessionResource`, where the view shows it, as shown for `reason` ({@link shownSession}). */
+	reportShown(sessionResource: URI, reason: IChatViewHostShownSession['reason']): void {
+		const shown = this._shownSession.get();
+		// Each time the user opens it, also where it is reported as opened already, as where it works may matter again
+		if (shown && (reason === 'open' || shown.reason !== reason) && isEqual(shown.resource, sessionResource)) {
+			this._shownSession.set({ resource: sessionResource, reason }, undefined);
+			this._shownReports++;
+		}
+	}
+
+	/** Reports the chat its widget shows now, such as the session that its first request made, which the user did not pick. */
+	private onDidChangeShownModel(e: IChatWidgetViewModelChangeEvent): void {
+		this.updateShownSession(e.committed ? 'commit' : undefined);
+	}
+
+	/** Reports the chat that the view shows now ({@link shownSession}), as its widget's chat changes. */
+	private updateShownSession(reason: IChatViewHostShownSession['reason'] = this._showReason): void {
+		const shownResource = this._widget.viewModel?.sessionResource;
+		this._shownSession.set(shownResource && { resource: shownResource, reason }, undefined);
+		this._shownReports++;
+	}
+
+	/** @param showReason why it shows the chat ({@link shownSession}). */
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason, showReason: IChatViewHostShownSession['reason'] = 'open'): Promise<IChatModel | undefined> {
 		if (token.isCancellationRequested || this._store.isDisposed) {
 			modelRef?.dispose();
 			return undefined;
@@ -1467,7 +1606,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						this._widget.unlockFromCodingAgent();
 					}
 					this.viewState.sessionResource = model.sessionResource;
-					setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+					// The reason holds only while the model is set, so a chat shown meanwhile never takes another's reason
+					this._showReason = showReason;
+					try {
+						setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+					} finally {
+						this._showReason = 'open';
+					}
 					const widgetViewState = this.widgetViewStates.get(getComparisonKey(model.sessionResource));
 					if (widgetViewState) {
 						this._widget.restoreViewState(widgetViewState);
@@ -1551,7 +1696,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
+	/** @param showReason why it shows the chat ({@link shownSession}). */
+	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason, showReason: IChatViewHostShownSession['reason'] = 'open'): Promise<IChatModel | undefined> {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
@@ -1560,9 +1706,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
 		const token = cts.token;
+		const shownReports = this._shownReports;
 		const open = this._openDiagnostics.value = !isUntitledChatSession(sessionResource) && this.layoutService.isRestored()
 			? this.chatOpenDiagnosticsService.startOpen('panel', sessionResource, token, alreadyShown)
 			: undefined;
+		this._loadingSessionCount++;
 		try {
 			// Capture the input draft up front: the load window (clear + acquire below)
 			// opens before `showModel` binds, so text typed during loading must be
@@ -1608,7 +1756,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					}
 
 					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
-					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason, showReason);
 					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 					return result;
 				} catch (err) {
@@ -1639,12 +1787,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			} else if (!token.isCancellationRequested) {
 				open?.fail(new Error('Another chat was shown instead of the requested one'));
 			}
+			// The chat it shows is reported once for this load: a chat it set is reported already, such as one it showed
+			// already is not, and a load that a later one superseded reports nothing, so the latest open's reason stands
+			if (!token.isCancellationRequested && this._shownReports === shownReports) {
+				this.reportShown(sessionResource, showReason);
+			}
 			return loadedModel;
 		} catch (error) {
 			open?.fail(error);
 			throw error;
 		} finally {
 			open?.end();
+			this._loadingSessionCount--;
+			this.sessionsLayoutScheduler?.schedule();
 		}
 	}
 

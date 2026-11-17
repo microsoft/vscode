@@ -711,6 +711,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
+	setChatPartAnchor(): void { }
+	getChatPartPosition(): PartPosition.LEFT | PartPosition.RIGHT { return this.getSideBarPosition() === PartPosition.RIGHT ? PartPosition.RIGHT : PartPosition.LEFT; }
 	getPanelPosition() { return 0; }
 	getPanelAlignment(): PanelAlignment { return 'center'; }
 	async setPanelPosition(_position: PartPosition): Promise<void> { }
@@ -895,6 +897,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly parts: readonly IEditorPart[] = [this];
 
+	supportsSplitting = true;
+
 	windowId = mainWindow.vscodeWindowId;
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
@@ -997,6 +1001,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	titleHeight!: IEditorGroupTitleHeight;
 
 	isEmpty = true;
+	isOpeningEditor = false;
 
 	readonly onWillDispose: Event<void> = Event.None;
 	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
@@ -2224,6 +2229,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
+	async revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
 	getAllWidgets(): ReadonlyArray<IChatWidget> { return []; }
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined { return undefined; }
 	openSession(sessionResource: URI): Promise<IChatWidget | undefined>;

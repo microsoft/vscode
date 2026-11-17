@@ -261,6 +261,79 @@ export class AgentsWindow {
 		}));
 	}
 
+	/**
+	 * Logs in with `username` and `password` to every proxy login dialog until stopped, in any window, as the main
+	 * process shows it in the focused or last active one, leaving "Remember my credentials" unchanged. `whenIdle`
+	 * resolves once a later check of all windows finds no proxy login dialog, so keyboard input that follows cannot
+	 * reach one already shown. `stop` returns the details of the dialogs filled, which name the proxy.
+	 */
+	fillProxyAuthenticationDialogs(username: string, password: string): { whenIdle(): Promise<void>; stop(): Promise<string[]> } {
+		const details: string[] = [];
+		let stopped = false;
+		let passesStarted = 0;
+		const idleWaiters: { readonly minPass: number; readonly resolve: () => void }[] = [];
+		const resolveIdleWaiters = (pass: number) => {
+			for (let i = idleWaiters.length - 1; i >= 0; i--) {
+				if (pass >= idleWaiters[i].minPass) {
+					idleWaiters.splice(i, 1)[0].resolve();
+				}
+			}
+		};
+		const loop = (async () => {
+			while (!stopped) {
+				const pass = passesStarted++;
+				let detail: string | undefined;
+				let failed = false;
+				try {
+					detail = await this.tryFillProxyAuthenticationDialog(username, password);
+				} catch (error) {
+					failed = true;
+					this.code.logger.log(`[agentsWindow] Failed to log in to a proxy login dialog: ${error}`);
+				}
+				if (detail !== undefined) {
+					details.push(detail);
+				} else {
+					if (!failed) {
+						resolveIdleWaiters(pass);
+					}
+					await new Promise(resolve => setTimeout(resolve, 250));
+				}
+			}
+			resolveIdleWaiters(Number.MAX_SAFE_INTEGER);
+		})();
+		return {
+			whenIdle: () => stopped ? Promise.resolve() : new Promise<void>(resolve => idleWaiters.push({ minPass: passesStarted, resolve })),
+			stop: async () => {
+				stopped = true;
+				await loop;
+				return details;
+			}
+		};
+	}
+
+	/**
+	 * Logs in to a visible proxy login dialog of any window, returning its detail, or `undefined` if no window shows one.
+	 */
+	private async tryFillProxyAuthenticationDialog(username: string, password: string): Promise<string | undefined> {
+		for (const page of this.code.driver.getAllWindows()) {
+			if (page.isClosed()) {
+				continue;
+			}
+			const dialog = page.locator('.monaco-dialog-box').filter({ hasText: 'Proxy Authentication Required' });
+			if (!await dialog.isVisible().catch(() => false)) {
+				continue;
+			}
+			const detail = (await dialog.locator('.dialog-message-detail').textContent()) ?? '';
+			this.code.logger.log(`[agentsWindow] Proxy login dialog in ${page.url()}: ${detail}`);
+			await dialog.getByPlaceholder('Username', { exact: true }).fill(username);
+			await dialog.getByPlaceholder('Password', { exact: true }).fill(password);
+			await dialog.getByRole('button', { name: 'Log In', exact: true }).click();
+			await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
+			return detail;
+		}
+		return undefined;
+	}
+
 	private async fillQuickInput(title: string, value: string): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });
@@ -688,7 +761,30 @@ export class AgentsWindow {
 			}
 		}
 
-		await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+		await this.clickActiveSessionSendButton();
+	}
+
+	/**
+	 * Clicks the enabled send button of the active session. A modal dialog, such as a proxy login dialog opened by a
+	 * concurrent request, swallows the click, so this waits for it to close first, and clicks again if one opened in the
+	 * meantime and the prompt was not sent, which disables the send button or replaces it with the stop button.
+	 */
+	private async clickActiveSessionSendButton(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const modalDialog = page.locator('.monaco-dialog-modal-block').first();
+		const sendButton = page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).first();
+		for (let attempt = 1; ; attempt++) {
+			await modalDialog.waitFor({ state: 'hidden', timeout: 2 * 60_000 });
+			await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+			if (attempt === 3 || !await modalDialog.isVisible().catch(() => false)) {
+				return;
+			}
+			await modalDialog.waitFor({ state: 'hidden', timeout: 2 * 60_000 });
+			if (await sendButton.waitFor({ state: 'detached', timeout: 5_000 }).then(() => true, () => false)) {
+				return;
+			}
+			this.code.logger.log('[agentsWindow] A modal dialog swallowed the click on the send button, clicking it again');
+		}
 	}
 
 	private async _activeSessionContainsResponse(label: string): Promise<boolean> {

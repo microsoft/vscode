@@ -211,12 +211,17 @@ suite('CopilotModelRouter', () => {
 	test('tells the decision about the turn and about each model, when there is something to tell', async () => {
 		const priced = models.map((candidate, index): IAgentModelInfo => ({ ...candidate, _meta: { priceCategory: index === 0 ? 'low' : 'high' } }));
 		const picker = new FakePicker({ model: 'opus', confidence: 0.9, probabilities: { opus: 0.9, haiku: 0.1 } });
-		const route = (available: readonly IAgentModelInfo[], situation?: IModelRouterSituation) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file: routerFile(), text: 'fix this', models: available, previousTurns: [], picker, situation });
+		const route = (available: readonly IAgentModelInfo[], situation?: IModelRouterSituation, file = routerFile()) => engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'fix this', models: available, previousTurns: [], picker, situation });
 		await route(priced, { attachments: [{ kind: 'image', count: 1 }], mode: 'plan' });
 		await route(models, {});
+		// Autopilot says nothing about the work, so only a router that names it is told.
+		await route(models, { mode: 'autopilot', workspace: 'shop' });
+		await route(models, { mode: 'autopilot', workspace: 'shop' }, routerFile('guidance: Use opus for anything sent in Autopilot mode.\n'));
 		assert.deepStrictEqual(picker.requests.map(request => ({ situation: request.situation, facts: request.candidates.map(candidate => candidate.facts) })), [
 			{ situation: ['Attached: 1 image', 'Plan mode: the agent plans first and carries the plan out when the user is ready'], facts: ['low cost', 'high cost'] },
 			{ situation: undefined, facts: [undefined, undefined] },
+			{ situation: ['Workspace: shop'], facts: [undefined, undefined] },
+			{ situation: ['Autopilot mode: the agent works on its own until the task is done', 'Workspace: shop'], facts: [undefined, undefined] },
 		]);
 	});
 
@@ -276,6 +281,27 @@ suite('CopilotModelRouter', () => {
 		assert.deepStrictEqual({ routed: moved.routed, notices: moved.notices }, {
 			routed: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', switchedFrom: 'opus', preference: 'Fixing.' },
 			notices: ['This request fits another route, so the model router daily moved this chat to its bug-fix route on OPUS.'],
+		});
+	});
+
+	test('a chat on a route that names a family stays on it when a newer model of the family ships', async () => {
+		const next = async (routes: readonly string[], previous: IModelRoutedInfo) => {
+			const content = `version: 1\ndescription: Test.\neffort: off\nroutes:\n${routes.map(route => `  - model: ${route}\n    when: Work.\n`).join('')}`;
+			const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
+			return (await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'continue', models: [model('claude-opus-5.5'), model('claude-haiku-4.5'), model('claude-haiku-5.5')], previousTurns: [routedTurn(previous)], picker: undefined })).routed;
+		};
+		// The chat started on the `haiku` route when `claude-haiku-4.5` was the newest Haiku.
+		const onFamilyRoute: IModelRoutedInfo = { router: 'daily', chosenModel: 'claude-haiku-4.5', routeReference: 'haiku' };
+		assert.deepStrictEqual({
+			onFamilyRoute: await next(['opus', 'haiku', 'claude-haiku-4.5'], onFamilyRoute),
+			// A chat on the route that names that version stays on it.
+			onExactRoute: await next(['opus', 'haiku', 'claude-haiku-4.5'], { router: 'daily', chosenModel: 'claude-haiku-4.5' }),
+			// The newer model is already an earlier route's, so `haiku` is no route of its own and the chat is on that one.
+			onMergedRoute: await next(['opus', 'claude-haiku-5.5', 'haiku'], onFamilyRoute),
+		}, {
+			onFamilyRoute: { router: 'daily', chosenModel: 'claude-haiku-5.5', routeReference: 'haiku', kept: true, firstTurnOnly: true },
+			onExactRoute: { router: 'daily', chosenModel: 'claude-haiku-4.5', kept: true, firstTurnOnly: true },
+			onMergedRoute: { router: 'daily', chosenModel: 'claude-haiku-5.5', kept: true, firstTurnOnly: true },
 		});
 	});
 

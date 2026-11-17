@@ -335,12 +335,12 @@ async function renderDeterministicToolSummaries(context: ComponentFixtureContext
 }
 
 /**
- * Finished Conversation sections: a generated title and a tool summary with their time,
- * reasoning alone, and a tool summary whose time was not recorded. With `completedSteps`
+ * Finished Conversation sections: tool summaries with their time, including one whose reasoning
+ * has a heading, reasoning alone, and a tool summary whose time was not recorded. With `completedSteps`
  * they are folded into the completed response's closed disclosure.
  */
 async function renderConversationSections(context: ComponentFixtureContext, completedSteps = false): Promise<void> {
-	const titles = ['Reviewing the completion handler - 9s', 'Ran 2 commands, read summary.ts - 31s', 'Thought for 26s', 'Edited 2 files, 1 other step'];
+	const titles = ['Ran 1 command - 9s', 'Ran 2 commands, read summary.ts - 31s', 'Thought for 26s', 'Edited 2 files, 1 other step'];
 	const height = completedSteps ? 220 : 420;
 	await renderChatWidget(context, {
 		width: 500, height, listHeight: height, inputVisible: false,

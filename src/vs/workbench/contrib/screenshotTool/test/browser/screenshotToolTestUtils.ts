@@ -16,7 +16,7 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, ScreenshotToolResult } from '../../browser/screenshotTool.js';
+import { IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, ScreenshotToolResult, ScreenshotToolSurface } from '../../browser/screenshotTool.js';
 import { ScreenshotToolService } from '../../browser/screenshotToolService.js';
 
 /** Records screenshot tool events. */
@@ -58,6 +58,10 @@ export class TestScreenshotToolService extends ScreenshotToolService {
 	private readonly _onDidChangeScriptedActive = this._register(new Emitter<{ readonly targetWindow: CodeWindow; readonly active: boolean }>());
 	override readonly onDidChangeActive = this._onDidChangeScriptedActive.event;
 
+	private readonly _onDidRequestEdit = this._register(new Emitter<void>());
+	/** Fires when an edit starts, which then resolves with `editResult`. */
+	readonly onDidRequestEdit = this._onDidRequestEdit.event;
+
 	override get isSupported(): boolean {
 		return this.supported;
 	}
@@ -73,8 +77,9 @@ export class TestScreenshotToolService extends ScreenshotToolService {
 		return this.windowImage;
 	}
 
-	override async edit(screenshot: IScreenshotToolEditable): Promise<IScreenshotToolEdit | undefined> {
-		this.requests.push(`edit ${screenshot.original.width}x${screenshot.original.height}${screenshot.annotationState ? ' with annotations' : ''}`);
+	override async edit(screenshot: IScreenshotToolEditable, _surface: ScreenshotToolSurface, name?: string): Promise<IScreenshotToolEdit | undefined> {
+		this.requests.push(`edit ${screenshot.original.width}x${screenshot.original.height}${screenshot.annotationState ? ' with annotations' : ''}${name ? ` named ${name}` : ''}`);
+		this._onDidRequestEdit.fire();
 		return this.editResult;
 	}
 

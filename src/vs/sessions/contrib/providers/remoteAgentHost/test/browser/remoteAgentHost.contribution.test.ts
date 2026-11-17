@@ -446,12 +446,7 @@ suite('RemoteAgentHost auth notifications', () => {
 			resource: 'https://api.example.com/session',
 			scopes: ['session:read'],
 			token: 'session-token',
-			_meta: {
-				'vscode.authentication.account': {
-					providerId: 'test-provider',
-					accountId: 'account-id',
-				},
-			},
+			accountId: '["test-provider","account-id",null]',
 		}]);
 	});
 

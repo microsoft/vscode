@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import type { ArtifactOrigin } from '../../artifactIntegrations/common/artifactIntegration.js';
-import { getSessionArtifactValue, isGitHubArtifactLink, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from './sessionArtifacts.js';
+import { getSessionArtifactValue, isGitHubArtifactLink, isSessionArtifactMode, SESSION_ARTIFACT_MODES, SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact, type SessionArtifactMode } from './sessionArtifacts.js';
 
 /** The fields an agent supplies when adding an artifact or reference. */
 export interface ISessionArtifactInput {
@@ -16,6 +16,8 @@ export interface ISessionArtifactInput {
 	readonly link?: string;
 	readonly uri?: string;
 	readonly commitHash?: string;
+	/** How the chat should show the entry; see {@link SessionArtifactMode}. */
+	readonly mode?: SessionArtifactMode;
 }
 
 export interface IAddSessionArtifactResult {
@@ -81,7 +83,8 @@ function requireUri(value: unknown, field: string, toolName: string): string {
 	return uri;
 }
 
-function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPrefix?: string): ISessionArtifactInput {
+/** @param acceptsMode Whether `mode` is read; otherwise it is ignored like any unknown field. */
+function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, acceptsMode: boolean, fieldPrefix?: string): ISessionArtifactInput {
 	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
 		throw new Error(`Invalid ${toolName} input: ${fieldPrefix ? `${fieldPrefix} must be an object.` : 'expected an object.'}`);
 	}
@@ -96,7 +99,12 @@ function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPr
 	}
 
 	const artifactType = type as SessionArtifactType;
-	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string } = {
+	const mode = acceptsMode ? args['mode'] : undefined;
+	if (mode !== undefined && !isSessionArtifactMode(mode)) {
+		throw new Error(`Invalid ${toolName} input: ${field('mode')} must be one of ${SESSION_ARTIFACT_MODES.join(', ')}.`);
+	}
+	const input: { type: SessionArtifactType; label: string; isArtifact: boolean; link?: string; uri?: string; commitHash?: string; mode?: SessionArtifactMode } = {
+		...(mode !== undefined ? { mode } : {}),
 		type: artifactType,
 		label: requireString(args['label'], field('label'), toolName),
 		isArtifact: args['isArtifact'],
@@ -115,23 +123,23 @@ function parseSessionArtifactInputAt(rawArgs: unknown, toolName: string, fieldPr
 }
 
 /** Validates and normalizes one `add_artifact_or_reference` entry. */
-export function parseSessionArtifactInput(rawArgs: unknown, toolName: string): ISessionArtifactInput {
-	return parseSessionArtifactInputAt(rawArgs, toolName);
+export function parseSessionArtifactInput(rawArgs: unknown, toolName: string, acceptsMode = true): ISessionArtifactInput {
+	return parseSessionArtifactInputAt(rawArgs, toolName, acceptsMode);
 }
 
 /** Validates a batch while accepting the legacy single-entry shape. */
-export function parseSessionArtifactInputs(rawArgs: unknown, toolName: string): readonly ISessionArtifactInput[] {
+export function parseSessionArtifactInputs(rawArgs: unknown, toolName: string, acceptsMode = true): readonly ISessionArtifactInput[] {
 	if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
 		throw new Error(`Invalid ${toolName} input: expected an object.`);
 	}
 	const items = (rawArgs as Record<string, unknown>)['items'];
 	if (items === undefined) {
-		return [parseSessionArtifactInput(rawArgs, toolName)];
+		return [parseSessionArtifactInput(rawArgs, toolName, acceptsMode)];
 	}
 	if (!Array.isArray(items) || items.length === 0) {
 		throw new Error(`Invalid ${toolName} input: items must be a non-empty array.`);
 	}
-	return items.map((item, index) => parseSessionArtifactInputAt(item, toolName, `items[${index}]`));
+	return items.map((item, index) => parseSessionArtifactInputAt(item, toolName, acceptsMode, `items[${index}]`));
 }
 
 /**
@@ -155,6 +163,11 @@ export class SessionArtifactCollection {
 		const artifact = this._create(input, createId, origin);
 		const value = getSessionArtifactValue(artifact);
 		const existing = this._artifacts.find(candidate => getSessionArtifactValue(candidate) === value);
+		if (existing && input.mode !== undefined && existing.mode !== input.mode) {
+			// Recording an entry again with another mode asks again; the revision tells clients that it is a new request.
+			const updated = { ...existing, mode: input.mode, ...(existing.mode !== undefined ? { modeRevision: (existing.modeRevision ?? 0) + 1 } : {}) };
+			return { artifacts: this._artifacts.map(candidate => candidate === existing ? updated : candidate), artifact: updated, added: false };
+		}
 		if (existing) {
 			return { artifacts: this._artifacts, artifact: existing, added: false };
 		}
@@ -167,7 +180,10 @@ export class SessionArtifactCollection {
 		if (result.added || result.artifact.isArtifact || !input.isArtifact) {
 			return result;
 		}
-		const artifact = this._create(input, () => result.artifact.id, result.artifact.origin);
+		// The reference's request for how to show it stays unless the input replaces it.
+		const mode = input.mode ?? result.artifact.mode;
+		const created = this._create(mode !== undefined ? { ...input, mode } : input, () => result.artifact.id, result.artifact.origin);
+		const artifact = result.artifact.modeRevision !== undefined ? { ...created, modeRevision: result.artifact.modeRevision } : created;
 		return {
 			artifacts: result.artifacts.map(candidate => candidate === result.artifact ? artifact : candidate),
 			artifact,
@@ -194,7 +210,9 @@ export class SessionArtifactCollection {
 			commitHash?: string;
 			isGitHub?: boolean;
 			origin?: ArtifactOrigin;
+			mode?: SessionArtifactMode;
 		} = { id: createId(), type: input.type, label: input.label, isArtifact: input.isArtifact };
+		if (input.mode !== undefined) { artifact.mode = input.mode; }
 
 		if (input.link !== undefined) { artifact.link = input.link; }
 		if (input.uri !== undefined) { artifact.uri = input.uri; }

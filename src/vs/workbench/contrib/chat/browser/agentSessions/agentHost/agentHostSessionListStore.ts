@@ -106,6 +106,13 @@ export class AgentHostSessionListStore extends Disposable {
 	/** Sessions already reported as having an unusable (non-local) project root. */
 	private readonly _reportedNonLocalProjects = new Set<string>();
 
+	/**
+	 * The locations the folder of a single-folder window was at since the window showed its workspace, such as a linked
+	 * checkout it moved to and back from: the same workspace, whose sessions stay listed while its folder moves. Removing a
+	 * session from the list disposes the content of its chats that are open, which turns them read-only.
+	 */
+	private readonly _folderLocations: URI[] = [];
+
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
 		private readonly _options: {
@@ -135,14 +142,20 @@ export class AgentHostSessionListStore extends Disposable {
 		// Re-fetch the session list whenever the set of VS Code workspace
 		// folders changes, since filtering depends on it. The agent host itself
 		// doesn't know which workspace this VS Code window has open.
-		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+		this._trackFolderLocation();
+		const onDidChangeWorkspace = () => {
 			if (this._options.filterToWorkspace === false) {
 				return;
 			}
+			this._trackFolderLocation();
 			this._cacheValid = false;
 			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
-		}));
+		};
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(onDidChangeWorkspace));
+		// Also as the window's workspace changes without its folders, such as as Save Workspace As turns a folder into a
+		// workspace file: the locations its folder had are no longer its own
+		this._register(this._workspaceContextService.onDidChangeWorkbenchState(onDidChangeWorkspace));
 	}
 
 	getSessions(provider: string): readonly IAgentHostSessionListEntry[] {
@@ -544,13 +557,37 @@ export class AgentHostSessionListStore extends Disposable {
 				return extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), configuration);
 			}
 			// An empty window shows every session; a single-folder (or other
-			// non-multi-root) window falls back to working-directory containment.
-			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders);
+			// non-multi-root) window falls back to working-directory containment,
+			// also in the locations its folder had, as for any other session.
+			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories);
 		}
 		if (folders.length === 0) {
 			return true;
 		}
-		return this._matchesAnyFolder(workingDirectories, folders);
+		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories);
+	}
+
+	private _trackFolderLocation(): void {
+		const workspace = this._workspaceContextService.getWorkspace();
+		if (workspace.configuration || !workspace.uri || workspace.folders.length !== 1) {
+			this._folderLocations.length = 0;
+			return;
+		}
+		// Another workspace starts over: its folder is first at the workspace's own location
+		if (!this._folderLocations.some(location => extUriBiasedIgnorePathCase.isEqual(location, workspace.uri))) {
+			this._folderLocations.length = 0;
+			this._folderLocations.push(workspace.uri);
+		}
+		const location = workspace.folders[0].uri;
+		if (!this._folderLocations.some(known => extUriBiasedIgnorePathCase.isEqual(known, location))) {
+			this._folderLocations.push(location);
+		}
+	}
+
+	private _matchesAnyLocation(workingDirectories: readonly URI[]): boolean {
+		return workingDirectories.some(directory =>
+			this._folderLocations.some(location => extUriBiasedIgnorePathCase.isEqualOrParent(directory, location))
+		);
 	}
 
 	private _filterEntriesToWorkspace(): void {

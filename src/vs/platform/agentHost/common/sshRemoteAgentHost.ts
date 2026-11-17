@@ -11,6 +11,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from './relayTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError } from './state/sessionTransport.js';
 
 export type { IRelayMessage } from './relayTransport.js';
 
@@ -471,6 +472,21 @@ export class SSHHostKeyDeniedError extends Error {
 /** Whether `error` is an {@link SSHHostKeyDeniedError}, including across IPC. */
 export function isSSHHostKeyDeniedError(error: unknown): boolean {
 	return error instanceof Error && error.name === SSH_HOST_KEY_DENIED_ERROR_NAME;
+}
+
+const SSH_AUTHENTICATION_FAILED_ERROR_NAME = 'SSHAuthenticationFailed';
+
+/** Authentication could not complete with the current credentials; retry requires user intervention. */
+export class SSHAuthenticationFailedError extends NonReconnectableTransportError {
+	constructor(message: string) {
+		super(message, AgentHostTransportFailureReason.SSHAuthenticationFailed);
+		this.name = SSH_AUTHENTICATION_FAILED_ERROR_NAME;
+	}
+}
+
+/** Identifies SSH authentication failure after IPC has discarded its prototype and reason. */
+export function isSSHAuthenticationFailedError(error: unknown): boolean {
+	return error instanceof Error && error.name === SSH_AUTHENTICATION_FAILED_ERROR_NAME;
 }
 
 /**

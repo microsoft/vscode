@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -76,6 +76,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { NullLanguageModelsService } from '../../../../../workbench/contrib/chat/test/common/languageModels.js';
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -93,9 +94,13 @@ import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRE
 import { SessionsChatBackgroundRenderer } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundRenderer.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IWorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { worktreeSuggestionInputPresentation } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionInputPresentation.js';
 import { NullWorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionDraftsService, SessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { IScheduledChatsService } from '../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -119,14 +124,17 @@ import '../../../../browser/parts/mobile/mobileChatShell.css';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatScheduledRequest } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { MockLanguageModelToolsService } from '../../../../../workbench/contrib/chat/test/common/tools/mockLanguageModelToolsService.js';
 import { ChatSubmitAction } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { ChatVoiceInputModeAction } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
-import { ModelPickerToolbarsContribution } from '../../browser/modelPicker.js';
-import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../browser/sharedChatInputComposer.contribution.js';
+import { ModelPickerToolbarsContribution } from '../../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
+import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import '../../browser/modelPicker.js';
+import '../../browser/sharedChatInputComposer.contribution.js';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;
@@ -192,6 +200,7 @@ const fixtureConnectorRecommendations: NonNullable<IProductService['connectorRec
 );
 
 interface INewChatWidgetFixtureOptions {
+	readonly scheduledPreview?: boolean;
 	readonly width?: number;
 	readonly height?: number;
 	readonly commentCount?: number;
@@ -470,6 +479,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly initialRestoreComplete = constObservable(true);
 		readonly activeSession = activeSessionObservable;
+		override registerSavedDraftOpener() { return Disposable.None; }
+		override setCurrentDraftId() { }
+		override async openNewSession() { return { session: activeSession, trustDeclined: false }; }
 	}();
 	const configurationService = new TestConfigurationService({
 		// Editor settings the composer's chat widget reads.
@@ -551,6 +563,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(IStorageService, storageService);
 			reg.defineInstance(IAuthenticationService, new class extends mock<IAuthenticationService>() { }());
+			reg.defineInstance(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() { }());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
 			if (withAutoModel || withConfiguredModel) {
 				reg.define(IMenuService, AutoModelFixtureMenuService);
@@ -622,6 +635,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
+				override readonly onDidSendRequest = Event.None;
+				override readonly onDidEndNewSessionRequest = Event.None;
+				override readonly onDidReplaceNewDraftSession = Event.None;
+				override async configureNewSessionDraft() { }
 				override isQuickChatTargetAvailable(): boolean { return false; }
 				override getAllProviderSessionTypes() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
@@ -634,6 +651,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly comparisons = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsService, sessionsService);
+			reg.define(ISessionDraftsService, SessionDraftsService);
+			reg.defineInstance(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
+				override getPendingNewSessionGroup() { return undefined; }
+			}());
+			reg.defineInstance(IScheduledChatsService, new class extends mock<IScheduledChatsService>() {
+				override readonly enabled = constObservable(!!options.scheduledPreview);
+				override readonly availableProviders = constObservable([]);
+				override canSchedule() { return !!options.scheduledPreview; }
+				override assertUnscheduled() { }
+			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return activeSession ? [provider] : []; }
@@ -862,8 +889,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	// The fixture menu evaluates preconditions once, so Send reflects whether the
 	// fixture attaches context, adds comments or fills the prompt.
-	const sendEnabled = withAttachedContext || commentCount > 0 || selectedOptionIndex !== undefined || !!comparisonPrompt;
+	const sendEnabled = withAttachedContext || commentCount > 0 || selectedOptionIndex !== undefined || !!comparisonPrompt || !!options.scheduledPreview;
 	menuService.addItem(MenuId.ChatExecute, { command: { id: ChatSubmitAction.ID, title: 'Send', icon: Codicon.arrowUpCompact, precondition: sendEnabled ? undefined : ContextKeyExpr.false() }, group: 'navigation', order: 4 });
+	if (options.scheduledPreview) {
+		menuService.addItem(MenuId.ChatExecuteSecondary, { command: { id: 'sessions.sendLater', title: 'Send Later...', icon: Codicon.clock }, group: 'navigation' });
+	}
 	if (withControlPickers) {
 		instantiationService.stub(IAgentHostConnectionsService, {
 			onDidChangeSessionResolution: Event.None,
@@ -910,10 +940,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
 	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
+		newSessionInput: worktreeSuggestionInputPresentation,
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
 		session: activeSessionObservable,
 	}));
 	sessionViewContent.appendChild(view.element);
+	view.setVisible(true);
 	view.layout(width, height, 0, 0);
 	const targetWindow = dom.getWindow(container);
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
@@ -1437,9 +1469,39 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 		assertChatPetInScreenshot(view.element);
 	}
+	if (options.scheduledPreview) {
+		const text = 'Review the latest build results and summarize any failures.';
+		const request = constObservable<IChatScheduledRequest>({
+			id: 'scheduled-preview', text, description: 'Scheduled', attachments: [],
+			runAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+			actions: [
+				toAction({ id: 'reschedule', label: 'Reschedule...', class: 'codicon codicon-clock', run() { } }),
+				toAction({ id: 'edit', label: 'Edit as Draft', class: 'codicon codicon-edit', run() { } }),
+				toAction({ id: 'cancel', label: 'Cancel Schedule', class: 'codicon codicon-close', run() { } }),
+			],
+		});
+		await instantiationService.get(ISessionDraftsService).preview({ inputText: text, attachments: [] }, {
+			folderUri: workspace.folders[0].root,
+			providerId: provider.id,
+			sessionTypeId: activeSession!.sessionType,
+		}, { request, save: async () => { }, sendNow: async () => { }, reschedule: async () => { } });
+		await waitForFixtureDomCondition(view.element, () => {
+			const line = view.element.querySelector('.view-line');
+			return !!line?.textContent?.includes('Review') && line.getBoundingClientRect().height > 0;
+		}, disposableStore);
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
+	ScheduledDraft: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withConfiguredModel: true, withControlPickers: true, welcomePhrases: true, scheduledPreview: true }),
+	}),
+	ScheduledDraftNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { width: 420, withWorkspace: true, withConfiguredModel: true, withControlPickers: true, welcomePhrases: true, scheduledPreview: true }),
+	}),
 	Migrations: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
@@ -2045,12 +2107,14 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly sessionId = 'fixture-session';
 		override readonly providerId = providerId;
 		override readonly sessionType = sessionType.id;
+		override readonly application = constObservable({ id: 'fixture', label: 'Fixture' });
 		override readonly status = constObservable(SessionStatus.Untitled);
 		override readonly isCreated = constObservable(false);
 		override readonly loading = constObservable(false);
 		override readonly workspace = constObservable(workspace);
 		override readonly branch = constObservable<string | undefined>('main');
 		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly mode = constObservable(undefined);
 		override readonly mainChat = constObservable(activeChat);
 		override readonly activeChat = constObservable(activeChat);
 	}();

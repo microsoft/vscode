@@ -90,6 +90,7 @@ export interface IEditorTabsControl extends IDisposable {
 	unstickEditor(editor: EditorInput): void;
 	setActive(isActive: boolean): void;
 	updateEditorSelections(): void;
+	updateEditorActions(): void;
 	updateEditorLabel(editor: EditorInput): void;
 	updateEditorCapabilities(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
@@ -227,14 +228,19 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		parent.appendChild(this.editorLayoutActionsToolbarContainer);
 
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
+		this.updateEditorActionsPendingState();
 	}
 
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
+		// The new tab button of the workbench (not the Agents window) lists the recent entry first and makes it the default entry.
+		const isNewTabButton = menuId === MenuId.EditorTabsBarAddTab;
 		const control = this._register(this.instantiationService.createInstance(EditorAddTabControl, parent, menuId, this.contextKeyService, {
 			before,
 			keybindingProvider: action => this.getKeybinding(action),
-			context
+			context,
+			recentFirst: isNewTabButton,
+			defaultEntry: isNewTabButton
 		}));
 		if (onDidChangeVisibility) {
 			this._register(control.onDidChangeVisibility(onDidChangeVisibility));
@@ -376,8 +382,22 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return createActionViewItem(this.instantiationService, action, { ...options, menuAsChild: this.renderDropdownAsChildElement });
 	}
 
+	updateEditorActions(): void {
+		this.updateEditorActionsPendingState();
+		this.updateEditorActionsToolbar();
+	}
+
+	private updateEditorActionsPendingState(): void {
+		for (const container of [this.editorActionsToolbarContainer, this.editorLayoutActionsToolbarContainer]) {
+			if (container) {
+				container.inert = this.groupView.isOpeningEditor;
+				container.setAttribute('aria-busy', String(this.groupView.isOpeningEditor));
+			}
+		}
+	}
+
 	protected updateEditorActionsToolbar(): void {
-		if (!this.editorActionsEnabled) {
+		if (!this.editorActionsEnabled || this.groupView.isOpeningEditor) {
 			return;
 		}
 
@@ -397,6 +417,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected updateEditorLayoutActionsToolbar(): void {
 		if (
 			!this.editorActionsEnabled ||
+			this.groupView.isOpeningEditor ||
 			!this.editorLayoutActionsToolbarContainer ||
 			!this.editorLayoutActionsToolbar
 		) {

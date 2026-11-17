@@ -709,6 +709,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/agentsLauncher",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
@@ -742,10 +746,6 @@
 		},
 		{
 			"name": "vs/sessions/contrib/chat",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/chatEditor",
 			"project": "vscode-sessions"
 		},
 		{

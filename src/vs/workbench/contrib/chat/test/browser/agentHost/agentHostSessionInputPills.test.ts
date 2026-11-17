@@ -4,86 +4,86 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
+import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { Disposable, ImmortalReference, combinedDisposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, autorun, constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
-import { agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { IAgentHostResourceUriMapper, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind, DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
-import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
+import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { AgentHostNativeImplementationMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
-import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
-import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { CustomizationEnablementKind, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ISessionArtifact, SessionArtifactMode, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
+import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { CustomizationEnablementKind, McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ChildCustomization, ComponentToState, Customization, CustomizationType, FileEditKind, ResponsePartKind, SessionLifecycle, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, buildDefaultChatUri, buildSubagentChatUri, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatResourcesEnabledSettingId } from '../../../browser/chatResources/chatResources.js';
-import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
-import { GitHubIssue } from '../../../../../../platform/github/common/githubQueryService.js';
-import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
-import { FragmentState, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { FragmentState, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
+import { GitHubIssue } from '../../../../../../platform/github/common/githubQueryService.js';
+import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ICanvas } from '../../../../../common/canvasReference.js';
+import { IUntypedEditorInput, isResourceMultiDiffEditorInput } from '../../../../../common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { ICanvasContext, REVEAL_CANVAS_COMMAND_ID } from '../../../../canvases/common/canvas.js';
-import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
-import { isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
-import { EditorInput } from '../../../../../common/editor/editorInput.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
-import { IChatImageCarouselService } from '../../../browser/chatImageCarouselService.js';
-import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../common/tools/chatArtifactsService.js';
-import { IChatWidgetService, type IChatWidgetViewModelChangeEvent, type IChatBackgroundActivityPillSections } from '../../../browser/chat.js';
-import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
-import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { IChatWidgetService, type IChatBackgroundActivityPillSections, type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { IChatImageCarouselService } from '../../../browser/chatImageCarouselService.js';
+import { ChatResourcesEnabledSettingId } from '../../../browser/chatResources/chatResources.js';
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
-import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { ChatWidget, chatPersistentContentVisibleClass } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import type { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
-import { IChatModel } from '../../../common/model/chatModel.js';
-import { ChatViewModel } from '../../../common/model/chatViewModel.js';
-import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { CustomizationIndex, CustomizationRefKind, createCustomizationIndexObservable } from '../../../common/agentHostSessionCustomizations.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
+import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
+import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
+import { ChatViewModel } from '../../../common/model/chatViewModel.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
+import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../common/tools/chatArtifactsService.js';
 import { TestCustomizationJobScheduler } from '../../common/testCustomizationJobScheduler.js';
-import { createCustomizationIndexObservable, CustomizationIndex, CustomizationRefKind } from '../../../common/agentHostSessionCustomizations.js';
-import { ICanvas } from '../../../../../common/canvasReference.js';
 
 class StaticAgentConnection extends mock<IAgentConnection>() {
 	override resourceUris = identityAgentHostResourceUriMapper;
@@ -226,7 +226,7 @@ suite('AgentHostSessionInputPills', () => {
 		const client = upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
 				onDidInvalidate: Event.None,
-				getCredential: async signal => {
+				getCredential: async cancellationToken => {
 					if (options?.credentialState) {
 						options.credentialState.calls++;
 						if (options.credentialState.fail) {
@@ -237,7 +237,7 @@ suite('AgentHostSessionInputPills', () => {
 						account: { host: 'api.github.com', accountId: 'test' },
 						token: 'token',
 						generation: 1,
-						signal,
+						cancellationToken,
 					};
 				},
 			}),
@@ -688,6 +688,57 @@ suite('AgentHostSessionInputPills', () => {
 			pressed: ['Status'],
 			unchecked: ['Status', ['Show Above Chat Input']],
 			pressedAfterUncheck: [],
+		});
+	});
+
+	test('the agent can ask to pin a file or show it above the chat input, once per request', async () => {
+		const session = (planMode: SessionArtifactMode | undefined, planModeRevision?: number) => upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'plan', label: 'Plan', uri: 'file:///repo/plan.md', type: SessionArtifactType.File, isArtifact: true, ...(planMode ? { mode: planMode } : {}), ...(planModeRevision ? { modeRevision: planModeRevision } : {}) },
+				{ id: 'notes', label: 'Notes', uri: 'file:///repo/notes.md', type: SessionArtifactType.File, isArtifact: true, mode: 'pinned' },
+				{ id: 'log', label: 'Log', uri: 'file:///repo/log.md', type: SessionArtifactType.File, isArtifact: true },
+			]),
+		});
+		const harness = createActivityPills(session('aboveInput'), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }) });
+		harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: () => Promise.reject(new Error('unreadable')) }));
+		await timeout(0);
+		const pinnedPills = () => [...harness.persistentContent.querySelectorAll<HTMLElement>('.chat-pill-item')];
+		const state = () => ({
+			pinned: pinnedPills().map(pill => pill.textContent),
+			shown: [...harness.persistentContent.querySelectorAll('.chat-embedded-resource-title')].map(title => title.textContent),
+			planOpensInChat: !!harness.menu(pinnedPills().find(pill => pill.textContent === 'plan.md'))?.find(action => action.id === 'chatResources.showAboveInput')?.checked,
+		});
+		const requested = state();
+		// The user hides the plan: it stays hidden while the agent's request is unchanged.
+		await harness.menu(pinnedPills().find(pill => pill.textContent === 'plan.md'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+		harness.connection.setState(StateComponents.Session, session('aboveInput'));
+		await timeout(0);
+		const userChoice = state();
+		harness.connection.setState(StateComponents.Session, session('pinned', 1));
+		await timeout(0);
+		const pinnedAgain = state();
+		harness.connection.setState(StateComponents.Session, session('aboveInput', 2));
+		await timeout(0);
+		const shownAgain = state();
+		// Asking to only pin it moves it out of the chat directly, without the user hiding it first.
+		harness.connection.setState(StateComponents.Session, session('pinned', 3));
+		await timeout(0);
+		const pinnedFromAboveInput = state();
+		// A request that comes back to the applied mode while the chat missed the one in between is still new.
+		harness.connection.setState(StateComponents.Session, session('pinned', 5));
+		await timeout(0);
+		await harness.menu(pinnedPills().find(pill => pill.textContent === 'plan.md'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+		harness.connection.setState(StateComponents.Session, session('pinned', 7));
+		await timeout(0);
+
+		assert.deepStrictEqual({ requested, userChoice, pinnedAgain, shownAgain, pinnedFromAboveInput, missedRequest: state() }, {
+			requested: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: ['Plan'], planOpensInChat: true },
+			userChoice: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
+			pinnedAgain: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
+			shownAgain: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: ['Plan'], planOpensInChat: true },
+			pinnedFromAboveInput: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
+			missedRequest: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
 		});
 	});
 

@@ -29,6 +29,7 @@ import { ICustomizationItem } from '../../../common/customizationHarnessService.
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -60,7 +61,7 @@ suite('pluginListWidget', () => {
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
 			harnessService,
-			remoteItems: [remote], instantiationService,
+			sessionPluginItems: [remote], instantiationService,
 			marketplaceInstallService: undefined,
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
@@ -72,14 +73,14 @@ suite('pluginListWidget', () => {
 		const workspaceActions = $('div');
 		const toggle = widget.appendInstalledPluginToggle(workspaceActions, $('div'), $('div'), item).querySelector('button')!;
 		const ready = { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked'), label: toggle.getAttribute('aria-label'), badge: workspaceActions.querySelector('.inline-badge')?.textContent };
-		widget.remoteItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, enabled: false })) }];
+		widget.sessionPluginItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, enabled: false })) }];
 		const pendingControls = $('div');
 		const pending = widget.appendInstalledPluginToggle(pendingControls, $('div'), $('div'), item).querySelector('button')!;
 		const pendingBadgeDisabled = pendingControls.querySelector('.plugin-scope-badge')!.getAttribute('aria-disabled');
-		widget.remoteItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, scope: 'global' })) }];
+		widget.sessionPluginItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, scope: 'global' })) }];
 		const globalActions = $('div');
 		widget.appendInstalledPluginToggle(globalActions, $('div'), $('div'), item);
-		widget.remoteItems = [remote];
+		widget.sessionPluginItems = [remote];
 		const pendingChanges = widget.getPendingPluginScopeChanges();
 		pendingChanges.set(new Set([widget.getPluginScopeChangeKey(remote)]), undefined);
 		const busyMenuActions = widget.getInstalledPluginActions(item, store.add(new DisposableStore()));
@@ -96,6 +97,91 @@ suite('pluginListWidget', () => {
 			calls: ['repository'], ready: { disabled: false, checked: 'true', label: 'Plugin enablement for azure. Workspace scope. Disable for Workspace', badge: 'This Workspace' }, pendingDisabled: true,
 			globalBadges: 0,
 			pendingBadgeDisabled: 'true', menuRebuilt: true, busyMenuAvailability: [false, false],
+		});
+	});
+
+	test('a runtime-installed plugin shows the organization requirement of its session plugin on a locked switch', () => {
+		const createItem = (name: string, runtimeInstalled: boolean, policyEnablement?: boolean): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+				override readonly policyEnablement = constObservable(policyEnablement);
+				override readonly copilotCliInstallation = runtimeInstalled ? { name, marketplace: 'enterprise' } : undefined;
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const createSessionPlugin = (name: string, requiredEnabled?: boolean): ICustomizationItem => ({
+			uri: URI.file(`/plugins/${name}`), type: 'plugin', name, source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined,
+			organizationControl: requiredEnabled === undefined ? undefined : { requiredEnabled },
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: true, enabled: requiredEnabled === undefined, scope: 'global', run: () => { } }],
+		});
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			harnessService,
+			sessionPluginItems: [createSessionPlugin('required', true), createSessionPlugin('own'), createSessionPlugin('local', true)],
+			hoverService: new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return toDisposable(() => { }); }
+			}(),
+			cardDisposables: store.add(new DisposableStore()),
+		});
+		const required = createItem('required', true);
+		const toggle = widget.appendInstalledPluginToggle($('div'), $('div'), $('div'), required).querySelector('button')!;
+		assert.deepStrictEqual({
+			required: widget.getInstalledPluginOrganizationControl(required),
+			switch: { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked') },
+			own: widget.getInstalledPluginOrganizationControl(createItem('own', true)),
+			withoutSessionPlugin: widget.getInstalledPluginOrganizationControl(createItem('unpaired', true)),
+			// A plugin the workbench loads itself is governed by the workbench policy alone.
+			local: widget.getInstalledPluginOrganizationControl(createItem('local', false)),
+			localBlocked: widget.getInstalledPluginOrganizationControl(createItem('local', false, false)),
+		}, {
+			required: { requiredEnabled: true },
+			switch: { disabled: true, checked: 'true' },
+			own: undefined, withoutSessionPlugin: undefined, local: undefined,
+			localBlocked: { requiredEnabled: false },
+		});
+	});
+
+	test('a search that matches only the location of a runtime-installed row keeps its organization requirement and locked switch', async () => {
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/home/dev/.copilot/installed-plugins/enterprise/required');
+			override readonly label = 'required';
+			override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+			override readonly policyEnablement = constObservable(undefined);
+			override readonly copilotCliInstallation = { name: 'required', marketplace: 'enterprise' };
+		}();
+		const sessionPlugin: ICustomizationItem = {
+			uri: plugin.uri, type: 'plugin', name: 'required', description: 'Compliance checks', source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined,
+			organizationControl: { requiredEnabled: true },
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: true, enabled: false, scope: 'global', run: () => { } }],
+		};
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			harnessService: { ...harnessService, getActiveDescriptor: () => ({ itemProvider: {} }) },
+			itemsModel: { getActiveItemSource: () => ({ fetchProviderItems: async () => [sessionPlugin] }) },
+			agentPluginService: { plugins: constObservable([plugin]) },
+			labelService: new class extends mock<ILabelService>() {
+				override getUriLabel(uri: URI): string { return uri.path; }
+			}(),
+			hoverService: new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return toDisposable(() => { }); }
+			}(),
+			cardDisposables: store.add(new DisposableStore()),
+			_onDidChangeItemCount: { fire: () => { } },
+			searchQuery: 'installed-plugins', browseMode: false, filterGeneration: 0,
+		});
+		await widget.filterPlugins();
+		const [row] = widget.installedItems;
+		const toggle = widget.appendInstalledPluginToggle($('div'), $('div'), $('div'), row).querySelector('button')!;
+		assert.deepStrictEqual({
+			rows: widget.installedItems.map((item: IInstalledPluginItem) => item.name),
+			// The session plugin does not match the search itself, so it adds no row of its own.
+			sessionPluginRows: widget.remoteItems.length,
+			organization: widget.getInstalledPluginOrganizationControl(row),
+			switch: { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked') },
+		}, {
+			rows: ['required'], sessionPluginRows: 0,
+			organization: { requiredEnabled: true },
+			switch: { disabled: true, checked: 'true' },
 		});
 	});
 
@@ -350,6 +436,58 @@ suite('pluginListWidget', () => {
 		});
 	});
 
+	test('keeps collapsed groups collapsed when the plugin list changes', () => {
+		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(state);
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		type TreeNode = { readonly element: { readonly type: string; readonly label?: string }; readonly collapsed?: unknown; readonly children?: readonly unknown[] };
+		const renders: (readonly TreeNode[] | undefined)[] = [];
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renders.push(children) },
+			installedItems: [createItem('workspace-one', ContributionEnablementState.EnabledWorkspace), createItem('user-one', ContributionEnablementState.EnabledProfile)],
+			remoteItems: [],
+			marketplaceItems: [],
+			marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
+			searchQuery: '',
+			browseMode: false,
+			collapsedGroups: new Set<string>(['user']),
+			configurationService: new TestConfigurationService({ [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true }),
+			cardScrollableNode: document.createElement('div'),
+			updateToolbarActions: () => { },
+			updatePluginTreeEmptyState: () => { },
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
+			}(),
+		});
+		const renderPluginTree = Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void;
+		const describeRenders = () => renders.splice(0).map(children => children?.map(child => `${child.element.label} (${child.children?.length}) ${child.collapsed ? 'collapsed' : 'expanded'}`));
+
+		renderPluginTree.call(widget);
+		const initial = describeRenders();
+		widget.installedItems = [...widget.installedItems, createItem('user-two', ContributionEnablementState.EnabledProfile)];
+		renderPluginTree.call(widget);
+		const afterPluginAdded = describeRenders();
+		widget.searchQuery = 'one';
+		renderPluginTree.call(widget);
+		const whileSearching = describeRenders();
+		widget.searchQuery = '';
+		widget.browseMode = true;
+		renderPluginTree.call(widget);
+		const whileBrowsing = describeRenders();
+
+		assert.deepStrictEqual({ initial, afterPluginAdded, whileSearching, whileBrowsing }, {
+			initial: [['Workspace (1) expanded', 'User (1) collapsed']],
+			afterPluginAdded: [['Workspace (1) expanded', 'User (2) collapsed']],
+			whileSearching: [['Workspace (1) expanded', 'User (2) expanded']],
+			whileBrowsing: [['Workspace (1) expanded', 'User (2) expanded']],
+		});
+	});
+
 	test('renders Workspace before User even when User has no plugins', () => {
 		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
 			const plugin = new class extends mock<IAgentPlugin>() {
@@ -374,6 +512,7 @@ suite('pluginListWidget', () => {
 				marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
 				searchQuery: '',
 				browseMode: false,
+				collapsedGroups: new Set<string>(),
 				configurationService: new TestConfigurationService({
 					[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 				}),
@@ -383,7 +522,7 @@ suite('pluginListWidget', () => {
 				workspaceContextService: new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace() {
 						const uri = URI.file('/workspace');
-						return { id: 'test', folders: [{ uri, name: 'Workspace', index: 0, toResource: (path: string) => URI.joinPath(uri, path) }] };
+						return testIWorkspace({ id: 'test', folders: [{ uri, name: 'Workspace', index: 0, toResource: (path: string) => URI.joinPath(uri, path) }] });
 					}
 				}(),
 			});
@@ -472,12 +611,13 @@ suite('pluginListWidget', () => {
 			marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
 			searchQuery: '',
 			browseMode: false,
+			collapsedGroups: new Set<string>(),
 			configurationService: new TestConfigurationService({ [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true }),
 			cardScrollableNode: document.createElement('div'),
 			updateToolbarActions: () => { },
 			updatePluginTreeEmptyState: () => { },
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
-				override getWorkspace() { return { id: 'test', folders }; }
+				override getWorkspace() { return testIWorkspace({ id: 'test', folders }); }
 				override getWorkspaceFolder(resource: URI) {
 					return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
 				}
