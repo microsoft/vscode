@@ -216,6 +216,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
 
+	private readonly _onDidChangeAuxiliaryBarMaximizeHidden = this._register(new Emitter<boolean>());
+	readonly onDidChangeAuxiliaryBarMaximizeHidden = this._onDidChangeAuxiliaryBarMaximizeHidden.event;
+
+	private auxiliaryBarMaximizeHiddenClaims = 0;
+
 	private readonly _onDidLayoutMainContainer = this._register(new Emitter<IDimension>());
 	readonly onDidLayoutMainContainer = this._onDidLayoutMainContainer.event;
 
@@ -2320,6 +2325,27 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	toggleMaximizedAuxiliaryBar(): void {
 		this.setAuxiliaryBarMaximized(!this.isAuxiliaryBarMaximized());
+	}
+
+	hideAuxiliaryBarMaximize(): IDisposable {
+		if (++this.auxiliaryBarMaximizeHiddenClaims === 1) {
+			this._onDidChangeAuxiliaryBarMaximizeHidden.fire(true);
+		}
+
+		let released = false;
+		return toDisposable(() => {
+			if (released) {
+				return;
+			}
+			released = true;
+			if (--this.auxiliaryBarMaximizeHiddenClaims === 0) {
+				this._onDidChangeAuxiliaryBarMaximizeHidden.fire(false);
+			}
+		});
+	}
+
+	isAuxiliaryBarMaximizeHidden(): boolean {
+		return this.auxiliaryBarMaximizeHiddenClaims > 0;
 	}
 
 	setAuxiliaryBarMaximized(maximized: boolean): boolean {
