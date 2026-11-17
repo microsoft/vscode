@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from '../../../../../base/browser/dom.js';
+import { isAuxiliaryWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, runOnChange } from '../../../../../base/common/observable.js';
@@ -10,7 +12,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { isVisibleOnboardingTarget, markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 
 /**
  * What asks where a new chat works as its first request is sent, in a callout on the worktree control of that chat: by the
@@ -33,6 +35,11 @@ export interface IWorktreeSendChoiceControl {
 	readonly resource: IObservable<URI | undefined>;
 	/** Whether the control is where its chat offers New Worktree now; it always is when not given. */
 	readonly isOffered?: () => boolean;
+	/**
+	 * Whether the callout can show on the control now, such as while it shows in the window the callout shows in and is
+	 * visible there; it always can when not given.
+	 */
+	readonly isPresentable?: () => boolean;
 }
 
 /** A control registered with {@link IWorktreeSendChoiceTargetService}, until it is disposed. */
@@ -45,8 +52,8 @@ export const IWorktreeSendChoiceTargetService = createDecorator<IWorktreeSendCho
 
 /**
  * Which worktree control the callout of an asker shows on, and when its question ends unanswered. The callout targets the
- * control it shows on while that control shows the chat asked about where it offers New Worktree, else the first registered
- * control that does. The question ends unanswered once that control shows another chat, or once it goes with no other
+ * control it shows on while that control shows the chat asked about where it offers New Worktree and can present it, else the
+ * first registered control that does. The question ends unanswered once that control shows another chat, or once it goes with no other
  * control of the chat to show on, which it then shows on. Other controls, such as one in another window, never end it.
  */
 export interface IWorktreeSendChoiceTargetService {
@@ -126,7 +133,7 @@ class AskerControls extends Disposable {
 
 	/** The control the callout about `asked` targets: the one it shows on while it still can, else the first that can. */
 	private _targetOf(asked: URI): AskerControls['_controls'][number] | undefined {
-		const canShowOn = (entry: AskerControls['_controls'][number]) => isSameChat(entry.control.resource.get(), asked) && (entry.control.isOffered?.() ?? true);
+		const canShowOn = (entry: AskerControls['_controls'][number]) => isSameChat(entry.control.resource.get(), asked) && (entry.control.isOffered?.() ?? true) && (entry.control.isPresentable?.() ?? true);
 		const anchored = this._anchor?.entry;
 		return anchored && isSameChat(this._anchor?.asked, asked) && canShowOn(anchored) ? anchored : this._controls.find(canShowOn);
 	}
@@ -197,7 +204,12 @@ export class WorktreeSendChoiceTarget extends Disposable {
 		@IWorktreeSendChoiceTargetService targetService: IWorktreeSendChoiceTargetService,
 	) {
 		super();
-		const registration = this._register(targetService.registerControl(asker, { resource, isOffered }));
+		// The callout shows in the window of the workbench, not in an auxiliary window, on a visible control only
+		const isPresentable = () => {
+			const targetWindow = getWindow(element);
+			return !isAuxiliaryWindow(targetWindow) && isVisibleOnboardingTarget(targetWindow, element);
+		};
+		const registration = this._register(targetService.registerControl(asker, { resource, isOffered, isPresentable }));
 		// A callout run has no scope: it matches only the control it targets, and every other control is out of scope
 		this._register(markOnboardingTarget(element, asker.targetId, {
 			scope: () => registration.isTarget() ? undefined : (resource.get()?.toString() ?? ''),

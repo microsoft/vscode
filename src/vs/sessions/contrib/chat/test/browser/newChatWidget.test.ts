@@ -5648,6 +5648,78 @@ suite('NewChatWidget', () => {
 					});
 				});
 
+				test('the callout shows on the control of its draft that is visible in the window of the workbench, also where a control in an auxiliary window or a hidden one registered first', async () => {
+					const mark = Reflect.get(NewChatWidget.prototype, '_markWorktreeSendChoiceTarget') as (this: object, element: HTMLElement) => IDisposable;
+					const results: Record<string, unknown> = {};
+					for (const first of ['auxiliary', 'hidden'] as const) {
+						const store = disposables.add(new DisposableStore());
+						// The onboarding service and its spotlight callout, as the workbench has them
+						const configuration = new TestConfigurationService();
+						const contextKeyService = store.add(new ContextKeyService(configuration));
+						const onboarding = store.add(new OnboardingScenarioService(
+							store.add(new InMemoryStorageService()), contextKeyService, configuration, store.add(new TestLifecycleService()),
+							new NullWorkbenchAssignmentService(), NullTelemetryService,
+							store.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+						));
+						const layout = new class extends TestLayoutService {
+							override getContainer() { return mainWindow.document.body; }
+						}();
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService))));
+						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
+						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+						store.add(worktreeSendChoiceService.registerProvider(provider));
+						const instantiationService = targetInstantiationService(store);
+						const session = observableValue<ISession | undefined>('session', upcastPartial<ISession>({ resource: draft }));
+						const addControl = (document: Document, style: Partial<CSSStyleDeclaration>) => {
+							const element = append(document.body, document.createElement('div'));
+							Object.assign(element.style, { position: 'absolute', left: '100px', width: '120px', height: '20px', ...style });
+							store.add(toDisposable(() => element.remove()));
+							store.add(mark.call({ worktreeSendChoiceService, instantiationService, _session: session, _getWorktreeSendChoiceControl: () => element }, element));
+							return element;
+						};
+
+						// First, a control of the draft that the callout cannot show on: in an auxiliary window, or hidden
+						if (first === 'auxiliary') {
+							const auxiliary = append(mainWindow.document.body, $('iframe')) as HTMLIFrameElement;
+							Object.assign(auxiliary.style, { position: 'absolute', left: '400px', top: '0px', width: '300px', height: '400px' });
+							store.add(toDisposable(() => auxiliary.remove()));
+							// As the workbench's auxiliary windows are
+							Object.assign(auxiliary.contentWindow!, { vscodeWindowId: 2 });
+							addControl(auxiliary.contentDocument!, { top: '100px' });
+						} else {
+							addControl(mainWindow.document, { top: '100px', display: 'none' });
+						}
+						const shown = addControl(mainWindow.document, { top: '300px' });
+						const callout = () => mainWindow.document.querySelector<HTMLElement>('.spotlight-callout');
+						const onShown = () => {
+							const hole = mainWindow.document.querySelector<HTMLElement>('.spotlight-hole');
+							if (!callout() || !hole) {
+								return false;
+							}
+							const y = hole.getBoundingClientRect().top + hole.getBoundingClientRect().height / 2;
+							const { top, bottom } = shown.getBoundingClientRect();
+							return y >= top && y <= bottom;
+						};
+
+						const asking = provider.requestSendChoice(draft);
+						let anchored = false;
+						try {
+							await retry(async () => assert.ok(onShown()), 20, 50);
+							anchored = true;
+						} catch {
+							// It never showed on the visible control of the workbench's window
+						}
+						Array.from(callout()?.querySelectorAll<HTMLElement>('.monaco-button') ?? []).find(button => button.textContent === 'Use New Worktree')?.click();
+						if (!anchored) {
+							provider.cancelSendChoice(draft);
+						}
+						results[first] = { anchored, answer: await asking };
+						store.dispose();
+					}
+
+					assert.deepStrictEqual(results, { auxiliary: { anchored: true, answer: 'worktree' }, hidden: { anchored: true, answer: 'worktree' } });
+				});
+
 				test('tells drafts apart by their exact resource, also where only the case of their path differs: a control of the other draft is not the target, and the anchor that shows it ends the question', () => {
 					const mark = Reflect.get(NewChatWidget.prototype, '_markWorktreeSendChoiceTarget') as (this: object, element: HTMLElement) => IDisposable;
 					const store = disposables.add(new DisposableStore());

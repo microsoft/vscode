@@ -26,10 +26,10 @@ suite('WorktreeSendChoiceTargetService', () => {
 		const onDidShow = store.add(new Emitter<URI>());
 		const cancelled: string[] = [];
 		const asker = { targetId: 'test.target', pendingSendChoice: pending, onDidShowSendChoice: onDidShow.event, cancelSendChoice: (resource: URI) => cancelled.push(resource.path) };
-		const controls = new Map<string, { readonly resource: ISettableObservable<URI | undefined>; offered: boolean; registration: IWorktreeSendChoiceControlRegistration | undefined }>();
-		const add = (name: string, resource = draft) => {
-			const control = { resource: observableValue<URI | undefined>(name, resource), offered: true, registration: undefined as IWorktreeSendChoiceControlRegistration | undefined };
-			control.registration = store.add(service.registerControl(asker, { resource: control.resource, isOffered: () => control.offered }));
+		const controls = new Map<string, { readonly resource: ISettableObservable<URI | undefined>; offered: boolean; presentable: boolean; registration: IWorktreeSendChoiceControlRegistration | undefined }>();
+		const add = (name: string, resource = draft, presentable = true) => {
+			const control = { resource: observableValue<URI | undefined>(name, resource), offered: true, presentable, registration: undefined as IWorktreeSendChoiceControlRegistration | undefined };
+			control.registration = store.add(service.registerControl(asker, { resource: control.resource, isOffered: () => control.offered, isPresentable: () => control.presentable }));
 			controls.set(name, control);
 		};
 		const targets = () => [...controls].filter(([, control]) => control.registration!.isTarget()).map(([name]) => name);
@@ -40,7 +40,7 @@ suite('WorktreeSendChoiceTargetService', () => {
 		return { pending, controls, add, targets, ask, cancelled, remove: (name: string) => controls.get(name)!.registration!.dispose() };
 	}
 
-	test('the callout targets the first control of the chat asked about where it offers New Worktree, keeps the one it shows on, and ends its question unanswered only through that one', () => {
+	test('the callout targets the first control of the chat asked about where it offers New Worktree and can present it, keeps the one it shows on, and ends its question unanswered only through that one', () => {
 		const run = (steps: (fixture: ReturnType<typeof setup>) => void) => {
 			const fixture = setup();
 			fixture.add('a');
@@ -54,6 +54,8 @@ suite('WorktreeSendChoiceTargetService', () => {
 			notAsking: run(() => { }),
 			asking: run(fixture => fixture.ask()),
 			notOffered: run(fixture => { fixture.controls.get('a')!.offered = false; fixture.ask(); }),
+			// Such as one in an auxiliary window, or a hidden one
+			notPresentable: run(fixture => { fixture.controls.get('a')!.presentable = false; fixture.ask(); }),
 			anchorShowsAnother: run(fixture => { fixture.ask(); fixture.controls.get('a')!.resource.set(other, undefined); }),
 			otherShowsAnother: run(fixture => { fixture.ask(); fixture.controls.get('b')!.resource.set(other, undefined); }),
 			anchorGoesWithOther: run(fixture => { fixture.ask(); fixture.remove('a'); }),
@@ -64,6 +66,7 @@ suite('WorktreeSendChoiceTargetService', () => {
 			notAsking: { targets: [], cancelled: [] },
 			asking: { targets: ['a'], cancelled: [] },
 			notOffered: { targets: ['b'], cancelled: [] },
+			notPresentable: { targets: ['b'], cancelled: [] },
 			anchorShowsAnother: { targets: ['b'], cancelled: ['/untitled-draft'] },
 			otherShowsAnother: { targets: ['a'], cancelled: [] },
 			anchorGoesWithOther: { targets: ['b'], cancelled: [] },
