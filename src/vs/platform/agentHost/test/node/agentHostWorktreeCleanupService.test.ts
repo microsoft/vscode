@@ -217,6 +217,39 @@ suite('AgentHostWorktreeCleanupService', () => {
 		}, undefined);
 	}
 
+	for (const { kind, payload, version, error } of [
+		{ kind: 'invalid', payload: '{}', version: AGENT_HOST_CATALOG_PAYLOAD_VERSION, error: 'Expected a non-negative safe integer payloadVersion.' },
+		{ kind: 'outdated', payload: JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1 }), version: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1, error: `Expected payload version ${AGENT_HOST_CATALOG_PAYLOAD_VERSION}, but got ${AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1}.` },
+	]) {
+		for (const hasRecovery of [true, false]) {
+			test(`${kind} catalog roots do not block cleanup ${hasRecovery ? 'with' : 'without'} recorded recovery`, async () => {
+				const log = new RecordingLogService();
+				const { database, cleanup, worktree } = create(undefined, log);
+				if (!hasRecovery) {
+					worktree.sessions.clear();
+				}
+				await useWorktree(database, SESSION, recorded('archived'), true);
+				await setCatalogWorkingDirectories(database, [recorded('unrecorded').worktree]);
+				const state = await database.readSessionState(SESSION.toString());
+				assert.ok(state);
+				await database.writeSessionState(SESSION.toString(), state.header.revision, { values: { [SESSION_WORKING_DIRECTORIES_KEY]: null }, folders: [], chats: [], markPayloadDirty: false });
+				await sql(database, 'UPDATE sessions_v2 SET payload = ?, payload_version = ? WHERE session_uri = ?', [payload, version, SESSION.toString()]);
+
+				const status = await cleanup.sessionWorktreeCleanup(SESSION, true);
+				const requests = await pending(database);
+				await cleanup.runPass();
+
+				assert.deepStrictEqual({ status, requests, calls: worktree.calls, recovery: [...worktree.sessions.keys()], warnings: log.messages.filter(message => message.startsWith('warn:')) }, {
+					status: { state: hasRecovery ? 'pending' : 'unknown' },
+					requests: hasRecovery ? ['session:commit:0'] : [],
+					calls: hasRecovery ? [`remove:${sessionId}:commit:agents/archived`] : [],
+					recovery: hasRecovery ? [SESSION.toString()] : [],
+					warnings: [`warn:[AgentHostWorktreeCleanup] Ignoring ${kind} catalog roots for session ${SESSION.toString()} (payload version ${version}): ${error}`],
+				});
+			});
+		}
+	}
+
 	test('an explicitly empty workspace does not adopt a stale catalog worktree', async () => {
 		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
 		worktree.sessions.clear();

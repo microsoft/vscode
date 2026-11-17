@@ -396,10 +396,11 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 			const catalog = await this._database.getSessionV2(session.toString());
 			if (catalog) {
 				const decoded = decodeAgentHostCatalogPayloadData(catalog.payload);
-				if (!decoded.ok) {
-					throw new Error(`Cannot prepare worktree cleanup: invalid session catalog: ${decoded.error}`);
+				if (decoded.ok) {
+					directories = decoded.value.workingDirectories;
+				} else {
+					this._logService.warn(`[AgentHostWorktreeCleanup] Ignoring ${decoded.reason} catalog roots for session ${session.toString()} (payload version ${catalog.payloadVersion}): ${decoded.error}`);
 				}
-				directories = decoded.value.workingDirectories;
 			}
 		}
 		const recorded = await this._worktree.readSessionWorktreeForRemoval(session);
