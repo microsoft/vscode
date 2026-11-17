@@ -290,25 +290,32 @@ export class MissionControlSharingService extends Disposable implements IMission
 			return [URI.file('/')];
 		}
 		const drives = Array.from({ length: 26 }, (_, index) => URI.from({ scheme: Schemas.file, path: `/${String.fromCharCode(65 + index)}:/` }));
-		const roots = await Promise.all(drives.map(async drive => {
+		const checks = await Promise.all(drives.map(async (drive): Promise<{ readonly root?: URI; readonly failure?: { readonly drive: URI; readonly error: unknown } }> => {
 			try {
 				if (!(await this._fileService.stat(drive)).isDirectory) {
-					return undefined;
+					return {};
 				}
 				const canonical = await this._fileService.realpath(drive);
 				if (canonical?.fsPath.replace(/\\/g, '/').startsWith('//')) {
 					this._logService.info('[Mission Control] Excluding a network-backed drive from local filesystem sharing', drive.toString());
-					return undefined;
+					return {};
 				}
-				return drive;
+				return { root: drive };
 			} catch (error) {
-				if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
-					throw toFileSharingError(error, 'fileSystemRoot');
-				}
-				return undefined;
+				return error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND ? {} : { failure: { drive, error } };
 			}
 		}));
-		return roots.filter(root => root !== undefined);
+		const roots = checks.flatMap(check => check.root ? [check.root] : []);
+		const failures = checks.flatMap(check => check.failure ? [check.failure] : []);
+		// A drive that cannot be read (e.g. an empty card reader or a locked volume) cannot be verified as local, so it is not
+		// shared. When no drive can be read, report the failure instead of granting little more than the home folder.
+		if (failures.length && !roots.length) {
+			throw toFileSharingError(failures[0].error, 'fileSystemRoot');
+		}
+		for (const { drive, error } of failures) {
+			this._logService.warn('[Mission Control] Excluding a drive that cannot be read from local filesystem sharing', drive.toString(), getErrorMessage(error));
+		}
+		return roots;
 	}
 
 	private async _configure(enablement?: DisposableStore): Promise<void> {

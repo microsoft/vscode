@@ -219,6 +219,28 @@ suite('TerminalSandboxEngine', () => {
 		});
 	});
 
+	test('explicit runtime read paths do not grant the executable parent or portable storage', async () => {
+		const appRoot = '/home/user/portable-code/resources/app';
+		const executable = '/home/user/portable-code/code';
+		const runtimeData = '/home/user/portable-code/icudtl.dat';
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost({
+			getRuntimeInfo: async () => ({ appRoot, execPath: executable, readPaths: [appRoot, executable, runtimeData] }),
+		})));
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath);
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		deepStrictEqual({
+			applicationReadPaths: config.filesystem.allowRead.filter((path: string) => path.startsWith('/home/user/portable-code')),
+			portableStorage: await engine.checkFileAccess('read', ['/home/user/portable-code/data/user-data/state.vscdb']),
+			applicationResources: await engine.checkFileAccess('read', [`${appRoot}/out/main.js`]),
+		}, {
+			applicationReadPaths: [appRoot, executable, runtimeData],
+			portableStorage: { allowed: false, denied: ['/home/user/portable-code/data/user-data/state.vscdb'] },
+			applicationResources: { allowed: true, denied: [] },
+		});
+	});
+
 	test('sandbox config respects explicitly disabled PTY access on macOS', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAdvancedRuntime, { allowPty: false });
 		const host = createHost({ getOS: () => Promise.resolve(OperatingSystem.Macintosh) });

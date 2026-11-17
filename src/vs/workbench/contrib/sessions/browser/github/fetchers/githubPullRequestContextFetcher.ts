@@ -16,11 +16,12 @@ export class GitHubPullRequestContextFetcher {
 	getPullRequestContext(owner: string, repo: string, number: number): Promise<IGitHubPullRequestContext> {
 		return this._client.withClient(async (client, signal) => {
 			const repository = { owner, repo };
+			const options = { caller: 'githubPullRequestContextFetcher' };
 			const [pullRequest, files, issueComments, reviewComments] = await Promise.all([
-				client.pullRequests.get(repository, number, signal),
-				client.pullRequests.listFiles(repository, number, signal, { query: { page: 1, per_page: 100 }, maxPages: 100 }),
-				client.issues.listComments(repository, number, signal, { query: { page: 1, per_page: 100 }, maxPages: 100 }),
-				client.reviews.listComments(repository, number, signal, { query: { page: 1, per_page: 100 }, maxPages: 100 }),
+				client.pullRequests.get(repository, number, signal, options),
+				client.pullRequests.listFiles(repository, number, signal, { ...options, query: { page: 1, per_page: 100 }, maxPages: 100 }),
+				client.issues.listComments(repository, number, signal, { ...options, query: { page: 1, per_page: 100 }, maxPages: 100 }),
+				client.reviews.listComments(repository, number, signal, { ...options, query: { page: 1, per_page: 100 }, maxPages: 100 }),
 			]);
 			return {
 				owner,

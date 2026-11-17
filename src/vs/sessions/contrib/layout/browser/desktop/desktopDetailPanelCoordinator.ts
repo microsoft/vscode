@@ -16,7 +16,7 @@ import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextK
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 export const enum DetailPanelTarget {

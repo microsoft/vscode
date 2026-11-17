@@ -906,9 +906,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const catalog = this._catalog;
 		this._executionAvailabilityWatcher.value = autorun(reader => {
-			const available = catalog.entries.filter(automation => getAgentHostScheduledChat(automation.definition)?.conversation
-				? this._execution.supportsExistingConversation
-				: this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
+			const available = catalog.entries.filter(automation => this._isExecutionAvailable(automation, reader));
 			this._scheduleTimer.clear();
 			if (!this._isAutomationsEnabled()) {
 				return;
@@ -975,7 +973,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				continue;
 			}
 			// Each occurrence gets its own run so a stalled run can never block later occurrences.
-			if (!this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(current.definition))) {
+			if (!this._isExecutionAvailable(current)) {
 				continue;
 			}
 			const cursors = { ...readScheduleCursors(current._meta) };
@@ -1714,6 +1712,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				throw new Error('Unsupported automation trigger.');
 			}
 		}
+	}
+
+	/**
+	 * Whether an automation can execute now. A follow-up in an existing conversation
+	 * reuses that conversation's model and provider, so it does not depend on new-session
+	 * template readiness; an unusable target fails the run during preparation instead.
+	 */
+	private _isExecutionAvailable(automation: AutomationEntry, reader?: IReader): boolean {
+		return getAgentHostScheduledChat(automation.definition)?.conversation
+			? !!this._execution.supportsExistingConversation
+			: this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader);
 	}
 
 	private _requireOperation(automation: AutomationEntry, operation: AutomationOperation): void {

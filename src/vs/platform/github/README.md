@@ -66,6 +66,16 @@ The [credential broker](../../workbench/services/github/browser/githubCredential
 
 Anonymous clients expose only content reads, `gist.get`, and `search.issues`. They omit authorization, cookies, and referrers, and cannot perform mutations or GraphQL operations. Internal bootstrap clients are reserved for trusted host authentication flows; checking a supplied credential does not make it an accepted host credential.
 
+### Agent Host account-selection hints
+
+The Agent Host accepts the optional AHP `authenticate.accountId` as an opaque, unverified client-local selection hint. The protocol boundary scopes it to the originating client, protected resource, and optional target; the GitHub credential service still resolves the token's identity with `GET /user`. Stable hints preserve renewal cooldowns, while a changed selection can be verified without inheriting another selection's bootstrap wait. Neither a changed hint nor token rotation clears a verified account's cooldown or establishes authorization or cross-client credential equivalence.
+
+Hint appearance or disappearance during renewal retains the same comparison context and bootstrap cooldown. Comparison history is retained per client/resource/target for the host lifetime, independently of token pruning, invalidation, scope changes, or replacement by another client. Each stored token keeps its own comparison snapshot, while replay preserves the currently supplied optional field rather than fabricating one.
+
+VS Code sends its provider/account/authorization-server tuple only in the standard field. Older hosts ignore the standard hint, and GitHub token authentication and renewal still work without it; mixed-version connections may keep the conservative bootstrap cooldown until token validation establishes an account switch. General `_meta` support, including unrelated authentication metadata, is unaffected.
+
+The Microsoft credential bridge is the one place that compares the identifier across clients. One Microsoft account serves every unscoped client of a host, so the bridge binds to the identifier of the first accepted credential and requires the same value, undecoded, on every later Microsoft credential from any client and for any Microsoft resource. A client must therefore send the same identifier for the same account from every connection, as VS Code's tuple does; a client that sends none or a different one is refused. This keeps the host on one account and is not an isolation boundary: unscoped clients already share the host's credentials and can replace them, and credentials from scoped clients stay in their own scope, which the bridge does not read. No display label is sent.
+
 ## Typed domains
 
 The [account interface](common/account/account.ts) is the authoritative list of available domains.
@@ -103,7 +113,9 @@ The [transport](common/githubTransport.ts), [queue](common/requestQueue.ts), and
 
 Current numeric defaults are defined in the queue and transport, not promised as public API or server quotas.
 
-[ApiRequestOptions](common/client/request.ts) carries `caller`, an absolute millisecond `deadline`, `priority`, and `noCache`. Query parameters belong under `query`; request metadata must not become URL parameters, GraphQL variables, or request-body fields. Use background/enrichment priorities for passive work rather than giving every request interactive priority.
+[ApiRequestOptions](common/client/request.ts) carries `caller`, an absolute millisecond `deadline`, `priority`, and `noCache`. Supply a stable, code-defined caller identifying the owning feature; never derive it from account, repository, or request content. Helpers accepting request options must preserve the caller's attribution and priority, supplying a caller fallback when needed. Query parameters belong under `query`; request metadata must not become URL parameters, GraphQL variables, or request-body fields.
+
+Typed-client GET/HEAD and GraphQL reads default to `interactive`, so omit that priority for user-initiated reads. REST and GraphQL writes default to `mutation`. The lower-level `transport.graphql()` wrapper instead defaults to `interactive` regardless of operation kind, so its direct mutation callers must pass `mutation`. Mission Control additionally treats credential operations as mutations regardless of HTTP method. Override scheduling for the workflow: use `background` for automatic refreshes, `enrichment` for optional metadata such as avatars, `visible` for visible-resource subscriptions, and `mutationReconciliation` for reads confirming a dispatched write. Subscription contracts have their own priority requirements; their explicit interest priorities are not redundant request options.
 
 [RequestError](common/types.ts) provides `isResponseTooLarge` and `isRateLimited` predicates. Rate-limit detection uses the transport's `rateLimit` classification, including HTTP 429 and secondary-rate-limit HTTP 403 responses; an ordinary authorization failure is not a rate limit.
 

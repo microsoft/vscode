@@ -8,12 +8,12 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type Copil
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, timeout } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Promises, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, type IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, type IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedMap, LRUCache, ResourceMap, ResourceSet, Touch } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -48,7 +48,7 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import { isScopedCredentialUsable, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 import type { AgentHostPrewarmSkipReason, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelExperimentalMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -149,7 +149,7 @@ import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './cop
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { COPILOT_VIRTUAL_SESSION_STATE_PATH, createCopilotSessionPathMapper, toCopilotWorkspace, type CopilotWorkspace } from './copilotWorkspace.js';
 import { CopilotVirtualSessionFs, createCopilotVirtualSessionFsConfig } from './copilotVirtualSessionFs.js';
-import { CopilotSessionLauncher, type CopilotChatSurface, getInlineChatFusionAutoTier, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getCopilotAgentSelection, getCopilotAgentSelectionName, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, type CopilotChatSurface, getInlineChatFusionAutoTier, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getCopilotAgentSelection, getCopilotAgentSelectionName, getLocalModelSelectionId, isCopilotCanvasRuntimeEnabled, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog, originsOnlyForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -164,7 +164,7 @@ import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRoute
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { SessionCustomizationDiscovery, workspaceDirectoryHasHooks, type SessionDiscoveredCustomization } from './sessionCustomizationDiscovery.js';
+import { SessionCustomizationDiscovery, workspaceDirectoryHasHooks, type SessionDiscoveredCustomization, type SessionPluginInventory } from './sessionCustomizationDiscovery.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
@@ -616,6 +616,7 @@ interface IScopedCopilotModelCatalog {
 
 interface ICopilotClientProxyState {
 	readonly kerberosSpn: string | undefined;
+	/** The client roots the runtime trusts, none when `http.systemCertificates` is off. */
 	readonly certificates: readonly string[];
 }
 
@@ -640,6 +641,11 @@ interface ICopilotSessionRefreshCheckOptions {
 interface ICopilotSessionRefreshOptions extends ICopilotSessionRefreshCheckOptions {
 	readonly allowRestart: 'whenIdle' | 'always';
 	readonly turnId?: string;
+}
+
+/** Whether a refresh serves an operation outside a turn, which never sends the chat's draft. */
+function isIdleRefreshOperation(operation: ICopilotSessionRefreshCheckOptions['operation']): boolean {
+	return operation === 'startMcpServer' || operation === 'openCanvas';
 }
 
 interface ICopilotAgentSessionIdentity {
@@ -944,6 +950,7 @@ class CopilotChatEntry extends Disposable {
 		onMcpNotification: Emitter<IMcpNotification>,
 		onDidRequireAuth: () => void,
 		private readonly _onDidChangeRuntimePlugins: () => void,
+		private readonly _onDidReloadRuntimeContributions: () => void,
 	) {
 		super();
 		if (anchor) {
@@ -953,12 +960,18 @@ class CopilotChatEntry extends Disposable {
 		this._register(chatSession.onMcpNotification(notification => onMcpNotification.fire(notification)));
 		this._register(chatSession.onDidRequireAuth(onDidRequireAuth));
 		this._register(chatSession.onDidChangeRuntimePlugins(() => this._onDidChangeRuntimePlugins()));
+		this._register(chatSession.onDidReloadRuntimeContributions(() => this._onDidReloadRuntimeContributions()));
 		this._register(autorun(reader => activeClient.pluginController.mcpServerStates.set(chatSession.mcpServerStates.read(reader), undefined)));
 	}
 
 	/** Applies a runtime plugin change the session reported before this entry subscribed. */
 	refreshRuntimePlugins(): void {
 		this._onDidChangeRuntimePlugins();
+	}
+
+	/** Applies a runtime contribution reload the session reported before this entry subscribed. */
+	reloadRuntimeContributions(): void {
+		this._onDidReloadRuntimeContributions();
 	}
 }
 
@@ -3264,14 +3277,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				!candidate.id && candidate.directSourceId === undefined
 				&& candidate.name === plugin.name && candidate.marketplace === plugin.marketplace
 				&& installed.filter(installation => installation.name === plugin.name && installation.marketplace === plugin.marketplace).length > 1);
+			const effectivePlugin = matches.length === 1 ? matches[0] : undefined;
 			return {
 				name: plugin.name,
 				marketplace: plugin.marketplace,
 				directSourceId: plugin.directSourceId,
 				enabled: plugin.enabled,
 				// A ready chat omits inactive plugins; an unavailable inventory must remain pending.
-				effectiveEnabled: matches.length === 1 ? matches[0].enabled : effective !== undefined && matches.length === 0 && !ambiguous ? false : undefined,
-				managedDesiredEnabled: plugin.managedDesiredEnabled,
+				effectiveEnabled: effectivePlugin ? effectivePlugin.enabled : effective !== undefined && matches.length === 0 && !ambiguous ? false : undefined,
+				// The runtime resolves managed settings per session, so the chat's inventory states what the organization requires.
+				managedDesiredEnabled: effectivePlugin?.managed ? effectivePlugin.managedDesiredEnabled : plugin.managedDesiredEnabled,
 				...(plugin.marketplace && repositoryEnablement ? { repositoryEnabled: repositoryEnablement.get(`${plugin.name}@${plugin.marketplace}`) ?? null } : {}),
 				resource: plugin.rootPath && isAbsolute(plugin.rootPath) ? URI.file(plugin.rootPath) : undefined,
 				contentRevision: this._plugins.runtimePluginContentRevision,
@@ -3612,12 +3627,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 		const liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
 			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-			return current.target ?? this._ensureResolvedChatSession(current);
+			const target = current.target ?? await this._ensureResolvedChatSession(current);
+			// Opening a canvas relaunches an idle runtime that does not run canvases yet. A busy one, including one whose
+			// background subagents outlive its turn and would stop with it, reports canvases disabled until its next turn.
+			if (!target || operation !== 'openSessionCanvas' || !this._requiresCanvasRuntimeRefresh(target) || target.hasActiveSubagents) {
+				return target;
+			}
+			try {
+				return await this._refreshSessionConfiguration(current, target, undefined, { operation: 'openCanvas', allowRestart: 'whenIdle' });
+			} catch (error) {
+				if (error instanceof CopilotSessionConfigurationBusyError) {
+					return target;
+				}
+				throw error;
+			}
 		});
 		if (!liveSession || !isEqual(liveSession.ownerSessionUri, session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Canvas operation requires a resumable Copilot chat: ${chat.toString()}`);
 		}
 		return liveSession;
+	}
+
+	/** Whether a live session runs canvases differently from a session launched with the current configuration. */
+	private _requiresCanvasRuntimeRefresh(entry: CopilotAgentSession): boolean {
+		return entry.canvasRuntimeEnabled !== isCopilotCanvasRuntimeEnabled(this._configurationService, entry.isEphemeral);
 	}
 
 	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext): IResolvedCopilotChatContext {
@@ -5430,7 +5463,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const pricing = createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
 		const isAuto = isAutoModel(modelInfo.id);
 		const notices = isAuto ? undefined : createAgentModelNoticesMeta(modelInfo);
-		const meta = pricing || notices ? { ...pricing, ...notices } : undefined;
+		const meta = withAgentModelExperimentalMeta(pricing || notices ? { ...pricing, ...notices } : undefined, modelInfo.vendor);
 		return isAuto ? this._withAutoTiersMeta(meta, autoTierMetadata, promotions) : meta;
 	}
 
@@ -6572,8 +6605,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (session) {
 				roots.push({
 					root: resourceJoinPath(this._copilotHomeService.home, 'session-state', backing.sdkSessionId),
-					session,
-					title: this.sessionTitleSignal.getSessionTitle(session),
+					session: URI.parse(chat),
+					...this.sessionTitleSignal.getChatPathIdentity(URI.parse(chat), session),
 				});
 			}
 		}
@@ -8678,6 +8711,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (entry.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined)
 			?? (entry.requiresExtensionConsentRetry ? 'extensionConsentRetry' : undefined)
+			// Canvas enablement is decided at launch, which can precede the client's configuration, such as a setting its experiment enables later.
+			?? (this._requiresCanvasRuntimeRefresh(entry) ? 'canvasesEnabledChanged' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
 			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
@@ -8694,8 +8729,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._earlyLaunchReservation(context, entry)) {
 			// An unclaimed early launch has nothing on disk, so it must never take
 			// the resume-based restart below. A turn completes (or replaces) it;
-			// starting an MCP server keeps the draft unsent.
-			return options.operation === 'startMcpServer'
+			// an idle operation, such as starting an MCP server, keeps the draft unsent.
+			return isIdleRefreshOperation(options.operation)
 				? entry
 				: this._materializeProvisional(context, workingDirectories, undefined, { token: options.token });
 		}
@@ -8742,7 +8777,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			kind: 'sdkSession',
 			cause: refreshReason,
 			firstTurn: !entry.hasCompletedTurn,
-			phase: operation === 'startMcpServer' || operation === 'openCanvas' ? 'idle' : 'turnPrepare',
+			phase: isIdleRefreshOperation(operation) ? 'idle' : 'turnPrepare',
 		}, entry.completedTurnHistory);
 		const canvasHandoff = entry.takeCanvasProjection() ?? this._canvasHandoffs.get(entry.chatChannelUri);
 		if (canvasHandoff) {
@@ -8756,7 +8791,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			// Finish a started restart so queued control operations can target the replacement runtime.
 			await this._destroyLiveSession(entry, true);
-			const token = operation === 'startMcpServer' ? CancellationToken.None : options.token;
+			const token = isIdleRefreshOperation(operation) ? CancellationToken.None : options.token;
 			if (entry.sessionId === context.sessionBackedId) {
 				replacement = await this._resumeSession(entry.sessionId, context.chat, context.workspaceless, workingDirectories, undefined, token, context.surface);
 			} else {
@@ -10836,13 +10871,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * The proxies for a request of the Copilot runtime as a PAC-style list, with the precedence the rest of VS Code uses:
 	 * `http.noProxy`, `http.proxy`, the proxy environment variables, then the system proxy a client resolves, including
-	 * its fallback entries. `undefined` lets the runtime resolve the proxy itself, as it does without the callback, when no
-	 * client was connected to resolve the system proxy with, the client resolved none, or system proxy discovery is
-	 * disabled. It does so too for a proxy environment variable with credentials, which a PAC-style list cannot carry:
-	 * the runtime reads that proxy, credentials included, from the environment it inherits. The credentials of the
-	 * `http.proxy` setting answer the runtime's Basic challenges instead (see {@link _lookupBasicCredentials}).
+	 * its fallback entries. `undefined` lets the runtime resolve the proxy itself, as it does without the callback, when
+	 * `http.proxySupport` is `off`, no client was connected to resolve the system proxy with, the client resolved none, or
+	 * system proxy discovery is disabled. It does so too for a proxy environment variable with credentials, which a
+	 * PAC-style list cannot carry: the runtime reads that proxy, credentials included, from the environment it inherits.
+	 * The credentials of the `http.proxy` setting answer the runtime's Basic challenges instead (see
+	 * {@link _lookupBasicCredentials}).
 	 */
 	private async _resolveRuntimeProxy(url: string): Promise<string | undefined> {
+		if (this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxySupport) === 'off') {
+			this._logService.debug(`[Copilot] Not resolving the Copilot runtime's proxy for ${originsOnlyForLog(url)}: http.proxySupport is off`);
+			return undefined;
+		}
 		const { url: proxyUrl, result, source } = await this._proxyResolver.resolveProxyByURL(url);
 		const fromClient = source === 'system' || source === 'system_cached' || source === 'fallback';
 		const fromEnvironmentWithCredentials = source === 'env' && hasProxyCredentials(proxyUrl);
@@ -10864,9 +10904,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _readCopilotProxyState(): ICopilotClientProxyState {
+		// As in the extension host, `http.systemCertificates` decides whether the roots VS Code adds are trusted. When it is
+		// off the runtime receives no bundle: it inherits this process's `NODE_EXTRA_CA_CERTS` and, as it loads them
+		// itself, still trusts the OS roots.
+		const systemCertificates = this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.SystemCertificates) !== false;
 		return {
 			kerberosSpn: this._readKerberosSpn(process.env),
-			certificates: this._proxyResolver.clientCertificates,
+			certificates: systemCertificates ? this._proxyResolver.clientCertificates : [],
 		};
 	}
 
@@ -10946,6 +10990,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// The plugin controller serves the session's default chat, whose marker is the session's.
 				() => this._sessionSettings.get(session)?.workspaceless === true,
 				() => this.listPluginInstallations(session),
+				async () => this._findSessionChat(session)?.listInstalledPlugins(),
 			);
 			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidChatProgress);
 			this._activeClients.set(session, client);
@@ -11142,6 +11187,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}, () => {
 			this._slashCommandProvider.clearCache();
 			void activeClient.pluginController.refreshDiscovery();
+		}, () => {
+			void activeClient.pluginController.publishIfRuntimePluginsChanged();
 		});
 	}
 
@@ -11253,7 +11300,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._copilotChatDiscovery.ignoreSession(session.sessionId);
 		// Managed plugins often finish preparing while the session is created, before its entry subscribes.
 		let runtimePluginsChangedBeforeRegistration = false;
-		const runtimePluginsListener = session.onDidChangeRuntimePlugins(() => { runtimePluginsChangedBeforeRegistration = true; });
+		let runtimeContributionsReloadedBeforeRegistration = false;
+		const runtimePluginsListener = combinedDisposable(
+			session.onDidChangeRuntimePlugins(() => { runtimePluginsChangedBeforeRegistration = true; }),
+			session.onDidReloadRuntimeContributions(() => { runtimeContributionsReloadedBeforeRegistration = true; }),
+		);
 		try {
 			await session.initializeSession(token);
 			await beforeRegistration?.();
@@ -11276,6 +11327,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				entry.refreshRuntimePlugins();
 			} else if (isAgentChatDefaultChat({ resource: session.resourceUri, owner: session.ownerRef })) {
 				this._activeClients.get(session.ownerSessionUri)?.pluginController.publishWhenSettled(true);
+			} else if (runtimeContributionsReloadedBeforeRegistration) {
+				entry.reloadRuntimeContributions();
 			}
 		}
 	}
@@ -11883,6 +11936,7 @@ class SessionDiscoveredEntry extends Disposable {
 		workingDirectories: readonly URI[],
 		userHome: URI,
 		private readonly _getClient: () => Promise<CopilotClient>,
+		private readonly _sessionPlugins: SessionPluginInventory,
 		private readonly _onDidRefresh: () => void,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -11970,7 +12024,7 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private async _refresh(token: CancellationToken): Promise<boolean> {
 		try {
-			const customizations = await this._discovery.discover(await this._getClient(), token);
+			const customizations = await this._discovery.discover(await this._getClient(), token, this._sessionPlugins);
 			if (token.isCancellationRequested) {
 				return false;
 			}
@@ -12121,8 +12175,8 @@ class PluginController extends Disposable {
 	}
 
 	/** Creates a per-session controller that reads host-customization and runtime MCP state lazily. */
-	public createSessionController(session: URI, directory: URI | undefined, hostCustomizations: () => readonly Customization[], topLevelMcpServers: () => ITopLevelMcpServers, isDefaultChatWorkspaceless: () => boolean, installedPlugins: () => Promise<readonly IAgentPluginInstallation[]>): SessionPluginController {
-		return this._instantiationService.createInstance(SessionPluginController, this, session, directory, hostCustomizations, topLevelMcpServers, isDefaultChatWorkspaceless, installedPlugins);
+	public createSessionController(session: URI, directory: URI | undefined, hostCustomizations: () => readonly Customization[], topLevelMcpServers: () => ITopLevelMcpServers, isDefaultChatWorkspaceless: () => boolean, installedPlugins: () => Promise<readonly IAgentPluginInstallation[]>, sessionPlugins: SessionPluginInventory): SessionPluginController {
+		return this._instantiationService.createInstance(SessionPluginController, this, session, directory, hostCustomizations, topLevelMcpServers, isDefaultChatWorkspaceless, installedPlugins, sessionPlugins);
 	}
 
 	/**
@@ -12279,6 +12333,7 @@ class CustomizationAnchor extends Disposable {
 		private readonly _workspaceDirectories: readonly URI[],
 		private readonly _userHome: URI,
 		private readonly _getClient: () => Promise<CopilotClient>,
+		private readonly _sessionPlugins: SessionPluginInventory,
 		private readonly _onDidChange: () => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
@@ -12293,7 +12348,7 @@ class CustomizationAnchor extends Disposable {
 			return undefined;
 		}
 		if (!this._discovered.value) {
-			this._discovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry, this._workspaceDirectories, this._userHome, this._getClient, this._onDidChange);
+			this._discovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry, this._workspaceDirectories, this._userHome, this._getClient, this._sessionPlugins, this._onDidChange);
 		}
 		return this._discovered.value;
 	}
@@ -12338,6 +12393,7 @@ class SessionPluginController extends Disposable {
 	private _isEnablementReady = false;
 	private _runtimePlugins: readonly PluginCustomization[] = [];
 	private readonly _runtimePluginsRefresh = new Sequencer();
+	private readonly _runtimePluginsChangeCheck = this._register(new Throttler());
 	private readonly _runtimePluginContents = new ResourceMap<{ readonly version: string | undefined; readonly contentRevision: string; readonly parsed: Promise<IParsedPlugin | undefined> }>();
 	private readonly _runtimePluginWatchers = this._register(new DisposableResourceMap<DisposableStore>());
 
@@ -12371,6 +12427,8 @@ class SessionPluginController extends Disposable {
 		/** Whether the default chat, whose folders the published view follows, is workspace-less. */
 		private readonly _isDefaultChatWorkspaceless: () => boolean,
 		private readonly _installedPlugins: () => Promise<readonly IAgentPluginInstallation[]>,
+		/** Reads the plugin inventory of the session's default chat, which carries the organization's requirements. */
+		private readonly _sessionPlugins: SessionPluginInventory,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
@@ -12400,7 +12458,7 @@ class SessionPluginController extends Disposable {
 		let entry = this._anchors.get(key);
 		if (!entry) {
 			const workspaceDirectories = workspaceless ? [] : [directory, ...additionalDirectories];
-			const anchor: CustomizationAnchor = this._instantiationService.createInstance(CustomizationAnchor, key, directory, additionalDirectories, workspaceDirectories, this._parent.getUserHome(), () => this._parent.getClient(), () => this._onDidChangeAnchor(anchor));
+			const anchor: CustomizationAnchor = this._instantiationService.createInstance(CustomizationAnchor, key, directory, additionalDirectories, workspaceDirectories, this._parent.getUserHome(), () => this._parent.getClient(), this._sessionPlugins, () => this._onDidChangeAnchor(anchor));
 			entry = { anchor, refs: 0 };
 			if (this._store.isDisposed) {
 				// A late acquisition after session finalize owns its anchor outright.
@@ -12621,6 +12679,21 @@ class SessionPluginController extends Disposable {
 			}));
 		} catch (error) {
 			this._logService.warn('[Copilot:SessionPluginController] Failed to publish settled customizations', error);
+		}
+	}
+
+	/**
+	 * {@link publishWhenSettled} for runtime plugin changes only, coalescing
+	 * bursts of triggers to one check in flight and one pending.
+	 */
+	public async publishIfRuntimePluginsChanged(): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
+		try {
+			await this._runtimePluginsChangeCheck.queue(() => this.publishWhenSettled(true));
+		} catch {
+			// The throttler rejects only once this controller is disposed.
 		}
 	}
 
