@@ -10,8 +10,8 @@ export class GitHubChangesFetcher {
 	constructor(private readonly _client: GitHubApiClient) { }
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
-		return this._client.withClient(async (client, signal) => {
-			const comparison = await client.repositories.compare({ owner, repo }, base, head, signal, { caller: 'githubChangesFetcher' });
+		return this._client.withClient(async (client, cancellationToken) => {
+			const comparison = await client.repositories.compare({ owner, repo }, base, head, cancellationToken, { caller: 'githubChangesFetcher' });
 			return comparison.files?.map(file => ({
 				filename: file.filename,
 				previous_filename: file.previous_filename,

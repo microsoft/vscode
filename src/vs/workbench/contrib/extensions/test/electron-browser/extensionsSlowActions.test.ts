@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -26,6 +27,7 @@ import { INativeWorkbenchEnvironmentService } from '../../../../services/environ
 import { IExtensionHostProfile, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { createSlowExtensionAction } from '../../electron-browser/extensionsSlowActions.js';
+
 
 suite('ExtensionsSlowActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -159,9 +161,9 @@ suite('ExtensionsSlowActions', () => {
 		const start = Date.now();
 		const { instantiationService, leases, warnings } = createServices(async () => assert.fail('Cancelled acquisitions must not search'));
 		instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-			override async acquireAnonymousApiClient(signal: AbortSignal): Promise<IGitHubAnonymousClient> {
-				await Event.toPromise(Event.fromDOMEventEmitter(signal, 'abort'));
-				throw signal.reason;
+			override async acquireAnonymousApiClient(cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient> {
+				await Event.toPromise(listener => cancellationToken.onCancellationRequested(listener));
+				throw new CancellationError();
 			}
 		}());
 		const action = await instantiationService.invokeFunction(createSlowExtensionAction, extension, profile);
@@ -172,19 +174,19 @@ suite('ExtensionsSlowActions', () => {
 
 	test('uses one ten-second budget for acquisition and search and releases the client', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const start = Date.now();
-		let acquisitionSignal: AbortSignal | undefined;
+		let acquisitionSignal: CancellationToken | undefined;
 		let request: { sameSignal: boolean; deadline: number | undefined } | undefined;
-		const { instantiationService, leases, warnings } = createServices(async (_query, signal, options) => {
-			request = { sameSignal: signal === acquisitionSignal, deadline: options?.deadline };
-			await Event.toPromise(Event.fromDOMEventEmitter(signal, 'abort'));
-			throw signal.reason;
+		const { instantiationService, leases, warnings } = createServices(async (_query, cancellationToken, options) => {
+			request = { sameSignal: cancellationToken === acquisitionSignal, deadline: options?.deadline };
+			await Event.toPromise(listener => cancellationToken.onCancellationRequested(listener));
+			throw new CancellationError();
 		});
 		const service = instantiationService.get(IWorkbenchGitHubService);
 		instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-			override async acquireAnonymousApiClient(signal: AbortSignal) {
-				acquisitionSignal = signal;
+			override async acquireAnonymousApiClient(cancellationToken: CancellationToken) {
+				acquisitionSignal = cancellationToken;
 				await timeout(2_000);
-				return service.acquireAnonymousApiClient(signal);
+				return service.acquireAnonymousApiClient(cancellationToken);
 			}
 		}());
 		const action = await instantiationService.invokeFunction(createSlowExtensionAction, extension, profile);
@@ -196,9 +198,9 @@ suite('ExtensionsSlowActions', () => {
 	}));
 
 	test('cleans up the timeout after a successful lookup', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		let signal: AbortSignal | undefined;
-		const { instantiationService, leases, warnings } = createServices(async (_query, requestSignal) => {
-			signal = requestSignal;
+		let cancellationToken: CancellationToken | undefined;
+		const { instantiationService, leases, warnings } = createServices(async (_query, requestToken) => {
+			cancellationToken = requestToken;
 			return { total_count: 0, incomplete_results: false, items: [] };
 		});
 		const action = await instantiationService.invokeFunction(createSlowExtensionAction, extension, profile);
@@ -206,7 +208,7 @@ suite('ExtensionsSlowActions', () => {
 			store.add(action);
 		}
 		await timeout(10_001);
-		assert.deepStrictEqual({ actionId: action?.id, aborted: signal?.aborted, leases, warnings }, {
+		assert.deepStrictEqual({ actionId: action?.id, aborted: cancellationToken?.isCancellationRequested, leases, warnings }, {
 			actionId: 'report.slow', aborted: false, leases: { acquired: 1, released: 1 }, warnings: [],
 		});
 	}));

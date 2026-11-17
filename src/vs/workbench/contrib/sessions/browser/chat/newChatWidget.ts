@@ -8,7 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action, toAction } from '../../../../../base/common/actions.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -40,7 +40,7 @@ import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { getNoWorkspaceDescription, getQuickChatProviderLabel, getRemoteQuickChatSelectedLabel } from './noWorkspaceChoice.js';
 import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../../services/sessions/browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../common/sessionCommands.js';
-import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
+import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext } from '../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -427,6 +427,7 @@ export class NewChatWidget extends Disposable {
 			canRestoreWorkspace: () => !this._savedDraftComposer?.isRestoring && !this._savedDraftTargetUnavailable.get()
 				&& (!this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true),
 			onUserSelection: () => {
+				this._savedDraftComposer?.cancelRecovery();
 				this._savedDraftTargetUnavailable.set(false, undefined);
 				newSessionComposerService.notifyUserWorkspaceSelection();
 			},
@@ -447,8 +448,8 @@ export class NewChatWidget extends Disposable {
 				}
 				return undefined;
 			},
-			// A composer restricted to its folders, such as an editor window's, always creates its sessions in one
-			getNoWorkspaceOption: () => this._draftHost?.allowedFolders?.get().length ? undefined : this._getNoWorkspaceOption(),
+			// A composer restricted to its folders, such as an editor window's, also offers No Workspace beside them
+			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
@@ -669,27 +670,13 @@ export class NewChatWidget extends Disposable {
 		const savedDraftRegistration = this._register(new MutableDisposable());
 		this._newChatInput = this._register(newChatInput);
 		if (this._savedDraftComposer) {
-			this._register(autorun(reader => {
-				const session = this._session.read(reader);
-				session?.modelId.read(reader);
-				session?.mode.read(reader);
-				session?.workspace.read(reader);
-				this._environment.read(reader);
-				if (session) {
-					const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
-					if (provider?.sessionConfig) {
-						reader.store.add(provider.sessionConfig.onDidChangeSessionConfig(id => {
-							if (id === session.sessionId) {
-								this._captureSavedDraftTarget();
-							}
-						}));
-					}
-				}
-				this._captureSavedDraftTarget();
-			}));
+			this._register(this._trackSavedDraftTarget());
 			savedDraftRegistration.value = this.sessionDraftsService.registerComposer(this._savedDraftComposer,
 				(draft, token, preserveFocus) => this._restoreSavedDraft(draft, token, preserveFocus),
-				() => this._newChatInput.setDraft({ inputText: '', attachments: [] }),
+				() => {
+					this._savedDraftTargetUnavailable.set(false, undefined);
+					this._newChatInput.setDraft({ inputText: '', attachments: [] });
+				},
 				() => this._newChatInput.focus());
 			this._register(this._trackSavedDraftVisibility());
 		}
@@ -789,6 +776,7 @@ export class NewChatWidget extends Disposable {
 			syncAttachedContext();
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async pick => {
+			this._savedDraftComposer?.cancelRecovery();
 			this._savedDraftTargetUnavailable.set(false, undefined);
 			this.newSessionComposerService.notifyUserWorkspaceSelection();
 			this._requestTarget(target => ({ ...target, providerId: pick?.providerId, sessionTypeId: pick?.sessionTypeId }));
@@ -1460,6 +1448,34 @@ export class NewChatWidget extends Disposable {
 		this._savedDraftTargetSessionId = session.sessionId;
 	}
 
+	private _trackSavedDraftTarget(): IDisposable {
+		return autorun(reader => {
+			this._restoringSavedDraft.read(reader);
+			this._savedDraftTargetUnavailable.read(reader);
+			const session = this._session.read(reader);
+			session?.modelId.read(reader);
+			session?.mode.read(reader);
+			session?.workspace.read(reader);
+			this._environment.read(reader);
+			if (session) {
+				const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+				const configProvider = provider && getSessionConfigProvider(provider);
+				if (configProvider) {
+					reader.store.add(configProvider.onDidChangeSessionConfig(id => {
+						if (id === session.sessionId) {
+							this._captureSavedDraftTarget();
+						}
+					}));
+				}
+				const modelConfiguration = provider?.getAutomationModelConfiguration?.(session.sessionId);
+				if (modelConfiguration?.onDidChange) {
+					reader.store.add(modelConfiguration.onDidChange(() => this._captureSavedDraftTarget()));
+				}
+			}
+			this._captureSavedDraftTarget();
+		});
+	}
+
 	private async _restoreSavedDraft(draft: ISavedSessionDraft, token: CancellationToken = CancellationToken.None, preserveFocus = false): Promise<void> {
 		this._restoringSavedDraft.set(true, undefined);
 		this._pendingPreferredUpgrade.clear();
@@ -1480,6 +1496,23 @@ export class NewChatWidget extends Disposable {
 			if (this._savedDraftComposer) {
 				this._savedDraftComposer.id = draft.id;
 				this._savedDraftComposer.target = target;
+			}
+			const providerId = target.providerId;
+			if (preserveFocus && providerId) {
+				// Reload recovery can precede provider registration and session-type discovery.
+				const available = observableFromEvent(this, this.sessionsManagementService.onDidChangeSessionTypes, () => {
+					const provider = this.sessionsProvidersService.getProvider(providerId);
+					return !!provider && (!target.sessionTypeId || provider.sessionTypes.some(type => type.id === target.sessionTypeId));
+				});
+				const cancellation = new CancellationTokenSource(token);
+				try {
+					await raceTimeout(waitForState(available, available => available, undefined, cancellation.token), 10_000);
+				} finally {
+					cancellation.dispose(true);
+				}
+				if (token.isCancellationRequested || this._store.isDisposed) {
+					return;
+				}
 			}
 			const provider = target.providerId ? this.sessionsProvidersService.getProvider(target.providerId) : undefined;
 			if (target.providerId && (!provider || (target.sessionTypeId && !provider.sessionTypes.some(type => type.id === target.sessionTypeId)))) {
@@ -2303,7 +2336,7 @@ export class NewChatWidget extends Disposable {
 		const workspaceTrigger: IWorkspacePickerTrigger = {
 			label: selectsRepository ? localize('newSessionWorkspacePicker.repository', "Select Repository") : localize('newSessionWorkspacePicker.workspace', "Workspace"),
 			ariaLabel: selectsRepository ? localize('newSessionWorkspacePicker.repositoryAriaLabel', "Choose a repository for the new session") : localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
-			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Project for the agent to work on"),
+			tooltip: () => this._workspacePicker.getSelectedLocationDescription() ?? localize('newSessionWorkspacePicker.workspaceTooltip', "Project for the agent to work on"),
 			focusCommand: {
 				id: FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID,
 				when: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,
@@ -2384,6 +2417,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _selectEnvironment(environment: ISessionCreationEnvironment): Promise<void> {
+		if (this._savedDraftComposer) {
+			this._savedDraftComposer.cancelRecovery();
+			this._savedDraftTargetUnavailable.set(false, undefined);
+		}
 		const previousEnvironment = this._environment.get();
 		if (environment.id === previousEnvironment?.id) {
 			return;

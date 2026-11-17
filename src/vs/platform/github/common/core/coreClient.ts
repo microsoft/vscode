@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GitHubRequestError } from '../githubTypes.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isDefined } from '../../../../base/common/types.js';
-import { collectPages, nextPagePath, PaginatedApiRequest } from '../client/pagination.js';
 import { parseGraphQLResponse, throwGraphQLErrors } from '../client/graphql.js';
+import { PaginatedApiRequest, collectPages, nextPagePath } from '../client/pagination.js';
 import { ApiRequest, ApiRequestOptions, IApiRequestProvider, PaginationOptions } from '../client/request.js';
 import { parse } from '../client/schema.js';
+import { GitHubRequestError } from '../githubTypes.js';
 import { GitHubRequestDomain } from '../types.js';
 import { Account, Actor, ChangedFile, Connection, CursorOptions, Label, Milestone, NodeIdentity, Reaction, RepositoryIdentity, Team } from './core.js';
 
@@ -18,32 +19,32 @@ export class CoreClient {
 		private readonly _restProvider: IApiRequestProvider,
 		private readonly _graphqlProvider: IApiRequestProvider) { }
 
-	async request(request: ApiRequest & { readonly responseBody: 'none' }, signal: AbortSignal): Promise<void>;
-	async request<T>(request: ApiRequest & { readonly responseBody?: 'json' | 'text' }, signal: AbortSignal, parser: parse.Parser<T>): Promise<T>;
-	async request<T>(request: ApiRequest, signal: AbortSignal, parser?: parse.Parser<T>): Promise<T | void> {
-		return (await this._restProvider.request(request, signal, parser)).data;
+	async request(request: ApiRequest & { readonly responseBody: 'none' }, cancellationToken: CancellationToken): Promise<void>;
+	async request<T>(request: ApiRequest & { readonly responseBody?: 'json' | 'text' }, cancellationToken: CancellationToken, parser: parse.Parser<T>): Promise<T>;
+	async request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser?: parse.Parser<T>): Promise<T | void> {
+		return (await this._restProvider.request(request, cancellationToken, parser)).data;
 	}
 
-	async requestPages<T>(request: PaginatedApiRequest, signal: AbortSignal, parser: parse.Parser<T>, merge: (pages: readonly T[]) => T): Promise<T> {
+	async requestPages<T>(request: PaginatedApiRequest, cancellationToken: CancellationToken, parser: parse.Parser<T>, merge: (pages: readonly T[]) => T): Promise<T> {
 		const { maxPages, pageLimitBehavior, ...options } = request.options ?? {};
 		if (maxPages === undefined) {
-			signal.throwIfAborted();
-			const response = await this._restProvider.request({ ...request, options }, signal, parser);
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const response = await this._restProvider.request({ ...request, options }, cancellationToken, parser);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return response.data;
 		}
 		const response = await collectPages(
 			request.path,
-			path => this._restProvider.request({ ...request, path: path ?? request.path, options }, signal, parser),
+			path => this._restProvider.request({ ...request, path: path ?? request.path, options }, cancellationToken, parser),
 			page => nextPagePath(page.metadata),
 			pages => ({ ...pages[pages.length - 1], data: merge(pages.map(page => page.data)) }),
-			signal,
+			cancellationToken,
 			{ maxPages, pageLimitBehavior },
 		);
 		return response.data;
 	}
 
-	async graphql<T>(domain: GitHubRequestDomain, query: string, variables: object, signal: AbortSignal, parser: parse.Parser<T>, options?: ApiRequestOptions): Promise<T> {
+	async graphql<T>(domain: GitHubRequestDomain, query: string, variables: object, cancellationToken: CancellationToken, parser: parse.Parser<T>, options?: ApiRequestOptions): Promise<T> {
 		const { data: { errors, data }, status } = await this._graphqlProvider.request({
 			domain,
 			method: 'POST',
@@ -54,27 +55,27 @@ export class CoreClient {
 			accept: 'application/json',
 			responseBody: 'json',
 			options,
-		}, signal, parseGraphQLResponse);
+		}, cancellationToken, parseGraphQLResponse);
 
 		throwGraphQLErrors(errors, status);
 		return parser(data);
 	}
 
-	graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T>>, options?: ApiRequestOptions & PaginationOptions): Promise<Connection<T>>;
-	graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T> | null>, options?: ApiRequestOptions & PaginationOptions): Promise<Connection<T> | null>;
-	async graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T> | null>, options: ApiRequestOptions & PaginationOptions = {}): Promise<Connection<T> | null> {
+	graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, cancellationToken: CancellationToken, parser: parse.Parser<Connection<T>>, options?: ApiRequestOptions & PaginationOptions): Promise<Connection<T>>;
+	graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, cancellationToken: CancellationToken, parser: parse.Parser<Connection<T> | null>, options?: ApiRequestOptions & PaginationOptions): Promise<Connection<T> | null>;
+	async graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, cancellationToken: CancellationToken, parser: parse.Parser<Connection<T> | null>, options: ApiRequestOptions & PaginationOptions = {}): Promise<Connection<T> | null> {
 		const { maxPages, pageLimitBehavior, ...requestOptions } = options;
 		if (maxPages === undefined) {
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const page = await this.graphql(
 				domain,
 				query,
 				variables,
-				signal,
+				cancellationToken,
 				parser,
 				requestOptions
 			);
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return page;
 		}
 		return collectPages(
@@ -83,7 +84,7 @@ export class CoreClient {
 				domain,
 				query,
 				after === variables.after ? variables : { ...variables, after },
-				signal,
+				cancellationToken,
 				parser,
 				requestOptions
 			),
@@ -103,7 +104,7 @@ export class CoreClient {
 					nodes: available.some(page => page.nodes === null) ? null : available.flatMap(page => page.nodes ?? []),
 				};
 			},
-			signal,
+			cancellationToken,
 			{ maxPages, pageLimitBehavior },
 		);
 	}

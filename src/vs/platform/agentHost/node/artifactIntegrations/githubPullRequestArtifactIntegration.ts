@@ -11,26 +11,26 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, derived, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ArtifactAction, ArtifactActionRejectedError, ArtifactAuthenticationRequest, ArtifactAuthenticationRequiredError, ArtifactAvailability, ArtifactContributionView, ArtifactDetails, ArtifactDetailsItem, ArtifactGroupPresentation, ArtifactIcon, ArtifactJsonValue, ArtifactPreparation, ArtifactPrompt, ArtifactRecord, ArtifactResourceMatch, IArtifactActionContext, IArtifactAutomationContext, IArtifactBindingContext, IArtifactDetailsModel, IArtifactIntegration, IArtifactIntegrationBinding, IArtifactResourceContext, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactConfigurationConflictError, ArtifactRetryLimitError } from '../../../artifactIntegrations/common/artifactIntegrationStore.js';
-import { firstCredentialFailure, FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { FragmentState, GitHubFragmentError, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestReviewThread, PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestError, isSamlEnforcementError } from '../../../github/common/githubTransport.js';
 import { ApiRequestError, MutationUncertainError } from '../../../github/common/missionControl/missionControlClient.js';
 import { isPullRequestFeedbackAuthor } from '../../../github/common/pullRequestFeedback.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IAgentHostCredentialSource, getCapturedCredentialSourceKey, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
-import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
-import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
+import { GitHubPullRequestArtifactTarget, getPullRequestArtifactCheckState, getPullRequestArtifactChecks, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { ActionType, AuthRequiredReason } from '../../common/state/sessionActions.js';
+import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from '../agentHostGitHubService.js';
@@ -77,19 +77,6 @@ async function withAuthenticationRecovery<T>(operation: () => Promise<T>, owner:
 	}
 }
 
-async function withSignal<T>(token: CancellationToken, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
-	}
-	const controller = new AbortController();
-	const listener = token.onCancellationRequested(() => controller.abort(new CancellationError()));
-	try {
-		return await operation(controller.signal);
-	} finally {
-		listener.dispose();
-	}
-}
-
 /**
  * Whether a pull request mutation's own response refused it, such as a merge after the base branch moved. GitHub did
  * not apply such a request, whereas other failures may have taken effect and must be reconciled.
@@ -115,7 +102,7 @@ class GitHubPullRequestArtifactResource extends Disposable {
 		readonly ref: PullRequestRef,
 		client: IReference<IGitHubClient>,
 		/** Runs a mutation with an API client for the same account as the observing client. */
-		readonly withApiClient: <T>(signal: AbortSignal, operation: (api: IGitHubAccountClient) => Promise<T>) => Promise<T>,
+		readonly withApiClient: <T>(cancellationToken: CancellationToken, operation: (api: IGitHubAccountClient) => Promise<T>) => Promise<T>,
 		private readonly requestAuthentication: (error: GitHubFragmentError) => void,
 	) {
 		super();
@@ -243,11 +230,12 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			return undefined;
 		}
 		const chat = artifact.origin?.chat;
-		return this.withAuthentication(target, token, () => withSignal(token, async signal => {
+		return this.withAuthentication(target, token, async () => {
+			CancellationToken.throwIfCanceled(token);
 			const source = chat ? this.github.captureSessionCredentialSource(chat, undefined, this.stateManager.getChatOwner(chat)) : undefined;
-			const client = this.github.acquireRepositoryClient(signal, source, chat);
+			const client = this.github.acquireRepositoryClient(token, source, chat);
 			try {
-				const credential = await client.object.credentials.getCredential(signal);
+				const credential = await client.object.credentials.getCredential(token);
 				if (credential.account.host.toLowerCase() !== target.apiHost) {
 					throw new Error(localize('prArtifact.accountHost', "The GitHub account does not belong to this pull request's host."));
 				}
@@ -261,7 +249,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			} finally {
 				client.dispose();
 			}
-		}));
+		});
 	}
 
 	async createResource(match: ArtifactResourceMatch, _context: IArtifactResourceContext, token: CancellationToken): Promise<GitHubPullRequestArtifactResource> {
@@ -273,16 +261,17 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		if (!context) {
 			throw new Error('The pull request credential context is unavailable');
 		}
-		return this.withAuthentication(target, token, () => withSignal(token, async signal => {
-			const client = this.github.acquireRepositoryClient(signal, context.source, context.chat);
+		return this.withAuthentication(target, token, async () => {
+			CancellationToken.throwIfCanceled(token);
+			const client = this.github.acquireRepositoryClient(token, context.source, context.chat);
 			try {
-				const credential = await client.object.credentials.getCredential(signal);
+				const credential = await client.object.credentials.getCredential(token);
 				if (credentialScope(credential.account, context.source) !== match.credentialScope || credential.account.host.toLowerCase() !== target.apiHost) {
 					throw new Error(localize('prArtifact.accountChanged', "The GitHub account or host changed while loading this pull request."));
 				}
 				const ref = { ...credential.account, owner: target.owner, repo: target.repo, number: target.number };
-				return new GitHubPullRequestArtifactResource(target, ref, client, async (signal, operation) => {
-					const api = this.github.acquireRepositoryApiClient(signal, context.source, context.chat);
+				return new GitHubPullRequestArtifactResource(target, ref, client, async (token, operation) => {
+					const api = this.github.acquireRepositoryApiClient(token, context.source, context.chat);
 					try {
 						if (!structuralEquals(api.authorization, client.object.authorization)) {
 							throw new Error(localize('prArtifact.accountChanged', "The GitHub account or host changed while loading this pull request."));
@@ -296,7 +285,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 				client.dispose();
 				throw error;
 			}
-		}));
+		});
 	}
 
 	getAuthenticationRequest(resource: URI, token: CancellationToken, artifact: ArtifactRecord): ArtifactAuthenticationRequest {
@@ -735,18 +724,18 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			throw new Error(localize('prArtifact.checkNotRerunnable', "This check is no longer failing on the pull request's current revision, or GitHub Actions cannot rerun it."));
 		}
 		const repository = { owner: this.resource.target.owner, repo: this.resource.target.repo };
-		await withSignal(token, signal => this.resource.withAuthentication(() => this.resource.withApiClient(signal, async api => {
+		await this.resource.withAuthentication(() => this.resource.withApiClient(token, async api => {
 			// The details link is integration data, so confirm with GitHub that the job is this check's run on the current head.
-			const workflowJob = await api.actions.getJob(repository, job.jobId, signal, { caller });
+			const workflowJob = await api.actions.getJob(repository, job.jobId, token, { caller });
 			if (workflowJob.run_id !== job.runId || workflowJob.head_sha !== headSha || !workflowJob.check_run_url.endsWith(`/check-runs/${check.id}`)) {
 				throw new Error(localize('prArtifact.checkNotRerunnable', "This check is no longer failing on the pull request's current revision, or GitHub Actions cannot rerun it."));
 			}
 			// GitHub rejects job reruns while other jobs of the same workflow run are still in progress.
-			if ((await api.actions.getRun(repository, job.runId, signal, { caller })).status !== 'completed') {
+			if ((await api.actions.getRun(repository, job.runId, token, { caller })).status !== 'completed') {
 				throw new Error(localize('prArtifact.workflowRunning', "The workflow of {0} is still running. Rerun the check after it finishes.", check.name));
 			}
-			await api.actions.rerunJob(repository, job.jobId, signal, { caller });
-		}), token));
+			await api.actions.rerunJob(repository, job.jobId, token, { caller });
+		}), token);
 		this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['checks']);
 	}
 
@@ -755,7 +744,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		if (!this.threads(this.resource.snapshot.get()).some(thread => thread.id === threadId)) {
 			throw new Error(localize('prArtifact.threadNotResolvable', "This review thread is already resolved or no longer available."));
 		}
-		const resolution = await withSignal(token, signal => this.resource.withAuthentication(() => this.resource.withApiClient(signal, api => api.reviews.resolveThread(threadId, signal, { caller })), token));
+		const resolution = await this.resource.withAuthentication(() => this.resource.withApiClient(token, api => api.reviews.resolveThread(threadId, token, { caller })), token);
 		if (resolution.isResolved) {
 			this.resolvedThreads.set(new Map([...this.resolvedThreads.get(), [threadId, Date.now()]]), undefined);
 		}
@@ -1008,7 +997,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				return {
 					kind: 'ready',
 					value: {
-						run: ({ token, runId }) => withSignal(token, async signal => {
+						run: async ({ token, runId }) => {
+							CancellationToken.throwIfCanceled(token);
 							const current = await this.resource.refresh(token);
 							if (current.core.value?.headSha !== headSha || !this.applicable(id, current, context.run.source === 'automation')) {
 								return { kind: 'skipped', reason: localize('prArtifact.stateChanged', "The pull request changed before the action could run.") };
@@ -1022,11 +1012,11 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 									return { kind: 'skipped', reason: localize('prArtifact.authorizationChanged', "The action's authorization changed before it could run.") };
 								}
 								const pullRequestId = current.core.value.id;
-								await this.resource.mutate(() => this.resource.withApiClient(signal, api => api.pullRequests.markReadyForReview(pullRequestId, signal, { caller })), token);
+								await this.resource.mutate(() => this.resource.withApiClient(token, api => api.pullRequests.markReadyForReview(pullRequestId, token, { caller })), token);
 								this.github.pullRequests.invalidatePullRequest(this.resource.ref, ['core', 'mergeability']);
 								return { kind: 'completed', summary: localize('prArtifact.markedReady', "Pull request marked ready for review.") };
 							}
-							const preparation = await this.resource.withAuthentication(() => this.github.mutations.prepareMerge(this.resource.ref, headSha, signal), token);
+							const preparation = await this.resource.withAuthentication(() => this.github.mutations.prepareMerge(this.resource.ref, headSha, token), token);
 							if (preparation.snapshot.core.value?.headSha !== headSha || !isPullRequestArtifactMergeable(preparation.snapshot, context.run.source === 'automation')) {
 								return { kind: 'skipped', reason: localize('prArtifact.mergeChanged', "GitHub's merge requirements changed.") };
 							}
@@ -1045,12 +1035,12 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 							}
 							const authorization = { confirmed: true as const, authorizationId: runId };
 							if (!method) {
-								await this.resource.mutate(() => this.github.mutations.enqueue(preparation, authorization, signal), token);
+								await this.resource.mutate(() => this.github.mutations.enqueue(preparation, authorization, token), token);
 								return { kind: 'completed', summary: localize('prArtifact.enqueued', "Pull request added to the merge queue.") };
 							}
-							await this.resource.mutate(() => this.github.mutations.merge(preparation, { method, authorization }, signal), token);
+							await this.resource.mutate(() => this.github.mutations.merge(preparation, { method, authorization }, token), token);
 							return { kind: 'completed', summary: localize('prArtifact.mergeCompleted', "Pull request merged.") };
-						}),
+						},
 					},
 				};
 			},

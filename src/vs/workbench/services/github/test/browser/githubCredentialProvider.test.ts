@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -16,7 +18,7 @@ import { WorkbenchGitHubCredentialProvider } from '../../browser/githubCredentia
 
 suite('Workbench GitHub credential broker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const signal = () => new AbortController().signal;
+	const cancellationToken = () => CancellationToken.None;
 	const authorization: GitHubAuthorizationContext = { providerId: 'github', sessionId: 'selected', scopes: ['repo'] };
 
 	function session(overrides: Partial<AuthenticationSession> = {}): AuthenticationSession {
@@ -38,8 +40,8 @@ suite('Workbench GitHub credential broker', () => {
 
 	test('silently resolves only the selected grant and returns endpoints without a token', async () => {
 		const { broker, calls } = setup([session({ id: 'other', accessToken: 'other-token' }), session()]);
-		const options = await broker.resolveClient(authorization, signal());
-		const token = await broker.getToken(options.authorization, signal());
+		const options = await broker.resolveClient(authorization, cancellationToken());
+		const token = await broker.getToken(options.authorization, cancellationToken());
 		assert.deepStrictEqual({ options, token, calls }, {
 			options: {
 				authorization: { ...authorization, accountId: 'account', authorizationServer: undefined },
@@ -68,26 +70,26 @@ suite('Workbench GitHub credential broker', () => {
 						: mismatch === 'scopes' ? { scopes: ['repo', 'gist'] }
 							: { authorizationServer: 'https://github.com/login/oauth' }),
 			};
-			await assert.rejects(broker.resolveClient(context, signal()), { kind: 'authentication' });
-			assert.strictEqual(await broker.getToken(context, signal()), undefined);
+			await assert.rejects(broker.resolveClient(context, cancellationToken()), { kind: 'authentication' });
+			assert.strictEqual(await broker.getToken(context, cancellationToken()), undefined);
 		});
 	}
 
 	test('pins the account even when the caller supplied only the session', async () => {
 		const { broker, sessions } = setup();
-		const resolved = await broker.resolveClient(authorization, signal());
+		const resolved = await broker.resolveClient(authorization, cancellationToken());
 		sessions[0] = session({ account: { id: 'replacement', label: 'Replacement' }, accessToken: 'replacement-token' });
 		assert.deepStrictEqual({
 			account: resolved.authorization.accountId,
-			token: await broker.getToken(resolved.authorization, signal()),
+			token: await broker.getToken(resolved.authorization, cancellationToken()),
 		}, { account: 'account', token: undefined });
 	});
 
 	test('matches reordered scopes without broadening the grant', async () => {
 		const { broker } = setup([session({ scopes: ['repo', 'gist'] })]);
-		const resolved = await broker.resolveClient({ ...authorization, scopes: ['gist', 'repo'] }, signal());
+		const resolved = await broker.resolveClient({ ...authorization, scopes: ['gist', 'repo'] }, cancellationToken());
 		assert.deepStrictEqual(resolved.authorization.scopes, ['repo', 'gist']);
-		await assert.rejects(broker.resolveClient({ ...authorization, scopes: ['gist'] }, signal()), { kind: 'authentication' });
+		await assert.rejects(broker.resolveClient({ ...authorization, scopes: ['gist'] }, cancellationToken()), { kind: 'authentication' });
 	});
 
 	for (const [issuer, apiBaseUri, graphQlUri] of [
@@ -101,8 +103,8 @@ suite('Workbench GitHub credential broker', () => {
 			const authorizationServer = URI.parse(issuer);
 			const { broker } = setup([session({ authorizationServer })]);
 			const context = { ...authorization, providerId: 'github-enterprise', authorizationServer: authorizationServer.toString() };
-			const options = await broker.resolveClient(context, signal());
-			assert.deepStrictEqual({ options, token: await broker.getToken(options.authorization, signal()) }, {
+			const options = await broker.resolveClient(context, cancellationToken());
+			assert.deepStrictEqual({ options, token: await broker.getToken(options.authorization, cancellationToken()) }, {
 				options: { authorization: { ...context, accountId: 'account' }, apiBaseUri, graphQlUri, missionControl: undefined },
 				token: 'selected-token',
 			});
@@ -115,28 +117,28 @@ suite('Workbench GitHub credential broker', () => {
 			const { broker } = setup([session({ authorizationServer })]);
 			await assert.rejects(broker.resolveClient({
 				...authorization, providerId: 'github-enterprise', authorizationServer: authorizationServer.toString(),
-			}, signal()), { kind: 'validation' });
+			}, cancellationToken()), { kind: 'validation' });
 		});
 	}
 
 	test('does not guess an enterprise endpoint or send a public GitHub grant to an enterprise host', async () => {
 		const { broker, sessions } = setup();
-		await assert.rejects(broker.resolveClient({ ...authorization, providerId: 'github-enterprise' }, signal()), { kind: 'authentication' });
+		await assert.rejects(broker.resolveClient({ ...authorization, providerId: 'github-enterprise' }, cancellationToken()), { kind: 'authentication' });
 		const issuer = 'https://enterprise.example.test/login/oauth';
 		sessions[0] = session({ authorizationServer: URI.parse(issuer) });
-		await assert.rejects(broker.resolveClient({ ...authorization, authorizationServer: issuer }, signal()), { kind: 'authentication' });
+		await assert.rejects(broker.resolveClient({ ...authorization, authorizationServer: issuer }, cancellationToken()), { kind: 'authentication' });
 	});
 
 	test('rejects unrelated authentication providers before looking up their sessions', async () => {
 		const { broker, calls } = setup();
-		await assert.rejects(broker.resolveClient({ ...authorization, providerId: 'unrelated' }, signal()), { kind: 'authentication' });
+		await assert.rejects(broker.resolveClient({ ...authorization, providerId: 'unrelated' }, cancellationToken()), { kind: 'authentication' });
 		assert.deepStrictEqual(calls, []);
 	});
 
 	for (const change of ['removed', 'account', 'scopes', 'issuer'] as const) {
 		test(`distinguishes token renewal from a ${change} grant change`, async () => {
 			const { broker, sessions, changed } = setup();
-			await broker.resolveClient(authorization, signal());
+			await broker.resolveClient(authorization, cancellationToken());
 			const grantChanges: GitHubCredentialChange[] = [];
 			const tokenChanges: GitHubCredentialChange[] = [];
 			store.add(broker.onDidChange(event => grantChanges.push(event)));
@@ -165,8 +167,8 @@ suite('Workbench GitHub credential broker', () => {
 		const renewed = session({ accessToken: 'renewed-token' });
 		let calls = 0;
 		const { broker, changed } = setup(undefined, async () => ++calls === 1 ? [original] : calls === 2 ? lookup.p : [renewed]);
-		await broker.resolveClient(authorization, signal());
-		const pending = broker.getToken(authorization, signal());
+		await broker.resolveClient(authorization, cancellationToken());
+		const pending = broker.getToken(authorization, cancellationToken());
 		changed.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [renewed] } });
 		await lookup.complete([original]);
 		assert.deepStrictEqual({ token: await pending, calls }, { token: 'renewed-token', calls: 3 });
@@ -175,10 +177,9 @@ suite('Workbench GitHub credential broker', () => {
 	test('does not publish a session lookup after cancellation', async () => {
 		const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
 		const { broker } = setup(undefined, () => lookup.p);
-		const controller = new AbortController();
-		const reason = new Error('Cancelled selection');
-		const rejected = assert.rejects(broker.resolveClient(authorization, controller.signal), error => error === reason);
-		controller.abort(reason);
+		const controller = store.add(new CancellationTokenSource());
+		const rejected = assert.rejects(broker.resolveClient(authorization, controller.token), isCancellationError);
+		controller.cancel();
 		await lookup.complete([session()]);
 		await rejected;
 	});

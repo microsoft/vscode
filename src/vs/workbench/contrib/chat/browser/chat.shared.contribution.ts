@@ -3071,7 +3071,10 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
 	}
 
-	/** Registered only for internal accounts. The agent host also checks the session's account at launch. */
+	/**
+	 * Registered only for internal accounts. The agent host also checks the session's account at launch.
+	 * Configurable only through settings.json until its runtime dependencies land.
+	 */
 	private registerSecurityReviewSecretDetectionSetting(): void {
 		const node: IConfigurationNode = {
 			id: 'chatSidebar',
@@ -3084,6 +3087,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					default: false,
 					tags: ['preview'],
 					scope: ConfigurationScope.APPLICATION,
+					included: false,
 				},
 			}
 		};

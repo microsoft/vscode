@@ -23,7 +23,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeControlAndFormatCharacters } from '../../../../../base/common/strings.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
@@ -44,7 +44,7 @@ import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING } from '../../common/sessionConfig.js';
 import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -122,7 +122,9 @@ import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/commo
 import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionChatReferenceDragData, onDidEndSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { getChatMoveDestinations, getSessionMoveDestinations, getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, isCrossAgentChatMoveEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../../platform/notification/common/notificationMessage.js';
+import { InboxAutoAdvanceSpotlight } from './inboxAutoAdvanceSpotlight.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
@@ -4614,6 +4616,7 @@ interface IListOpenRequest {
 	readonly session: ISession;
 	readonly chat: IChat | undefined;
 	readonly sideBySide: boolean;
+	readonly onOpened?: () => void;
 	preserveFocus: boolean;
 	started: boolean;
 	invocation: number;
@@ -4740,6 +4743,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
 	private static readonly SHOW_EMPTY_GROUPS_KEY = 'sessionsListControl.showEmptyGroups';
 	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
+	private static readonly INBOX_AUTO_ADVANCE_EXPLAINED_KEY = 'sessionsListControl.inboxAutoAdvanceExplained';
 	/**
 	 * The user's last show more/show less choice per capped workspace section and
 	 * custom group: `true` lists every session, `false` caps the section.
@@ -4776,6 +4780,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly sessionChatsUpdate = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly pendingInboxAdvance = this._register(new MutableDisposable());
+	private readonly inboxAutoAdvanceSpotlight = this._register(new MutableDisposable<InboxAutoAdvanceSpotlight>());
 	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
 	/** Reveals what a move started from the list moved, once the list shows it; see {@link watchMoveForReveal}. */
 	private readonly pendingMoveReveal = this._register(new MutableDisposable<DisposableStore>());
@@ -4979,7 +4984,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ISessionAttentionService private readonly sessionAttentionService: ISessionAttentionService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
@@ -4991,22 +4996,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._mainWindowShown = derived(this, reader => shownChatOf(mainWindowHost, reader));
 		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
-		const acknowledgeChat = (resource: URI) => {
-			if (!this.visible || !this.isInboxLayout()) {
-				return;
-			}
-			const target = this._sessionsManagementService.getSessionForChatResource(resource);
-			if (target) {
-				this.acknowledgeInboxSessions([target.session]);
-			}
-		};
 		this._register(chatService.onDidAcceptRequest(event => {
 			if (!event.isNewSession && !event.agentHostMessageOrigin) {
 				this.advanceInboxAfterSend(event.chatSessionResource);
 			}
-			acknowledgeChat(event.chatSessionResource);
 		}));
-		this._register(chatService.onDidPerformUserAction(event => acknowledgeChat(event.sessionResource)));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
 		}
@@ -5105,7 +5099,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 					const sessions = this.getMultiSelectedSessions(session);
 					await action.run(sessions);
-					this.acknowledgeInboxSessions(sessions, action.id);
 					if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
 						this.getFocusedTree().domFocus();
 					}
@@ -6457,9 +6450,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			} else if (inbox && section.id === SessionInboxSection.Working) {
 				defaultCollapsed = this.hadInboxSessions ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded;
 			}
+			if (inboxBecamePopulated && section.id === SessionInboxSection.ReadyForYou) {
+				// Restore user intent rather than preserving the empty placeholder's forced expansion.
+				defaultCollapsed = savedCollapsed ?? false;
+			}
 			return {
 				element: section as SessionListItem,
-				collapsible: section.id !== SessionInboxSection.ReadyForYou && (!sessionInboxSections.some(id => id === section.id) || section.sessions.length > 0),
+				collapsible: !sessionInboxSections.some(id => id === section.id) || section.sessions.length > 0,
 				collapsed: resolveCollapsed(section, defaultCollapsed),
 				children: sectionChildren,
 			};
@@ -6608,10 +6605,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (section && (section.sessions.length > 0 || id === SessionInboxSection.ReadyForYou)) {
 					let rendered = renderWorkspaceSection(section);
 					if (id === SessionInboxSection.ReadyForYou) {
-						rendered = { ...rendered, collapsed: false };
 						if (section.sessions.length === 0) {
 							rendered = {
-								...rendered, children: [{
+								...rendered, collapsed: false, children: [{
 									element: {
 										placeholder: true as const, sectionId: id,
 										label: this.filters.hasInboxScope ? localize('inboxScopeEmpty', "No Inbox activity matches this scope.") : localize('inboxEmpty', "Your inbox is clear"),
@@ -7309,6 +7305,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		} else {
 			this.inboxObserver.clear();
+			this.inboxAutoAdvanceSpotlight.clear();
 		}
 	}
 
@@ -8006,8 +8003,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	private async beginOpenRequest(session: ISession, chat: IChat | undefined, preserveFocus: boolean, sideBySide: boolean): Promise<boolean> {
-		const request: IListOpenRequest = { session, chat, preserveFocus, sideBySide, started: false, invocation: 0 };
+	private async beginOpenRequest(session: ISession, chat: IChat | undefined, preserveFocus: boolean, sideBySide: boolean, onOpened?: () => void): Promise<boolean> {
+		const request: IListOpenRequest = { session, chat, preserveFocus, sideBySide, onOpened, started: false, invocation: 0 };
 		this.pendingOpenRequest = request;
 		try {
 			if (this.options.canOpenSession && !(await this.options.canOpenSession(session))) {
@@ -8039,7 +8036,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const finish = (opened: boolean) => {
 			if (this.pendingOpenRequest === request && request.invocation === invocation) {
 				this.pendingOpenRequest = undefined;
-				if (opened) { this._onDidOpenSession.fire(request.chat?.resource ?? request.session.resource); }
+				if (opened) {
+					this._onDidOpenSession.fire(request.chat?.resource ?? request.session.resource);
+					request.onOpened?.();
+				}
 			}
 		};
 
@@ -8097,7 +8097,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const trimmed = title.trim();
 			if (trimmed && !this._store.isDisposed) {
 				await this._sessionsManagementService.renameSession(target, trimmed);
-				this.acknowledgeInboxSessions([target]);
 			}
 		});
 	}
@@ -8964,21 +8963,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const menuGroups = menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([group, actions]): [string, IAction[]] => [group, actions.map(wrapAction)]);
-		const acknowledgingActions = new Set<string>();
-		const collectAcknowledgingActions = (actions: readonly IAction[]) => {
-			for (const action of actions) {
-				if (action instanceof SubmenuAction) {
-					collectAcknowledgingActions(action.actions);
-				} else if (action.id !== RENAME_SESSION_COMMAND_ID) {
-					acknowledgingActions.add(action.id);
-				}
-			}
-		};
-		for (const [group, actions] of menuGroups) {
-			if (group !== 'navigation') {
-				collectAcknowledgingActions(actions);
-			}
-		}
 		// Group membership actions depend on the list's groups, so they are built here and merged into the contributed Organize group.
 		const actions = joinContextMenuGroups([...menuGroups, [SessionItemOrganizeMenuGroup, this.options.grouping() === SessionsGrouping.Inbox ? [] : this.getGroupSessionActions(selectedSessions)]]);
 		if (actions.length === 0) {
@@ -8992,9 +8976,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			getActionsContext: this.isInboxLayout() ? () => element : undefined,
 			actionRunner: this.isInboxLayout() ? disposables.add(new SessionItemActionRunner(() => selectedSessions, async action => {
 				await action.run();
-				if (acknowledgingActions.has(action.id)) {
-					this.acknowledgeInboxSessions(selectedSessions, action.id);
-				}
 				if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
 					this.getFocusedTree().domFocus();
 				}
@@ -9407,7 +9388,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private advanceInboxAfterSend(resource: URI): void {
-		if (!this.visible || !this.isInboxLayout() || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
+		if (!this.isInboxAutoAdvanceEnabled() || !this.visible || !this.isInboxLayout() || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
 			return;
 		}
 		// Use the rendered placement: acceptance may already have changed the session's status to Working.
@@ -9427,14 +9408,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Let the submitting widget finish accepting its input before moving focus to another conversation.
 		this.pendingInboxAdvance.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 			this.pendingInboxAdvance.clear();
-			if (!this.visible || !this.isInboxLayout() || this.pendingOpenRequest || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
+			if (!this.isInboxAutoAdvanceEnabled() || !this.visible || !this.isInboxLayout() || this.pendingOpenRequest || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
 				return;
 			}
 			this.update();
 			const visible = new Set(this.getVisibleSessions());
 			const next = candidates.find(session => visible.has(session) && this.canAcknowledgeInboxSession(session) && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);
 			if (next) {
-				this.openSession(next);
+				void this.beginOpenRequest(next, undefined, false, false, () => {
+					if (!this._store.isDisposed && this.visible && this.isInboxLayout() && isEqual(this._mainWindowShown.get()?.session.resource, next.resource)) {
+						this.explainInboxAutoAdvance(inboxSessions[index], true);
+					}
+				}).catch(onUnexpectedError);
 			} else {
 				const inbox = this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === SessionInboxSection.ReadyForYou);
 				if (inbox) {
@@ -9442,9 +9427,44 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.tree.setFocus([inbox]);
 					this.tree.reveal(inbox);
 					this.tree.domFocus();
+					this.explainInboxAutoAdvance(inboxSessions[index], false);
 				}
 			}
 		});
+	}
+
+	private isInboxAutoAdvanceEnabled(): boolean {
+		const mode = this.configurationService.getValue<'auto' | 'on' | 'off'>(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING) ?? 'auto';
+		return mode === 'on' || mode === 'auto' && !this.accessibilityService.isScreenReaderOptimized();
+	}
+
+	private explainInboxAutoAdvance(session: ISession, hasNext: boolean): void {
+		if (this.chatEntitlementService.sentiment.hidden || this.storageService.getBoolean(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, StorageScope.PROFILE, false)) {
+			return;
+		}
+		const settingsLink = NotificationText.link(localize('inboxAutoAdvance.settings', "Settings"), createCommandUri('workbench.action.openSettings', `@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`).toString());
+		this.notificationService.prompt(Severity.Info, NotificationText.format(
+			hasNext
+				? localize('inboxAutoAdvance.next', "Your session continues in Working while the agent processes your reply. Inbox opened the next session. You can turn off automatic navigation in {0}.")
+				: localize('inboxAutoAdvance.empty', "Your session continues in Working while the agent processes your reply. No Inbox sessions remain, so focus moved to the Inbox heading. You can turn off automatic navigation in {0}."),
+			settingsLink,
+		), [{
+			label: localize('inboxAutoAdvance.showSession', "Show Session"),
+			run: async () => {
+				if (this._store.isDisposed || this.chatEntitlementService.sentiment.hidden) {
+					return;
+				}
+				const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight, () => this.revealSessionForOnboarding(session), () => this.openSession(session));
+				this.inboxAutoAdvanceSpotlight.value = spotlight;
+				try {
+					await spotlight.show();
+				} catch (error) {
+					this.logService.error(error);
+					this.notificationService.error(error);
+				}
+			},
+		}], { sticky: true });
+		this.storageService.store(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private getInboxStateContext(session: ISession, reader?: IReader): string {
@@ -9453,16 +9473,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const state = this._sessionsListModelService.getInboxState(session, reader);
 		return state?.kind === 'done' && state.isHistoricalCompletion ? 'historical' : state?.kind ?? '';
-	}
-
-	private acknowledgeInboxSessions(sessions: readonly ISession[], actionId?: string): void {
-		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze' || actionId === 'sessionsViewPane.pinSession' || actionId === 'sessionsViewPane.unpinSession') {
-			return;
-		}
-		const targets = sessions.filter(session => !session.isArchived.get() && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);
-		if (targets.length) {
-			this._sessionsListModelService.setInboxState(targets, 'done');
-		}
 	}
 
 	private canMergeInboxPullRequest(session: ISession, reader?: IReader): boolean {
