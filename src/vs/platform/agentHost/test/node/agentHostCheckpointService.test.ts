@@ -326,6 +326,7 @@ suite('AgentHostCheckpointService', () => {
 						break;
 					case 'turn start':
 						await service.captureTurnStartCheckpoint(session, chat, 'turn-5', directories);
+						await service.discardTurnStartCheckpoint(session, chat, 'turn-5');
 						break;
 					case 'turn end':
 						await service.captureTurnCheckpoint(session, chat, 'turn-5', directories);
@@ -384,6 +385,49 @@ suite('AgentHostCheckpointService', () => {
 				{ tree: 'tree-before-first-turn', parent: 'commit-1' },
 				{ tree: 'tree-after-first-turn', parent: 'commit-2' },
 			],
+		});
+	});
+
+	test('turn start resolves before baseline publication while turn end waits for it', async () => {
+		const baselineWriting = new DeferredPromise<void>();
+		const releaseBaseline = new DeferredPromise<void>();
+		const trees = ['tree-before-turn', 'tree-after-turn'];
+		const { chat, commitCalls, gitService, session, service, workingDirectory } = createTestService(async () => trees.shift(), { baseline: false, previous: false });
+		const baselineRef = buildCheckpointRefName(AgentSession.id(session), 0);
+		const updateRef = gitService.updateRef;
+		gitService.updateRef = async (...args) => {
+			if (args[1] === baselineRef) {
+				baselineWriting.complete();
+				await releaseBaseline.p;
+			}
+			await updateRef(...args);
+		};
+		let startResolved = false;
+		const start = service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]).then(() => {
+			startResolved = true;
+		});
+		await baselineWriting.p;
+		const end = service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+		await timeout(0);
+		const beforePublication = { startResolved, commitCalls: [...commitCalls] };
+		releaseBaseline.complete();
+		await Promise.all([start, end]);
+
+		assert.deepStrictEqual({
+			beforePublication,
+			commitCalls,
+			pair: await service.getTurnCheckpointPair(session, chat, 'turn-1', workingDirectory),
+		}, {
+			beforePublication: {
+				startResolved: true,
+				commitCalls: [{ tree: 'tree-before-turn', parent: undefined }],
+			},
+			commitCalls: [
+				{ tree: 'tree-before-turn', parent: undefined },
+				{ tree: 'tree-before-turn', parent: 'commit-1' },
+				{ tree: 'tree-after-turn', parent: 'commit-2' },
+			],
+			pair: { parent: 'commit-2', current: buildCheckpointRefName(AgentSession.id(session), 1) },
 		});
 	});
 

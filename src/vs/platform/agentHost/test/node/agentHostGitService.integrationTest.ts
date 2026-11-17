@@ -741,6 +741,20 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('resolves the default branch from a non-origin remote when origin is absent', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['remote', 'add', 'upstream', 'https://github.com/microsoft/vscode.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['update-ref', 'refs/remotes/upstream/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['symbolic-ref', 'refs/remotes/upstream/HEAD', 'refs/remotes/upstream/main'], { cwd: dir, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.getDefaultBranch2(URI.file(dir)), {
+			ref: 'refs/heads/main',
+			name: 'main',
+			upstream: undefined,
+			kind: GitRefType.Head,
+		});
+	});
+
 	(hasGit ? test : test.skip)('falls back to the remote branch when the local default branch is missing', async () => {
 		const dir = initRepo({ remote: 'https://github.com/microsoft/vscode.git' });
 		cp.execFileSync('git', ['update-ref', 'refs/remotes/origin/main', 'refs/heads/main'], { cwd: dir, stdio: 'pipe' });

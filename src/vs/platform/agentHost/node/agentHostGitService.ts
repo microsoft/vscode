@@ -118,6 +118,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getDefaultBranch2(workingDirectory: URI, remote?: string): Promise<Branch | undefined> {
+		const originHead = !remote ? this._runGit(workingDirectory, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']).catch(() => undefined) : undefined;
 		if (!remote) {
 			const remotes = await this.getFetchRemotes(workingDirectory) ?? [];
 			if (remotes.length === 0) {
@@ -128,7 +129,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			remote = remotes.find(remoteEntry => remoteEntry.name === 'origin')?.name ?? remotes[0].name;
 		}
 
-		const defaultBranchRef = await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
+		const defaultBranchRef = remote === 'origin' && originHead
+			? await originHead
+			: await this._runGit(workingDirectory, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
 		if (!defaultBranchRef) {
 			return undefined;
 		}
