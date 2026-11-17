@@ -145,6 +145,11 @@ export interface IChatViewHost {
 	 * aim its new chat at it or ignore it. The Chat view's own host ignores it and starts its default new chat.
 	 */
 	newChat?(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean>;
+	/**
+	 * Whether it leaves a New Chat without a target, which it would otherwise take, to the Chat view, which then starts its own
+	 * new chat, such as a local chat that the host does not show.
+	 */
+	leavesNewChatToChatView?(): boolean;
 	/** The chat the host shows; a host that does not implement it reports none. */
 	readonly shownSession?: IObservable<IChatViewHostShownSession | undefined>;
 }
@@ -169,7 +174,10 @@ export interface IChatViewHostService extends IChatViewHost {
 
 	revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
 
-	/** A new chat of its own (`ownChat`) that the host in use leaves to the Chat view starts in the Chat view. */
+	/**
+	 * A new chat of its own (`ownChat`) that the host in use leaves to the Chat view starts in the Chat view, as does one without
+	 * a target that the host leaves to it ({@link IChatViewHost.leavesNewChatToChatView}).
+	 */
 	newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean>;
 
 	/** Whether a registered host replaces the Chat view, which then shows only the chats the host leaves to it. */
