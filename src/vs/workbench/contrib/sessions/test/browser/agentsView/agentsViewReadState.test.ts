@@ -14,7 +14,6 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../../common/chatSessionCommands.js';
 import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
-import { MarkAgentSessionReadAction, MarkAgentSessionUnreadAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { RawWorkbenchListFocusContextKey } from '../../../../../../platform/list/browser/listService.js';
 import { SessionItemContextMenuId } from '../../../browser/views/sessionsList.js';
@@ -34,7 +33,7 @@ suite('Sessions list read state', () => {
 	const main: IChat = built.mainChat.chat;
 	const side: IChat = { ...main, resource: session.resource.with({ fragment: 'side' }) };
 
-	test('in an editor window, the agent sessions\' commands mark what the Sessions view and the chat tabs target, through the list\'s commands', async () => {
+	test('in an editor window, the list\'s read-state commands mark what the Sessions view and the chat tabs target', async () => {
 		const readMenus = () => MenuRegistry.getMenuItems(SessionItemContextMenuId).filter(isIMenuItem).filter(item => item.command.id === SESSIONS_LIST_MARK_READ_COMMAND_ID || item.command.id === SESSIONS_LIST_MARK_UNREAD_COMMAND_ID).length;
 		const listKeybindings = () => KeybindingsRegistry.getDefaultKeybindings().filter(rule => (rule.command === SESSIONS_LIST_MARK_READ_COMMAND_ID || rule.command === SESSIONS_LIST_MARK_UNREAD_COMMAND_ID) && rule.when?.serialize().includes('!isSessionsWindow')).length;
 		const menusBefore = readMenus();
@@ -56,11 +55,10 @@ suite('Sessions list read state', () => {
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async <R>(id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args)) as R,
 		}));
-		// The editor window's own commands, as a chat tab, a session's main chat, a session row and a selection run them
-		const read = new MarkAgentSessionReadAction();
-		const unread = new MarkAgentSessionUnreadAction();
-		for (const [action, context] of [[read, { session, chat: side }], [unread, { session, chat: main }], [read, session], [unread, [session]]] as const) {
-			await instantiationService.invokeFunction(accessor => action.run(accessor, context as never));
+		// As a chat tab, a session's main chat, a session row and a selection run them
+		const commandService = instantiationService.get(ICommandService);
+		for (const [commandId, context] of [[SESSIONS_LIST_MARK_READ_COMMAND_ID, { session, chat: side }], [SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, { session, chat: main }], [SESSIONS_LIST_MARK_READ_COMMAND_ID, session], [SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, [session]]] as const) {
+			await commandService.executeCommand(commandId, context);
 		}
 		registrations.dispose();
 
