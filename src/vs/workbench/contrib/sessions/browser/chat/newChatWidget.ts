@@ -69,6 +69,7 @@ import { AgentFeedbackState, IAgentFeedback } from '../agentFeedbackModel.js';
 import { buildNewSessionPrompt } from '../agentFeedbackAttachmentEntry.js';
 import { SessionInputBannerWidget } from '../sessionInputBanners/sessionInputBannerWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ChatInputTipPresenter } from '../../../chat/browser/widget/input/chatInputTipPresenter.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
@@ -177,6 +178,15 @@ function isTypingInEditableElement(): boolean {
 	return !!activeElement && dom.isEditableElement(activeElement);
 }
 
+/** What a composer shows below its input about its latest background send. */
+export type BackgroundSendStatus =
+	/** The request went out, and its session is starting. */
+	| { readonly kind: 'starting' }
+	/** The request started `session`. */
+	| { readonly kind: 'started'; readonly session: ISession }
+	/** A comparison started its attempts. */
+	| { readonly kind: 'comparisonStarted' };
+
 export class NewChatWidget extends Disposable {
 
 	private readonly _usage: AgentsWindowUsage;
@@ -203,9 +213,7 @@ export class NewChatWidget extends Disposable {
 	/** The slot of a {@link _detached} composer's drafts. */
 	private readonly _draftSlot: INewSessionDraftSlot;
 	private readonly _backgroundSend: boolean;
-	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
-	private _lastBackgroundSentSessionResource: URI | undefined;
-	private _lastBackgroundSentSession: ISession | undefined;
+	private readonly _backgroundSendStatus = observableValue<BackgroundSendStatus | undefined>(this, undefined);
 	private _lastBackgroundSendOptions: ISendRequestOptions | undefined;
 	private readonly _pickedEnvironment = observableValue<ISessionCreationEnvironment | undefined>(this, undefined);
 	private readonly _environmentWorkspaces = new Map<string, URI>();
@@ -1075,7 +1083,7 @@ export class NewChatWidget extends Disposable {
 			this._inputController = this._register(this.options.newSessionInput.createComposer(belowInputSurfaces, {
 				session: this._session,
 				pickerVisibility: this._newChatInput.pickerVisibility,
-				visible: derived(this, reader => (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true)),
+				visible: derived(this, reader => this._isShown(reader)),
 				getInputValue: () => this._newChatInput.getInputValue(),
 				onDidChangeInput: this._newChatInput.onDidChangeInput,
 				focusInput: () => this.focusInput(),
@@ -2323,7 +2331,12 @@ export class NewChatWidget extends Disposable {
 	 * apply to the main window's.
 	 */
 	private _takesGlobalComposerActions(reader: IReader): boolean {
-		return this._isMainWindowComposer() && (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
+		return this._isMainWindowComposer() && this._isShown(reader);
+	}
+
+	/** Whether the composer shows: both its host and its input are visible. */
+	private _isShown(reader: IReader): boolean {
+		return (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
 	}
 
 	private _getCustomizationTargetLabels(reader: IReader | undefined): INewSessionTargetLabels {
@@ -3078,8 +3091,6 @@ export class NewChatWidget extends Disposable {
 		// A composer of a host of its own, such as a chat window's, shows the status of its background sends.
 		const showBackgroundSendStatus = this._backgroundSend || !!background && (!!this._draftHost || this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox);
 		if (showBackgroundSendStatus) {
-			this._lastBackgroundSentSessionResource = undefined;
-			this._lastBackgroundSentSession = undefined;
 			this._backgroundSendStatus.set(undefined, undefined);
 			this._lastBackgroundSendOptions = undefined;
 		}
@@ -3119,7 +3130,7 @@ export class NewChatWidget extends Disposable {
 			}
 			const started = await this._sendComparison(session, request, requestContext, showBackgroundSendStatus);
 			if (showBackgroundSendStatus && started && !this._newChatInput.hasInput) {
-				this._backgroundSendStatus.set(localize('newSession.comparisonStarted', "Comparison started"), undefined);
+				this._backgroundSendStatus.set({ kind: 'comparisonStarted' }, undefined);
 			}
 			return started;
 		}
@@ -3156,6 +3167,10 @@ export class NewChatWidget extends Disposable {
 			if (showBackgroundSendStatus) {
 				this._lastBackgroundSendOptions = sendOptions;
 			}
+			// The composer says how a send it keeps showing goes: one the user asked to send in the background. An ordinary
+			// send of a composer that sends all its requests in the background, such as Enter in the Agents Launcher, leaves
+			// for its session instead, so its status would only wait there, stale, for the composer to show again.
+			const showsStatus = requestedInBackground && (this._backgroundSend || !!this._draftHost);
 			const pending = new DisposableStore();
 			pending.add(Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
@@ -3167,15 +3182,18 @@ export class NewChatWidget extends Disposable {
 						label: localize('newSession.openSentSession', "Open Session"),
 						run: () => this.sessionsService.openSession(event.session.resource, { source: 'link', forceMainChat: true }).catch(onUnexpectedError),
 					}]);
-				} else if (showBackgroundSendStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
-					this._lastBackgroundSentSessionResource = event.session.resource;
-					this._lastBackgroundSentSession = event.session;
-					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
+				} else if (showsStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+					this._backgroundSendStatus.set({ kind: 'started', session: event.session }, undefined);
 				}
 				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			}));
 			if (this._draftHost) {
 				pending.add(this._clearBackgroundSendOnFailure(this._draftHost.slot, session, sendOptions));
+				// Its session can take a while to start, such as while its agent sets up. Only a hosted composer says so
+				// meanwhile: it follows the request to its end, which clears the status of a session that doesn't start.
+				if (showsStatus) {
+					this._backgroundSendStatus.set({ kind: 'starting' }, undefined);
+				}
 			}
 			this._pendingBackgroundSends.set(sendOptions, pending);
 		}
@@ -3195,6 +3213,9 @@ export class NewChatWidget extends Disposable {
 			userInteraction?.cancel(isCancellationError(e) || e instanceof WorkspaceNotTrustedError ? 'cancelled' : 'error');
 			hostTracking?.dispose();
 			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
+			if (this._lastBackgroundSendOptions === sendOptions) {
+				this._backgroundSendStatus.set(undefined, undefined);
+			}
 			if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 				this.logService.error('Failed to send request:', e);
 				this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
@@ -3322,67 +3343,78 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _renderBackgroundSendStatus(container: HTMLElement): void {
-		const status = dom.append(container, dom.$('.new-session-send-status'));
+		const statusElement = dom.append(container, dom.$('.new-session-send-status'));
 		this._register(autorun(reader => {
-			const message = this._backgroundSendStatus.read(reader);
-			dom.clearNode(status);
-			status.style.visibility = message ? '' : 'hidden';
-			status.style.display = this._backgroundSend || message ? '' : 'none';
-			if (message) {
-				const checkmark = renderIcon(Codicon.check);
-				checkmark.setAttribute('aria-hidden', 'true');
-				dom.append(status, dom.$('span.new-session-send-status-message', undefined, message), checkmark);
-				this.accessibilityService.status(message);
-				const sessionResource = this._lastBackgroundSentSessionResource;
-				const sentSession = this._lastBackgroundSentSession;
-				const draftHost = this._draftHost;
-				if (sessionResource) {
-					reader.store.add(this.instantiationService.createInstance(Link, status, {
-						label: localize('newSession.openSentSession', "Open Session"),
-						href: sessionResource.toString(),
-					}, {
-						opener: () => {
-							// A hosted composer opens the session in its own window, never in the main window.
-							const opened = draftHost && sentSession
-								? draftHost.openStartedSession(sentSession)
-								: this.sessionsService.openSession(sessionResource, { source: this._backgroundSend ? 'inbox' : 'link', forceMainChat: true });
-							void opened.catch(onUnexpectedError);
-						},
-					}));
-					const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
-					let remaining = 8000;
-					let startedAt = Date.now();
-					let hovered = false;
-					let focused = false;
-					const updateDismissal = () => {
-						if (hovered || focused) {
-							if (dismissal.value) {
-								remaining -= Date.now() - startedAt;
-								dismissal.clear();
-							}
-						} else if (!dismissal.value) {
-							startedAt = Date.now();
-							dismissal.value = disposableTimeout(() => {
-								this._lastBackgroundSentSessionResource = undefined;
-								this._lastBackgroundSentSession = undefined;
-								this._backgroundSendStatus.set(undefined, undefined);
-							}, Math.max(0, remaining));
-						}
-					};
-					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_ENTER, () => { hovered = true; updateDismissal(); }));
-					reader.store.add(dom.addDisposableListener(status, dom.EventType.MOUSE_LEAVE, () => { hovered = false; updateDismissal(); }));
-					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_IN, () => { focused = true; updateDismissal(); }));
-					reader.store.add(dom.addDisposableListener(status, dom.EventType.FOCUS_OUT, () => { focused = false; updateDismissal(); }));
-					updateDismissal();
-				} else {
-					reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
-				}
+			const status = this._backgroundSendStatus.read(reader);
+			dom.clearNode(statusElement);
+			statusElement.style.visibility = status ? '' : 'hidden';
+			statusElement.style.display = this._backgroundSend || status ? '' : 'none';
+			if (!status) {
+				return;
 			}
+			const message = status.kind === 'starting'
+				? localize('newSession.startingSession', "Starting session")
+				: status.kind === 'started'
+					? localize('newSession.sessionStarted', "Session started")
+					: localize('newSession.comparisonStarted', "Comparison started");
+			const icon = status.kind === 'starting'
+				? dom.$('span.new-session-send-status-spinner', undefined, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')))
+				: renderIcon(Codicon.check);
+			icon.setAttribute('aria-hidden', 'true');
+			dom.append(statusElement, dom.$('span.new-session-send-status-message', undefined, message), icon);
+			this.accessibilityService.status(message);
+			if (status.kind === 'starting') {
+				// Until the request ends: its session's start replaces it, and a session that doesn't start clears it.
+				return;
+			}
+			if (status.kind === 'comparisonStarted') {
+				reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
+				return;
+			}
+			const sentSession = status.session;
+			const draftHost = this._draftHost;
+			reader.store.add(this.instantiationService.createInstance(Link, statusElement, {
+				label: localize('newSession.openSentSession', "Open Session"),
+				href: sentSession.resource.toString(),
+			}, {
+				opener: () => {
+					// A hosted composer opens the session in its own window, never in the main window.
+					const opened = draftHost
+						? draftHost.openStartedSession(sentSession)
+						: this.sessionsService.openSession(sentSession.resource, { source: this._backgroundSend ? 'inbox' : 'link', forceMainChat: true });
+					void opened.catch(onUnexpectedError);
+				},
+			}));
+			// It expires only while it can be seen. It waits while hovered or focused, and while the composer is hidden, such
+			// as the Agents Launcher once the user switched away before the session started.
+			const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
+			let remaining = 8000;
+			let startedAt = Date.now();
+			let hovered = false;
+			let focused = false;
+			let hidden = false;
+			const updateDismissal = () => {
+				if (hovered || focused || hidden) {
+					if (dismissal.value) {
+						remaining -= Date.now() - startedAt;
+						dismissal.clear();
+					}
+				} else if (!dismissal.value) {
+					startedAt = Date.now();
+					dismissal.value = disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), Math.max(0, remaining));
+				}
+			};
+			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.MOUSE_ENTER, () => { hovered = true; updateDismissal(); }));
+			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.MOUSE_LEAVE, () => { hovered = false; updateDismissal(); }));
+			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.FOCUS_IN, () => { focused = true; updateDismissal(); }));
+			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.FOCUS_OUT, () => { focused = false; updateDismissal(); }));
+			reader.store.add(autorun(visibilityReader => {
+				hidden = !this._isShown(visibilityReader);
+				updateDismissal();
+			}));
 		}));
 		this._register(this._newChatInput.onDidChangeInput(() => {
 			if (this._newChatInput.hasInput) {
-				this._lastBackgroundSentSessionResource = undefined;
-				this._lastBackgroundSentSession = undefined;
 				this._backgroundSendStatus.set(undefined, undefined);
 				this._lastBackgroundSendOptions = undefined;
 			}
