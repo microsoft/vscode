@@ -36,6 +36,8 @@ export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.grou
 
 export const SESSIONS_LIST_INBOX_ENABLED_SETTING = 'sessions.list.inboxEnabled';
 
+export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAutoAdvance';
+
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
 
@@ -50,7 +52,6 @@ export const enum AutomationSessionsListMode {
 
 /** Whether agents get tools to read and organize the Agents window Sessions list. */
 export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
-export const SESSIONS_LIST_INLINE_ACTIONS_SETTING = 'sessions.list.inlineActions';
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
 
@@ -74,6 +75,17 @@ export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.se
  * setting cannot also be the parent of another setting.
  */
 export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING = 'sessions.sidebar.customizationsAtBottom';
+
+/**
+ * Which customization categories the Customizations section below the Sessions list shows.
+ */
+export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING = 'sessions.sidebar.customizationsCategories';
+
+export const enum SessionsSidebarCustomizationsCategories {
+	All = 'all',
+	/** Only the categories that are shown when reduced, and a More menu with the others. */
+	Reduced = 'reduced',
+}
 
 export const SESSIONS_LIST_REARRANGE_TREATMENT = 'sessions.list.rearrage';
 

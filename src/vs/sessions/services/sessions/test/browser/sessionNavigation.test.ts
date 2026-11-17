@@ -117,6 +117,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly visibleSessions = observableValue<readonly TestShown[]>('test.visibleSessions', []);
 	readonly slotPanes = testGridPanes(this.visibleSessions);
 	readonly onDidChangeSessions = Event.None;
+	readonly onDidChangeSession = Event.None;
 	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
 	readonly onWillSendRequest = Event.None;
@@ -174,6 +175,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
+	getAllSessions(): ISession[] { return this.getSessions(); }
 	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 	getInFlightNewSessionRequest(): undefined { return undefined; }
 
@@ -997,6 +999,25 @@ suite('SessionsNavigation', () => {
 			before: ['["newSession","saved"]'],
 			after: ['["newSession","saved"]'],
 			cleared: [{ kind: 'newSession' }],
+		});
+	});
+
+	test('switching directly between saved drafts preserves both Back/Forward destinations', async () => {
+		const opened: string[] = [];
+		store.savedDraftOpener = async id => {
+			opened.push(id);
+			nav.setCurrentDraftId(id);
+			return true;
+		};
+		nav.setCurrentDraftId('first');
+		nav.setCurrentDraftId('second');
+		const before = recency.entries.map(getRecencyEntryKey);
+		await nav.goBack();
+		await nav.goForward();
+		assert.deepStrictEqual({ opened, before, after: recency.entries.map(getRecencyEntryKey) }, {
+			opened: ['first', 'second'],
+			before: ['["newSession","second"]', '["newSession","first"]'],
+			after: ['["newSession","second"]', '["newSession","first"]'],
 		});
 	});
 

@@ -14,7 +14,6 @@ import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduli
 import { NullLogService } from '../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../common/agent.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -41,14 +40,13 @@ suite('Copilot Entra authentication', () => {
 		const tokenProvider = bridge.options.tokenProvider;
 		assert.ok(tokenProvider);
 		const acquire = (request: EntraTokenProviderArgs, token = CancellationToken.None) => tokenProvider(request, token as Parameters<EntraTokenProvider>[1]);
-		const credential = (resource = copilotEntraDiscoveryResource, scopes = ['User.Read'], accountId = 'selected', label?: string): AuthenticateParams => ({
-			resource, scopes, token: 'synthetic-resource-credential', expiresIn: 3600,
-			_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, ...(label !== undefined ? { label } : {}) }),
+		const credential = (resource = copilotEntraDiscoveryResource, scopes = ['User.Read'], accountId = 'selected'): AuthenticateParams => ({
+			resource, scopes, token: 'synthetic-resource-credential', expiresIn: 3600, accountId,
 		});
 		const authenticate = (params: AuthenticateParams) => authentication.authenticate(params, [provider]);
-		const signIn = async (label?: string) => {
+		const signIn = async () => {
 			assert.deepStrictEqual(await acquire(identity), { kind: 'unavailable' });
-			assert.deepStrictEqual(await authenticate(credential(undefined, undefined, undefined, label)), { authenticated: true });
+			assert.deepStrictEqual(await authenticate(credential()), { authenticated: true });
 			return acquire(identity);
 		};
 		return { bridge, authentication, provider, acquire, credential, authenticate, signIn };
@@ -66,15 +64,6 @@ suite('Copilot Entra authentication', () => {
 		});
 	});
 
-	test('returns the supplied identity and display metadata on sign-in and cached renewal', async () => {
-		const f = fixture();
-		const initial = await f.signIn('Selected account');
-		assert.deepStrictEqual([initial, await f.acquire({ ...identity, accountId: 'selected', reason: 'renewal' })], [
-			{ kind: 'identity', accountId: 'selected', username: 'Selected account' },
-			{ kind: 'identity', accountId: 'selected', username: 'Selected account' },
-		]);
-	});
-
 	test('discovery requires canonical acceptance rather than provider delivery alone', async () => {
 		const f = fixture();
 		await f.acquire(identity);
@@ -88,46 +77,49 @@ suite('Copilot Entra authentication', () => {
 		}, { accountId: 'selected', identity: { kind: 'identity', accountId: 'selected' } });
 	});
 
-	for (const label of ['Selected display name', undefined, ' \t ']) {
-		test(`discovery authority preserves ${label?.trim() ? 'supplied' : label === undefined ? 'absent' : 'blank'} metadata for SDK identity recovery`, async () => {
-			const f = fixture();
-			await f.signIn(label);
-			const accountId = f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, label));
-			assert.deepStrictEqual({
-				accountId,
-				initial: await f.acquire(identity),
-				renewed: await f.acquire({ ...identity, reason: 'renewal', accountId }),
-				pending: f.bridge.authenticationRequired.get(),
-			}, {
-				accountId: 'selected',
-				initial: { kind: 'identity', accountId: 'selected', ...(label?.trim() ? { username: label } : {}) },
-				renewed: { kind: 'identity', accountId: 'selected', ...(label?.trim() ? { username: label } : {}) },
-				pending: undefined,
-			});
-		});
-	}
-
-	test('discovery and selection match opaque IDs instead of labels and preserve authority metadata', async () => {
+	test('discovery authority returns the identity on sign-in and cached renewal', async () => {
 		const f = fixture();
-		await f.signIn('Shared label');
-		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, 'Shared label'));
-		assert.throws(() => f.bridge.authorizeDiscovery(f.credential(undefined, undefined, 'other', 'Shared label')), /original account/);
-		assert.throws(() => f.bridge.validateSelection(f.credential(undefined, undefined, 'other', 'Shared label'), copilotEntraDiscoveryMetadata), /original account/);
-		f.bridge.validateSelection(f.credential(undefined, undefined, undefined, 'Changed display'), copilotEntraDiscoveryMetadata);
-		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), {
-			kind: 'identity', accountId: 'selected', username: 'Shared label',
+		await f.signIn();
+		const accountId = f.bridge.authorizeDiscovery(f.credential());
+		assert.deepStrictEqual({
+			accountId,
+			initial: await f.acquire(identity),
+			renewed: await f.acquire({ ...identity, reason: 'renewal', accountId }),
+			pending: f.bridge.authenticationRequired.get(),
+		}, {
+			accountId: 'selected',
+			initial: { kind: 'identity', accountId: 'selected' },
+			renewed: { kind: 'identity', accountId: 'selected' },
+			pending: undefined,
 		});
 	});
 
-	test('discovery rejects malformed labels and drops display metadata on sign-out', async () => {
+	test('discovery and selection require the original account ID', async () => {
 		const f = fixture();
-		assert.throws(() => f.bridge.authorizeDiscovery({
-			...f.credential(),
-			_meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: 'selected', label: 42 } },
-		}), /account provenance/);
+		await f.signIn();
+		f.bridge.authorizeDiscovery(f.credential());
+		assert.throws(() => f.bridge.authorizeDiscovery(f.credential(undefined, undefined, 'other')), /original account/);
+		assert.throws(() => f.bridge.validateSelection(f.credential(undefined, undefined, 'other'), copilotEntraDiscoveryMetadata), /original account/);
+		f.bridge.validateSelection(f.credential(), copilotEntraDiscoveryMetadata);
+		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected' });
+	});
+
+	test('another client supplies a credential for the bound account by sending the same identifier', async () => {
+		const f = fixture();
+		assert.deepStrictEqual(await f.acquire(identity), { kind: 'unavailable' });
+		await f.authentication.authenticate(f.credential(), [f.provider], undefined, 'first-window');
+		const request = tokenRequest();
+		await f.acquire(request);
+		const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
+		await f.authentication.authenticate({ ...f.credential(resource, request.scopes), token: 'from-second-window' }, [f.provider], undefined, 'second-window');
+		assert.deepStrictEqual(await f.acquire(request), { kind: 'token', accountId: 'selected', accessToken: 'from-second-window' });
+	});
+
+	test('sign-out drops the identity so a replacement account can be established', async () => {
+		const f = fixture();
 		const before = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
-		await f.signIn('Previous label');
-		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, 'Previous label'));
+		await f.signIn();
+		f.bridge.authorizeDiscovery(f.credential());
 		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
 		const after = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
 		await f.acquire(identity);
@@ -137,6 +129,35 @@ suite('Copilot Entra authentication', () => {
 			before: { kind: 'unavailable' }, after: { kind: 'unavailable' },
 			replacement: { kind: 'identity', accountId: 'replacement' },
 		});
+	});
+
+	test('an opaque standard account identifier is accepted as given', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		const params = f.credential(undefined, undefined, 'opaque:account/selection');
+		await f.authenticate(params);
+		assert.deepStrictEqual(await f.acquire(identity), { kind: 'identity', accountId: params.accountId });
+	});
+
+	test('a credential without the standard account identifier is rejected', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		await assert.rejects(f.authenticate({ ...f.credential(), accountId: undefined }), /account identifier/);
+	});
+
+	test('replays the standard account selection without account metadata', async () => {
+		const f = fixture();
+		await f.signIn();
+		const replayed: { accountId: string | undefined; metadata: Record<string, unknown> | undefined }[] = [];
+		const observer = new class extends mock<IAgent>() {
+			override getProtectedResources() { return []; }
+			override async handleAuthenticationToken(params: AuthenticateParams) {
+				replayed.push({ accountId: params.accountId, metadata: params._meta });
+				return true;
+			}
+		}();
+		await f.authentication.replay(observer);
+		assert.deepStrictEqual(replayed, [{ accountId: 'selected', metadata: undefined }]);
 	});
 
 	for (const audience of [copilotEntraEmuAudience, copilotEntraM365Audience]) {
@@ -181,24 +202,23 @@ suite('Copilot Entra authentication', () => {
 		});
 	});
 
-	test('rejects mismatched account, scopes, expiry and malformed display metadata', async () => {
+	test('rejects mismatched account, scopes and expiry', async () => {
 		const f = fixture();
-		await f.signIn('Shared label');
+		await f.signIn();
 		const request = tokenRequest();
 		await f.acquire(request);
 		const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
-		const valid = f.credential(resource, request.scopes, 'selected', 'Different label');
+		const valid = f.credential(resource, request.scopes);
 		const invalid = [
-			f.credential(resource, request.scopes, 'other', 'Shared label'),
+			f.credential(resource, request.scopes, 'other'),
 			f.credential(resource, ['different']),
 			{ ...valid, expiresIn: -1 },
-			{ ...valid, _meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: 'selected', label: 42 } } },
 		];
 		for (const params of invalid) {
 			await assert.rejects(f.authenticate(params), /Microsoft credential|original account/i);
 		}
 		await f.authenticate(valid);
-		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected', username: 'Shared label' });
+		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected' });
 	});
 
 	test('never uses unscoped, expired or foreign-account credentials from the shared store', async () => {
@@ -323,7 +343,7 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual({
 			reason,
 			identity: await f.acquire(identity),
-			storedAccount: f.authentication.getAuthAccount({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+			storedAccount: f.authentication.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
 		}, { reason: AuthRequiredReason.Expired, identity: { kind: 'identity', accountId: 'replacement' }, storedAccount: 'replacement' });
 	});
 
@@ -365,14 +385,14 @@ suite('Copilot Entra authentication', () => {
 
 	test('cancellation returns immediately without clearing the established authority or advertising work', async () => {
 		const f = fixture();
-		await f.signIn('Selected account');
+		await f.signIn();
 		const cancellation = store.add(new CancellationTokenSource());
 		cancellation.cancel();
 		assert.deepStrictEqual({
 			result: await f.acquire(tokenRequest(), cancellation.token),
 			requirement: f.bridge.authenticationRequired.get(),
 			identity: await f.acquire(identity),
-		}, { result: { kind: 'cancelled' }, requirement: undefined, identity: { kind: 'identity', accountId: 'selected', username: 'Selected account' } });
+		}, { result: { kind: 'cancelled' }, requirement: undefined, identity: { kind: 'identity', accountId: 'selected' } });
 	});
 
 	test('replay re-validates stored credentials without mutating anything: the bound identity passes, another account or an unadvertised scope is rejected', async () => {
@@ -466,7 +486,7 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual({
 			identity: await f.acquire(identity),
 			stale: f.authentication.getAuthCredential({ resource: params.resource, scopes: params.scopes }),
-			account: f.authentication.getAuthAccount({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+			account: f.authentication.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
 		}, { identity: { kind: 'identity', accountId: 'replacement' }, stale: undefined, account: 'replacement' });
 	});
 

@@ -43,7 +43,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { isAutoModeRoutingTier, isSupportedAutoModeTier, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
@@ -64,7 +64,7 @@ import { copilotConnectorsScope } from '../../../github/common/connectors/connec
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { AgentMessageProvenance } from '../../common/agentMessageProvenance.js';
-import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentCanvasOpenFailure, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, AgentExtensionConsentOption, type IAgentExtensionConsentRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { CopilotReasoningTiming } from './copilotReasoningTiming.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
@@ -100,7 +100,9 @@ import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDi
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentHostClientConnectionService } from '../agentHostClientConnectionService.js';
-import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
+import { readCanvasIcon, withCanvasIcon } from '../../common/meta/agentCanvasIconMeta.js';
+import { CopilotCanvasIconLoader } from './copilotCanvasIcons.js';
+import { AgentHostTelemetryReporter, toInitiatorTelemetry, type CanvasHostOpenOutcome, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent, type ICanvasHostOpenEvent } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry, resolveRepoInfoRemote } from '../agentHostRepoInfoTelemetry.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -656,6 +658,46 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
+/** Bounds reading the status of a canvas open's extension, which only telemetry reports, so that the open never waits long for it. */
+const CANVAS_OPEN_EXTENSION_READ_TIMEOUT_MS = 1_000;
+/** Bounds reading which install a plugin's extension comes from; when unknown, its consent is not remembered across sessions. */
+const PLUGIN_SOURCE_LOOKUP_TIMEOUT_MS = 5_000;
+
+function canvasConsentOpenKey(consentId: string, instanceId: string): string {
+	return `${consentId}\u0000${instanceId}`;
+}
+
+/** An answer to a consent request that no open is waiting for anymore, for example after the chat's runtime was replaced. */
+export function createCanvasConsentExpiredError(): Error {
+	return new Error(localize('canvasConsentExpired', "This request to allow the canvas's extension is no longer pending. Open the canvas again."));
+}
+
+/**
+ * The runtime reports why a canvas open failed only in the error's text: it drops its error codes at the JSON-RPC boundary.
+ * Matches the runtime's own messages for the failures a lazily started extension can cause, so clients can explain them,
+ * and never an extension's error, whose text the client shows as it is.
+ */
+const canvasOpenFailurePatterns: readonly [RegExp, AgentCanvasOpenFailure][] = [
+	[/\bCanvas instance was dismissed during (?:open|restoration)\./, 'dismissed'],
+	[/\bsession extension configuration changed during reconciliation\b/, 'reloaded'],
+	[/\bExtension contribution activation failed: \S+ did not register its advertised contribution \S+ with matching metadata; declaration withdrawn\b/, 'mismatchedDeclaration'],
+	[/\bextension did not become ready: \S/, 'startFailed'],
+	[new RegExp([
+		/\bNo canvas "[^"]*" is registered\./,
+		/\bCanvas "[^"]*" is not registered\./,
+		/\bCanvas provider connection "[^"]*" is no longer registered\./,
+		/\bits owning provider "[^"]*" is not connected\. Re-issue open_canvas to rehydrate\./,
+		/\bCannot activate extension while process launching is disabled: \S/,
+		/\bCannot reload disabled extension: \S/,
+		/^(?:Request session\.canvas\.open failed with message: )?Extension \S+ is not active$/,
+	].map(pattern => pattern.source).join('|')), 'unavailable'],
+];
+
+function getCanvasOpenFailure(error: unknown): AgentCanvasOpenFailure | undefined {
+	const message = getErrorMessage(error);
+	return canvasOpenFailurePatterns.find(([pattern]) => pattern.test(message))?.[1];
+}
+
 const CONNECTOR_REFRESH_TIMEOUT_MS = 60_000;
 /** Bounds the Connector status read that classifies a server published Connector state does not know, so a token never waits on it for long. */
 const CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS = 10_000;
@@ -787,6 +829,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly realpath?: (path: string) => Promise<string>;
 	/** Overrides the control-plane RPC timeout for deterministic tests. */
 	readonly controlPlaneRpcTimeoutMs?: number;
+	/** Reads a canvas icon as {@link CopilotCanvasIconLoader} does; injectable so tests can control when reads finish. */
+	readonly readCanvasIcon?: (path: string, extensionId: string) => Promise<string | undefined>;
 	/** Bounds one Connector reconciliation attempt; a timed-out request remains pending. */
 	readonly connectorRefreshTimeoutMs?: number;
 	/** Bounds the Connector status read that classifies a server published Connector state does not know. */
@@ -795,6 +839,65 @@ export interface ICopilotAgentSessionOptions {
 	readonly onConnectorRefreshRetryable?: (session: CopilotAgentSession) => void;
 	/** Live canvases handed over by the runtime this session replaces during a configuration refresh. */
 	readonly canvasHandoff?: ICopilotCanvasHandoff;
+	/**
+	 * The chat's extension consent approvals for this session, shared with the runtimes that replace this one
+	 * on a configuration refresh so they do not ask again. Omitted, approvals last as long as this runtime.
+	 */
+	readonly extensionSessionApprovals?: Set<string>;
+}
+
+/** A Copilot extension load that waits for the user's consent. */
+interface IExtensionConsentGate {
+	readonly consent: IAgentExtensionConsentRequest;
+	/** The key of a decision remembered for all sessions. */
+	readonly identity: string;
+	/** The key of a session approval. */
+	readonly approvalKey: string;
+	readonly decision: DeferredPromise<IExtensionConsentDecision>;
+	/** Whether a turn shows, or is about to show, the request. */
+	confirmingInTurn: boolean;
+	/** The tool call ID of the turn's confirmation while it is shown. */
+	turnConfirmationId: string | undefined;
+	/** Whether a canvas open showed the request to a client. */
+	presentedToClient: boolean;
+}
+
+interface IExtensionConsentDecision {
+	readonly approved: boolean;
+	readonly optionId?: string;
+	readonly source?: PermissionDecisionSource;
+}
+
+/** A canvas open a client requested. It continues while the client decides on consent, and settles with the runtime's open. */
+interface ICanvasOpenOperation {
+	readonly request: IAgentCanvasOpenRequest;
+	readonly outcome: DeferredPromise<AgentCanvasOpenResult>;
+	/** Settles once the chat's permission mode applies to the open. */
+	readonly ready: Promise<void>;
+	/** The consent the user did not give while this open waited for it. */
+	denied?: IExtensionConsentDenialResult;
+	readonly stopwatch: StopWatch;
+	/** How many consent requests for the open's extension people had been shown when it started. */
+	readonly consentShownBefore: number;
+	/** The open's extension as the runtime listed it just before the open. */
+	extension?: CanvasOpenExtension;
+	/** Whether telemetry reported how the open ended, which it does once. */
+	reported?: boolean;
+}
+
+type CanvasOpenExtension = Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'][number];
+
+interface IExtensionConsentDenialResult {
+	readonly consent: IAgentExtensionConsentRequest;
+	/** Whether asking again can help: false while the user's Never is remembered. */
+	readonly retryable: boolean;
+}
+
+/** An extension this runtime did not allow to load. */
+interface IExtensionConsentDenial {
+	readonly consent: IAgentExtensionConsentRequest;
+	/** The key of the decision remembered for all sessions. */
+	readonly identity: string;
 }
 
 /** A live canvas channel and its current presentation state. */
@@ -803,6 +906,8 @@ interface ICopilotCanvasProjection {
 	readonly canvas: CanvasState;
 	/** The instance's open input; kept private so a replacement runtime can reopen the instance with it. */
 	readonly input?: JsonValue;
+	/** The host path of the icon the runtime reported, which clients cannot read; its image goes in {@link canvas}. */
+	readonly iconPath?: string;
 }
 
 /** Canvases a configuration refresh carries from a chat's previous runtime to its replacement. */
@@ -1145,6 +1250,19 @@ type CopilotActivitySource = 'intent' | 'command' | 'fusion' | 'localModel';
 const managedSettingsPermissionRetryTimeoutMs = 3000;
 const MAX_PROJECTED_CANVASES = 8;
 
+const SESSION_TAKEOVER_QUESTION_ID = 'sessionInUse';
+const SESSION_TAKEOVER_OPTION_ID = 'takeOver';
+const SESSION_TAKEOVER_CANCEL_OPTION_ID = 'cancel';
+
+/** Whether the answer to {@link CopilotAgentSession.askToTakeOverSessionInUse} takes the session over. */
+function isSessionTakeoverAccepted(response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer> | undefined): boolean {
+	const answer = answers?.[SESSION_TAKEOVER_QUESTION_ID];
+	return response === ChatInputResponseKind.Accept
+		&& answer?.state !== ChatInputAnswerState.Skipped
+		&& answer?.value.kind === ChatInputAnswerValueKind.Selected
+		&& answer.value.value === SESSION_TAKEOVER_OPTION_ID;
+}
+
 /**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
  *
@@ -1368,7 +1486,26 @@ export class CopilotAgentSession extends Disposable {
 		/** The prompt offered optional feedback about the Assisted permissions review. */
 		readonly acceptsFeedback?: true;
 	}>();
-	private readonly _extensionSessionApprovals = new Set<string>();
+	private readonly _extensionSessionApprovals: Set<string>;
+	/** Extension consent requests waiting for the user's decision, by consent ID. */
+	private readonly _extensionConsentGates = new Map<string, IExtensionConsentGate>();
+	private readonly _onDidAddExtensionConsentGate = this._register(new Emitter<void>());
+	/**
+	 * Extensions this runtime did not allow to load, by name. The runtime keeps a person's No, and the extension stays failed,
+	 * until it is replaced, so asking again needs a new runtime.
+	 */
+	private readonly _extensionConsentDenials = new Map<string, IExtensionConsentDenial>();
+	/** How many consent requests people were shown for each extension, in a turn or by a client, which tells whether a canvas open waited for one. */
+	private readonly _extensionConsentShownCounts = new Map<string, number>();
+	/** UI-initiated canvas opens until the runtime settles them. */
+	private readonly _canvasOpens = new Set<ICanvasOpenOperation>();
+	/** The open each consent request shown to a client belongs to, by consent and instance ID; kept after the open settles so a late answer gets its outcome. */
+	private readonly _canvasConsentOpens = new LRUCache<string, ICanvasOpenOperation>(32);
+	/** Keys session approvals that must not outlive this runtime. */
+	private readonly _runtimeInstanceId = generateUuid();
+	/** The working directory the runtime discovered project extensions from; a later change applies only to its replacement. */
+	private readonly _launchWorkingDirectory: URI | undefined;
+	private _requiresExtensionConsentRetry = false;
 	private readonly _onPermissionTurnReady = this._register(new Emitter<void>());
 	private readonly _mcpSkillSessionApprovals = new Set<string>();
 	private readonly _pendingMcpSkillConsents = new Map<string, DeferredPromise<boolean>>();
@@ -1385,6 +1522,14 @@ export class CopilotAgentSession extends Disposable {
 	 * Managed approval requests never reuse an approval.
 	 */
 	private readonly _approvedDuplicablePermissionSignatures = new Map<string, string>();
+	/**
+	 * Client tool calls whose `ChatToolCallReady` waits on the permission flow. The runtime can
+	 * authorize a custom tool without a permission request (standing approvals, managed allow,
+	 * hooks), so the SDK handler, which runs only after authorization, releases a held call whose
+	 * permission never ran. `'permission'` marks a call the permission flow owns; `'handler'` marks
+	 * a handler that ran before the call's start was observed.
+	 */
+	private readonly _clientToolReadyWaits = new Map<string, 'permission' | 'handler' | { readonly ready: ChatToolCallReadyAction; readonly parentToolCallId: string | undefined }>();
 	/**
 	 * Pending user input requests awaiting a renderer-side answer. `responseSource` is set only by a client's
 	 * report that a person answered, so a settlement made by teardown stays unattributed.
@@ -1424,6 +1569,8 @@ export class CopilotAgentSession extends Disposable {
 			readonly questionId: string;
 		}
 	>();
+	/** Pending questions whether to take over this session from another process ({@link askToTakeOverSessionInUse}). */
+	private readonly _pendingSessionTakeovers = new PendingRequestRegistry<boolean>();
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
 	private readonly _grepSearchNudge: CopilotGrepSearchNudge;
@@ -1484,6 +1631,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Whether this session has started root work. Until then it can be replaced without losing anything. */
 	get hasStartedRootWork(): boolean { return this._rootWorkStarted; }
 	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
+	/** Whether this session's runtime was launched with canvases, which only a relaunch changes. */
+	get canvasRuntimeEnabled(): boolean { return this._wrapper?.canvasRuntimeEnabled === true; }
 	/** The model router agent plan this session was launched with, compared by identity. */
 	get modelRouterGuidance(): IModelRouterGuidance | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterGuidance; }
 
@@ -2002,6 +2151,8 @@ export class CopilotAgentSession extends Disposable {
 	private _clientToolConfiguration: ICopilotClientToolConfiguration | undefined;
 	/** Whether the launched system message is eligible for the progress-update experiment, fixed with it at launch. */
 	private _progressUpdatesPromptEligible = false;
+	/** Whether the launched session enabled Copilot Memory with an experiment-controlled placement, fixed with its SDK config at launch. */
+	private _memoryModeEligible = false;
 	private _pendingClientToolReplacement: ICopilotClientToolReplacement | undefined;
 	private readonly _appliedPluginSources: ReadonlySet<string>;
 	private readonly _appliedPluginDirectories: readonly URI[];
@@ -2121,6 +2272,16 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _settledDeferredCanvasCloseInstanceIds = new Set<string>();
 	private _deferredCanvasCloseFlush: Promise<void> | undefined;
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
+	private _canvasIconLoader: CopilotCanvasIconLoader | undefined;
+	private readonly _readCanvasIconOverride: ((path: string, extensionId: string) => Promise<string | undefined>) | undefined;
+	/** The latest icon read of each canvas that one is in flight for, by instance ID; only the latest read shows its image. */
+	private readonly _canvasIconReads = new Map<string, number>();
+	private _canvasIconReadCount = 0;
+	/**
+	 * The revision of each canvas projection, created when first asked for. A projection that only shows a new icon shares
+	 * the revision of the one it replaced, so that restoration still recognizes it; any other new projection starts one.
+	 */
+	private readonly _canvasProjectionRevisions = new WeakMap<ICopilotCanvasProjection, object>();
 	private _canvasRegistryGeneration = 0;
 	private _canvasRegistrySettlementPending = false;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
@@ -2174,6 +2335,15 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _onDidChangeRuntimePlugins = this._register(new Emitter<void>());
 	readonly onDidChangeRuntimePlugins = this._onDidChangeRuntimePlugins.event;
+	/**
+	 * Fires when the runtime reloads its top-level skills, custom agents or MCP
+	 * servers, as every runtime plugin reload does. Unlike
+	 * {@link onDidChangeRuntimePlugins} it also fires after a partially failed
+	 * or best-effort plugin preparation, so listeners should cheaply re-check
+	 * plugin state rather than rediscover.
+	 */
+	private readonly _onDidReloadRuntimeContributions = this._register(new Emitter<void>());
+	readonly onDidReloadRuntimeContributions = this._onDidReloadRuntimeContributions.event;
 
 	/** In-flight server and MCP App sampling executions, keyed by their SDK cancellation handle. */
 	private readonly _pendingMcpSamplings = new Set<string>();
@@ -2301,6 +2471,8 @@ export class CopilotAgentSession extends Disposable {
 		this._getSessionPathRoots = options.getSessionPathRoots ?? (() => []);
 		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
+		this._readCanvasIconOverride = options.readCanvasIcon;
+		this._extensionSessionApprovals = options.extensionSessionApprovals ?? new Set();
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
 		this._connectorOwnershipLookupTimeoutMs = options.connectorOwnershipLookupTimeoutMs ?? CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS;
 		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
@@ -2395,6 +2567,7 @@ export class CopilotAgentSession extends Disposable {
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.owner, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
+		this._launchWorkingDirectory = options.workingDirectory;
 		this._pathMapper = options.pathMapper;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
@@ -4451,6 +4624,7 @@ export class CopilotAgentSession extends Disposable {
 								: this._toolSearchFailure('Tool call cancelled: client tool replacement was not applied');
 						}
 						this._surfaceUnobservedClientToolStart(invocation);
+						this._releaseClientToolReadyForHandler(toolCallId);
 						return await this._pendingClientToolCalls.register(toolCallId);
 					} catch (error) {
 						this._logService.error(error, `[Copilot:${this.sessionId}] Failed in client tool handler: tool=${def.name}, toolCallId=${toolCallId}`);
@@ -5131,16 +5305,26 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._publishSettledCanvasRegistry();
 		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
-		return result.canvases.map(canvas => ({
-			canvasId: canvas.canvasId,
-			extensionId: canvas.extensionId,
-			extensionSource: extensionSources.get(canvas.extensionId) ?? 'unknown',
-			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
-			displayName: canvas.displayName,
-			description: canvas.description,
-			requiresInput: this._canvasRequiresInput(canvas.inputSchema),
-			actionCount: canvas.actions?.length ?? 0,
+		const definitions = await Promise.all(result.canvases.map(async canvas => {
+			const icon = await this._readCanvasIcon(canvas.icon, canvas.extensionId);
+			return {
+				canvasId: canvas.canvasId,
+				extensionId: canvas.extensionId,
+				extensionSource: extensionSources.get(canvas.extensionId) ?? 'unknown',
+				...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
+				displayName: canvas.displayName,
+				description: canvas.description,
+				...(icon ? { icon } : {}),
+				requiresInput: this._canvasRequiresInput(canvas.inputSchema),
+				actionCount: canvas.actions?.length ?? 0,
+			};
 		}));
+		// Extensions that reloaded, or a runtime handed off, while the icons were read make the listing stale.
+		if (generation !== this._canvasRegistryGeneration) {
+			this.publishCanvases();
+			return undefined;
+		}
+		return definitions;
 	}
 
 	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
@@ -5174,7 +5358,93 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	async openCanvas(request: IAgentCanvasOpenRequest): Promise<void> {
+	/**
+	 * Opens a canvas a client asked for. When the canvas's extension waits for the user's consent to load, returns
+	 * `consentRequired` while the open continues, and the client calls again with the user's answer.
+	 */
+	async openCanvas(request: IAgentCanvasOpenRequest, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
+		if (!this._wrapper.canvasRuntimeEnabled) {
+			throw new Error('Canvases are disabled for this session.');
+		}
+		if (answer?.kind === 'consent') {
+			// An answer only continues the open it was shown for; it never starts another.
+			const shownFor = this._canvasConsentOpens.get(canvasConsentOpenKey(answer.consentId, request.instanceId));
+			if (!shownFor) {
+				throw createCanvasConsentExpiredError();
+			}
+			this._answerExtensionConsent(answer.consentId, answer.optionId);
+			return this._awaitCanvasOpen(shownFor);
+		}
+		const operation: ICanvasOpenOperation = { request, outcome: new DeferredPromise(), ready: this._syncPermissionModeBeforeCanvasOpen(), stopwatch: StopWatch.create(), consentShownBefore: this._extensionConsentShownCount(request.extensionId) };
+		// A client that stops waiting, for example while it asks for consent, must not leave the failure unhandled.
+		operation.outcome.p.catch(() => undefined);
+		this._canvasOpens.add(operation);
+		void this._runCanvasOpen(operation).then(result => {
+			this._reportUserCanvasOpen(operation, result.kind === 'failed' ? result.failure : result.kind === 'consentDenied' ? 'consentDenied' : 'opened');
+			operation.outcome.complete(result);
+		}, error => {
+			this._reportUserCanvasOpen(operation, this._store.isDisposed || isCancellationError(error) ? 'cancelled' : 'error');
+			operation.outcome.error(error);
+		}).finally(() => this._canvasOpens.delete(operation));
+		return this._awaitCanvasOpen(operation);
+	}
+
+	/**
+	 * Applies a permission mode changed while the chat was idle, which decides whether the open's extension asks for consent.
+	 * Bounded like other control-plane requests; only the user's consent decision, which comes after it, is not.
+	 */
+	private async _syncPermissionModeBeforeCanvasOpen(): Promise<void> {
+		if (this.hasActiveTurn || this._configurationService.getChatConfigValues(this._configTarget()) === undefined) {
+			return;
+		}
+		await this._awaitControlPlaneRpc('permission mode sync before rpc.canvas.open', this.syncPermissionMode('canvas-open'));
+	}
+
+	/** Shows the client consent the open waits for, or waits for the open, bounded like other control-plane requests while nobody is asked. */
+	private async _awaitCanvasOpen(operation: ICanvasOpenOperation): Promise<AgentCanvasOpenResult> {
+		await operation.ready;
+		while (true) {
+			const gate = [...this._extensionConsentGates.values()].find(candidate => !candidate.decision.isSettled && this._canvasOpenDependsOn(operation.request, candidate));
+			if (gate) {
+				const unattended = this._unattendedExtensionConsent();
+				if (!unattended) {
+					gate.presentedToClient = true;
+					this._noteExtensionConsentShown(gate.consent.extensionName);
+					this._canvasConsentOpens.set(canvasConsentOpenKey(gate.consent.id, operation.request.instanceId), operation);
+					return { kind: 'consentRequired', consent: gate.consent };
+				}
+				this._decideExtensionConsent(gate, unattended);
+				continue;
+			}
+			const added = Event.toPromise(this._onDidAddExtensionConsentGate.event);
+			try {
+				const settled = await raceTimeout(Promise.race([
+					operation.outcome.p.then(result => ({ result })),
+					added.then(() => ({ result: undefined })),
+				]), this._controlPlaneRpcTimeoutMs);
+				if (!settled) {
+					// The open is still in flight and may still change runtime state; the client sees it time out.
+					this._reportUserCanvasOpen(operation, 'timeout');
+					this._controlPlaneDesynchronized = true;
+					const error = new Error(`[Copilot:${this.sessionId}] rpc.canvas.open timed out after ${this._controlPlaneRpcTimeoutMs}ms`);
+					this._logService.error(error, `[Copilot:${this.sessionId}] Control-plane RPC timed out: rpc.canvas.open`);
+					throw error;
+				}
+				if (settled.result) {
+					return settled.result;
+				}
+			} finally {
+				added.cancel();
+			}
+		}
+	}
+
+	private _canvasOpenDependsOn(request: IAgentCanvasOpenRequest, gate: IExtensionConsentGate): boolean {
+		return !request.extensionId || request.extensionId === gate.consent.extensionName;
+	}
+
+	private async _runCanvasOpen(operation: ICanvasOpenOperation): Promise<AgentCanvasOpenResult> {
+		const { request } = operation;
 		if (this._deferredCanvasCloseInstanceIds.has(request.instanceId)) {
 			await this._deferredCanvasCloseFlush;
 		}
@@ -5182,6 +5452,8 @@ export class CopilotAgentSession extends Disposable {
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
+		// Read before the open starts, alongside the permission mode sync, so it tells whether the open starts the extension.
+		const extension = this._readCanvasOpenExtension(wrapper, request.extensionId);
 		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
 		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
 		const listener = wasIgnored ? wrapper.onEvent(event => {
@@ -5192,29 +5464,144 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}) : undefined;
 		try {
-			const canvas = await this._awaitControlPlaneRpc('rpc.canvas.open', wrapper.session.rpc.canvas.open(request));
+			// A failed permission mode sync fails the open before it starts, never as a consent denial.
+			await operation.ready;
+			operation.extension = await extension;
+			let canvas: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
+			try {
+				canvas = await wrapper.session.rpc.canvas.open(request);
+			} catch (error) {
+				const denied = operation.denied ?? this._extensionConsentDenialFor(request.extensionId);
+				if (denied) {
+					this._logService.info(`[Copilot:${this.sessionId}] Canvas did not open because its extension was not allowed to load: extension=${denied.consent.extensionName}, retryable=${denied.retryable}`);
+					return { kind: 'consentDenied', ...denied };
+				}
+				const failure = getCanvasOpenFailure(error);
+				if (failure) {
+					this._logService.info(`[Copilot:${this.sessionId}] Canvas did not open: failure=${failure}, extension=${request.extensionId ?? '<any>'}, error=${getErrorMessage(error)}`);
+					return { kind: 'failed', failure };
+				}
+				throw error;
+			}
 			this._deferredCanvasCloseInstanceIds.delete(request.instanceId);
 			this._settledDeferredCanvasCloseInstanceIds.delete(request.instanceId);
 			if (!wasIgnored || this._wrapper !== wrapper || this._store.isDisposed || this._canvasPhase !== 'live'
 				|| this._canvasByInstanceId.has(request.instanceId)) {
-				return;
+				return { kind: 'opened' };
 			}
 			this._ignoredRestoredCanvasInstanceIds.delete(request.instanceId);
 			// Events observed during the request supersede its snapshot, even while restoration suppression hides them.
 			if (!latestEvent || latestEvent.type === 'session.canvas.opened') {
 				this._projectOpenedCanvas(latestEvent?.data ?? canvas);
 			}
+			return { kind: 'opened' };
 		} finally {
 			listener?.dispose();
 		}
 	}
 
+	private _readCanvasIcon(path: string | undefined, extensionId: string): Promise<string | undefined> {
+		if (!path) {
+			return Promise.resolve(undefined);
+		}
+		if (this._readCanvasIconOverride) {
+			return this._readCanvasIconOverride(path, extensionId);
+		}
+		this._canvasIconLoader ??= new CopilotCanvasIconLoader(this._logService);
+		return this._canvasIconLoader.load(path, extensionId);
+	}
+
+	/**
+	 * The extension a canvas open targets, as the runtime lists it just before the open, or `undefined` when it cannot tell in
+	 * time. Read for each open: the runtime announces no status change when an extension starts on first use.
+	 */
+	private async _readCanvasOpenExtension(wrapper: CopilotSessionWrapper, extensionId: string | undefined): Promise<CanvasOpenExtension | undefined> {
+		if (!extensionId) {
+			return undefined;
+		}
+		try {
+			const result = await raceTimeout(wrapper.session.rpc.extensions.list(), CANVAS_OPEN_EXTENSION_READ_TIMEOUT_MS);
+			return result?.extensions.find(extension => extension.id === extensionId);
+		} catch {
+			return undefined;
+		}
+	}
+
+	/** Reports how a canvas open the user asked for ended, as the client saw it, once. */
+	private _reportUserCanvasOpen(operation: ICanvasOpenOperation, outcome: CanvasHostOpenOutcome): void {
+		if (operation.reported) {
+			return;
+		}
+		operation.reported = true;
+		this._reportCanvasHostOpen('user', operation.extension, operation.stopwatch, outcome, this._extensionConsentShownCount(operation.request.extensionId) > operation.consentShownBefore);
+	}
+
+	private _noteExtensionConsentShown(extensionName: string): void {
+		this._extensionConsentShownCounts.set(extensionName, (this._extensionConsentShownCounts.get(extensionName) ?? 0) + 1);
+	}
+
+	/** How many consent requests people were shown for `extensionId`, or for any extension when an open names none. */
+	private _extensionConsentShownCount(extensionId: string | undefined): number {
+		if (extensionId) {
+			return this._extensionConsentShownCounts.get(extensionId) ?? 0;
+		}
+		let count = 0;
+		for (const shown of this._extensionConsentShownCounts.values()) {
+			count += shown;
+		}
+		return count;
+	}
+
+	private _reportCanvasHostOpen(trigger: ICanvasHostOpenEvent['trigger'], extension: CanvasOpenExtension | undefined, stopwatch: StopWatch, outcome: CanvasHostOpenOutcome, askedForConsent: boolean): void {
+		this._telemetryReporter.canvasHostOpen({
+			schemaVersion: 1,
+			trigger,
+			extensionStatus: !extension ? 'unknown' : extension.status === 'dormant' || extension.status === 'running' ? extension.status : 'other',
+			extensionSource: extension ? this._canvasExtensionSource(extension.source) : 'unknown',
+			outcome,
+			askedForConsent,
+			durationMs: stopwatch.elapsed(),
+		});
+	}
+
+	/** How this runtime declined `extensionId`; without an ID, the only extension it declined. */
+	private _extensionConsentDenialFor(extensionId: string | undefined): IExtensionConsentDenialResult | undefined {
+		const denial = extensionId ? this._extensionConsentDenials.get(extensionId) : this._extensionConsentDenials.size === 1 ? [...this._extensionConsentDenials.values()][0] : undefined;
+		if (!denial) {
+			return undefined;
+		}
+		const remembered = denial.consent.persistable && this._configurationService.getRootValue(platformRootSchema, AgentHostExtensionPermissionApprovalsConfigKey)?.[denial.identity] === 'deny';
+		return { consent: denial.consent, retryable: !remembered };
+	}
+
+	/** Whether a canvas open for `extensionId` would show the client a consent request that is already waiting. */
+	hasPendingExtensionConsent(extensionId: string | undefined): boolean {
+		return [...this._extensionConsentGates.values()].some(gate => !gate.decision.isSettled && (!extensionId || gate.consent.extensionName === extensionId));
+	}
+
+	/** Whether this runtime declined `extensionId` (any extension when absent) in a way a new runtime can ask about again. */
+	hasRetryableExtensionConsentDenial(extensionId: string | undefined): boolean {
+		return extensionId
+			? this._extensionConsentDenialFor(extensionId)?.retryable === true
+			: [...this._extensionConsentDenials.keys()].some(name => this._extensionConsentDenialFor(name)?.retryable);
+	}
+
+	/** Asks for a new runtime at the next refresh, which forgets this runtime's extension consent denials so the user can be asked again. */
+	requestExtensionConsentRetry(): void {
+		this._requiresExtensionConsentRetry = true;
+	}
+
+	get requiresExtensionConsentRetry(): boolean {
+		return this._requiresExtensionConsentRetry;
+	}
+
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
 	takeCanvasProjection(): ICopilotCanvasHandoff | undefined {
-		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas }, input }) => ({
+		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { uri: _uri, ...canvas }, input, iconPath }) => ({
 			resource,
 			canvas,
 			...(input !== undefined ? { input } : {}),
+			...(iconPath !== undefined ? { iconPath } : {}),
 		}));
 		const pendingCloseInstanceIds = new Set(this._deferredCanvasCloseInstanceIds);
 		this._releaseCanvasRegistrySnapshot();
@@ -5400,9 +5787,15 @@ export class CopilotAgentSession extends Disposable {
 				this._canvasExtensions = extensions.extensions;
 			}
 			if (extensions.extensions.some(extension => extension.status === 'starting')) {
-				const ready = await raceTimeout(settled.p, 10_000);
-				outcome = ready === true ? 'settled' : 'timeout';
-				if (ready !== true) {
+				// An extension waiting for the user's consent stays starting until a turn or a canvas open shows the request.
+				const consentPending = Event.toPromise(this._onDidAddExtensionConsentGate.event);
+				try {
+					const ready = this._extensionConsentGates.size > 0 ? 'consentPending' : await raceTimeout(Promise.race([settled.p, consentPending.then(() => 'consentPending' as const)]), 10_000);
+					outcome = ready === true ? 'settled' : ready === 'consentPending' ? 'consentPending' : 'timeout';
+				} finally {
+					consentPending.cancel();
+				}
+				if (outcome === 'timeout') {
 					this._logService.warn(`[Copilot:${this.sessionId}] Canvas extensions did not settle before the readiness deadline`);
 				}
 			}
@@ -5427,6 +5820,7 @@ export class CopilotAgentSession extends Disposable {
 				...(this._canvasExtensions ? {
 					extensionCount: this._canvasExtensions.length,
 					failedExtensionCount: this._canvasExtensions.filter(extension => extension.status === 'failed').length,
+					dormantExtensionCount: this._canvasExtensions.filter(extension => extension.status === 'dormant').length,
 				} : {}),
 			});
 		}
@@ -5542,14 +5936,15 @@ export class CopilotAgentSession extends Disposable {
 		}
 		for (const projection of projections) {
 			const { instanceId, extensionId, canvasId } = projection.canvas;
-			if (this._canvasByInstanceId.get(instanceId) !== projection) {
+			const current = this._canvasByInstanceId.get(instanceId);
+			if (!current || !this._isCurrentCanvasProjection(projection)) {
 				continue;
 			}
 			if (declared && !declared.some(canvas => canvas.extensionId === extensionId && canvas.canvasId === canvasId)) {
 				this._canvasByInstanceId.delete(instanceId);
 				continue;
 			}
-			const { handedOver: _handedOver, ...unavailable } = projection;
+			const { handedOver: _handedOver, ...unavailable } = current;
 			this._canvasByInstanceId.set(instanceId, unavailable);
 			if (declared) {
 				void this._reopenCanvas(wrapper, unavailable);
@@ -5564,6 +5959,15 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _reopenCanvas(wrapper: CopilotSessionWrapper, projection: ICopilotCanvasProjection): Promise<void> {
 		const { instanceId, extensionId, canvasId } = projection.canvas;
+		const stopwatch = StopWatch.create();
+		// A restored extension that starts may ask for consent, which a turn shows.
+		const consentShownBefore = this._extensionConsentShownCount(extensionId);
+		const askedForConsent = () => this._extensionConsentShownCount(extensionId) > consentShownBefore;
+		const extension = await this._readCanvasOpenExtension(wrapper, extensionId);
+		// A close or a replaced runtime during the read supersedes the restore; opening now would bring the canvas back.
+		if (this._store.isDisposed || this._wrapper !== wrapper || !this._isCurrentCanvasProjection(projection)) {
+			return;
+		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
 		try {
 			reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
@@ -5573,15 +5977,17 @@ export class CopilotAgentSession extends Disposable {
 				...(projection.input !== undefined ? { input: projection.input } : {}),
 			}), this._controlPlaneRpcTimeoutMs);
 		} catch (error) {
+			this._reportCanvasHostOpen('restore', extension, stopwatch, this._store.isDisposed ? 'cancelled' : this._extensionConsentDenialFor(extensionId) ? 'consentDenied' : getCanvasOpenFailure(error) ?? 'error', askedForConsent());
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
 			return;
 		}
+		this._reportCanvasHostOpen('restore', extension, stopwatch, reopened ? 'opened' : 'timeout', askedForConsent());
 		if (!reopened) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Reopening a restored canvas did not finish within ${this._controlPlaneRpcTimeoutMs}ms`);
 			return;
 		}
 		// Events received during the request, such as a close, supersede its result.
-		if (!this._store.isDisposed && this._wrapper === wrapper && this._canvasByInstanceId.get(instanceId) === projection) {
+		if (!this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
 			this._projectOpenedCanvas(reopened);
 		}
 	}
@@ -5663,21 +6069,28 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _projectOpenedCanvas(data: SessionEventPayload<'session.canvas.opened'>['data']): void {
-		const url = this._canvasSource(data.url);
+		const uri = this._canvasSource(data.url);
 		const existing = this._canvasByInstanceId.get(data.instanceId);
 		if (existing
-			&& existing.canvas.url === url
+			&& existing.canvas.uri === uri
 			&& existing.canvas.extensionId === data.extensionId
 			&& existing.canvas.extensionName === data.extensionName
 			&& existing.canvas.canvasId === data.canvasId
 			&& existing.canvas.title === data.title
-			&& existing.canvas.status === data.status) {
+			&& existing.canvas.status === data.status
+			&& existing.iconPath === data.icon) {
 			if (existing.handedOver || !equals(existing.input, data.input)) {
-				this._canvasByInstanceId.set(data.instanceId, {
+				const updated: ICopilotCanvasProjection = {
 					resource: existing.resource,
 					canvas: existing.canvas,
 					...(data.input !== undefined ? { input: data.input } : {}),
-				});
+					...(existing.iconPath !== undefined ? { iconPath: existing.iconPath } : {}),
+				};
+				this._canvasByInstanceId.set(data.instanceId, updated);
+				// The replacement runtime may have reloaded the extension, whose icon may have changed since it was read.
+				if (existing.handedOver && updated.iconPath !== undefined) {
+					void this._showCanvasIcon(updated);
+				}
 			}
 			return;
 		}
@@ -5692,25 +6105,78 @@ export class CopilotAgentSession extends Disposable {
 			this._deferredCanvasCloseInstanceIds.delete(data.instanceId);
 			this._settledDeferredCanvasCloseInstanceIds.delete(data.instanceId);
 		}
-		const canvas: CanvasState = {
+		// An update keeps the image of an icon it does not change, which is read again only when the icon changes.
+		const keptIcon = existing && existing.iconPath === data.icon ? readCanvasIcon(existing.canvas) : undefined;
+		const canvas: CanvasState = withCanvasIcon({
 			instanceId: data.instanceId,
 			extensionId: data.extensionId,
 			...(data.extensionName !== undefined ? { extensionName: data.extensionName } : {}),
 			canvasId: data.canvasId,
 			...(data.title !== undefined ? { title: data.title } : {}),
 			...(data.status !== undefined ? { status: data.status } : {}),
-			...(url !== undefined ? { url } : {}),
-		};
+			...(uri !== undefined ? { uri } : {}),
+		}, keptIcon);
 		const projection: ICopilotCanvasProjection = {
 			resource: existing?.resource ?? buildCanvasUri(this._chatChannelUri, generateUuid()),
 			canvas,
 			...(data.input !== undefined ? { input: data.input } : {}),
+			...(data.icon !== undefined ? { iconPath: data.icon } : {}),
 		};
 		this._canvasByInstanceId.set(canvas.instanceId, projection);
 		this._publishCanvasState(projection);
 		if (!existing) {
 			this._publishCanvases();
 		}
+		if (data.icon !== undefined && (!keptIcon || existing?.handedOver)) {
+			void this._showCanvasIcon(projection);
+		}
+	}
+
+	/** Reads the icons of the projected canvases again, as after their extensions reload, and shows any that changed. */
+	private _revalidateCanvasIcons(): void {
+		for (const projection of this._canvasByInstanceId.values()) {
+			if (projection.iconPath !== undefined) {
+				void this._showCanvasIcon(projection);
+			}
+		}
+	}
+
+	/**
+	 * Reads the icon of a projected canvas and republishes the canvas when its image changed. Only the latest read of a
+	 * canvas shows its image, which applies while the canvas still declares that icon, whatever else changed meanwhile.
+	 */
+	private async _showCanvasIcon(projection: ICopilotCanvasProjection): Promise<void> {
+		const instanceId = projection.canvas.instanceId;
+		const read = ++this._canvasIconReadCount;
+		this._canvasIconReads.set(instanceId, read);
+		const icon = await this._readCanvasIcon(projection.iconPath, projection.canvas.extensionId);
+		if (this._canvasIconReads.get(instanceId) !== read) {
+			return;
+		}
+		this._canvasIconReads.delete(instanceId);
+		const current = this._canvasByInstanceId.get(instanceId);
+		if (this._store.isDisposed || !current || current.iconPath !== projection.iconPath || icon === readCanvasIcon(current.canvas)) {
+			return;
+		}
+		const shown: ICopilotCanvasProjection = { ...current, canvas: withCanvasIcon(current.canvas, icon) };
+		this._canvasProjectionRevisions.set(shown, this._canvasProjectionRevision(current));
+		this._canvasByInstanceId.set(instanceId, shown);
+		this._publishCanvasState(shown);
+	}
+
+	/** Whether `projection` is still its canvas's projection, also after updates that only showed a new icon. */
+	private _isCurrentCanvasProjection(projection: ICopilotCanvasProjection): boolean {
+		const current = this._canvasByInstanceId.get(projection.canvas.instanceId);
+		return current === projection || (!!current && this._canvasProjectionRevision(current) === this._canvasProjectionRevision(projection));
+	}
+
+	private _canvasProjectionRevision(projection: ICopilotCanvasProjection): object {
+		let revision = this._canvasProjectionRevisions.get(projection);
+		if (!revision) {
+			revision = {};
+			this._canvasProjectionRevisions.set(projection, revision);
+		}
+		return revision;
 	}
 
 	private _clearCanvasProjection(): void {
@@ -5857,7 +6323,7 @@ export class CopilotAgentSession extends Disposable {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('permissionRequest');
 				return measureAgentProviderOperation(recorder, 'permissionRequest', () => this._handlePermissionRequest(request, invocation));
-			}, attributePermissionResult({ kind: 'reject' }, 'unattended_fallback'), 'permission', request => request.kind === 'extension-permission-access' ? this._lifetimeCts.token : this._abortToken),
+			}, attributePermissionResult({ kind: 'reject' }, 'unattended_fallback'), 'permission', request => request.kind === 'extension-permission-access' || request.kind === 'extension-env-access' ? this._lifetimeCts.token : this._abortToken),
 			handleExitPlanModeRequest: this._guarded((request, invocation) => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('exitPlanModeRequest');
@@ -5887,6 +6353,7 @@ export class CopilotAgentSession extends Disposable {
 			createClientSdkTools: (toolSearchActive, hostToolNames, withheldToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames, withheldToolNames),
 			configureClientTools: configuration => { this._clientToolConfiguration = configuration; },
 			setProgressUpdatesPromptEligible: eligible => { this._progressUpdatesPromptEligible = eligible; },
+			setMemoryModeEligible: eligible => { this._memoryModeEligible = eligible; },
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			createComputerUseActivationTools: () => this._computerUseActivation.createTools(),
 			createModelRouterTools: () => this._modelRouterTools?.() ?? [],
@@ -8464,8 +8931,8 @@ export class CopilotAgentSession extends Disposable {
 		request: PermissionRequest,
 		invocation?: Parameters<PermissionHandler>[1],
 	): Promise<PermissionRequestResult | AttributedPermissionResult> {
-		if (request.kind === 'extension-permission-access') {
-			return this._handleExtensionPermissionRequest(request);
+		if (request.kind === 'extension-permission-access' || request.kind === 'extension-env-access') {
+			return this._handleExtensionConsentRequest(request);
 		}
 		let sandboxRequestId: string | undefined;
 		let sandboxPathGrant: ISandboxPathGrant | undefined;
@@ -8478,6 +8945,7 @@ export class CopilotAgentSession extends Disposable {
 				return attributePermissionResult({ kind: 'reject' }, 'host_policy');
 			}
 			if (request.kind === 'custom-tool') {
+				this._clientToolReadyWaits.set(toolCallId, 'permission');
 				const pending = this._waitForClientToolReplacement(request.toolName, toolCallId);
 				if (pending && !await pending) {
 					return attributePermissionResult({ kind: 'reject' }, 'host_policy');
@@ -8714,6 +9182,11 @@ export class CopilotAgentSession extends Disposable {
 			const toolName = request.kind === 'mcp' || request.kind === 'custom-tool' || request.kind === 'hook'
 				? request.toolName ?? request.kind
 				: request.kind;
+			// A custom tool's permission request carries no title: name the row as the started call is named, or else by the title the
+			// model's request for the call carried, as the tool declares it.
+			const customToolDisplayName = request.kind === 'custom-tool'
+				? trackedToolCall?.displayName ?? getToolDisplayName(toolName, { toolTitle: this._currentTurn.value?.toolTitles.get(toolCallId) })
+				: undefined;
 			// Forward the tool's parentToolCallId (if any) so the host can
 			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
@@ -8748,7 +9221,7 @@ export class CopilotAgentSession extends Disposable {
 					status: ToolCallStatus.PendingConfirmation,
 					toolCallId,
 					toolName,
-					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
+					displayName: customToolDisplayName ?? getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
 					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, undefined),
 					intention: trackedToolCall?.intention,
 					_meta: assistedApprovalMeta ? { ...confirmationMeta, ...assistedApprovalMeta } : confirmationMeta,
@@ -8848,15 +9321,15 @@ export class CopilotAgentSession extends Disposable {
 
 	private _getSessionPathDisplay(path: string): ISessionPathDisplay {
 		const resource = copilotSdkPathToUri(this._pathMapper, path);
-		const ownerSession = this._ownerSessionUri;
+		const currentSession = this._chatChannelUri;
 		// The live chat's own storage root is authoritative; only consult other chats on a miss.
-		const currentChatDisplay = getSessionPathDisplay(path, resource, ownerSession, [
-			{ root: URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId), session: ownerSession },
+		const currentChatDisplay = getSessionPathDisplay(path, resource, currentSession, [
+			{ root: URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId), session: currentSession },
 		], extUriBiasedIgnorePathCase);
 		if (currentChatDisplay.isCurrentSession) {
 			return currentChatDisplay;
 		}
-		return getSessionPathDisplay(path, resource, ownerSession, this._getSessionPathRoots(), extUriBiasedIgnorePathCase);
+		return getSessionPathDisplay(path, resource, currentSession, this._getSessionPathRoots(), extUriBiasedIgnorePathCase);
 	}
 
 	/**
@@ -9166,7 +9639,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	syncPermissionMode(source: 'config-change' | 'turn-start', recorder?: IAgentProviderSendStageRecorder): Promise<void> {
+	syncPermissionMode(source: 'config-change' | 'turn-start' | 'canvas-open', recorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		return measureAgentProviderOperation(recorder, 'permission', async () => {
 			if (source === 'config-change' && this._isInactiveForBackgroundConfigSync()) {
 				return;
@@ -9635,47 +10108,205 @@ export class CopilotAgentSession extends Disposable {
 		return pending.p;
 	}
 
-	private async _handleExtensionPermissionRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
-		const identity = `${request.extensionName} (${[...request.capabilities].sort().join(', ')})`;
+	/**
+	 * Decides whether a Copilot extension may load with privileged capabilities or read sensitive environment variables.
+	 * The runtime asks while the extension starts, never for a tool call. A stored or session decision answers at once;
+	 * otherwise the request waits, without blocking resumes or turns, to be shown in the next turn or to a client opening
+	 * one of the extension's canvases, whichever answers first.
+	 */
+	private async _handleExtensionConsentRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
+		// A plugin is named after its package, which another source can reuse, so its access to secrets is remembered only for the install it was granted to.
+		const pluginSource = request.kind === 'extension-env-access' && request.extensionName.startsWith('plugin:') ? await this._resolvePluginInstallIdentity(request.extensionName) : undefined;
+		const gate = this._createExtensionConsentGate(request, pluginSource);
 		const lifetimeToken = this._lifetimeCts.token;
-		let turn: CopilotTurn | undefined;
-		while (true) {
-			if (lifetimeToken.isCancellationRequested) {
-				return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
+		try {
+			while (!gate.decision.isSettled) {
+				if (lifetimeToken.isCancellationRequested) {
+					return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
+				}
+				const settled = this._settledExtensionConsent(gate);
+				if (settled) {
+					this._decideExtensionConsent(gate, settled);
+					break;
+				}
+				if (!this._extensionConsentGates.has(gate.consent.id)) {
+					this._extensionConsentGates.set(gate.consent.id, gate);
+					this._onDidAddExtensionConsentGate.fire();
+				}
+				const turn = this._currentTurn.value;
+				if (turn?.permissionPromptsReady && !this._abortToken.isCancellationRequested && !gate.confirmingInTurn) {
+					const unattended = this._unattendedExtensionConsent();
+					if (unattended) {
+						this._decideExtensionConsent(gate, unattended);
+						break;
+					}
+					void this._confirmExtensionConsentInTurn(turn, gate);
+				}
+				const ready = Event.toPromise(this._onPermissionTurnReady.event);
+				try {
+					await raceCancellation(Promise.race([ready, gate.decision.p]), lifetimeToken);
+				} finally {
+					ready.cancel();
+				}
 			}
-			const decision = this._configurationService.getRootValue(platformRootSchema, AgentHostExtensionPermissionApprovalsConfigKey)?.[identity];
-			if (decision === 'deny' || decision === 'allow' || this._extensionSessionApprovals.has(identity)) {
-				return attributePermissionResult({ kind: decision === 'deny' ? 'reject' : 'approve-once' }, 'host_policy');
-			}
-			turn = this._currentTurn.value;
-			if (turn?.permissionPromptsReady && !this._abortToken.isCancellationRequested) {
-				break;
-			}
-			const ready = Event.toPromise(this._onPermissionTurnReady.event);
-			await raceCancellation(ready, lifetimeToken);
-			ready.cancel();
+			const decision = gate.decision.value;
+			return attributePermissionResult({ kind: decision?.approved ? 'approve-once' : 'reject' }, decision?.source ?? 'human_response');
+		} finally {
+			this._extensionConsentGates.delete(gate.consent.id);
 		}
+	}
+
+	/** @param pluginSource The install a plugin extension that asks for environment variables comes from, if it can be told. */
+	private _createExtensionConsentGate(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>, pluginSource: string | undefined): IExtensionConsentGate {
+		const environment = request.kind === 'extension-env-access';
+		const items = environment ? [...request.environmentVariables] : [...request.capabilities];
+		const sorted = [...items].sort().join(', ');
+		const plugin = environment && request.extensionName.startsWith('plugin:');
+		const identity = environment
+			? `${request.extensionName}${pluginSource !== undefined ? ` from ${pluginSource}` : ''} (environment variables: ${sorted})`
+			: `${request.extensionName} (${sorted})`;
+		return {
+			consent: {
+				id: generateUuid(),
+				kind: environment ? 'environment' : 'capabilities',
+				extensionName: request.extensionName,
+				displayName: request.extensionName.split(':').at(-1) || request.extensionName,
+				items,
+				// A project extension is named after its folder, so another repository can reuse the name: its access to secrets is never remembered across sessions.
+				persistable: !environment || request.extensionName.startsWith('user:') || pluginSource !== undefined,
+			},
+			identity,
+			// Session approvals outlive this runtime. A project extension's approval only covers the folder this runtime found it in,
+			// and a plugin whose install is unknown is approved for this runtime only.
+			approvalKey: request.extensionName.startsWith('project:') ? `${identity} in ${this._launchWorkingDirectory?.toString() ?? ''}`
+				: plugin && pluginSource === undefined ? `${identity} in runtime ${this._runtimeInstanceId}`
+					: identity,
+			decision: new DeferredPromise(),
+			confirmingInTurn: false,
+			turnConfirmationId: undefined,
+			presentedToClient: false,
+		};
+	}
+
+	/** The install identity of the one enabled plugin that contributes `extensionName` (`plugin:<plugin>:<extension>`), if it can be told. */
+	private async _resolvePluginInstallIdentity(extensionName: string): Promise<string | undefined> {
+		try {
+			const inventory = await raceTimeout(this._wrapper.session.rpc.plugins.list(), PLUGIN_SOURCE_LOOKUP_TIMEOUT_MS);
+			const matches = inventory?.plugins.filter(plugin => plugin.enabled && extensionName.startsWith(`plugin:${plugin.name}:`)) ?? [];
+			if (matches.length !== 1) {
+				return undefined;
+			}
+			const [plugin] = matches;
+			return plugin.id ?? plugin.directSourceId ?? (plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : undefined);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read the plugin inventory for extension consent: ${getErrorMessage(error)}`);
+			return undefined;
+		}
+	}
+
+	/** The decision the user already made for all sessions or for this chat, if any. */
+	private _settledExtensionConsent(gate: IExtensionConsentGate): IExtensionConsentDecision | undefined {
+		const stored = gate.consent.persistable ? this._configurationService.getRootValue(platformRootSchema, AgentHostExtensionPermissionApprovalsConfigKey)?.[gate.identity] : undefined;
+		if (stored === 'deny' || stored === 'allow') {
+			return { approved: stored === 'allow', optionId: stored === 'allow' ? AgentExtensionConsentOption.AlwaysAllow : AgentExtensionConsentOption.Never, source: 'host_policy' };
+		}
+		return this._extensionSessionApprovals.has(gate.approvalKey) ? { approved: true, source: 'host_policy' } : undefined;
+	}
+
+	/** The decision for an extension consent request when nobody is asked: Allow All approves it, Autopilot declines it. */
+	private _unattendedExtensionConsent(): IExtensionConsentDecision | undefined {
 		if (this._lastAppliedPermissionMode === 'allow-all') {
-			return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
+			return { approved: true, source: 'host_policy' };
 		}
 		if (this._isAutopilotMode()) {
-			return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
+			return { approved: false, source: 'unattended_fallback' };
 		}
-		const name = request.extensionName.split(':').at(-1) || request.extensionName;
-		const { approved, optionId, source } = await this._confirmEphemerally(turn, AgentHostExtensionPermissionApprovalsConfigKey, identity, {
-			toolName: 'extension_permission_consent',
+		return undefined;
+	}
+
+	/** Settles a consent request once, whichever surface answered it, and remembers the decision. */
+	private _decideExtensionConsent(gate: IExtensionConsentGate, decision: IExtensionConsentDecision): void {
+		if (gate.decision.isSettled) {
+			return;
+		}
+		const remembered = gate.consent.persistable && (decision.optionId === AgentExtensionConsentOption.AlwaysAllow || decision.optionId === AgentExtensionConsentOption.Never);
+		if (remembered && decision.source !== 'host_policy') {
+			this._persistConsentDecision(AgentHostExtensionPermissionApprovalsConfigKey, gate.identity, decision.approved);
+		}
+		if (decision.approved && !remembered && decision.source !== 'host_policy') {
+			this._extensionSessionApprovals.add(gate.approvalKey);
+		}
+		if (!decision.approved) {
+			this._extensionConsentDenials.set(gate.consent.extensionName, { consent: gate.consent, identity: gate.identity });
+			const denied = this._extensionConsentDenialFor(gate.consent.extensionName);
+			for (const operation of this._canvasOpens) {
+				if (denied && this._canvasOpenDependsOn(operation.request, gate)) {
+					operation.denied ??= denied;
+				}
+			}
+		}
+		gate.decision.complete(decision);
+	}
+
+	private async _confirmExtensionConsentInTurn(turn: CopilotTurn, gate: IExtensionConsentGate): Promise<void> {
+		const { displayName: name, extensionName, items } = gate.consent;
+		const environment = gate.consent.kind === 'environment';
+		gate.confirmingInTurn = true;
+		const result = await this._confirmEphemerally(turn, AgentHostExtensionPermissionApprovalsConfigKey, gate.identity, {
+			toolName: environment ? 'extension_env_consent' : 'extension_permission_consent',
 			displayName: localize('extensionPermissionConsentDisplayName', "Extensions"),
-			invocationMessage: localize('extensionPermissionConsentInvocation', "Extension '{0}' wants to load with these permissions: {1}.", name, request.capabilities.join(', ')),
-			confirmationTitle: localize('extensionPermissionConsentConfirmation', "Allow Extension {0}?", name),
+			invocationMessage: environment
+				? localize('extensionEnvConsentInvocation', "Extension '{0}' ({1}) wants to read these sensitive environment variables: {2}. Their values may be credentials, which the extension could send anywhere or pass to processes it starts.", name, extensionName, items.join(', '))
+				: localize('extensionPermissionConsentInvocation', "Extension '{0}' ({1}) wants to load with these permissions: {2}.", name, extensionName, items.join(', ')),
+			confirmationTitle: environment
+				? localize('extensionEnvConsentConfirmation', "Allow {0} to Read Sensitive Environment Variables?", name)
+				: localize('extensionPermissionConsentConfirmation', "Allow Extension {0}?", name),
 			optionPrefix: 'extension',
-			pastTenseMessage: approved => approved
-				? localize('extensionPermissionConsentAllowed', "Allowed extension {0}", name)
-				: localize('extensionPermissionConsentDeclined', "Did not allow extension {0}", name),
+			persistable: gate.consent.persistable,
+			onDidShow: toolCallId => {
+				gate.turnConfirmationId = toolCallId;
+				this._noteExtensionConsentShown(extensionName);
+			},
+			pastTenseMessage: approved => environment
+				? approved
+					? localize('extensionEnvConsentAllowed', "Allowed {0} to read {1}", name, items.join(', '))
+					: localize('extensionEnvConsentDeclined', "Did not allow {0} to read {1}", name, items.join(', '))
+				: approved
+					? localize('extensionPermissionConsentAllowed', "Allowed extension {0}", name)
+					: localize('extensionPermissionConsentDeclined', "Did not allow extension {0}", name),
 		});
-		if (approved && optionId !== 'allow-extension-always') {
-			this._extensionSessionApprovals.add(identity);
+		gate.confirmingInTurn = false;
+		gate.turnConfirmationId = undefined;
+		// A client that was also shown the request can still answer it after the turn stopped waiting.
+		if (result.source === 'unattended_fallback' && gate.presentedToClient) {
+			return;
 		}
-		return attributePermissionResult({ kind: approved ? 'approve-once' : 'reject' }, source ?? 'human_response');
+		this._decideExtensionConsent(gate, result);
+	}
+
+	/** Answers an extension consent request that a canvas open showed to a client. Unknown or answered requests are ignored. */
+	private _answerExtensionConsent(consentId: string, optionId: AgentExtensionConsentOption): void {
+		const gate = this._extensionConsentGates.get(consentId);
+		if (!gate || gate.decision.isSettled) {
+			return;
+		}
+		if (!gate.consent.persistable) {
+			optionId = optionId === AgentExtensionConsentOption.AlwaysAllow ? AgentExtensionConsentOption.Allow : optionId === AgentExtensionConsentOption.Never ? AgentExtensionConsentOption.NotNow : optionId;
+		}
+		const approved = optionId === AgentExtensionConsentOption.Allow || optionId === AgentExtensionConsentOption.AlwaysAllow;
+		if (gate.turnConfirmationId) {
+			// Completes the confirmation the turn shows with the same decision.
+			this.respondToPermissionRequest(gate.turnConfirmationId, approved, { selectedOptionId: optionId, decisionSource: 'human_response' });
+		}
+		this._decideExtensionConsent(gate, { approved, optionId, source: 'human_response' });
+	}
+
+	private _persistConsentDecision(approvalsKey: typeof AgentHostMcpSkillsServerApprovalsConfigKey | typeof AgentHostExtensionPermissionApprovalsConfigKey, identity: string, approved: boolean): void {
+		const approvals = this._configurationService.getRootValue(platformRootSchema, approvalsKey) ?? {};
+		const decision = approved ? 'allow' : 'deny';
+		if (approvals[identity] !== decision) {
+			this._configurationService.updateRootConfig({ [approvalsKey]: { ...approvals, [identity]: decision } });
+		}
 	}
 
 	private async _confirmEphemerally(turn: CopilotTurn, approvalsKey: typeof AgentHostMcpSkillsServerApprovalsConfigKey | typeof AgentHostExtensionPermissionApprovalsConfigKey, identity: string, options: {
@@ -9684,6 +10315,10 @@ export class CopilotAgentSession extends Disposable {
 		readonly invocationMessage: string;
 		readonly confirmationTitle: string;
 		readonly optionPrefix: string;
+		/** Whether to offer remembering the decision for all sessions. Defaults to `true`. */
+		readonly persistable?: boolean;
+		/** Called with the confirmation's tool call ID once it is shown. */
+		readonly onDidShow?: (toolCallId: string) => void;
 		readonly pastTenseMessage: (approved: boolean) => string;
 	}): Promise<{ approved: boolean; optionId?: string; source?: PermissionDecisionSource }> {
 		const abortToken = this._abortToken;
@@ -9712,21 +10347,24 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId,
 				invocationMessage: options.invocationMessage,
 				confirmationTitle: options.confirmationTitle,
-				options: [
+				options: options.persistable === false ? [
+					{ id: 'allow-once', label: localize('mcpSkillConsentAllowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
+					{ id: 'not-now', label: localize('mcpSkillConsentNotNow', "Not Now"), kind: ConfirmationOptionKind.Deny, group: 2 },
+				] : [
 					{ id: 'allow-once', label: localize('mcpSkillConsentAllowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
 					{ id: alwaysAllowOptionId, label: localize('mcpSkillConsentAlwaysAllow', "Always Allow"), kind: ConfirmationOptionKind.Approve, group: 1 },
 					{ id: 'not-now', label: localize('mcpSkillConsentNotNow', "Not Now"), kind: ConfirmationOptionKind.Deny, group: 2 },
 					{ id: neverOptionId, label: localize('mcpSkillConsentNever', "Never"), kind: ConfirmationOptionKind.Deny, group: 2 },
 				],
 			}, undefined, true);
+			options.onDidShow?.(toolCallId);
 			const result = await raceCancellation<PendingPermissionResponse>(approval, abortToken, { kind: 'decision', result: { kind: 'reject' }, source: 'unattended_fallback' });
 			if (this.isDisposed || abortToken.isCancellationRequested || this._currentTurn.value !== turn || result.kind !== 'decision') {
 				return { approved: false, source: 'unattended_fallback' };
 			}
 			approved = result.result.kind === 'approve-once';
-			if ((approved && result.selectedOptionId === alwaysAllowOptionId) || (!approved && result.selectedOptionId === neverOptionId)) {
-				const approvals = this._configurationService.getRootValue(platformRootSchema, approvalsKey) ?? {};
-				this._configurationService.updateRootConfig({ [approvalsKey]: { ...approvals, [identity]: approved ? 'allow' : 'deny' } });
+			if (options.persistable !== false && ((approved && result.selectedOptionId === alwaysAllowOptionId) || (!approved && result.selectedOptionId === neverOptionId))) {
+				this._persistConsentDecision(approvalsKey, identity, approved);
 			}
 			return { approved, optionId: result.selectedOptionId, source: result.source };
 		} finally {
@@ -9974,6 +10612,52 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Asks in the running turn whether to take over this session, which another process is running. Resolves
+	 * `undefined` when the chat can't ask: without a running turn, in Autopilot, or with auto-reply.
+	 */
+	askToTakeOverSessionInUse(): Promise<boolean> | undefined {
+		if (!this.hasActiveTurn || this._isAutopilotMode() || this._isAutoReplyEnabled()) {
+			return undefined;
+		}
+		const requestId = generateUuid();
+		const answer = this._pendingSessionTakeovers.register(requestId);
+		this._emitAction({
+			type: ActionType.ChatInputRequested,
+			request: withChatInputRequestPurpose({
+				id: requestId,
+				questions: [{
+					kind: ChatInputQuestionKind.SingleSelect,
+					id: SESSION_TAKEOVER_QUESTION_ID,
+					title: localize('copilotAgent.sessionInUse.title', "Session Open in Another Process"),
+					message: localize('copilotAgent.sessionInUse.message', "This session is open in another Copilot CLI process. If you continue here while it's open there, both processes write to the session."),
+					required: true,
+					allowFreeformInput: false,
+					options: [
+						{ id: SESSION_TAKEOVER_OPTION_ID, label: localize('copilotAgent.sessionInUse.takeOver', "Take Over"), description: localize('copilotAgent.sessionInUse.takeOverDescription', "Continue here from the session's latest history"), recommended: true },
+						{ id: SESSION_TAKEOVER_CANCEL_OPTION_ID, label: localize('copilotAgent.sessionInUse.cancel', "Cancel"), description: localize('copilotAgent.sessionInUse.cancelDescription', "Don't send this message") },
+					],
+				}],
+			}, ChatInputRequestPurpose.Elicitation),
+		});
+		return answer;
+	}
+
+	/** Ends the running turn as cancelled without sending it to the runtime. */
+	cancelTurnBeforeSend(): void {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		this._emitAction({ type: ActionType.ChatTurnCancelled, turnId: turn.id, duration: turn.duration });
+		this._clearActiveTurn();
+	}
+
+	/** Lets go of the running turn without ending it, so the session that replaces this one continues it. */
+	releaseTurnForReplacement(): void {
+		this._clearActiveTurn();
+	}
+
+	/**
 	 * Asks the user for an answer that `sudo -A`, `ssh`, or `git` needs. The answer arrives through
 	 * {@link answerShellAuthentication}, never through chat state.
 	 */
@@ -10019,6 +10703,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 
 		if (this._pendingShellAuthentications.respond(requestId, { answer: undefined, completedByClient: true })) {
+			return true;
+		}
+
+		if (this._pendingSessionTakeovers.respond(requestId, isSessionTakeoverAccepted(response, answers))) {
 			return true;
 		}
 
@@ -10921,9 +11609,6 @@ export class CopilotAgentSession extends Disposable {
 			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
 				&& !isTrustedCoordinationTool
 				&& (isToolSearch || (!sdkPolicy.skipPermission && !clientToolAutoApproved));
-			if (shouldWaitForClientToolReady) {
-				return;
-			}
 
 			const ready: ChatToolCallReadyAction = {
 				type: ActionType.ChatToolCallReady,
@@ -10936,6 +11621,12 @@ export class CopilotAgentSession extends Disposable {
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta(clientToolAutoApproved ? { ...meta, autoApproveBySetting: true } : meta),
 			};
+			if (shouldWaitForClientToolReady) {
+				if (!isToolSearch) {
+					this._holdClientToolReady(e.data.toolCallId, ready, parentToolCallId);
+				}
+				return;
+			}
 			// Native image tool start precedes its permission request, not image generation.
 			if (tracked && e.data.toolName === CopilotToolName.ImageGeneration && !isClientTool && !mcpServerName) {
 				tracked.pendingImageReady = ready;
@@ -10959,6 +11650,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
+			this._clientToolReadyWaits.delete(e.data.toolCallId);
 			const held = this._pendingClientToolReplacement?.calls.get(e.data.toolCallId);
 			if (held) {
 				if (!held.completed && this._isHeldClientToolCallCurrent(held)) {
@@ -12155,6 +12847,21 @@ export class CopilotAgentSession extends Disposable {
 			this._mcpCustomizations.clearSkills();
 			this._mcpSkillCacheWriter.write(new Map());
 		}
+		store.add(wrapper.onSkillsLoaded(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
+		store.add(wrapper.onCustomAgentsUpdated(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
+		store.add(wrapper.onMcpServersLoaded(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
 		store.add(wrapper.onMcpServersLoaded(() => {
 			// The SDK re-emits a cached loaded snapshot on later turns, not live connection state.
 			this._logService.trace(`[Copilot:${sessionId}] MCP server inventory invalidated by session.mcp_servers_loaded; refreshing rpc.mcp.listConfigured`);
@@ -13263,6 +13970,35 @@ export class CopilotAgentSession extends Disposable {
 		return true;
 	}
 
+	/** Holds a client tool's ready until the permission flow or its SDK handler releases it. */
+	private _holdClientToolReady(toolCallId: string, ready: ChatToolCallReadyAction, parentToolCallId: string | undefined): void {
+		const wait = this._clientToolReadyWaits.get(toolCallId);
+		if (wait === 'handler') {
+			this._releaseClientToolReady(toolCallId, ready, parentToolCallId);
+		} else if (wait === undefined) {
+			this._clientToolReadyWaits.set(toolCallId, { ready, parentToolCallId });
+		}
+	}
+
+	/**
+	 * The runtime invokes a client tool's SDK handler only after authorizing the call. When no
+	 * permission request ran, nothing else will emit the held ready, so the client would never run it.
+	 */
+	private _releaseClientToolReadyForHandler(toolCallId: string): void {
+		const wait = this._clientToolReadyWaits.get(toolCallId);
+		if (typeof wait === 'object') {
+			this._releaseClientToolReady(toolCallId, wait.ready, wait.parentToolCallId);
+		} else if (wait === undefined && !this._activeToolCalls.has(toolCallId)) {
+			this._clientToolReadyWaits.set(toolCallId, 'handler');
+		}
+	}
+
+	private _releaseClientToolReady(toolCallId: string, ready: ChatToolCallReadyAction, parentToolCallId: string | undefined): void {
+		this._clientToolReadyWaits.delete(toolCallId);
+		this._logService.info(`[Copilot:${this.sessionId}] Runtime authorized client tool call ${toolCallId} without a permission request; marking it ready`);
+		this._emitAction(ready, parentToolCallId);
+	}
+
 	/**
 	 * A client tool only runs once the client sees its start. Fusion stages the
 	 * phase's `tool.execution_start` until commit, so without this the SDK
@@ -13510,6 +14246,7 @@ export class CopilotAgentSession extends Disposable {
 				this._invalidateCanvasRegistrySnapshot();
 				this._markCanvasProjectionLive();
 				this._publishCanvases();
+				this._revalidateCanvasIcons();
 			}
 		}));
 
@@ -13559,10 +14296,15 @@ export class CopilotAgentSession extends Disposable {
 			if (!projection) {
 				return;
 			}
-			const { url, ...canvas } = projection.canvas;
-			const unavailable: ICopilotCanvasProjection = { resource: projection.resource, canvas, ...(projection.input !== undefined ? { input: projection.input } : {}) };
+			const { uri, ...canvas } = projection.canvas;
+			const unavailable: ICopilotCanvasProjection = {
+				resource: projection.resource,
+				canvas,
+				...(projection.input !== undefined ? { input: projection.input } : {}),
+				...(projection.iconPath !== undefined ? { iconPath: projection.iconPath } : {}),
+			};
 			this._canvasByInstanceId.set(canvas.instanceId, unavailable);
-			if (url !== undefined) {
+			if (uri !== undefined) {
 				this._publishCanvasState(unavailable);
 			}
 		}));
@@ -13601,6 +14343,9 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
 			if (e.data.warningType === MANAGED_PLUGINS_EVENT_TYPE && !e.agentId) {
 				this._reportManagedPluginFailure(e.data.message);
+				// The runtime reports no completion when a plugin fails: the others are installed and the failed ones are now listed as not installed.
+				this._slashCommandProvider.clearCache();
+				this._onDidChangeRuntimePlugins.fire();
 			}
 		}));
 
@@ -13732,6 +14477,10 @@ export class CopilotAgentSession extends Disposable {
 					// The launched system message decides whether the progress-update arms diverge.
 					if (this._progressUpdatesPromptEligible) {
 						this._reportSettingExperimentTrigger(AgentHostCopilotProgressUpdatesPromptSettingId);
+					}
+					// The launched memory config decides whether the memory placement arms diverge.
+					if (this._memoryModeEligible) {
+						this._reportSettingExperimentTrigger(AgentHostCopilotMemoryModeSettingId);
 					}
 					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
 					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
@@ -14047,6 +14796,7 @@ export class CopilotAgentSession extends Disposable {
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
 		this._computerUseActivation.cancel();
 		this._cancelPendingPlanReviews();
+		this._pendingSessionTakeovers.denyAll(false);
 		this._cancelPendingMcpAuthRequests();
 		this._cancelPendingMcpSamplings();
 		this._cancelPendingClientToolCalls();
@@ -14104,6 +14854,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingClientToolCalls(): void {
+		this._clientToolReadyWaits.clear();
 		this._cancelHeldClientToolCalls();
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}

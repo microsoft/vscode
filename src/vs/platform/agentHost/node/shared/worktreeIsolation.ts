@@ -514,6 +514,12 @@ export interface IResolveWorkingDirectoryRequest {
 	readonly prompt?: string;
 	readonly githubToken?: string;
 	/**
+	 * The agent session a detached worktree is created for, used to attribute
+	 * its branch-name model call in telemetry. A detached worktree's
+	 * {@link sessionUri} is its own record, not an agent session.
+	 */
+	readonly ownerSession?: URI;
+	/**
 	 * Receives localized activity labels while the worktree is being created,
 	 * so callers can surface live progress. Only called for sessions that
 	 * selected worktree isolation — though such a session can still fall back
@@ -1198,8 +1204,10 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			const worktreesRoot = getWorktreesRoot(repositoryRoot);
 
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
+			const telemetrySession = request.ownerSession ?? (request.sessionUri.scheme === DETACHED_WORKTREE_OWNER_SCHEME ? undefined : request.sessionUri);
 			const newBranchName = await this._branchNameGenerator.generateBranchName({
 				sessionId,
+				agentSessionId: telemetrySession ? AgentSession.id(telemetrySession) : undefined,
 				message: prompt,
 				githubToken,
 				branchPrefix: worktreeBranchPrefix,

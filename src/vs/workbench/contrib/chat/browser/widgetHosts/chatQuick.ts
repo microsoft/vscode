@@ -41,6 +41,7 @@ import { IChatSessionsService, localChatSessionType } from '../../common/chatSes
 import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
 import { ChatViewPaneTarget, IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -212,6 +213,7 @@ export class QuickChat extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
+		@ILocalChatAvailabilityService private readonly localChatAvailabilityService: ILocalChatAvailabilityService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 	) {
@@ -438,7 +440,7 @@ export class QuickChat extends Disposable {
 		if (token.isCancellationRequested || generation !== this.modelGeneration) {
 			throw new CancellationError();
 		}
-		const resolved = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), { currentSessionType }, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
+		const resolved = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), { currentSessionType, localChatHidden: this.localChatAvailabilityService.hidden.get() }, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 		const modelRef = resolved.sessionType === localChatSessionType
 			? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatQuick#updateModel', sessionTypeSelectionReason: resolved.selectionReason })
 			: await this.chatService.acquireOrLoadSession(getNewChatSessionResource(resolved.sessionType), ChatAgentLocation.Chat, token, 'ChatQuick#updateModel', resolved.selectionReason);

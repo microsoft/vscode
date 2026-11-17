@@ -45,6 +45,8 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import { IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -121,6 +123,7 @@ suite('Mission Control WPS', () => {
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(IAgentHostSystemWakeService, new class extends mock<IAgentHostSystemWakeService>() { }());
 		instantiation.stub(IAgentHostMacAccessibilityTrustService, new class extends mock<IAgentHostMacAccessibilityTrustService>() { }());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
 		const management = instantiation.createInstance(AgentHostManagementService,
 			new class extends mock<IAgentService>() { }(),
 			new class extends mock<IConnectionTrackerService>() { }(),
@@ -3470,18 +3473,29 @@ suite('Mission Control WPS', () => {
 
 		test('rejects owner and live scope conflicts without replacing the first grant', async () => {
 			await withEnvironment([], async ({ service, options, sockets, attachments, directory }) => {
+				const categories: (string | undefined)[] = [];
 				for (const conflicting of [
 					{ ...options, accountId: 'other', roots: [directory] },
 					{ ...options, baseUrl: 'https://other.test', roots: [directory] },
 					{ ...options, requireConnectionBinding: true, roots: [directory] },
 				]) {
-					await assert.rejects(service.configure(conflicting), /another local account|already configured/);
+					await assert.rejects(service.configure(conflicting), error => {
+						categories.push(getConnectionTelemetryError(getConnectionDiagnosticError(error)).errorCategory);
+						return error instanceof Error && /another local account|already configured/.test(error.message);
+					});
 				}
-				assert.deepStrictEqual({ enabled: service.isEnabled, sockets: sockets.length, closed: sockets[0].closed, roots: attachments[0].getRoots() }, {
-					enabled: true, sockets: 1, closed: false, roots: [],
+				assert.deepStrictEqual({ enabled: service.isEnabled, sockets: sockets.length, closed: sockets[0].closed, roots: attachments[0].getRoots(), categories }, {
+					enabled: true, sockets: 1, closed: false, roots: [], categories: ['conflict', 'conflict', 'conflict'],
 				});
 				await service.configure(undefined);
 				await assert.rejects(service.configure({ ...options, accountId: 'other' }), /another local account/);
+			});
+		});
+
+		test('categorizes shared directories that cannot be resolved as file-system failures', async () => {
+			await withEnvironment([], async ({ service, options, directory }) => {
+				await assert.rejects(service.configure({ ...options, projects: [join(directory, 'missing')] }), error =>
+					getConnectionTelemetryError(getConnectionDiagnosticError(error)).errorCategory === 'fileSystem');
 			});
 		});
 

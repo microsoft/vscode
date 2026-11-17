@@ -375,9 +375,14 @@
 	.monaco-list-row:is(:hover, .hovered):not(.external-application-badge-hovered),
 	.monaco-list-row.focused:not(.selected),
 	.monaco-list:focus-within .monaco-list-row.focused,
-	.session-item.archive-onboarding {
+	.session-item.archive-onboarding:not(.renaming) {
 		.session-title-toolbar {
 			display: block;
+		}
+
+		/* An inline rename gives the actions' width to the title input. */
+		.renaming .session-title-toolbar {
+			display: none;
 		}
 
 		.session-external-application-badge-title,
@@ -420,16 +425,41 @@
 		}
 	}
 
-	.session-section {
-		font-weight: var(--vscode-fontWeight-regular);
+	.session-section:not(.session-comparison-group) {
+		.session-section-label-container {
+			flex: 0 1 auto;
+		}
 
 		.session-section-count {
-			margin-left: auto;
 			font-variant-numeric: tabular-nums;
+		}
+
+		.session-section-count-label:not(:empty)::before {
+			content: '(';
+		}
+
+		.session-section-count-label:not(:empty)::after {
+			content: ')';
+		}
+
+		.session-section-toolbar {
+			margin-left: auto;
 		}
 
 		.session-section-toolbar.has-no-actions {
 			display: none;
+		}
+
+		&:not(.session-section-shortcut) {
+			.session-section-chevron {
+				display: flex;
+				align-items: center;
+				width: var(--vscode-spacing-size160);
+			}
+
+			.session-section-icon {
+				display: none;
+			}
 		}
 	}
 }
@@ -723,7 +753,6 @@
 
 	&.renaming {
 		.session-title,
-		.session-title-toolbar,
 		.session-compact-hover-description,
 		.session-search-hint-title,
 		.session-pending-voice-indicator {
@@ -811,41 +840,6 @@
 			}
 		}
 	}
-}
-
-.sessions-list-control .session-inline-actions {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-	grid-column: 1 / -1;
-
-	.monaco-button {
-		width: auto;
-		min-width: 0;
-		max-width: 100%;
-		font-size: var(--vscode-fontSize-label1);
-		overflow: hidden;
-
-		> span:not(.codicon) {
-			min-width: 0;
-			overflow: hidden;
-			white-space: nowrap;
-			text-overflow: ellipsis;
-		}
-
-		> .codicon {
-			flex-shrink: 0;
-		}
-	}
-
-	&[hidden] {
-		display: none;
-	}
-}
-
-.phone-layout .sessions-list-control .session-inline-actions .monaco-button {
-	min-height: 44px;
-	box-sizing: border-box;
 }
 
 .sessions-list-control.compact {
@@ -1311,10 +1305,6 @@
 		.session-chat-title-input {
 			display: block;
 		}
-
-		.session-title-toolbar {
-			display: none;
-		}
 	}
 
 	.session-approval-row {
@@ -1478,7 +1468,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		color: var(--session-group-foreground, inherit);
+		color: var(--session-group-interaction-foreground, var(--session-group-foreground, inherit));
 	}
 
 	.session-section-icon {
@@ -1588,17 +1578,30 @@
 .sessions-list-control {
 	.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label,
 	.monaco-list-row.focused .session-section .session-section-label {
-		color: var(--session-group-hover-foreground, var(--vscode-strongForeground));
+		color: var(--session-group-interaction-foreground, var(--session-group-hover-foreground, var(--vscode-strongForeground)));
+	}
+
+	.monaco-list .monaco-list-row.focused .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-inactive-focus-foreground);
+	}
+
+	.monaco-list .monaco-list-row.selected .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-inactive-selection-foreground);
+	}
+
+	.monaco-list:focus .monaco-list-row.focused .session-section-label,
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-row.focused .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-focus-foreground);
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-section-label,
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-row.selected .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-selection-foreground);
 	}
 
 	.monaco-list-row:is(:hover, .hovered) .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
-	}
-
-	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored,
-	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored .session-section-label {
-		color: inherit;
 	}
 
 	&.session-section-focus-from-pointer {
@@ -1979,6 +1982,16 @@
 		top: 50%;
 		transform: translateY(-50%);
 		height: auto;
+	}
+
+	.monaco-list-row .renaming .session-title-toolbar {
+		display: none;
+	}
+
+	/* Give the space reserved for the hidden actions to the rename input. */
+	.session-item.renaming .session-main,
+	.session-chat-item.renaming .session-chat-title-row {
+		padding-right: 0;
 	}
 
 	.monaco-list-row .session-external-application-badge-title {

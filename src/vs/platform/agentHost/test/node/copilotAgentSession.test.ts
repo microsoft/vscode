@@ -9,11 +9,11 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -42,11 +42,12 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { CapturingTelemetryService as PlatformCapturingTelemetryService, TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenResult, type IAgentCanvasOpenRequest, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
+import { readCanvasIcon, toCanvasIconDataUri } from '../../common/meta/agentCanvasIconMeta.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readShellAuthentication } from '../../common/meta/agentShellAuthenticationMeta.js';
@@ -119,7 +120,7 @@ import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../nod
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileEditCoordinator, describeDiscardedFileEdits, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
-import { AgentHostTelemetryReporter, type ICanvasExtensionsReadyEvent } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, type ICanvasExtensionsReadyEvent, type ICanvasHostOpenEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { MockAgent } from './mockAgent.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
@@ -133,7 +134,7 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostExtensionPermissionApprovalsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSkillsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpSkillsServerApprovalsConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, CopilotSearchSubagentGrepNudgeSettingId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotMemoryModeSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, CopilotSearchSubagentGrepNudgeSettingId } from '../../common/copilotCliConfig.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -550,6 +551,9 @@ class MockCopilotSession {
 	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
+		managedSettings: {
+			get: async () => (await createUnmanagedCopilotSettings().resolve({})).resolved,
+		},
 		name: {
 			get: async () => {
 				await this.nameGetGate;
@@ -799,7 +803,7 @@ class MockCopilotSession {
 			},
 		},
 		plugins: {
-			list: async () => ({ plugins: [] }),
+			list: async (): ReturnType<CopilotSession['rpc']['plugins']['list']> => ({ plugins: [] }),
 			install: async (params: { source: string }) => {
 				this.pluginInstallCalls.push(params);
 				this.onPluginInstall?.();
@@ -1166,6 +1170,7 @@ class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHo
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 	sendGHTelemetryEvent(): void { }
+	sendGHTelemetryEventForContext(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.events.push({ destination: 'enhanced', eventName, properties, ...(measurements ? { measurements } : {}) });
 		this.onEvent?.();
@@ -1296,7 +1301,7 @@ function getActions(signals: readonly AgentSignal[]) {
 
 function summarizeCanvasSignals(signals: readonly AgentSignal[]) {
 	return {
-		states: signals.filter(signal => signal.kind === 'canvas').map(signal => ({ resource: signal.resource.toString(), url: signal.state.url })),
+		states: signals.filter(signal => signal.kind === 'canvas').map(signal => ({ resource: signal.resource.toString(), url: signal.state.uri })),
 		membership: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).map(action => action.canvases?.map(canvas => canvas.resource) ?? []),
 	};
 }
@@ -1366,7 +1371,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly toolTitle: string;
 	readonly readOnly?: boolean;
 	readonly permissionRecommendation?: Extract<PermissionRequest, { kind: 'mcp' }>['permissionRecommendation'];
-} | Extract<PermissionRequest, { kind: 'hook' | 'extension-permission-access' }>);
+} | Extract<PermissionRequest, { kind: 'hook' | 'extension-permission-access' | 'extension-env-access' }>);
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
 	switch (request.kind) {
@@ -1391,6 +1396,7 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 			return { readOnly: false, ...request };
 		case 'hook':
 		case 'extension-permission-access':
+		case 'extension-env-access':
 			return request;
 	}
 }
@@ -1437,12 +1443,14 @@ function progressUpdatesTriggers(telemetryService: TestExperimentTriggerTelemetr
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	copilotHome?: string;
+	appRoot?: string;
+	appBundleRoot?: string;
 	getSessionPathRoots?: () => readonly ISessionPathRoot[];
 	clientSnapshot?: IActiveClientSnapshot;
 	builtinPluginDirectories?: readonly URI[];
 	activeClientToolSet?: ActiveClientToolSet;
 	connectedClientIds?: ReadonlySet<string>;
-	environmentServiceRegistration?: 'native' | 'none';
+	omitCopilotHomeService?: boolean;
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
 	captureRuntime?: { current?: ICopilotSessionRuntime };
@@ -1481,6 +1489,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	getUserMcpServers?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers']>;
 	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
+	readCanvasIcon?: (path: string, extensionId: string) => Promise<string | undefined>;
+	extensionSessionApprovals?: Set<string>;
 	connectorRefreshTimeoutMs?: number;
 	connectorOwnershipLookupTimeoutMs?: number;
 	onConnectorRefreshRetryable?: () => void;
@@ -1631,6 +1641,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: sandboxCertificateRpc, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
+			deleteSession: async () => { assert.fail('Unexpected session deletion'); },
 		},
 		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
@@ -1946,12 +1957,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 	const environmentService = {
 		_serviceBrand: undefined,
+		appRoot: options?.appRoot ?? options?.appBundleRoot,
+		appBundleRoot: options?.appBundleRoot,
 		userHome: URI.file('/mock-home'),
 		tmpDir: URI.file('/mock-tmp'),
 		userDataPath: '/mock-userdata',
 	} as INativeEnvironmentService;
-	if (options?.environmentServiceRegistration !== 'none') {
-		services.set(INativeEnvironmentService, environmentService);
+	services.set(INativeEnvironmentService, environmentService);
+	if (!options?.omitCopilotHomeService) {
 		services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
 	}
 	services.set(IAgentHostFileEditCoordinator, options?.fileEditCoordinator ?? disposables.add(new AgentHostFileEditCoordinator()));
@@ -1997,6 +2010,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
+			readCanvasIcon: options?.readCanvasIcon,
+			extensionSessionApprovals: options?.extensionSessionApprovals,
 			connectorRefreshTimeoutMs: options?.connectorRefreshTimeoutMs,
 			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
 			onConnectorRefreshRetryable: options?.onConnectorRefreshRetryable,
@@ -3864,6 +3879,30 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	for (const githubToken of ['github-token', undefined]) {
+		test(`refreshes policy through the runtime-wide resolver ${githubToken ? 'with the GitHub token' : 'without a GitHub token'}`, async () => {
+			const managedSettings = createUnmanagedCopilotSettings();
+			const baseline = await managedSettings.resolve({});
+			const calls: object[] = [];
+			managedSettings.resolve = async request => { calls.push(request); return baseline; };
+			const { session, mockSession, onDidReportModelConfiguration, modelConfigurationReported } = await createAgentSession(disposables, {
+				managedSettings, githubToken, workingDirectory: URI.file('/workspace'),
+				trackModelConfigurationUpdates: true,
+				configureMockSession: mock => {
+					mock.rpc.managedSettings.get = async () => { assert.fail('Policy refresh must use the runtime-wide resolver'); };
+				},
+			});
+			await modelConfigurationReported;
+			mockSession.currentModel = { modelId: 'gpt-5', reasoningEffort: 'high' };
+			const reported = Event.toPromise(onDidReportModelConfiguration);
+			session.refreshModelConfiguration();
+			await reported;
+			assert.deepStrictEqual(calls, Array.from({ length: 2 }, () => ({
+				clientName: 'vscode-agent-host', ...(githubToken ? { gitHubToken: githubToken } : {}), workingDirectory: URI.file('/workspace').fsPath,
+			})));
+		});
+	}
+
 	test('model changes do not wait for report-only policy resolution and report refreshes coalesce', async () => {
 		const managedSettings = createUnmanagedCopilotSettings();
 		const baseline = await managedSettings.resolve({});
@@ -4826,6 +4865,216 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('sends canvas icons to clients as images, never as host paths, and keeps them across updates', async () => {
+		const root = mkdtempSync(join(tmpdir(), 'canvas-icon-session-'));
+		try {
+			const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+			// The runtime names an extension after its directory.
+			const directory = join(root, 'board');
+			mkdirSync(directory);
+			writeFileSync(join(directory, 'extension.mjs'), '');
+			writeFileSync(join(directory, 'icon.png'), Buffer.from(pngBase64, 'base64'));
+			const iconPath = join(directory, 'icon.png');
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.extensions.push({ id: 'user:board', name: 'Board', source: 'user', status: 'dormant' });
+					mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: iconPath }, { canvasId: 'plain', extensionId: 'user:board', displayName: 'Plain', description: 'Has no icon.' });
+				},
+			});
+			const opened = { instanceId: 'board', extensionId: 'user:board', canvasId: 'board', icon: iconPath, url: 'https://example.test/board' };
+			mockSession.fire('session.canvas.opened', opened);
+			// An update of only the input, as a reopen with new input is, while the icon is read.
+			mockSession.fire('session.canvas.opened', { ...opened, input: { page: 2 } });
+			const statesBeforeRead = signals.filter(signal => signal.kind === 'canvas').map(signal => readCanvasIcon(signal.state));
+			await retry(async () => assert.ok(signals.some(signal => signal.kind === 'canvas' && readCanvasIcon(signal.state))), 10, 100);
+			mockSession.fire('session.canvas.opened', { ...opened, title: 'Renamed' });
+			const icon = `data:image/png;base64,${pngBase64}`;
+			const states = signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state);
+			assert.deepStrictEqual({
+				definitions: (await session.listCanvases())?.map(canvas => [canvas.canvasId, canvas.icon]),
+				statesBeforeRead,
+				icons: states.map(state => readCanvasIcon(state)),
+				pathSent: JSON.stringify(states).includes(directory),
+			}, {
+				definitions: [['board', icon], ['plain', undefined]],
+				statesBeforeRead: [undefined],
+				icons: [undefined, icon, icon],
+				pathSent: false,
+			});
+			session.dispose();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	test('reads the icons of open canvases again when their extensions reload', async () => {
+		const root = mkdtempSync(join(tmpdir(), 'canvas-icon-reload-'));
+		try {
+			const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+			const directory = join(root, 'board');
+			mkdirSync(directory);
+			writeFileSync(join(directory, 'extension.mjs'), '');
+			const iconPath = join(directory, 'icon.png');
+			writeFileSync(iconPath, png);
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const icons = () => signals.filter(signal => signal.kind === 'canvas').map(signal => readCanvasIcon(signal.state)?.length);
+			mockSession.fire('session.canvas.opened', { instanceId: 'board', extensionId: 'user:board', canvasId: 'board', icon: iconPath, url: 'https://example.test/board' });
+			await retry(async () => assert.ok(icons().at(-1)), 10, 100);
+			// The reloaded extension's icon has changed, and then is removed.
+			const changed = Buffer.concat([png, Buffer.alloc(30)]);
+			writeFileSync(iconPath, changed);
+			mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			await retry(async () => assert.strictEqual(icons().length, 3), 10, 100);
+			rmSync(iconPath);
+			mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			await retry(async () => assert.strictEqual(icons().length, 4), 10, 100);
+			assert.deepStrictEqual(icons(), [undefined, toCanvasIconDataUri(png).length, toCanvasIconDataUri(changed).length, undefined]);
+			session.dispose();
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+
+	test('withholds a canvas listing when the extensions reload while its icons are read', async () => {
+		const reading = new DeferredPromise<void>();
+		const read = new DeferredPromise<string | undefined>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			readCanvasIcon: () => {
+				reading.complete();
+				return read.p;
+			},
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'dormant' });
+				mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: '/extensions/board/icon.png' });
+			},
+		});
+		const listing = session.listCanvases();
+		await reading.p;
+		mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+		read.complete(undefined);
+		assert.deepStrictEqual({ stale: await listing, fresh: (await session.listCanvases())?.map(canvas => canvas.canvasId) }, { stale: undefined, fresh: ['board'] });
+		session.dispose();
+	});
+
+	test('settles the canvas registry without waiting for its icons', async () => {
+		const reads: DeferredPromise<string | undefined>[] = [];
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
+			readCanvasIcon: () => {
+				const read = new DeferredPromise<string | undefined>();
+				reads.push(read);
+				return read.p;
+			},
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'dormant' });
+				mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: '/extensions/board/icon.png' });
+			},
+		});
+		const changes = () => getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length;
+		// A listing while the extension starts leaves the registry unsettled.
+		mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'starting' };
+		const whileStarting = await session.listCanvases();
+		mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'dormant' };
+		const before = changes();
+		const listing = session.listCanvases();
+		await retry(async () => assert.strictEqual(reads.length, 1), 10, 100);
+		const settledWhileReading = changes() > before;
+		reads[0].complete(undefined);
+		assert.deepStrictEqual({ whileStarting, settledWhileReading, listed: (await listing)?.map(canvas => canvas.canvasId) }, { whileStarting: undefined, settledWhileReading: true, listed: ['board'] });
+		session.dispose();
+	});
+
+	test('shows the icon of the latest read of a canvas, whichever read finishes first', async () => {
+		const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+		const [before, after] = [toCanvasIconDataUri(png), toCanvasIconDataUri(Buffer.concat([png, Buffer.alloc(3)]))];
+		const results = [];
+		for (const order of ['olderFirst', 'newerFirst'] as const) {
+			const reads: DeferredPromise<string | undefined>[] = [];
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				readCanvasIcon: () => {
+					const read = new DeferredPromise<string | undefined>();
+					reads.push(read);
+					return read.p;
+				},
+			});
+			mockSession.fire('session.canvas.opened', { instanceId: 'board', extensionId: 'user:board', canvasId: 'board', icon: '/extensions/board/icon.png', url: 'https://example.test/board' });
+			// The extension reloads with a new icon while its first icon is still read.
+			mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			for (const [read, icon] of order === 'olderFirst' ? [[reads[0], before], [reads[1], after]] as const : [[reads[1], after], [reads[0], before]] as const) {
+				read.complete(icon);
+				await timeout(0);
+			}
+			results.push({ order, reads: reads.length, icons: signals.filter(signal => signal.kind === 'canvas').map(signal => readCanvasIcon(signal.state)) });
+			session.dispose();
+		}
+		assert.deepStrictEqual(results, [
+			{ order: 'olderFirst', reads: 2, icons: [undefined, after] },
+			{ order: 'newerFirst', reads: 2, icons: [undefined, after] },
+		]);
+	});
+
+	test('shows the icon of a canvas that becomes unavailable while its icon is read', async () => {
+		const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+		const read = new DeferredPromise<string | undefined>();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { readCanvasIcon: () => read.p });
+		const canvas = { instanceId: 'board', extensionId: 'user:board', canvasId: 'board' };
+		mockSession.fire('session.canvas.opened', { ...canvas, icon: '/extensions/board/icon.png', url: 'https://example.test/board' });
+		// The extension stops before its icon is read; the canvas still declares that icon.
+		mockSession.fire('session.canvas.unavailable', canvas);
+		read.complete(icon);
+		await timeout(0);
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => ({ uri: signal.state.uri, icon: readCanvasIcon(signal.state) })), [
+			{ uri: 'https://example.test/board', icon: undefined },
+			{ uri: undefined, icon: undefined },
+			{ uri: undefined, icon },
+		]);
+		session.dispose();
+	});
+
+	test('reports why the runtime declined a canvas open, and throws its other failures', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const results: string[] = [];
+		for (const message of [
+			'Canvas instance was dismissed during open.',
+			'Canvas instance was dismissed during restoration.',
+			'session extension configuration changed during reconciliation',
+			'Extension contribution activation failed: project:demo did not register its advertised contribution canvas:demo with matching metadata; declaration withdrawn',
+			'extension did not become ready: project:demo',
+			'No canvas "demo" is registered.',
+			'Canvas instance "demo" cannot be reached: its owning provider "project:demo" is not connected. Re-issue open_canvas to rehydrate.',
+			'Cannot activate extension while process launching is disabled: project:demo',
+			'Canvas "project:demo/demo" is not registered.',
+			'Extension project:demo is not active',
+			'The canvas could not reach its database.',
+			// An extension's own errors that share words with the runtime's.
+			'Canvas operation failed: Database driver is not registered.',
+			'Canvas operation failed: Extension settings are not active yet',
+		]) {
+			mockSession.rpc.canvas.open = async () => {
+				throw new Error(`Request session.canvas.open failed with message: ${message}`);
+			};
+			results.push(await session.openCanvas({ canvasId: 'demo', extensionId: 'project:demo', instanceId: 'demo' }).then(
+				result => result.kind === 'failed' ? result.failure : result.kind,
+				(error: Error) => `threw: ${error.message.replace(/^.*failed with message: /, '')}`,
+			));
+		}
+		assert.deepStrictEqual(results, [
+			'dismissed',
+			'dismissed',
+			'reloaded',
+			'mismatchedDeclaration',
+			'startFailed',
+			'unavailable',
+			'unavailable',
+			'unavailable',
+			'unavailable',
+			'unavailable',
+			'threw: The canvas could not reach its database.',
+			'threw: Canvas operation failed: Database driver is not registered.',
+			'threw: Canvas operation failed: Extension settings are not active yet',
+		]);
+		session.dispose();
+	});
+
 	suite('canvas definition registry stability', () => {
 		test('withholds transient registry listings until extension reload settles', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
@@ -5043,7 +5292,7 @@ suite('CopilotAgentSession', () => {
 			openEvents: 0,
 			states: [{
 				instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview',
-				canvasId: 'preview', title: 'Preview', status: 'ready', url: 'https://example.test/live',
+				canvasId: 'preview', title: 'Preview', status: 'ready', uri: 'https://example.test/live',
 			}, {
 				instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview',
 				canvasId: 'preview', title: 'Preview', status: 'ready',
@@ -5066,6 +5315,7 @@ suite('CopilotAgentSession', () => {
 		const preview = { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' };
 		const restored = { ...preview, url: 'https://example.test/restored' };
 		const live = { ...preview, title: 'Preview', url: 'https://example.test/live' };
+		const liveState = { ...preview, title: 'Preview', uri: 'https://example.test/live' };
 		const other = { ...restored, instanceId: 'other' };
 
 		for (const eventOrder of ['before response', 'after response', 'no event'] as const) {
@@ -5111,7 +5361,7 @@ suite('CopilotAgentSession', () => {
 				}, {
 					whilePending: { states: [], membership: [] },
 					openCalls: [preview],
-					states: [{ chat: chat.toString(), state: live }],
+					states: [{ chat: chat.toString(), state: liveState }],
 					membership: [[resource]],
 				});
 			});
@@ -5139,7 +5389,7 @@ suite('CopilotAgentSession', () => {
 				states: signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state),
 			}, {
 				afterFailure: { states: [], membership: [] },
-				states: [live],
+				states: [liveState],
 			});
 		});
 
@@ -5177,7 +5427,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.canvas.opened', newer);
 			response.complete(live);
 			await opening;
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [newer]);
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [{ ...liveState, uri: newer.url }]);
 		});
 
 		for (const openedEvent of [false, true]) {
@@ -5200,7 +5450,7 @@ suite('CopilotAgentSession', () => {
 					states: states.map(signal => signal.state),
 					membership: summarizeCanvasSignals(signals).membership,
 				}, {
-					states: [live],
+					states: [liveState],
 					membership: [[states[0]?.resource.toString()]],
 				});
 			});
@@ -5227,7 +5477,7 @@ suite('CopilotAgentSession', () => {
 					states: signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state),
 				}, {
 					afterResponse: { states: [], membership: [] },
-					states: [reopened],
+					states: [{ ...liveState, uri: reopened.url }],
 				});
 			});
 		}
@@ -5245,7 +5495,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.canvas.opened', newer);
 			response.complete(live);
 			await opening;
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [newer]);
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [{ ...liveState, title: newer.title, uri: newer.url }]);
 		});
 
 		for (const firstResponse of [0, 1]) {
@@ -5271,7 +5521,7 @@ suite('CopilotAgentSession', () => {
 					states: states.map(signal => signal.state),
 					membership: summarizeCanvasSignals(signals).membership,
 				}, {
-					states: [newer],
+					states: [{ ...liveState, title: newer.title, uri: newer.url }],
 					membership: [[states[0]?.resource.toString()], []],
 				});
 			});
@@ -5858,6 +6108,38 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
+		test('does not reopen a handed-over canvas closed while its extension status is read', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const statusRead = new DeferredPromise<void>();
+			const reopens: unknown[] = [];
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					// Holds the status read that follows the replacement runtime's canvas listing, which the reopen starts with.
+					mock.onCanvasList = () => { mock.extensionListGate = statusRead.p; };
+					mock.onExtensionList = () => { mock.extensionListGate = undefined; };
+					mock.onCanvasOpen = async params => {
+						reopens.push(params);
+						return { ...preview, url: 'https://example.test/stale' };
+					};
+				},
+			});
+			const resource = handoff.projections[0].resource;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+
+			await replacement.session.closeCanvas({ resource });
+			statusRead.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({ reopens, ...summarizeCanvasSignals(replacement.signals) }, {
+				reopens: [],
+				states: [{ resource: resource.toString(), url: undefined }],
+				membership: [[resource.toString()], []],
+			});
+			replacement.session.dispose();
+		});
+
 		test('does not restore a handed-over canvas closed while it is being reopened', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
 			const replacement = await createAgentSession(disposables, {
@@ -5880,6 +6162,126 @@ suite('CopilotAgentSession', () => {
 				membership: [[]],
 			});
 			replacement.session.dispose();
+		});
+
+		test('reports whether restoring a canvas asked for consent in a turn, and that it was declined', async () => {
+			const results = [];
+			for (const optionId of ['allow-once', 'not-now']) {
+				const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+				const telemetryService = new CapturingTelemetryService();
+				const captureRuntime: { current?: ICopilotSessionRuntime } = {};
+				const replacement = await createAgentSession(disposables, {
+					resume: true,
+					canvasHandoff: handoff,
+					telemetryService,
+					captureRuntime,
+					configureMockSession: mock => {
+						// The restored extension starts on the reopen and asks to read a sensitive variable.
+						mock.onCanvasOpen = async () => {
+							const answer = await captureRuntime.current!.handlePermissionRequest({ kind: 'extension-env-access', extensionName: preview.extensionId, environmentVariables: ['BLACKBIRD_AUTH_METIS_API_KEY'] }, { sessionId: 'test-session-1' });
+							if ((answer.kind === 'attributed' ? answer.result.kind : answer.kind) !== 'approve-once') {
+								throw new Error(`Request session.canvas.open failed with message: extension did not become ready: ${preview.extensionId}`);
+							}
+							return { ...preview, url: 'https://example.test/restored' };
+						};
+					},
+				});
+				assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+				await replacement.session.send('Hello', undefined, 'turn-restore');
+				await retry(async () => assert.ok(getActions(replacement.signals).some(action => action.type === ActionType.ChatToolCallReady)), 10, 100);
+				const ready = getActions(replacement.signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady)!;
+				replacement.session.respondToPermissionRequest(ready.toolCallId, optionId === 'allow-once', { selectedOptionId: optionId, decisionSource: 'human_response' });
+				await retry(async () => assert.ok(telemetryService.events.some(event => event.eventName === 'agentHost.canvasHostOpen')), 10, 100);
+				results.push(...telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').map(event => {
+					const { trigger, outcome, askedForConsent } = event.data as ICanvasHostOpenEvent;
+					return { trigger, outcome, askedForConsent };
+				}));
+				replacement.session.dispose();
+			}
+			assert.deepStrictEqual(results, [
+				{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
+				{ trigger: 'restore', outcome: 'consentDenied', askedForConsent: true },
+			]);
+		});
+
+		test('restores a handed-over canvas whose icon is shown again at any step of its restoration, unless it is closed', async () => {
+			const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+			const results = [];
+			for (const step of ['declarations', 'status', 'open'] as const) {
+				for (const closed of [false, true]) {
+					const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, icon: '/extensions/preview/icon.png', url: 'https://example.test/previous' });
+					const held = new DeferredPromise<void>();
+					const gate = new DeferredPromise<void>();
+					const reopens: string[] = [];
+					let mock: MockCopilotSession | undefined;
+					// Initialization lists the declared canvases, so holding that step holds the session's creation.
+					const creating = createAgentSession(disposables, {
+						resume: true,
+						canvasHandoff: handoff,
+						readCanvasIcon: async () => icon,
+						configureMockSession: configured => {
+							mock = configured;
+							// Holds the restoration at one step: listing the declared canvases after the open ones, reading the extension status, or reopening.
+							if (step === 'declarations') {
+								configured.onCanvasListOpen = () => {
+									configured.canvasListGate = gate.p;
+									void held.complete();
+								};
+								configured.onCanvasList = () => { configured.canvasListGate = undefined; };
+							} else if (step === 'status') {
+								configured.onCanvasList = () => { configured.extensionListGate = gate.p; };
+								configured.onExtensionList = () => {
+									if (configured.extensionListGate) {
+										void held.complete();
+									}
+									configured.extensionListGate = undefined;
+								};
+							}
+							configured.onCanvasOpen = async params => {
+								reopens.push(params.instanceId);
+								if (step === 'open') {
+									void held.complete();
+									await gate.p;
+								}
+								return { ...preview, icon: '/extensions/preview/icon.png', url: 'https://example.test/restored' };
+							};
+						},
+					});
+					await held.p;
+					await timeout(0);
+					// An extension reload shows the canvas's icon again, which changes nothing else about it; the runtime may then close the canvas.
+					mock!.fire('session.canvas.registry_changed', { canvases: [] });
+					await timeout(0);
+					if (closed) {
+						mock!.fire('session.canvas.closed', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+					}
+					gate.complete();
+					const replacement = await creating;
+					assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+					await timeout(0);
+					await timeout(0);
+					const states = replacement.signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state);
+					const restoredAt = states.findIndex(state => state.uri === 'https://example.test/restored');
+					const iconAt = states.findIndex(state => readCanvasIcon(state) === icon);
+					results.push({
+						step,
+						closed,
+						iconShownBeforeRestore: iconAt !== -1 && (restoredAt === -1 || iconAt < restoredAt),
+						reopens: reopens.length,
+						listed: summarizeCanvasSignals(replacement.signals).membership.at(-1)?.length,
+						restored: states.at(-1)?.uri === 'https://example.test/restored' && readCanvasIcon(states.at(-1)) === icon,
+					});
+					replacement.session.dispose();
+				}
+			}
+			assert.deepStrictEqual(results, [
+				{ step: 'declarations', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'declarations', closed: true, iconShownBeforeRestore: true, reopens: 0, listed: 0, restored: false },
+				{ step: 'status', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'status', closed: true, iconShownBeforeRestore: true, reopens: 0, listed: 0, restored: false },
+				{ step: 'open', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'open', closed: true, iconShownBeforeRestore: true, reopens: 1, listed: 0, restored: false },
+			]);
 		});
 
 		test('closes a handed-over canvas through the replacement runtime and publishes the removal on adoption', async () => {
@@ -6063,7 +6465,10 @@ suite('CopilotAgentSession', () => {
 			newLifetime: states[0].resource.toString() !== states[1].resource.toString(),
 			membershipCounts: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).map(action => action.canvases?.length ?? 0),
 		}, {
-			states: [canvas, canvas],
+			states: [
+				{ instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', title: 'Preview', uri: 'https://example.test/live' },
+				{ instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', title: 'Preview', uri: 'https://example.test/live' },
+			],
 			newLifetime: true,
 			membershipCounts: [1, 0, 1],
 		});
@@ -6254,8 +6659,62 @@ suite('CopilotAgentSession', () => {
 		const telemetryService = new CapturingTelemetryService();
 		await createAgentSession(disposables, { telemetryService });
 		assert.deepStrictEqual(canvasReadinessEvents(telemetryService), [{
-			schemaVersion: 1, launchKind: 'create', outcome: 'alreadySettled', extensionCount: 0, failedExtensionCount: 0, hasDuration: true,
+			schemaVersion: 1, launchKind: 'create', outcome: 'alreadySettled', extensionCount: 0, failedExtensionCount: 0, dormantExtensionCount: 0, hasDuration: true,
 		}]);
+	});
+
+	test('counts dormant extensions in canvas readiness, and tells host canvas opens that start an extension apart from warm ones', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			telemetryService,
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:lazy', name: 'Lazy', source: 'user', status: 'dormant' });
+			},
+		});
+		let failure: string | undefined = undefined;
+		mockSession.rpc.canvas.open = async params => {
+			if (failure) {
+				throw new Error(`Request session.canvas.open failed with message: ${failure}`);
+			}
+			mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'running' };
+			return { instanceId: params.instanceId, extensionId: 'user:lazy', canvasId: params.canvasId, url: 'https://example.test/lazy' };
+		};
+		const request = { canvasId: 'lazy', extensionId: 'user:lazy', instanceId: 'lazy' };
+		await session.openCanvas(request);
+		await session.openCanvas(request);
+		failure = 'extension did not become ready: user:lazy';
+		await session.openCanvas(request);
+		await session.openCanvas({ ...request, extensionId: 'user:removed' });
+
+		const user = { schemaVersion: 1, trigger: 'user', askedForConsent: false, hasDuration: true };
+		assert.deepStrictEqual({
+			readinessDormantCounts: canvasReadinessEvents(telemetryService).map(event => event.dormantExtensionCount),
+			opens: telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').map(event => {
+				const { durationMs, ...data } = event.data as ICanvasHostOpenEvent;
+				return { ...data, hasDuration: Number.isFinite(durationMs) && durationMs >= 0 };
+			}),
+		}, {
+			readinessDormantCounts: [1],
+			opens: [
+				{ ...user, extensionStatus: 'dormant', extensionSource: 'user', outcome: 'opened' },
+				{ ...user, extensionStatus: 'running', extensionSource: 'user', outcome: 'opened' },
+				{ ...user, extensionStatus: 'running', extensionSource: 'user', outcome: 'startFailed' },
+				{ ...user, extensionStatus: 'unknown', extensionSource: 'unknown', outcome: 'startFailed' },
+			],
+		});
+		session.dispose();
+	});
+
+	test('reports a canvas open its client stopped waiting for as timed out, once', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { session, mockSession } = await createAgentSession(disposables, { telemetryService, controlPlaneRpcTimeoutMs: 10 });
+		const opened = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+		mockSession.rpc.canvas.open = () => opened.p;
+		await assert.rejects(session.openCanvas({ canvasId: 'lazy', extensionId: 'user:lazy', instanceId: 'lazy' }), /timed out/);
+		opened.complete({ instanceId: 'lazy', extensionId: 'user:lazy', canvasId: 'lazy' });
+		await timeout(0);
+		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.canvasHostOpen').map(event => (event.data as ICanvasHostOpenEvent).outcome), ['timeout']);
+		session.dispose();
 	});
 
 	test('reports canvas readiness timeouts without claiming every extension failed', () => runWithFakedTimers({}, async () => {
@@ -6267,8 +6726,32 @@ suite('CopilotAgentSession', () => {
 			},
 		});
 		assert.deepStrictEqual(canvasReadinessEvents(telemetryService), [{
-			schemaVersion: 1, launchKind: 'create', outcome: 'timeout', extensionCount: 1, failedExtensionCount: 0, hasDuration: true,
+			schemaVersion: 1, launchKind: 'create', outcome: 'timeout', extensionCount: 1, failedExtensionCount: 0, dormantExtensionCount: 0, hasDuration: true,
 		}]);
+	}));
+
+	test('does not wait for canvas readiness while an extension waits for consent to load', () => runWithFakedTimers({}, async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const captureRuntime: { current?: ICopilotSessionRuntime } = {};
+		let consent: Promise<unknown> | undefined;
+		const { session } = await createAgentSession(disposables, {
+			telemetryService,
+			captureRuntime,
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:demo', name: 'demo', source: 'user', status: 'starting' });
+				mock.onExtensionList = () => {
+					mock.onExtensionList = undefined;
+					consent = captureRuntime.current!.handlePermissionRequest({ kind: 'extension-env-access', extensionName: 'user:demo', environmentVariables: ['BLACKBIRD_AUTH_METIS_API_KEY'] }, { sessionId: 'test-session-1' });
+				};
+			},
+		});
+		const pending = session.hasPendingExtensionConsent('user:demo');
+		session.dispose();
+		assert.deepStrictEqual({ events: canvasReadinessEvents(telemetryService), pending, consent: await consent }, {
+			events: [{ schemaVersion: 1, launchKind: 'create', outcome: 'consentPending', extensionCount: 1, failedExtensionCount: 0, dormantExtensionCount: 0, hasDuration: true }],
+			pending: true,
+			consent: { kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+		});
 	}));
 
 	test('reports canvas readiness errors with only observed counts and preserves the rejection', async () => {
@@ -6290,7 +6773,7 @@ suite('CopilotAgentSession', () => {
 		}
 		assert.deepStrictEqual(results, [
 			{ schemaVersion: 1, launchKind: 'create', outcome: 'error', hasDuration: true },
-			{ schemaVersion: 1, launchKind: 'create', outcome: 'error', extensionCount: 0, failedExtensionCount: 0, hasDuration: true },
+			{ schemaVersion: 1, launchKind: 'create', outcome: 'error', extensionCount: 0, failedExtensionCount: 0, dormantExtensionCount: 0, hasDuration: true },
 		]);
 	});
 
@@ -6311,7 +6794,7 @@ suite('CopilotAgentSession', () => {
 		const survivingResources = new Set(finalCanvases?.map(canvas => canvas.resource));
 		assert.deepStrictEqual({
 			instanceIds: states.filter(signal => survivingResources.has(signal.resource.toString())).map(signal => signal.state.instanceId),
-			newestSource: states.at(-1)?.state.url,
+			newestSource: states.at(-1)?.state.uri,
 		}, {
 			instanceIds: ['canvas-1', 'canvas-2', 'canvas-3', 'canvas-4', 'canvas-5', 'canvas-6', 'canvas-7', 'canvas-8'],
 			newestSource: 'https://example.test/canvas-8',
@@ -6351,7 +6834,7 @@ suite('CopilotAgentSession', () => {
 			opens: telemetryService.events.filter(event => event.eventName === 'agentHost.canvasOpened'),
 		}, {
 			order: ['event', 'list'],
-			readiness: [{ schemaVersion: 1, launchKind: 'create', outcome: 'alreadySettled', extensionCount: 2, failedExtensionCount: 1, hasDuration: true }],
+			readiness: [{ schemaVersion: 1, launchKind: 'create', outcome: 'alreadySettled', extensionCount: 2, failedExtensionCount: 1, dormantExtensionCount: 0, hasDuration: true }],
 			opens: [{ eventName: 'agentHost.canvasOpened', data: { schemaVersion: 1, provider: 'copilotcli', agentSessionId: 'test-session-1', extensionSource: 'plugin' } }],
 		});
 	});
@@ -6392,7 +6875,7 @@ suite('CopilotAgentSession', () => {
 		const { session } = await creation;
 		session.dispose();
 		assert.deepStrictEqual(canvasReadinessEvents(telemetryService), [{
-			schemaVersion: 1, launchKind: 'resume', outcome: 'settled', extensionCount: 2, failedExtensionCount: 1, hasDuration: true,
+			schemaVersion: 1, launchKind: 'resume', outcome: 'settled', extensionCount: 2, failedExtensionCount: 1, dormantExtensionCount: 0, hasDuration: true,
 		}]);
 	});
 
@@ -10017,6 +10500,33 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('signals a runtime contribution reload for top-level skill, custom agent and MCP server reloads without the MCP skills flag', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let reloads = 0;
+		let pluginChanges = 0;
+		disposables.add(session.onDidReloadRuntimeContributions(() => reloads++));
+		disposables.add(session.onDidChangeRuntimePlugins(() => pluginChanges++));
+
+		mockSession.fire('session.skills_loaded', { skills: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.custom_agents_updated', { agents: [], errors: [], warnings: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.mcp_servers_loaded', { servers: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.skills_loaded', { skills: [] });
+		mockSession.fire('session.custom_agents_updated', { agents: [], errors: [], warnings: [] });
+		mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+
+		assert.deepStrictEqual({ reloads, pluginChanges }, { reloads: 3, pluginChanges: 0 });
+	});
+
+	test('signals plugin changes when some managed plugins could not be prepared, which the runtime reports without a completion', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let pluginChanges = 0;
+		disposables.add(session.onDidChangeRuntimePlugins(() => pluginChanges++));
+		mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Some plugins required by your organization admin could not be prepared.' }, { agentId: 'agent-1' });
+		const afterSubagentEvent = pluginChanges;
+		mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Some plugins required by your organization admin could not be prepared.' });
+		assert.deepStrictEqual({ afterSubagentEvent, pluginChanges }, { afterSubagentEvent: 0, pluginChanges: 1 });
+	});
+
 	test('`/review` invokes runtime command when listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -13264,6 +13774,25 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('names a custom tool\'s confirmation by the title the tool declares, and keeps its exact name in the question', async () => {
+			const { session, mockSession, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-custom-title');
+			mockSession.fire('assistant.message', {
+				messageId: 'message-custom-title',
+				content: '',
+				toolRequests: [{ toolCallId: 'tc-custom-title', name: 'lookup_inventory', toolTitle: 'Look Up Inventory', arguments: { item: 'gear' } }],
+			});
+			const pending = runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: 'tc-custom-title', toolName: 'lookup_inventory', args: { item: 'gear' } });
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === 'tc-custom-title');
+			session.respondToPermissionRequest('tc-custom-title', true);
+			await pending;
+
+			assert.deepStrictEqual(signal.kind === 'pending_confirmation' ? { displayName: signal.state.displayName, invocationMessage: signal.state.invocationMessage } : undefined, {
+				displayName: 'Look Up Inventory',
+				invocationMessage: { markdown: 'Allow the model to call `lookup_inventory`?' },
+			});
+		});
+
 		test('an Assisted judge that requires approval outranks the runtime approve recommendation', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -13527,7 +14056,7 @@ suite('CopilotAgentSession', () => {
 		test('logs and rethrows permission failures', async () => {
 			const logService = new CapturingLogService();
 			const { runtime } = await createAgentSession(disposables, {
-				environmentServiceRegistration: 'none',
+				omitCopilotHomeService: true,
 				logService,
 			});
 
@@ -14906,7 +15435,7 @@ suite('CopilotAgentSession', () => {
 				grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
 				rootLookups: getSessionPathRoots.callCount,
 			}, {
-				message: 'Allow read access to `files/notes.txt` in this session\'s storage.',
+				message: 'Allow reading `files/notes.txt` from this session.',
 				grant,
 				rootLookups: 0,
 			});
@@ -14933,9 +15462,9 @@ suite('CopilotAgentSession', () => {
 				copilotHome: home.fsPath, sessionUri: source, owner, getSessionPathRoots,
 			});
 			const cases = [
-				{ path: currentRoot.fsPath, owner: source, message: 'Allow read access to this session\'s storage.', rootLookups: 0 },
-				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow read access to `notes.txt` in this session\'s storage.', rootLookups: 0 },
-				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow read access to `Session "Other" / notes.txt` and retry inside the sandbox.', rootLookups: 1 },
+				{ path: currentRoot.fsPath, owner: source, message: 'Allow reading files from this session.', rootLookups: 0 },
+				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow reading `notes.txt` from this session.', rootLookups: 0 },
+				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow reading `notes.txt` from session "Other" and retry inside the sandbox.', rootLookups: 1 },
 				{ path: conflictingRoot.fsPath, owner: destination, message: `Allow read access to \`${conflictingRoot.fsPath}\` and retry inside the sandbox.`, rootLookups: 2 },
 			];
 			const snapshots = [];
@@ -14961,25 +15490,22 @@ suite('CopilotAgentSession', () => {
 			})));
 		});
 
-		test('sandbox session path labels follow peer ownership and requester moves without changing grants', async () => {
+		test('sandbox session path labels preserve peer identity across requester moves without changing grants', async () => {
 			const source = URI.parse('copilot:/source');
 			const destination = URI.parse('copilot:/destination');
 			const owner = disposables.add(new TestChatOwnerRef(source));
 			const home = URI.file('/custom-copilot-home');
 			const peerRoot = URI.joinPath(home, 'session-state', 'peer-sdk');
-			let peerOwner = source;
-			let peerTitle = 'Source';
+			const peer = URI.parse(buildChatUri(source, 'peer'));
+			let peerTitle = 'Peer';
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				copilotHome: home.fsPath, sessionUri: source, owner,
-				getSessionPathRoots: () => [{ root: peerRoot, session: peerOwner, title: peerTitle }],
+				getSessionPathRoots: () => [{ root: peerRoot, session: peer, title: peerTitle }],
 			});
 			const snapshots = [];
-			for (const stage of ['peer', 'target-moved', 'renamed', 'requester-moved'] as const) {
-				if (stage === 'target-moved') {
-					peerOwner = destination;
-					peerTitle = 'Destination';
-				} else if (stage === 'renamed') {
-					peerTitle = 'Renamed destination';
+			for (const stage of ['peer', 'renamed', 'requester-moved'] as const) {
+				if (stage === 'renamed') {
+					peerTitle = 'Renamed peer';
 				} else if (stage === 'requester-moved') {
 					owner.set(destination);
 				}
@@ -14997,8 +15523,8 @@ suite('CopilotAgentSession', () => {
 				session.respondToPermissionRequest(stage, false);
 				await pending;
 			}
-			assert.deepStrictEqual(snapshots, ['This session', 'Session "Destination"', 'Session "Renamed destination"', 'This session'].map(label => ({
-				message: label === 'This session' ? 'Allow read access to `notes.txt` in this session\'s storage.' : `Allow read access to \`${label} / notes.txt\` and retry inside the sandbox.`,
+			assert.deepStrictEqual(snapshots, ['Peer', 'Renamed peer', 'Renamed peer'].map(title => ({
+				message: `Allow reading \`notes.txt\` from session "${title}" and retry inside the sandbox.`,
 				grant: { path: URI.joinPath(peerRoot, 'notes.txt').fsPath, access: 'read' },
 			})));
 		});
@@ -17037,13 +17563,29 @@ suite('CopilotAgentSession', () => {
 
 		for (const platform of ['linux', 'darwin', 'win32'] as const) {
 			for (const resume of [false, true]) {
-				test(`sandbox launch and first turn: grants read-only access to applied plugin resources on ${platform} (resume=${resume})`, async () => {
+				test(`sandbox launch and first turn: grants application and plugin resources without portable storage on ${platform} (resume=${resume})`, async () => {
+					const appBundleRoot = platform === 'darwin' ? '/Applications/Code.app/Contents' : mkdtempSync(join(tmpdir(), 'copilot-portable-app-'));
+					let appRoot = platform === 'darwin' ? join(appBundleRoot, 'Resources', 'app') : appBundleRoot;
+					let applicationReadPaths = [URI.file(appBundleRoot).fsPath];
+					if (platform !== 'darwin') {
+						disposables.add(toDisposable(() => rmSync(appBundleRoot, { recursive: true, force: true })));
+						const runtimeDirectory = platform === 'win32' ? join(appBundleRoot, 'commit-hash') : appBundleRoot;
+						appRoot = join(runtimeDirectory, 'resources', 'app');
+						const executable = join(appBundleRoot, platform === 'win32' ? 'Code.exe' : 'code');
+						mkdirSync(appRoot, { recursive: true });
+						mkdirSync(join(appBundleRoot, 'data', 'user-data'), { recursive: true });
+						writeFileSync(join(appBundleRoot, 'data', 'user-data', 'state.vscdb'), 'private fixture data');
+						writeFileSync(executable, '');
+						applicationReadPaths = [appRoot, executable].map(path => URI.file(path).fsPath);
+					}
 					const pluginDir = URI.file('/extensions/fixture extension/plugin');
 					const resourceDir = URI.file('/plugins/projected');
 					const snapshot = createPluginSnapshot(pluginDir, resourceDir, URI.from({ scheme: Schemas.vscodeRemote, authority: 'other-host', path: '/plugins/remote' }));
 					const { session, runtime, mockSession } = await createAgentSession(disposables, {
 						platform,
 						resume,
+						appRoot,
+						appBundleRoot,
 						clientSnapshot: {
 							...snapshot,
 							plugins: snapshot.plugins.map((plugin, index) => index === 1 ? { ...plugin, pluginDir: undefined, resourceDir } : plugin),
@@ -17058,7 +17600,7 @@ suite('CopilotAgentSession', () => {
 						launchFilesystem: launchConfig?.userPolicy?.filesystem,
 						firstTurnConfig: mockSession.sandboxConfigUpdates.at(-1),
 					}, {
-						launchFilesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR, pluginDir.fsPath, resourceDir.fsPath].map(native) },
+						launchFilesystem: { readonlyPaths: [...applicationReadPaths, TEST_SESSION_ATTACHMENTS_DIR, pluginDir.fsPath, resourceDir.fsPath].map(native) },
 						firstTurnConfig: launchConfig,
 					});
 				});
@@ -17070,6 +17612,7 @@ suite('CopilotAgentSession', () => {
 				const readonlyPlugin = URI.file('/plugins/readonly');
 				const { session, mockSession } = await createAgentSession(disposables, {
 					platform,
+					appBundleRoot: deniedPlugin.fsPath,
 					clientSnapshot: createPluginSnapshot(deniedPlugin, writablePlugin, readonlyPlugin, readonlyPlugin),
 					rootValues: {
 						[AgentHostSandboxConfigKey.Sandbox]: {
@@ -17093,11 +17636,13 @@ suite('CopilotAgentSession', () => {
 			});
 
 			test(`per-request sandbox: skips extra read grants under managed readonly paths on ${platform}`, async () => {
+				const appBundleRoot = URI.file('/application').fsPath;
 				const sandboxPolicy: { enabled: boolean; readonlyPaths?: string[] } = { enabled: true };
 				const pluginDir = URI.file('/plugins/active');
 				const { session, mockSession } = await createAgentSession(disposables, {
 					platform,
 					sandboxPolicy,
+					appBundleRoot,
 					clientSnapshot: createPluginSnapshot(pluginDir),
 					rootValues: {
 						[AgentHostSandboxConfigKey.Sandbox]: {
@@ -17116,10 +17661,10 @@ suite('CopilotAgentSession', () => {
 				const attachmentsPath = platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR;
 				const pluginPath = platform === 'win32' ? pluginDir.fsPath.replace(/\//g, '\\') : pluginDir.fsPath;
 				assert.deepStrictEqual(paths, [
-					['local-reference', attachmentsPath, pluginPath],
+					['local-reference', appBundleRoot.replace(/\//g, platform === 'win32' ? '\\' : '/'), attachmentsPath, pluginPath],
 					['managed-reference'],
 					undefined,
-					['local-reference', attachmentsPath, pluginPath],
+					['local-reference', appBundleRoot.replace(/\//g, platform === 'win32' ? '\\' : '/'), attachmentsPath, pluginPath],
 				]);
 			});
 
@@ -20477,7 +21022,7 @@ Use the attached image as context.
 						chatToolCallStart('turn-consent', '<consent-id>', 'extension_permission_consent', 'Extensions'),
 						{
 							type: ActionType.ChatToolCallReady, turnId: 'turn-consent', toolCallId: '<consent-id>',
-							invocationMessage: `Extension 'grove-agent-monitor' wants to load with these permissions: register hooks.`,
+							invocationMessage: `Extension 'grove-agent-monitor' (plugin:grove-agent-monitor:grove-agent-monitor) wants to load with these permissions: register hooks.`,
 							confirmationTitle: 'Allow Extension grove-agent-monitor?',
 							options: [
 								{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
@@ -20582,6 +21127,220 @@ Use the attached image as context.
 					{ answer: allowed, settledBeforeNextTurn: false, pendingActions: [], rootConfigUpdates: [], extraActions: completed },
 					{ answer: allowed, settledBeforeNextTurn: false, pendingActions: [], rootConfigUpdates: [], extraActions: completed },
 				]);
+			});
+		});
+
+		suite('extension environment consent', () => {
+			const variable = 'BLACKBIRD_AUTH_METIS_API_KEY';
+			const envRequest = (extensionName: string): Extract<PermissionRequest, { kind: 'extension-env-access' }> => ({ kind: 'extension-env-access', extensionName, environmentVariables: [variable] });
+			const canvasRequest = (extensionId: string) => ({ canvasId: 'demo', extensionId, instanceId: `${extensionId}-demo` });
+			const consent = (extensionName: string, persistable: boolean) => ({ id: '<consent-id>', kind: 'environment', extensionName, displayName: 'demo', items: [variable], persistable });
+			const withoutId = (result: AgentCanvasOpenResult) => result.kind === 'opened' || result.kind === 'failed' ? result : { ...result, consent: { ...result.consent, id: '<consent-id>' } };
+			const expired = 'This request to allow the canvas\'s extension is no longer pending. Open the canvas again.';
+
+			/** Asks for consent when the runtime opens the canvas, as a lazily started extension that requests a sensitive variable does. */
+			function useLazyCanvas(mockSession: MockCopilotSession, runtime: TestCopilotSessionRuntime): void {
+				mockSession.rpc.canvas.open = async params => {
+					const extensionName = params.extensionId ?? '';
+					if ((await runtime.handlePermissionRequest(envRequest(extensionName))).kind !== 'approve-once') {
+						throw new Error(`extension did not become ready: ${extensionName}`);
+					}
+					return { instanceId: params.instanceId, extensionId: extensionName, canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+			}
+
+			test('shows a turn-less canvas open the request, waits past the control-plane bound, and remembers Always Allow for a user extension', async () => {
+				const { session, runtime, mockSession, signals, rootConfigUpdates } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10 });
+				useLazyCanvas(mockSession, runtime);
+				const asked = await session.openCanvas(canvasRequest('user:demo'));
+				await timeout(30);
+				assert.strictEqual(asked.kind, 'consentRequired');
+				const opened = await session.openCanvas(canvasRequest('user:demo'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.AlwaysAllow });
+				const next = await createAgentSession(disposables, { rootValues: rootConfigUpdates[0] });
+				assert.deepStrictEqual({
+					asked: withoutId(asked), opened, desynchronized: session.requiresControlPlaneResync, actions: getActions(signals), rootConfigUpdates,
+					nextAnswer: await next.runtime.handlePermissionRequest(envRequest('user:demo')),
+				}, {
+					asked: { kind: 'consentRequired', consent: consent('user:demo', true) }, opened: { kind: 'opened' }, desynchronized: false, actions: [],
+					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'allow' } }],
+					nextAnswer: { kind: 'approve-once' },
+				});
+			});
+
+			test('never remembers a project extension, reports Not Now as retryable and a stored Never as final', async () => {
+				const project = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [`project:demo (environment variables: ${variable})`]: 'allow' } } });
+				useLazyCanvas(project.mockSession, project.runtime);
+				const asked = await project.session.openCanvas(canvasRequest('project:demo'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				const declined = await project.session.openCanvas(canvasRequest('project:demo'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Never });
+				const never = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'deny' } } });
+				useLazyCanvas(never.mockSession, never.runtime);
+				const refused = await never.session.openCanvas(canvasRequest('user:demo'));
+				assert.deepStrictEqual({
+					asked: withoutId(asked), declined: withoutId(declined), refused: withoutId(refused),
+					retryable: [project.session.hasRetryableExtensionConsentDenial('project:demo'), never.session.hasRetryableExtensionConsentDenial('user:demo')],
+					rootConfigUpdates: [...project.rootConfigUpdates, ...never.rootConfigUpdates],
+				}, {
+					asked: { kind: 'consentRequired', consent: consent('project:demo', false) },
+					declined: { kind: 'consentDenied', consent: consent('project:demo', false), retryable: true },
+					refused: { kind: 'consentDenied', consent: consent('user:demo', true), retryable: false },
+					retryable: [true, false],
+					rootConfigUpdates: [],
+				});
+			});
+
+			test('a client answer completes the confirmation the turn shows, and covers later requests', async () => {
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+				await session.send('Hello', undefined, 'turn-consent');
+				useLazyCanvas(mockSession, runtime);
+				const asked = await session.openCanvas(canvasRequest('project:demo'));
+				const ready = getActions(signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady);
+				assert.ok(ready && asked.kind === 'consentRequired');
+				const opened = await session.openCanvas(canvasRequest('project:demo'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow });
+				await timeout(0);
+				const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
+				signals.length = 0;
+				assert.deepStrictEqual({
+					ready: { ...ready, toolCallId: '<consent-id>' }, opened, completed: completed && { ...completed, toolCallId: '<consent-id>' },
+					repeated: await runtime.handlePermissionRequest(envRequest('project:demo')), repeatedActions: getActions(signals),
+				}, {
+					ready: {
+						type: ActionType.ChatToolCallReady, turnId: 'turn-consent', toolCallId: '<consent-id>',
+						invocationMessage: `Extension 'demo' (project:demo) wants to read these sensitive environment variables: ${variable}. Their values may be credentials, which the extension could send anywhere or pass to processes it starts.`,
+						confirmationTitle: 'Allow demo to Read Sensitive Environment Variables?',
+						options: [
+							{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
+							{ id: 'not-now', label: 'Not Now', kind: 'deny', group: 2 },
+						],
+					},
+					opened: { kind: 'opened' },
+					completed: { type: ActionType.ChatToolCallComplete, turnId: 'turn-consent', toolCallId: '<consent-id>', result: { success: true, pastTenseMessage: `Allowed demo to read ${variable}` } },
+					repeated: { kind: 'approve-once' }, repeatedActions: [],
+				});
+			});
+
+			test('session approvals shared with a replacement runtime keep a project approval in the folder the runtime found it in', async () => {
+				const approvals = new Set<string>();
+				const first = await createAgentSession(disposables, { extensionSessionApprovals: approvals, workingDirectory: URI.file('/repo-a') });
+				useLazyCanvas(first.mockSession, first.runtime);
+				// The runtime keeps the project extensions it found at launch after the chat moves to another folder.
+				first.mockSession.workingDirectorySetResults.push({ workingDirectory: '/repo-b' });
+				await first.session.setWorkingDirectory(URI.file('/repo-b'), noOpWorkingDirectoryChangeTransaction);
+				for (const extensionId of ['project:demo', 'user:demo']) {
+					const asked = await first.session.openCanvas(canvasRequest(extensionId));
+					assert.strictEqual(asked.kind, 'consentRequired');
+					await first.session.openCanvas(canvasRequest(extensionId), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow });
+				}
+				const answers = [];
+				for (const folder of ['/repo-a', '/repo-b']) {
+					const replacement = await createAgentSession(disposables, { extensionSessionApprovals: approvals, workingDirectory: URI.file(folder) });
+					for (const extensionId of ['project:demo', 'user:demo']) {
+						const answer = await raceTimeout(replacement.runtime.handlePermissionRequest(envRequest(extensionId)), 0);
+						answers.push(`${folder} ${extensionId}: ${answer?.kind ?? 'asks again'}`);
+					}
+					replacement.session.dispose();
+				}
+				assert.deepStrictEqual(answers, [
+					'/repo-a project:demo: approve-once',
+					'/repo-a user:demo: approve-once',
+					'/repo-b project:demo: asks again',
+					'/repo-b user:demo: approve-once',
+				]);
+			});
+
+			test('an answer only continues the open it was shown for, and a late answer returns that open\'s outcome', async () => {
+				const { session, runtime, mockSession, rootConfigUpdates } = await createAgentSession(disposables);
+				useLazyCanvas(mockSession, runtime);
+				const asked = await session.openCanvas(canvasRequest('user:demo'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				const answer = (request: IAgentCanvasOpenRequest, consentId: string, optionId: AgentExtensionConsentOption) => session.openCanvas(request, { kind: 'consent', consentId, optionId }).then(result => result.kind, (error: Error) => error.message);
+				assert.deepStrictEqual({
+					unknown: await answer(canvasRequest('user:demo'), 'unknown', AgentExtensionConsentOption.Allow),
+					otherOpen: await answer({ ...canvasRequest('user:demo'), instanceId: 'other' }, asked.consent.id, AgentExtensionConsentOption.Allow),
+					pending: session.hasPendingExtensionConsent('user:demo'),
+					answered: await answer(canvasRequest('user:demo'), asked.consent.id, AgentExtensionConsentOption.Allow),
+					late: await answer(canvasRequest('user:demo'), asked.consent.id, AgentExtensionConsentOption.Never),
+					rootConfigUpdates,
+				}, {
+					unknown: expired, otherOpen: expired, pending: true, answered: 'opened', late: 'opened', rootConfigUpdates: [],
+				});
+			});
+
+			test('remembers Always Allow chosen in the dialog after the turn stopped waiting', async () => {
+				const { session, runtime, mockSession, rootConfigUpdates } = await createAgentSession(disposables);
+				await session.send('Hello', undefined, 'turn-consent');
+				useLazyCanvas(mockSession, runtime);
+				const asked = await session.openCanvas(canvasRequest('user:demo'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				await session.abort();
+				await timeout(0);
+				const opened = await session.openCanvas(canvasRequest('user:demo'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.AlwaysAllow });
+				assert.deepStrictEqual({ opened, rootConfigUpdates }, {
+					opened: { kind: 'opened' },
+					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'allow' } }],
+				});
+			});
+
+			test('a Never removed from the settings can be asked about again, and any declined extension can be retried', async () => {
+				const identity = `user:demo (environment variables: ${variable})`;
+				const { session, runtime, mockSession, setRootValue } = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'deny' } } });
+				useLazyCanvas(mockSession, runtime);
+				const refused = await session.openCanvas(canvasRequest('user:demo'));
+				const retryable = () => [session.hasRetryableExtensionConsentDenial('user:demo'), session.hasRetryableExtensionConsentDenial(undefined)];
+				const whileStored = retryable();
+				const asked = await session.openCanvas(canvasRequest('user:other'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				await session.openCanvas(canvasRequest('user:other'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow });
+				const withOtherDeclined = retryable();
+				setRootValue(AgentHostExtensionPermissionApprovalsConfigKey, {});
+				assert.deepStrictEqual({ refused: refused.kind === 'consentDenied' && refused.retryable, whileStored, withOtherDeclined, afterRemoval: retryable() }, {
+					refused: false, whileStored: [false, false], withOtherDeclined: [false, true], afterRemoval: [true, true],
+				});
+			});
+
+			test('remembers a plugin\'s decision only for the install it was granted to', async () => {
+				const extensionName = 'plugin:demo-plugin:demo';
+				const plugin = (id: string) => ({ name: 'demo-plugin', marketplace: 'example', enabled: true, id });
+				const results = [];
+				for (const plugins of [[plugin('install-1')], [plugin('install-1'), plugin('install-2')]]) {
+					const { session, runtime, mockSession, rootConfigUpdates } = await createAgentSession(disposables);
+					mockSession.rpc.plugins.list = async () => ({ plugins });
+					useLazyCanvas(mockSession, runtime);
+					const asked = await session.openCanvas(canvasRequest(extensionName));
+					assert.strictEqual(asked.kind, 'consentRequired');
+					await session.openCanvas(canvasRequest(extensionName), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.AlwaysAllow });
+					results.push({ persistable: asked.consent.persistable, rootConfigUpdates });
+				}
+				assert.deepStrictEqual(results, [
+					{ persistable: true, rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`${extensionName} from install-1 (environment variables: ${variable})`]: 'allow' } }] },
+					// Two enabled plugins share the name, so the install cannot be told.
+					{ persistable: false, rootConfigUpdates: [] },
+				]);
+			});
+
+			test('applies an Allow All set while idle before the canvas extension asks', async () => {
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } });
+				useLazyCanvas(mockSession, runtime);
+				const opened = await session.openCanvas(canvasRequest('user:demo'));
+				assert.deepStrictEqual({ opened, modes: mockSession.permissionModeSetCalls, actions: getActions(signals) }, { opened: { kind: 'opened' }, modes: ['allow-all'], actions: [] });
+			});
+
+			test('bounds the permission mode sync before an idle open, and does not start the open when it times out', async () => {
+				const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10, configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } });
+				mockSession.rpc.permissions.setMode = () => new Promise<never>(() => { });
+				let opens = 0;
+				mockSession.rpc.canvas.open = async params => {
+					opens++;
+					return { instanceId: params.instanceId, extensionId: params.extensionId ?? '', canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+				const outcome = await raceTimeout(
+					session.openCanvas(canvasRequest('user:demo')).then(result => result.kind, (error: Error) => error.message.replace(/^\[Copilot:[^\]]+\] /, '')),
+					500,
+				) ?? 'still waiting';
+				await timeout(0);
+				assert.deepStrictEqual({ outcome, desynchronized: session.requiresControlPlaneResync, opens }, {
+					outcome: 'permission mode sync before rpc.canvas.open timed out after 10ms', desynchronized: true, opens: 0,
+				});
 			});
 		});
 
@@ -24427,6 +25186,42 @@ Use the attached image as context.
 				'ineligible launch': { beforeRootTurn: [], afterRootTurn: [] },
 				'explicit user value': { beforeRootTurn: [], afterRootTurn: [] },
 				'unknown provenance': { beforeRootTurn: [], afterRootTurn: [] },
+			});
+		});
+
+		test('reports the memory placement trigger in both arms at root turn start, for launches whose memory placement followed the experiment', async () => {
+			const trigger = `config.${AgentHostCopilotMemoryModeSettingId}`;
+			const results: Record<string, { beforeRootTurn: readonly string[]; afterRootTurn: readonly string[] }> = {};
+			// Eligibility is the launcher's snapshot of memory enablement and default-controlled provenance; later
+			// provenance changes don't relaunch the SDK session, so they must not change its exposure.
+			for (const [name, eligible, mode, liveDefaultControlled] of [
+				['control', true, 'system-prompt', true],
+				['treatment', true, 'user-prompt', true],
+				['ineligible launch', false, 'user-prompt', true],
+				['override added after launch', true, 'user-prompt', false],
+			] as const) {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					duringLaunch: runtime => runtime.setMemoryModeEligible?.(eligible),
+					rootValues: {
+						[CopilotCliConfigKey.MemoryMode]: mode,
+						[CopilotCliConfigKey.MemoryModeDefaultControlled]: liveDefaultControlled,
+						[CopilotCliVSCodeAssignmentContextKey]: 'assignment-context',
+					},
+				});
+				session.resetTurnState('memory-turn');
+				mockSession.fire('assistant.turn_start', { turnId: 'child-turn' }, { agentId: 'child' });
+				const beforeRootTurn = telemetryService.triggers.filter(t => t === trigger);
+				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+				results[name] = { beforeRootTurn, afterRootTurn: telemetryService.triggers.filter(t => t === trigger) };
+			}
+
+			assert.deepStrictEqual(results, {
+				control: { beforeRootTurn: [], afterRootTurn: [trigger] },
+				treatment: { beforeRootTurn: [], afterRootTurn: [trigger] },
+				'ineligible launch': { beforeRootTurn: [], afterRootTurn: [] },
+				'override added after launch': { beforeRootTurn: [], afterRootTurn: [trigger] },
 			});
 		});
 
@@ -28347,6 +29142,19 @@ Use the attached image as context.
 				},
 			}]);
 		});
+
+		test('does not ask to take over a session in use when no one is there to answer', async () => {
+			const asked: Record<string, boolean> = {};
+			for (const [name, options] of [
+				['autopilot', { configValues: { [SessionConfigKey.Mode]: 'autopilot' } }],
+				['autoReply', { rootValues: { [AgentHostAutoReplyEnabledConfigKey]: true } }],
+			] as const) {
+				const { session, signals } = await createAgentSession(disposables, options);
+				session.resetTurnState('turn-1');
+				asked[name] = session.askToTakeOverSessionInUse() !== undefined || getActions(signals).some(action => action.type === ActionType.ChatInputRequested);
+			}
+			assert.deepStrictEqual(asked, { autopilot: false, autoReply: false });
+		});
 	});
 
 	// ---- elicitation handling ----
@@ -30327,7 +31135,7 @@ Use the attached image as context.
 			assert.strictEqual(result.resultType, 'failure');
 		});
 
-		test('client tool handler waits for completion without emitting tool_ready', async () => {
+		test('client tool handler releases a held tool_ready when the runtime authorized it without a permission request', async () => {
 
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
@@ -30345,14 +31153,22 @@ Use the attached image as context.
 			if (isAction(startSignal!, ActionType.ChatToolCallStart)) {
 				assert.deepStrictEqual((startSignal.action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
 			}
+			// Held for the permission flow until the handler runs.
+			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
 
-			// SDK invokes the handler — it creates a deferred and waits,
-			// but does NOT fire tool_ready (that comes from the permission flow).
+			// The runtime approved the call without a permission request (e.g. a standing
+			// approval) and invokes the handler, which must release the held ready so the
+			// client runs the tool instead of every side waiting until the runtime times out.
 			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
 
-			// No pending_confirmation or tool_ready should have been emitted by the handler
-			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
+			assert.deepStrictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).map(s => {
+				if (s.kind === 'pending_confirmation') {
+					return { kind: s.kind };
+				}
+				const action = (s as { action: ChatToolCallReadyAction }).action;
+				return { type: action.type, toolCallId: action.toolCallId, confirmed: action.confirmed, contributor: action.contributor };
+			}), [{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-client-1', confirmed: ToolCallConfirmationReason.NotNeeded, contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' } }]);
 
 			// Complete the tool call
 			session.handleClientToolCallComplete('tc-client-1', {
@@ -30364,6 +31180,29 @@ Use the attached image as context.
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'result text');
+		});
+
+		test('client tool handler that runs before the tool start releases tool_ready once the start arrives', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
+
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-early-handler', {});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-early-handler',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.deepStrictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).map(s => {
+				if (s.kind === 'pending_confirmation') {
+					return { kind: s.kind };
+				}
+				const action = (s as { action: ChatToolCallReadyAction }).action;
+				return { type: action.type, toolCallId: action.toolCallId, confirmed: action.confirmed };
+			}), [{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-early-handler', confirmed: ToolCallConfirmationReason.NotNeeded }]);
+
+			session.handleClientToolCallComplete('tc-early-handler', { success: true, pastTenseMessage: 'did it', content: [] });
+			assert.strictEqual((await handlerPromise).resultType, 'success');
 		});
 
 		test('client tool auto-readies when SDK allow-all mode is on', async () => {

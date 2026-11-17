@@ -140,6 +140,7 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	alwaysOnTop?: boolean;
 	frameless?: boolean;
 	transparent?: boolean;
+	noShadow?: boolean;
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
@@ -316,6 +317,10 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	if (overrides?.transparent) {
 		options.transparent = true;
 		options.backgroundColor = undefined!; // transparent requires no background color
+	}
+
+	if (overrides?.noShadow) {
+		options.hasShadow = false;
 	}
 
 	if (overrides?.notResizable) {

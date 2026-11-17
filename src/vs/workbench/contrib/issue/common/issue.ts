@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { UriComponents } from '../../../../base/common/uri.js';
 import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
 import { CreateIssueRequest } from '../../../../platform/github/common/core/issues.js';
 import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { AuthenticationSession } from '../../../services/authentication/common/authentication.js';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
@@ -171,9 +173,9 @@ export interface IIssueFormService {
 	showClipboardDialog(): Promise<boolean>;
 	sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
 	closeReporter(): Promise<void>;
-	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, signal?: AbortSignal): Promise<boolean>;
-	searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]>;
-	createGitHubIssue(authorization: GitHubAuthorizationContext, repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal): Promise<string>;
+	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, cancellationToken?: CancellationToken): Promise<boolean>;
+	searchGitHubIssues(repo: string, title: string, cancellationToken: CancellationToken): Promise<readonly ISimilarIssue[]>;
+	createGitHubIssue(providerId: string, session: AuthenticationSession, repository: RepositoryRef, request: CreateIssueRequest, cancellationToken: CancellationToken): Promise<string>;
 }
 
 export interface ISimilarIssue {

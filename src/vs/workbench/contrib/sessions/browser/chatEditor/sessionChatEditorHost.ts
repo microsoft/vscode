@@ -59,9 +59,15 @@ export async function waitForSessionChat(sessionsManagementService: ISessionsMan
 	const store = new DisposableStore();
 	try {
 		return await raceTimeout(new Promise<IResolvedSessionChat | undefined>(resolve => {
-			store.add(sessionsManagementService.onDidChangeSessions(() => {
+			// Of every session, also one outside a listing scope, such as of another folder, which a host can show
+			store.add(sessionsManagementService.onDidChangeSession(changes => {
+				if (store.isDisposed || (changes.length > 0 && changes.every(({ kind }) => kind === 'removed'))) {
+					return;
+				}
 				const loaded = resolveSessionChat(sessionsManagementService, resource);
 				if (loaded) {
+					// Stop following the sessions as soon as it resolves
+					store.dispose();
 					resolve(loaded);
 				}
 			}));
@@ -229,12 +235,13 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 			}
 		}));
 
-		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
+		// Of every session, also one outside a listing scope, such as of another folder, which its host can show
+		this._register(this.sessionsManagementService.onDidChangeSession(changes => {
 			const known = this._knownSession;
-			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
+			if (known && changes.some(({ session, kind }) => kind === 'removed' && isEqual(session.resource, known.resource))) {
 				this._knownSessionRemoved = true;
 			}
-			if (!known || e.added.length || e.removed.length || e.changed.some(changed => changed !== known && changed.sessionId === known.sessionId)) {
+			if (!known || changes.some(({ session, kind }) => kind !== 'changed' || (session !== known && session.sessionId === known.sessionId))) {
 				sessionsChanged.trigger(undefined);
 			}
 		}));

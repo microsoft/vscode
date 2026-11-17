@@ -76,6 +76,10 @@ export const enum CopilotCliConfigKey {
 	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default. */
 	LocalMemory = 'localMemory',
+	/** Where Copilot SDK sessions place retrieved memories: the system prompt (default) or generated user-role messages. */
+	MemoryMode = 'memoryMode',
+	/** Whether the workbench memory mode value is controlled by its configuration default. */
+	MemoryModeDefaultControlled = 'memoryModeDefaultControlled',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
 	/** Override Auto's "Optimize for" preference. */
@@ -162,6 +166,11 @@ export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.co
 export const LegacyDynamicAutoTiersConfigKey = 'dynamicAutoTiers';
 
 export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
+
+export const AgentHostCopilotMemoryModeSettingId = 'chat.copilot.memory.mode';
+
+export const copilotMemoryModeValues = ['system-prompt', 'user-prompt'] as const;
+export type CopilotMemoryMode = typeof copilotMemoryModeValues[number];
 
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
@@ -402,6 +411,23 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
 		description: localize('agentHost.config.localMemory.description', "When enabled, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.MemoryMode]: schemaProperty<CopilotMemoryMode>({
+		type: 'string',
+		title: localize('agentHost.config.memoryMode.title', "Copilot Memory Placement"),
+		description: localize('agentHost.config.memoryMode.description', "Where Copilot SDK sessions place retrieved Copilot Memory: in the system prompt, or in generated user messages."),
+		enum: [...copilotMemoryModeValues],
+		enumLabels: [
+			localize('agentHost.config.memoryMode.systemPrompt', "System Prompt"),
+			localize('agentHost.config.memoryMode.userPrompt', "User Prompt"),
+		],
+		default: 'system-prompt',
+	}),
+	[CopilotCliConfigKey.MemoryModeDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.memoryModeDefaultControlled.title', "Copilot Memory Placement Default Control"),
+		description: localize('agentHost.config.memoryModeDefaultControlled.description', "Whether the workbench Copilot Memory placement setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({

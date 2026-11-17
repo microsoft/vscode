@@ -923,8 +923,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return remoteAgentHostSessionTypeId(this._connectionAuthority, provider);
 	}
 
-	override getSessions(): ISession[] {
-		return this._unpublished ? [] : super.getSessions();
+	override getAllSessions(): ISession[] {
+		return this._unpublished ? [] : super.getAllSessions();
 	}
 
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
@@ -1109,7 +1109,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	protected override _mapBackendSessionResource(resource: URI): URI {
+	protected override _mapBackendSessionResource(resource: URI): URI | undefined {
 		return this._mapSessionResource?.(resource) ?? super._mapBackendSessionResource(resource);
 	}
 

@@ -11,6 +11,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { IAction } from '../../../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
@@ -23,6 +24,9 @@ import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chat
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
+import type { INewSessionInputPresentation } from '../newSessionInputPresentation.js';
+import type { INewSessionPresentation } from '../newSessionPresentation.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -56,9 +60,10 @@ export interface IChatViewBackground {
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	readonly newSessionInput?: INewSessionInputPresentation;
+	readonly newSessionPresentation?: INewSessionPresentation;
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
-	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
 	readonly background?: IChatViewBackground;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
@@ -89,6 +94,10 @@ export interface IChatViewOptions {
 	readonly newSessionDraft?: INewSessionDraftHost;
 }
 
+export interface INewSessionViewOptions extends IChatViewOptions {
+	readonly newSessionPresentation: INewSessionPresentation;
+}
+
 /**
  * The host of a new-session composer outside the main window's grid ({@link IChatViewOptions.newSessionDraft}).
  */
@@ -107,6 +116,13 @@ export interface INewSessionDraftHost {
 	 * starts its next draft from the selection of a background send.
 	 */
 	setRequestedTarget?(target: INewSessionTarget, reason: 'user' | 'background'): void;
+	/**
+	 * The only folders the composer can create its sessions in, such as an editor window's folders: its workspace picker
+	 * offers no other. Unset, it offers any workspace.
+	 */
+	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/** How its workspace picker shows one of its {@link allowedFolders}, such as a linked checkout of a window's folder. */
+	getFolderPresentation?(folderUri: URI): IAllowedFolderPresentation | undefined;
 	/** Opens a session the composer started in the background, in the composer's own window. */
 	openStartedSession(session: ISession): Promise<void>;
 	/**
@@ -164,6 +180,11 @@ export interface IChatViewInputOptions {
 	readonly minLines?: number;
 	/** Whether the status pills of the session show above the input; `true` by default. */
 	readonly showPills?: boolean;
+	/**
+	 * Whether the changes of an Agent Host session show as a working set above the input, with Keep and Undo, in place of
+	 * its Changes pill, as the editor window's chat shows them. Never in the Agents window; `false` by default.
+	 */
+	readonly workingSet?: boolean;
 }
 
 /**
@@ -359,6 +380,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	saveViewState(): void {
 		// no-op by default
+	}
+
+	/**
+	 * The chat widget of its input, which sends what it takes: of the chat it shows, or of its new-session composer, whose
+	 * sends create the session. Undefined while it has none.
+	 */
+	get chatWidget(): IChatWidget | undefined {
+		return undefined;
 	}
 
 	/**

@@ -51,7 +51,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionType, ISessionWorkspace, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { IMarkSessionReadOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IMarkSessionReadOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionChange, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionReplacedEvent } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
@@ -173,6 +173,12 @@ suite('Sessions chat window provider', () => {
 		const slots: (INewSessionDraftSlot & { readonly newSession: ISettableObservable<ISession | undefined> })[] = [];
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			// The Agents window lists every session: its sessions change together as its listed ones do
+			override readonly onDidChangeSession: Event<readonly ISessionChange[]> = Event.map(onDidChangeSessions.event, e => [
+				...e.added.map(session => ({ session, kind: 'added' as const })),
+				...e.removed.map(session => ({ session, kind: 'removed' as const })),
+				...e.changed.map(session => ({ session, kind: 'changed' as const })),
+			]);
 			override readonly onDidAcceptNewSessionRequest = onDidAcceptNewSessionRequest.event;
 			override readonly onDidEndNewSessionRequest = onDidEndNewSessionRequest.event;
 			override readonly onDidReplaceNewDraftSession = Event.None;
@@ -517,8 +523,11 @@ suite('Sessions chat window provider', () => {
 		}
 		const afterChanges = lookups.count - before;
 		onDidChangeSessions.fire({ added: [createSession('added', [createChat('added-main')])], changed: [], removed: [] });
+		const afterAdded = lookups.count - before;
+		// Sessions added together, such as as a provider registers, are looked up once
+		onDidChangeSessions.fire({ added: ['a', 'b', 'c'].map(id => createSession(id, [createChat(`${id}-main`)])), changed: [], removed: [] });
 
-		assert.deepStrictEqual({ afterChanges, afterAdded: lookups.count - before }, { afterChanges: 0, afterAdded: 1 });
+		assert.deepStrictEqual({ afterChanges, afterAdded, afterBatch: lookups.count - before }, { afterChanges: 0, afterAdded: 1, afterBatch: 2 });
 	});
 
 	test('a chat follows its session as it is replaced by another object with the same ID, such as a pending session that is committed, which comes as a change, also after it is announced as a replacement', async () => {

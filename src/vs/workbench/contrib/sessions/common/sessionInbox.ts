@@ -11,7 +11,7 @@ import { ChatInteractivity, ChatOriginKind, getGitHubPullRequestRefs, ISession, 
 import { getSessionGitHubReferences } from './github/sessionGitHubReferences.js';
 
 export type SessionInboxState =
-	| { readonly kind: 'done' | 'untilActivity'; readonly activity: string; readonly notificationIds?: readonly string[] }
+	| { readonly kind: 'done' | 'untilActivity'; readonly activity: string; readonly notificationIds?: readonly string[]; readonly isHistoricalCompletion?: true }
 	| { readonly kind: 'hold' }
 	| { readonly kind: 'snoozed'; readonly until: number };
 
@@ -19,17 +19,17 @@ export type SessionInboxAction = 'done' | 'hold' | 'untilActivity' | number | un
 
 export const enum SessionInboxSection {
 	ReadyForYou = 'inbox:readyForYou',
-	ReadyToMerge = 'inbox:readyToMerge',
 	Working = 'inbox:working',
 	OnHold = 'inbox:onHold',
+	Acknowledged = 'inbox:acknowledged',
 	Done = 'inbox:done',
 }
 
 export const sessionInboxSections = [
 	SessionInboxSection.ReadyForYou,
 	SessionInboxSection.Working,
-	SessionInboxSection.ReadyToMerge,
 	SessionInboxSection.OnHold,
+	SessionInboxSection.Acknowledged,
 ] as const;
 
 export function getSessionInboxActivity(session: ISession, reader?: IReader): string {
@@ -57,7 +57,7 @@ export function getSessionInboxPriority(session: ISession, attention?: IInboxSes
 
 export function getSessionInboxSection(session: ISession, state?: SessionInboxState, reader?: IReader, attention?: IInboxSessionAttention): SessionInboxSection {
 	if (state?.kind === 'done') {
-		return SessionInboxSection.Done;
+		return state.isHistoricalCompletion ? SessionInboxSection.Done : SessionInboxSection.Acknowledged;
 	}
 	if (state) {
 		return SessionInboxSection.OnHold;
@@ -71,9 +71,9 @@ export function getSessionInboxSection(session: ISession, state?: SessionInboxSt
 	}
 	if (attention) {
 		switch (attention.tab) {
-			case InboxTab.ReadyForYou: return SessionInboxSection.ReadyForYou;
+			case InboxTab.ReadyForYou:
+			case InboxTab.ReadyToMerge: return SessionInboxSection.ReadyForYou;
 			case InboxTab.Working: return SessionInboxSection.Working;
-			case InboxTab.ReadyToMerge: return SessionInboxSection.ReadyToMerge;
 		}
 	}
 	return SessionInboxSection.ReadyForYou;
@@ -83,7 +83,6 @@ export function getSessionInboxDescription(state: SessionInboxState | undefined)
 	switch (state?.kind) {
 		case 'snoozed': return localize('inboxSnoozedUntil', "Snoozed until {0}", new Date(state.until).toLocaleString());
 		case 'untilActivity': return localize('inboxSnoozedUntilActivity', "Snoozed until new activity");
-		case 'hold': return localize('inboxHeldUntilResumed', "On hold until you return it to Inbox");
 		default: return undefined;
 	}
 }

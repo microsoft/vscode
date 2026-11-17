@@ -138,6 +138,7 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { isModelRouterModelId, modelRouterNameFromModelId } from '../../../../../../platform/agentHost/common/modelRouter.js';
+import { isByokLmAgentModelId, resolveByokLmReportedModelId } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -1854,6 +1855,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let chatTitle: string | undefined;
 		let draftInputState: ISerializableChatModelInputState | undefined;
 		let draftModelId: string | undefined;
+		let draftModelConfiguration: ModelSelection['config'];
 		let sessionSubscription: IAgentSubscription<SessionState> | undefined;
 		let chatSubscription: IAgentSubscription<ChatState> | undefined;
 		const historySubagentObservations = new DisposableStore();
@@ -1903,6 +1905,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
 						draftInputState = this._draftToInputState(sessionResource, draft);
 						draftModelId = this._toLanguageModelId(sessionResource, draft?.model?.id);
+						draftModelConfiguration = draft?.model?.config;
 						if (!sessionState.draft && draft) {
 							this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
 						}
@@ -1985,7 +1988,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							// Enrich usage entries with the actual model so the
 							// context-usage widget resolves the right context window
 							// on reconnection (same enrichment as _observeTurn).
-							const actualModelId = lookup.toActualModelId(sessionState.activeTurn.usage?.model);
+							const actualModelId = (lookup.forTurn?.(sessionState.activeTurn.message.model?.id) ?? lookup).toActualModelId(sessionState.activeTurn.usage?.model);
 							if (actualModelId) {
 								for (const p of initialProgress) {
 									if (p.kind === 'usage') {
@@ -2076,7 +2079,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					});
 					return Promise.resolve();
 				},
-				draftInputState ? { editingSession: undefined, inputState: draftInputState, ...(draftModelId ? { selectedModelId: draftModelId } : {}) } : undefined,
+				draftInputState ? { editingSession: undefined, inputState: draftInputState, ...(draftModelId ? { selectedModelId: draftModelId, ...(draftModelConfiguration ? { selectedModelConfiguration: draftModelConfiguration } : {}) } : {}) } : undefined,
 				initialProgress?.filter(part => !isUnstartedSubagent(part)),
 				historySubagentObservations,
 				() => {
@@ -4404,7 +4407,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (opts.subAgentInvocationId === undefined) {
 			let lastUsage: ReturnType<typeof usageInfoToChatUsage>;
 			let lastAutoModeResolution: IChatAutoModeResolutionPart | undefined;
-			const modelLookup = this._createTurnModelLookup(opts.sessionResource, undefined);
 
 			this._setupMcpAuthPrompt(mcpAuthRequired$, mcpRoutingServers$, store, opts);
 
@@ -4501,6 +4503,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				// emitted as-is — no separate re-aggregation of subagent credits.
 				const session = mergedState$.read(reader);
 				const contextUsage = session ? readAgentContextUsage(session, rawUsage) : undefined;
+				const modelLookup = this._createTurnModelLookup(opts.sessionResource, turn$.read(reader)?.message.model?.id);
 				const usage = usageInfoToChatUsage(rawUsage, modelLookup.toModelDisplayName, contextUsage);
 				if (!usage) {
 					return;
@@ -7871,15 +7874,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!sessionType.endsWith(this._config.provider)) {
 			return sessionType;
 		}
+		const chatProvider = this._getOtherAgentChatProvider(sessionResource);
+		return chatProvider
+			? `${sessionType.slice(0, sessionType.length - this._config.provider.length)}${chatProvider}`
+			: sessionType;
+	}
+
+	/** The agent backing the chat `sessionResource` names, when its session's catalog advertises another than the session's. */
+	private _getOtherAgentChatProvider(sessionResource: URI): string | undefined {
 		// A chat is addressed by its fragment or, for a subagent chat, its query parameter: match the backend chat it
 		// resolves to against the session's catalog.
 		const backendSession = this._resolveSessionUri(sessionResource);
 		const state = this._getRawSessionState(backendSession.toString());
 		const chat = state && this._getChatURIOrDefault(sessionResource, backendSession, state);
 		const chatProvider = chat !== undefined ? state?.chats.find(summary => summary.resource === chat)?.provider : undefined;
-		return state && chatProvider && chatProvider !== state.provider
-			? `${sessionType.slice(0, sessionType.length - this._config.provider.length)}${chatProvider}`
-			: sessionType;
+		return state && chatProvider && chatProvider !== state.provider ? chatProvider : undefined;
 	}
 
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {
@@ -7897,7 +7906,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * never reported usage).
 	 */
 	private _createTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined, hideAutoExplainability: boolean | undefined = this._hideAutoExplainability.get()): TurnModelLookup {
+		return this._createSelectedTurnModelLookup(sessionResource, fallbackRawModelId, fallbackRawModelId, hideAutoExplainability);
+	}
+
+	/** A {@link _createTurnModelLookup} whose reported model ids are read against the model the turn selected, if any. */
+	private _createSelectedTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined, selectedRawModelId: string | undefined, hideAutoExplainability: boolean | undefined): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
+		// Dropping a BYOK model's provider is the Copilot runtime's convention; any other agent's reported id is taken as reported.
+		const selectedCopilotByokModelId = selectedRawModelId && isByokLmAgentModelId(selectedRawModelId)
+			&& (this._getOtherAgentChatProvider(sessionResource) ?? this._config.provider) === COPILOT_CLI_AGENT_PROVIDER_ID ? selectedRawModelId : undefined;
+		const reported = (rawModelId: string | undefined) => resolveByokLmReportedModelId(rawModelId, selectedCopilotByokModelId);
 		// Try the raw billed id and its dots-normalised form (slug mismatch:
 		// `claude-sonnet-4-6` → `.6`) before falling back to the picked model.
 		const lookupRawModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: true } | undefined => {
@@ -7928,7 +7946,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// Keyed off the reported routing decision so restored history only
 			// rewrites turns that actually used Auto.
 			const routed = !!readUsageInfoMeta(usage).autoModeResolved;
-			const billedId = responseModelId ?? (routed && hideAutoExplainability ? AUTO_RAW_MODEL_ID : rawModelId);
+			const billedId = responseModelId ?? (routed && hideAutoExplainability ? AUTO_RAW_MODEL_ID : reported(rawModelId));
 			return { billedId, resolved: responseModelId ? lookupRawModel(responseModelId) : lookupModel(billedId) };
 		};
 		const displayName = (resolved: { identifier: string; model: ILanguageModelChatMetadata }) => {
@@ -7946,11 +7964,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const resolved = lookupRawModel(rawModelId);
 			return resolved && displayName(resolved);
 		}, hideAutoExplainability, isAutoFusion());
-		return {
+		const lookup: TurnModelLookup = {
+			forTurn: selected => selected === selectedRawModelId ? lookup : this._createSelectedTurnModelLookup(sessionResource, selected ?? fallbackRawModelId, selected, hideAutoExplainability),
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			isFusionModel: rawModelId => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId),
-			toActualModelId: rawModelId => lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId),
-			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name ?? this._localModels.getDisplayName(rawModelId) ?? (isCopilotFusionTier(rawModelId) ? fusionModelName(rawModelId) : undefined),
+			toActualModelId: rawModelId => lookupRawModel(reported(rawModelId))?.identifier ?? this._toLanguageModelId(sessionResource, reported(rawModelId)),
+			toModelDisplayName: rawModelId => lookupRawModel(reported(rawModelId))?.model.name ?? this._localModels.getDisplayName(rawModelId) ?? (isCopilotFusionTier(rawModelId) ? fusionModelName(rawModelId) : undefined),
 			toResponseDetails: (rawModelId, usage, responseModelId) => {
 				const local = responseModelId ? undefined : localTurn(usage);
 				if (local) {
@@ -8040,6 +8059,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return resolutionPart && { ...resolutionPart, ...fusion };
 			},
 		};
+		return lookup;
 	}
 
 	private _resolveRequestedWorkingDirectory(sessionResource: URI): URI | undefined {

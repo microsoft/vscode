@@ -179,6 +179,7 @@ export class QuickAccess {
 				}
 
 				// Retry
+				await this.quickInput.waitForNoProxyLoginDialog();
 				await this.code.dispatchKeybinding('escape', async () => { });
 			}
 		}
