@@ -77,6 +77,7 @@ import { SessionsInboxScope } from './sessionsInboxScope.js';
 import { readPaneSessions } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ChatCustomizationsLocation, resolveChatCustomizationsLocation } from '../../../chat/common/customizationsLocation.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { SessionsWorkChatToggle } from './sessionsWorkChatToggle.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -287,6 +288,9 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 
 	/** Whether grouping by time lists the sessions without a workspace in the "Chats" section. See the sessions list's option. */
 	readonly quickChatsInTimeGrouping?: boolean;
+
+	/** Separates project sessions from workspace-less chats; opt-in for the Agents window. */
+	readonly separateWorkAndChat?: boolean;
 }
 
 export class SessionsView extends ViewPane {
@@ -331,6 +335,9 @@ export class SessionsView extends ViewPane {
 	private readonly groupings: ISessionsViewOptions['groupings'];
 	private readonly quickChatsInTimeGrouping: boolean;
 	private readonly scoped: IObservable<boolean> | undefined;
+	private readonly workChatToggle: SessionsWorkChatToggle | undefined;
+
+	get sessionKind() { return this.workChatToggle?.kind.get(); }
 
 	constructor(
 		options: ISessionsViewOptions,
@@ -364,6 +371,7 @@ export class SessionsView extends ViewPane {
 		this.headerInTitle = !!options.headerInTitle;
 		this.hideCustomizations = options.showCustomizations === false;
 		this.scoped = options.scoped;
+		this.workChatToggle = options.separateWorkAndChat ? this._register(instantiationService.createInstance(SessionsWorkChatToggle)) : undefined;
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsAtBottom = observableConfigValue(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, false, configurationService);
@@ -449,6 +457,9 @@ export class SessionsView extends ViewPane {
 
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
+		if (this.workChatToggle) {
+			sessionsContent.appendChild(this.workChatToggle.element);
+		}
 
 		// On phone, the desktop header content (label + new button + filter/find toolbar)
 		// is hidden in favor of the mobile filter chip row + the (+) button in the
@@ -482,6 +493,7 @@ export class SessionsView extends ViewPane {
 		// In the view's context, so that its keys, such as `inSessionsView`, apply in the list, also where a host embeds the view
 		const listInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		const sessionsControl = this.sessionsControl = this._register(listInstantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
+			kind: this.workChatToggle?.kind,
 			pendingSections: derived(this, reader => {
 				const claimedDraftIds = this.scheduledChatsService.claimedDraftIds.read(reader);
 				const drafts = this.sessionDraftsService.sections.read(reader)
@@ -567,6 +579,9 @@ export class SessionsView extends ViewPane {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
 			inboxScope.setVisible(this.grouping === SessionsGrouping.Inbox && !hidden && this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled));
+			if (this.workChatToggle) {
+				this.workChatToggle.element.hidden = hidden || !this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+			}
 		}));
 		let scopeHeight = -1;
 		const scopeResizeObserver = this._register(new DOM.DisposableResizeObserver('SessionsView.inboxScope', entries => {

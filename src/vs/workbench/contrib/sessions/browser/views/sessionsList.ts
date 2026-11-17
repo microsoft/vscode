@@ -116,7 +116,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../common/sessionComparis
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { compareSessionEnvironments, getSessionEnvironments, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
+import { compareSessionEnvironments, getSessionEnvironments, ISessionsListResettableState, matchesSessionsListKind, SessionsListFilters, SessionsListKind } from './sessionsListFilters.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -4646,6 +4646,8 @@ function toDropReaction(feedback: ISessionDropFeedback | undefined): ITreeDragOv
 //#region Sessions List Control
 
 interface ISessionsListControlBaseOptions {
+	/** A strict category scope, including the active session, pins, groups, and pending items. */
+	readonly kind?: IObservable<SessionsListKind>;
 	readonly pendingSections?: IObservable<readonly IPendingSessionSection[]>;
 	readonly schedulingEnabled?: IObservable<boolean>;
 	readonly scheduledSessions?: IObservable<readonly IPendingSessionItem[]>;
@@ -5927,6 +5929,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
+		if (this.options.kind) {
+			this._register(runOnChange(this.options.kind, () => this.update()));
+		}
 		if (this.options.pendingSections) {
 			this._register(runOnChange(this.options.pendingSections, () => this.update()));
 		}
@@ -6126,7 +6131,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// The providers list only the sessions of a host scope (the window's workspace folders), but a comparison can have
 		// sessions of other folders, which lookups still find
 		const scope = this.getHostScope();
-		const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, this._sessionsManagementService).some(session => scope.has(session.sessionId));
+		const kind = this.options.kind?.get();
+		const isComparisonInScope = (comparison: ISessionComparison) => {
+			const sessions = getComparisonSessions(comparison, this._sessionsManagementService);
+			return (!scope || sessions.some(session => scope.has(session.sessionId)))
+				&& (sessions.length > 0
+					? sessions.some(session => matchesSessionsListKind(kind, session.isQuickChat?.get()))
+					: matchesSessionsListKind(kind, !comparison.workspace));
+		};
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
 			return !comparison || !isComparisonLaunchPending(comparison);
@@ -6250,7 +6262,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (!comparison) {
 					continue;
 				}
-				const comparisonSessions = inbox && this.filters.hasInboxScope
+				const comparisonSessions = kind !== undefined || inbox && this.filters.hasInboxScope
 					? sortedMembersByGroupId.get(group.id)!
 					: getComparisonSessions(comparison, this._sessionsManagementService);
 				if ((inbox && this.filters.hasInboxScope && comparisonSessions.length === 0) || !isComparisonInScope(comparison)) {
@@ -6549,9 +6561,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 
-			// The "Pinned" and "Chats" sections start collapsed on first open; the
-			// user's later choice is persisted and honored via getSavedCollapseState.
-			if (section.id === 'pinned' && !inbox || section.id === QUICK_CHATS_SECTION_ID) {
+			// Chat-only lists start expanded; other hosts keep Chats collapsed by default.
+			// Saved collapse choices take precedence.
+			if (section.id === 'pinned' && !inbox || section.id === QUICK_CHATS_SECTION_ID && kind !== 'chat') {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 			const savedCollapsed = this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined);
@@ -6679,7 +6691,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pendingItems = [
 			...(this.options.scheduledSessions?.get() ?? []),
 			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
+		].filter(item => matchesSessionsListKind(this.options.kind?.get(), item.isQuickChat) && matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
 			children.push({
@@ -9496,7 +9508,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Whether the list includes the session before its source filters apply. */
 	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return this._sessionsListModelService.isSessionListed(session, reader, this.filters.isShowAutomationRuns(reader));
+		return matchesSessionsListKind(this.options.kind?.read(reader), session.isQuickChat?.read(reader))
+			&& this._sessionsListModelService.isSessionListed(session, reader, this.filters.isShowAutomationRuns(reader));
 	}
 
 	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {
@@ -9718,7 +9731,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * folders, which lists no quick chat and starts none.
 	 */
 	private get hasQuickChatsSection(): boolean {
-		return !this.options.scoped?.get();
+		return !this.options.scoped?.get() && this.options.kind?.get() !== 'work';
 	}
 
 	private isRenderedInExternalSection(session: ISession): boolean {

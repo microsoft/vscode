@@ -1203,6 +1203,7 @@ function simulateHover(list: TestSessionsList, item: SessionsListItemReference, 
 export interface ISessionsViewFixtureOptions {
 	/** The workspaces, by label, of the editor window whose providers list only their sessions: the others are not listed. */
 	readonly scopeWorkspaces?: readonly string[];
+	readonly separateWorkAndChat?: boolean;
 }
 
 export async function renderSessionsViewFixture(context: ComponentFixtureContext, state: ISessionsListFixtureState, options: ISessionsViewFixtureOptions = {}): Promise<SessionsView> {
@@ -1293,7 +1294,8 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 	const view = disposableStore.add(instantiationService.createInstance(SessionsView, {
 		id: SessionsViewId,
 		title: 'Sessions',
-		headerInTitle: true,
+		headerInTitle: !options.separateWorkAndChat,
+		separateWorkAndChat: options.separateWorkAndChat,
 		showCustomizations: false,
 		minimumBodySize: 0,
 		maximumBodySize: Number.POSITIVE_INFINITY,

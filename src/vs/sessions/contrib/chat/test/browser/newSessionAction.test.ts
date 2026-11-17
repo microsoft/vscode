@@ -31,13 +31,18 @@ import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
 import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.parse(`${SessionType.AgentHostCopilot}:/new-session`);
 
-	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean } = {}) {
+	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; chatCategory?: boolean } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, { getViewWithId: <T>() => (options.chatCategory ? upcastPartial<SessionsView>({ sessionKind: 'chat' }) : null) as T | null });
+		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
+		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
 		let navigations = 0;
@@ -66,7 +71,7 @@ suite('NewChatInSessionsWindowAction', () => {
 		return {
 			opened,
 			get navigations() { return navigations; },
-			run: (args: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
+			run: (args?: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
 		};
 	}
 
@@ -123,8 +128,28 @@ suite('NewChatInSessionsWindowAction', () => {
 		assert.deepStrictEqual(fixture.opened, [{ target: undefined, preserveNavigation: true }]);
 	});
 
+	test('New Session starts a workspace-less conversation in the Chat category', async () => {
+		const fixture = createCommand({ chatCategory: true });
+		assert.deepStrictEqual({ result: await fixture.run(), opened: fixture.opened }, {
+			result: resource,
+			opened: [{ target: undefined, preserveNavigation: true }],
+		});
+	});
+
+	test('Chat category reports unavailable creation instead of starting a work session', async () => {
+		const fixture = createCommand({ chatCategory: true, available: false });
+		await assert.rejects(async () => fixture.run(), /Chat is unavailable/);
+		assert.deepStrictEqual(fixture.opened, []);
+	});
+
+	test('Chat category reports a failed creation', async () => {
+		const fixture = createCommand({ chatCategory: true, creationFailed: true });
+		await assert.rejects(async () => fixture.run(), /Could not create a conversation/);
+	});
+
 	test('uses the provider creation target instead of the active backend workspace', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, { getViewWithId: () => null });
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const backendResource = URI.parse('remote-provider:/existing');
 		const backendFolder = URI.parse('vscode-agent-host://sandbox/repo');

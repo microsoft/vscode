@@ -36,6 +36,7 @@ import { IPendingSessionItem, IPendingSessionSection } from '../../../../../work
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { createListHarness, createTestSession, IListHarness } from './sessionsListTestUtils.js';
+import { SessionsListKind } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 
 suite('Sessions - pending list items', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,6 +56,28 @@ suite('Sessions - pending list items', () => {
 		}
 		harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.select')!.handler);
 	}
+
+	test('Work/Chat scope separates drafts and schedules without changing their saved targets', () => {
+		const harness = createListHarness(disposables, []);
+		const kind = observableValue<SessionsListKind>(disposables, 'work');
+		const drafts = [item('work-draft'), item('chat-draft', { isQuickChat: true })];
+		const schedules = [item('work-schedule', { kind: 'scheduled' }), item('chat-schedule', { kind: 'scheduled', isQuickChat: true })];
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			kind, grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: drafts }]),
+			scheduledSessions: constObservable(schedules), onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		list.setItemCollapsed({ section: 'drafts' }, false);
+		const visible = () => [...drafts, ...schedules].filter(item => !!list.getItemRow({ pendingSession: item.id })).map(item => item.id);
+		const work = visible();
+		kind.set('chat', undefined);
+		const chat = visible();
+		kind.set('work', undefined);
+		assert.deepStrictEqual({ work, chat, restored: visible() }, {
+			work: ['work-draft', 'work-schedule'], chat: ['chat-draft', 'chat-schedule'], restored: ['work-draft', 'work-schedule'],
+		});
+	});
 
 	for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Environment, SessionsGrouping.Date, SessionsGrouping.Inbox]) {
 		test(`drafts and new-session schedules share Drafts after Pinned in ${grouping}`, () => {

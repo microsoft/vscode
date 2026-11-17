@@ -60,6 +60,8 @@ Archived
 
 The active session remains visible even when an ordinary filter would otherwise exclude it. Inbox workspace/environment scope is strict: an out-of-scope active session is hidden from the list without closing its conversation.
 
+The Agents window additionally scopes the list to Work or Chat, remembered in profile-local presentation state independently of Reset Filters. Chat contains sessions explicitly identified by `ISession.isQuickChat`; Work contains the rest, including sessions whose workspace metadata is still loading. This scope applies to active sessions, pins, custom groups, comparisons, archived inventory, and pending drafts and schedules. Changing it does not close conversations or alter provider state. An ordinary New Session invocation uses a workspace-less target in Chat; explicit creation targets remain authoritative. Other hosts of the shared Sessions view retain their mixed list unless they opt into this separation.
+
 A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite ordinary filters and presentation caps, expands its section, and exposes the requested spotlight target. A reveal outside the current Inbox scope fails explicitly without changing the scope. An archive-action reveal also keeps the action visible without hover or focus. A workspace reveal targets the header of the workspace section that contains the session, or the session row when the list is not grouped by workspace. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
 ## Grouping

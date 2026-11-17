@@ -30,6 +30,8 @@ import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { INewSessionComposerService } from '../newSessionComposerService.js';
 import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
 
 /** The folder, provider and agent a new session inherits ({@link getInheritedNewSessionTarget}). */
 export interface IInheritedNewSessionTarget extends Pick<ICreateNewSessionOptions, 'providerId' | 'sessionTypeId'> {
@@ -108,6 +110,13 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const chatCategorySelected = !options && accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionKind === 'chat';
+		if (chatCategorySelected) {
+			if (!sessionsManagementService.isQuickChatTargetAvailable()) {
+				throw new Error(localize('sessions.newSession.quickChatUnavailable', "Chat is unavailable. Enable an agent that supports conversations without a project."));
+			}
+			options = { noWorkspace: true };
+		}
 		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;
 		// New sessions open in the main window, from the session it shows.
 		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
@@ -144,6 +153,9 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			const session = sessionsService.openQuickChat(availableTarget, true);
 			if (options.agentHostProvider && !session) {
 				throw new Error(localize('sessions.newSession.creationFailed', "Could not create a session for Agent Host provider '{0}'.", options.agentHostProvider));
+			}
+			if (chatCategorySelected && !session) {
+				throw new Error(localize('sessions.newSession.quickChatCreationFailed', "Could not create a conversation without a project."));
 			}
 			sendPrompt();
 			return session?.resource;

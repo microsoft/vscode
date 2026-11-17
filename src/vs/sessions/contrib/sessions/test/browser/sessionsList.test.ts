@@ -124,7 +124,7 @@ import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
-import { getInboxWorkspaceFilter, getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { getInboxWorkspaceFilter, getSessionEnvironments, SessionsListKind } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -205,6 +205,97 @@ suite('Sessions - SessionsList', () => {
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
 		upcastPartial<IAutomationDescriptor>({ id, ownership });
+
+	test('Work/Chat scope separates active, pinned, grouped and archived sessions without treating missing workspace metadata as Chat', () => {
+		const sessions = [
+			createTestSession('work', { status: SessionStatus.InProgress }).session,
+			createTestSession('chat', { isQuickChat: true, status: SessionStatus.InProgress }).session,
+			createTestSession('pinned-work').session,
+			createTestSession('pinned-chat', { isQuickChat: true }).session,
+			createTestSession('archived-work', { isArchived: true }).session,
+			createTestSession('archived-chat', { isQuickChat: true, isArchived: true }).session,
+			{ ...createTestSession('hydrating', { status: SessionStatus.InProgress }).session, workspace: constObservable(undefined), isQuickChat: undefined },
+		];
+		const group: ISessionGroup = { id: 'mixed', name: 'Mixed', createdAt: 1 };
+		const collectIds = (nodes: readonly SessionsListSnapshotNode[]): string[] => nodes.flatMap(node => node.type === 'session' ? [node.session.sessionId] : collectIds(node.children));
+		const results = [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Environment, SessionsGrouping.Date, SessionsGrouping.Inbox].map(grouping => {
+			const kind = observableValue<SessionsListKind>(disposables, 'work');
+			const harness = createListHarness(disposables, sessions, {
+				activeSession: constObservable(upcastPartial<ITestSessionWithChat>({ ...sessions[1], activeChat: sessions[1].mainChat })),
+				groups: [group],
+				memberships: new Map([['work', group.id], ['chat', group.id]]),
+				pinnedSessionIds: new Set(['pinned-work', 'pinned-chat']),
+			});
+			if (grouping === SessionsGrouping.Inbox) {
+				const model = harness.store.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				model.pinSession(sessions[2]);
+				model.pinSession(sessions[3]);
+			}
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				kind, grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.setExcludeArchived(false);
+			const work = collectIds(list.getTreeSnapshot()).sort();
+			kind.set('chat', undefined);
+			const chat = collectIds(list.getTreeSnapshot()).sort();
+			list.resetFilters();
+			const kindAfterReset = kind.get();
+			return { work, chat, kindAfterReset };
+		});
+		assert.deepStrictEqual(results, Array.from({ length: 5 }, () => ({
+			work: ['archived-work', 'hydrating', 'pinned-work', 'work'],
+			chat: ['archived-chat', 'chat', 'pinned-chat'],
+			kindAfterReset: 'chat',
+		})));
+	});
+
+	test('Work/Chat scope expands Chats initially but preserves a saved collapse choice', () => {
+		const harness = createListHarness(disposables, [createTestSession('chat', { isQuickChat: true }).session]);
+		const kind = observableValue<SessionsListKind>(disposables, 'work');
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			kind, grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		const collapseState = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' && node.id === QUICK_CHATS_SECTION_ID ? [node.collapsed] : []);
+		kind.set('chat', undefined);
+		const initial = collapseState();
+		list.setHeaderCollapsed(QUICK_CHATS_SECTION_ID, true);
+		kind.set('work', undefined);
+		kind.set('chat', undefined);
+		assert.deepStrictEqual({ initial, restored: collapseState() }, { initial: [false], restored: [true] });
+	});
+
+	test('Work/Chat scope keeps comparisons in their category, including pending comparisons', () => {
+		const work = createTestSession('work-attempt').session;
+		const chat = createTestSession('chat-attempt', { isQuickChat: true }).session;
+		const groups: ISessionGroup[] = ['work-comparison', 'chat-comparison', 'pending-work', 'pending-chat'].map(id => ({ id, name: id, createdAt: 1 }));
+		const comparisons: ISessionComparison[] = groups.map((group, index) => ({
+			id: group.id, groupId: group.id, title: group.name, prompt: 'Compare', createdAt: 1,
+			workspace: index % 2 === 0 ? URI.file('/workspace') : undefined,
+			launching: index >= 2,
+			participants: index < 2 ? [{
+				id: 'attempt', role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				sessionResource: index === 0 ? work.resource : chat.resource,
+			}] : [],
+		}));
+		const harness = createListHarness(disposables, [work, chat], {
+			groups, comparisons, memberships: new Map([[work.sessionId, groups[0].id], [chat.sessionId, groups[1].id]]),
+		});
+		const kind = observableValue<SessionsListKind>(disposables, 'work');
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			kind, grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		const collectGroups = (nodes: readonly SessionsListSnapshotNode[]): string[] => nodes.flatMap(node => node.type === 'session' ? [] : [
+			...(node.type === 'group' ? [node.label] : []), ...collectGroups(node.children),
+		]);
+		const workGroups = collectGroups(list.getTreeSnapshot()).sort();
+		kind.set('chat', undefined);
+		assert.deepStrictEqual({ workGroups, chatGroups: collectGroups(list.getTreeSnapshot()).sort() }, {
+			workGroups: ['pending-work', 'work-comparison'],
+			chatGroups: ['chat-comparison', 'pending-chat'],
+		});
+	});
 
 	test('an unscoped list orders and shows its sections by the listed sessions only, as before listing scopes; a scoped one also keeps the saved order of other sections', () => {
 		const run = (scoped: boolean) => {

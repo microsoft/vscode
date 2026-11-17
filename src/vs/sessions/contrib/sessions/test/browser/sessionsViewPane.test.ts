@@ -35,6 +35,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatCustomizationsLocation } from '../../../../../workbench/contrib/chat/common/customizationsLocation.js';
+import { SessionsWorkChatToggle } from '../../../../../workbench/contrib/sessions/browser/views/sessionsWorkChatToggle.js';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
@@ -63,6 +64,31 @@ const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayo
 
 suite('Sessions - SessionsViewPane', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Work/Chat switch supports pointer and keyboard selection and restores the selected category', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const toggle = disposables.add(new SessionsWorkChatToggle(storage));
+		mainWindow.document.body.appendChild(toggle.element);
+		disposables.add(toDisposable(() => toggle.element.remove()));
+		const buttons = [...toggle.element.querySelectorAll<HTMLElement>('[role="radio"]')];
+		const snapshot = () => ({
+			kind: toggle.kind.get(),
+			buttons: buttons.map(button => [button.getAttribute('aria-label'), button.getAttribute('aria-checked'), button.tabIndex]),
+		});
+		const initial = snapshot();
+		buttons[1].click();
+		const chat = snapshot();
+		const restored = disposables.add(new SessionsWorkChatToggle(storage)).kind.get();
+		buttons[1].focus();
+		buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
+		assert.deepStrictEqual({ initial, chat, restored, work: snapshot(), focused: mainWindow.document.activeElement === buttons[0] }, {
+			initial: { kind: 'work', buttons: [['Work', 'true', 0], ['Chat', 'false', -1]] },
+			chat: { kind: 'chat', buttons: [['Work', 'false', -1], ['Chat', 'true', 0]] },
+			restored: 'chat',
+			work: { kind: 'work', buttons: [['Work', 'true', 0], ['Chat', 'false', -1]] },
+			focused: true,
+		});
+	});
 
 	test('keeps global customization actions operable before a draft session is bound', async () => {
 		const configurationService = new TestConfigurationService();

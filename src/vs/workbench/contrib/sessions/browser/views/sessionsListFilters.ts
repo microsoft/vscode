@@ -20,6 +20,12 @@ export type SessionFilter =
 	| { readonly kind: 'harness' | 'environment'; readonly id: string }
 	| { readonly kind: 'application'; readonly environment: string; readonly id: string };
 
+export type SessionsListKind = 'work' | 'chat';
+
+export function matchesSessionsListKind(kind: SessionsListKind | undefined, isQuickChat: boolean | undefined): boolean {
+	return kind === undefined || (kind === 'chat') === (isQuickChat === true);
+}
+
 export interface ISessionFilterOption {
 	readonly filter: SessionFilter;
 	readonly label: string;

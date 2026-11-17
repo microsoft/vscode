@@ -15,7 +15,7 @@ import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
 import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
-import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -67,6 +67,14 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 KeybindingsRegistry.registerKeybindingAlias({ command: SessionsContainerId, source: ChatViewContainerId, when: sessionsContainerKeybindingWhen });
 
+type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
+
+class AgentsSessionsView extends SessionsView {
+	constructor(options: ISessionsViewOptions, ...services: SessionsViewServices) {
+		super({ ...options, separateWorkAndChat: true }, ...services);
+	}
+}
+
 const sessionsViewPaneDescriptor: IViewDescriptor = {
 	id: SessionsViewId,
 	containerIcon: agentSessionsViewIcon,
@@ -75,7 +83,7 @@ const sessionsViewPaneDescriptor: IViewDescriptor = {
 	name: AGENT_SESSIONS_VIEW_TITLE,
 	canToggleVisibility: true,
 	canMoveView: false,
-	ctorDescriptor: new SyncDescriptor(SessionsView),
+	ctorDescriptor: new SyncDescriptor(AgentsSessionsView),
 	windowEnablement: WindowEnablement.Sessions
 };
 

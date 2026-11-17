@@ -94,6 +94,15 @@
 		}
 	}
 
+	.sessions-work-chat-toggle {
+		flex-shrink: 0;
+		margin: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+
+		&[hidden] {
+			display: none;
+		}
+	}
+
 	.agent-sessions-content.collapsed {
 		display: none;
 	}
