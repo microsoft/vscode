@@ -167,13 +167,14 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				if (supportsThinking) {
 					// Send the reasoning back under the one key the server used for it. Servers that treat
 					// `reasoning` as an alias of `reasoning_content` reject a message that has both. When the
-					// key is unknown, use `reasoning_content`, the name most servers use.
+					// key is unknown, use `reasoning_content`, the name most servers use. This callback runs once
+					// per thinking group on the same message, so once a key has been set the later groups use
+					// that key too, whatever their own source was.
 					const sourceField = reasoningSourceFieldFromMetadata(data.metadata);
-					if (sourceField === 'reasoning') {
-						out.reasoning = text;
-					} else {
-						out.reasoning_content = text;
-					}
+					const key = out.reasoning_content !== undefined ? 'reasoning_content'
+						: out.reasoning !== undefined ? 'reasoning'
+						: sourceField === 'reasoning' ? 'reasoning' : 'reasoning_content';
+					out[key] = text;
 				}
 			}
 		};

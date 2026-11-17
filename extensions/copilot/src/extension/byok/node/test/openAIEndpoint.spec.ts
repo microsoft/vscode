@@ -276,6 +276,32 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(message.reasoning_content ?? message.reasoning).toBe('I should read the file first.');
 		});
 
+		it.each([
+			['reasoning', 'reasoning_content'],
+			['reasoning_content', 'reasoning'],
+			['reasoning', undefined],
+			[undefined, 'reasoning'],
+		] as const)('sends a single key when one message holds thinking groups from different sources (%s, then %s)', (firstSource, secondSource) => {
+			// The conversion calls the callback once per thinking group on the same message. Choosing the key per
+			// group would leave both keys on the message, which the servers this change is for reject.
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{ ...modelMetadata, supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] },
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const group = (id: string, text: string, sourceField: string | undefined) => ({
+				type: Raw.ChatCompletionContentPartKind.Opaque as const,
+				value: { type: 'thinking', thinking: { id, text, ...(sourceField ? { metadata: { reasoningSourceField: sourceField } } : {}) } }
+			});
+			const message: Raw.ChatMessage = {
+				role: Raw.ChatRole.Assistant,
+				content: [group('reasoning-1', 'first group', firstSource), group('reasoning-2', 'second group', secondSource)]
+			};
+
+			const [sent] = endpoint.createRequestBody(createTestOptions([message])).messages as any[];
+
+			expect(['reasoning_content' in sent, 'reasoning' in sent].filter(Boolean)).toHaveLength(1);
+		});
+
 		it.each([undefined, ''])('issue #338819: emits reasoning text without a provider ID (%s)', thinkingId => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{ ...modelMetadata, supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] },

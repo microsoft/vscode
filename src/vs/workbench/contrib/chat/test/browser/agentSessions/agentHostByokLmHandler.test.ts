@@ -523,6 +523,36 @@ suite('AgentHostByokLmHandler', () => {
 		assert.strictEqual(item.type === 'reasoning' ? item.encryptedContent : undefined, 'vscode-reasoning-metadata:{"reasoningSourceField":"reasoning_content","toolId":"call_1"}');
 	});
 
+	test('streams the merged provider metadata when a marker part and a tool call follow the reasoning', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'provider')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'hmm', id: 'rs_1', metadata: { reasoningSourceField: 'reasoning_content' } },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { toolId: 'call_1' } },
+				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
+			]),
+		);
+		const handler = createHandler(service);
+		const deltas: IByokLmStreamDelta[] = [];
+		store.add(handler.onDidDelta(delta => deltas.push(delta)));
+
+		const result = await handler.chat({
+			requestId: 'req-1',
+			vendor: 'acme',
+			modelId: 'provider',
+			input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+			tools: [{ type: 'function', name: 'getWeather' }],
+		}, CancellationToken.None);
+
+		const merged = 'vscode-reasoning-metadata:{"reasoningSourceField":"reasoning_content","toolId":"call_1"}';
+		const reasoningDeltas = deltas.filter(d => d.kind === 'reasoning');
+		const item = result.output[0];
+		// The streamed state after the marker part must be the merged value, the same as the buffered item,
+		// otherwise a consumer that follows the stream loses the field the earlier part recorded.
+		assert.strictEqual(reasoningDeltas.at(-1)?.kind === 'reasoning' ? reasoningDeltas.at(-1)?.encryptedContent : undefined, merged);
+		assert.strictEqual(item.type === 'reasoning' ? item.encryptedContent : undefined, merged);
+	});
+
 	test('preserves streamed reasoning summary part boundaries', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('customendpoint', 'reasoning')]]),
