@@ -76,7 +76,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void } = {}) {
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void } = {}) {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
@@ -154,6 +154,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			},
 			reveal: async () => {
 				request();
+				options.duringReveal?.();
 				return widgetOf(shown[hostInUse()].get());
 			},
 			register: (contribution: IChatViewContribution) => {
@@ -582,6 +583,28 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			}, {
 				typedTarget: { handovers: ['part new chat'], target: { input: 'D', attachments: [] }, source: { input: 'E', attachments: ['file-a'] } },
 				superseded: { handovers: ['part new chat'], target: { input: '', attachments: [] }, source: { input: 'hello', attachments: ['file-a'] } },
+			});
+		});
+
+		test('an unsent new chat does not move once its attachments changed meanwhile, also with the same text: its source keeps its current ones', async () => {
+			const resolved = upcastPartial<IChatRequestVariableEntry>({ id: 'image-a' });
+			const run = async (change: (source: FakeChatWidget) => void, during: 'newChat' | 'reveal') => {
+				const source = new FakeChatWidget('hello', [attachment]);
+				const fixture = setup({ chatViewShows: draft, [during === 'newChat' ? 'duringNewChat' : 'duringReveal']: () => change(source) });
+				fixture.widgets.set(draft.toString(), source);
+				await fixture.setSetting(true);
+				return { source: source.state, target: fixture.widgets.get(fixture.shown.part.get()!.toString())!.state };
+			};
+
+			assert.deepStrictEqual({
+				added: await run(source => source.attachmentModel.addContext(resolved), 'newChat'),
+				removed: await run(source => source.attachmentModel.clear(), 'reveal'),
+				// The same attachment, as it resolves to another value
+				updated: await run(source => source.attachmentModel.clearAndSetContext(upcastPartial<IChatRequestVariableEntry>({ id: 'file-a' })), 'reveal'),
+			}, {
+				added: { source: { input: 'hello', attachments: ['file-a', 'image-a'] }, target: { input: '', attachments: [] } },
+				removed: { source: { input: 'hello', attachments: [] }, target: { input: '', attachments: [] } },
+				updated: { source: { input: 'hello', attachments: ['file-a'] }, target: { input: '', attachments: [] } },
 			});
 		});
 

@@ -9,12 +9,13 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, IExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -177,8 +178,8 @@ export class ChatWindowComposerBackgroundSends extends Disposable {
 }
 
 /** Whether `a` and `b` aim a new session at the same folder, provider, session type, model, mode and placement. */
-function isSameNewSessionTarget(a: INewSessionTarget, b: INewSessionTarget): boolean {
-	return (a.folderUri && b.folderUri ? extUriBiasedIgnorePathCase.isEqual(a.folderUri, b.folderUri) : a.folderUri === b.folderUri)
+function isSameNewSessionTarget(a: INewSessionTarget, b: INewSessionTarget, extUri: IExtUri): boolean {
+	return (a.folderUri && b.folderUri ? extUri.isEqual(a.folderUri, b.folderUri) : a.folderUri === b.folderUri)
 		&& a.providerId === b.providerId && a.sessionTypeId === b.sessionTypeId && a.modelId === b.modelId && a.modeId === b.modeId
 		&& a.requireDevContainer === b.requireDevContainer && a.placement === b.placement;
 }
@@ -262,6 +263,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		private readonly _openStartedSession: (session: ISession) => Promise<void>,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionGroupsService sessionGroupsService: ISessionGroupsService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.groupId = init.groupId;
@@ -362,7 +364,8 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		this._hostFolder = target.folderUri;
 		const current = this._requestedTarget.get();
 		// Aimed at it already: its draft stays as it is, such as the model the user picked in it
-		if (current && isSameNewSessionTarget(current, target)) {
+		// As its provider tells folders apart, such as by case on a case-sensitive remote
+		if (current && isSameNewSessionTarget(current, target, this._uriIdentityService.extUri)) {
 			return true;
 		}
 		this._targetGeneration++;

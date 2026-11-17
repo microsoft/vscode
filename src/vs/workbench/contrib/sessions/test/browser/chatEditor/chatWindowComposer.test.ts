@@ -11,6 +11,8 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../../ba
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { extUri } from '../../../../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotification, INotificationHandle, INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
@@ -96,6 +98,8 @@ suite('Chat window composer', () => {
 		const storageService = store.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
+		// Folders told apart by case, as a case-sensitive remote's are
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 			// The local agent host, whose drafts can run in a Dev Container
 			override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
@@ -512,6 +516,21 @@ suite('Chat window composer', () => {
 			userPicked: { done: false, aimsAt: '/repo.worktrees/c' },
 			retargets: ['/repo.worktrees/a provider'],
 		});
+	});
+
+	test('a requested target that differs only by the case of a remote folder retargets the composer: its folders are told apart as their provider does', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const upper = URI.parse('vscode-agent-host://host/home/Repo');
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/case'), { target: { folderUri: upper, providerId: 'provider', sessionTypeId: 'type' } }, async () => { }));
+		const retargets: string[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(target.folderUri!.path)));
+
+		const same = composer.requestTarget({ folderUri: upper, providerId: 'provider', sessionTypeId: 'type' });
+		const otherCase = composer.requestTarget({ folderUri: URI.parse('vscode-agent-host://host/home/repo'), providerId: 'provider', sessionTypeId: 'type' });
+
+		assert.deepStrictEqual({ same, otherCase, aimsAt: composer.requestedTarget.get()?.folderUri?.path, retargets }, { same: true, otherCase: true, aimsAt: '/home/repo', retargets: ['/home/repo'] });
 	});
 
 	test('a background send that fails once its composer followed its host to another folder offers its prompt back, rather than restoring it silently there', () => {

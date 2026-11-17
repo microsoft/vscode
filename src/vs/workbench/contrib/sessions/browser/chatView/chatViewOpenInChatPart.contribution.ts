@@ -224,15 +224,20 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 
 	/**
 	 * Whether the input that `handover` took can move to `target`: not over what was typed in the target, such as the chat
-	 * part's one new-session composer, and not once its source shows another chat or its input changed. Both keep their
-	 * input then.
+	 * part's one new-session composer, and not once its source shows another chat, or its text or attachments changed, such as
+	 * an attachment that resolved meanwhile. Both keep their input then.
 	 */
 	private _canMoveDraft(handover: ChatDraftHandover, target: IChatWidget): boolean {
 		if (target.getInput() || target.attachmentModel.attachments.length) {
 			return false;
 		}
 		const source = handover.source;
-		return !source || (isEqual(source.viewModel?.sessionResource, handover.sourceResource) && source.getInput() === handover.input);
+		if (!source) {
+			return true;
+		}
+		const attachments = source.attachmentModel.attachments;
+		return isEqual(source.viewModel?.sessionResource, handover.sourceResource) && source.getInput() === handover.input
+			&& attachments.length === handover.attachments.length && attachments.every((attachment, index) => attachment === handover.attachments[index]);
 	}
 
 	/**
