@@ -630,7 +630,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			getCredential: request => {
 				const credential = captured.get(request.resource);
 				if (!credential || !isScopedCredentialUsable(credential)
-					|| this._tokens.get(this._key(credential.resource, credential.scopes ?? []))?.token !== credential.token) {
+					|| (this._tokens.get(this._key(credential.resource, credential.scopes ?? []))?.token !== credential.token
+						&& this.getSharedCredential({ resource: credential.resource, scopes: credential.scopes }) !== credential)) {
 					return undefined;
 				}
 				return credential;

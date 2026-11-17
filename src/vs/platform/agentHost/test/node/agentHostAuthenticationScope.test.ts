@@ -39,6 +39,7 @@ suite('AgentHostAuthenticationScope', () => {
 			override async authenticate() { return true; }
 		}();
 		service.setHostExecutionCredentials(resources.map(resource => ({ resource, token: 'host-token' })));
+		const local = await service.createLocalCredentialSource(principal, resources.map(resource => ({ resource })));
 		service.restoreSessionCredentialPrincipal('agent:/restored', principal);
 		const captured = captureCredentialSource(service.getSessionCredentialSource('agent:/restored')!, resources.map(resource => ({ resource })));
 		for (const resource of resources) {
@@ -50,9 +51,10 @@ suite('AgentHostAuthenticationScope', () => {
 			current: service.getSharedCredential({ resource })?.token,
 			restored: service.getAuthToken({ session: 'agent:/restored', resource }),
 			captured: captured.getCredential({ resource })?.token,
+			localContinuation: local.getCredential({ resource })?.token,
 			direct: service.getAuthToken({ resource }),
 		})), resources.map(() => ({
-			current: 'host-token', restored: 'host-token', captured: 'host-token', direct: undefined,
+			current: 'host-token', restored: 'host-token', captured: 'host-token', localContinuation: 'host-token', direct: undefined,
 		})));
 	});
 
@@ -68,7 +70,7 @@ suite('AgentHostAuthenticationScope', () => {
 		}();
 		await service.authenticate({ resource, token: 'direct-client-token' }, [provider]);
 		service.setHostExecutionCredentials([{ resource, token: 'first-host-token' }]);
-		const source = { getCredential: () => service.getSharedCredential({ resource }) };
+		const source = await service.createLocalCredentialSource(principal, [{ resource }]);
 		const captured = captureCredentialSource(source, [{ resource }]);
 		assert.throws(() => service.setHostExecutionCredentials([{ resource: 'https://other.example', token: 'invalid' }]), { code: AhpErrorCodes.AuthRequired });
 		const afterInvalid = service.getSharedCredential({ resource })?.token;
