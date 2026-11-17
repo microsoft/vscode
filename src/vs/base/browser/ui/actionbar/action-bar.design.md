@@ -1,7 +1,5 @@
 # ActionBar
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 Groups actions with shared keyboard navigation and optional overflow.
@@ -12,6 +10,7 @@ Groups actions with shared keyboard navigation and optional overflow.
 - Choose orientation to match the surrounding layout.
 - Prefer workbench toolbar integrations when actions are contributed through menus.
 - ActionBar owns basic action navigation. ToolBar composes it with secondary actions and responsive overflow.
+- Choose `focusOnlyEnabledItems` deliberately; it controls whether keyboard navigation may focus unavailable actions.
 
 ## Accessibility
 

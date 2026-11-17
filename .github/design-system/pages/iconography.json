@@ -2,17 +2,14 @@
 	"version": 1,
 	"id": "iconography",
 	"renderer": "icons",
-	"content": "content/foundations/iconography.json",
+	"source": "src/vs/base/common/iconography.design.md",
+	"content": {},
 	"sources": [
-		{
-			"file": "src/vs/base/common/iconography.design.md"
-		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},
 		{
 			"file": ".github/instructions/design-tokens.instructions.md"
 		}
-	],
-	"sections": []
+	]
 }

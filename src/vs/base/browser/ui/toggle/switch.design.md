@@ -1,7 +1,5 @@
 # Switch
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 A binary setting that takes effect immediately.
@@ -11,6 +9,7 @@ A binary setting that takes effect immediately.
 - Use for immediately applied settings, not deferred form submission.
 - Keep the label stable between on and off.
 - Programmatic checked updates do not emit onChange; subscribe to user changes separately.
+- Constructor `checked` and `disabled` options establish the initial state; change those properties on the instance afterwards.
 
 ## Accessibility
 

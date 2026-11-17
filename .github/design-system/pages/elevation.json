@@ -2,11 +2,130 @@
 	"version": 1,
 	"id": "elevation",
 	"renderer": "foundations",
-	"content": "content/foundations/elevation.json",
-	"sources": [
-		{
-			"file": "src/vs/platform/theme/common/elevation.design.md"
+	"source": "src/vs/platform/theme/common/elevation.design.md",
+	"content": {
+		"construction": {
+			"caption": {
+				"$text": "Surface construction study"
+			},
+			"labels": [
+				"Receiving surface",
+				"Overlay",
+				"Contained group"
+			],
+			"parts": [
+				{
+					"title": "Fill and foreground",
+					"description": {
+						"$text": "Fill and foreground"
+					},
+					"tokens": [
+						"editorHoverWidget.background",
+						"editorHoverWidget.foreground"
+					]
+				},
+				{
+					"title": "Boundary and shape",
+					"description": {
+						"$text": "Boundary and shape"
+					},
+					"tokens": [
+						"editorHoverWidget.border",
+						"cornerRadius.large"
+					]
+				},
+				{
+					"title": "Shadow and receiving surface",
+					"description": {
+						"$text": "Shadow and receiving surface"
+					},
+					"tokens": [
+						"--vscode-shadow-lg"
+					]
+				}
+			]
 		},
+		"hosting": {
+			"caption": {
+				"$text": "Overlay hosting study"
+			},
+			"labels": [
+				"Clipped descendant",
+				"Owned overlay host",
+				"Scroll container",
+				"Overlay"
+			]
+		},
+		"scenarios": [
+			{
+				"id": "navigation",
+				"title": "Navigate without losing the editor",
+				"description": {
+					"$text": "Navigate without losing the editor"
+				},
+				"caption": {
+					"$text": "Navigation relationship"
+				}
+			},
+			{
+				"id": "inspection",
+				"title": "Inspect a symbol in place",
+				"description": {
+					"$text": "Inspect a symbol in place"
+				},
+				"caption": {
+					"$text": "Inspection relationship"
+				}
+			},
+			{
+				"id": "picker",
+				"title": "Jump to another file or command",
+				"description": {
+					"$text": "Jump to another file or command"
+				},
+				"caption": {
+					"$text": "Picker relationship"
+				}
+			},
+			{
+				"id": "decision",
+				"title": "Resolve a decision before continuing",
+				"description": {
+					"$text": "Resolve a decision before continuing"
+				},
+				"caption": {
+					"$text": "Decision relationship"
+				}
+			}
+		],
+		"shadowRoles": [
+			{
+				"id": "sm",
+				"description": {
+					"$text": "Small shadow"
+				}
+			},
+			{
+				"id": "md",
+				"description": {
+					"$text": "Medium shadow"
+				}
+			},
+			{
+				"id": "lg",
+				"description": {
+					"$text": "Large shadow"
+				}
+			},
+			{
+				"id": "xl",
+				"description": {
+					"$text": "Extra-large shadow"
+				}
+			}
+		]
+	},
+	"sources": [
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},
@@ -17,27 +136,95 @@
 	"sections": [
 		{
 			"id": "elevation-tiers",
-			"title": "Surface relationships"
+			"key": "tiers",
+			"heading": "Surface hierarchy",
+			"title": "Choose the surface relationship",
+			"label": "Surface relationships",
+			"description": {
+				"$text": "Surface hierarchy"
+			}
 		},
 		{
 			"id": "elevation-anatomy",
-			"title": "Depth cues"
+			"key": "anatomy",
+			"heading": "What makes elevation",
+			"label": "Depth cues",
+			"description": {
+				"$text": {
+					"heading": "What makes elevation",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": "Placement and behavior"
+				}
+			]
 		},
 		{
 			"id": "elevation-shadows",
-			"title": "Shadow scale"
+			"key": "shadows",
+			"heading": "Shadow scale",
+			"title": "Use the existing shadow scale",
+			"label": "Shadow scale",
+			"description": {
+				"$text": {
+					"heading": "Shadow scale",
+					"paragraph": 0
+				}
+			},
+			"paragraphs": [
+				{
+					"$text": "Shadow comparison study"
+				},
+				{
+					"$text": {
+						"heading": "Shadow scale",
+						"paragraph": 1
+					}
+				},
+				{
+					"$text": "Existing surface treatments"
+				}
+			]
 		},
 		{
 			"id": "elevation-scenarios",
-			"title": "Product scenarios"
+			"key": "scenarios",
+			"heading": "Product scenarios",
+			"title": "Apply elevation to real tasks",
+			"label": "Product scenarios",
+			"description": {
+				"$text": {
+					"heading": "Product scenarios",
+					"paragraph": 0
+				}
+			}
 		},
 		{
 			"id": "elevation-role",
-			"title": "Implementation"
+			"key": "role",
+			"heading": "Elevation by role",
+			"title": "Compose a reusable surface",
+			"label": "Implementation",
+			"description": {
+				"$text": "Elevation by role"
+			},
+			"paragraphs": [
+				{
+					"$text": "Implementation"
+				}
+			]
 		},
 		{
 			"id": "elevation-guidance",
-			"title": "Accessibility and performance"
+			"key": "guidance",
+			"heading": "High contrast",
+			"title": "Keep surfaces accessible and responsive",
+			"label": "Accessibility and performance",
+			"description": {
+				"$text": "High contrast"
+			}
 		}
 	]
 }

@@ -62,7 +62,14 @@
 			],
 			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
 			"owner": "src/vs/base/browser/ui/button/button.ts",
-			"reason": "Elementary grouping of related buttons, not a feature-specific command surface."
+			"reason": "Elementary grouping of related buttons, not a feature-specific command surface.",
+			"design": "src/vs/base/browser/ui/button/button-bar.design.md",
+			"api": [
+				"ButtonBar.addButton",
+				"ButtonBar.addButtonWithDescription",
+				"ButtonBar.buttons",
+				"ButtonBar.clear"
+			]
 		},
 		{
 			"id": "link",
@@ -178,7 +185,14 @@
 			],
 			"file": "src/vs/workbench/test/browser/componentFixtures/baseUI.fixture.ts",
 			"owner": "src/vs/base/browser/ui/iconLabel/iconLabel.ts",
-			"reason": "A shared name, optional icon, and description without a resource or feature model."
+			"reason": "A shared name, optional icon, and description without a resource or feature model.",
+			"design": "src/vs/base/browser/ui/iconLabel/icon-label.design.md",
+			"api": [
+				"IIconLabelCreationOptions.supportIcons",
+				"IIconLabelCreationOptions.supportHighlights",
+				"IconLabel.setLabel",
+				"IIconLabelValueOptions.matches"
+			]
 		},
 		{
 			"id": "keybinding-label",
@@ -387,6 +401,14 @@
 				"members": [
 					"Toggle",
 					"Keyboard focus states"
+				],
+				"design": "src/vs/base/browser/ui/toggle/toggle.design.md",
+				"api": [
+					"IToggleOpts.title",
+					"IToggleOpts.isChecked",
+					"IToggleOpts.notFocusable",
+					"Toggle.checked",
+					"Toggle.onChange"
 				]
 			}
 		],
@@ -404,6 +426,13 @@
 					"ActionBar",
 					"ToolBar",
 					"Overflow actions"
+				],
+				"design": "src/vs/base/browser/ui/actionbar/action-bar.design.md",
+				"api": [
+					"IActionBarOptions.orientation",
+					"IActionBarOptions.ariaLabel",
+					"IActionBarOptions.focusOnlyEnabledItems",
+					"ActionBar.push"
 				]
 			}
 		],
@@ -428,6 +457,15 @@
 					"Multiline input",
 					"HistoryInputBox",
 					"FindInput"
+				],
+				"design": "src/vs/base/browser/ui/inputbox/input-box.design.md",
+				"api": [
+					"IInputOptions.placeholder",
+					"IInputOptions.ariaLabel",
+					"IInputOptions.validationOptions",
+					"InputBox.value",
+					"InputBox.onDidChange",
+					"IInputOptions.flexibleHeight"
 				]
 			}
 		],
@@ -447,12 +485,27 @@
 					"Checkbox",
 					"Checkbox label",
 					"Disabled states"
+				],
+				"design": "src/vs/base/browser/ui/toggle/checkbox.design.md",
+				"api": [
+					"Checkbox.constructor",
+					"Checkbox.checked",
+					"Checkbox.onChange",
+					"Checkbox.disable"
 				]
 			}
 		],
 		[
 			"switch",
-			{}
+			{
+				"design": "src/vs/base/browser/ui/toggle/switch.design.md",
+				"api": [
+					"ISwitchOptions.ariaLabel",
+					"ISwitchOptions.checked",
+					"ISwitchOptions.disabled",
+					"Switch.onChange"
+				]
+			}
 		],
 		[
 			"radio",
@@ -461,6 +514,14 @@
 					"Radio",
 					"Segmented presentation",
 					"Keyboard selection modes"
+				],
+				"design": "src/vs/base/browser/ui/radio/radio.design.md",
+				"api": [
+					"IRadioOptions.items",
+					"IRadioOptions.ariaLabel",
+					"IRadioOptions.allowNoSelection",
+					"IRadioOptions.arrowKeyBehavior",
+					"Radio.onDidSelect"
 				]
 			}
 		],
@@ -472,13 +533,28 @@
 					"Native picker",
 					"Custom-drawn picker",
 					"Options"
+				],
+				"design": "src/vs/base/browser/ui/selectBox/select-box.design.md",
+				"api": [
+					"ISelectBoxOptions.ariaLabel",
+					"ISelectBoxOptions.useCustomDrawn",
+					"ISelectBoxDelegate.setOptions",
+					"SelectBox.onDidSelect"
 				]
 			}
 		],
 		[
 			"dropdown",
 			{
-				"reason": "Select several values from a known set."
+				"reason": "Select several values from a known set.",
+				"design": "src/vs/platform/actionWidget/browser/multi-select-dropdown.design.md",
+				"api": [
+					"IMultiSelectDropdownOptions.anchor",
+					"IMultiSelectDropdownOptions.sections",
+					"IMultiSelectDropdownOptions.selectedIds",
+					"IMultiSelectDropdownOptions.searchable",
+					"MultiSelectDropdown.onDidChangeSelection"
+				]
 			}
 		],
 		[
@@ -517,12 +593,31 @@
 					"HighlightedLabel",
 					"IconLabel",
 					"ResourceLabels"
+				],
+				"design": "src/vs/base/browser/ui/highlightedlabel/highlighted-label.design.md",
+				"api": [
+					"HighlightedLabel.set",
+					"IHighlight.start",
+					"IHighlight.end",
+					"IHighlightedLabelOptions.hoverDelegate",
+					"IIconLabelCreationOptions.supportIcons",
+					"IIconLabelCreationOptions.supportHighlights",
+					"IconLabel.setLabel",
+					"IIconLabelValueOptions.matches"
 				]
 			}
 		],
 		[
 			"keybinding-label",
-			{}
+			{
+				"design": "src/vs/base/browser/ui/keybindingLabel/keybinding-label.design.md",
+				"api": [
+					"KeybindingLabel.set",
+					"KeybindingLabelOptions.renderUnboundKeybindings",
+					"KeybindingLabelOptions.disableTitle",
+					"KeybindingLabel.element"
+				]
+			}
 		],
 		[
 			"list",
@@ -592,7 +687,15 @@
 		],
 		[
 			"badge",
-			{}
+			{
+				"design": "src/vs/base/browser/ui/countBadge/count-badge.design.md",
+				"api": [
+					"ICountBadgeOptions.count",
+					"ICountBadgeOptions.countFormat",
+					"ICountBadgeOptions.titleFormat",
+					"CountBadge.setCount"
+				]
+			}
 		],
 		[
 			"message",
@@ -613,7 +716,17 @@
 		],
 		[
 			"progress",
-			{}
+			{
+				"design": "src/vs/base/browser/ui/progressbar/progress-bar.design.md",
+				"api": [
+					"IProgressBarOptions.ariaLabel",
+					"ProgressBar.infinite",
+					"ProgressBar.total",
+					"ProgressBar.worked",
+					"ProgressBar.done",
+					"ProgressBar.stop"
+				]
+			}
 		],
 		[
 			"spinner",
@@ -626,6 +739,13 @@
 					"Pixel spinner",
 					"Grid and ring variants",
 					"Busy label"
+				],
+				"design": "src/vs/base/browser/ui/pixelSpinner/pixel-spinner.design.md",
+				"api": [
+					"IPixelSpinnerOptions.variant",
+					"IPixelSpinnerOptions.ariaLabel",
+					"IPixelSpinner.element",
+					"createPixelSpinner"
 				]
 			}
 		],
@@ -639,7 +759,14 @@
 			"hover",
 			{
 				"name": "Hover card",
-				"reason": "Preview richer supporting information near its trigger."
+				"reason": "Preview richer supporting information near its trigger.",
+				"design": "src/vs/base/browser/ui/hover/hover-widget.design.md",
+				"api": [
+					"HoverWidget.constructor",
+					"HoverWidget.containerDomNode",
+					"HoverWidget.contentsDomNode",
+					"HoverWidget.onContentsChanged"
+				]
 			}
 		],
 		[
@@ -660,7 +787,14 @@
 					"Submenu",
 					"Separator"
 				],
-				"reason": "Choose an action from a menu, with optional submenus."
+				"reason": "Choose an action from a menu, with optional submenus.",
+				"design": "src/vs/base/browser/ui/menu/menu.design.md",
+				"api": [
+					"IMenuOptions.ariaLabel",
+					"IMenuOptions.enableMnemonics",
+					"IMenuOptions.getKeyBinding",
+					"Menu.constructor"
+				]
 			}
 		],
 		[
@@ -673,7 +807,14 @@
 					"Optional inputs",
 					"Modal focus behavior"
 				],
-				"reason": "Present a focused modal decision with actions and optional inputs."
+				"reason": "Present a focused modal decision with actions and optional inputs.",
+				"design": "src/vs/base/browser/ui/dialog/dialog.design.md",
+				"api": [
+					"IDialogOptions.detail",
+					"IDialogOptions.cancelId",
+					"IDialogOptions.inputs",
+					"Dialog.show"
+				]
 			}
 		],
 		[

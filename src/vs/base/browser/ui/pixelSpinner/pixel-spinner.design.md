@@ -1,7 +1,5 @@
 # createPixelSpinner
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 A compact indeterminate busy indicator with grid and ring variants.

@@ -2,19 +2,9 @@
 	"version": 1,
 	"id": "size",
 	"renderer": "foundations",
-	"content": "content/foundations/size.json",
-	"guidance": [
-		{
-			"id": "size-guidance",
-			"title": "Choosing an icon size",
-			"file": ".github/instructions/design-tokens.instructions.md",
-			"anchor": "codicon-size"
-		}
-	],
+	"source": "src/vs/platform/theme/common/sizes/size.design.md",
+	"content": {},
 	"sources": [
-		{
-			"file": "src/vs/platform/theme/common/sizes/size.design.md"
-		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},
@@ -25,5 +15,24 @@
 			"file": ".github/skills/ux-css-layout/SKILL.md"
 		}
 	],
-	"sections": []
+	"guidance": [
+		{
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"id": "size-guidance",
+			"title": "Choosing an icon size",
+			"anchor": "codicon-size"
+		}
+	],
+	"sections": [
+		{
+			"id": "size-glyphs",
+			"key": "glyphs",
+			"heading": "Choose a glyph size"
+		},
+		{
+			"id": "size-reference",
+			"key": "reference",
+			"heading": "Size reference"
+		}
+	]
 }

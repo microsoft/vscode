@@ -2,19 +2,54 @@
 	"version": 1,
 	"id": "spacing",
 	"renderer": "foundations",
-	"content": "content/foundations/spacing.json",
-	"guidance": [
-		{
-			"id": "spacing-guidance",
-			"title": "Using spacing",
-			"file": "src/vs/platform/theme/common/sizes/spacing.design.md",
-			"anchor": "give-each-interval-one-owner"
+	"source": "src/vs/platform/theme/common/sizes/spacing.design.md",
+	"content": {
+		"relationships": [
+			[
+				"Within a group",
+				{
+					"$text": "Within a group"
+				}
+			],
+			[
+				"Between groups",
+				{
+					"$text": "Between groups"
+				}
+			],
+			[
+				"Inside a surface",
+				{
+					"$text": "Inside a surface"
+				}
+			]
+		],
+		"ownership": [
+			[
+				"Padding · inside a surface",
+				{
+					"$text": "Padding ownership"
+				}
+			],
+			[
+				"Gap · between siblings",
+				{
+					"$text": "Gap ownership"
+				}
+			],
+			[
+				"Margin · outside an element",
+				{
+					"$text": "Margin ownership"
+				}
+			]
+		],
+		"preview": {
+			"control": "button",
+			"summary": "Related actions in light and dark themes."
 		}
-	],
+	},
 	"sources": [
-		{
-			"file": "src/vs/platform/theme/common/sizes/spacing.design.md"
-		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},
@@ -28,27 +63,42 @@
 	"sections": [
 		{
 			"id": "spacing-grouping",
-			"title": "Relationships"
+			"key": "grouping",
+			"heading": "Make relationships visible",
+			"label": "Relationships"
 		},
 		{
 			"id": "spacing-ownership",
-			"title": "Padding, gap, and margin"
+			"key": "ownership",
+			"heading": "Give each interval one owner",
+			"label": "Padding, gap, and margin",
+			"aliases": [
+				"spacing-guidance"
+			]
 		},
 		{
 			"id": "spacing-patterns",
-			"title": "Usage patterns"
+			"key": "patterns",
+			"heading": "Choose a spacing pattern",
+			"label": "Usage patterns"
 		},
 		{
 			"id": "spacing-product",
-			"title": "Live example"
+			"key": "product",
+			"heading": "Spacing between controls",
+			"label": "Live example"
 		},
 		{
 			"id": "spacing-responsive",
-			"title": "Narrow layouts"
+			"key": "responsive",
+			"heading": "When space gets tight",
+			"label": "Narrow layouts"
 		},
 		{
 			"id": "layout-spacing",
-			"title": "Spacing tokens"
+			"key": "ramp",
+			"heading": "Spacing ramp",
+			"label": "Spacing tokens"
 		}
 	]
 }

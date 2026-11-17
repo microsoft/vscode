@@ -2,24 +2,7 @@
 	"version": 1,
 	"id": "components",
 	"renderer": "components",
-	"content": "content/components/overview.json",
-	"sources": [],
-	"sections": [
-		{
-			"id": "component-example",
-			"title": "Preview"
-		},
-		{
-			"id": "component-usage",
-			"title": "Usage"
-		},
-		{
-			"id": "component-accessibility",
-			"title": "Accessibility"
-		},
-		{
-			"id": "component-api",
-			"title": "API"
-		}
-	]
+	"source": ".github/design-system/guidance/overview.md",
+	"content": {},
+	"sources": []
 }

@@ -1,7 +1,5 @@
 # Checkbox
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 An independently checked choice, typically part of a form or a set of options.
@@ -11,6 +9,7 @@ An independently checked choice, typically part of a form or a set of options.
 - Use for independent choices; several checkboxes may be checked together.
 - Keep the label stable and explain when the choice is applied.
 - Use Switch when an on/off setting takes effect immediately. This Checkbox API is binary; do not imply an indeterminate state.
+- Disabling a checkbox must not clear its checked state.
 
 ## Accessibility
 

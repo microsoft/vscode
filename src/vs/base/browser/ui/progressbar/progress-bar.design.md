@@ -1,7 +1,5 @@
 # ProgressBar
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 Communicates measured progress or ongoing work with an unknown total.
@@ -10,6 +8,7 @@ Communicates measured progress or ongoing work with an unknown total.
 
 - Use determinate progress only when a meaningful total is available.
 - Stop the treatment when the operation completes or no longer runs.
+- Use `done()` to finish with the completion transition, or `stop()` when the treatment must stop immediately.
 - Do not use a looping treatment to represent an operation waiting for user input.
 
 ## Accessibility

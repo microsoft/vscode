@@ -14,7 +14,7 @@ For writing, improving, or reviewing a topic's guidance, use the [design-system 
 | Foundation design guidance | `<subject>.design.md` beside the owning registry or implementation |
 | Example-specific explanations and captions | Beside the owning examples or foundation; keep specimen labels and controls out of general design rules |
 | Cross-cutting design guidance without a narrower owner | `.github/design-system/guidance/<subject>.design.md`; existing instruction and workflow documents retain their scope |
-| Structured curation and source bindings | `.github/design-system/content/`; prose is referenced from its owning Markdown, not copied here |
+| Structured curation and source bindings | `.github/design-system/content/`; keep only relationships that cannot be derived from the owning sources |
 | Topic order, aliases, content references, and example bindings | `.github/design-system/book.json` and `.github/design-system/pages/` |
 | Token values, APIs, and executable behavior | Product code and tests |
 | Actual interactive examples | The existing component-fixture infrastructure |
@@ -30,7 +30,7 @@ Existing document boundaries still apply. For example, a feature's state-ownersh
 
 [motion.design.md](../../src/vs/platform/theme/common/motion/motion.design.md) owns principles, foundations, pattern selection, token roles, and motion-specific accessibility. [MOTION.md](../../src/vs/platform/theme/common/motion/MOTION.md) owns integration contracts, measured behavior, technical validation, and implementation recipes. The page selects its primary design source and additional technical `sources` explicitly. Their heading slugs must be unique across those files. The chapter moves from purpose and restraint to product patterns, timing and properties, presets and tokens, accessibility, and evaluation; don't mirror the specifications' entire heading trees.
 
-Keep reusable definitions in the data-only [motionPresets.ts](../../src/vs/platform/theme/common/motion/motionPresets.ts) catalog, independent of legacy CSS IDs. [motionPresetBindings.ts](../../src/vs/platform/theme/common/motion/motionPresetBindings.ts) maps those definitions to product token defaults. [motionResponsePresets.json](../../src/vs/platform/theme/common/motion/motionResponsePresets.json) owns physical inputs; its compiler generates the paired timing in [motionResponses.ts](../../src/vs/platform/theme/common/motion/motionResponses.ts). The book projects those sources, including generated `responsive` and `settled` pairs, not a second derivation or copied numerical table. Properties, geometry, semantic state, focus, presence, interruption, and disposal still require component-owned design and implementation.
+Keep reusable definitions in the data-only [motionPresets.ts](../../src/vs/platform/theme/common/motion/motionPresets.ts) catalog, independent of legacy CSS IDs. [motionPresetBindings.ts](../../src/vs/platform/theme/common/motion/motionPresetBindings.ts) maps those definitions to the product-backed semantic duration/easing pairs in [motionRegistry.ts](../../src/vs/platform/theme/common/motionRegistry.ts). Physical inputs in [motionResponsePresets.json](../../src/vs/platform/theme/common/motion/motionResponsePresets.json) and their compiled [motionResponses.ts](../../src/vs/platform/theme/common/motion/motionResponses.ts) are optional authoring studies, not runtime defaults. The book projects these sources rather than maintaining another numerical table. Properties, geometry, semantic state, focus, presence, interruption, and disposal still require component-owned design and implementation.
 
 Use [the chapter's presentation copy](../../src/vs/platform/theme/common/motion/motion-examples.md) for short explanations and separately bound captions. Resolve it through the same `$text` bindings used elsewhere in the book. Keep computed values and executable behavior in product sources, not in presentation copy. Technical contracts, validation procedures, agent workflows, and analysis records stay in their source documents rather than becoming primary chapter sections. Product players expose reduced motion beside playback. Explanatory timing and curve diagrams have playback controls, not a product-preference comparison switch.
 
@@ -63,7 +63,7 @@ Curate motion examples by distinct decisions, not component count. Each product 
 ## Name files and topics
 
 - Use descriptive lowercase kebab-case for new page, content, module, and script filenames.
-- Use `<subject>.design.md` for authored design specifications: `button.design.md`, `motion.design.md`, and `typography.design.md`. Match the subject, not a class-name casing convention, and keep the document beside its owner.
+- Use `<subject>.design.md` for authored design specifications, with the established component or foundation name in lowercase kebab case: `button.design.md`, `input-box.design.md`, `count-badge.design.md`, `motion.design.md`, and `typography.design.md`. Prefer the source component's name over a broader book label, and keep the document beside its owner.
 - Keep `README.md` as the package entry point. Technical contracts such as `MOTION.md` and `COLORS.md`, instruction files, skills, book introductions, and example descriptions do not need the design suffix.
 - Use a topic's stable semantic ID for its page filename. Do not encode display order, renderer implementation, dates, or draft status in IDs.
 - Preserve aliases and old deep links when a topic is renamed or consolidated.
@@ -82,24 +82,35 @@ When renaming a specification, update inbound Markdown links, JSON bindings, and
 
 The book composes repository Markdown through `$text` or section bindings. Keep `.design.md` sources outside `pages/` and `content/`, which contain composition data rather than product guidance.
 
-### Button and Motion authoring pilots
+### Component references
 
-These are two scoped pattern tests, not a migration requirement for other topics.
+The book declares one component collection. [Component curation](content/components/curation.json) owns family names, aliases, implementation owners, selected APIs, and fixture relationships. Topic registrations, including hidden compatibility entries, are derived from that curation and the toolkit evidence; do not repeat them in `book.json`.
 
-Button declares its design document once and selects qualified API member names in its existing component-family curation. The reader takes the title and Overview, Usage, Accessibility, and Preview sections from that Markdown by convention. Its API table derives declared types, optionality, declarations, and source locations from the selected TypeScript members; do not copy those facts into another JSON table. Keep additional usage constraints in the design document. Usage and Accessibility render through the shared Markdown reader, including inline code and source-relative links.
+Declare a component's `design` document once and select APIs by public `Type.member` names or an exported function name. The reader takes the title and Overview, Usage, Accessibility, and Preview sections from that Markdown by convention. It derives types, optionality, declarations, and source locations from TypeScript, including source-inferred types. Inherited declarations must be reachable through the listed owners. Missing, private, ambiguous, or unsupported selections fail explicitly; there is no hand-maintained reference JSON to repair.
 
-Motion retains explicit section order, token/preset choices, and example relationships because those are deliberate editorial decisions. Its page can declare one `textSource` for repeated whole-section copy:
+Keep non-obvious activation, state, accessibility, and disposal advice in the design document, not a copied API-purpose column. Usage and Accessibility support ordinary Markdown and source-relative links. The shared component layout owns Usage, Preview, Accessibility, and API order; its page does not declare a competing section map. Qualification and preview availability remain separate from source-document discovery.
+
+### Foundation composition
+
+A foundation page declares its primary `source` once. The reader uses that document's Introduction and complete selected sections. `content` holds only structured specimen choices and labels, not another introduction or prose section database:
 
 ```json
 {
-	"textSource": "src/vs/platform/theme/common/motion/motion-examples.md",
-	"description": { "$text": "Foundations" }
+	"source": "src/vs/platform/theme/common/sizes/typography.design.md",
+	"content": {},
+	"sections": [
+		{ "id": "typography-emphasis", "key": "emphasis", "heading": "Weight and emphasis" }
+	]
 }
 ```
 
-The short binding selects a uniquely named section from that source. Explicit `$text` objects remain available for other documents, lists, or a deliberately selected lead paragraph. Missing sources or ambiguous headings fail rather than falling back to copied prose. This scoped shorthand is currently wired into the Motion reader only; do not apply it to another foundation without validating that reader's contract.
+The complete page must retain its renderer's required specimens and section keys. Section order controls composition; `label` can provide a shorter outline label, and `aliases` preserve earlier chapter anchors. Additional prose-only sections use `guidance` bindings, which default to the page's source. Do not copy their order into a second outline map. Changing paragraphs under an existing heading requires no metadata edit.
 
-When rolling out a new binding form, install a reader that accepts both forms before activating the new product metadata. Preserve live topics and old-book reading during the transition; remove the obsolete compatibility reference only after that reader is loaded.
+Use `{ "$text": "Heading" }` for specimen copy from the scoped source. An explicit `$text` object can select another document or a genuinely necessary caption/lead paragraph. Elevation retains those deliberate diagram relationships; ordinary sections should not reconstruct prose with paragraph indices. Structured curation can declare `textSource` for the same shorthand. Missing sources and ambiguous headings fail rather than falling back to copied prose.
+
+Motion retains its richer section, token/preset, and example composition because those relationships are deliberate editorial choices. Its `source` owns design guidance; `textSource` scopes the example explanations. Both use the same source resolver.
+
+When rolling out a new binding form, install a reader that accepts both formats before activating product metadata. Keep live topics and old books readable during the transition.
 
 ## Compose a chapter
 
@@ -121,19 +132,17 @@ A page definition controls composition. It must not become a second token regist
 
 Use an existing chapter as the starting point. For example, [Typography's page](pages/typography.json) selects its renderer and structured content, while [its Markdown](../../src/vs/platform/theme/common/sizes/typography.design.md) owns the authored specimen explanations.
 
-Structured chapter content declares `version: 1`, its topic `id`, and `status: "book-authored"` (an authorship marker, not a package location or approval status). A `$text` binding reads a named section from a repository-relative Markdown source:
+A page declares `version: 1`, its stable topic `id`, and its logical `renderer`. The adapter produces the normalized authored chapter; contributors do not maintain a separate `content/foundations/<topic>.json` projection. A `$text` binding reads a named section from the scoped Markdown source:
 
 ```json
 {
 	"$text": {
-		"file": "src/vs/platform/theme/common/sizes/typography.design.md",
-		"heading": "Hierarchy and reading rhythm",
-		"paragraph": 0
+		"heading": "Hierarchy in practice"
 	}
 }
 ```
 
-Omit `paragraph` to read the whole section. Use `list: true` for a section containing a Markdown bullet list. Heading references must be unambiguous; paragraph indices are zero-based and must be updated when the referenced section is reorganized. Refer to an existing product or instruction document instead when it already owns the desired text. Elevation's `markdownSource` identifies the base document for relative links in its bound prose and must also appear in its page's `sources`.
+Whole sections are the default. Use `list: true` only for an explicitly flat list, or `paragraph` only for a deliberate lead/caption whose position is part of the composition. Heading references must be unambiguous. Refer to an existing product or instruction document when it already owns the text. The adapter derives `markdownSource` for relative links from the page's `source`; additional contributing documents belong in `sources`.
 
 [Motion's page](pages/motion.json) demonstrates the richer composition format: it references heading slugs from the product specification and binds them to guidance, paired timing, presets, and examples. Its adapter normalizes authored sections for the shared article frame. Composition must follow the design guidance, not force new concepts into the existing duration, easing, or property galleries. Keep supported block types explicit rather than allowing arbitrary scripts in content.
 

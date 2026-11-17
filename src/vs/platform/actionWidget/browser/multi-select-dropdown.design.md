@@ -1,7 +1,5 @@
 # MultiSelectDropdown
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 An anchored, sectioned menu for selecting multiple values.
@@ -11,6 +9,7 @@ An anchored, sectioned menu for selecting multiple values.
 - Use when several independent values may be selected.
 - Selections are immediate; closing the menu does not roll them back.
 - The caller owns the trigger and persists selection changes. A single-select dropdown is a different control.
+- Pass the current selected IDs when opening, and persist each `onDidChangeSelection` snapshot rather than treating closure as confirmation.
 
 ## Accessibility
 

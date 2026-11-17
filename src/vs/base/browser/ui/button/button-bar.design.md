@@ -1,7 +1,5 @@
 # ButtonBar
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 A reusable group of related button actions.
@@ -11,6 +9,7 @@ A reusable group of related button actions.
 - Group choices that belong to the same decision.
 - Keep primary and supporting actions distinguishable.
 - Use the returned button interfaces rather than querying internal DOM.
+- Use `clear()` to remove and dispose the current buttons before repopulating the group.
 
 ## Accessibility
 

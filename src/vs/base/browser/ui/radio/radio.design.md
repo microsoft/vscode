@@ -1,7 +1,5 @@
 # Radio
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 A mutually exclusive option group, including segmented presentations.
@@ -10,6 +8,7 @@ A mutually exclusive option group, including segmented presentations.
 
 - Use for one choice among related options, not independent boolean settings.
 - Choose arrow-key selection behavior based on whether selection has an immediate side effect.
+- Use `allowNoSelection` only when an initially unchecked group is meaningful; otherwise provide a selected option.
 
 ## Accessibility
 

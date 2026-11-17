@@ -2,19 +2,27 @@
 	"version": 1,
 	"id": "shape",
 	"renderer": "foundations",
-	"content": "content/foundations/shape.json",
-	"guidance": [
-		{
-			"id": "shape-guidance",
-			"title": "Choosing a surface role",
-			"file": ".github/instructions/design-tokens.instructions.md",
-			"anchor": "corner-radius"
-		}
-	],
+	"source": "src/vs/platform/theme/common/sizes/shape.design.md",
+	"content": {
+		"contexts": [
+			{
+				"kind": "control",
+				"label": "Control",
+				"token": "cornerRadius.small"
+			},
+			{
+				"kind": "contained",
+				"label": "Contained surface",
+				"token": "cornerRadius.medium"
+			},
+			{
+				"kind": "overlay",
+				"label": "Overlay",
+				"token": "cornerRadius.large"
+			}
+		]
+	},
 	"sources": [
-		{
-			"file": "src/vs/platform/theme/common/sizes/shape.design.md"
-		},
 		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},
@@ -22,5 +30,24 @@
 			"file": ".github/instructions/design-tokens.instructions.md"
 		}
 	],
-	"sections": []
+	"guidance": [
+		{
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"id": "shape-guidance",
+			"title": "Choosing a surface role",
+			"anchor": "corner-radius"
+		}
+	],
+	"sections": [
+		{
+			"id": "shape-roles",
+			"key": "roles",
+			"heading": "Round by surface role"
+		},
+		{
+			"id": "shape-scale",
+			"key": "scale",
+			"heading": "Corner scale"
+		}
+	]
 }

@@ -1,7 +1,5 @@
 # Menu
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 An action-menu surface with shared selection and submenu behavior.

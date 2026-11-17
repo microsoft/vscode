@@ -2,11 +2,19 @@
 	"version": 1,
 	"id": "accessibility",
 	"renderer": "guidance",
-	"content": "content/guidance/accessibility.json",
+	"source": ".github/design-system/guidance/accessibility.md",
+	"content": {
+		"headingOrder": [
+			"Keyboard Navigation",
+			"ARIA Labels",
+			"Announcement Patterns",
+			"Multi-Modal",
+			"Keybinding Scoping"
+		]
+	},
 	"sources": [
 		{
 			"file": ".github/skills/accessibility/SKILL.md"
 		}
-	],
-	"sections": []
+	]
 }

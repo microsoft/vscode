@@ -2,7 +2,8 @@
 	"version": 1,
 	"id": "layout",
 	"renderer": "foundations",
-	"content": "content/foundations/layout.json",
+	"source": ".github/design-system/guidance/layout.md",
+	"content": {},
 	"sources": [
 		{
 			"file": ".github/skills/ux-css-layout/SKILL.md"
@@ -11,5 +12,16 @@
 			"file": ".github/instructions/design-tokens.instructions.md"
 		}
 	],
-	"sections": []
+	"sections": [
+		{
+			"id": "layout-hierarchy",
+			"key": "hierarchy",
+			"heading": "Arrange the primary task"
+		},
+		{
+			"id": "layout-responsive",
+			"key": "responsive",
+			"heading": "Adapt to available space"
+		}
+	]
 }

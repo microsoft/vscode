@@ -1,7 +1,5 @@
 # KeybindingLabel
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 Platform-aware visual notation for a resolved keyboard shortcut.

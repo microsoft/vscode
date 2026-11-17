@@ -1,7 +1,5 @@
 # IconLabel
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 A reusable name, optional icon, and supporting description.
@@ -10,6 +8,7 @@ A reusable name, optional icon, and supporting description.
 
 - Use for generic labeled objects; use workbench ResourceLabel when resource identity and file-icon themes are required.
 - Choose description and highlighting to support the name rather than compete with it.
+- Enable `supportIcons` and `supportHighlights` at construction when needed, and supply highlight ranges against the displayed text.
 
 ## Accessibility
 

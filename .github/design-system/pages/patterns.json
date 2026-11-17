@@ -2,11 +2,17 @@
 	"version": 1,
 	"id": "patterns",
 	"renderer": "guidance",
-	"content": "content/guidance/interaction-patterns.json",
+	"source": ".github/design-system/guidance/interaction-patterns.md",
+	"content": {},
 	"sources": [
-		{ "file": ".github/skills/hover/SKILL.md" },
-		{ "file": ".github/skills/context-menus/SKILL.md" },
-		{ "file": ".github/skills/accessibility/SKILL.md" }
-	],
-	"sections": []
+		{
+			"file": ".github/skills/hover/SKILL.md"
+		},
+		{
+			"file": ".github/skills/context-menus/SKILL.md"
+		},
+		{
+			"file": ".github/skills/accessibility/SKILL.md"
+		}
+	]
 }

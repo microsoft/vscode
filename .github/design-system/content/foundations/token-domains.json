@@ -5,10 +5,7 @@
 			"id": "spacing",
 			"title": "Spacing",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Spacing"
-				}
+				"$text": "Spacing"
 			},
 			"file": ".github/instructions/design-tokens.instructions.md",
 			"anchor": "## Spacing"
@@ -17,10 +14,7 @@
 			"id": "typography",
 			"title": "Typography",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Typography"
-				}
+				"$text": "Typography"
 			},
 			"file": ".github/instructions/design-tokens.instructions.md",
 			"anchor": "## Font size"
@@ -29,10 +23,7 @@
 			"id": "shape",
 			"title": "Corner radius",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Corner radius"
-				}
+				"$text": "Corner radius"
 			},
 			"file": ".github/skills/design-philosophy/SKILL.md",
 			"anchor": "### Elevation tiers"
@@ -41,10 +32,7 @@
 			"id": "iconography",
 			"title": "Icon size",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Icon size"
-				}
+				"$text": "Icon size"
 			},
 			"file": ".github/instructions/design-tokens.instructions.md",
 			"anchor": "## Codicon size"
@@ -53,10 +41,7 @@
 			"id": "stroke",
 			"title": "Stroke",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Stroke"
-				}
+				"$text": "Stroke"
 			},
 			"file": ".github/instructions/design-tokens.instructions.md",
 			"anchor": "## Stroke"
@@ -65,10 +50,7 @@
 			"id": "colors",
 			"title": "Color roles",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Color roles"
-				}
+				"$text": "Color roles"
 			},
 			"file": "src/vs/platform/theme/common/colors/COLORS.md",
 			"anchor": "# Color foundations"
@@ -77,10 +59,7 @@
 			"id": "elevation",
 			"title": "Elevation",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Elevation"
-				}
+				"$text": "Elevation"
 			},
 			"file": ".github/skills/ux-theming/SKILL.md",
 			"anchor": "## 6. High Contrast Theme Rules"
@@ -89,10 +68,7 @@
 			"id": "motion",
 			"title": "Motion",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Motion"
-				}
+				"$text": "Motion"
 			},
 			"file": "src/vs/platform/theme/common/motion/motion.design.md",
 			"anchor": "## Foundations"
@@ -101,10 +77,7 @@
 			"id": "layout",
 			"title": "Scoped layout tokens",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Scoped layout tokens"
-				}
+				"$text": "Scoped layout tokens"
 			},
 			"file": ".github/design-system/foundations.md",
 			"anchor": "## Scoped layout tokens"
@@ -113,10 +86,7 @@
 			"id": "legacy",
 			"title": "Deprecated aliases",
 			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/token-domains.md",
-					"heading": "Deprecated aliases"
-				}
+				"$text": "Deprecated aliases"
 			},
 			"file": ".github/instructions/design-tokens.instructions.md",
 			"anchor": "## Deprecated aliases"
@@ -139,5 +109,6 @@
 			"id": "Default High Contrast Light",
 			"label": "High contrast light"
 		}
-	]
+	],
+	"textSource": "src/vs/platform/theme/common/token-domains.md"
 }

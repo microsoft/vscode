@@ -1,7 +1,5 @@
 # HoverWidget
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 A tooltip surface for supplemental information.
@@ -10,6 +8,7 @@ A tooltip surface for supplemental information.
 
 - Use IHoverService for hover timing, anchoring, and dismissal.
 - Keep supplemental information brief; essential instructions must remain visible elsewhere.
+- When changing the surface contents directly, call `onContentsChanged()` so scroll geometry is recalculated.
 
 ## Accessibility
 

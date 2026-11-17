@@ -2,19 +2,9 @@
 	"version": 1,
 	"id": "stroke",
 	"renderer": "foundations",
-	"content": "content/foundations/stroke.json",
-	"guidance": [
-		{
-			"id": "stroke-guidance",
-			"title": "Using boundary strokes",
-			"file": ".github/instructions/design-tokens.instructions.md",
-			"anchor": "stroke"
-		}
-	],
+	"source": "src/vs/platform/theme/common/sizes/stroke.design.md",
+	"content": {},
 	"sources": [
-		{
-			"file": "src/vs/platform/theme/common/sizes/stroke.design.md"
-		},
 		{
 			"file": ".github/instructions/design-tokens.instructions.md"
 		},
@@ -22,5 +12,24 @@
 			"file": ".github/skills/ux-css-layout/SKILL.md"
 		}
 	],
-	"sections": []
+	"guidance": [
+		{
+			"file": ".github/instructions/design-tokens.instructions.md",
+			"id": "stroke-guidance",
+			"title": "Using boundary strokes",
+			"anchor": "stroke"
+		}
+	],
+	"sections": [
+		{
+			"id": "stroke-usage",
+			"key": "usage",
+			"heading": "Use strokes to define boundaries"
+		},
+		{
+			"id": "stroke-reference",
+			"key": "reference",
+			"heading": "Stroke reference"
+		}
+	]
 }

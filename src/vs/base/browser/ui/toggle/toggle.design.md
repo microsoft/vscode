@@ -1,7 +1,5 @@
 # Toggle
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 An icon-sized control for an independently checked mode.
@@ -16,6 +14,7 @@ An icon-sized control for an independently checked mode.
 
 - Expose an understandable title and checked state.
 - Space changes the state. Do not remove the control from keyboard navigation without an owning navigation model.
+- Read `checked` after `onChange`; the event's boolean reports keyboard origin, not the selection.
 
 ## Preview
 

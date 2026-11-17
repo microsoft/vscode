@@ -1,7 +1,5 @@
 # SelectBox
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 A single selection from a list of known options.

@@ -1,7 +1,5 @@
 # CountBadge
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 A compact numeric indicator attached to a meaningful label or destination.

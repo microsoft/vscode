@@ -1,7 +1,5 @@
 # InputBox
 
-Usage and accessibility guidance for this component. The design-system reference checks API annotations against its implementation.
-
 ## Overview
 
 Text entry with validation, optional actions, multiline sizing, and history variants.

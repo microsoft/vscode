@@ -1,7 +1,0 @@
-{
-	"version": 1,
-	"id": "illustration",
-	"status": "book-authored",
-	"intro": { "$text": { "file": ".github/design-system/guidance/illustration.design.md", "heading": "Introduction" } },
-	"sections": {}
-}

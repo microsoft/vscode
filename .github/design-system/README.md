@@ -8,17 +8,30 @@ This directory is the checkout-owned index and composition data for the design s
 - Component usage and accessibility guidance live beside their component, such as [Button guidance](../../src/vs/base/browser/ui/button/button.design.md).
 - Foundation guidance lives with its owner, such as [typography](../../src/vs/platform/theme/common/sizes/typography.design.md), [color guidance](../../src/vs/platform/theme/common/colors/colors.design.md), and [motion examples](../../src/vs/platform/theme/common/motion/motion-examples.md). Existing specifications, instructions, and skills remain authoritative within their scope.
 - Cross-cutting introductions and guidance without a narrower owner live in [guidance/](guidance/).
-- [book.json](book.json), [pages/](pages/), and [content/](content/) select, order, and bind those sources. Structured content holds curation and source bindings, not copied token values or executable rendering code.
+- [book.json](book.json) declares foundation topics and one component collection. [Component curation](content/components/curation.json) supplies that collection's registrations, aliases, owners, selected APIs, and fixture relationships.
+- [pages/](pages/) selects source sections and structured specimens. [content/](content/) retains deliberate component, token, and source-coverage curation, not per-component API tables or field-by-field copies of Markdown.
 
 The separately installed [design-system explorer](https://github.com/chryw/vscode-design-system) provides the viewer, source adapters, controllers, and headless tools. Access to that private repository is required to install it. It reads this directory from the **selected checkout**, not from its own installation. The same renderer can therefore show different checkout-owned books without copying their content into the extension. A missing book or invalid source binding is an explicit error. These documents remain readable without the viewer.
 
 ## Read and contribute
 
-Open the **Visual Studio Code Design System** canvas, or use its headless `documents`, `read-document`, and topic commands. The Documentation library discovers Markdown in the configured scopes, including new documents with no curated chapter.
+Open the **Visual Studio Code Design System** canvas, or use its headless `documents`, `read-document`, and topic commands. The Source library discovers Markdown in the configured scopes, including new documents with no curated chapter.
 
 Edit the owning document once. Pages reference its sections through `$text` or `guidance` bindings; browser, CLI, canvas actions, and portable exports use the same projections. No launcher skill or viewer-source edit is needed to add guidance within an existing scope. Guidance edits refresh live; structural catalog or fixture-binding changes require reopening the provider.
 
 Follow [authoring conventions](authoring.md), [component qualification](components.md), and [token qualification](foundations.md). Discovery and visualization don't make draft or implementation-specific material a product-wide rule.
+
+```mermaid
+flowchart LR
+	Book["Book and component curation"] --> Reader["Deterministic adapters"]
+	Docs["Owned Markdown"] --> Reader
+	Code["APIs, tokens and fixtures"] --> Reader
+	Reader --> Topic["Normalized topic and resources"]
+	Topic --> Canvas["Canvas and portable book"]
+	Topic --> Agents["Bounded agent readers"]
+```
+
+The shared resource output exposes guidance references, source-derived definitions, and curated examples. It is generated from the selected checkout, not another database for contributors to author.
 
 ## Find the owning guidance
 
@@ -26,7 +39,7 @@ Read the relevant specifications before building or updating UI. No canvas insta
 
 | Topic | Authored design guidance | Definitions or workflow |
 | --- | --- | --- |
-| Component usage and pitfalls | The component directory's `*.design.md`, such as [Button](../../src/vs/base/browser/ui/button/button.design.md) or [Dialog](../../src/vs/base/browser/ui/dialog/dialog.design.md) | The same directory's implementation and tests |
+| Component usage and pitfalls | The component directory's lowercase-kebab `*.design.md`, such as [Button](../../src/vs/base/browser/ui/button/button.design.md), [InputBox](../../src/vs/base/browser/ui/inputbox/input-box.design.md), or [Dialog](../../src/vs/base/browser/ui/dialog/dialog.design.md) | The same directory's implementation and tests |
 | Typography | [Typography](../../src/vs/platform/theme/common/sizes/typography.design.md) | [Size registrations](../../src/vs/platform/theme/common/sizes/baseSizes.ts) |
 | Spacing | [Spacing](../../src/vs/platform/theme/common/sizes/spacing.design.md) | [CSS token instructions](../instructions/design-tokens.instructions.md#spacing) |
 | Shape, size, and stroke | [Shape](../../src/vs/platform/theme/common/sizes/shape.design.md), [size](../../src/vs/platform/theme/common/sizes/size.design.md), [stroke](../../src/vs/platform/theme/common/sizes/stroke.design.md) | [Size registrations](../../src/vs/platform/theme/common/sizes/baseSizes.ts) |
