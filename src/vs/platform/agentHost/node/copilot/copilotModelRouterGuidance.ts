@@ -7,15 +7,14 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import type { IModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 
 /**
- * Which model router route's guidance each chat's main agent has: that of the route the chat's
- * last routed turn is on.
+ * Which model router route's guidance each chat's main agent has: that of the route of the last
+ * routed turn whose work one of the chat's sessions started.
  *
- * A chat is *fresh* from its creation until one of its sessions starts root work. While it is
- * fresh, the turn being sent can hold a *candidate* guidance, and a turn that is not routed has
- * none. When work starts, the guidance the working session was launched with becomes the chat's
- * *committed* guidance, which may be none. From then on a routed turn replaces it when its route
- * has other guidance, as when the chat moves to another route, and a turn that is not routed
- * changes nothing.
+ * Routing a turn *stages* the guidance of its route, for that turn only. A session launched or
+ * relaunched for the turn runs with the staged guidance, and when it starts root work that
+ * guidance becomes the chat's *committed* guidance. A turn that is cancelled before then, or that
+ * is not routed, leaves the chat's guidance as it was, which is none for a chat that has not
+ * started work.
  *
  * Guidance is compared by identity: a session is launched with a guidance object and stays valid
  * for as long as the chat's guidance is that same object. "No guidance" is always `undefined`.
@@ -24,28 +23,21 @@ import type { IModelRouterGuidance } from '../../common/modelRouterGuidance.js';
  */
 export class CopilotModelRouterGuidance {
 
-	private readonly _fresh = new Set<string>();
-	/** The turn each chat is on. A routing result belongs to it. */
+	/** The turn each chat is on. Staged guidance belongs to it. */
 	private readonly _currentTurns = new Map<string, string>();
-	private readonly _candidates = new Map<string, IModelRouterGuidance>();
+	/** What the current turn of a chat was routed to, when that is not the committed guidance. A route can have none. */
+	private readonly _staged = new Map<string, { readonly guidance: IModelRouterGuidance | undefined }>();
 	private readonly _committed = new Map<string, IModelRouterGuidance>();
 
-	/** Marks a chat that was just created new: not forked, imported or restored. */
-	markFresh(chat: string): void {
-		this._fresh.add(chat);
-	}
-
 	/**
-	 * Notes the turn a chat is routing, preparing or sending. For a fresh chat, moving to another
-	 * turn drops the candidate, so one turn's routing never reaches another turn's launch.
+	 * Notes the turn a chat is routing, preparing or sending. Moving to another turn drops what
+	 * was staged, so one turn's routing never reaches another turn's launch.
 	 */
 	enterTurn(chat: string, turnId: string | undefined): void {
 		if (turnId !== undefined && this._currentTurns.get(chat) === turnId) {
 			return;
 		}
-		if (this._fresh.has(chat)) {
-			this._candidates.delete(chat);
-		}
+		this._staged.delete(chat);
 		if (turnId === undefined) {
 			this._currentTurns.delete(chat);
 		} else {
@@ -54,61 +46,59 @@ export class CopilotModelRouterGuidance {
 	}
 
 	/**
-	 * A turn was routed to a route whose guidance is `guidance`, which is now the chat's. It is
-	 * taken only while the chat is still on that turn; a routing call that finishes late changes
-	 * nothing. Returns whether the chat's guidance changed.
+	 * A turn was routed to a route whose guidance is `guidance`. It is staged only while the chat
+	 * is still on that turn; a routing call that finishes late changes nothing. Returns whether
+	 * the guidance a session of the chat should run with changed.
 	 */
 	routeTurn(chat: string, turnId: string, guidance: IModelRouterGuidance | undefined): boolean {
 		if (this._currentTurns.get(chat) !== turnId) {
 			return false;
 		}
-		const guidances = this._fresh.has(chat) ? this._candidates : this._committed;
 		// Equal guidance keeps the object a session was launched with.
-		if (structuralEquals(guidances.get(chat), guidance)) {
+		if (structuralEquals(this.guidanceFor(chat), guidance)) {
 			return false;
 		}
-		if (guidance) {
-			guidances.set(chat, guidance);
+		if (structuralEquals(this._committed.get(chat), guidance)) {
+			this._staged.delete(chat);
 		} else {
-			guidances.delete(chat);
+			this._staged.set(chat, { guidance });
 		}
 		return true;
 	}
 
-	/** A turn was not routed. A fresh chat sends it without guidance; a chat that has started work keeps its own. */
+	/** A turn was not routed, so it runs with the guidance the chat has. */
 	leaveTurnUnrouted(chat: string, turnId: string): void {
-		if (this._fresh.has(chat) && this._currentTurns.get(chat) === turnId) {
-			this._candidates.delete(chat);
+		if (this._currentTurns.get(chat) === turnId) {
+			this._staged.delete(chat);
 		}
 	}
 
-	/** The guidance a session of the chat runs with: the committed one, or the current turn's candidate while the chat is fresh. */
+	/** The guidance a session of the chat runs with: what the current turn staged, else the committed one. */
 	guidanceFor(chat: string): IModelRouterGuidance | undefined {
-		return this._fresh.has(chat) ? this._candidates.get(chat) : this._committed.get(chat);
+		const staged = this._staged.get(chat);
+		return staged ? staged.guidance : this._committed.get(chat);
 	}
 
 	/**
-	 * A session of the chat started root work. The first time, the guidance given here becomes the
-	 * chat's; later reports change nothing. The caller passes the guidance that session was
-	 * launched with.
+	 * A session of the chat started root work, so the guidance it was launched with is the chat's.
+	 * The caller passes that guidance.
 	 */
 	commit(chat: string, launched: IModelRouterGuidance | undefined): void {
-		if (!this._fresh.delete(chat)) {
-			return;
-		}
-		this._candidates.delete(chat);
 		if (launched) {
 			this._committed.set(chat, launched);
 		} else {
 			this._committed.delete(chat);
 		}
+		const staged = this._staged.get(chat);
+		if (staged && staged.guidance === launched) {
+			this._staged.delete(chat);
+		}
 	}
 
 	/** Forgets a chat that is gone. */
 	forget(chat: string): void {
-		this._fresh.delete(chat);
-		this._candidates.delete(chat);
 		this._currentTurns.delete(chat);
+		this._staged.delete(chat);
 		this._committed.delete(chat);
 	}
 }

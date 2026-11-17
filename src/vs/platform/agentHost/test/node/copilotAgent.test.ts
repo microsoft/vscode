@@ -23281,6 +23281,28 @@ suite('CopilotAgent', () => {
 					sends: [0, 1, 2],
 				});
 			});
+
+			test('a chat keeps its guidance when a turn routed elsewhere is never sent, or while background subagents run', async () => {
+				const h = await createRoutedAgent('router-kept');
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.send('turn-1');
+				// turn-2 is routed to a route with other guidance and cancelled; turn-3 is sent on a hand-picked model.
+				await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-2', selection: { id: 'model-router:solo' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
+				await h.send('turn-3', false);
+				const afterCancelled = h.launched().resumed;
+				// A relaunch would end the background subagents of an earlier turn, so the session is kept until they are done.
+				const subagents = stub(chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession, 'hasActiveSubagents').get(() => true);
+				await h.send('turn-4', 'solo');
+				const whileSubagentsRun = h.launched().resumed;
+				subagents.restore();
+				await h.send('turn-5', 'solo');
+				assert.deepStrictEqual({ afterCancelled, whileSubagentsRun, afterwards: h.launched().resumed, sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					afterCancelled: [],
+					whileSubagentsRun: [],
+					afterwards: ['Review first.'],
+					sends: [0, 3, 1],
+				});
+			});
 		});
 
 		test('warming launches and starts MCP without announcing the chat, and the first send claims it', async () => {

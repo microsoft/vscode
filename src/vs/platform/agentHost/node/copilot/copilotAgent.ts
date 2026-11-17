@@ -4508,8 +4508,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Makes the guidance of the route a turn was routed to the chat's. A session launched with
-	 * other guidance is relaunched when the turn is sent.
+	 * Stages the guidance of the route a turn was routed to. When the turn is sent, a session
+	 * launched with other guidance is relaunched with it, and it becomes the chat's.
 	 */
 	private _takeModelRouterGuidance(chatKey: string, turnId: string, router: IModelRouter | undefined, models: readonly IAgentModelInfo[], routed: IAgentTurnModelResolution['routed']): void {
 		if (!router || !routed) {
@@ -6908,10 +6908,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// runs (which re-records the same scope for an idempotent duplicate) so
 		// the check reflects what existed walking in, not what this call added.
 		const preexisting = this._chatOwners.has(chatKey) || this._chatBackings.has(chatKey) || !!this._findChatByUri(chat);
-		// A chat created new takes a model router route's guidance from the turn that starts its work. A fork or an import arrives with history, and takes it from its next routed turn.
-		if (!preexisting && !options.fork && !options.importConversation) {
-			this._modelRouterGuidance.markFresh(chatKey);
-		}
 		this._rememberChatScope(chat, context.owner, context.resource);
 		try {
 			const resolved = this._resolveExplicitChatContext(chat, context);
@@ -8702,8 +8698,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
 			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
-			// A session launched before the chat's guidance was known or with another turn's, or a chat that has since moved to a route with other guidance.
-			?? (!entry.isEphemeral && entry.modelRouterGuidance !== this._modelRouterGuidance.guidanceFor(context.chatKey) ? 'modelRouterGuidanceChanged' : undefined);
+			// A session launched before its turn's guidance was known or with another turn's, or a chat whose turn moved it to a route with other
+			// guidance. Only a turn takes its guidance, and not while background subagents of an earlier turn still run in this session.
+			?? (!entry.isEphemeral && !isIdleRefreshOperation(options.operation) && !entry.hasActiveSubagents && entry.modelRouterGuidance !== this._modelRouterGuidance.guidanceFor(context.chatKey) ? 'modelRouterGuidanceChanged' : undefined);
 	}
 
 	private async _refreshSessionConfiguration(
@@ -9105,7 +9102,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
-		// Until the chat has started work, a turn that was not routed, or another turn than the one routed, sends without that routing's guidance.
+		// A turn that was not routed, or another turn than the one routed, sends without that routing's guidance.
 		this._modelRouterGuidance.enterTurn(chat.toString(), turnId);
 		const context = this._resolveSendChatContext(chat, operationContext);
 		const sendContext = operationContext && !URI.isUri(operationContext) ? operationContext : undefined;
@@ -11061,7 +11058,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				getSessionPathRoots: () => this._getSessionPathRoots(),
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
-				// The first session of a chat to start work makes the guidance it was launched with the chat's.
+				// A session that starts work makes the guidance it was launched with the chat's.
 				onRootWorkStarted: () => this._modelRouterGuidance.commit(chatKey, modelRouterGuidance),
 				builtinPluginDirectories: this._builtinPluginDirectories,
 				activeClientToolSet: launchPlan.activeClientToolSet,
