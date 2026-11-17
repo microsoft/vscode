@@ -76,7 +76,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void } = {}) {
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI; lateHost?: boolean; partDeclinesNewChat?: boolean; localChatsShown?: boolean; partComposerInput?: string; viewOpenShows?: URI | null; duringNewChat?: () => void; duringReveal?: () => void; partParks?: boolean } = {}) {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
@@ -93,6 +93,10 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		instantiationService.stub(IEditorWindowChatPartService, upcastPartial<IEditorWindowChatPartService>({
 			enable: (o: IEditorWindowChatPartOptions): IDisposable => { chatPartOptions.push(o); return toDisposable(() => { }); },
 			closeChat: async resource => { handovers.push(`part closes ${resource.path}`); },
+			parkComposerInput: () => {
+				handovers.push(options.partParks === false ? 'part keeps its composer input' : 'part parks its composer input');
+				return options.partParks !== false;
+			},
 		}));
 		instantiationService.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({
 			enable: (o: IEditorWindowSessionsRuntimeOptions): IDisposable => { runtimeOptions.push(o); runtimeHeld++; return toDisposable(() => runtimeHeld--); },
@@ -563,11 +567,16 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			assert.deepStrictEqual({ beforeHost, afterHost: handovers }, { beforeHost: [], afterHost: ['part opens /session-a'] });
 		});
 
-		test('an unsent new chat does not move over what was typed in the new chat it goes to, nor once a later request superseded the move: each keeps its input', async () => {
-			const typedTarget = setup({ chatViewShows: draft, partComposerInput: 'D' });
-			const sourceE = new FakeChatWidget('E', [attachment]);
-			typedTarget.widgets.set(draft.toString(), sourceE);
-			await typedTarget.setSetting(true);
+		test('turning on, the newer draft of the Chat view takes the chat part\'s composer, which parks its older one; neither moves where it cannot park, nor once a later request superseded the move', async () => {
+			const newer = async (partParks: boolean) => {
+				const fixture = setup({ chatViewShows: draft, partComposerInput: 'D', partParks });
+				const source = new FakeChatWidget('E', [attachment]);
+				fixture.widgets.set(draft.toString(), source);
+				await fixture.setSetting(true);
+				return { handovers: fixture.handovers, composer: fixture.partComposer!.state, source: source.state };
+			};
+			const parked = await newer(true);
+			const notParked = await newer(false);
 
 			// The user opens a chat while the chat part starts its new chat
 			const superseding = { request: () => { } };
@@ -578,10 +587,12 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			await superseded.setSetting(true);
 
 			assert.deepStrictEqual({
-				typedTarget: { handovers: typedTarget.handovers, target: typedTarget.partComposer!.state, source: sourceE.state },
+				parked,
+				notParked,
 				superseded: { handovers: superseded.handovers, target: superseded.widgets.get(superseded.shown.part.get()!.toString())!.state, source: sourceS.state },
 			}, {
-				typedTarget: { handovers: ['part new chat'], target: { input: 'D', attachments: [] }, source: { input: 'E', attachments: ['file-a'] } },
+				parked: { handovers: ['part new chat', 'part parks its composer input'], composer: { input: 'E', attachments: ['file-a'] }, source: { input: '', attachments: [] } },
+				notParked: { handovers: ['part new chat', 'part keeps its composer input'], composer: { input: 'D', attachments: [] }, source: { input: 'E', attachments: ['file-a'] } },
 				superseded: { handovers: ['part new chat'], target: { input: '', attachments: [] }, source: { input: 'hello', attachments: ['file-a'] } },
 			});
 		});

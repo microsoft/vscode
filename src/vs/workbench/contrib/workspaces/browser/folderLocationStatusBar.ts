@@ -14,7 +14,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { observableValue } from '../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -88,7 +88,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		@ILabelService private readonly labelService: ILabelService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService
+		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -180,7 +181,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		const folder = workspace.folders[0];
 		const location = folder ? this.folderLocationService.getLocation(folder) : undefined;
 		const identity = workspace.uri;
-		const atPrimaryWithAlternates = !location && !!identity && !!this.alternates?.any && isEqual(this.alternates.primary, identity);
+		// As the file system tells folders apart, such as by case on Windows
+		const atPrimaryWithAlternates = !location && !!identity && !!this.alternates?.any && this.uriIdentityService.extUri.isEqual(this.alternates.primary, identity);
 		if (!folder || !identity || (!location && !atPrimaryWithAlternates)) {
 			this.entry.clear();
 			this.introductionReady.set(false, undefined);

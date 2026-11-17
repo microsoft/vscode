@@ -174,8 +174,8 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	/**
 	 * Shows what `handover` took in the other host, once that host is in use: its session, unless it shows it already, which
 	 * a session taken from the chat part then leaves once the Chat view shows it; else a new chat there, with the input it
-	 * took, which leaves its source only once the new chat holds it. Never in the host it took it from, nor over input of the
-	 * new chat, nor after a later request, such as an open by the user. A local chat leaves the Chat view only while local
+	 * took, which leaves its source only once the new chat holds it. Never in the host it took it from, nor after a later
+	 * request, such as an open by the user; over the input of the new chat only as the chat part's composer parks it. A local chat leaves the Chat view only while local
 	 * chats are hidden: the chat part's new chat then takes the Chat view, which shows only its sessions, and the local chat
 	 * stays in its history.
 	 */
@@ -213,8 +213,15 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		}
 		requests++;
 		const target = await this._chatViewHostService.reveal(true);
-		if (!target || target === handover.source || token.isCancellationRequested || this._chatViewHostService.requests.get() !== requests || !this._canMoveDraft(handover, target)) {
+		if (!target || target === handover.source || token.isCancellationRequested || this._chatViewHostService.requests.get() !== requests || !this._isUnchanged(handover)) {
 			return;
+		}
+		if (target.getInput() || target.attachmentModel.attachments.length) {
+			// The chat part's one unsent composer, with a draft typed before the chat part turned off: the newer one, typed in the
+			// Chat view since, takes it, and the composer keeps the older one for its next new chat
+			if (!toChatPart || !this._chatPartService.parkComposerInput()) {
+				return;
+			}
 		}
 		target.setInput(handover.input);
 		target.attachmentModel.clearAndSetContext(...handover.attachments);
@@ -223,14 +230,10 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	}
 
 	/**
-	 * Whether the input that `handover` took can move to `target`: not over what was typed in the target, such as the chat
-	 * part's one new-session composer, and not once its source shows another chat, or its text or attachments changed, such as
-	 * an attachment that resolved meanwhile. Both keep their input then.
+	 * Whether the source of `handover` still shows what it took: not once it shows another chat, or its text or attachments
+	 * changed, such as an attachment that resolved meanwhile. It keeps its input then.
 	 */
-	private _canMoveDraft(handover: ChatDraftHandover, target: IChatWidget): boolean {
-		if (target.getInput() || target.attachmentModel.attachments.length) {
-			return false;
-		}
+	private _isUnchanged(handover: ChatDraftHandover): boolean {
 		const source = handover.source;
 		if (!source) {
 			return true;

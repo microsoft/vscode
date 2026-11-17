@@ -17,7 +17,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUri } from '../../../../../base/common/resources.js';
+import { extUri, extUriIgnorePathCase, IExtUri } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -42,10 +42,12 @@ suite('FolderLocationStatusBarContribution', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const primary = URI.file('/work/project');
+	const defaultPrimary = primary;
 	const alternate = URI.file('/work/project-alt');
 	const location: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch, providerId: 'test', builtIn: true };
 
-	function createFixture(shown = { value: false }, options: { alternates?: IFolderLocation[] } = {}) {
+	function createFixture(shown = { value: false }, options: { alternates?: IFolderLocation[]; primary?: URI; extUri?: IExtUri } = {}) {
+		const primary = options.primary ?? defaultPrimary;
 		const entries: IStatusbarEntry[] = [];
 		const added: { alignment: unknown; priority: unknown }[] = [];
 		let visible = false;
@@ -78,7 +80,8 @@ suite('FolderLocationStatusBarContribution', () => {
 				}
 			} as unknown as IStatusbarService,
 			{ getContainer: () => statusbarContainer, onDidChangePartVisibility: onDidChangePartVisibility.event } as unknown as IWorkbenchLayoutService,
-			{ hasBeenShown: () => shown.value } as unknown as IOnboardingScenarioService
+			{ hasBeenShown: () => shown.value } as unknown as IOnboardingScenarioService,
+			{ extUri: options.extUri ?? extUri } as unknown as IUriIdentityService
 		));
 
 		return {
@@ -95,9 +98,10 @@ suite('FolderLocationStatusBarContribution', () => {
 				workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 				onDidChangeCurrentLocation.fire();
 			},
-			returnToPrimary() {
+			/** Back at the folder's own location, which the workspace may name with other casing, such as on Windows. */
+			returnToPrimary(identity = primary) {
 				currentLocation = undefined;
-				workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+				workspace = new Workspace('id', [new WorkspaceFolder({ uri: identity, name: 'project', index: 0 })], false, null, () => false, undefined, identity);
 				onDidChangeCurrentLocation.fire();
 			}
 		};
@@ -158,6 +162,34 @@ suite('FolderLocationStatusBarContribution', () => {
 			atPrimary,
 			{ text: '$(git-branch) Alternate', kind: 'prominent', ariaLabel: 'Folder Location, Alternate', tooltip: `Alternate (alternate location of 'project')` },
 		]);
+	});
+
+	test('on Windows, the folder at its own location is named by its last segment, also at a drive or UNC share root, and is still at its own location with its path in other case', async () => {
+		const settle = async () => {
+			await new Promise<void>(resolve => runWhenWindowIdle(mainWindow, () => resolve()));
+			await timeout(0);
+		};
+		const windowsFixture = (folder: URI) => createFixture(undefined, { alternates: [location], primary: folder, extUri: extUriIgnorePathCase });
+		// One at a time: each registers the entry's onboarding target
+		const shownText = async (folder: URI, recasedIdentity?: URI) => {
+			const fixture = windowsFixture(folder);
+			await settle();
+			if (recasedIdentity) {
+				fixture.switchTo();
+				fixture.returnToPrimary(recasedIdentity);
+			}
+			const text = fixture.isVisible() ? fixture.entries.at(-1)!.text : 'none';
+			fixture.contribution.dispose();
+			return text;
+		};
+		const drive = URI.from({ scheme: 'file', path: '/c:/Users/me/Repo' });
+
+		assert.deepStrictEqual({
+			drive: await shownText(drive),
+			driveRoot: await shownText(URI.from({ scheme: 'file', path: '/c:/' })),
+			uncShareRoot: await shownText(URI.from({ scheme: 'file', authority: 'server', path: '/share/' })),
+			recased: await shownText(drive, URI.from({ scheme: 'file', path: '/C:/users/ME/repo' })),
+		}, { drive: '$(folder) Repo', driveRoot: '$(folder) c:', uncShareRoot: '$(folder) share', recased: '$(folder) repo' });
 	});
 
 	test('the introduction is a spotlight on the entry with only Got It', async () => {

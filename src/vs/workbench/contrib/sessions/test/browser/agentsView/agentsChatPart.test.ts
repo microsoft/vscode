@@ -985,6 +985,27 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ layout: layout(), reused: part.activeGroup.activeEditor === first }, { layout: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true }, reused: true });
 	});
 
+	test('in Single, its composer parks what was typed in it for a newer draft to take the composer; each new composer then takes the latest kept one, so none is lost', async () => {
+		const [older, newer] = [createChatWindowComposerResource(), createChatWindowComposerResource()];
+		const { service, part, composerStates } = createService({
+			chatTabs: SessionsChatTabsMode.Single, visible: true,
+			stored: JSON.stringify({ chats: [older.toString(), newer.toString()], active: 0 }),
+			storedComposers: stringify([older, newer].map((resource, index) => ({ resource, input: toStoredChatDraft({ inputText: index === 0 ? 'D' : 'E', attachments: [] }) }))),
+		});
+		await service.restore();
+		const nextNewChat = async () => {
+			await service.closeAllChats();
+			await service.openComposer(undefined, { newComposer: true });
+			return composerStates().map(composer => composer.input);
+		};
+
+		// The older draft parks; the newer one, which took a composer of its own here, is closed and kept as well
+		const parked = service.parkComposerInput();
+		await part.activeGroup.closeEditor(part.activeGroup.editors.find(editor => editor !== part.activeGroup.activeEditor)!);
+
+		assert.deepStrictEqual({ parked, first: await nextNewChat(), second: await nextNewChat(), third: await nextNewChat() }, { parked: true, first: ['E'], second: ['D'], third: [''] });
+	});
+
 	test('in Single, closing its new-session composer keeps what was typed in it for its next one, without asking; not an empty one, not as it closes all its chats or the window shuts down, nor one that sent its session; leaving Single forgets it', async () => {
 		const composer = createChatWindowComposerResource();
 		const sentChat = upcastPartial<IChat>({ resource: URI.parse('test:/sent') });

@@ -11,7 +11,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../../ba
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { extUri } from '../../../../../../base/common/resources.js';
+import { extUri, extUriIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -531,6 +531,21 @@ suite('Chat window composer', () => {
 		const otherCase = composer.requestTarget({ folderUri: URI.parse('vscode-agent-host://host/home/repo'), providerId: 'provider', sessionTypeId: 'type' });
 
 		assert.deepStrictEqual({ same, otherCase, aimsAt: composer.requestedTarget.get()?.folderUri?.path, retargets }, { same: true, otherCase: true, aimsAt: '/home/repo', retargets: ['/home/repo'] });
+	});
+
+	test('on Windows, a requested target whose folder differs only by the case of its drive or path does not retarget the composer', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		// As a case-insensitive file system tells its folders apart
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }));
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/windows'), { target: { folderUri: URI.from({ scheme: 'file', path: '/c:/Users/me/Repo' }), providerId: 'provider' } }, async () => { }));
+		const retargets: string[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(target.folderUri!.path)));
+
+		const reused = composer.requestTarget({ folderUri: URI.from({ scheme: 'file', path: '/C:/users/ME/repo' }), providerId: 'provider' });
+
+		assert.deepStrictEqual({ reused, aimsAt: composer.requestedTarget.get()?.folderUri?.path, retargets }, { reused: true, aimsAt: '/c:/Users/me/Repo', retargets: [] });
 	});
 
 	test('a background send that fails once its composer followed its host to another folder offers its prompt back, rather than restoring it silently there', () => {

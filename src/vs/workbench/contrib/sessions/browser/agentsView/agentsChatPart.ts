@@ -108,6 +108,12 @@ export interface IAgentsChatPartService {
 	/** Closes the tab of `chatResource`, where the chat part shows it. */
 	closeChat(chatResource: URI): Promise<void>;
 
+	/**
+	 * In Single, keeps what was typed in its one unsent new-session composer for its next one, as closing that composer does,
+	 * so that another draft can take the composer. Returns whether it did: not with nothing typed or while it sends.
+	 */
+	parkComposerInput(): boolean;
+
 	/** Closes the tabs of all its chats, which closes it. */
 	closeAllChats(): Promise<void>;
 
@@ -241,8 +247,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	/** The composer of each composer's tab, which the tab disposes. */
 	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
-	/** In Single, what was typed in its new-session composer as it closed, for its next one: it has one new session at a time. */
-	private _closedComposerInput: IChatDraft | undefined;
+	/**
+	 * In Single, what was typed in its new-session composers as they closed or parked their input, the latest last: each new
+	 * composer takes the latest, as it has one new session at a time.
+	 */
+	private readonly _keptComposerInputs: IChatDraft[] = [];
 	/** What was typed in each composer whose tab is closing, kept once it closed: not when its close is vetoed. */
 	private readonly _closingComposerInputs = new WeakMap<EditorInput, IChatDraft>();
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
@@ -291,7 +300,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// What a closed composer kept is for the next one in Single only
 		this._register(autorun(reader => {
 			if (this._chatTabsMode.read(reader) === SessionsChatTabsMode.Multiple) {
-				this._closedComposerInput = undefined;
+				this._keptComposerInputs.length = 0;
 			}
 		}));
 
@@ -403,9 +412,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			return this._open(activeChat, options);
 		}
 		const resource = createChatWindowComposerResource();
-		// What was typed in the composer it closed last, in Single
-		const input = this._isSingle() ? this._closedComposerInput : undefined;
-		this._closedComposerInput = undefined;
+		// What was typed in the composer it closed or parked last, in Single
+		const input = this._isSingle() ? this._keptComposerInputs.pop() : undefined;
 		const composer = this.composers.create(resource, { target, ...this.getComposerFolderOptions(), ...(input ? { input: { input } } : {}) }, session => this.openChat(session, undefined));
 		await this._open(this._addChat(resource, composer), options);
 	}
@@ -435,6 +443,20 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		if (chat) {
 			this._closeChat(chat);
 		}
+	}
+
+	parkComposerInput(): boolean {
+		if (!this._isSingle()) {
+			return false;
+		}
+		const chat = [...this._chats.values()].find(chat => chat.isComposer && !isSessionCreated(chat.session.get()) && !!this._groupOf(chat.input));
+		const composer = chat && this._composerModels.get(chat.input);
+		const input = composer && this._sendableComposerInput(composer);
+		if (!input) {
+			return false;
+		}
+		this._keptComposerInputs.push(input);
+		return true;
 	}
 
 	async closeAllChats(): Promise<void> {
@@ -768,7 +790,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._partStore.add(toDisposable(() => {
 			this._closingAll = true;
 			part.forceClose();
-			this._closedComposerInput = undefined;
+			this._keptComposerInputs.length = 0;
 		}));
 		// After the part, whose context is scoped in it
 		this._partStore.add(scopedContextKeyService);
@@ -809,7 +831,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				const kept = this._closingComposerInputs.get(editor);
 				if (kept) {
 					this._closingComposerInputs.delete(editor);
-					this._closedComposerInput = kept;
+					this._keptComposerInputs.push(kept);
 				}
 				const closedChat = this._closingChatTabs.get(editor);
 				this._closingChatTabs.delete(editor);
@@ -834,13 +856,19 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _captureClosingComposerInput(editor: EditorInput): void {
 		this._closingComposerInputs.delete(editor);
 		const composer = this._composerModels.get(editor);
-		if (!composer || !this._isSingle() || this._closingAll || this._lifecycleService.willShutdown || isSessionCreated(this._chats.get(editor)?.session.get()) || composer.input.isSubmitting) {
+		if (!composer || !this._isSingle() || this._closingAll || this._lifecycleService.willShutdown || isSessionCreated(this._chats.get(editor)?.session.get())) {
 			return;
 		}
-		const state = composer.input.get();
-		if (!state.attempt && (state.input.inputText || state.input.attachments.length)) {
-			this._closingComposerInputs.set(editor, state.input);
+		const input = this._sendableComposerInput(composer);
+		if (input) {
+			this._closingComposerInputs.set(editor, input);
 		}
+	}
+
+	/** What was typed or attached in `composer`, unless nothing was or it sends. */
+	private _sendableComposerInput(composer: ChatWindowComposerModel): IChatDraft | undefined {
+		const state = composer.input.get();
+		return !composer.input.isSubmitting && !state.attempt && (state.input.inputText || state.input.attachments.length) ? state.input : undefined;
 	}
 
 	/**
