@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../../common/cdp/types.js';
 import type { BrowserView } from '../../electron-main/browserView.js';
 import type { BrowserViewDebugger } from '../../electron-main/browserViewDebugger.js';
@@ -331,16 +332,18 @@ suite('BrowserViewInspector', () => {
 		assert.deepStrictEqual(frame.messages, ['vscode:browserView:setTheme']);
 	});
 
-	test('does not wait again for a frame whose adoption already timed out', async () => {
+	test('waits only once for a frame that never adopts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { inspector, webContents } = createInspector();
 		const frame = createFrame();
 		webContents.emit('ipc-message', { senderFrame: frame }, 'vscode:browserView:preloadReady', 'token');
-		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect state without exposing test-only API.
-		inspector['_adoptionTimedOut'].add(frame);
 
-		const start = Date.now();
-		const handle = await inspector.getElementHandle(1 as never, frame);
+		const lookups: { handle: unknown; elapsed: number }[] = [];
+		for (let i = 0; i < 2; i++) {
+			const start = Date.now();
+			const handle = await inspector.getElementHandle('target', frame);
+			lookups.push({ handle, elapsed: Date.now() - start });
+		}
 
-		assert.deepStrictEqual({ handle, fast: Date.now() - start < 500 }, { handle: undefined, fast: true });
-	});
+		assert.deepStrictEqual(lookups, [{ handle: undefined, elapsed: 1000 }, { handle: undefined, elapsed: 0 }]);
+	}));
 });
