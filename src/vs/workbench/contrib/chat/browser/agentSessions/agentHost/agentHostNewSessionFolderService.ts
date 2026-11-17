@@ -367,10 +367,10 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	}
 
 	clear(sessionResource: URI): void {
-		this._newWorktree.delete(sessionResource);
+		const hadNewWorktree = this._newWorktree.delete(sessionResource);
 		this._isolationChosen.delete(sessionResource);
 		const hadFolder = this._folders.delete(sessionResource);
-		if (this._noWorkspace.delete(sessionResource) || hadFolder) {
+		if (this._noWorkspace.delete(sessionResource) || hadFolder || hadNewWorktree) {
 			this._onDidChangeFolder.fire(sessionResource);
 		}
 	}

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $, append } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
@@ -18,6 +19,7 @@ import { ContextKeyService } from '../../../../../../../platform/contextkey/brow
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatAgentHostNewWorktreeSelected, ChatAgentHostNewWorktreeToggleVisible, createNewWorktreeCheckboxViewItem, ToggleAgentHostNewWorktreeAction } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
+import { IAgentHostWorktreeSendChoiceService } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -38,6 +40,9 @@ suite('Agent host New Worktree checkbox', () => {
 		const runs: unknown[] = [];
 		instantiation.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (id: string, ...args: unknown[]) => { runs.push([id, ...args]); return undefined; } }));
 		instantiation.stub(IMenuService, store.add(instantiation.createInstance(MenuService)));
+		// The worktree controls the checkbox registers for the Work in Parallel callout, until it goes
+		const registered = new Set<HTMLElement>();
+		instantiation.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ registerWorktreeControl: (element: HTMLElement) => { registered.add(element); return toDisposable(() => registered.delete(element)); } }));
 		// A local agent host's new chat in a window with a single local folder, which has no worktrees
 		context.createKey(ChatContextKeys.enabled.key, true);
 		context.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
@@ -52,7 +57,7 @@ suite('Agent host New Worktree checkbox', () => {
 		const toolbar = store.add(instantiation.createInstance(MenuWorkbenchToolBar, root, MenuId.ChatInputSecondary, {
 			eventDebounceDelay: 0,
 			menuOptions: { shouldForwardArgs: true },
-			actionViewItemProvider: (action, options) => createNewWorktreeCheckboxViewItem(action, options),
+			actionViewItemProvider: (action, options) => createNewWorktreeCheckboxViewItem(action, options, instantiation),
 		}));
 		const widget = { name: 'the chat widget' };
 		toolbar.context = { widget };
@@ -71,11 +76,15 @@ suite('Agent host New Worktree checkbox', () => {
 		await settle();
 		sessionIsEmpty.set(false);
 		await settle();
+		const started = state();
+		const registeredWhileShown = registered.size;
+		toolbar.dispose();
 
-		assert.deepStrictEqual({ unchecked, checked, started: state(), runs: runs.map(run => (run as unknown[])[0]), context: (runs[0] as unknown[])[1] }, {
+		assert.deepStrictEqual({ unchecked, checked, started, registered: { whileShown: registeredWhileShown, afterDisposed: registered.size }, runs: runs.map(run => (run as unknown[])[0]), context: (runs[0] as unknown[])[1] }, {
 			unchecked: { glyph: false, label: 'New Worktree', role: 'checkbox', checked: 'false', disabled: false },
 			checked: { glyph: false, label: 'New Worktree', role: 'checkbox', checked: 'true', disabled: false },
 			started: { glyph: false, label: 'New Worktree', role: 'checkbox', checked: 'true', disabled: true },
+			registered: { whileShown: 1, afterDisposed: 0 },
 			runs: [ToggleAgentHostNewWorktreeAction.ID, ToggleAgentHostNewWorktreeAction.ID],
 			context: { widget },
 		});
@@ -88,6 +97,9 @@ suite('Agent host New Worktree checkbox', () => {
 		instantiation.stub(IContextKeyService, context);
 		instantiation.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => undefined }));
 		instantiation.stub(IMenuService, store.add(instantiation.createInstance(MenuService)));
+		// The worktree controls the checkbox registers for the Work in Parallel callout, until it goes
+		const registered = new Set<HTMLElement>();
+		instantiation.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ registerWorktreeControl: (element: HTMLElement) => { registered.add(element); return toDisposable(() => registered.delete(element)); } }));
 		context.createKey(ChatContextKeys.enabled.key, true);
 		context.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
 		context.createKey(ChatContextKeys.chatSessionType.key, SessionType.AgentHostCopilot);
@@ -113,7 +125,7 @@ suite('Agent host New Worktree checkbox', () => {
 		const chipName = append(chip, $('span.chat-input-picker-label', undefined, 'Manual permissions'));
 		store.add(instantiation.createInstance(MenuWorkbenchToolBar, append(chips, $('div')), MenuId.ChatInputSecondary, {
 			eventDebounceDelay: 0,
-			actionViewItemProvider: (action, options) => createNewWorktreeCheckboxViewItem(action, options),
+			actionViewItemProvider: (action, options) => createNewWorktreeCheckboxViewItem(action, options, instantiation),
 		}));
 		const item = row.querySelector<HTMLElement>('.checkbox-action-item')!;
 		const size = (element: Element) => {

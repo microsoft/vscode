@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -76,26 +80,33 @@ suite('Agent host New Chat entries', () => {
 		});
 	});
 
-	test('New Chat in Worktree seeds a new worktree before the chat shows, once its configuration offers one, also on a later attempt, and otherwise reports it and opens nothing', async () => {
+	test('New Chat in Worktree seeds a new worktree before the chat shows, once its configuration offers one, also once the agent host connects later, and otherwise reports it and opens nothing; it stops waiting where cancelled or forgotten', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-new' });
 		const isolation = (values: readonly string[]) => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: [...values] } } } as SessionConfigSchema });
-		const run = async (config: 'ready' | 'secondAttempt' | 'never' | 'unsupported') => {
+		const run = async (config: 'ready' | 'connectsLater' | 'never' | 'unsupported' | 'cancelled' | 'forgotten') => {
 			const seeds: string[] = [];
 			let newWorktree = false;
+			const onDidChangeFolder = store.add(new Emitter<URI>());
 			const folderService = upcastPartial<IAgentHostNewSessionFolderService>({
+				onDidChangeFolder: onDidChangeFolder.event,
 				setNewWorktree: () => { seeds.push('worktree'); newWorktree = true; },
-				clear: () => { seeds.push('clear'); newWorktree = false; },
+				isNewWorktree: () => newWorktree,
+				clear: () => { seeds.push('clear'); const had = newWorktree; newWorktree = false; if (had) { onDidChangeFolder.fire(resource); } },
 			});
 			let prepared: ResolveSessionConfigResult | undefined;
 			let attempts = 0;
+			let connected = config !== 'connectsLater';
+			const onDidChangeSessionResolution = store.add(new Emitter<void>());
+			const onDidChangeProvisional = store.add(new Emitter<URI>());
 			const provisional = upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+				onDidChange: onDidChangeProvisional.event,
 				getPreparedSessionConfig: () => prepared,
 				releaseSession: () => { seeds.push('release'); prepared = undefined; },
 				prepareSessionConfig: async () => {
 					attempts++;
-					// As the host resolves the configuration it asks for: in a new worktree once seeded
+					// As the host resolves the configuration it asks for, once connected: in a new worktree once seeded
 					const values = { isolation: newWorktree ? 'worktree' : 'folder' };
-					if (config === 'ready' || (config === 'secondAttempt' && attempts === 2)) {
+					if (connected && (config === 'ready' || config === 'connectsLater')) {
 						prepared = { ...isolation(['folder', 'worktree']), values };
 					} else if (config === 'unsupported') {
 						prepared = { ...isolation(['folder']), values: { isolation: 'folder' } };
@@ -104,18 +115,37 @@ suite('Agent host New Chat entries', () => {
 			});
 			const warnings: string[] = [];
 			const notificationService = upcastPartial<INotificationService>({ warn: (message: unknown) => { warnings.push(String(message)); return undefined!; } });
-			const opened = await prepareNewAgentHostChat(resource, folderService, provisional, notificationService);
+			const cts = store.add(new CancellationTokenSource());
+			const opening = prepareNewAgentHostChat(resource, folderService, provisional, { onDidChangeSessionResolution: onDidChangeSessionResolution.event }, notificationService, cts.token, 10_000);
+			await timeout(1000);
+			if (config === 'connectsLater') {
+				connected = true;
+				onDidChangeSessionResolution.fire();
+			} else if (config === 'cancelled') {
+				cts.cancel();
+			} else if (config === 'forgotten') {
+				folderService.clear(resource);
+			}
+			await timeout(10_000);
+			const opened = await opening;
+			// No listener stays behind once it settled
+			onDidChangeSessionResolution.fire();
 			return { opened: opened?.toString(), seeds, attempts, warned: warnings.length };
 		};
 
-		assert.deepStrictEqual({ ready: await run('ready'), secondAttempt: await run('secondAttempt'), never: await run('never'), unsupported: await run('unsupported') }, {
+		assert.deepStrictEqual({
+			ready: await run('ready'), connectsLater: await run('connectsLater'), never: await run('never'), unsupported: await run('unsupported'),
+			cancelled: await run('cancelled'), forgotten: await run('forgotten'),
+		}, {
 			ready: { opened: resource.toString(), seeds: ['worktree'], attempts: 1, warned: 0 },
-			secondAttempt: { opened: resource.toString(), seeds: ['worktree'], attempts: 2, warned: 0 },
+			connectsLater: { opened: resource.toString(), seeds: ['worktree'], attempts: 2, warned: 0 },
 			// Nothing opens: no chat that works in the folder, and the seed goes, so that a later configuration changes nothing
-			never: { opened: undefined, seeds: ['worktree', 'clear', 'release'], attempts: 3, warned: 1 },
+			never: { opened: undefined, seeds: ['worktree', 'clear', 'release'], attempts: 1, warned: 1 },
 			unsupported: { opened: undefined, seeds: ['worktree', 'clear', 'release'], attempts: 1, warned: 1 },
+			cancelled: { opened: undefined, seeds: ['worktree', 'clear', 'release'], attempts: 1, warned: 0 },
+			forgotten: { opened: undefined, seeds: ['worktree', 'clear', 'clear', 'release'], attempts: 1, warned: 0 },
 		});
-	});
+	}));
 
 	test('without an available agent host, the entry reports that rather than open a chat', async () => {
 		const instantiationService = store.add(new TestInstantiationService());

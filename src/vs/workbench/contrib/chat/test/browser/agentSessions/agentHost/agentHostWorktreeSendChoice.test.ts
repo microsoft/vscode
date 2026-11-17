@@ -31,7 +31,6 @@ import { onboardingScenarioRegistry } from '../../../../../onboarding/common/onb
 import { OnboardingOutcome } from '../../../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../../onboarding/common/onboardingScenarioService.js';
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
-import { registerWorktreeControl } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeFolderChoices, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
 import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, IAgentHostWorktreeSendChoiceService, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
@@ -74,7 +73,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		}));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false, remoteAuthority: undefined }));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ getLocation: () => undefined, canSetLocation: () => true }));
-		instantiationService.stub(IAgentHostWorktreeLocationsCache, upcastPartial<IAgentHostWorktreeLocationsCache>({ isActive: () => true, getLocations: () => [], refresh: () => { }, onWillRefresh: Event.None, onDidChange: Event.None }));
+		instantiationService.stub(IAgentHostWorktreeLocationsCache, upcastPartial<IAgentHostWorktreeLocationsCache>({ isActive: () => !!configuration.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree), getLocations: () => [], refresh: () => { }, onWillRefresh: Event.None, onDidChange: Event.None }));
 		const chosen = new Set<string>();
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ getFolder: () => undefined, isNoWorkspace: () => false, isNewWorktree: () => false, isIsolationChosen: (resource: URI) => chosen.has(resource.toString()), setIsolationChosen: (resource: URI) => { chosen.add(resource.toString()); } }));
 		// The isolation of each new chat, as its configuration has it; a change to it can be held until `applied` completes, or
@@ -126,7 +125,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			warn: (message: unknown) => { warnings.push(String(message)); return notifications.warn(''); },
 			error: (message: unknown) => { errorMessages.push(String(message)); return notifications.error(''); },
 		}));
-		// The worktree control of each chat input, which the callout points at
+		// The worktree control of each chat input, which the callout points at, registered with the service once it is made
 		const controls = new Map<string, HTMLElement>();
 		const controlOf = (resource?: URI) => {
 			const key = resource?.toString() ?? '';
@@ -135,12 +134,11 @@ suite('Agent host Work in Parallel choice on send', () => {
 				const domNode = append(mainWindow.document.body, $('div'));
 				disposables.add({ dispose: () => domNode.remove() });
 				control = append(domNode, $('.action-item', undefined, 'New Worktree'));
-				disposables.add(registerWorktreeControl(control));
+				disposables.add(service.registerWorktreeControl(control));
 				controls.set(key, control);
 			}
 			return control;
 		};
-		const control = controlOf();
 		// The chat input showing each new chat, until it is closed
 		const widgets = new Map<string, IChatWidget | undefined>();
 		const widgetOf = (resource: URI) => {
@@ -183,13 +181,30 @@ suite('Agent host Work in Parallel choice on send', () => {
 		const submit = new ChatSubmitRequestHandlerService();
 		instantiationService.stub(IChatSubmitRequestHandlerService, submit);
 		const service = disposables.add(instantiationService.createInstance(AgentHostWorktreeSendChoice, () => NOW));
+		const control = controlOf();
 
 		/** The requests sent, by the isolation each new chat then had; and those kept in the input, neither sent nor cleared. */
 		const sent: string[] = [];
 		const kept: URI[] = [];
 		const newDraft = () => URI.from({ scheme: SessionType.AgentHostCopilot, path: `/untitled-${++draftCount}` });
-		/** Sends the first request of `draft`, as ChatWidget does through its submit handlers. */
-		const send = async (draft: URI) => {
+		/** The new chats a chat input showed, which preselects New Worktree as the user answered before, as it shows them. */
+		const shown = new Set<string>();
+		const show = async (draft: URI) => {
+			shown.add(draft.toString());
+			const choices = instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => draft);
+			try {
+				if (service.preselectsNewWorktree(draft, choices)) {
+					await choices.preselectNewWorktree();
+				}
+			} finally {
+				choices.dispose();
+			}
+		};
+		/** Sends the first request of `draft`, as ChatWidget does through its submit handlers, once a chat input shows it. */
+		const send = async (draft: URI, options?: { readonly shown: false }) => {
+			if (!options && !shown.has(draft.toString())) {
+				await show(draft);
+			}
 			const result = await submit.tryHandle({ sessionResource: draft, input: 'hello' });
 			if (result.outcome === ChatSubmitRequestOutcome.Cancelled) {
 				kept.push(draft);
@@ -208,7 +223,8 @@ suite('Agent host Work in Parallel choice on send', () => {
 		};
 		// Its contributions are global, one window at a time
 		const isolationOf = (draft: URI) => isolations.get(draft.toString()) ?? 'folder';
-		return { newDraft, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
+		const setWorktreeSupport = (on: boolean) => configuration.setUserConfiguration(ChatConfiguration.EditorWindowEnableWorktree, on);
+		return { newDraft, show, chosen, setWorktreeSupport, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
 	}
 
 	test('asks of a new chat in the folder only after another chat of the agent host was active in the folder itself within the last day', () => {
@@ -285,7 +301,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		});
 	});
 
-	test('asks once, and applies the answer to the later new chats without asking', async () => {
+	test('asks once, and preselects the answer in the later new chats, which send as they show it, without asking', async () => {
 		const results: Record<string, unknown> = {};
 		for (const answer of ['useWorktree', 'continue'] as const) {
 			const window = createWindow({ firstChatIn: primary });
@@ -367,13 +383,10 @@ suite('Agent host Work in Parallel choice on send', () => {
 		assert.deepStrictEqual({ first, second, asked }, { first: 'worktree', second: 'worktree', asked: [{ onControl: true }] });
 	});
 
-	test('a request sent again while its new worktree is applied, or the remembered choice is, is sent once', async () => {
-		const sendTwice = async (remembered: boolean) => {
+	test('a request sent again while its new worktree is applied is sent once', async () => {
+		const sendTwice = async () => {
 			const window = createWindow({ firstChatIn: primary });
 			window.setAnswer('useWorktree');
-			if (remembered) {
-				await window.send(window.newDraft());
-			}
 			const applying = new DeferredPromise<void>();
 			window.holdApply(applying);
 			const draft = window.newDraft();
@@ -387,13 +400,51 @@ suite('Agent host Work in Parallel choice on send', () => {
 			return { asked: window.asked.length, sent: window.sent };
 		};
 
-		assert.deepStrictEqual({
-			asked: await sendTwice(false),
-			remembered: await sendTwice(true),
-		}, {
-			asked: { asked: 1, sent: ['worktree'] },
-			remembered: { asked: 1, sent: ['worktree', 'worktree'] },
+		assert.deepStrictEqual(await sendTwice(), { asked: 1, sent: ['worktree'] });
+	});
+
+	test('a preselected New Worktree is not the user\'s choice: unchecked, the chat sends in the folder without asking, and that is remembered for the next', async () => {
+		const window = createWindow({ firstChatIn: primary });
+		window.setAnswer('useWorktree');
+		await window.send(window.newDraft());
+		const draft = window.newDraft();
+		await window.show(draft);
+		const preselected = { isolation: window.isolationOf(draft), chosen: window.chosen.has(draft.toString()) };
+		// The user unchecks it, as the checkbox or chip does, which tells the service
+		await window.pick(draft, false);
+		window.service.rememberSelection(draft);
+		await window.send(draft);
+		await window.send(window.newDraft());
+		window.dispose();
+
+		assert.deepStrictEqual({ preselected, asked: window.asked.length, sent: window.sent }, {
+			preselected: { isolation: 'worktree', chosen: false },
+			asked: 1,
+			sent: ['worktree', 'folder', 'folder'],
 		});
+	});
+
+	test('with an answer remembered, a send applies nothing: it sends as the chat shows, also a chat that was not preselected', async () => {
+		const window = createWindow({ firstChatIn: primary });
+		window.setAnswer('useWorktree');
+		await window.send(window.newDraft());
+		// Sent before any chat input preselected it, such as before its configuration was known there
+		await window.send(window.newDraft(), { shown: false });
+		window.dispose();
+
+		assert.deepStrictEqual({ asked: window.asked.length, sent: window.sent }, { asked: 1, sent: ['worktree', 'folder'] });
+	});
+
+	test('does not preselect New Worktree with worktree support off', async () => {
+		const window = createWindow({ firstChatIn: primary });
+		window.setAnswer('useWorktree');
+		await window.send(window.newDraft());
+		window.setWorktreeSupport(false);
+		const draft = window.newDraft();
+		await window.show(draft);
+		window.dispose();
+
+		assert.deepStrictEqual(window.isolationOf(draft), 'folder');
 	});
 
 	test('remembers only an answer the user gave: where the callout ends without one, it sends in the folder and asks next time', async () => {

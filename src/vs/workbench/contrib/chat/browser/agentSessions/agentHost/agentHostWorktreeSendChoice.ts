@@ -6,7 +6,7 @@
 import { Sequencer } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -33,7 +33,6 @@ import { isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
-import { getWorktreeControl } from './agentHostNewWorktreeToggle.js';
 import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
 
 export const AGENT_HOST_WORKTREE_SEND_CHOICE_ID = 'chat.agentHost.worktreeSendChoice';
@@ -104,16 +103,34 @@ export interface IAgentHostWorktreeSendChoiceService {
 	 * {@link isRecentChatInFolder} decides over all sessions: when another chat surface asks of its new chat `draft`.
 	 */
 	isRecentChatInFolder(folder: URI, draft: URI): boolean;
+
+	/** Makes `element`, a rendered worktree control of a chat input, the one the callout points at in its widget, until disposed. */
+	registerWorktreeControl(element: HTMLElement): IDisposable;
+
+	/**
+	 * Whether the new chat of `resource` starts with New Worktree selected, as the user answered before: a new chat in the
+	 * window's own folder, while another chat there was recently active, that the user has not chosen for yet, and whose
+	 * session can work in a new worktree, as `choices` read it. Selecting it so is not the user's choice.
+	 */
+	preselectsNewWorktree(resource: URI, choices: AgentHostWorktreeFolderChoices): boolean;
+
+	/**
+	 * Remembers where the user chose the new chat of `resource` to work, as its checkbox or folder chip now shows it: New
+	 * Worktree, or the window's own folder. Nothing for an existing worktree, nor for a chat not in the window's own folder.
+	 */
+	rememberSelection(resource: URI): void;
 }
 
 /**
  * Asks once, as the user sends the first request of a new chat that would work in the window's own folder while another
- * chat of an agent host there was active within the last day ({@link isRecentChatInFolder}), whether it works in a new worktree instead, separately from the others; and applies
- * the answer to later such chats without asking.
+ * chat of an agent host there was active within the last day ({@link isRecentChatInFolder}), whether it works in a new
+ * worktree instead, separately from the others. Later such chats start with the answer preselected in their New Worktree
+ * checkbox or folder chip ({@link preselectsNewWorktree}), and send as that shows then: the user can change it before they
+ * send, which it remembers as their answer ({@link rememberSelection}).
  *
- * It holds the send through the chat's submit handler, which the normal send then continues once answered, so the request is
- * sent once, in the new worktree or in the folder. It leaves alone a chat whose user chose where it works in its folder chip
- * or New Worktree checkbox, and a session that cannot work in a new worktree.
+ * It holds the asked send through the chat's submit handler, which the normal send then continues once answered, so the
+ * request is sent once, in the new worktree or in the folder. It leaves alone a chat whose user chose where it works in its
+ * folder chip or New Worktree checkbox, and a session that cannot work in a new worktree.
  */
 export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHostWorktreeSendChoiceService {
 
@@ -125,6 +142,8 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	private _asking: { readonly control: HTMLElement; useWorktree: boolean } | undefined;
 	/** Asks one after another, so that each has its own control and answer. */
 	private readonly _asks = new Sequencer();
+	/** The rendered worktree controls of chat inputs: New Worktree checkboxes and folder chips. */
+	private readonly _controls = new Set<HTMLElement>();
 
 	constructor(
 		private readonly _now: () => number,
@@ -173,15 +192,16 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		}
 		// The one reader of where the chat works for this send
 		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
-		if (!this._isNewChatInFolder(resource, choices) || !this._hasRecentChatInFolder(resource) || !choices.canWorkInNewWorktree()) {
+		// With an answer remembered, the chat starts as it was preselected, and sends as its checkbox or chip shows now
+		if (this._rememberedChoice() || !this._isNewChatInFolder(resource, choices) || !this._hasRecentChatInFolder(resource) || !choices.canWorkInNewWorktree()) {
 			choices.dispose();
 			return { outcome: ChatSubmitRequestOutcome.Continue };
 		}
 		this._holding.add(resource);
 		try {
 			const widget = this._chatWidgetService.getWidgetBySessionResource(resource);
-			const control = widget && getWorktreeControl(widget.domNode);
-			const choice = this._rememberedChoice() ?? (control ? await this._askAndRemember(control) : 'folder');
+			const control = widget && this._getWorktreeControl(widget.domNode);
+			const choice = control ? await this._askAndRemember(control) : 'folder';
 			// Where no chat input shows the draft anymore, its send does not go on (ChatWidget checks too), so nothing is applied
 			if (choice === 'worktree' && this._chatWidgetService.getWidgetBySessionResource(resource) === widget && !await this._applyNewWorktree(choices)) {
 				return this._cancel();
@@ -237,6 +257,42 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		return { outcome: ChatSubmitRequestOutcome.Cancelled, held: true };
 	}
 
+	registerWorktreeControl(element: HTMLElement): IDisposable {
+		this._controls.add(element);
+		return toDisposable(() => this._controls.delete(element));
+	}
+
+	/**
+	 * The visible worktree control in `container`, such as a chat widget's: its New Worktree checkbox, else its folder chip. Not
+	 * one that is hidden or no longer in the document, which a callout could not point at.
+	 */
+	private _getWorktreeControl(container: HTMLElement): HTMLElement | undefined {
+		const controls = [...this._controls].filter(control => container.contains(control) && control.isConnected && control.getClientRects().length > 0);
+		return controls.find(control => control.classList.contains('chat-input-checkbox-item')) ?? controls[0];
+	}
+
+	preselectsNewWorktree(resource: URI, choices: AgentHostWorktreeFolderChoices): boolean {
+		return this._rememberedChoice() === 'worktree' && this._isNewChatInFolder(resource, choices) && this._hasRecentChatInFolder(resource) && choices.canWorkInNewWorktree();
+	}
+
+	rememberSelection(resource: URI): void {
+		if (!isLocalAgentHostTarget(resource.scheme) || !isUntitledChatSession(resource) || this._folderService.isNoWorkspace(resource)) {
+			return;
+		}
+		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
+		try {
+			if (!choices.isActive()) {
+				return;
+			}
+			const choice: WorktreeSendChoice | undefined = choices.isNewWorktreeSelected() ? 'worktree' : this._isInPrimaryFolder(resource) && choices.isFolderSelected() ? 'folder' : undefined;
+			if (choice) {
+				this._storageService.store(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, choice, StorageScope.PROFILE, StorageTarget.USER);
+			}
+		} finally {
+			choices.dispose();
+		}
+	}
+
 	async askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice> {
 		return this._rememberedChoice() ?? this._askAndRemember(control);
 	}
@@ -285,9 +341,11 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	 * user chose where it works.
 	 */
 	private _isNewChatInFolder(resource: URI, choices: AgentHostWorktreeFolderChoices): boolean {
-		if (!this._mayBeNewChatInFolder(resource) || !choices.isActive() || choices.isNewWorktreeSelected()) {
-			return false;
-		}
+		return this._mayBeNewChatInFolder(resource) && choices.isActive() && !choices.isNewWorktreeSelected() && this._isInPrimaryFolder(resource);
+	}
+
+	/** Whether the new chat of `resource` is to work in the window's own folder, rather than a worktree of it. */
+	private _isInPrimaryFolder(resource: URI): boolean {
 		const primary = this._primaryFolder();
 		const folder = this._folderService.getFolder(resource) ?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 		return !!primary && !!folder && extUriBiasedIgnorePathCase.isEqual(folder, primary);

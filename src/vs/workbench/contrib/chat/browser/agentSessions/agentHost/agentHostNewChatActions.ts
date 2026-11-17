@@ -6,6 +6,11 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { DeferredPromise, disposableTimeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IsWebContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
@@ -23,8 +28,8 @@ import { getSessionIsolationProperty } from '../../../../../../platform/agentHos
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 
-/** How often a new chat in a worktree prepares its session's configuration, each up to the provisional service's timeout. */
-const CONFIGURATION_ATTEMPTS = 3;
+/** How long a new chat in a worktree waits for its session's configuration, as the agent host connects and answers. */
+const CONFIGURATION_READY_TIMEOUT = 10_000;
 
 /**
  * Where the entries apply: a window whose agent host is available, as it is on desktop with AI features on, and that is not
@@ -45,21 +50,23 @@ const localAgentHostWhen = ContextKeyExpr.and(
  * The resource of a new, not yet shown, chat of the local agent host that starts in a new worktree, which it asks for from
  * its first configuration on: before anything shows it, so that it shows and sends so. Only where the session's
  * configuration, prepared first, offers one; otherwise it reports that and returns `undefined`, rather than a chat that
- * works in the folder.
+ * works in the folder. It waits for the configuration as the agent host connects and answers, up to `timeout`, and no
+ * longer once `token` is cancelled or the new chat is forgotten meanwhile, which then reports nothing.
  */
 export async function prepareNewAgentHostChat(
 	resource: URI,
 	folderService: IAgentHostNewSessionFolderService,
 	provisional: IAgentHostUntitledProvisionalSessionService,
+	connectionsService: Pick<IAgentHostConnectionsService, 'onDidChangeSessionResolution'>,
 	notificationService: INotificationService,
+	token: CancellationToken = CancellationToken.None,
+	timeout = CONFIGURATION_READY_TIMEOUT,
 ): Promise<URI | undefined> {
 	folderService.setNewWorktree(resource);
-	for (let attempt = 0; attempt < CONFIGURATION_ATTEMPTS && !provisional.getPreparedSessionConfig(resource); attempt++) {
-		try {
-			await provisional.prepareSessionConfig(resource);
-		} catch (error) {
-			onUnexpectedError(error);
-		}
+	await waitForPreparedConfig(resource, folderService, provisional, connectionsService, token, timeout);
+	if (token.isCancellationRequested || !folderService.isNewWorktree(resource)) {
+		abandonNewAgentHostChat(resource, folderService, provisional);
+		return undefined;
 	}
 	const config = provisional.getPreparedSessionConfig(resource);
 	const isolation = config && getSessionIsolationProperty(config.schema);
@@ -71,6 +78,49 @@ export async function prepareNewAgentHostChat(
 		? localize('chat.newChatInWorktree.unsupported', "A new chat cannot work in a new worktree of this folder.")
 		: localize('chat.newChatInWorktree.notReady', "A new chat in a worktree could not be prepared. Try again, or choose New Worktree in a new chat."));
 	return undefined;
+}
+
+/**
+ * Prepares the configuration of `resource`, again each time the agent host's session resolution changes, such as as it
+ * connects, until it is prepared, `timeout` passes, `token` is cancelled, or the new chat is forgotten.
+ */
+async function waitForPreparedConfig(
+	resource: URI,
+	folderService: IAgentHostNewSessionFolderService,
+	provisional: IAgentHostUntitledProvisionalSessionService,
+	connectionsService: Pick<IAgentHostConnectionsService, 'onDidChangeSessionResolution'>,
+	token: CancellationToken,
+	timeout: number,
+): Promise<void> {
+	const store = new DisposableStore();
+	const cts = store.add(new CancellationTokenSource(token));
+	const done = new DeferredPromise<void>();
+	const settled = () => !!provisional.getPreparedSessionConfig(resource) || !folderService.isNewWorktree(resource);
+	const check = () => {
+		if (settled()) {
+			done.complete();
+		}
+	};
+	const prepare = async () => {
+		try {
+			await provisional.prepareSessionConfig(resource, cts.token);
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+		check();
+	};
+	try {
+		store.add(provisional.onDidChange(changed => isEqual(changed, resource) && check()));
+		store.add(folderService.onDidChangeFolder(changed => isEqual(changed, resource) && check()));
+		store.add(connectionsService.onDidChangeSessionResolution(() => void prepare()));
+		store.add(cts.token.onCancellationRequested(() => done.complete()));
+		store.add(disposableTimeout(() => done.complete(), timeout));
+		void prepare();
+		await done.p;
+	} finally {
+		cts.cancel();
+		store.dispose();
+	}
 }
 
 /**
@@ -110,7 +160,7 @@ async function openLocalAgentHostChatInWorktree(accessor: ServicesAccessor): Pro
 	const openOptions = { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar };
 	const folderService = accessor.get(IAgentHostNewSessionFolderService);
 	const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
-	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), folderService, provisional, notificationService);
+	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), folderService, provisional, accessor.get(IAgentHostConnectionsService), notificationService);
 	return resource && openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource })), folderService, provisional);
 }
 

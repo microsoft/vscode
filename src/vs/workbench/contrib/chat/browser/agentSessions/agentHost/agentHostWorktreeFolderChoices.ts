@@ -242,6 +242,11 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		return this._setIsolation(worktree);
 	}
 
+	/** Selects New Worktree for the session as the user answered before for such chats: not as their choice for this one. */
+	preselectNewWorktree(): Promise<void> {
+		return this._setIsolation(true, undefined, undefined, true);
+	}
+
 	/**
 	 * The chip for the selected `folder`: by its icon, a folder or a worktree, and its name, or New Worktree by that name, with
 	 * what it is for screen readers and on hover. The name shows at once; only the icon settles once git proves a worktree.
@@ -389,9 +394,9 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	}
 
 	/** Has the session work in a new worktree of its folder, or in the folder itself. */
-	private async _setIsolation(worktree: boolean, isolation = this._isolation(), folder?: URI): Promise<void> {
+	private async _setIsolation(worktree: boolean, isolation = this._isolation(), folder?: URI, preselect = false): Promise<void> {
 		const sessionResource = this._sessionResource();
-		if (sessionResource) {
+		if (sessionResource && !preselect) {
 			this._newSessionFolderService.setIsolationChosen(sessionResource);
 		}
 		const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);

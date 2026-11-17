@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAgentHostWorktreeSendChoiceService } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -86,6 +87,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			},
 		}));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
+		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ preselectsNewWorktree: () => false, rememberSelection: () => { } }));
 		const choices = store.add(instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => session));
 		const actions = (selected: URI) => choices.getActions(upcastPartial<MenuItemAction>({}), selected, () => { });
 		// As the chip does as it shows: its first ask reads the worktrees

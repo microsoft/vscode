@@ -4733,7 +4733,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							}
 						}, retainPicker);
 					} else if (action.id === ToggleAgentHostNewWorktreeAction.ID) {
-						return createNewWorktreeCheckboxViewItem(action, options);
+						return createNewWorktreeCheckboxViewItem(action, options, this.instantiationService);
 					} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
 						if (this.options.isSessionsWindow) {
 							return new HiddenActionViewItem(action);

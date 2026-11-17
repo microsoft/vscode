@@ -2027,6 +2027,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const unsupportedSchema: ConfigSchema = { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder'], default: 'folder' } } };
 		workspaceFolders = [URI.file('/workspace')];
 		const notifications = new TestNotificationService();
+		// The host's session resolution stays as it is: each new chat waits up to its short deadline
+		const noResolutionChanges = { onDidChangeSessionResolution: Event.None };
 		const results: Record<string, unknown> = {};
 
 		// Rejected again and again, as each New Chat in Worktree asks once more
@@ -2034,14 +2036,14 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const unsupportedRuns: unknown[] = [];
 		for (let run = 0; run < 3; run++) {
 			agentHost.resolveQueue = [{ schema: unsupportedSchema, values: { isolation: 'folder' } }];
-			unsupportedRuns.push({ opened: await prepareNewAgentHostChat(unsupported, folderService, provisional, notifications), ...retained(unsupported) });
+			unsupportedRuns.push({ opened: await prepareNewAgentHostChat(unsupported, folderService, provisional, noResolutionChanges, notifications, CancellationToken.None, 100), ...retained(unsupported) });
 		}
 		results.unsupported = unsupportedRuns;
 
 		// No answer from the host: every attempt to prepare fails
 		const notReady = URI.parse('agent-host-copilotcli:/untitled-not-ready');
 		agentHost.resolveQueue = [];
-		results.notReady = { opened: await prepareNewAgentHostChat(notReady, folderService, provisional, notifications), ...retained(notReady) };
+		results.notReady = { opened: await prepareNewAgentHostChat(notReady, folderService, provisional, noResolutionChanges, notifications, CancellationToken.None, 100), ...retained(notReady) };
 
 		for (const [name, open] of [
 			['openThrows', async () => { throw new Error('open failed'); }],
@@ -2049,7 +2051,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		] as const) {
 			const resource = URI.parse(`agent-host-copilotcli:/untitled-${name}`);
 			agentHost.resolveQueue = [{ schema: makeSchema(true), values: { isolation: 'worktree' } }];
-			const prepared = await prepareNewAgentHostChat(resource, folderService, provisional, notifications);
+			const prepared = await prepareNewAgentHostChat(resource, folderService, provisional, noResolutionChanges, notifications, CancellationToken.None, 100);
 			const beforeOpen = retained(resource);
 			const opened = await openPreparedAgentHostChat(resource, open, folderService, provisional).catch((error: Error) => error.message);
 			results[name] = { prepared: prepared?.toString(), beforeOpen, opened, ...retained(resource) };
