@@ -5,17 +5,19 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../nls.js';
-import { autorun, derived } from '../../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IReader, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { isEqualAuthority } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { cloudSandboxAddress, cloudSandboxEnvironmentId } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IMissionControlEnvironmentService, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -29,7 +31,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getRemoteAgentHostPickerKey } from './remoteAgentHostPickerVisibility.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, IAgentHostSuccessor, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 
 /** How long sessions wait to move between a shared remote's direct connection and its GitHub environment. */
@@ -57,6 +59,8 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	private readonly _handoffs = this._register(new DisposableMap<string, ISessionHandoff>());
 	/** GitHub environments being disconnected because their remotes are connected directly again. */
 	private readonly _returning = new Set<string>();
+	private readonly _connectionsChanged = observableSignalFromEvent(this, this._remoteAgentHostService.onDidChangeConnections);
+	private readonly _providersChanged = observableSignalFromEvent(this, this._sessionsProvidersService.onDidChangeProviders);
 
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
@@ -320,6 +324,34 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		return this._sessionsProvidersService.getProviders().find((provider): provider is IAgentHostSessionsProvider => isAgentHostProvider(provider) && provider.remoteAddress === address);
 	}
 
+	/** The direct connection of the remote shared as a GitHub environment, once it is connected again. */
+	private _readSuccessor(environmentId: string, reader: IReader): IAgentHostSuccessor | undefined {
+		if (!this._remoteSharing.environmentIds.read(reader).has(environmentId)) {
+			return undefined;
+		}
+		const address = [...this._remoteSharing.shares.read(reader)].find(([, share]) => share.environmentId === environmentId)?.[0];
+		if (address === undefined) {
+			return undefined;
+		}
+		this._connectionsChanged.read(reader);
+		if (!RemoteAgentHostConnectionStatus.isConnected(this._remoteAgentHostService.connections.find(connection => connection.address === address)?.status)) {
+			return undefined;
+		}
+		this._providersChanged.read(reader);
+		const direct = this._findDirectProvider(address);
+		if (!direct) {
+			return undefined;
+		}
+		const environmentUris = createAgentHostResourceUriMapper(agentHostAuthority(cloudSandboxAddress(environmentId)));
+		const directUris = createAgentHostResourceUriMapper(agentHostAuthority(address));
+		return {
+			providerId: direct.id,
+			mapFolder: folderUri => folderUri.scheme === AGENT_HOST_SCHEME && isEqualAuthority(folderUri.authority, environmentUris.connectionAuthority)
+				? directUris.fromAgentHost(environmentUris.toAgentHost(folderUri))
+				: undefined,
+		};
+	}
+
 	private _isListing(provider: IAgentHostSessionsProvider): boolean {
 		return this._sessionsProvidersService.getProviders().includes(provider) && provider.getSessions().length > 0;
 	}
@@ -418,6 +450,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 				&& !this._remoteSharing.environmentIds.read(reader).has(id)
 				&& this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
 			localRegistration: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) === id ? 'githubEnvironment' : undefined),
+			successor: derivedOpts({ owner: this, equalsFn: (a, b) => a?.providerId === b?.providerId }, reader => this._readSuccessor(id, reader)),
 			pickerVisibilityKey: getRemoteAgentHostPickerKey(cloudSandboxAddress(id), account),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
 			hostDescription: derived(this, reader => {

@@ -1433,6 +1433,41 @@ suite('NewChatWidget', () => {
 			}, { environment: 'local', announcements: ['Environment: This Computer'], openedPickers: 0 });
 		});
 
+		test('follows the provider that continues the selected host with the draft, its requested target and the selection origin', async () => {
+			const { harness, calls } = createHarness(true);
+			const environment: ISessionCreationEnvironment = { id: 'agenthost-env', kind: 'remote', label: 'GitHub Environment', icon: Codicon.github, providerIds: ['agenthost-env'] };
+			const direct: ISessionCreationEnvironment = { id: 'agenthost-wsl', kind: 'remote', label: 'WSL', icon: Codicon.remote, providerIds: ['agenthost-wsl'] };
+			const directFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'wsl', path: '/file/-/project' });
+			const target = observableValue<INewSessionTarget | undefined>('target', { folderUri: folder, providerId: 'agenthost-env', modelId: 'model' });
+			const origins: WorkspaceSelectionOrigin[] = [];
+			const { setSelectedWorkspace } = harness._workspacePicker;
+			Object.assign(harness._workspacePicker, {
+				selectionSnapshot: { origin: WorkspaceSelectionOrigin.User },
+				setSelectedWorkspace: (uri: URI, options: { providerId: string; preferDevContainer: boolean; origin: WorkspaceSelectionOrigin }) => {
+					origins.push(options.origin);
+					setSelectedWorkspace(uri, options);
+				},
+			});
+			harness._pickedEnvironment.set(environment, undefined);
+			harness._draftHost = { requestedTarget: target, setRequestedTarget: next => target.set(next, undefined) };
+			const follow = Reflect.get(NewChatWidget.prototype, '_followSuccessor') as (this: unknown, folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string) => Promise<void>;
+			const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: unknown, options: ISelectWorkspaceOptions) => void;
+
+			await follow.call(Object.assign(harness, {
+				_environments: constObservable([local, environment, direct]),
+				uriIdentityService: { extUri },
+				_reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions) { reconcile.call(this, options); },
+			}), folder, 'agenthost-env', directFolder, 'agenthost-wsl');
+
+			assert.deepStrictEqual({ environment: harness._pickedEnvironment.get()?.id, folder: harness._workspacePicker.selectedFolderUri, target: target.get(), origins, calls }, {
+				environment: 'agenthost-wsl',
+				folder: directFolder,
+				target: { folderUri: directFolder, providerId: 'agenthost-wsl', modelId: 'model' },
+				origins: [WorkspaceSelectionOrigin.User],
+				calls: ['saveDraft', 'cancelUpgrade', 'cancelCreation', 'workspace:agenthost-wsl:false', 'createDraft'],
+			});
+		});
+
 		function createFolderlessHarness(quickChat = true, optOutEnabled = true) {
 			const remote: ISessionCreationEnvironment = { id: 'agenthost-ssh', kind: 'remote', label: 'SSH', icon: Codicon.remote, providerIds: ['agenthost-ssh'] };
 			const tunnel: ISessionCreationEnvironment = { id: 'agenthost-tunnel', kind: 'remote', label: 'Dead Tunnel', icon: Codicon.remote, providerIds: ['agenthost-tunnel'] };

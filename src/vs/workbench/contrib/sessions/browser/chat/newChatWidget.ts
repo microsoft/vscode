@@ -805,6 +805,21 @@ export class NewChatWidget extends Disposable {
 			previousFolderUri = folderUri;
 			this._syncWorkspacePickerFromSessionWorkspace(workspace);
 		}));
+
+		// Move to the provider that continues the selected workspace's host, such as a shared remote's direct connection
+		// that is connected again, whose GitHub environment then becomes unavailable.
+		this._register(autorun(reader => {
+			providersChanged.read(reader);
+			workspacePickerSelectionChanged.read(reader);
+			const folderUri = this._workspacePicker.selectedFolderUri;
+			const providerId = this._workspacePicker.selectedResolved?.providerId;
+			const provider = providerId ? this.sessionsProvidersService.getProvider(providerId) : undefined;
+			const successor = provider && isAgentHostProvider(provider) ? provider.successor?.read(reader) : undefined;
+			const successorFolderUri = folderUri && successor?.mapFolder(folderUri);
+			if (folderUri && providerId && successor && successorFolderUri) {
+				void this._followSuccessor(folderUri, providerId, successorFolderUri, successor.providerId);
+			}
+		}));
 	}
 
 	private _trackSessionPreparation(): IDisposable {
@@ -2454,6 +2469,33 @@ export class NewChatWidget extends Disposable {
 		if (this._pickedEnvironment.get() === environment) {
 			this.accessibilityService.status(localize('environmentPicker.selected', "Environment: {0}", environment.label));
 		}
+	}
+
+	/**
+	 * Moves the selected workspace to the provider that continues its host, such as a shared remote's direct connection
+	 * once it is connected again, keeping the input and the agent where the new provider offers it.
+	 */
+	private async _followSuccessor(folderUri: URI, providerId: string, successorFolderUri: URI, successorProviderId: string): Promise<void> {
+		const session = this._session.get();
+		if (session && isSessionCreated(session)) {
+			return;
+		}
+		this._newChatInput.saveState();
+		this._pendingPreferredUpgrade.clear();
+		this._newSessionCreation.clear();
+		const preferDevContainer = this._environment.get()?.kind === 'container';
+		this._reconcileWorkspaceEnvironment({ providerId: successorProviderId, preferDevContainer });
+		this._preferredDevContainerFolderUri = preferDevContainer ? successorFolderUri : undefined;
+		const host = this._draftHost;
+		const target = host?.requestedTarget?.get();
+		if (host?.setRequestedTarget && target && this.uriIdentityService.extUri.isEqual(target.folderUri, folderUri)) {
+			host.setRequestedTarget({ ...target, folderUri: successorFolderUri, providerId: target.providerId === providerId ? successorProviderId : target.providerId }, 'background');
+		}
+		this._workspacePicker.setSelectedWorkspace(successorFolderUri, { fireEvent: false, providerId: successorProviderId, preferDevContainer, origin: this._workspacePicker.selectionSnapshot.origin });
+		const pick = session && this._isPreferredServable(successorFolderUri, { sessionTypeId: session.sessionType })
+			? { sessionTypeId: session.sessionType }
+			: undefined;
+		await this._onWorkspaceSelected(successorFolderUri, pick);
 	}
 
 	private _getComparisonBranch(session = this._session.get(), reader?: IReader): string | undefined {
