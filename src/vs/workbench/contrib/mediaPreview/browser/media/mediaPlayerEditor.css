@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* The native control enters DOM fullscreen briefly before handing off to the dialog. */
-.webview.media-player-webview:fullscreen {
+.webview-overlay-content:not(.media-player-fullscreen-error) .webview.media-player-webview:fullscreen {
 	opacity: 0;
 }
 

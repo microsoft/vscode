@@ -142,14 +142,19 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 			} else if (e.message?.type === 'get-webm-type') {
 				void this._postWebmType();
 			} else if (e.message?.type === 'prepare-fullscreen') {
+				webview.container.classList.remove('media-player-fullscreen-error');
 				webview.container.classList.add('media-player-transition');
 				void webview.postMessage({ type: 'exit-native-fullscreen' });
 			} else if (e.message?.type === 'toggle-fullscreen') {
 				void this._toggleFullscreen().catch(onUnexpectedError);
 			} else if (e.message?.type === 'cancel-fullscreen') {
-				this._layoutVideo();
 				if (typeof e.message.error === 'string') {
+					++this._videoLayoutRequest;
+					webview.container.classList.add('media-player-fullscreen-error');
+					webview.container.classList.remove('media-player-transition');
 					onUnexpectedError(new Error(e.message.error));
+				} else {
+					this._layoutVideo();
 				}
 			} else if (e.message?.type === 'get-fullscreen') {
 				void webview.postMessage({ type: 'fullscreen', expanded: !!this._fullscreenGroup || !!findOverlayAnchorOf(webview.container)?.closest('.modal-editor-part') });
@@ -184,16 +189,24 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 			return;
 		}
 
-		const source = this._editorService.visibleEditorPanes
-			.flatMap(pane => pane instanceof SideBySideEditor ? [pane.getPrimaryEditorPane(), pane.getSecondaryEditorPane()] : [pane])
-			.find(pane => pane?.input === this);
+		const owner = this._editorService.visibleEditorPanes
+			.flatMap(pane => (pane instanceof SideBySideEditor ? [pane.getPrimaryEditorPane(), pane.getSecondaryEditorPane()] : [pane])
+				.map(source => ({ source, input: pane.input })))
+			.find(entry => entry.source?.input === this);
+		const source = owner?.source;
 		const anchor = source && findOverlayAnchorOf(this.webview.container);
-		if (!source || !anchor) {
+		if (!owner || !source || !anchor) {
 			this.webview.container.classList.remove('media-player-transition');
 			throw new Error('Cannot expand a video without a visible player');
 		}
 		if (anchor.closest('.modal-editor-part')) {
-			await source.group.closeEditor(this);
+			try {
+				await source.group.closeEditor(owner.input);
+			} finally {
+				if (!this.isDisposed()) {
+					this._layoutVideo();
+				}
+			}
 			return;
 		}
 		const clippingContainer = anchor.closest<HTMLElement>('.part') ?? undefined;
