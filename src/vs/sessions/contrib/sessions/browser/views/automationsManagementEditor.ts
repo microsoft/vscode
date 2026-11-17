@@ -116,7 +116,7 @@ export async function openAutomations(configurationService: IConfigurationServic
 	if (toAutomationsLayout(configurationService.getValue(CHAT_AUTOMATIONS_LAYOUT_SETTING)) === 'modal') {
 		const input = AutomationsManagementEditorInput.getOrCreate();
 		// The isolated mobile entry keeps the baseline page and does not register this editor.
-		if (Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).getEditorPane(input)) {
+		if (Registry.as<IEditorPaneRegistry | null>(EditorExtensions.EditorPane)?.getEditorPane(input)) {
 			await editorService.openEditor(input, { pinned: true });
 			return;
 		}

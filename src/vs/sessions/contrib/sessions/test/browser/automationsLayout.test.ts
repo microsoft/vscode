@@ -382,8 +382,8 @@ suite('Automations layout details panel', () => {
 
 	test('a package without the modal editor keeps the baseline page for a synced modal setting', async () => {
 		store.add(AutomationsManagementEditorInput.getOrCreate());
-		const registry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
-		const descriptor = sinon.stub(registry, 'getEditorPane').returns(undefined);
+		const registry = Registry.as<IEditorPaneRegistry | null>(EditorExtensions.EditorPane);
+		const descriptor = registry ? sinon.stub(registry, 'getEditorPane').returns(undefined) : undefined;
 		let opened = 0;
 		let shown: string | undefined;
 		try {
@@ -394,7 +394,7 @@ suite('Automations layout details panel', () => {
 			);
 			assert.deepStrictEqual({ opened, shown }, { opened: 0, shown: AUTOMATIONS_CUSTOM_VIEW_ID });
 		} finally {
-			descriptor.restore();
+			descriptor?.restore();
 		}
 	});
 
