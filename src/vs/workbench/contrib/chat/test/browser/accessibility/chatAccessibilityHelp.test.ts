@@ -32,7 +32,9 @@ suite('Chat Accessibility Help', () => {
 			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
 		].map(help => help.includes('New Worktree checkbox instead of the Folder picker')
 			&& help.includes('Space to check or uncheck it')
-			&& help.includes('Once the folder has worktrees, the Folder picker appears')), [true, true]);
+			&& help.includes('Once the folder has worktrees, the Folder picker appears')
+			&& help.includes('it offers the folder, New Worktree, and the worktrees that sessions work in, under a Worktrees section')
+			&& !help.includes('Folder and Worktrees sections')), [true, true]);
 	});
 
 	test('documents showing files above the chat input only while chat resources are enabled', () => {
