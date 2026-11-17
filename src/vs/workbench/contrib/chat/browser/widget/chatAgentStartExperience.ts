@@ -30,7 +30,8 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
  *   - name: screenshot
  *     label: Attach a screenshot
  *     icon: device-camera
- *     command: workbench.action.chat.attachAppWindowScreenshot   # only the chat's attach actions; runs with { sessionResource }
+ *     command: workbench.action.chat.attachAppWindowScreenshot   # any command; agent files are trusted
+ *     args: [...]        # its arguments; without them it gets { sessionResource } of the chat
  *   - name: repro
  *     label: Add steps to reproduce
  *     prompt: "Steps to reproduce:\n1. "   # appended to the input (`send: true` sends it)
@@ -47,6 +48,8 @@ interface IAgentCommand {
 	readonly prompt?: string;
 	readonly send?: boolean;
 	readonly command?: string;
+	/** Arguments from the agent file (YAML values; scalars are strings). */
+	readonly args?: readonly unknown[];
 }
 
 interface IAgentFirstMessage {
@@ -218,7 +221,7 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 			}
 		}
 		if (command.command) {
-			await this._commandService.executeCommand(command.command, { sessionResource: widget.viewModel?.sessionResource });
+			await this._commandService.executeCommand(command.command, ...(command.args ?? [{ sessionResource: widget.viewModel?.sessionResource }]));
 		}
 	}
 }
@@ -249,13 +252,9 @@ function asAgentCommand(value: unknown): IAgentCommand | undefined {
 	const label = asString(raw.label) ?? name;
 	const prompt = typeof raw.prompt === 'string' ? raw.prompt : undefined;
 	const command = asString(raw.command);
-	// Agent files can come from any workspace: their buttons may add context to the chat, nothing else.
-	const allowedCommand = command?.startsWith(allowedAgentCommandPrefix) ? command : undefined;
-	return name && label && (prompt !== undefined || allowedCommand) ? { name, label, icon: asString(raw.icon), prompt, send: raw.send === 'true', command: allowedCommand } : undefined;
+	const args = Array.isArray(raw.args) ? raw.args : undefined;
+	return name && label && (prompt !== undefined || command) ? { name, label, icon: asString(raw.icon), prompt, send: raw.send === 'true', command, args } : undefined;
 }
-
-/** The commands an agent's buttons may run: the chat's attach actions (e.g. `workbench.action.chat.attachAppWindowScreenshot`). */
-const allowedAgentCommandPrefix = 'workbench.action.chat.attach';
 
 function asFirstMessage(value: unknown): IAgentFirstMessage | undefined {
 	if (typeof value === 'string') {
