@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -22,7 +22,10 @@ import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
-import { IAgentHostWorktreeSendChoiceService } from './agentHostWorktreeSendChoice.js';
+import { AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, IAgentHostWorktreeSendChoiceService } from './agentHostWorktreeSendChoice.js';
+import { markOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import './media/agentHostChatInputPicker.css';
 
 /** Whether the chat input offers New Worktree as a checkbox rather than the folder chip: while the folder has no worktrees. */
@@ -31,6 +34,22 @@ export const ChatAgentHostNewWorktreeToggleVisible = new RawContextKey<boolean>(
 export const ChatAgentHostFolderChipVisible = new RawContextKey<boolean>('chatAgentHostFolderChipVisible', false, { type: 'boolean', description: localize('chatAgentHostFolderChipVisible', "Whether the chat input shows the folder chip, as it offers more than the folder the session works in already.") });
 /** Whether the session of the chat input is to work in a new worktree of its folder. */
 export const ChatAgentHostNewWorktreeSelected = new RawContextKey<boolean>('chatAgentHostNewWorktreeSelected', false, { type: 'boolean', description: localize('chatAgentHostNewWorktreeSelected', "Whether the session of the chat input is to work in a new worktree of its folder.") });
+
+/**
+ * Marks `element`, the worktree control of a chat input (its New Worktree checkbox or folder chip), as where the Work in
+ * Parallel callout anchors while it asks about the chat that the control shows now ({@link IAgentHostWorktreeSendChoiceService.pendingSendChoice}),
+ * until disposed. The control owns its element; the service only tells which chat it asks about.
+ */
+export function markWorktreeSendChoiceTarget(element: HTMLElement, sendChoice: IAgentHostWorktreeSendChoiceService, sessionResource: () => URI | undefined): IDisposable {
+	// A callout run has no scope: it matches only the control of the chat it asks about, and every other control is out of scope
+	return markOnboardingTarget(element, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, {
+		scope: () => {
+			const resource = sessionResource();
+			const pending = sendChoice.pendingSendChoice.get();
+			return resource && pending && extUriBiasedIgnorePathCase.isEqual(resource, pending) ? undefined : (resource?.toString() ?? '');
+		},
+	});
+}
 
 /**
  * Where the chat input offers worktrees, by the folder chip or the New Worktree checkbox: a local agent host chat in a
@@ -204,7 +223,8 @@ class ChatInputCheckboxActionViewItem extends CheckboxActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-input-checkbox-item');
-		this._register(this._sendChoice.registerWorktreeControl(container));
+		// The chat it shows is its toolbar's, as the action runs for it
+		this._register(markWorktreeSendChoiceTarget(container, this._sendChoice, () => (this._context as IChatExecuteActionContext | undefined)?.widget?.viewModel?.sessionResource));
 	}
 }
 

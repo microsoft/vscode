@@ -38,7 +38,7 @@ import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsMo
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
-import { AgentHostNewWorktreeToggle, ChatAgentHostNewWorktreeSelected, ToggleAgentHostNewWorktreeAction } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
+import { AgentHostNewWorktreeToggle, ChatAgentHostNewWorktreeSelected, markWorktreeSendChoiceTarget, ToggleAgentHostNewWorktreeAction } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { ChatSubmitRequestHandlerService, ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService } from '../../../../browser/chatSubmitRequestHandlerService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -138,7 +138,8 @@ suite('Agent host Work in Parallel choice on send', () => {
 				const domNode = append(mainWindow.document.body, $('div'));
 				disposables.add({ dispose: () => domNode.remove() });
 				control = append(domNode, $('.action-item', undefined, 'New Worktree'));
-				disposables.add(service.registerWorktreeControl(control));
+				// It marks itself as where the callout anchors while the service asks about its chat, as the chat input's controls do
+				disposables.add(markWorktreeSendChoiceTarget(control, service, () => resource));
 				controls.set(key, control);
 			}
 			return control;
@@ -167,6 +168,10 @@ suite('Agent host Work in Parallel choice on send', () => {
 		const run = async (id: string): Promise<OnboardingOutcome> => {
 			const step = (onboardingScenarioRegistry.getScenario(id)!.presentation.payload as ISpotlightPayload).steps[0];
 			const element = resolveOnboardingTarget(mainWindow, step.targetId)?.element;
+			if (!element) {
+				// As the callout's missing target aborts it: it does not show, and no answer is given
+				return OnboardingOutcome.Aborted;
+			}
 			asked.push({ onControl: [...controls.values()].some(control => control === element) });
 			askedOn.push(element);
 			const next = answers.shift() ?? { answer };
@@ -185,7 +190,6 @@ suite('Agent host Work in Parallel choice on send', () => {
 		const submit = new ChatSubmitRequestHandlerService();
 		instantiationService.stub(IChatSubmitRequestHandlerService, submit);
 		const service = disposables.add(instantiationService.createInstance(AgentHostWorktreeSendChoice, () => NOW));
-		const control = controlOf();
 
 		/** The requests sent, by the isolation each new chat then had; and those kept in the input, neither sent nor cleared. */
 		const sent: string[] = [];
@@ -230,7 +234,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		// The service as the chat inputs and the New Worktree toggle reach it
 		instantiationService.stub(IAgentHostWorktreeSendChoiceService, service);
 		const setWorktreeSupport = (on: boolean) => configuration.setUserConfiguration(ChatConfiguration.EditorWindowEnableWorktree, on);
-		return { instantiationService, newDraft, show, chosen, setWorktreeSupport, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
+		return { instantiationService, newDraft, show, chosen, setWorktreeSupport, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, controlOf, dispose: () => disposables.dispose() };
 	}
 
 	test('asks of a new chat in the folder only after another chat of the agent host was active in the folder itself within the last day', () => {
@@ -377,12 +381,14 @@ suite('Agent host Work in Parallel choice on send', () => {
 		});
 	});
 
-	test('tells another chat surface where its new chat works: asked once on its control, then as remembered without asking', async () => {
+	test('tells where a new chat works: asked once on the worktree control of that chat, then as remembered without asking', async () => {
 		const window = createWindow({});
 		window.setAnswer('useWorktree');
-		const first = await window.service.askWorktreeOnSend(window.control);
+		const chat = window.newDraft();
+		window.controlOf(chat);
+		const first = await window.service.requestSendChoice(chat);
 		window.setAnswer('continue');
-		const second = await window.service.askWorktreeOnSend(window.control);
+		const second = await window.service.requestSendChoice(window.newDraft());
 		const asked = window.asked;
 		window.dispose();
 
@@ -608,24 +614,27 @@ suite('Agent host Work in Parallel choice on send', () => {
 		});
 	});
 
-	test('another chat surface\'s ask remembers only an answer the user gave, and waits for a callout shown before, with its own control and answer', async () => {
+	test('an ask remembers only an answer the user gave, and waits for a callout shown before, each on the control of its own chat with its own answer', async () => {
 		const window = createWindow({ firstChatIn: primary });
 		window.setAnswer('abort');
-		const aborted = await window.service.askWorktreeOnSend(window.control);
+		const first = window.newDraft();
+		window.controlOf(first);
+		const aborted = await window.service.requestSendChoice(first);
 		const held = new DeferredPromise<void>();
 		window.setAnswer('continue', held);
 		window.setAnswer('useWorktree');
 		const draft = window.newDraft();
 		const sending = window.send(draft);
 		await timeout(0);
-		const other = window.controlOf(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/chat-area' }));
-		const asking = window.service.askWorktreeOnSend(other);
+		const otherChat = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/chat-area' });
+		const other = window.controlOf(otherChat);
+		const asking = window.service.requestSendChoice(otherChat);
 		await timeout(0);
 		const askedWhileHeld = window.asked.length;
 		held.complete();
 		await sending;
 		const answered = await asking;
-		const askedOn = window.askedOn.map(element => element === window.controlOf(draft) ? 'draft' : element === other ? 'other' : element === window.control ? 'control' : 'unknown');
+		const askedOn = window.askedOn.map(element => element === window.controlOf(draft) ? 'draft' : element === other ? 'other' : element === window.controlOf(first) ? 'control' : 'unknown');
 		window.dispose();
 
 		// The Chat view's Continue in Folder is remembered first, so the later ask applies it without a callout

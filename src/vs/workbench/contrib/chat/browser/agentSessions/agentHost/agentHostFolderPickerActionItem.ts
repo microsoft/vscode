@@ -36,6 +36,7 @@ import { createFolderPickerTip } from './agentHostFolderPickerTip.js';
 import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
 import './media/agentHostChatInputPicker.css';
 import { IAgentHostWorktreeSendChoiceService } from './agentHostWorktreeSendChoice.js';
+import { markWorktreeSendChoiceTarget } from './agentHostNewWorktreeToggle.js';
 
 /**
  * Folder picker for agent-host sessions in multi-root windows. An agent-host
@@ -242,7 +243,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 
 	override render(container: HTMLElement): void {
 		this._container = container;
-		this._register(this._sendChoice.registerWorktreeControl(container));
+		this._register(markWorktreeSendChoiceTarget(container, this._sendChoice, () => this._sessionResource()));
 		this._chromeKey = undefined;
 		// Its icon's font can load after it was measured with a fallback: measured again as it is next laid out
 		this._fontsListener.value = dom.addDisposableListener(dom.getWindow(container).document.fonts, 'loadingdone', () => this._chromeKey = undefined);

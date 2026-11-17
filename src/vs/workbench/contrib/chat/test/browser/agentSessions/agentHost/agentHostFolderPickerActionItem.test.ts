@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { IAgentHostWorktreeSendChoiceService } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IContextMenuProvider } from '../../../../../../../base/browser/contextmenu.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ActionListItemKind, ActionListWidget, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -78,7 +77,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
-		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ registerWorktreeControl: () => Disposable.None, rememberSelection: () => { } }));
+		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice: constObservable(undefined), rememberSelection: () => { } }));
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({ onDidChangeCustomizations: Event.None, getClientWorkingDirectoryUris: () => [] }));
 		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({ getRepository: () => undefined }));
 		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: session }), onDidChangeViewModel: Event.None });
@@ -161,7 +160,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
-		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ registerWorktreeControl: () => Disposable.None, rememberSelection: () => { } }));
+		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice: constObservable(undefined), rememberSelection: () => { } }));
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({
 			onDidChangeCustomizations: Event.None,
 			getClientWorkingDirectoryUris: () => [],
@@ -395,7 +394,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		}));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
-		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ registerWorktreeControl: () => Disposable.None, rememberSelection: () => { } }));
+		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice: constObservable(undefined), rememberSelection: () => { } }));
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({
 			onDidChangeCustomizations: onDidChangeCustomizations.event,
 			getClientWorkingDirectoryUris: () => workingDirectories,
