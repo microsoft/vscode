@@ -52,7 +52,11 @@ class ViewDescriptorsState extends Disposable {
 	private readonly globalViewsStateStorageId: string;
 	private readonly state: Map<string, IViewDescriptorState>;
 
-	private _onDidChangeStoredState = this._register(new Emitter<{ id: string; visible: boolean }[]>());
+	/**
+	 * Fires with the views whose stored visibility changed. A visibility of `undefined` means
+	 * that the stored state no longer contains the view, so that it has its default visibility.
+	 */
+	private _onDidChangeStoredState = this._register(new Emitter<{ id: string; visible: boolean | undefined }[]>());
 	readonly onDidChangeStoredState = this._onDidChangeStoredState.event;
 
 	private _onDidChangeStoredOrder = this._register(new Emitter<{ id: string; order: number | undefined }[]>());
@@ -131,7 +135,7 @@ class ViewDescriptorsState extends Disposable {
 			this._globalViewsStatesValue = undefined;
 			const storedViewsVisibilityStates = this.getStoredGlobalState();
 			const storedWorkspaceViewsStates = this.getStoredWorkspaceState();
-			const changedStates: { id: string; visible: boolean }[] = [];
+			const changedStates: { id: string; visible: boolean | undefined }[] = [];
 			const changedOrders: { id: string; order: number | undefined }[] = [];
 			for (const [id, storedState] of storedViewsVisibilityStates) {
 				const state = this.get(id);
@@ -157,19 +161,35 @@ class ViewDescriptorsState extends Disposable {
 					});
 				}
 			}
-			if (changedStates.length) {
-				this._onDidChangeStoredState.fire(changedStates);
-				// Update the in memory state after firing the event
-				// so that the views can update their state accordingly
-				for (const changedState of changedStates) {
-					const state = this.get(changedState.id);
-					if (state) {
-						state.visibleGlobal = changedState.visible;
+
+			// Views that the stored state does not contain have their default visibility and order,
+			// for example after switching to a layout that never stored the state of this view container
+			for (const [id, state] of this.state) {
+				if (!storedViewsVisibilityStates.has(id)) {
+					if (!isUndefined(state.visibleGlobal)) {
+						changedStates.push({ id, visible: undefined });
+					}
+					if (!isUndefined(state.order)) {
+						changedOrders.push({ id, order: undefined });
 					}
 				}
 			}
+
+			// Apply the orders first, so that state stored while the visibility changes has the new orders
 			if (changedOrders.length) {
 				this._onDidChangeStoredOrder.fire(changedOrders);
+			}
+			if (changedStates.length) {
+				this._onDidChangeStoredState.fire(changedStates);
+				// Update the in memory state after firing the event
+				// so that the views can update their state accordingly.
+				// The view container model resolves the default visibility
+				for (const changedState of changedStates) {
+					const state = this.get(changedState.id);
+					if (state && !isUndefined(changedState.visible)) {
+						state.visibleGlobal = changedState.visible;
+					}
+				}
 			}
 		}
 	}
@@ -406,7 +426,27 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		this.updateVisibility([{ id, visible }]);
 	}
 
-	private updateVisibility(viewDescriptors: { id: string; visible: boolean }[]): void {
+	private updateVisibility(visibilities: { id: string; visible: boolean | undefined }[]): void {
+		const viewDescriptors: { id: string; visible: boolean }[] = [];
+		for (const { id, visible } of visibilities) {
+			if (!isUndefined(visible)) {
+				viewDescriptors.push({ id, visible });
+				continue;
+			}
+
+			// The stored state no longer contains the view: use its default visibility. The visibility
+			// of workspace views is stored per workspace, a view that is not registered uses its default when it is
+			const viewDescriptorItem = this.findAndIgnoreIfNotFound(id)?.viewDescriptorItem;
+			if (!viewDescriptorItem) {
+				const state = this.viewDescriptorsState.get(id);
+				if (state) {
+					state.visibleGlobal = undefined;
+				}
+			} else if (!viewDescriptorItem.viewDescriptor.workspace) {
+				viewDescriptors.push({ id, visible: !viewDescriptorItem.viewDescriptor.hideByDefault });
+			}
+		}
+
 		// First: Update and remove the view descriptors which are asked to be hidden
 		const viewDescriptorItemsToHide = coalesce(viewDescriptors.filter(({ visible }) => !visible)
 			.map(({ id }) => this.findAndIgnoreIfNotFound(id)));

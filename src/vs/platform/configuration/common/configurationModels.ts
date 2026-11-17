@@ -1144,14 +1144,34 @@ export class Configuration {
 			const workspaceConsolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
 			const folderConfiguration = this._folderConfigurations.get(folder);
 			if (folderConfiguration) {
-				// The layout layer also wins over folder settings, which in a single folder workspace are the workspace settings
-				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration, this._layoutConfiguration);
+				// The layout layer also wins over folder settings, which in a single folder workspace are the workspace settings.
+				// The memory layer still wins over the layout layer
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration, this.getLayoutConfigurationBelowMemory());
 				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
 			} else {
 				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;
 			}
 		}
 		return folderConsolidatedConfiguration;
+	}
+
+	/**
+	 * Returns the layout configuration with the values of the memory configuration for the
+	 * keys that both define, so that merging it over other configurations keeps the memory
+	 * configuration on top of the layout configuration.
+	 */
+	private getLayoutConfigurationBelowMemory(): ConfigurationModel {
+		const keysInMemory = this._layoutConfiguration.keys.filter(key => this._memoryConfiguration.getValue(key) !== undefined);
+		if (!keysInMemory.length) {
+			return this._layoutConfiguration;
+		}
+
+		// clone by merging
+		const configuration = this._layoutConfiguration.merge();
+		for (const key of keysInMemory) {
+			configuration.setValue(key, this._memoryConfiguration.getValue(key));
+		}
+		return configuration;
 	}
 
 	private getFolderConfigurationModelForResource(resource: URI | null | undefined, workspace: Workspace | undefined): ConfigurationModel | undefined {

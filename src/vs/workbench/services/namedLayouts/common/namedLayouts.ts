@@ -12,9 +12,9 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const INamedLayoutsService = createDecorator<INamedLayoutsService>('namedLayoutsService');
 
 /**
- * Setting that enables named layouts.
+ * Setting that enables named layouts. Its maturity is in its tags, not in its identifier.
  */
-export const NAMED_LAYOUTS_ENABLED_SETTING = 'workbench.experimental.namedLayouts.enabled';
+export const NAMED_LAYOUTS_ENABLED_SETTING = 'workbench.namedLayouts.enabled';
 
 /**
  * Whether named layouts are enabled. While they are, the layout control of the title bar

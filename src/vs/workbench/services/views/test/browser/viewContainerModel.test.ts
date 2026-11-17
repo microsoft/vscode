@@ -289,6 +289,38 @@ suite('ViewContainerModel', () => {
 		);
 	});
 
+	test('applies the stored order before the stored visibility and restores the defaults of views that are no longer stored', () => {
+		// eslint-disable-next-line local/code-no-any-casts
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: nls.localize2('Test View 1', 'Test View 1'), canToggleVisibility: true, order: 1 };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: nls.localize2('Test View 2', 'Test View 2'), canToggleVisibility: true, order: 2 };
+		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: nls.localize2('Test View 3', 'Test View 3'), canToggleVisibility: true, order: 3, hideByDefault: true };
+		ViewsRegistry.registerViews([view1, view2, view3], container);
+		// Like the view pane container, which stores the state of the panes it adds
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(added => added.forEach(({ viewDescriptor }) => testObject.setCollapsed(viewDescriptor.id, true))));
+		const storageKey = getViewsStateStorageId('test.state');
+		const getVisibleViews = () => ({ model: testObject.visibleViewDescriptors.map(({ id }) => id), events: target.elements.map(({ id }) => id) });
+
+		// For example switching to a layout that shows view3 and orders the views differently
+		storageService.store(storageKey, JSON.stringify([
+			{ id: 'view1', isHidden: false, order: 2 },
+			{ id: 'view2', isHidden: false, order: 1 },
+			{ id: 'view3', isHidden: false, order: 0 }
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		const afterSwitch = { ...getVisibleViews(), storedOrders: JSON.parse(storageService.get(storageKey, StorageScope.PROFILE, '[]')).map(({ id, order }: { id: string; order?: number }) => [id, order]) };
+
+		// For example switching to a layout that never stored the state of this view container
+		storageService.remove(storageKey, StorageScope.PROFILE);
+		const afterEmptyState = getVisibleViews();
+
+		assert.deepStrictEqual({ afterSwitch, afterEmptyState }, {
+			afterSwitch: { model: ['view3', 'view2', 'view1'], events: ['view3', 'view2', 'view1'], storedOrders: [['view1', 2], ['view2', 1], ['view3', 0]] },
+			afterEmptyState: { model: ['view1', 'view2'], events: ['view1', 'view2'] }
+		});
+	});
+
 	test('view states', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		// eslint-disable-next-line local/code-no-any-casts

@@ -1451,6 +1451,28 @@ suite('Configuration', () => {
 		});
 	});
 
+	test('Test memory configuration takes precedence over layout configuration for resources in folders', () => {
+		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1, 'b': 1 }), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const folder = URI.file('folder1');
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: folder })]);
+		testObject.updateFolderConfiguration(folder, toConfigurationModel({ 'b': 2 }));
+		testObject.updateLayoutConfiguration(toConfigurationModel({ 'a': 3 }));
+		testObject.updateValue('a', 4);
+		testObject.updateValue('b', 5);
+
+		const resource = URI.joinPath(folder, 'file.txt');
+		assert.deepStrictEqual({
+			value: testObject.getValue('a', {}, workspace),
+			resourceValue: testObject.getValue('a', { resource }, workspace),
+			// Folder settings keep winning over the memory configuration for keys that the layout does not define
+			resourceValueNotInLayout: testObject.getValue('b', { resource }, workspace),
+		}, {
+			value: 4,
+			resourceValue: 4,
+			resourceValueNotInLayout: 2,
+		});
+	});
+
 	function parseConfigurationModel(content: Record<string, unknown>): ConfigurationModel {
 		const parser = new ConfigurationModelParser('test', new NullLogService());
 		parser.parse(JSON.stringify(content));

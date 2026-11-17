@@ -11,6 +11,8 @@ import { PANEL_BACKGROUND } from '../workbench/common/theme.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/terminalColorRegistry.js';
 
 import '../workbench/api/browser/extensionHost.contribution.js';
+// The extension host requires every main thread actor, the Agents window does not support named layouts
+import '../workbench/api/browser/mainThreadWindowLayoutsUnsupported.js';
 import '../workbench/browser/workbench.contribution.js';
 import '../workbench/contrib/modernUI/browser/media/notificationsDialogs.css';
 import '../workbench/contrib/modernUI/browser/media/suggestWidget.css';
