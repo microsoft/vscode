@@ -43,7 +43,14 @@ import { isUntitledChatSession, LocalChatSessionUri } from '../../../../chat/com
 import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IEditorWindowShownChat, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, getDefaultNewChatSessionTypeAndReason } from '../../../../chat/common/constants.js';
+import { NewChatAction } from '../../../../chat/browser/actions/chatNewActions.js';
+import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../chat/common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../../../chat/test/common/mockChatSessionsService.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
 import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -318,9 +325,9 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const agentSession = URI.parse('agent-host-copilot:/session-1');
 
 		/** The contribution over the real chat part service and Chat view host service, recording where chats are opened. */
-		function setupServices(options: { agentEnabled: boolean; setting?: boolean; orientation?: string; chatViewShows?: URI; chatViewNewChat?: () => Promise<void> }) {
+		function setupServices(options: { agentEnabled: boolean; setting?: boolean; orientation?: string; chatViewShows?: URI; chatViewNewChat?: () => Promise<void>; chatViewHasView?: boolean; localDefault?: boolean }) {
 			const calls: string[] = [];
-			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? true, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled });
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? true, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled, [ChatConfiguration.DefaultToCopilotHarness]: !options.localDefault });
 			const contextKeyService = store.add(new ContextKeyService(configurationService));
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 			RemoteNameContext.bindTo(contextKeyService).set('');
@@ -341,7 +348,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 				},
 				shownSession: shown, reportShown: () => { }, focusInput: () => { }, widget: chatViewWidget as unknown as IChatWidget,
 			};
-			stub(IViewsService, { openView: (async () => chatView) as unknown as IViewsService['openView'], isViewVisible: () => false, onDidChangeViewVisibility: Event.None, getViewWithId: (() => options.chatViewShows ? chatView : null) as IViewsService['getViewWithId'] });
+			stub(IViewsService, { openView: (async () => chatView) as unknown as IViewsService['openView'], isViewVisible: () => false, onDidChangeViewVisibility: Event.None, getViewWithId: (() => options.chatViewShows || options.chatViewHasView ? chatView : null) as IViewsService['getViewWithId'] });
 			stub(IViewDescriptorService, { getViewLocationById: () => null, getViewContainerByViewId: () => null, onDidChangeContainer: Event.None });
 			stub(IWorkbenchLayoutService, { setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } });
 			stub(IProgressService, {});
@@ -363,6 +370,13 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const partShows = observableValue<IEditorWindowShownChat | undefined>('partShows', undefined);
 			stub(IEditorWindowShownChatService, { shown: partShows });
 			stub(IEditorService, { activeEditor: undefined });
+			// What the default type of new chats resolves from: local chat, unless the Copilot agent is the default
+			const chatSessionsService = new MockChatSessionsService();
+			chatSessionsService.setContributions([{ type: SessionType.AgentHostClaude, name: 'claude', displayName: 'Claude', description: 'Claude' }]);
+			instantiationService.stub(IChatSessionsService, chatSessionsService);
+			instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+			stub(IAgentHostEnablementService, { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
+			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 			const loadingModel = new DeferredPromise<void>();
 			stub(IChatService, { acquireOrLoadSession: async () => { await loadingModel.p; return { dispose: () => { } } as never; } });
 			// The shared chat part contribution can create toolbars that register action view items, depending on what else is merged in
@@ -384,7 +398,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 				await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
 			};
-			return { hostService, calls, loadingModel, setSetting, chatViewWidget, widgets, partShows };
+			return { hostService, calls, loadingModel, setSetting, chatViewWidget, widgets, partShows, instantiationService };
 		}
 
 		test('with agents disabled, no chat part host takes the chats, so an agent session opens in the Chat view', async () => {
@@ -411,6 +425,15 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const off = await hostService.newChat();
 
 			assert.deepStrictEqual({ on, off, calls }, { on: true, off: false, calls: ['chat part composer'] });
+		});
+
+		test('with local chats on by their setting, New Chat opens the chat part\'s composer and new chats are not local, so that the Chat view shows only its sessions', async () => {
+			const { hostService, calls, instantiationService } = setupServices({ agentEnabled: true, localDefault: true });
+
+			await instantiationService.invokeFunction(accessor => new NewChatAction().run(accessor));
+			const defaultType = instantiationService.invokeFunction(accessor => getDefaultNewChatSessionTypeAndReason(accessor).sessionType);
+
+			assert.deepStrictEqual({ calls, sessionsOnly: hostService.sessionsOnly.get(), localDefault: defaultType === localChatSessionType }, { calls: ['chat part composer'], sessionsOnly: true, localDefault: false });
 		});
 
 		test('a chat that the chat part leaves to the Chat view shows there, not only its sessions, until a chat of the chat part opens or New Chat starts', async () => {
