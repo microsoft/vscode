@@ -39,7 +39,7 @@ import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../work
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -1273,7 +1273,6 @@ suite('Changes View Actions', () => {
 			context.setValue(IsTopRightEditorGroupContext.key, true);
 			context.setValue(MainEditorAreaVisibleContext.key, true);
 			context.setValue(ActiveEditorContext.key, activeEditor);
-			context.setValue(`config.${multiDiffEditorExperimentalFileListSetting}`, true);
 			context.setValue(MultiDiffEditorFileListAvailableContext.key, fileListAvailable);
 			return items.map(item => item.when?.evaluate(context) ?? true);
 		};

@@ -40,7 +40,12 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string } = {}): Promise<void> {
+const extensionRemotes: ICustomizationRemote[] = [
+	{ id: '127.0.0.1:8445', kind: 'extension', name: 'Job runs', detail: '127.0.0.1:8445', canRemove: false, contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' }, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+	{ id: '127.0.0.1:8446', kind: 'extension', name: 'Nightly job runs', detail: '127.0.0.1:8446', canRemove: false, contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' }, hidden: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+];
+
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly extensions?: boolean } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -79,7 +84,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			await pendingSignIn?.p;
 			this.tunnelAuthenticationRequired.set(undefined, undefined);
 		}
-		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes.map(remote =>
+		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : [...remotes, ...options.extensions ? extensionRemotes : []].map(remote =>
 			remote.id === 'ssh:build' && options.connectionError
 				? {
 					...remote, lastConnectionError: options.connectionError,
@@ -178,6 +183,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 		render: async context => {
 			await render(context, 1000, OS, false, [], true);
 			for (const row of context.container.querySelectorAll('[data-remote-id^="environment:"]')) {
+				row.closest('.monaco-list-row')?.classList.add('hovered');
+			}
+		},
+	}),
+	ExtensionActions: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: async context => {
+			await render(context, 1000, OS, false, [], true, undefined, false, { extensions: true });
+			for (const row of context.container.querySelectorAll('[data-remote-id^="127.0.0.1:"]')) {
 				row.closest('.monaco-list-row')?.classList.add('hovered');
 			}
 		},
