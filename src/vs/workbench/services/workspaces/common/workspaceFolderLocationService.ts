@@ -8,6 +8,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { basenameOrAuthority } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -19,6 +20,11 @@ import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent
 interface IRegisteredProvider {
 	readonly provider: IWorkspaceFolderLocationProvider;
 	readonly builtIn: boolean;
+}
+
+/** Unlike `removeTrailingPathSeparator`, this also strips the separator of a UNC share root, which names the same location without it. */
+function withoutTrailingSeparator(uri: URI): URI {
+	return uri.path.length > 1 && uri.path.endsWith('/') ? uri.with({ path: uri.path.slice(0, -1) }) : uri;
 }
 
 export class WorkspaceFolderLocationService extends Disposable implements IWorkspaceFolderLocationService {
@@ -71,6 +77,25 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		const workspace = this.contextService.getWorkspace();
 		const extUri = this.uriIdentityService.extUri;
 		return !workspace.configuration && !!workspace.uri && workspace.folders.length === 1 && extUri.isEqual(workspace.folders[0].uri, folder.uri) && !extUri.isEqual(folder.uri, workspace.uri);
+	}
+
+	private getPrimaryLocation(folder: IWorkspaceFolder): URI {
+		return this.isAtAlternateLocation(folder) ? this.contextService.getWorkspace().uri! : folder.uri;
+	}
+
+	async getFolderLocations(folder: IWorkspaceFolder, token: CancellationToken): Promise<IFolderLocation[]> {
+		const primary = this.getPrimaryLocation(folder);
+		const result: IFolderLocation[] = [{ uri: primary, label: basenameOrAuthority(primary) }];
+		if (this.isAtAlternateLocation(folder) || this.canSetLocation(folder)) {
+			const extUri = this.uriIdentityService.extUri;
+			const primaryWithoutSeparator = withoutTrailingSeparator(primary);
+			for (const location of await this.getLocations(primary, token)) {
+				if (!extUri.isEqual(withoutTrailingSeparator(location.uri), primaryWithoutSeparator)) {
+					result.push(location);
+				}
+			}
+		}
+		return result;
 	}
 
 	setLocation(folder: IWorkspaceFolder, location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {
