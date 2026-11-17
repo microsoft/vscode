@@ -3,8 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $, addDisposableListener, append, EventType, getWindow, prepend } from '../../../../base/browser/dom.js';
+import { findOverlayAnchorOf } from '../../../../base/browser/overlayLayoutElement.js';
+import { CodeWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { escapeDoubleQuotes } from '../../../../base/common/htmlContent.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -15,6 +20,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,9 +28,11 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorInputCapabilities, GroupIdentifier, IMoveResult, ISaveOptions, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
-import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { IModalEditorOptions, IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService, MODAL_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { ICustomEditorCompatibleInput } from '../../customEditor/common/customEditor.js';
 import { IOverlayWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { asWebviewUri, webviewGenericCspSource } from '../../webview/common/webview.js';
@@ -33,6 +41,7 @@ import { IMediaInfo, IMediaTrack, readMediaInfo } from '../common/mediaCodecs.js
 import { AUDIO_PREVIEW_EDITOR_ID, isGitLfsPointer, VIDEO_PREVIEW_AUTO_PLAY_SETTING, VIDEO_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_LOOP_SETTING } from '../common/mediaPreview.js';
 import { reopenInTextEditor } from './mediaPreviewErrors.js';
 import { saveMediaFileAs } from './mediaPreviewSaveAs.js';
+import './media/mediaPlayerEditor.css';
 
 export type MediaPlayerKind = 'audio' | 'video';
 
@@ -72,10 +81,16 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 
 	static create(instantiationService: IInstantiationService, kind: MediaPlayerKind, resource: URI, group: GroupIdentifier | undefined): MediaPlayerEditorInput {
 		return instantiationService.invokeFunction(accessor => {
+			const delegateFullscreen = isNative && kind === 'video'
+				&& accessor.get(IConfigurationService).getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) !== 'off';
 			const webview = accessor.get(IWebviewService).createWebviewOverlay({
 				providedViewType: getMediaPlayerEditorId(kind),
 				title: basename(resource),
-				options: { retainContextWhenHidden: true },
+				options: {
+					retainContextWhenHidden: true,
+					allowFullscreen: delegateFullscreen,
+					customClasses: delegateFullscreen ? 'media-player-webview' : undefined,
+				},
 				contentOptions: {
 					allowScripts: true,
 					localResourceRoots: [dirname(resource).with({ query: '', fragment: '' })],
@@ -93,6 +108,10 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 	private _fileSize: number | undefined;
 	private _rendered: Promise<void> | undefined;
 	private _mediaInfo: Promise<IMediaInfo | undefined> = Promise.resolve(undefined);
+	private _openingFullscreen = false;
+	private _fullscreenGroup: IEditorGroup | undefined;
+	private _videoLayoutRequest = 0;
+	private readonly _fullscreenListener = this._register(new MutableDisposable());
 
 	private readonly _onDidChangeFileSize = this._register(new Emitter<void>());
 	readonly onDidChangeFileSize = this._onDidChangeFileSize.event;
@@ -109,6 +128,7 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super({ viewType: getMediaPlayerEditorId(kind), providedId: undefined, name: basename(_resource), iconPath: undefined }, webview, themeService);
 
@@ -121,8 +141,140 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 				void this._postCodecs();
 			} else if (e.message?.type === 'get-webm-type') {
 				void this._postWebmType();
+			} else if (e.message?.type === 'prepare-fullscreen') {
+				webview.container.classList.add('media-player-transition');
+				void webview.postMessage({ type: 'exit-native-fullscreen' });
+			} else if (e.message?.type === 'toggle-fullscreen') {
+				void this._toggleFullscreen().catch(onUnexpectedError);
+			} else if (e.message?.type === 'cancel-fullscreen') {
+				this._layoutVideo();
+				if (typeof e.message.error === 'string') {
+					onUnexpectedError(new Error(e.message.error));
+				}
+			} else if (e.message?.type === 'get-fullscreen') {
+				void webview.postMessage({ type: 'fullscreen', expanded: !!this._fullscreenGroup || !!findOverlayAnchorOf(webview.container)?.closest('.modal-editor-part') });
+				if (webview.container.classList.contains('media-player-transition')) {
+					this._layoutVideo();
+				}
+			} else if (e.message?.type === 'video-layout' && e.message.id === this._videoLayoutRequest) {
+				if (e.message.width === webview.container.clientWidth && e.message.height === webview.container.clientHeight) {
+					webview.container.classList.remove('media-player-transition');
+				} else {
+					this._layoutVideo();
+				}
 			}
 		}));
+	}
+
+	private _canOpenFullscreen(): boolean {
+		return isNative && this.kind === 'video'
+			&& this._configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) !== 'off';
+	}
+
+	private async _toggleFullscreen(): Promise<void> {
+		if (this._openingFullscreen) {
+			return;
+		}
+		if (this._fullscreenGroup) {
+			await this._fullscreenGroup.closeEditor(this);
+			return;
+		}
+		if (!this._canOpenFullscreen() || isAuxiliaryWindow(getWindow(this.webview.container))) {
+			this.webview.container.classList.remove('media-player-transition');
+			return;
+		}
+
+		const source = this._editorService.visibleEditorPanes
+			.flatMap(pane => pane instanceof SideBySideEditor ? [pane.getPrimaryEditorPane(), pane.getSecondaryEditorPane()] : [pane])
+			.find(pane => pane?.input === this);
+		const anchor = source && findOverlayAnchorOf(this.webview.container);
+		if (!source || !anchor) {
+			this.webview.container.classList.remove('media-player-transition');
+			throw new Error('Cannot expand a video without a visible player');
+		}
+		if (anchor.closest('.modal-editor-part')) {
+			await source.group.closeEditor(this);
+			return;
+		}
+		const clippingContainer = anchor.closest<HTMLElement>('.part') ?? undefined;
+		const container = this.webview.container;
+		this._openingFullscreen = true;
+		container.classList.add('media-player-transition');
+		try {
+			// Share the input, rather than copying it, to keep the media element and playback alive.
+			const modal = await this._editorService.openEditor(this, { pinned: true }, MODAL_GROUP);
+			if (!modal || modal.group.id === source.group.id || this.isDisposed()) {
+				return;
+			}
+			this._fullscreenGroup = modal.group;
+			const fullscreenDisposables = new DisposableStore();
+			this._fullscreenListener.value = fullscreenDisposables;
+			this._trapFullscreenFocus(fullscreenDisposables);
+			this._layoutVideo();
+			void this.webview.postMessage({ type: 'fullscreen', expanded: true });
+			fullscreenDisposables.add(Event.filter(modal.group.onDidCloseEditor, e => e.editor === this)(() => {
+				this._fullscreenListener.clear();
+				this._fullscreenGroup = undefined;
+				if (this.isDisposed()) {
+					return;
+				}
+				this.updateGroup(source.group.id);
+				if (source.input === this && source.isVisible() && anchor.isConnected) {
+					this.webview.container.classList.add('media-player-transition');
+					this.claim(source, getWindow(anchor), source.scopedContextKeyService);
+					this.webview.setAnchorElement(anchor, clippingContainer);
+					this._layoutVideo();
+					source.focus();
+				} else {
+					++this._videoLayoutRequest;
+					container.classList.remove('media-player-transition');
+				}
+				void this.webview.postMessage({ type: 'fullscreen', expanded: false });
+			}));
+		} finally {
+			this._openingFullscreen = false;
+			if (!this._fullscreenGroup) {
+				container.classList.remove('media-player-transition');
+			}
+		}
+	}
+
+	private _layoutVideo(): void {
+		void this.webview.postMessage({
+			type: 'layout-video',
+			id: ++this._videoLayoutRequest,
+		});
+	}
+
+	/** Bridges the modal's tab order and the player iframe, which is portaled outside it. */
+	private _trapFullscreenFocus(disposables: DisposableStore): void {
+		const anchor = findOverlayAnchorOf(this.webview.container);
+		const modal = anchor?.closest('.modal-editor-part');
+		const modalPart = this._editorGroupsService.activeModalEditorPart;
+		if (!anchor || !modal || !modalPart) {
+			throw new Error('Cannot focus a fullscreen video without its modal editor');
+		}
+		const entry = append(anchor, $('div', { role: 'group', tabIndex: 0, 'aria-label': localize('videoPreview.player', "Video Player") }));
+		const before = prepend(this.webview.container, $('span', { tabIndex: 0 }));
+		const after = append(this.webview.container, $('span', { tabIndex: 0 }));
+		disposables.add(toDisposable(() => { entry.remove(); before.remove(); after.remove(); }));
+		disposables.add(addDisposableListener(entry, EventType.FOCUS, () => {
+			this.webview.focus();
+			void this.webview.postMessage({ type: 'focus-video' });
+		}));
+		const focusHeader = () => modalPart.focusToolbar();
+		disposables.add(addDisposableListener(before, EventType.FOCUS, focusHeader));
+		disposables.add(addDisposableListener(after, EventType.FOCUS, focusHeader));
+	}
+
+	getModalEditorOptions(): IModalEditorOptions | undefined {
+		return this._openingFullscreen || this._fullscreenGroup ? { canMoveToEditorArea: false } : undefined;
+	}
+
+	/** Modal dialogs belong to the main window; crossing windows would recreate the player. */
+	override claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
+		this.webview.options = { ...this.webview.options, allowFullscreen: this._canOpenFullscreen() && !isAuxiliaryWindow(targetWindow) };
+		super.claim(claimant, targetWindow, scopedContextKeyService);
 	}
 
 	override get typeId(): string {
@@ -354,7 +506,8 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 		} else {
 			const autoPlay = this._configurationService.getValue<boolean>(VIDEO_PREVIEW_AUTO_PLAY_SETTING) === true;
 			const loop = this._configurationService.getValue<boolean>(VIDEO_PREVIEW_LOOP_SETTING) === true;
-			media = `<video src="${escapeDoubleQuotes(escape(src.toString()))}" controls playsinline${autoPlay ? ' autoplay muted' : ''}${loop ? ' loop' : ''}></video>`;
+			const fullscreen = this._canOpenFullscreen();
+			media = `<video src="${escapeDoubleQuotes(escape(src.toString()))}" controls playsinline${fullscreen ? ` data-fullscreen-dialog aria-description="${escapeDoubleQuotes(escape(localize('videoPreview.fullscreenDescription', "Use the player's fullscreen control to view the video in a floating dialog. Press Escape to return to the inline player.")))}"` : ''}${autoPlay ? ' autoplay muted' : ''}${loop ? ' loop' : ''}></video>`;
 			errorMessage = isGitLfs
 				? localize('videoPreview.gitLfs', "The video file is stored with Git LFS and is not available for preview.")
 				: localize('videoPreview.loadError', "An error occurred while loading the video file.");
@@ -470,6 +623,39 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 		(function () {
 			const vscode = acquireVsCodeApi();
 			const media = document.querySelector('audio, video');
+			const fullscreen = media?.hasAttribute('data-fullscreen-dialog');
+			let expanded = false;
+			let videoLayoutVersion = 0;
+			const layoutVideo = ({ id }) => {
+				const version = ++videoLayoutVersion;
+				requestAnimationFrame(() => {
+					if (version !== videoLayoutVersion) {
+						return;
+					}
+					// Let the resized frame paint before the workbench reveals the iframe.
+					requestAnimationFrame(() => {
+						if (version !== videoLayoutVersion) {
+							return;
+						}
+						vscode.postMessage({ type: 'video-layout', id, width: innerWidth, height: innerHeight });
+					});
+				});
+			};
+			if (fullscreen) {
+				vscode.postMessage({ type: 'get-fullscreen' });
+				document.addEventListener('fullscreenchange', () => {
+					if (document.fullscreenElement === media) {
+						vscode.postMessage({ type: 'prepare-fullscreen' });
+					}
+				});
+				window.addEventListener('keydown', event => {
+					if (event.key === 'Escape' && expanded) {
+						event.preventDefault();
+						event.stopImmediatePropagation();
+						vscode.postMessage({ type: 'toggle-fullscreen' });
+					}
+				}, true);
+			}
 			const showError = () => document.body.classList.add('error');
 
 			// Browsers don't explain why a file fails to load and silently drop audio tracks they can't
@@ -569,11 +755,32 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 				source.endOfStream();
 			};
 
-			window.addEventListener('message', e => {
+			window.addEventListener('message', async e => {
 				if (e.data?.type === 'codecs') {
 					checkCodecs(e.data);
 				} else if (e.data?.type === 'webm-type') {
 					resolveWebmType?.(e.data.mimeType);
+				} else if (e.data?.type === 'exit-native-fullscreen') {
+					if (document.fullscreenElement !== media) {
+						vscode.postMessage({ type: 'cancel-fullscreen' });
+						return;
+					}
+					try {
+						await document.exitFullscreen();
+					} catch (error) {
+						vscode.postMessage({
+							type: 'cancel-fullscreen',
+							error: document.fullscreenElement ? String(error) : undefined,
+						});
+						return;
+					}
+					vscode.postMessage({ type: 'toggle-fullscreen' });
+				} else if (e.data?.type === 'fullscreen' && fullscreen) {
+					expanded = e.data.expanded;
+				} else if (e.data?.type === 'layout-video') {
+					layoutVideo(e.data);
+				} else if (e.data?.type === 'focus-video') {
+					media?.focus();
 				}
 			});
 			vscode.postMessage({ type: 'get-codecs' });
