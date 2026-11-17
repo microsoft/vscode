@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -199,12 +200,12 @@ suite('BaseIssueReporterService', () => {
 		test('closing the reporter cancels creation without late navigation', async () => {
 			const started = new DeferredPromise<void>();
 			const pending = new DeferredPromise<void>();
-			let signal: AbortSignal | undefined;
+			let cancellationToken: CancellationToken | undefined;
 			const { reporter, events, errors } = createReporter(undefined, undefined, {
 				accessToken: selected.accessToken, authorization,
 				getSessions: async () => [selected],
-				createGitHubIssue: async (_providerId, _session, _repository, _request, requestSignal) => {
-					signal = requestSignal;
+				createGitHubIssue: async (_providerId, _session, _repository, _request, requestToken) => {
+					cancellationToken = requestToken;
 					void started.complete();
 					await pending.p;
 					return currentIssue.html_url;
@@ -215,7 +216,7 @@ suite('BaseIssueReporterService', () => {
 			reporter.dispose();
 			await pending.complete();
 			await rejected;
-			assert.deepStrictEqual({ aborted: signal?.aborted, events, errors }, { aborted: true, events: [], errors: [] });
+			assert.deepStrictEqual({ aborted: cancellationToken?.isCancellationRequested, events, errors }, { aborted: true, events: [], errors: [] });
 		});
 	});
 
@@ -224,9 +225,9 @@ suite('BaseIssueReporterService', () => {
 			test(`stale duplicate results do not cancel a ${source} search during ${timing}`, () => runWithFakedTimers({}, async () => {
 				const duplicates = new DeferredPromise<Response>();
 				const search = new DeferredPromise<readonly ISimilarIssue[]>();
-				const calls: { repo: string; title: string; signal: AbortSignal }[] = [];
-				const { reporter, results } = createReporter((repo, title, signal) => {
-					calls.push({ repo, title, signal });
+				const calls: { repo: string; title: string; cancellationToken: CancellationToken }[] = [];
+				const { reporter, results } = createReporter((repo, title, cancellationToken) => {
+					calls.push({ repo, title, cancellationToken });
 					return search.p;
 				}, () => duplicates.p);
 				reporter.searchVSCodeIssues('Previous title', 'Previous description');
@@ -244,7 +245,7 @@ suite('BaseIssueReporterService', () => {
 				await search.complete([currentIssue]);
 				await timeout(0);
 				assert.deepStrictEqual({
-					calls: calls.map(call => ({ repo: call.repo, title: call.title, aborted: call.signal.aborted })),
+					calls: calls.map(call => ({ repo: call.repo, title: call.title, aborted: call.cancellationToken.isCancellationRequested })),
 					titles: Array.from(results.querySelectorAll('a'), link => link.textContent),
 				}, {
 					calls: [{ repo: `owner/${source}`, title: 'Current title', aborted: false }],
@@ -331,13 +332,13 @@ suite('BaseIssueReporterService', () => {
 
 			test(`${action} aborts an active ${backend} search and suppresses late results`, () => runWithFakedTimers({}, async () => {
 				const pending = new DeferredPromise<void>();
-				let signal: AbortSignal | null | undefined;
-				const { reporter, results } = createReporter(async (_repo, _title, requestSignal) => {
-					signal = requestSignal;
+				let isCancelled: (() => boolean) | undefined;
+				const { reporter, results } = createReporter(async (_repo, _title, requestToken) => {
+					isCancelled = () => requestToken.isCancellationRequested;
 					await pending.p;
 					return [staleIssue];
 				}, async (_url, init) => {
-					signal = init?.signal;
+					isCancelled = () => init?.signal?.aborted === true;
 					await pending.p;
 					return createDuplicateResponse([staleIssue]);
 				});
@@ -350,7 +351,7 @@ suite('BaseIssueReporterService', () => {
 				}
 				await pending.complete();
 				await timeout(0);
-				assert.deepStrictEqual({ aborted: signal?.aborted, text: results.textContent }, { aborted: true, text: '' });
+				assert.deepStrictEqual({ aborted: isCancelled?.(), text: results.textContent }, { aborted: true, text: '' });
 			}));
 		}
 	}

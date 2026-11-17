@@ -199,6 +199,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 	/** Counts draft bindings, so a load that a newer draft superseded is released instead of bound. */
 	private _modelBinding = 0;
+	private _bindingModel = false;
 	private _boundResource: URI | undefined;
 	/** Attachments added before the input renders, such as a host's initial context. */
 	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
@@ -336,6 +337,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 					canSubmit: derived(this, reader => this._canSendRequest.read(reader) && !this._sending.read(reader)),
 					hasContent: this.options.hasAdditionalSendContent,
 					label: this.options.sendButtonLabel,
+					labelOnly: this.options.sendButtonLabelOnly,
 				},
 				submitHandler: async (query, _mode, attachedContext) => {
 					await this._send(query, attachedContext ?? [], false);
@@ -622,13 +624,18 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const inputText = widget.getInput();
 		const attachments = [...widget.attachmentModel.attachments];
 		const references = [...getDynamicVariablesForWidget(widget)];
-		widget.setModel(ref.object);
-		// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
-		if (widget.inputEditor.getValue() !== inputText) {
-			this.setInputValue(inputText);
+		this._bindingModel = true;
+		try {
+			widget.setModel(ref.object);
+			// The references refer to the prompt, which differs from the input editor's text while it shows inline attachment pills.
+			if (widget.inputEditor.getValue() !== inputText) {
+				this.setInputValue(inputText);
+			}
+			widget.attachmentModel.clearAndSetContext(...attachments);
+			widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
+		} finally {
+			this._bindingModel = false;
 		}
-		widget.attachmentModel.clearAndSetContext(...attachments);
-		widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
 		this._modelRef.value = ref;
 	}
 
@@ -731,7 +738,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	saveState(): void {
 		const widget = this._widget;
 		// A host that keeps the input in a snapshot persists it itself.
-		if (widget && !this.options.inputSnapshot) {
+		if (widget && !this.options.inputSnapshot && this.options.shouldPersistInput?.() !== false) {
 			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) }, this.options.getSavedDraftId?.());
 		}
 	}
@@ -799,7 +806,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private _writeInputSnapshot(widget: ChatWidget): void {
-		if (this._widget === widget) {
+		if (this._widget === widget && !this._bindingModel) {
 			const draft = { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) };
 			this.options.inputSnapshot?.set(draft);
 			this.options.onDidChangeDraft?.(draft);
@@ -1075,6 +1082,20 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
+		if (this.options.submitOverride) {
+			try {
+				const overridden = await this.options.submitOverride(this._widget?.input.executeToolbarElement);
+				if (overridden !== undefined) {
+					return overridden;
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this.logService.error('[SharedChatInputComposer] Failed to submit request', error);
+					this.notificationService.error(error);
+				}
+				return false;
+			}
+		}
 		const widget = this._widget;
 		const query = rawQuery.trim();
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;

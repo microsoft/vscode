@@ -11,7 +11,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { IAction } from '../../../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
@@ -26,6 +26,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../commo
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import type { INewSessionInputPresentation } from '../newSessionInputPresentation.js';
+import type { INewSessionPresentation } from '../newSessionPresentation.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -60,9 +61,9 @@ export interface IChatViewBackground {
  */
 export interface IChatViewOptions {
 	readonly newSessionInput?: INewSessionInputPresentation;
+	readonly newSessionPresentation?: INewSessionPresentation;
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
-	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
 	readonly background?: IChatViewBackground;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
@@ -93,6 +94,10 @@ export interface IChatViewOptions {
 	readonly newSessionDraft?: INewSessionDraftHost;
 }
 
+export interface INewSessionViewOptions extends IChatViewOptions {
+	readonly newSessionPresentation: INewSessionPresentation;
+}
+
 /**
  * The host of a new-session composer outside the main window's grid ({@link IChatViewOptions.newSessionDraft}).
  */
@@ -117,7 +122,7 @@ export interface INewSessionDraftHost {
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
 	/** How its workspace picker shows one of its {@link allowedFolders}, such as a linked checkout of a window's folder. */
-	getFolderPresentation?(folderUri: URI): IFolderLocation | undefined;
+	getFolderPresentation?(folderUri: URI): IAllowedFolderPresentation | undefined;
 	/** Opens a session the composer started in the background, in the composer's own window. */
 	openStartedSession(session: ISession): Promise<void>;
 	/**

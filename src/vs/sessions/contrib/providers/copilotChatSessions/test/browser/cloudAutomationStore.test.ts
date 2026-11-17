@@ -21,38 +21,38 @@ import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
 import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, AutomationTriggerDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
-import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationUncertainError, AutomationUnavailableError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { IScheduledChatsService } from '../../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.js';
+import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
 import { AutomationSessionDraftSynchronizer } from '../../../../automations/browser/automationDialog.js';
-import { ConfigureAutomationTool, DeleteAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
+import { ConfigureAutomationTool, DeleteAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
-import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.js';
-import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
-import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
-import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 
 const definition: AutomationDetail = { id: 'one', name: 'Review', description: '', created_by: { login: 'user' }, prompt: 'Review issues', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', triggers: {} };
 const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
@@ -81,17 +81,17 @@ class TestApi extends mock<IAutomationsClient>() {
 	pendingList: Promise<void> | undefined;
 	pendingManageability: Promise<boolean> | undefined;
 	readonly manageabilityStarted = new DeferredPromise<void>();
-	lastSignal: AbortSignal | undefined;
+	lastSignal: CancellationToken | undefined;
 	patch: EditAutomationRequest | undefined;
 	created: CreateAutomationRequest | undefined;
 	canManage = true;
 	readonly repositoryManageability = new Map<string, boolean | Error>();
 	readonly repositoryPrivacy = new Map<string, boolean>();
 	readonly repositoryMetadataRequests: string[] = [];
-	override async getConfiguration(repository: RepositoryRef, signal: AbortSignal): Promise<AutomationRepositoryConfiguration> {
+	override async getConfiguration(repository: RepositoryRef, cancellationToken: CancellationToken): Promise<AutomationRepositoryConfiguration> {
 		this.calls.push('capability');
 		this.configurationRepositories.push(repository.repo);
-		this.lastSignal = signal;
+		this.lastSignal = cancellationToken;
 		await this.manageabilityStarted.complete();
 		this.maxActiveConfigurations = Math.max(this.maxActiveConfigurations, ++this.activeConfigurations);
 		try {
@@ -117,7 +117,7 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 		return { data: { automations: this.definitions, total_count: this.definitions.length } };
 	}
-	override async listRuns(id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+	override async listRuns(id: string, _signal: CancellationToken, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		this.historyOptions.push(options);
 		this.calls.push('history');
 		await this.pendingHistory;
@@ -211,10 +211,10 @@ suite('CloudAutomationStore', () => {
 			override onDidChangeSentiment = sentimentChanged.event;
 		}();
 		const api = new TestApi();
-		const credentialLifetime = new AbortController();
+		const credentialLifetime = disposables.add(new CancellationTokenSource());
 		const client = new class extends mock<IGitHubAccountClient>() {
 			override readonly onDidInvalidate = Event.None;
-			override readonly onDidChangeCredentials = Event.fromDOMEventEmitter<void>(credentialLifetime.signal, 'abort');
+			override readonly onDidChangeCredentials: Event<void> = listener => credentialLifetime.token.onCancellationRequested(listener);
 			override dispose(): void { }
 			override readonly authorization = { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] };
 			override readonly automations = api;
@@ -1002,7 +1002,7 @@ suite('CloudAutomationStore', () => {
 		const rejected = assert.rejects(run);
 		await pending.complete(true);
 		await rejected;
-		assert.deepStrictEqual({ calls: api.calls.includes('run'), automations: provider.automations.get(), enabled: provider.enabled.get(), cancelled: api.lastSignal?.aborted },
+		assert.deepStrictEqual({ calls: api.calls.includes('run'), automations: provider.automations.get(), enabled: provider.enabled.get(), cancelled: api.lastSignal?.isCancellationRequested },
 			{ calls: false, automations: [], enabled: false, cancelled: true });
 	});
 

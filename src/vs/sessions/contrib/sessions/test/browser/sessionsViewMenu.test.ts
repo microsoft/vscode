@@ -766,7 +766,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('Inbox context actions acknowledge selected sessions without treating navigation as acknowledgement or breaking submenus', async () => {
+	test('Inbox navigation and submenu actions preserve selected sessions without acknowledging them', async () => {
 		const sessions = ['first', 'second'].map(id => buildTestSession({ id, title: id, isRead: false }).session);
 		const harness = createListHarness(store, sessions);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
@@ -803,9 +803,9 @@ suite('Sessions - View Menu', () => {
 		const submenu = actions.find(action => action.label === 'Session Actions');
 		assert.ok(submenu instanceof SubmenuAction);
 		await shown.actionRunner!.run(submenu.actions[0], shown.getActionsContext?.());
-		await retry(async () => assert.deepStrictEqual(list.getVisibleSessions(), []), 10, 100);
-		assert.deepStrictEqual({ afterNavigation, states: sessions.map(session => model.getInboxState(session)?.kind), archived: sessions.map(session => session.isArchived.get()), read: sessions.map(session => session.isRead.get()) }, {
-			afterNavigation: [undefined, undefined], states: ['done', 'done'], archived: [false, false], read: [false, false],
+		list.update();
+		assert.deepStrictEqual({ afterNavigation, states: sessions.map(session => model.getInboxState(session)?.kind), visible: list.getVisibleSessions().map(session => session.sessionId).sort(), archived: sessions.map(session => session.isArchived.get()), read: sessions.map(session => session.isRead.get()) }, {
+			afterNavigation: [undefined, undefined], states: [undefined, undefined], visible: ['first', 'second'], archived: [false, false], read: [false, false],
 		});
 	});
 

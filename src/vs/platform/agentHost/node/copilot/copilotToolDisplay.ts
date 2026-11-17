@@ -7,7 +7,7 @@ import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, Se
 import { assertNever } from '../../../../base/common/assert.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
@@ -1270,15 +1270,21 @@ export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant, displa
 	const path = sandboxGrantPathLabel(grant.path, display?.path);
 	const description = display?.path.isCurrentSession
 		? grant.removedReadonlyPaths?.length
-			? localize('copilot.permission.grant.session.upgrade', "Change access to {0} from read-only to read/write.", path)
+			? localize('copilot.permission.grant.session.upgrade', "Allow reading and writing {0} instead of read-only access.", path)
 			: grant.access === 'read'
-				? localize('copilot.permission.grant.session.read', "Allow read access to {0}.", path)
-				: localize('copilot.permission.grant.session.write', "Allow read/write access to {0}.", path)
-		: grant.removedReadonlyPaths?.length
-			? localize('copilot.permission.grant.upgrade', "Change access to {0} from read-only to read/write and retry inside the sandbox.", path)
-			: grant.access === 'read'
-				? localize('copilot.permission.grant.read', "Allow read access to {0} and retry inside the sandbox.", path)
-				: localize('copilot.permission.grant.write', "Allow read/write access to {0} and retry inside the sandbox.", path);
+				? localize('copilot.permission.grant.session.read', "Allow reading {0}.", path)
+				: localize('copilot.permission.grant.session.write', "Allow reading and writing {0}.", path)
+		: display?.path.sessionTitle && display.path.relativePath !== undefined
+			? grant.removedReadonlyPaths?.length
+				? localize('copilot.permission.grant.namedSession.upgrade', "Allow reading and writing {0} instead of read-only access and retry inside the sandbox.", path)
+				: grant.access === 'read'
+					? localize('copilot.permission.grant.namedSession.read', "Allow reading {0} and retry inside the sandbox.", path)
+					: localize('copilot.permission.grant.namedSession.write', "Allow reading and writing {0} and retry inside the sandbox.", path)
+			: grant.removedReadonlyPaths?.length
+				? localize('copilot.permission.grant.upgrade', "Change access to {0} from read-only to read/write and retry inside the sandbox.", path)
+				: grant.access === 'read'
+					? localize('copilot.permission.grant.read', "Allow read access to {0} and retry inside the sandbox.", path)
+					: localize('copilot.permission.grant.write', "Allow read/write access to {0} and retry inside the sandbox.", path);
 	const denied = grant.deniedPath
 		? localize('copilot.permission.grant.denied', "The blocked path was {0}. Access will cover {1}, including its contents if it is a folder.", sandboxGrantPathLabel(grant.deniedPath, display?.deniedPath), appendEscapedMarkdownInlineCode(grant.path))
 		: '';
@@ -1297,8 +1303,21 @@ export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant, displa
 function sandboxGrantPathLabel(path: string, display: ISessionPathDisplay | undefined): string {
 	if (display?.isCurrentSession) {
 		return display.relativePath
-			? localize('copilot.permission.grant.session.path', "{0} in this session's storage", appendEscapedMarkdownInlineCode(display.relativePath))
-			: localize('copilot.permission.grant.session.root', "this session's storage");
+			? localize('copilot.permission.grant.session.path', "{0} from this session", appendEscapedMarkdownInlineCode(display.relativePath))
+			: localize('copilot.permission.grant.session.root', "files from this session");
+	}
+	if (display?.sessionTitle && display.relativePath !== undefined) {
+		const title = escapeUntrustedMarkdown(display.sessionTitle);
+		const session = display.relationship === 'parent'
+			? localize('copilot.permission.grant.parentSession', "parent session \"{0}\"", title)
+			: display.relationship === 'child'
+				? display.parentSessionTitle
+					? localize('copilot.permission.grant.otherChildSession', "child session \"{0}\" of session \"{1}\"", title, escapeUntrustedMarkdown(display.parentSessionTitle))
+					: localize('copilot.permission.grant.childSession', "child session \"{0}\"", title)
+				: localize('copilot.permission.grant.namedSession', "session \"{0}\"", title);
+		return display.relativePath
+			? localize('copilot.permission.grant.namedSession.path', "{0} from {1}", appendEscapedMarkdownInlineCode(display.relativePath), session)
+			: localize('copilot.permission.grant.namedSession.root', "files from {0}", session);
 	}
 	return appendEscapedMarkdownInlineCode(display?.label ?? path);
 }
