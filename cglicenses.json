@@ -33,6 +33,12 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/LICENSE"
 	},
 	{
+		// Reason: the npm tarball of @vscode/rollup-plugin-esm-url has neither a LICENSE file nor a
+		// repository URL. It is built from the MIT-licensed microsoft/esm-url-bundler-plugins.
+		"name": "@vscode/rollup-plugin-esm-url",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/esm-url-bundler-plugins/8f257ffdd1bebe768c8d6193ec764ea793a5e429/LICENSE"
+	},
+	{
 		// Reason: @unicode/unicode-15.0.0@2.1.0 declares MIT in its generated README,
 		// but omits LICENSE from its tarball. Use the upstream data generator's MIT license.
 		"name": "@unicode/unicode-15.0.0",
