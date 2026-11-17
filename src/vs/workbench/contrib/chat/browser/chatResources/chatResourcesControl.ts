@@ -16,7 +16,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { SessionArtifactMode } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -25,7 +24,7 @@ import { IChatPillEntry, withChatPillHoverLabel } from '../../../../browser/chat
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatInputOwnPillContext } from '../chatInputPills.js';
 import { createChatResourceContent, IChatResourceTarget } from './chatResourceContent.js';
-import { IChatResourceProviders, observeChatResourceExists } from './chatResourceExistence.js';
+import { observeChatResourceExists } from './chatResourceExistence.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceAutomaticHeight, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from './chatResourceSizing.js';
 
 /** A file the chat can show above its input, such as one its agent recorded as an artifact. */
@@ -90,7 +89,6 @@ export class ChatResourcesControl extends Disposable {
 		isPinned: (id: string, reader: IReader) => boolean,
 		private readonly _pin: (resource: IChatResource) => boolean,
 		@IFileService private readonly _fileService: IFileService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -106,8 +104,7 @@ export class ChatResourcesControl extends Disposable {
 		this._chatKey = derived(this, reader => sessionResource.read(reader)?.toString());
 		// A recorded file can be missing: the agent can record it before writing it, or delete it later.
 		const recordedTargets = derived(this, reader => [...new Set(recorded.read(reader).map(resource => resource.resource.toString()))]);
-		const providers: IChatResourceProviders = { fileService: this._fileService, textModelService: this._textModelService };
-		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, observeChatResourceExists(providers, URI.parse(target), store)] as const);
+		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, observeChatResourceExists(this._fileService, URI.parse(target), store)] as const);
 		this._resources = derived(this, reader => {
 			if (this._chatKey.read(reader) === undefined) {
 				return new Map();

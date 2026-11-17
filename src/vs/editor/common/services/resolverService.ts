@@ -36,11 +36,6 @@ export interface ITextModelService {
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
 
 	/**
-	 * Fires the scheme of a content provider that was registered or disposed.
-	 */
-	readonly onDidChangeTextModelContentProviders: Event<string>;
-
-	/**
 	 * Check if the given resource can be resolved to a text model.
 	 */
 	canHandleResource(resource: URI): boolean;
