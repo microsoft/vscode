@@ -42,7 +42,7 @@ import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agen
 import { AgentHostInputCompletions } from '../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
-import '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { LocalAgentHostActivationContribution } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 suite('Codex Agent Host preference', () => {
 
@@ -487,6 +487,8 @@ suite('ChatSessionsService - policy history activation', () => {
 		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 			override registerSessionResource(resource: URI): URI { return resource.with({ scheme: `agent-host-${provider}` }); }
 		}());
+		// As the window starts: what waits for a local agent host's provider before the service resolves its chats
+		store.add(instantiationService.createInstance(LocalAgentHostActivationContribution));
 		const service = store.add(instantiationService.createInstance(ChatSessionsService));
 		return { service, subscription, sessionType: `agent-host-${provider}`, contentProvider: instantiationService.createInstance(PolicyUnavailableAgentHostContentProvider) };
 	}

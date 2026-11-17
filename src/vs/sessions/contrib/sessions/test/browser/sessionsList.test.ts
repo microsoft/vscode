@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { AgentFeedbackKind, AgentFeedbackState } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, append, Dimension, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -23,9 +22,10 @@ import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isDefined } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -52,6 +52,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { INotificationService, NoOpNotification, Severity } from '../../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../../platform/notification/common/notificationMessage.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IListService, ListService, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -71,23 +73,28 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { NotificationService } from '../../../../../workbench/services/notification/common/notificationService.js';
+import { NotificationsToasts } from '../../../../../workbench/browser/parts/notifications/notificationsToasts.js';
 import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
+import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ICustomViewService, type ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionArtifact, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
@@ -95,7 +102,7 @@ import { ICreateNewSessionOptions, ISessionsChangeEvent, ISessionsManagementServ
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupByWorktree, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, SessionsListSnapshotNode, sortSessions, SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatCopyKind, IChatRequestAcceptedEvent, IChatService, IChatToolInvocation, IChatUserActionEvent } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -238,6 +245,200 @@ suite('Sessions - SessionsList', () => {
 			scoped: { retained: [['workspace:hidden', 'workspace:kept']], rows: { kept: true, hidden: false } },
 		});
 	});
+
+	/** A session of the folder `root`, labelled `label`. */
+	function createFolderSession(id: string, label: string, root: string, createdAt?: Date, options?: ITestSessionOptions): ISession {
+		const { session } = createTestSession(id, { ...options, workspaceLabel: label, createdAt });
+		const uri = URI.parse(root);
+		return { ...session, workspace: constObservable({ ...session.workspace.get()!, uri, folders: [{ root: uri, workingDirectory: uri, name: label, description: undefined, gitRepository: undefined }] }) };
+	}
+
+	test('a scoped list, of a window with folders, shows no Chats section under any grouping, also empty, while an unscoped list keeps it, as the scope changes live', () => {
+		const harness = createListHarness(disposables, [createFolderSession('folder', 'repo', 'file:///work/repo')]);
+		void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, true);
+		const provider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true, environment: { id: 'local', label: 'This Computer' } });
+		harness.instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
+			override getProviders() { return [provider]; }
+			override getProvider() { return undefined; }
+		});
+		const chatsSection = (grouping: SessionsGrouping) => {
+			const scoped = observableValue('scoped', false);
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				scoped,
+				quickChatsInTimeGrouping: true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const hasChats = () => list.getTreeSnapshot().some(node => node.type === 'section' && node.id === QUICK_CHATS_SECTION_ID);
+			const steps = [hasChats()];
+			scoped.set(true, undefined);
+			steps.push(hasChats());
+			scoped.set(false, undefined);
+			steps.push(hasChats());
+			return steps.map(shown => shown ? 'chats' : '-').join(' ');
+		};
+
+		// Unscoped, scoped, unscoped again
+		assert.deepStrictEqual({
+			date: chatsSection(SessionsGrouping.Date),
+			environment: chatsSection(SessionsGrouping.Environment),
+			worktree: chatsSection(SessionsGrouping.Worktree),
+			workspace: chatsSection(SessionsGrouping.Workspace),
+			repository: chatsSection(SessionsGrouping.Repository),
+		}, {
+			date: 'chats - chats',
+			environment: '- - -',
+			worktree: 'chats - chats',
+			workspace: 'chats - chats',
+			repository: 'chats - chats',
+		});
+	});
+
+	test('a scoped list says so when it shows no session, also when the filters hide its sessions', () => {
+		const harness = createListHarness(disposables, [createFolderSession('archived', 'vscode', 'file:///work/vscode', undefined, { isArchived: true })]);
+		const container = harness.createContainer(400, 1400);
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			scoped: constObservable(true),
+			onSessionOpen: () => { },
+		}));
+		list.setExcludeArchived(true);
+		list.layout(1400, 400);
+
+		assert.deepStrictEqual({
+			sessions: list.getVisibleSessions().length,
+			rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.textContent?.trim()).filter(text => text === 'No sessions to show in this folder.'),
+		}, { sessions: 0, rows: ['No sessions to show in this folder.'] });
+	});
+
+	test('a scoped list leaves out a comparison whose sessions the providers do not list, nested in a custom group', () => {
+		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+		const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Elsewhere', createdAt: 2, parentId: work.id };
+		const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createFolderSession(id, 'other', 'file:///other', hoursAgo(2 + index)));
+		const comparison: ISessionComparison = {
+			id: 'comparison-1',
+			groupId: comparisonGroup.id,
+			title: 'Elsewhere',
+			createdAt: 1,
+			workspace: URI.parse('file:///other'),
+			prompt: 'Elsewhere',
+			participants: attempts.map((session, index) => ({
+				id: `participant-${index}`,
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				sessionResource: session.resource,
+			})),
+		};
+		// The providers list only the sessions of the window's folder; lookups still find those of other folders
+		const harness = createListHarness(disposables, [createFolderSession('here', 'repo', 'file:///work/repo', hoursAgo(1))], {
+			groups: [work, comparisonGroup],
+			memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+			comparisons: [comparison],
+		});
+		harness.managementService.unlistedSessions = attempts;
+		const render = (scoped: IObservable<boolean> | undefined) => {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				scoped,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			return {
+				sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+				comparison: !!container.querySelector('.session-comparison-group'),
+			};
+		};
+
+		assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable(true)) }, {
+			unscoped: { sessions: ['here'], comparison: true },
+			scoped: { sessions: ['here'], comparison: false },
+		});
+	});
+
+	test('shown again with nothing changed, the list renders again only once its sections no longer hold as the time passed: at midnight, and once a session is no longer updated in the last day', () => runWithFakedTimers({ startTime: new Date(2024, 5, 10, 23, 50).getTime(), maxTaskCount: 10_000 }, async () => {
+		// Created a week ago, at noon: Recent until midnight, when the week of Recent starts a day later
+		const lastWeek = createTestSession('Last week', { createdAt: new Date(2024, 5, 3, 12, 0) }).session;
+		const today = createTestSession('Today', { createdAt: new Date(2024, 5, 10, 10, 0) }).session;
+		// Created weeks ago, updated today at 10: Recent for a day since
+		const updated = createTestSession('Updated', { createdAt: new Date(2024, 4, 20, 10, 0), updatedAt: new Date(2024, 5, 10, 10, 0) }).session;
+		const harness = createListHarness(disposables, [today, lastWeek, updated]);
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		let updates = 0;
+		harness.store.add(list.onDidUpdate(() => updates++));
+		const sections = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [`${node.id}: ${node.children.flatMap(child => child.type === 'session' ? [child.session.title.get()] : []).join(', ')}`] : []);
+		// The renders that showing the list again makes
+		const hideAndShow = async (minutes: number) => {
+			list.setVisible(false);
+			await timeout(minutes * 60_000);
+			const hidden = updates;
+			list.setVisible(true);
+			return { renders: updates - hidden, sections: sections() };
+		};
+		const before = { sections: sections() };
+		const beforeMidnight = await hideAndShow(5);
+		const afterMidnight = await hideAndShow(10);
+		const sameDay = await hideAndShow(9 * 60);
+		const dayAfterUpdate = await hideAndShow(60);
+		list.dispose();
+
+		assert.deepStrictEqual({ before, beforeMidnight, afterMidnight, sameDay, dayAfterUpdate }, {
+			before: { sections: ['recent: Today, Last week, Updated'] },
+			beforeMidnight: { renders: 0, sections: ['recent: Today, Last week, Updated'] },
+			afterMidnight: { renders: 1, sections: ['recent: Today, Updated', 'older: Last week'] },
+			sameDay: { renders: 0, sections: ['recent: Today, Updated', 'older: Last week'] },
+			dayAfterUpdate: { renders: 1, sections: ['recent: Today', 'older: Last week, Updated'] },
+		});
+	}));
+
+	test('shown again just after a session is no longer updated within the last day or the last days, the list renders again, as it counts a session updated exactly then as within them', () => runWithFakedTimers({ startTime: new Date(2024, 5, 10, 10, 0).getTime(), maxTaskCount: 10_000 }, async () => {
+		const day = 24 * 60 * 60 * 1000;
+		const now = Date.now();
+		// Updated exactly a day ago, created weeks ago: Recent still now
+		const updated = createTestSession('Updated', { createdAt: new Date(now - 30 * day), updatedAt: new Date(now - day) }).session;
+		// Workspaces updated long ago, one updated exactly four days ago and one updated a day ago: those two stay uncapped
+		const workspaces = ['A', 'B', 'C'].map(name => createTestSession(name, { workspaceLabel: name, createdAt: new Date(now - 30 * day) }).session);
+		const fourDays = createTestSession('E', { workspaceLabel: 'E', createdAt: new Date(now - 30 * day), updatedAt: new Date(now - 4 * day) }).session;
+		const recentWorkspace = createTestSession('F', { workspaceLabel: 'F', createdAt: new Date(now - 30 * day), updatedAt: new Date(now - day + 60_000) }).session;
+		const render = (sessions: ISession[], grouping: SessionsGrouping) => {
+			const harness = createListHarness(disposables, sessions);
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 1400), {
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			return list;
+		};
+		const byDate = render([updated], SessionsGrouping.Date);
+		const byWorkspace = render([...workspaces, fourDays, recentWorkspace], SessionsGrouping.Workspace);
+		const state = () => ({
+			recent: byDate.getTreeSnapshot().flatMap(node => node.type === 'section' ? [node.id] : []),
+			uncapped: byWorkspace.getTreeSnapshot().flatMap(node => node.type === 'section' && !node.hidden ? [node.label] : []),
+		});
+		const atThreshold = state();
+		byDate.setVisible(false);
+		byWorkspace.setVisible(false);
+		await timeout(1);
+		byDate.setVisible(true);
+		byWorkspace.setVisible(true);
+		const justAfter = state();
+		byDate.dispose();
+		byWorkspace.dispose();
+
+		assert.deepStrictEqual({ atThreshold, justAfter }, {
+			atThreshold: { recent: ['recent'], uncapped: ['E', 'F'] },
+			justAfter: { recent: ['older'], uncapped: ['F'] },
+		});
+	}));
 
 	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
 		const harness = createListHarness(disposables, []);
@@ -460,6 +661,30 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('keeps its rows as it hides and shows again with nothing changed, and renders again once when something changed while hidden', async () => {
+			const fixture = await createFixture();
+			const row = fixture.container.querySelector('.session-title');
+			for (let index = 0; index < 5; index++) {
+				fixture.list.setVisible(false);
+				fixture.list.setVisible(true);
+			}
+			await nextFrame();
+			const unchanged = { ...fixture.counts(), sameRow: fixture.container.querySelector('.session-title') === row };
+
+			fixture.list.setVisible(false);
+			fixture.management.sessions = [createTestSession('Latest').session];
+			fixture.changes.fire({ added: [], removed: [], changed: [] });
+			fixture.list.setVisible(true);
+			fixture.list.setVisible(false);
+			fixture.list.setVisible(true);
+			await nextFrame();
+
+			assert.deepStrictEqual({ unchanged, changed: { ...fixture.counts(), titles: fixture.titles() } }, {
+				unchanged: { reads: 0, updates: 0, sameRow: true },
+				changed: { reads: 1, updates: 1, titles: ['Latest'] },
+			});
+		});
+
 		test('does not render a hidden list and refreshes its latest catalogue when shown', async () => {
 			const fixture = await createFixture();
 			fixture.invalidateCatalogue();
@@ -568,9 +793,9 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('inline feedback actions', () => {
+	suite('feedback subscriptions', () => {
 		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date, SessionsGrouping.Inbox]) {
-			test(`observes only enabled visible rows and targets one peer under multiselection (${grouping})`, async () => {
+			test(`does not read feedback when rendering or refreshing rows with the removed setting enabled (${grouping})`, async () => {
 				const a = buildTestSession({ id: 'a', title: 'Main', workspace: 'project', chats: [{ id: 'peer', title: 'Peer' }] });
 				const b = buildTestSession({ id: 'b', title: 'Pinned', workspace: 'project' });
 				const harness = createListHarness(disposables, [a.session, b.session], { pinnedSessionIds: new Set(['b']) });
@@ -581,27 +806,22 @@ suite('Sessions - SessionsList', () => {
 					model.setInboxState([a.session], 'hold');
 				}
 				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
-				let observers = 0;
-				let opened = 0;
-				const submitted: string[] = [];
-				harness.instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { }());
+				await configuration.setUserConfiguration('sessions.list.inlineActions', true);
+				let feedbackReads = 0;
+				let feedbackSubscriptions = 0;
 				harness.instantiationService.stub(IAgentFeedbackService, {
-					onDidChangeFeedback: Event.None,
-					getFeedbackObservable: resource => derived(reader => {
-						observers++;
-						reader.store.add(toDisposable(() => observers--));
-						return [{
-							id: 'review', text: 'Simplify this', sessionResource: resource, resourceUri: URI.file('/project/main.ts'),
-							range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-							kind: AgentFeedbackKind.AgentReview, state: AgentFeedbackState.Created,
-						}];
-					}),
-					acceptFeedback: () => { },
-					submitFeedback: async (_resource, options) => { submitted.push(options!.targetChat!.toString()); return true; },
+					onDidChangeFeedback: () => {
+						feedbackSubscriptions++;
+						return toDisposable(() => { });
+					},
+					getFeedback: () => {
+						feedbackReads++;
+						return [];
+					},
 				});
 				const container = harness.createContainer(340, 650);
 				const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-					grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { opened++; },
+					grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
 				}));
 				list.layout(340, 650);
 				list.setItemCollapsed({ section: 'pinned' }, false);
@@ -609,32 +829,16 @@ suite('Sessions - SessionsList', () => {
 					list.setItemCollapsed({ section: SessionInboxSection.OnHold }, false);
 				}
 				list.setItemCollapsed({ session: a.session.resource }, false);
-				const initial = { buttons: container.querySelectorAll('.session-inline-actions').length, observers };
-				const peer = a.chats.get('peer')!.chat;
-				const peerRow = () => list.getItemRow({ session: a.session.resource, chat: peer.resource })!;
-				const initialHeight = peerRow().getBoundingClientRect().height;
-				await configuration.setUserConfiguration(SESSIONS_LIST_INLINE_ACTIONS_SETTING, true);
-				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === SESSIONS_LIST_INLINE_ACTIONS_SETTING }));
 				list.setSelectedItems([{ session: a.session.resource }, { session: b.session.resource }]);
-				await retry(async () => assert.strictEqual(peerRow().getBoundingClientRect().height - initialHeight, 32), 10, 100);
-				const button = list.getItemRow({ session: a.session.resource, chat: peer.resource })?.querySelector<HTMLElement>('.session-inline-actions .monaco-button');
-				assert.ok(button);
-				button.focus();
-				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-				const footerFocused = !!mainWindow.document.activeElement?.closest('.sessions-list-inbox-footer');
-				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-				await timeout(0);
-				const activeObservers = observers;
-				await configuration.setUserConfiguration(SESSIONS_LIST_INLINE_ACTIONS_SETTING, false);
-				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === SESSIONS_LIST_INLINE_ACTIONS_SETTING }));
-				const disabledObservers = observers;
-				await configuration.setUserConfiguration(SESSIONS_LIST_INLINE_ACTIONS_SETTING, true);
-				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === SESSIONS_LIST_INLINE_ACTIONS_SETTING }));
+				list.refresh();
+				list.refresh();
 				list.setVisible(false);
-				assert.deepStrictEqual({ initial, submitted, opened, activeObservers, disabledObservers, remainingObservers: observers, footerFocused }, {
-					initial: { buttons: 0, observers: 0 }, submitted: [peer.resource.toString()], opened: 0, activeObservers: 3, disabledObservers: 0, remainingObservers: 0,
-					footerFocused: false,
-				});
+				list.setVisible(true);
+				assert.deepStrictEqual({
+					rows: container.querySelectorAll('.session-item, .session-chat-item').length,
+					feedbackReads,
+					feedbackSubscriptions,
+				}, { rows: 3, feedbackReads: 0, feedbackSubscriptions: 0 });
 			});
 		}
 	});
@@ -2337,10 +2541,14 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('row feedback', () => {
-		for (const compact of [false, true]) {
-			test(`group label colors preserve contrast, selection and reset (${compact ? 'compact' : 'default'})`, () => {
+		for (const { compact, customGroup } of [false, true].flatMap(compact => [false, true].map(customGroup => ({ compact, customGroup })))) {
+			test(`group label colors persist across interaction states and preserve contrast and reset (${compact ? 'compact' : 'default'}, ${customGroup ? 'custom group' : 'workspace'})`, () => {
 				const session = createTestSession('Session').session;
-				const harness = createListHarness(disposables, [session]);
+				const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
+				const harness = createListHarness(disposables, [session], customGroup ? {
+					groups: [group],
+					memberships: new Map([[session.sessionId, group.id]]),
+				} : {});
 				const themeService = new TestThemeService();
 				harness.instantiationService.stub(IThemeService, themeService);
 				const container = harness.createContainer();
@@ -2351,15 +2559,20 @@ suite('Sessions - SessionsList', () => {
 					onSessionOpen: () => { },
 				}));
 				list.layout(700, 400);
+				container.style.setProperty('--vscode-terminal-ansiYellow', '#e5e510');
 				const label = () => [...container.querySelectorAll<HTMLElement>('.session-section-label')]
-					.find(label => label.textContent === 'Workspace')!;
+					.find(label => label.textContent === (customGroup ? group.name : 'Workspace'))!;
 				const appearance = () => ({
 					color: label().style.getPropertyValue('--session-group-foreground'),
-					colored: label().closest('.session-section')!.classList.contains('session-group-colored'),
+					interactionColors: ['focus', 'selection', 'inactive-focus', 'inactive-selection']
+						.map(state => label().style.getPropertyValue(`--session-group-${state}-foreground`)),
 				});
 				const initial = appearance();
 				const groupsService = harness.instantiationService.get(ISessionGroupsService);
-				groupsService.setSectionColor('workspace:Workspace', 'terminal.ansiYellow');
+				const setColor = (color: string | undefined) => customGroup
+					? groupsService.setGroupColor(group.id, color)
+					: groupsService.setSectionColor('workspace:Workspace', color);
+				setColor('terminal.ansiYellow');
 				const contrasts = [];
 				for (const background of ['#181818', '#ffffff']) {
 					for (const color of ['#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#ffffff', '#11a8cd66', '#ffffff00']) {
@@ -2377,17 +2590,28 @@ suite('Sessions - SessionsList', () => {
 						);
 					}
 				}
-				const row = label().closest<HTMLElement>('.monaco-list-row')!;
-				row.classList.add('selected', 'hovered');
-				row.style.color = 'rgb(12, 34, 56)';
-				const selectedColor = mainWindow.getComputedStyle(label()).color;
-				row.classList.remove('selected', 'hovered');
-				const focusedColors = [false, true].map(hovered => {
-					row.classList.add('focused');
-					row.classList.toggle('hovered', hovered);
-					return mainWindow.getComputedStyle(label()).color;
+				themeService.setTheme(new TestColorTheme({
+					'agents.background': '#181818',
+					'list.hoverBackground': '#88888822',
+					'terminal.ansiYellow': '#e5e510',
+				}));
+				const interactionColors = [false, true].flatMap(collapsed => {
+					if (collapsed) {
+						list.collapseAllSections();
+					}
+					const row = label().closest<HTMLElement>('.monaco-list-row')!;
+					row.style.color = 'rgb(12, 34, 56)';
+					return [[], ['hovered'], ['focused'], ['selected'], ['focused', 'hovered'], ['selected', 'hovered']].map(classes => {
+						row.classList.remove('focused', 'selected', 'hovered');
+						row.classList.add(...classes);
+						const icon = label().closest('.session-section')!.querySelector<HTMLElement>('.session-section-icon')!;
+						return {
+							label: mainWindow.getComputedStyle(label()).color,
+							icon: mainWindow.getComputedStyle(icon).color,
+						};
+					});
 				});
-				row.classList.remove('focused', 'hovered');
+				label().closest('.monaco-list-row')!.classList.remove('focused', 'selected', 'hovered');
 				const highContrast = [ColorScheme.HIGH_CONTRAST_DARK, ColorScheme.HIGH_CONTRAST_LIGHT].map(type => {
 					themeService.setTheme(new TestColorTheme({}, type));
 					return appearance();
@@ -2403,15 +2627,14 @@ suite('Sessions - SessionsList', () => {
 					'agents.background': '#181818',
 					'terminal.ansiYellow': '#e5e510',
 				}));
-				groupsService.setSectionColor('workspace:Workspace', undefined);
-				assert.deepStrictEqual({ initial, contrasts, selectedColor, focusedColors, highContrast, translucentBackgrounds, reset: appearance() }, {
-					initial: { color: '', colored: false },
+				setColor(undefined);
+				assert.deepStrictEqual({ initial, contrasts, interactionColors, highContrast, translucentBackgrounds, reset: appearance() }, {
+					initial: { color: '', interactionColors: ['', '', '', ''] },
 					contrasts: Array(40).fill(true),
-					selectedColor: 'rgb(12, 34, 56)',
-					focusedColors: ['rgb(12, 34, 56)', 'rgb(12, 34, 56)'],
-					highContrast: [{ color: '', colored: false }, { color: '', colored: false }],
-					translucentBackgrounds: [{ color: '', colored: false }, { color: '', colored: false }, { color: '', colored: false }],
-					reset: { color: '', colored: false },
+					interactionColors: Array(12).fill({ label: 'rgb(229, 229, 16)', icon: 'rgb(229, 229, 16)' }),
+					highContrast: Array(2).fill({ color: '', interactionColors: ['', '', '', ''] }),
+					translucentBackgrounds: Array(3).fill({ color: '', interactionColors: ['', '', '', ''] }),
+					reset: { color: '', interactionColors: ['', '', '', ''] },
 				});
 			});
 		}
@@ -3640,6 +3863,198 @@ suite('Sessions - SessionsList', () => {
 				},
 				expanded: { 'workspace:https://github.com/contoso/app': true, 'repository:contoso/app': true },
 				groupAfterRerun: undefined,
+			});
+		});
+	});
+
+	suite('groupByWorktree', () => {
+
+		function createWorktreeSession(id: string, folder: { readonly workingDirectory: string; readonly repository?: string; readonly branch?: string } | undefined, updatedHoursAgo: number, options?: ITestSessionOptions): ISession {
+			const { session } = createTestSession(id, { ...options, updatedAt: new Date(Date.now() - updatedHoursAgo * 3_600_000) });
+			if (!folder) {
+				return session;
+			}
+			const workingDirectory = URI.parse(folder.workingDirectory);
+			const repository = folder.repository ? URI.parse(folder.repository) : undefined;
+			return {
+				...session,
+				workspace: constObservable({
+					...session.workspace.get()!,
+					uri: repository ?? workingDirectory,
+					folders: [{
+						root: repository ?? workingDirectory,
+						workingDirectory,
+						name: id,
+						description: undefined,
+						gitRepository: repository ? {
+							uri: repository,
+							workTreeUri: workingDirectory,
+							branchName: folder.branch,
+							baseBranchName: undefined,
+							gitHubInfo: constObservable(undefined),
+						} : undefined,
+					}],
+				}),
+			};
+		}
+
+		function worktreeSessions(): ISession[] {
+			return [
+				createWorktreeSession('feature-a', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo', branch: 'feature-a' }, 3),
+				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo', branch: 'main' }, 4),
+				createWorktreeSession('cloud', undefined, 0),
+				createWorktreeSession('feature-b', { workingDirectory: 'file:///work/repo.worktrees/b', repository: 'file:///work/repo' }, 2),
+				createWorktreeSession('feature-a-2', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo', branch: 'feature-a' }, 1),
+				createWorktreeSession('plain', { workingDirectory: 'file:///other' }, 5),
+			];
+		}
+
+		test('lists the main checkouts first, then the worktrees by latest activity, then the sessions without a local folder', () => {
+			assert.deepStrictEqual(groupByWorktree(worktreeSessions()).map(section => ({ id: section.id, label: section.label, hover: section.hover, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'worktree:file:///work/repo', label: 'repo', hover: `${URI.parse('file:///work/repo').fsPath} (branch main)`, sessions: ['checkout'] },
+				{ id: 'worktree:file:///other', label: 'other', hover: URI.parse('file:///other').fsPath, sessions: ['plain'] },
+				{ id: 'worktree:file:///work/repo.worktrees/a', label: 'a', hover: `${URI.parse('file:///work/repo.worktrees/a').fsPath} (branch feature-a)`, sessions: ['feature-a', 'feature-a-2'] },
+				{ id: 'worktree:file:///work/repo.worktrees/b', label: 'b', hover: URI.parse('file:///work/repo.worktrees/b').fsPath, sessions: ['feature-b'] },
+				{ id: 'worktree:other', label: 'Other', hover: undefined, sessions: ['cloud'] },
+			]);
+		});
+
+		test('puts one folder reported with different path casing in one section, where the platform ignores path case', () => {
+			const sections = groupByWorktree([
+				createWorktreeSession('upper', { workingDirectory: 'file:///c:/Work/repo' }, 1),
+				createWorktreeSession('lower', { workingDirectory: 'file:///c:/work/repo' }, 2),
+			]);
+			assert.deepStrictEqual(sections.map(section => section.sessions.map(session => session.sessionId)), isLinux ? [['upper'], ['lower']] : [['upper', 'lower']]);
+		});
+
+		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {
+			const harness = createListHarness(disposables, worktreeSessions());
+			const container = harness.createContainer(400, 1400);
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Worktree,
+				sorting: () => SessionsSorting.Updated,
+				findWidgetContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const visible = () => list.getVisibleSessions().map(session => session.sessionId);
+			const order = visible();
+			const worktreeA = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => row.querySelector('.session-section-label')?.textContent === 'a');
+			list.openFind();
+			try {
+				const findInput = findWidgetContainer.querySelector<HTMLInputElement>('input');
+				assert.ok(findInput);
+				findInput.value = 'feature-a';
+				findInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				assert.deepStrictEqual({ order, ariaLabel: worktreeA?.getAttribute('aria-label'), found: visible() }, {
+					order: ['checkout', 'plain', 'feature-a-2', 'feature-a', 'feature-b', 'cloud'],
+					ariaLabel: `a, ${URI.parse('file:///work/repo.worktrees/a').fsPath} (branch feature-a), 2`,
+					found: ['feature-a-2', 'feature-a'],
+				});
+			} finally {
+				list.closeFind();
+				// Closing find disposes its widget after its hide animation.
+				await timeout(350);
+			}
+		});
+
+		function openWorktreeList(harness: ReturnType<typeof createListHarness>) {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Worktree,
+				sorting: () => SessionsSorting.Updated,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const sectionLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => Number(a.getAttribute('data-index')) - Number(b.getAttribute('data-index')))
+				.map(row => row.querySelector('.session-section-label:not(.session-group-labels *)')?.textContent)
+				.filter(isDefined);
+			return { list, sectionLabels };
+		}
+
+		test('keeps the worktree order when a comparison joins the list', () => {
+			const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Picker', createdAt: 1 };
+			const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createWorktreeSession(id, { workingDirectory: 'file:///work/repo.worktrees/b', repository: 'file:///work/repo' }, 2 + index));
+			const comparison: ISessionComparison = {
+				id: 'comparison-1',
+				groupId: comparisonGroup.id,
+				title: 'Picker',
+				createdAt: 1,
+				workspace: URI.parse('file:///work/repo'),
+				prompt: 'Picker',
+				participants: attempts.map((session, index) => ({
+					id: `participant-${index}`,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, [
+				createWorktreeSession('z-checkout', { workingDirectory: 'file:///work/z' }, 5),
+				createWorktreeSession('a-worktree', { workingDirectory: 'file:///work/repo.worktrees/a', repository: 'file:///work/repo' }, 1),
+				createWorktreeSession('cloud', undefined, 0),
+				...attempts,
+			], {
+				groups: [comparisonGroup],
+				memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+				comparisons: [comparison],
+			});
+
+			assert.deepStrictEqual(openWorktreeList(harness).sectionLabels(), ['z', 'a', 'b', 'Other']);
+		});
+
+		test('shows a folder for a main checkout and a folder with a branch for a worktree', () => {
+			const harness = createListHarness(disposables, [
+				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo', branch: 'main' }, 2),
+				createWorktreeSession('feature', { workingDirectory: 'file:///work/repo.worktrees/feature', repository: 'file:///work/repo' }, 1),
+				createWorktreeSession('plain', { workingDirectory: 'file:///other' }, 3),
+				// Listed before its provider reports the repository: a worktree by its path.
+				createWorktreeSession('projectless', { workingDirectory: 'file:///work/repo.worktrees/projectless' }, 4),
+			]);
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Worktree,
+				sorting: () => SessionsSorting.Updated,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const icons = Object.fromEntries([...container.querySelectorAll<HTMLElement>('.monaco-list-row')].flatMap(row => {
+				const label = row.querySelector('.session-section-label')?.textContent;
+				const icon = row.querySelector('.session-section-icon');
+				return label && icon ? [[label, [ThemeIcon.asClassName(Codicon.folder), ThemeIcon.asClassName(Codicon.gitBranchCheckout)].find(className => className.split(' ').every(name => icon.classList.contains(name)))]] : [];
+			}));
+
+			assert.deepStrictEqual(icons, {
+				'repo': ThemeIcon.asClassName(Codicon.folder),
+				'feature': ThemeIcon.asClassName(Codicon.gitBranchCheckout),
+				'other': ThemeIcon.asClassName(Codicon.folder),
+				'projectless': ThemeIcon.asClassName(Codicon.gitBranchCheckout),
+			});
+		});
+
+		test('keeps a manual order of worktree sections when groups change', () => {
+			const first: ISessionGroup = { id: 'first', name: 'First', createdAt: 1 };
+			const second: ISessionGroup = { id: 'second', name: 'Second', createdAt: 2 };
+			const harness = createListHarness(disposables, [
+				createWorktreeSession('checkout', { workingDirectory: 'file:///work/repo', repository: 'file:///work/repo' }, 1),
+				createWorktreeSession('feature', { workingDirectory: 'file:///work/repo.worktrees/feature', repository: 'file:///work/repo' }, 2),
+			], { groups: [first, second], liveGroups: true });
+			const orderService = harness.store.add(new SessionSectionOrderService(harness.instantiationService.get(IStorageService)));
+			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+			const { list } = openWorktreeList(harness);
+			const checkoutId = 'worktree:file:///work/repo';
+			const featureId = 'worktree:file:///work/repo.worktrees/feature';
+
+			list.moveHeaderTo(featureId, undefined, { siblingId: checkoutId, position: 'before' });
+			const moved = orderService.resolveOrder([checkoutId, featureId]);
+			// Nesting a group changes the groups, which forgets the order of headers that no longer exist.
+			list.moveHeaderTo(getSessionGroupSectionId(second.id), getSessionGroupSectionId(first.id), undefined);
+
+			assert.deepStrictEqual({ moved, afterGroupChange: orderService.resolveOrder([checkoutId, featureId]) }, {
+				moved: [featureId, checkoutId],
+				afterGroupChange: [featureId, checkoutId],
 			});
 		});
 	});
@@ -5313,8 +5728,448 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
-		for (const action of ['request', 'copy'] as const) {
-			test(`Inbox acknowledges ${action} but not opening, selecting, reading, or actions outside visible Inbox mode`, async () => {
+		for (const { count, index, expected, mode, screenReader } of [
+			{ count: 3, index: 0, expected: 'reply-1', mode: undefined, screenReader: false },
+			{ count: 3, index: 1, expected: 'reply-2', mode: undefined, screenReader: false },
+			{ count: 3, index: 2, expected: 'reply-1', mode: undefined, screenReader: false },
+			{ count: 1, index: 0, expected: undefined, mode: undefined, screenReader: false },
+			{ count: 3, index: 0, expected: 'reply-1', mode: 'auto', screenReader: false },
+			{ count: 3, index: 0, expected: 'reply-1', mode: 'on', screenReader: true },
+		]) {
+			test(`Inbox replies advance from item ${index + 1} of ${count} after acceptance (mode: ${mode}, screen reader: ${screenReader})`, async () => {
+				const built = Array.from({ length: count }, (_, i) => buildTestSession({ id: `reply-${i}`, title: `Reply ${i}`, minutesAgo: i }));
+				const source = built[index];
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				const harness = createListHarness(disposables, built.map(item => item.session));
+				await (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, mode);
+				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isScreenReaderOptimized(): boolean { return screenReader; }
+				});
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const opened: { id: string; preserveFocus: boolean | undefined }[] = [];
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					onSessionOpen: (resource, preserveFocus) => {
+						const session = harness.managementService.getSession(resource)!;
+						opened.push({ id: session.sessionId, preserveFocus });
+						shown.set({ session, chat: session.mainChat.get() }, undefined);
+					},
+				}));
+				list.layout(600, 400);
+				transaction(tx => {
+					source.status.set(SessionStatus.InProgress, tx);
+					source.mainChat.status.set(SessionStatus.InProgress, tx);
+				});
+				accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+				assert.deepStrictEqual({
+					opened,
+					sourceSection: getSessionInboxSection(source.session, model.getInboxState(source.session)),
+					emptyInboxFocused: !!list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.classList.contains('focused'),
+					treeFocused: mainWindow.document.activeElement === list.element.querySelector('.monaco-list'),
+				}, {
+					opened: expected ? [{ id: expected, preserveFocus: false }] : [],
+					sourceSection: SessionInboxSection.Working,
+					emptyInboxFocused: !expected,
+					treeFocused: !expected,
+				});
+			});
+		}
+
+		for (const scenario of ['hidden', 'workspace', 'new', 'background', 'otherChat', 'working', 'pinned', 'navigated', 'off', 'defaultScreenReader', 'autoScreenReader', 'settingChanged', 'screenReaderChanged', 'denied'] as const) {
+			test(`Inbox replies do not advance for ${scenario} sends`, async () => {
+				const source = buildTestSession({ id: 'source', title: 'Source', chats: [{ id: 'peer', title: 'Peer' }] });
+				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				const harness = createListHarness(disposables, [source.session, next.session]);
+				const configuration = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, scenario === 'off' ? 'off' : scenario === 'autoScreenReader' ? 'auto' : undefined);
+				let screenReader = scenario === 'defaultScreenReader' || scenario === 'autoScreenReader';
+				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isScreenReaderOptimized(): boolean { return screenReader; }
+				});
+				const notifications: Parameters<INotificationService['prompt']>[] = [];
+				harness.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+					override prompt(...args: Parameters<INotificationService['prompt']>) {
+						notifications.push(args);
+						return new NoOpNotification();
+					}
+				});
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				if (scenario === 'pinned') {
+					model.pinSession(source.session);
+				}
+				let opened = 0;
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => scenario === 'workspace' ? SessionsGrouping.Workspace : SessionsGrouping.Inbox,
+					sorting: () => SessionsSorting.Updated, onSessionOpen: () => { opened++; },
+					canOpenSession: scenario === 'denied' ? async () => false : undefined,
+				}));
+				list.layout(600, 400);
+				if (scenario === 'hidden') {
+					list.setVisible(false);
+				}
+				if (scenario === 'working') {
+					source.status.set(SessionStatus.InProgress, undefined);
+					list.update();
+				}
+				accepted.fire({
+					chatSessionResource: scenario === 'background' ? next.session.mainChat.get().resource
+						: scenario === 'otherChat' ? source.chats.get('peer')!.chat.resource : source.session.mainChat.get().resource,
+					isNewSession: scenario === 'new',
+				});
+				if (scenario === 'navigated') {
+					shown.set({ session: next.session, chat: next.session.mainChat.get() }, undefined);
+				}
+				if (scenario === 'settingChanged') {
+					await configuration.setUserConfiguration(SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING, 'off');
+				}
+				if (scenario === 'screenReaderChanged') {
+					screenReader = true;
+				}
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				assert.deepStrictEqual({ opened, notifications: notifications.length }, { opened: 0, notifications: 0 });
+			});
+		}
+
+		for (const completesAsync of [false, true]) {
+			test(`Inbox preserves the first-use explanation when opening resolves without navigating (async: ${completesAsync})`, async () => {
+				const source = buildTestSession({ id: 'source', title: 'Source' });
+				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
+				const harness = createListHarness(disposables, [source.session, next.session]);
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const notifications: Parameters<INotificationService['prompt']>[] = [];
+				harness.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+					override prompt(...args: Parameters<INotificationService['prompt']>) {
+						notifications.push(args);
+						return new NoOpNotification();
+					}
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				let navigate = false;
+				const open = () => {
+					if (navigate) {
+						shown.set({ session: next.session, chat: next.session.mainChat.get() }, undefined);
+					}
+				};
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					onSessionOpen: () => completesAsync ? Promise.resolve().then(open) : open(),
+				}));
+				list.layout(600, 400);
+				const send = async () => {
+					transaction(tx => {
+						source.status.set(SessionStatus.InProgress, tx);
+						source.mainChat.status.set(SessionStatus.InProgress, tx);
+					});
+					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					await timeout(0);
+				};
+				await send();
+				const afterNoOp = { notifications: notifications.length, shown: shown.get()?.session.sessionId };
+				transaction(tx => {
+					source.status.set(SessionStatus.Completed, tx);
+					source.mainChat.status.set(SessionStatus.Completed, tx);
+				});
+				list.update();
+				navigate = true;
+				await send();
+
+				assert.deepStrictEqual({
+					afterNoOp,
+					afterNavigation: { notifications: notifications.length, shown: shown.get()?.session.sessionId },
+				}, {
+					afterNoOp: { notifications: 0, shown: 'source' },
+					afterNavigation: { notifications: 1, shown: 'next' },
+				});
+			});
+		}
+
+		for (const { hasNext, action } of [
+			{ hasNext: true, action: 'escape' },
+			{ hasNext: false, action: 'gotIt' },
+			{ hasNext: true, action: 'keyboard' },
+			{ hasNext: false, action: 'keyboard' },
+		] as const) {
+			test(`Inbox explains the first automatic move with a settings link and an opt-in session spotlight (next: ${hasNext}, action: ${action})`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+				disposables.add(toDisposable(() => clock.restore()));
+				const source = buildTestSession({ id: 'source', title: 'Source' });
+				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
+				const harness = createListHarness(disposables, hasNext ? [source.session, next.session] : [source.session]);
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const notifications: Parameters<INotificationService['prompt']>[] = [];
+				const notificationService = disposables.add(new class extends NotificationService {
+					override prompt(...args: Parameters<INotificationService['prompt']>) {
+						notifications.push(args);
+						return super.prompt(...args);
+					}
+				}(harness.instantiationService.get(IStorageService)));
+				harness.instantiationService.stub(INotificationService, notificationService);
+				disposables.add(toDisposable(() => {
+					for (const notification of [...notificationService.model.notifications]) {
+						notification.close();
+					}
+				}));
+				const toasts = disposables.add(harness.instantiationService.createInstance(NotificationsToasts, harness.createContainer(), notificationService.model));
+				toasts.layout(new Dimension(1024, 600));
+				const toastVisible = Event.toPromise(toasts.onDidChangeVisibility);
+				const tours: { targetIsSource: boolean; hasDismissButton: boolean; targetInteractive: boolean | undefined; role: string | null; focusRestored: boolean; keyboardReturnFocused: boolean | undefined }[] = [];
+				const tourFinished = new DeferredPromise<void>();
+				let tourId: string | undefined;
+				let targetId: string | undefined;
+				const focusTarget = append(harness.createContainer(), $('button'));
+				harness.instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
+					runScenario: async id => {
+						tourId = id;
+						const scenario = onboardingScenarioRegistry.getScenario(id)!;
+						const payload = scenario.presentation.payload as ISpotlightPayload;
+						const step = (await payload.resolveSteps!())[0];
+						targetId = step.targetId;
+						const layout = new class extends TestLayoutService {
+							override getContainer() { return mainWindow.document.body; }
+						}();
+						const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), harness.instantiationService.get(IContextKeyService)));
+						const shownTour = new DeferredPromise<void>();
+						const result = presentation.run({ ...scenario, presentation: { ...scenario.presentation, payload: { steps: [step] } } }, {
+							targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shownTour.complete(); },
+						});
+						await shownTour.p;
+						const callout = mainWindow.document.querySelector<HTMLElement>('.spotlight-callout')!;
+						const targetIsSource = resolveOnboardingTarget(mainWindow, step.targetId)?.element.closest('.monaco-list-row') === list.getItemRow({ session: source.session.resource });
+						const role = callout.getAttribute('role');
+						const dismiss = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === 'Got It')!;
+						let keyboardReturnFocused: boolean | undefined;
+						if (action === 'keyboard') {
+							dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+							const returnButton = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === 'Return to Session')!;
+							keyboardReturnFocused = mainWindow.document.activeElement === returnButton;
+							returnButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+						} else if (action === 'escape') {
+							dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+						} else {
+							dismiss.click();
+						}
+						const outcome = (await result).outcome;
+						tours.push({
+							targetIsSource,
+							hasDismissButton: step.endTourLabel === 'Got It',
+							targetInteractive: step.allowTargetInteraction,
+							role, focusRestored: mainWindow.document.activeElement === focusTarget, keyboardReturnFocused,
+						});
+						void tourFinished.complete();
+						return outcome;
+					},
+				}));
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const opening = new DeferredPromise<void>();
+				let sourceOpenRequests = 0;
+				const render = () => disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					onSessionOpen: async resource => {
+						await opening.p;
+						const session = harness.managementService.getSession(resource)!;
+						if (session === source.session) {
+							sourceOpenRequests++;
+						}
+						shown.set({ session, chat: session.mainChat.get() }, undefined);
+					},
+				}));
+				let list = render();
+				list.layout(600, 400);
+				const send = async () => {
+					transaction(tx => {
+						source.status.set(SessionStatus.InProgress, tx);
+						source.mainChat.status.set(SessionStatus.InProgress, tx);
+					});
+					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				};
+				await send();
+				const notificationsBeforeOpen = notifications.length;
+				await opening.complete();
+				await toastVisible;
+				clock.tick(10_001);
+				const visibleAfterTimeout = toasts.isVisible;
+				toasts.dispose();
+				await timeout(0);
+				const toursBeforeAction = tours.length;
+				const [severity, message, choices] = notifications[0];
+				const links = message instanceof NotificationText ? message.nodes.filter(node => typeof node !== 'string') : [];
+				focusTarget.focus();
+				await notificationService.model.notifications[0].actions!.primary![0].run();
+				await tourFinished.p;
+				await timeout(0);
+				const notificationsAfterAction = notificationService.model.notifications.length;
+				const shownAfterAction = shown.get()?.session.sessionId;
+				const targetReleased = resolveOnboardingTarget(mainWindow, targetId!) === undefined;
+				list.dispose();
+				transaction(tx => {
+					source.status.set(SessionStatus.Completed, tx);
+					source.mainChat.status.set(SessionStatus.Completed, tx);
+					shown.set({ session: source.session, chat: source.session.mainChat.get() }, tx);
+				});
+				list = render();
+				list.layout(600, 400);
+				await send();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					notificationsBeforeOpen, severity, notifications: notifications.length, visibleAfterTimeout, notificationsAfterAction, toursBeforeAction, tours,
+					linkArguments: links.map(link => JSON.parse(decodeURIComponent(URI.parse(link.href).query))),
+					linkCommands: links.map(link => URI.parse(link.href).path),
+					showSession: choices[0].label,
+					sourceOpenRequests, shownAfterAction,
+					targetReleased, tourReleased: onboardingScenarioRegistry.getScenario(tourId!),
+				}, {
+					notificationsBeforeOpen: hasNext ? 0 : 1, severity: Severity.Info, notifications: 1, visibleAfterTimeout: true, notificationsAfterAction: 0, toursBeforeAction: 0,
+					tours: [{ targetIsSource: true, hasDismissButton: true, targetInteractive: true, role: 'dialog', focusRestored: true, keyboardReturnFocused: action === 'keyboard' ? true : undefined }],
+					linkArguments: [[`@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`]],
+					linkCommands: ['workbench.action.openSettings'],
+					showSession: 'Show Session', targetReleased: true, tourReleased: undefined,
+					sourceOpenRequests: action === 'keyboard' ? 1 : 0, shownAfterAction: action === 'keyboard' || !hasNext ? 'source' : 'next',
+				});
+			});
+		}
+
+		test('Inbox replies advance within the visible scope and attention order, skipping pinned and working sessions', async () => {
+			const workspaceResource = URI.file('/workspace');
+			const items = [
+				createTestSession('source', { workspaceResource, updatedAt: new Date(4) }),
+				createTestSession('working', { workspaceResource, status: SessionStatus.InProgress }),
+				createTestSession('pinned', { workspaceResource }),
+				createTestSession('out-of-scope', { updatedAt: new Date(3) }),
+				createTestSession('later', { workspaceResource, updatedAt: new Date(2) }),
+				createTestSession('urgent', { workspaceResource, status: SessionStatus.NeedsInput, updatedAt: new Date(1) }),
+			];
+			const source = items[0];
+			const harness = createListHarness(disposables, items.map(item => item.session));
+			stubSessionHosts(harness.instantiationService, disposables, {
+				session: constObservable({ session: source.session, chat: source.session.mainChat.get() }),
+			});
+			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+			harness.instantiationService.stub(IChatService, new class extends MockChatService {
+				override readonly onDidAcceptRequest = accepted.event;
+			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			model.pinSession(items[2].session);
+			const opened: string[] = [];
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+				onSessionOpen: resource => { opened.push(harness.managementService.getSession(resource)!.sessionId); },
+			}));
+			list.layout(600, 400);
+			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(source.session));
+			accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+			assert.deepStrictEqual(opened, ['later']);
+		});
+
+		test('Inbox ignores non-user messages and automatic edit acceptance, including after Return to Inbox', () => {
+			const { session } = buildTestSession({ id: 'ready', title: 'Ready' });
+			const harness = createListHarness(disposables, [session]);
+			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+			const performed = disposables.add(new Emitter<IChatUserActionEvent>());
+			harness.instantiationService.stub(IChatService, new class extends MockChatService {
+				override readonly onDidAcceptRequest = accepted.event;
+				override readonly onDidPerformUserAction = performed.event;
+			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const sections: SessionInboxSection[] = [];
+			for (const resumed of [false, true]) {
+				if (resumed) {
+					model.setInboxState([session], 'done');
+					model.setInboxState([session], undefined);
+				}
+				for (const kind of [MessageKind.Agent, MessageKind.Tool, MessageKind.Automation, MessageKind.SystemNotification]) {
+					accepted.fire({ chatSessionResource: session.mainChat.get().resource, isNewSession: false, agentHostMessageOrigin: { kind } });
+					sections.push(getSessionInboxSection(session, model.getInboxState(session)));
+				}
+				performed.fire({
+					sessionResource: session.mainChat.get().resource, requestId: 'request', agentId: undefined, command: undefined, result: undefined,
+					action: { kind: 'chatEditingSessionAction', uri: URI.file('/workspace/file.ts'), outcome: 'accepted', hasRemainingEdits: false },
+				});
+				sections.push(getSessionInboxSection(session, model.getInboxState(session)));
+			}
+			assert.deepStrictEqual(sections, Array(10).fill(SessionInboxSection.ReadyForYou));
+		});
+
+		test('code block actions leave the session in Inbox, including after Return to Inbox', () => {
+			const { session } = buildTestSession({ id: 'ready', title: 'Ready' });
+			const harness = createListHarness(disposables, [session]);
+			const performed = disposables.add(new Emitter<IChatUserActionEvent>());
+			harness.instantiationService.stub(IChatService, new class extends MockChatService {
+				override readonly onDidPerformUserAction = performed.event;
+			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const sections: SessionInboxSection[] = [];
+			const actions: IChatUserActionEvent['action'][] = [
+				...[ChatCopyKind.Toolbar, ChatCopyKind.Action].map(copyKind => ({
+					kind: 'copy' as const, copyKind, codeBlockIndex: 0, copiedCharacters: 1, totalCharacters: 1, copiedText: 'x', totalLines: 1, copiedLines: 1, modelId: 'test',
+				})),
+				{ kind: 'insert', codeBlockIndex: 0, totalCharacters: 1, totalLines: 1, modelId: 'test' },
+				{ kind: 'insert', codeBlockIndex: 0, totalCharacters: 1, totalLines: 1, modelId: 'test', newFile: true },
+				{ kind: 'apply', codeBlockIndex: 0, totalCharacters: 1, totalLines: 1, modelId: 'test', editsProposed: true },
+				{ kind: 'runInTerminal', codeBlockIndex: 0 },
+			];
+			for (const resumed of [false, true]) {
+				if (resumed) {
+					model.setInboxState([session], 'done');
+					model.setInboxState([session], undefined);
+				}
+				for (const action of actions) {
+					performed.fire({
+						sessionResource: session.mainChat.get().resource, requestId: 'request', agentId: undefined, command: undefined, result: undefined, action,
+					});
+					sections.push(getSessionInboxSection(session, model.getInboxState(session)));
+				}
+				list.update();
+			}
+			assert.deepStrictEqual({ sections, visible: list.getVisibleSessions().map(session => session.sessionId) }, {
+				sections: Array(12).fill(SessionInboxSection.ReadyForYou), visible: ['ready'],
+			});
+		});
+
+		for (const action of ['request', 'userRequest', 'acceptEdits'] as const) {
+			test(`Inbox requires explicit acknowledgement after ${action} and follows execution state`, async () => {
 				const built = buildTestSession({ id: 'ready', title: 'Ready', isRead: false });
 				const { session } = built;
 				const harness = createListHarness(disposables, [session]);
@@ -5327,6 +6182,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 				harness.instantiationService.stub(ISessionsListModelService, model);
+				harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId: () => null }));
 				let grouping = SessionsGrouping.Inbox;
 				let opened = 0;
 				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
@@ -5334,12 +6190,15 @@ suite('Sessions - SessionsList', () => {
 				}));
 				list.layout(600, 400);
 				const act = () => {
-					if (action === 'request') {
-						accepted.fire({ chatSessionResource: session.mainChat.get().resource, isNewSession: false });
+					if (action === 'request' || action === 'userRequest') {
+						accepted.fire({
+							chatSessionResource: session.mainChat.get().resource, isNewSession: false,
+							agentHostMessageOrigin: action === 'userRequest' ? { kind: MessageKind.User } : undefined,
+						});
 					} else {
 						performed.fire({
 							sessionResource: session.mainChat.get().resource, requestId: 'request', agentId: undefined, command: undefined, result: undefined,
-							action: { kind: 'copy', copyKind: ChatCopyKind.Action, codeBlockIndex: 0, copiedCharacters: 1, totalCharacters: 1, copiedText: 'x', totalLines: 1, copiedLines: 1, modelId: 'test' },
+							action: { kind: 'chatEditingSessionAction', uri: URI.file('/workspace/file.ts'), outcome: 'accepted', hasRemainingEdits: false },
 						});
 					}
 				};
@@ -5360,16 +6219,38 @@ suite('Sessions - SessionsList', () => {
 				grouping = SessionsGrouping.Inbox;
 				list.update();
 				act();
+				list.update();
+				const afterInteraction = { state: model.getInboxState(session)?.kind, visible: visible() };
+				const section = () => getSessionInboxSection(session, model.getInboxState(session));
+				const setStatus = (status: SessionStatus) => transaction(tx => {
+					built.status.set(status, tx);
+					built.mainChat.status.set(status, tx);
+				});
+				setStatus(SessionStatus.InProgress);
+				const working = section();
+				setStatus(SessionStatus.NeedsInput);
+				const needsInput = section();
+				setStatus(SessionStatus.InProgress);
+				const resumed = section();
+				setStatus(SessionStatus.Completed);
+				const completed = section();
+				await CommandsRegistry.getCommand(ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!.handler(harness.instantiationService, [session]);
 				await retry(async () => assert.deepStrictEqual(visible(), []), 10, 100);
-				const acknowledged = { state: model.getInboxState(session)?.kind, sections: list.getTreeSnapshot().map(node => node.type === 'section' ? node.id : node.type) };
+				await retry(async () => assert.deepStrictEqual(list.getTreeSnapshot().map(node => node.type === 'section' ? node.id : node.type), [SessionInboxSection.ReadyForYou, SessionInboxSection.Acknowledged]), 10, 100);
+				const acknowledged = { state: model.getInboxState(session)?.kind, label: list.getItemRow({ section: SessionInboxSection.Acknowledged })?.getAttribute('aria-label') };
+				list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, false);
+				const expanded = visible();
 				built.status.set(SessionStatus.InProgress, undefined);
 				built.mainChat.status.set(SessionStatus.InProgress, undefined);
 				built.status.set(SessionStatus.Completed, undefined);
 				built.mainChat.status.set(SessionStatus.Completed, undefined);
 				await retry(async () => assert.deepStrictEqual(visible(), ['ready']), 10, 100);
-				assert.deepStrictEqual({ afterViewing, opened, hiddenState, ordinaryState, acknowledged, archived: session.isArchived.get() }, {
+				assert.deepStrictEqual({ afterViewing, opened, hiddenState, ordinaryState, afterInteraction, working, needsInput, resumed, completed, acknowledged, expanded, archived: session.isArchived.get() }, {
 					afterViewing: ['ready'], opened: 1, hiddenState: undefined, ordinaryState: undefined,
-					acknowledged: { state: 'done', sections: [SessionInboxSection.ReadyForYou] }, archived: false,
+					afterInteraction: { state: undefined, visible: ['ready'] },
+					working: SessionInboxSection.Working, needsInput: SessionInboxSection.ReadyForYou,
+					resumed: SessionInboxSection.Working, completed: SessionInboxSection.ReadyForYou,
+					acknowledged: { state: 'done', label: 'Acknowledged, 1' }, expanded: ['ready'], archived: false,
 				});
 			});
 		}
@@ -5386,14 +6267,14 @@ suite('Sessions - SessionsList', () => {
 			const archived = createTestSession('archived', { isArchived: true }).session;
 			const sections = groupSessionsForList([idle, working, finished, failing, pinned, waiting, done, snoozed, archived],
 				SessionsGrouping.Inbox, SessionsSorting.Updated, session => session === pinned, undefined, 'Done', true, [],
-				session => session === done ? SessionInboxSection.Done : session === snoozed ? SessionInboxSection.OnHold : getSessionInboxSection(session),
+				session => session === done ? getSessionInboxSection(session, { kind: 'done', activity: '' }) : session === snoozed ? SessionInboxSection.OnHold : getSessionInboxSection(session),
 				session => session === failing || session === waiting ? InboxNotificationPriority.Now : InboxNotificationPriority.Later);
 			assert.deepStrictEqual(sections.map(section => [section.id, section.label, section.sessions.map(session => session.sessionId)]), [
 				['pinned', 'Pinned', ['pinned']],
 				['inbox:readyForYou', 'Inbox', ['failing', 'waiting', 'finished', 'idle']],
 				['inbox:working', 'Working', ['working']],
-				['inbox:readyToMerge', 'Ready to merge', []],
 				['inbox:onHold', 'On hold', ['snoozed']],
+				['inbox:acknowledged', 'Acknowledged', ['done']],
 				['archived', 'Done', ['archived']],
 			]);
 		});
@@ -5434,7 +6315,7 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual(sections, [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(() => ({
 					working: Array(4).fill(SessionInboxSection.Working),
 					held: SessionInboxSection.OnHold,
-					done: SessionInboxSection.Done,
+					done: SessionInboxSection.Acknowledged,
 					stopped: SessionInboxSection.ReadyForYou,
 				})));
 			});
@@ -5493,25 +6374,58 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('inbox exposes the snooze deadline visually and to screen readers', () => {
-			const session = buildTestSession({ id: 'snoozed', title: 'Snoozed', workspace: 'Project' }).session;
-			const harness = createListHarness(disposables, [session]);
+		const snoozeDeadline = new Date(2099, 0, 1, 9);
+		for (const { action, description } of [
+			{ action: snoozeDeadline.getTime(), description: `Snoozed until ${snoozeDeadline.toLocaleString()}` },
+			{ action: 'untilActivity' as const, description: 'Snoozed until new activity' },
+			{ action: 'hold' as const, description: undefined },
+		]) {
+			test(`inbox triage descriptor for ${typeof action === 'number' ? 'timed snooze' : action} is consistent visually and for screen readers`, () => {
+				const session = buildTestSession({ id: 'triaged', title: 'Triaged', workspace: 'Project' }).session;
+				const harness = createListHarness(disposables, [session]);
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				model.setInboxState([session], action);
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				list.setHeaderCollapsed(SessionInboxSection.OnHold, false);
+				const row = list.getItemRow({ session: session.resource })!;
+				assert.deepStrictEqual({
+					description: row.querySelector('.session-details-row .session-description')?.textContent,
+					accessible: row.getAttribute('aria-label')?.includes(description ?? 'On hold until'),
+					archived: session.isArchived.get(),
+				}, { description, accessible: description !== undefined, archived: false });
+			});
+		}
+
+		test('inbox rebuilds only when a session placement changes, not on every attention update', async () => {
+			const ready = createTestSession('ready');
+			const other = createTestSession('other');
+			const harness = createListHarness(disposables, [ready.session, other.session]);
+			const readyAttention: IInboxSessionAttention = { tab: InboxTab.Working, priority: InboxNotificationPriority.Next, notificationIds: ['review'], isHistoricalCompletion: false };
+			const attention = observableValue<ReadonlyMap<string, IInboxSessionAttention>>('attention', new Map([['ready', readyAttention]]));
+			harness.instantiationService.stub(ISessionAttentionService, { sessionAttention: attention, acquireSessionAttention: () => toDisposable(() => { }) });
 			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);
-			const until = new Date(2099, 0, 1, 9);
-			model.setInboxState([session], until.getTime());
-			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
-				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			const list = disposables.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
 			}));
-			list.layout(600, 400);
-			list.setHeaderCollapsed(SessionInboxSection.OnHold, false);
-			const row = list.getItemRow({ session: session.resource })!;
-			const description = `Snoozed until ${until.toLocaleString()}`;
-			assert.deepStrictEqual({
-				visible: row.textContent?.includes(description),
-				accessible: row.getAttribute('aria-label')?.includes(description),
-				archived: session.isArchived.get(),
-			}, { visible: true, accessible: true, archived: false });
+			list.setVisible(true);
+			list.layout(800, 320);
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			await nextFrame();
+			let updates = 0;
+			const update = list.update.bind(list);
+			list.update = expandAll => { updates++; update(expandAll); };
+			// A new notification identity that keeps the same section and priority.
+			attention.set(new Map([['ready', { ...readyAttention, notificationIds: ['review:newThread'] }]]), undefined);
+			await nextFrame();
+			const unchanged = updates;
+			attention.set(new Map([['ready', { ...readyAttention, tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now }]]), undefined);
+			await nextFrame();
+			assert.deepStrictEqual({ unchanged, moved: updates }, { unchanged: 0, moved: 1 });
 		});
 
 		test('inbox renders historical and explicit triage state and restores custom placement when leaving the mode', async () => {
@@ -5551,11 +6465,11 @@ suite('Sessions - SessionsList', () => {
 			const initial = snapshot();
 			const initialTracking = tracking;
 			grouped.isRead.set(false, undefined);
-			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['ready', 'grouped']), 10, 100);
 			grouped.isRead.set(true, undefined);
-			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['ready', 'grouped']), 10, 100);
 			model.setInboxState([grouped.session], 'done');
-			await retry(async () => assert.deepStrictEqual(snapshot(), initial), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot(), [...initial, { id: SessionInboxSection.Acknowledged, sessions: ['grouped'] }]), 10, 100);
 			running.status.set(SessionStatus.NeedsInput, undefined);
 			attention.set(new Map([...attention.get(), ['ready', { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: ['review'], isHistoricalCompletion: false }]]), undefined);
 			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
@@ -5574,9 +6488,8 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ initial, readyForYou, restored, archived: grouped.isArchived.get(), tracking: [initialTracking, hiddenTracking, shownTracking, ordinaryTracking, tracking] }, {
 				initial: [
 					{ id: 'pinned', sessions: ['pinned'] },
-					{ id: SessionInboxSection.ReadyForYou, sessions: [] },
+					{ id: SessionInboxSection.ReadyForYou, sessions: ['ready'] },
 					{ id: SessionInboxSection.Working, sessions: ['running'] },
-					{ id: SessionInboxSection.ReadyToMerge, sessions: ['ready'] },
 				],
 				readyForYou: ['ready', 'running'], restored: ['grouped'], archived: false, tracking: [1, 0, 1, 0, 0],
 			});
@@ -5591,10 +6504,12 @@ suite('Sessions - SessionsList', () => {
 			const working = createTestSession('working', { workspaceResource, status: SessionStatus.InProgress }).session;
 			const held = createTestSession('held', { workspaceResource }).session;
 			const otherHeld = createTestSession('other-held').session;
+			const acknowledged = createTestSession('acknowledged', { workspaceResource }).session;
+			const otherAcknowledged = createTestSession('other-acknowledged').session;
 			const archived = createTestSession('archived', { workspaceResource, isArchived: true }).session;
 			const otherArchived = createTestSession('other-archived', { isArchived: true }).session;
 			const activeSession = constObservable<ITestSessionWithChat>({ ...otherPinned, activeChat: otherPinned.mainChat });
-			const items = [pinned, otherPinned, remotePinned, ready, working, held, otherHeld, archived, otherArchived];
+			const items = [pinned, otherPinned, remotePinned, ready, working, held, otherHeld, acknowledged, otherAcknowledged, archived, otherArchived];
 			const harness = createListHarness(disposables, items, { activeSession });
 			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);
@@ -5602,6 +6517,7 @@ suite('Sessions - SessionsList', () => {
 				model.pinSession(session);
 			}
 			model.setInboxState([held, otherHeld], 'hold');
+			model.setInboxState([acknowledged, otherAcknowledged], 'done');
 			let grouping = SessionsGrouping.Inbox;
 			const container = harness.createContainer();
 			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
@@ -5638,6 +6554,7 @@ suite('Sessions - SessionsList', () => {
 					{ id: SessionInboxSection.ReadyForYou, sessions: ['ready'] },
 					{ id: SessionInboxSection.Working, sessions: ['working'] },
 					{ id: SessionInboxSection.OnHold, sessions: ['held'] },
+					{ id: SessionInboxSection.Acknowledged, sessions: ['acknowledged'] },
 					{ id: 'archived', sessions: ['archived'] },
 				],
 				hiddenActive: false, selectedCount: '1',
@@ -5706,7 +6623,111 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ before, scopePreserved: list.filters.hasInboxScope }, { before: [], scopePreserved: true });
 		});
 
-		test('inbox keeps primary rows expanded and preserves secondary categories and triage across grouping changes and reloads', () => {
+		for (const compact of [false, true]) {
+			test(`Inbox headers distinguish categories and keep counts beside their labels (${compact ? 'compact' : 'default'})`, () => {
+				const sessions = [
+					createTestSession('ready').session,
+					createTestSession('working', { status: SessionStatus.InProgress }).session,
+				];
+				const harness = createListHarness(disposables, sessions);
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				const container = harness.createContainer();
+				container.style.setProperty('--vscode-spacing-size160', '16px');
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					compact: () => compact, onSessionOpen: () => { },
+				}));
+				const layouts = [240, 600].map(width => {
+					container.style.width = `${width}px`;
+					list.layout(600, width);
+					return [SessionInboxSection.ReadyForYou, SessionInboxSection.Working].map(section => {
+						const row = list.getItemRow({ section })!;
+						const label = row.querySelector<HTMLElement>('.session-section-label')!;
+						const count = row.querySelector<HTMLElement>('.session-section-count')!;
+						const chevron = row.querySelector<HTMLElement>('.session-section-chevron')!;
+						const gap = count.getBoundingClientRect().left - label.getBoundingClientRect().right;
+						return {
+							strongHeading: mainWindow.getComputedStyle(label).fontWeight === '600',
+							nearbyCount: gap >= 0 && gap <= 8,
+							disclosureVisible: chevron.getBoundingClientRect().width > 0,
+						};
+					});
+				});
+				const header = { strongHeading: true, nearbyCount: true, disclosureVisible: true };
+				assert.deepStrictEqual(layouts, [[header, header], [header, header]]);
+			});
+		}
+
+		test('Inbox collapse survives updates, grouping changes and reloads without hiding the empty state', () => {
+			const ready = createTestSession('ready').session;
+			const harness = createListHarness(disposables, [ready]);
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			harness.instantiationService.stub(IListService, disposables.add(new ListService()));
+			let grouping = SessionsGrouping.Inbox;
+			const create = () => {
+				const container = harness.createContainer();
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(600, 320);
+				return list;
+			};
+			const snapshot = (list: TestSessionsList) => ({
+				expanded: list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.getAttribute('aria-expanded'),
+				sessions: list.getVisibleSessions().map(session => session.sessionId),
+			});
+			const list = create();
+			const initial = snapshot(list);
+			list.setFocusedItem({ section: SessionInboxSection.ReadyForYou });
+			list.focus();
+			if (!mainWindow.document.hasFocus()) {
+				list.element.querySelector('.monaco-list')?.dispatchEvent(new FocusEvent('focus'));
+			}
+			harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.collapse')!.handler);
+			const keyboardCollapsed = snapshot(list);
+			list.update();
+			const updated = snapshot(list);
+			grouping = SessionsGrouping.Workspace;
+			list.update();
+			grouping = SessionsGrouping.Inbox;
+			list.update();
+			const returned = snapshot(list);
+			list.dispose();
+			const restoredList = create();
+			const restored = snapshot(restoredList);
+			clickRow(restoredList.getItemRow({ section: SessionInboxSection.ReadyForYou })!);
+			const clicked = snapshot(restoredList);
+			restoredList.setItemCollapsed({ section: SessionInboxSection.ReadyForYou }, true);
+			harness.managementService.sessions = [];
+			restoredList.refresh();
+			const empty = {
+				...snapshot(restoredList),
+				message: restoredList.element.querySelector('.session-placeholder')?.textContent,
+			};
+			harness.managementService.sessions = [ready];
+			restoredList.refresh();
+			const repopulated = snapshot(restoredList);
+			restoredList.reveal(ready.resource);
+			restoredList.update();
+			const revealed = snapshot(restoredList);
+			restoredList.dispose();
+			assert.deepStrictEqual({
+				initial, keyboardCollapsed, updated, returned, restored, clicked, empty, repopulated, revealed, reloaded: snapshot(create()),
+			}, {
+				initial: { expanded: 'true', sessions: ['ready'] },
+				keyboardCollapsed: { expanded: 'false', sessions: [] },
+				updated: { expanded: 'false', sessions: [] },
+				returned: { expanded: 'false', sessions: [] },
+				restored: { expanded: 'false', sessions: [] },
+				clicked: { expanded: 'true', sessions: ['ready'] },
+				empty: { expanded: null, sessions: [], message: 'Your inbox is clear' },
+				repopulated: { expanded: 'false', sessions: [] },
+				revealed: { expanded: 'true', sessions: ['ready'] },
+				reloaded: { expanded: 'false', sessions: [] },
+			});
+		});
+
+		test('inbox starts primary rows expanded and preserves secondary categories and triage across grouping changes and reloads', () => {
 			const pinned = createTestSession('pinned').session;
 			const ready = createTestSession('ready').session;
 			const working = createTestSession('working', { status: SessionStatus.InProgress }).session;
@@ -5760,16 +6781,16 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				groups: [
 					['pinned', ['pinned']],
-					[SessionInboxSection.ReadyForYou, ['ready']],
+					[SessionInboxSection.ReadyForYou, ['merge', 'ready']],
 					[SessionInboxSection.Working, ['working']],
-					[SessionInboxSection.ReadyToMerge, ['merge']],
 					[SessionInboxSection.OnHold, ['held']],
+					[SessionInboxSection.Acknowledged, ['done']],
 				],
 				tabElements: 0,
 				revealed: true,
-				revealedVisible: ['ready', 'held'],
-				afterGroupingChange: { workingCollapsed: true, sessions: ['ready'] },
-				restored: { workingCollapsed: true, sessions: ['ready'] },
+				revealedVisible: ['merge', 'ready', 'held'],
+				afterGroupingChange: { workingCollapsed: true, sessions: ['merge', 'ready'] },
+				restored: { workingCollapsed: true, sessions: ['merge', 'ready'] },
 				triage: ['hold', 'done'],
 			});
 		});
@@ -5801,6 +6822,7 @@ suite('Sessions - SessionsList', () => {
 			list.refresh();
 			const populated = snapshot(list);
 			list.setItemCollapsed({ section: 'pinned' }, false);
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, false);
 			list.update();
 			const manuallyExpanded = snapshot(list);
 			list.dispose();
@@ -5812,12 +6834,12 @@ suite('Sessions - SessionsList', () => {
 			grouping = SessionsGrouping.Inbox;
 			restoredList.update();
 			assert.deepStrictEqual({ empty, populated, manuallyExpanded, restored, ordinaryShowsAcknowledged, returned: snapshot(restoredList) }, {
-				empty: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
-				populated: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
-				manuallyExpanded: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
-				restored: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
+				empty: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, true]],
+				populated: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, true]],
+				manuallyExpanded: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, false]],
+				restored: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, false]],
 				ordinaryShowsAcknowledged: true,
-				returned: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
+				returned: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, false]],
 			});
 		});
 
@@ -5884,7 +6906,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('inbox uses one scrolling tree and keeps its primary category expanded', () => {
+		test('inbox uses one scrolling tree and lets every populated category collapse', () => {
 			const ready = createTestSession('ready').session;
 			const working = Array.from({ length: 20 }, (_, i) => createTestSession(`working-${i}`, { status: SessionStatus.InProgress, createdAt: new Date(100 - i) }).session);
 			const harness = createListHarness(disposables, [ready, ...working]);
@@ -5909,7 +6931,7 @@ suite('Sessions - SessionsList', () => {
 				collapsibleInbox: list.setItemCollapsed({ section: SessionInboxSection.ReadyForYou }, true),
 			}, {
 				initial: ['ready'], expanded: 21, scrolled: true, resized: 800, trees: 1,
-				visible: ['ready'], collapsibleInbox: false,
+				visible: [], collapsibleInbox: true,
 			});
 		});
 
@@ -6103,6 +7125,33 @@ suite('Sessions - SessionsList', () => {
 				});
 			}
 		}
+
+		test('lists quick chats in the Chats section under time grouping only when asked, as the sessions lists of editor windows do; pins and archived take precedence', () => {
+			const sessions: ISession[] = [
+				createSession('quick', {}),
+				createSession('quick-pinned', {}),
+				createSession('quick-archived', { isArchived: true }),
+				createSession('regular', { workspaceLabel: 'Alpha' }),
+			];
+			const sections = (quickChatsInTimeGrouping: boolean) => groupSessionsForList(sessions, SessionsGrouping.Date, SessionsSorting.Created,
+				session => session.sessionId === 'quick-pinned' || session.sessionId === 'quick-archived',
+				session => sessions.length - sessions.indexOf(session), 'Done', false, undefined, undefined, undefined, quickChatsInTimeGrouping,
+			).map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) }));
+
+			assert.deepStrictEqual({ editorWindow: sections(true), agentsWindow: sections(false) }, {
+				editorWindow: [
+					{ id: 'pinned', sessions: ['quick-pinned'] },
+					{ id: QUICK_CHATS_SECTION_ID, sessions: ['quick'] },
+					{ id: 'recent', sessions: ['regular'] },
+					{ id: 'archived', sessions: ['quick-archived'] },
+				],
+				agentsWindow: [
+					{ id: 'pinned', sessions: ['quick-pinned'] },
+					{ id: 'recent', sessions: ['quick', 'regular'] },
+					{ id: 'archived', sessions: ['quick-archived'] },
+				],
+			});
+		});
 
 		test('shows pinned sessions in a dedicated top section', () => {
 			const pinned = createSession('pinned', { workspaceLabel: 'Alpha', createdAt: new Date('2024-06-01') });
@@ -8446,8 +9495,8 @@ suite('Sessions - SessionsList', () => {
 			list.update(true);
 			assert.deepStrictEqual({ initial, acknowledged, resumed: snapshot() }, {
 				initial: [[SessionInboxSection.ReadyForYou, ['group:comparison-group', 'recent']]],
-				acknowledged: [[SessionInboxSection.ReadyForYou, []]],
-				resumed: [[SessionInboxSection.ReadyForYou, ['group:comparison-group']]],
+				acknowledged: [[SessionInboxSection.ReadyForYou, []], [SessionInboxSection.Acknowledged, ['group:comparison-group', 'recent']]],
+				resumed: [[SessionInboxSection.ReadyForYou, ['group:comparison-group']], [SessionInboxSection.Acknowledged, ['recent']]],
 			});
 		});
 
@@ -8929,30 +9978,38 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('keeps the comparison icon quiet at rest and aligned with the title', () => {
-			const { container } = renderComparison();
-			const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
-			const chevron = parent.querySelector<HTMLElement>('.session-section-chevron')!;
-			const label = parent.querySelector<HTMLElement>('.session-section-label')!;
-			const icon = parent.querySelector<HTMLElement>('.session-section-icon')!;
-			assert.deepStrictEqual({
-				chevronOpacity: mainWindow.getComputedStyle(chevron).opacity,
-				labelWeight: mainWindow.getComputedStyle(label).fontWeight,
-				iconTop: icon.getBoundingClientRect().top,
-				labelTop: label.getBoundingClientRect().top,
-				height: parent.getBoundingClientRect().height,
-				rowHeight: parent.closest('.monaco-list-row')!.getBoundingClientRect().height,
-				connector: mainWindow.getComputedStyle(parent, '::after').borderLeftWidth,
-			}, {
-				chevronOpacity: '0',
-				labelWeight: '400',
-				iconTop: label.getBoundingClientRect().top,
-				labelTop: label.getBoundingClientRect().top,
-				height: 44,
-				rowHeight: 44,
-				connector: '1px',
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Inbox]) {
+			test(`keeps the comparison icon quiet at rest and aligned with the title (${grouping})`, () => {
+				const { container } = renderComparison(undefined, 'all', new Set(), false, grouping, undefined, harness => {
+					harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				});
+				const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
+				const chevron = parent.querySelector<HTMLElement>('.session-section-chevron')!;
+				const label = parent.querySelector<HTMLElement>('.session-section-label')!;
+				const icon = parent.querySelector<HTMLElement>('.session-section-icon')!;
+				assert.deepStrictEqual({
+					chevronOpacity: mainWindow.getComputedStyle(chevron).opacity,
+					labelWeight: mainWindow.getComputedStyle(label).fontWeight,
+					iconVisible: icon.getBoundingClientRect().width > 0,
+					labelAfterIcon: label.getBoundingClientRect().left >= icon.getBoundingClientRect().right,
+					iconTop: icon.getBoundingClientRect().top,
+					labelTop: label.getBoundingClientRect().top,
+					height: parent.getBoundingClientRect().height,
+					rowHeight: parent.closest('.monaco-list-row')!.getBoundingClientRect().height,
+					connector: mainWindow.getComputedStyle(parent, '::after').borderLeftWidth,
+				}, {
+					chevronOpacity: '0',
+					labelWeight: '400',
+					iconVisible: true,
+					labelAfterIcon: true,
+					iconTop: label.getBoundingClientRect().top,
+					labelTop: label.getBoundingClientRect().top,
+					height: 44,
+					rowHeight: 44,
+					connector: '1px',
+				});
 			});
-		});
+		}
 
 		test('hides the parent connector when the comparison is collapsed', () => {
 			const { container } = renderComparison();
@@ -9777,7 +10834,7 @@ suite('Sessions - SessionsList', () => {
 				list.layout(800, 400);
 				const refresh = () => {
 					list.refresh();
-					for (const section of ['pinned', 'archived', SessionInboxSection.OnHold, SessionInboxSection.Working, SessionInboxSection.ReadyToMerge]) {
+					for (const section of ['pinned', 'archived', SessionInboxSection.OnHold, SessionInboxSection.Working]) {
 						list.setItemCollapsed({ section }, false);
 					}
 				};
@@ -9876,18 +10933,18 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('resumes into Ready to merge only when attention places every dragged session there', async () => {
+			test('resumes merge-ready sessions into Inbox only when every dragged session belongs there', async () => {
 				const held = createTestSession('Held').session;
 				const merge = createTestSession('Merge').session;
-				const other = createTestSession('Other').session;
+				const other = createTestSession('Other', { status: SessionStatus.InProgress }).session;
 				const attention: IInboxSessionAttention = { tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Next, notificationIds: ['passingCI'], isHistoricalCompletion: false };
 				const h = renderInbox([held, merge, other], {}, new Map([['Held', attention], ['Merge', attention]]));
 				h.model.setInboxState([held, other], 'hold');
 				h.refresh();
 				h.list.setSelectedItems([{ session: held.resource }, { session: other.resource }]);
-				const mixed = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const mixed = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Inbox'), h.container);
 				h.list.setSelectedItems([{ session: held.resource }]);
-				const valid = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const valid = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Inbox'), h.container);
 				await timeout(0);
 				h.refresh();
 				assert.deepStrictEqual({
@@ -9895,7 +10952,7 @@ suite('Sessions - SessionsList', () => {
 					otherState: h.model.getInboxState(other)?.kind,
 					section: h.sections().find(section => section.sessions.includes('Held'))?.id,
 				}, {
-					mixed: [], valid: ['Ready to merge'], heldState: undefined, otherState: 'hold', section: SessionInboxSection.ReadyToMerge,
+					mixed: [], valid: ['Inbox'], heldState: undefined, otherState: 'hold', section: SessionInboxSection.ReadyForYou,
 				});
 			});
 
@@ -9922,7 +10979,7 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('restores archived sessions into their prospective Ready to merge category using live attention', async () => {
+			test('restores archived merge-ready sessions into Inbox using live attention', async () => {
 				const archived = createTestSession('Archived', { isArchived: true });
 				const archivedSession: ISession = {
 					...archived.session,
@@ -9943,7 +11000,8 @@ suite('Sessions - SessionsList', () => {
 					polling++;
 					return toDisposable(() => polling--);
 				};
-				const h = renderInbox([archivedSession, merge], {}, new Map(), harness => {
+				const working = createTestSession('Working', { status: SessionStatus.InProgress }).session;
+				const h = renderInbox([archivedSession, merge, working], {}, new Map(), harness => {
 					const github = upcastPartial<IGitHubService>({
 						createPullRequestModelReference: () => ({
 							object: upcastPartial<GitHubPullRequestModel>({
@@ -9970,12 +11028,12 @@ suite('Sessions - SessionsList', () => {
 					disposables.add(service.acquireSessionAttention());
 				});
 				sinon.stub(h.managementService, 'unarchiveSession').callsFake(async () => archived.isArchived.set(false, undefined));
-				const rejected = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Inbox'), h.container);
+				const rejected = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Working'), h.container);
 				const before = { archived: archived.isArchived.get(), polling };
 				const attention = h.instantiationService.get(ISessionAttentionService);
 				const prospective = attention.getSessionAttentionAfterUnarchive([archivedSession]).get('Archived')?.tab;
 				const unchanged = { archived: archived.isArchived.get(), polling };
-				const accepted = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const accepted = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Inbox'), h.container);
 				await timeout(0);
 				h.refresh();
 				assert.deepStrictEqual({
@@ -9983,8 +11041,8 @@ suite('Sessions - SessionsList', () => {
 					section: h.sections().find(section => section.sessions.includes('Archived'))?.id,
 				}, {
 					rejected: [], before: { archived: true, polling: 3 }, prospective: InboxTab.ReadyToMerge,
-					unchanged: { archived: true, polling: 3 }, accepted: ['Ready to merge'], restored: true,
-					section: SessionInboxSection.ReadyToMerge,
+					unchanged: { archived: true, polling: 3 }, accepted: ['Inbox'], restored: true,
+					section: SessionInboxSection.ReadyForYou,
 				});
 			});
 

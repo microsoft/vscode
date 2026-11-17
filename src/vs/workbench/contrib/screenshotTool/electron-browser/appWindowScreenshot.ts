@@ -39,8 +39,6 @@ export type AppWindowScreenshotResult =
 export interface IAppWindowScreenshotOptions {
 	/** Lets the user pick the window in a list, instead of capturing the frontmost window of another app. */
 	readonly pick?: boolean;
-	/** The window to capture, such as the frontmost window that a menu named before the user chose it. */
-	readonly window?: INativeAppWindow;
 }
 
 /** Whether capturing the windows of other apps has the permission that it needs. */
@@ -64,13 +62,6 @@ export interface IAppWindowScreenshotService {
 
 	/** Fires when {@link hasCaptured} changes, including when another window captured. */
 	readonly onDidChangeHasCaptured: Event<void>;
-
-	/**
-	 * Returns the window that a capture takes: the frontmost window of another app, which is the one that the user looks
-	 * at, or the one they left for VS Code. It never shows system UI, so it returns `undefined` when finding the window
-	 * needs a permission or the system's window picker.
-	 */
-	getFrontmostWindow(): Promise<INativeAppWindow | undefined>;
 
 	/** Returns whether capturing has the permission that it needs, without asking for it. */
 	getPermission(): Promise<AppWindowScreenshotPermission>;
@@ -165,16 +156,6 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CAPTURED_STORAGE_KEY, this._store)(() => this._onDidChangeHasCaptured.fire()));
 	}
 
-	async getFrontmostWindow(): Promise<INativeAppWindow | undefined> {
-		try {
-			const windows = await this.nativeHostService.getAppWindows();
-			return windows.kind === 'windows' ? windows.windows[0] : undefined;
-		} catch (error) {
-			this.logService.error('[AppWindowScreenshot] Listing the windows of other apps failed:', error);
-			return undefined;
-		}
-	}
-
 	async getPermission(): Promise<AppWindowScreenshotPermission> {
 		if (!isMacintosh) {
 			return 'notRequired';
@@ -201,48 +182,46 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 
 	async capture(options: IAppWindowScreenshotOptions = {}): Promise<AppWindowScreenshotResult> {
 		let target: AppWindowScreenshotTarget = options.pick ? 'picked' : 'frontmost';
-		let window = options.window;
-		if (!window) {
-			let windows: INativeAppWindows;
-			try {
-				windows = await this.nativeHostService.getAppWindows();
-				if (windows.kind === 'systemPicker') {
-					target = 'systemPicked';
-				}
-				if (windows.kind !== 'windows') {
-					windows = await this.nativeHostService.getAppWindows({ interactive: true });
-				}
-			} catch (error) {
-				if (target === 'systemPicked') {
-					// Electron rejects when the user dismisses the system's picker, which it doesn't tell apart from a failure.
-					this.logService.trace('[AppWindowScreenshot] The system picker returned no window:', error);
-					return { kind: 'cancelled', target };
-				}
-				this.logService.error('[AppWindowScreenshot] Listing the windows of other apps failed:', error);
-				return { kind: 'failed', target, window: undefined };
-			}
-			if (windows.kind === 'permissionRequired') {
-				return { kind: 'permissionRequired', target };
+		let windows: INativeAppWindows;
+		try {
+			windows = await this.nativeHostService.getAppWindows();
+			if (windows.kind === 'systemPicker') {
+				target = 'systemPicked';
 			}
 			if (windows.kind !== 'windows') {
-				return { kind: 'failed', target, window: undefined };
+				windows = await this.nativeHostService.getAppWindows({ interactive: true });
 			}
+		} catch (error) {
 			if (target === 'systemPicked') {
-				// The system's picker lists the window that the user picked, or none when they cancelled.
-				window = windows.windows[0];
-				if (!window) {
-					return { kind: 'cancelled', target };
-				}
-			} else if (!windows.windows.length) {
-				return { kind: 'noWindow', target };
-			} else if (options.pick) {
-				window = await this.pick(windows.windows);
-				if (!window) {
-					return { kind: 'cancelled', target };
-				}
-			} else {
-				window = windows.windows[0];
+				// Electron rejects when the user dismisses the system's picker, which it doesn't tell apart from a failure.
+				this.logService.trace('[AppWindowScreenshot] The system picker returned no window:', error);
+				return { kind: 'cancelled', target };
 			}
+			this.logService.error('[AppWindowScreenshot] Listing the windows of other apps failed:', error);
+			return { kind: 'failed', target, window: undefined };
+		}
+		if (windows.kind === 'permissionRequired') {
+			return { kind: 'permissionRequired', target };
+		}
+		if (windows.kind !== 'windows') {
+			return { kind: 'failed', target, window: undefined };
+		}
+		let window: INativeAppWindow | undefined;
+		if (target === 'systemPicked') {
+			// The system's picker lists the window that the user picked, or none when they cancelled.
+			window = windows.windows[0];
+			if (!window) {
+				return { kind: 'cancelled', target };
+			}
+		} else if (!windows.windows.length) {
+			return { kind: 'noWindow', target };
+		} else if (options.pick) {
+			window = await this.pick(windows.windows);
+			if (!window) {
+				return { kind: 'cancelled', target };
+			}
+		} else {
+			window = windows.windows[0];
 		}
 
 		const feedback = window.bounds ? { revealed: false } : undefined;

@@ -14,8 +14,6 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { IAquariumService } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { IScreenshotToolService } from '../../../../workbench/contrib/screenshotTool/browser/screenshotTool.js';
-import { IWorktreeSuggestionService } from '../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { WindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvasService.js';
 import { MobileActionWidgetService } from './mobileActionWidgetService.js';
@@ -23,9 +21,7 @@ import { MobileContextMenuService } from './mobileContextMenuService.js';
 import { MobileKeybindingService } from './mobileKeybindingService.js';
 import { MobileNullAgentHostTerminalService } from './mobileNullAgentHostTerminalService.js';
 import { MobileNullAquariumService } from './mobileNullAquariumService.js';
-import { MobileNullChatWindowService } from './mobileNullChatWindowService.js';
-import { MobileNullScreenshotToolService } from './mobileNullScreenshotToolService.js';
-import { MobileNullWorktreeSuggestionService } from './mobileNullWorktreeSuggestionService.js';
+import { NullChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/nullChatWindowService.js';
 import { MobileQuickInputService } from './mobileQuickInputService.js';
 import { ISessionsListPresentation } from '../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { ISessionRepositoryPicker } from '../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
@@ -35,6 +31,7 @@ import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser
 import { MobileChatViewFactory } from './mobileChatViewFactory.js';
 import { IChatEditPresentationService } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPresentation.js';
 import { MobileChatEditPresenter } from './mobileChatEditPresenter.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { SessionsChatAccessibilityHelp } from '../../chat/browser/sessionsChatAccessibilityHelp.js';
 import './mobileClipboardImageContext.js';
 import './mobileBackgroundNotifier.js';
@@ -73,12 +70,11 @@ registerSingleton(IAgentHostTerminalService, MobileNullAgentHostTerminalService,
 
 // The aquarium easter egg does not exist on the phone. See MobileNullAquariumService.
 registerSingleton(IAquariumService, MobileNullAquariumService, InstantiationType.Delayed);
-registerSingleton(IChatWindowService, MobileNullChatWindowService, InstantiationType.Delayed);
-registerSingleton(IScreenshotToolService, MobileNullScreenshotToolService, InstantiationType.Delayed);
-registerSingleton(IWorktreeSuggestionService, MobileNullWorktreeSuggestionService, InstantiationType.Delayed);
+registerSingleton(IChatWindowService, NullChatWindowService, InstantiationType.Delayed);
 registerSingleton(IWindowCanvasService, WindowCanvasService, InstantiationType.Delayed);
 registerSingleton(ISessionsListPresentation, MobileSessionsListPresentation, InstantiationType.Delayed);
 registerSingleton(ISessionRepositoryPicker, MobileRepositoryPicker, InstantiationType.Delayed);
 registerSingleton(IChatViewFactory, MobileChatViewFactory, InstantiationType.Delayed);
 registerSingleton(IChatEditPresentationService, MobileChatEditPresenter, InstantiationType.Delayed);
+registerSingleton(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry, InstantiationType.Delayed);
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp(undefined, false));

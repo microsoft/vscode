@@ -6,7 +6,8 @@
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { IChatWidget, IChatWidgetRevealer, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
 export class MockChatWidgetService implements IChatWidgetService {
@@ -40,6 +41,10 @@ export class MockChatWidgetService implements IChatWidgetService {
 		return Promise.resolve(undefined);
 	}
 
+	registerWidgetRevealer(revealer: IChatWidgetRevealer): IDisposable {
+		return Disposable.None;
+	}
+
 	revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -49,7 +54,7 @@ export class MockChatWidgetService implements IChatWidgetService {
 	}
 
 	getAllWidgets(): ReadonlyArray<IChatWidget> {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	openSession(sessionResource: URI): Promise<IChatWidget | undefined> {
@@ -59,4 +64,18 @@ export class MockChatWidgetService implements IChatWidgetService {
 	register(newWidget: IChatWidget): IDisposable {
 		return Disposable.None;
 	}
+}
+
+/**
+ * Creates a chat widget whose input part refers back to the widget, like `ChatWidget` and `ChatInputPart`,
+ * so the widget cannot be serialized as JSON.
+ */
+export function createCircularChatWidget(inputUri: URI, sessionResource: URI | undefined): IChatWidget {
+	const input = { inputUri, widget: undefined as IChatWidget | undefined };
+	const widget = upcastPartial<IChatWidget>({
+		input: upcastPartial<IChatWidget['input']>(input),
+		viewModel: sessionResource ? upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource }) : undefined,
+	});
+	input.widget = widget;
+	return widget;
 }

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { buildAnnotationsUri } from '../../../../../../platform/agentHost/common/annotationsUri.js';
 import { toAgentHostClientCustomization } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
@@ -17,9 +18,9 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, errorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, ImmortalReference, MutableDisposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -27,13 +28,13 @@ import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/res
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type AgentCanvasOpenResult, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
-import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostAutonomousAutomationsCapabilityMetaKey, agentHostAutomationSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -88,6 +89,12 @@ import { IFocusedSessionHostService, ISessionHostService } from '../../../../../
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { NewWorktreeChoice } from '../../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
+import { NewChatWidget } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
+import { SharedChatInputComposer } from '../../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { NewSessionWorktreeSendChoiceService } from '../../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
+import { ChatSubmitRequestHandlerService, IChatSubmitRequest } from '../../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
@@ -116,6 +123,7 @@ import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHos
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
 import { hasKey } from '../../../../../../base/common/types.js';
+import { stubChatViewSessionsListService } from '../../../../../../workbench/contrib/chat/test/common/chatViewSessionsListServiceTestUtils.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -222,8 +230,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.canvasListRequests.push({ session, chat });
 		return this.canvasDefinitions;
 	}
-	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<AgentCanvasOpenResult> {
 		this.canvasOpenRequests.push({ session, chat, request });
+		return { kind: 'opened' };
 	}
 	override async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
 		this.canvasCloseRequests.push({ session, chat, request });
@@ -832,6 +841,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		}
 	}());
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options?.isSessionsWindow ?? true } as IWorkbenchEnvironmentService);
+	stubChatViewSessionsListService(instantiationService);
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: options?.confirmDelete ?? true }) });
 	instantiationService.stub(IChatSessionsService, {
@@ -967,7 +977,7 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 	});
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { resource?: URI; provider?: string; title?: string; listsMintedDefaultChat?: boolean; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { resource?: URI; provider?: string; title?: string; listsMintedDefaultChat?: boolean; annotations?: SessionState['annotations'] | null; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = opts?.resource ?? AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -983,6 +993,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			project: opts?.project,
 			workingDirectories: opts?.workingDirectories ? [...opts.workingDirectories] : (opts?.workingDirectory ? [opts.workingDirectory] : undefined),
 			changes: opts?.changes,
+			...(opts?.annotations !== null ? { annotations: opts?.annotations ?? { resource: buildAnnotationsUri(sessionUri.toString()), annotationCount: 0, entryCount: 0 } } : {}),
 			// A VS Code host lists and advertises the default chat it minted.
 			...(opts?.listsMintedDefaultChat !== false ? {
 				chats: [{ resource: buildDefaultChatUri(sessionUri), title: opts?.title ?? `Session ${rawId}`, status: opts?.status ?? ProtocolSessionStatus.Idle }],
@@ -1397,14 +1408,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const publicationsBeforeRegistryRepublish = canvasPublicationCount;
 		agentHost.setChatState(chat, { ...chatState, canvases: [{ resource }] });
 		const registryRepublishCount = canvasPublicationCount - publicationsBeforeRegistryRepublish;
-		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/preview' };
 		agentHost.setCanvasState(resource, canvas);
 		const ready = read();
-		agentHost.setCanvasState(resource, { ...canvas, title: 'Updated', url: 'https://example.test/replaced' });
+		agentHost.setCanvasState(resource, { ...canvas, title: 'Updated', uri: 'https://example.test/replaced' });
 		const updated = read();
 		agentHost.setCanvasState(resource, new Error('Channel unavailable'));
 		const unavailable = read();
-		agentHost.setCanvasState(resource, { ...canvas, url: 'http:relative' });
+		agentHost.setCanvasState(resource, { ...canvas, uri: 'http:relative' });
 		const unsupported = read();
 		agentHost.setChatState(chat, { ...chatState, canvases: [] });
 		const removed = read();
@@ -1423,7 +1434,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			supportsCanvases: true,
 			pending: [{ resource, instanceId: undefined, source: undefined }],
 			registryRepublishCount: 1,
-			ready: [{ resource, instanceId: 'preview', source: canvas.url }],
+			ready: [{ resource, instanceId: 'preview', source: canvas.uri }],
 			updated: [{ resource, instanceId: 'preview', source: 'https://example.test/replaced' }],
 			unavailable: [{ resource, instanceId: undefined, source: undefined }],
 			unsupported: [{ resource, instanceId: 'preview', source: undefined }],
@@ -1435,7 +1446,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const active = read();
 		activeSession.set(undefined, undefined);
 		assert.deepStrictEqual({ active, inactive: read() }, {
-			active: [{ resource, instanceId: 'preview', source: canvas.url }], inactive: undefined,
+			active: [{ resource, instanceId: 'preview', source: canvas.uri }], inactive: undefined,
 		});
 	});
 
@@ -1456,7 +1467,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			activeClients: [], chats: [mainSummary, peerSummary], defaultChat: main.toString(),
 		});
 		agentHost.setChatState(peer.toString(), { ...peerSummary, turns: [], canvases: [{ resource }] });
-		agentHost.setCanvasState(resource, { instanceId: 'peer', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/peer' });
+		agentHost.setCanvasState(resource, { instanceId: 'peer', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/peer' });
 		const chat = session.chats.get().find(chat => chat !== session.mainChat.get())!;
 		disposables.add(autorun(reader => chat.canvases?.read(reader)));
 		const read = () => chat.canvases?.get()?.map(canvas => canvas.resource.toString());
@@ -1489,7 +1500,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const reference = provider.observeCanvas(session.sessionId, session.mainChat.get().resource, URI.parse(resource));
 		const pending = read(reference.object.get());
-		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', url: 'https://example.test/plan' });
+		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', uri: 'https://example.test/plan' });
 		const live = read(reference.object.get());
 		agentHost.setCanvasState(resource, new Error('Canvas closed'));
 		const unavailable = read(reference.object.get());
@@ -1516,7 +1527,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const resource = 'ahp-canvas:/pinned-chat-owner/plan';
 		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
 		agentHost.setChatState(chat, { ...summary, turns: [], canvases: [{ resource }] });
-		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', url: 'https://example.test/plan' });
+		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', uri: 'https://example.test/plan' });
 		const read = (canvases: readonly ISessionCanvas[] | undefined) => canvases?.map(canvas => ({ resource: canvas.resource.toString(), instanceId: canvas.instanceId }));
 
 		const reference = provider.observeChatCanvases(session.sessionId, session.mainChat.get().resource);
@@ -1941,6 +1952,130 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
+	test('feedback follows advertised annotation resources and gracefully handles their absence', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: undefined }, undefined);
+		const resource = URI.parse('ahp-session:/opaque-session');
+		const annotations = { resource: 'ahp-annotations://another-host/reviews?scope=one', annotationCount: 0, entryCount: 0 };
+		const metadata = { ...createSession('opaque-session'), session: resource, provider: 'copilotcli' };
+		agentHost.addSession({ ...metadata, annotations });
+		const provider = createRefreshableProvider(disposables, agentHost);
+		await provider.refreshForTest();
+		const session = provider.getSessions()[0];
+		const initial = provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+		const replacement = { ...annotations, resource: 'ahp-annotations:/unrelated-identifier' };
+		agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionSummaryChanged, session: resource.toString(), changes: { annotations: replacement } });
+		const updated = provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+		const observed: (string | undefined)[] = [];
+		disposables.add(provider.onDidChangeSessions(event => {
+			if (event.changed.includes(session)) {
+				observed.push(provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString());
+			}
+		}));
+		agentHost.addSession(metadata);
+		await provider.refreshForTest();
+		const removed = provider.getFeedbackAnnotationsChannel(session.sessionId);
+		fireSessionAdded(agentHost, 'no-annotations', { resource: URI.parse('ahp-session:/no-annotations'), annotations: null });
+		const absent = provider.getFeedbackAnnotationsChannel(provider.getSessions().find(candidate => candidate !== session)!.sessionId);
+		assert.deepStrictEqual({ initial, updated, removed, absent, observed }, { initial: URI.parse(annotations.resource).toString(), updated: URI.parse(replacement.resource).toString(), removed: undefined, absent: undefined, observed: [undefined] });
+	}));
+
+	for (const source of ['list refresh', 'state hydration'] as const) {
+		test(`feedback observers see annotations advertised late by ${source}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const metadata = createSession('late-annotations', { summary: 'Saved', status: ProtocolSessionStatus.Idle });
+			agentHost.addSession(metadata);
+			const provider = createRefreshableProvider(disposables, agentHost);
+			await provider.refreshForTest();
+			const session = provider.getSessions()[0];
+			provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			const observed = new Set<string | undefined>();
+			disposables.add(provider.onDidChangeSessions(event => {
+				if (event.changed.includes(session)) {
+					observed.add(provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString());
+				}
+			}));
+			const annotations = { resource: 'ahp-annotations://another-host/late', annotationCount: 0, entryCount: 0 };
+			if (source === 'list refresh') {
+				agentHost.addSession({ ...metadata, annotations });
+				await provider.refreshForTest();
+			} else {
+				agentHost.setSessionState('late-annotations', 'copilotcli', {
+					provider: 'copilotcli', title: 'Saved', status: ProtocolSessionStatus.Idle,
+					lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], annotations,
+				});
+			}
+			assert.deepStrictEqual({
+				channel: provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString(),
+				observed: [...observed],
+			}, { channel: annotations.resource, observed: [annotations.resource] });
+		}));
+	}
+
+	test('feedback state hydration preserves newer catalogue resources until annotations change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: undefined }, undefined);
+		const annotations = { resource: 'ahp-annotations://another-host/original', annotationCount: 0, entryCount: 0 };
+		agentHost.addSession({ ...createSession('annotations-hydration', { summary: 'Saved', status: ProtocolSessionStatus.Idle }), annotations });
+		const provider = createRefreshableProvider(disposables, agentHost);
+		await provider.refreshForTest();
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		const state: SessionState = {
+			provider: 'copilotcli', title: 'Saved', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+		};
+		const channel = () => provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', state);
+		const firstOmitted = channel();
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', { ...state, annotations });
+		const replacement = { ...annotations, resource: 'ahp-annotations://another-host/catalogue' };
+		fireSessionSummaryChanged(agentHost, 'annotations-hydration', { annotations: replacement });
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', { ...state, annotations: { ...annotations }, activity: 'Continuing' });
+		const unchangedSnapshot = channel();
+		const observed: (string | undefined)[] = [];
+		disposables.add(provider.onDidChangeSessions(event => {
+			if (event.changed.includes(session)) {
+				observed.push(channel());
+			}
+		}));
+		const changed = { ...annotations, resource: 'ahp-annotations://another-host/state' };
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', { ...state, annotations: changed });
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', state);
+		assert.deepStrictEqual({
+			firstOmitted, unchangedSnapshot, observed, removed: channel(),
+		}, {
+			firstOmitted: annotations.resource, unchangedSnapshot: replacement.resource, observed: [changed.resource, undefined], removed: undefined,
+		});
+	}));
+
+	for (const identity of ['initialize metadata', 'root hostBuild', 'unmarked'] as const) {
+		test(`feedback falls back to the pre-sync annotations suffix only for a native host (${identity})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.initializeResult.set({
+				...agentHost.initializeResult.get(),
+				protocolVersion: '1.1.0',
+				_meta: identity === 'initialize metadata' ? JSON.parse('{"vscode.agentHost":true}') : undefined,
+			}, undefined);
+			if (identity === 'root hostBuild') {
+				const root = agentHost.rootState.value;
+				assert.ok(root && !(root instanceof Error));
+				agentHost.setRootState({ ...root, _meta: JSON.parse('{"hostBuild":{"version":"1.135.0-insider"}}') });
+			}
+			const provider = createRefreshableProvider(disposables, agentHost);
+			await provider.refreshForTest();
+			agentHost.fireNotification(JSON.parse('{"channel":"ahp-root://","type":"root/sessionAdded","summary":{"resource":"copilotcli:/pre-sync-feedback","provider":"copilotcli","title":"Pre-sync feedback","status":1,"createdAt":"2026-11-13T00:00:00Z","modifiedAt":"2026-11-13T00:00:00Z","chats":[]}}'));
+			const session = provider.getSessions()[0];
+			const resolve = () => provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+			const legacy = resolve();
+			const advertised: (string | undefined)[] = [];
+			for (const resource of ['review-store://elsewhere/opaque?generation=2', 'copilotcli:/another-session/annotations']) {
+				fireSessionSummaryChanged(agentHost, 'pre-sync-feedback', { annotations: { resource, annotationCount: 0, entryCount: 0 } });
+				advertised.push(resolve());
+			}
+			assert.deepStrictEqual({ legacy, advertised }, {
+				legacy: identity === 'unmarked' ? undefined : 'copilotcli:/pre-sync-feedback/annotations',
+				advertised: ['review-store://elsewhere/opaque?generation=2', 'copilotcli:/another-session/annotations'].map(resource => URI.parse(resource).toString()),
+			});
+		}));
+	}
+
 	for (const agentProvider of ['claude', 'codex']) {
 		for (const initiallyBlocked of [false, true]) {
 			test(`policy-disabled ${agentProvider} history suspends changeset and feedback access (cold=${initiallyBlocked})`, () => {
@@ -1960,6 +2095,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				agentHost.setSessionState('policy-changes', agentProvider, {
 					provider: agentProvider, title: 'Saved', status: ProtocolSessionStatus.Idle,
 					lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+					annotations: { resource: buildAnnotationsUri(backend), annotationCount: 0, entryCount: 0 },
 				});
 				agentHost.setChatState(chatUri, {
 					resource: chatUri, title: '', status: ProtocolSessionStatus.Idle,
@@ -2136,17 +2272,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via notifications -------
 
-	test('lists only the sessions of its listing scope, hides one that leaves it without removing it, and still finds every session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('lists only the sessions of its listing scope, by their folder or project, hides one that leaves it without removing it, and still finds every session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		const folders = observableValue<readonly URI[]>('folders', [URI.parse('file:///work/repo')]);
-		provider.setListingScope({ folders, repositories: constObservable([]) });
+		provider.setListingScope({ folders });
 		await timeout(0);
 		const ids = (sessions: readonly ISession[]) => sessions.map(session => AgentSession.id(session.resource)).sort().join(',');
 		const changes: string[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
 
 		fireSessionAdded(agentHost, 'here', { workingDirectory: 'file:///work/repo' });
-		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x' });
+		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x', project: { uri: 'file:///work/repo', displayName: 'repo' } });
+		// Not by the path of a worktree alone: without its project, it is a folder of its own
+		fireSessionAdded(agentHost, 'unknownProject', { workingDirectory: 'file:///work/repo.worktrees/y' });
 		fireSessionAdded(agentHost, 'elsewhere', { workingDirectory: 'file:///other' });
 		await timeout(100);
 		const elsewhere = provider.getAllSessions().find(session => AgentSession.id(session.resource) === 'elsewhere');
@@ -2155,7 +2293,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const otherFolder = ids(provider.getSessions());
 
 		assert.deepStrictEqual({ scoped, otherFolder, changes }, {
-			scoped: { listed: 'here,worktree', all: 'elsewhere,here,worktree', found: true },
+			scoped: { listed: 'here,worktree', all: 'elsewhere,here,unknownProject,worktree', found: true },
 			otherFolder: 'elsewhere',
 			changes: [
 				'added=here,worktree removed= changed=',
@@ -2514,6 +2652,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionAdded(agentHost, 'late-creator', { provider: 'claude', title: 'Creator' });
 
 		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#ahp-chat%3A%2F%2Fdefault%2FY2xhdWRlOi9sYXRlLWNyZWF0b3I', 'agent-host-claude:/late-creator']);
+	}));
+
+	test('a creation reference to a session whose provider this client does not know has no creator, instead of failing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('created-elsewhere'));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.resource.path === '/created-elsewhere')!;
+
+		// Such as a session that a session of another client created
+		fireSessionMetaChanged(agentHost, 'created-elsewhere', withSessionCreationReference(undefined, {
+			session: 'ahp-session:/3938d3e8-ee14-4e4e-9b5c-863cea0f3413',
+			chat: 'ahp-chat:/3938d3e8-ee14-4e4e-9b5c-863cea0f3413',
+			turnId: 'turn-1',
+		}));
+
+		assert.deepStrictEqual({ createdBySession: session.createdBySession?.get(), sessions: provider.getSessions().length }, { createdBySession: undefined, sessions: 1 });
+	}));
+
+	test('a creation reference to a session of an unknown provider gets its creator once the host advertises that session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('created-before-creator'));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.resource.path === '/created-before-creator')!;
+		const observed: (string | undefined)[] = [];
+		disposables.add(autorun(reader => observed.push(session.createdBySession?.read(reader)?.session.toString())));
+
+		const creator = URI.parse('ahp-session:/opaque-creator');
+		fireSessionMetaChanged(agentHost, 'created-before-creator', withSessionCreationReference(undefined, { session: creator.toString(), turnId: 'turn-1' }));
+		// The host then advertises the creator, with its provider
+		fireSessionAdded(agentHost, 'opaque-creator', { resource: creator, provider: 'claude', title: 'Creator' });
+
+		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/opaque-creator']);
 	}));
 
 	test('remote creation provenance is not remapped onto the child host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -6117,7 +6289,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [
 			{ ...createSession('cached-run', { summary: 'Cached run' }), origin: automationOrigin },
-			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: { ...automationOrigin, purpose: 'scheduledChat' } },
+			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: agentHostAutomationSessionOrigin(automationOrigin.automation, automationOrigin.run, true) },
 			createSession('cached-plain', { summary: 'Cached plain' }),
 		]);
 		const nextHost = new MockAgentHostService();
@@ -8314,6 +8486,216 @@ suite('LocalAgentHostSessionsProvider', () => {
 			pendingSendCalls: 0,
 			sendCalls: 1,
 			title: 'Config Operation',
+		});
+	});
+
+	test('a New Worktree its agent rejects has settled as the draft\'s first send waits for its configuration, which then goes out in the folder', async () => {
+		let sendCalls = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async resource => {
+				sendCalls++;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'In the Folder' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = session.mainChat.get().resource;
+		await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
+		await provider.setSessionConfigValue(session.sessionId, chat, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session, config => config?.values.isolation === 'folder');
+		// The provider as it is, but for an agent that rejects the write, later: the operation it tracks rejects
+		const rejecting: LocalAgentHostSessionsProvider = Object.assign(Object.create(provider), {
+			setSessionConfigValue: async () => {
+				await timeout(0);
+				throw new Error('isolation rejected');
+			},
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => rejecting as unknown as T }));
+		const choice = instantiationService.createInstance(NewWorktreeChoice, constObservable<ISession | undefined>(session), constObservable(true));
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		let applied: boolean;
+		try {
+			applied = await choice.setSelected(true);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+		const committed = await provider.sendRequest(session.sessionId, chat, { query: 'hello' });
+
+		assert.deepStrictEqual({
+			applied,
+			selected: choice.isSelected(),
+			reported: errors.map(error => (error as Error).message),
+			sendCalls,
+			title: committed.title.get(),
+		}, {
+			applied: false,
+			selected: false,
+			reported: ['isolation rejected'],
+			sendCalls: 1,
+			title: 'In the Folder',
+		});
+	});
+
+	suite('Work in Parallel, from a composer\'s send to the agent', () => {
+
+		type Case = 'switched' | 'closed' | 'rejected' | 'notApplied' | 'takenReadOnly';
+
+		/**
+		 * A composer's send of the first request of a draft of the agent host that works in its folder, through the submit
+		 * handler service to the composer's Work in Parallel handler, which asks and then applies the answer on the draft's
+		 * agent, which takes it as `agent` does; then the composer sends, or does not, to the agent.
+		 */
+		async function send(change: Case) {
+			const sends: string[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				openSession: true,
+				sendRequest: async resource => {
+					sends.push(AgentSession.id(resource));
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Sent' }));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const draft = async (path: string) => {
+				const session = provider.createNewSession(URI.file(path), provider.sessionTypes[0].id);
+				await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
+				await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
+				await waitForSessionConfig(provider, session, config => config?.values.isolation === 'folder');
+				return session;
+			};
+			const a = await draft('/home/user/project');
+			const b = change === 'switched' ? await draft('/home/user/other') : undefined;
+			const isolationOf = (session: ISession) => provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.values.isolation;
+			const schema = createVSCodeSessionConfigSchema();
+			// The agent as it takes New Worktree: it fails to, it keeps the folder, or it applies it and it can no longer change
+			agentHost.onResolveSessionConfig = async request => {
+				await timeout(0);
+				if (request.config?.isolation === 'worktree') {
+					if (change === 'rejected') {
+						throw new Error('isolation rejected');
+					}
+					if (change === 'takenReadOnly') {
+						return { schema: { ...schema, properties: { ...schema.properties, isolation: { ...schema.properties.isolation, readOnly: true } } }, values: { ...request.config } };
+					}
+				}
+				return { schema, values: { ...request.config, isolation: 'folder' } };
+			};
+
+			const store = disposables.add(new DisposableStore());
+			const current = observableValue<ISession | undefined>('session', a);
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as unknown as T }));
+			const notifications: string[] = [];
+			const notificationService = { warn: (message: string) => notifications.push(`warning: ${message}`), error: (message: string) => notifications.push(`error: ${message}`) };
+			const answer = new DeferredPromise<'worktree' | 'folder' | undefined>();
+			const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+			store.add(worktreeSendChoiceService.registerProvider({ isRecentChatInFolder: () => true, askWorktreeOnSend: () => answer.p }));
+			const widgetStore = { isDisposed: false };
+			const widget = {
+				worktreeSendChoiceService,
+				_session: current,
+				_store: widgetStore,
+				_askingWorktreeOnSend: new Set<string>(),
+				_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+				_newWorktree: instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true)),
+				contextKeyService: { contextMatchesRules: () => true },
+				_getWorktreeSendChoiceControl: () => mainWindow.document.createElement('div'),
+				_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
+				_warnNewWorktreeUnavailable: Reflect.get(NewChatWidget.prototype, '_warnNewWorktreeUnavailable'),
+				notificationService,
+			};
+			const handleWorktreeSendChoice = Reflect.get(NewChatWidget.prototype, '_handleWorktreeSendChoice') as (this: object, request: IChatSubmitRequest) => Promise<boolean>;
+			const submitHandlers = new ChatSubmitRequestHandlerService();
+			store.add(submitHandlers.register({ id: 'newSession.worktreeSendChoice', tryHandle: request => handleWorktreeSendChoice.call(widget, request) }));
+			let input = 'hello';
+			const composerStore = { isDisposed: false };
+			const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+				_widget: {
+					domNode: mainWindow.document.createElement('div'),
+					getInput: () => input,
+					getContrib: () => undefined,
+					setInput: (value: string) => { input = value; },
+					inputEditor: { getModel: () => undefined },
+					attachmentModel: { attachments: [], addContext: () => { } },
+					input: {
+						setInputEnabled: () => { },
+						hasFocus: () => false,
+						focus: () => { },
+						getAttachedContext: () => ({ asArray: () => [] }),
+						acceptInput: async () => { input = ''; },
+					},
+				},
+				_store: composerStore,
+				_sending: observableValue('sending', false),
+				_confirmingSend: observableValue('confirmingSend', false),
+				_userInteractionSource: store.add(new MutableDisposable()),
+				_canSendRequest: constObservable(true),
+				_modelRef: { value: undefined },
+				options: {
+					session: current,
+					sendRequest: async ({ query }: { query: string }) => {
+						const session = current.get()!;
+						await provider.sendRequest(session.sessionId, session.mainChat.get().resource, { query });
+						return true;
+					},
+				},
+				instantiationService: { createInstance: () => ({ cancel: () => { }, disposeSource: () => { } }) },
+				chatSubmitRequestHandlerService: submitHandlers,
+				notificationService,
+				storageService: { store: () => { } },
+				logService: { error: () => { } },
+			});
+
+			const errors: unknown[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+			let sent: boolean;
+			try {
+				const sending = composer.submit();
+				await timeout(0);
+				if (change === 'switched') {
+					// Another draft, with the same input
+					current.set(b, undefined);
+				} else if (change === 'closed') {
+					widgetStore.isDisposed = true;
+					composerStore.isDisposed = true;
+				}
+				answer.complete('worktree');
+				sent = await sending;
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(previousHandler);
+				agentHost.onResolveSessionConfig = undefined;
+			}
+			store.dispose();
+			return {
+				sent,
+				sends: sends.length,
+				isolation: { a: isolationOf(a), ...(b ? { b: isolationOf(b) } : {}) },
+				input,
+				notifications: notifications.map(message => message.replace(/:.*/, '')),
+				reported: errors.map(error => (error as Error).message),
+			};
+		}
+
+		test('the user switches to another draft with the same input, or closes the composer, as it asks: nothing is applied or sent to either, and the input stays', async () => {
+			assert.deepStrictEqual({ switched: await send('switched'), closed: await send('closed') }, {
+				switched: { sent: false, sends: 0, isolation: { a: 'folder', b: 'folder' }, input: 'hello', notifications: ['warning'], reported: [] },
+				closed: { sent: false, sends: 0, isolation: { a: 'folder' }, input: 'hello', notifications: [], reported: [] },
+			});
+		});
+
+		test('New Worktree its agent takes without applying it is reported and sent once in the folder; one it applies and then makes read-only is sent once there, unreported', async () => {
+			assert.deepStrictEqual({ notApplied: await send('notApplied'), takenReadOnly: await send('takenReadOnly') }, {
+				notApplied: { sent: true, sends: 1, isolation: { a: 'folder' }, input: '', notifications: ['warning'], reported: [] },
+				takenReadOnly: { sent: true, sends: 1, isolation: { a: 'worktree' }, input: '', notifications: [], reported: [] },
+			});
+		});
+
+		test('New Worktree its agent fails to take leaves where the draft works unknown: it is not sent, the user is told and the draft kept', async () => {
+			assert.deepStrictEqual(await send('rejected'), { sent: false, sends: 0, isolation: { a: undefined }, input: 'hello', notifications: ['error'], reported: [] });
 		});
 	});
 
@@ -11769,25 +12151,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('nested chats default to their own Session Changes while the main chat keeps Branch Changes', () => {
+		test('nested chats default to their own Session Changes in the main chat\'s folder and to Branch Changes elsewhere', () => {
 			const activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
 			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 			const rawId = 'nested-default-changeset';
 			const repo = URI.file('/repo');
-			const session = setupMultiChatSession(provider, rawId, [repo]);
+			const worktree = URI.file('/repo.worktrees/peer');
+			const session = setupMultiChatSession(provider, rawId, [repo, worktree]);
 			const backend = AgentSession.uri('copilotcli', rawId).toString();
 			const main = buildDefaultChatUri(backend);
 			const peer = buildChatUri(backend, 'peer');
+			const sameFolderPeer = buildChatUri(backend, 'same-folder-peer');
 			const entry = (owner: string, changeKind: string, path: string) => ({ label: changeKind, changeKind, uriTemplate: `${owner}/changeset/${path}` });
 			const chatState = (resource: string, changesets: ChatState['changesets']): ChatState => ({
 				resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [], changesets,
 			});
-			agentHost.setSessionState(rawId, 'copilotcli', {
-				...makeState([makeChatSummary(main, 'Main'), makeChatSummary(peer, 'Peer')], { defaultChat: main, workingDirectories: [repo.toString()] }),
+			const setSessionState = (peerWorkingDirectories: readonly string[] | undefined) => agentHost.setSessionState(rawId, 'copilotcli', {
+				...makeState([
+					makeChatSummary(main, 'Main'),
+					makeChatSummary(peer, 'Peer', ProtocolSessionStatus.Idle, peerWorkingDirectories),
+					makeChatSummary(sameFolderPeer, 'Same Folder Peer', ProtocolSessionStatus.Idle, [repo.toString()]),
+				], { defaultChat: main, workingDirectories: [repo.toString(), worktree.toString()] }),
 				changesets: [entry(backend, 'session', 'session')],
 			});
+			setSessionState(undefined);
 			agentHost.setChatState(main, chatState(main, [entry(main, 'branch', 'branch'), entry(main, 'turn', 'turn/{turnId}')]));
-			agentHost.setChatState(peer, chatState(peer, [entry(peer, 'branch', 'branch'), entry(peer, 'session', 'session'), entry(peer, 'turn', 'turn/{turnId}')]));
+			for (const chat of [peer, sameFolderPeer]) {
+				agentHost.setChatState(chat, chatState(chat, [entry(chat, 'branch', 'branch'), entry(chat, 'session', 'session'), entry(chat, 'turn', 'turn/{turnId}')]));
+			}
 			activeSession.set(new class extends mock<ITestSessionWithChat>() {
 				override readonly resource = session.resource;
 			}(), undefined);
@@ -11795,8 +12186,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			disposables.add(autorun(reader => {
 				defaults = session.chats.read(reader).map(chat => chat.changesets.read(reader)?.find(changeset => changeset.isDefault.read(reader))?.id);
 			}));
+			const inSessionFolder = defaults;
 
-			assert.deepStrictEqual(defaults, [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID]);
+			setSessionState([worktree.toString()]);
+
+			assert.deepStrictEqual({ inSessionFolder, inOwnWorktree: defaults }, {
+				inSessionFolder: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+				inOwnWorktree: [BRANCH_CHANGES_CHANGESET_ID, BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+			});
 		});
 
 		test('reads background shells from each chat\'s state while the session is active', () => {
@@ -12286,11 +12683,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				defaultChat: session.mainChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
 				peerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-1')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
 				inheritedPeerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-2')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				// What each chat sets itself, rather than inherits from its session
+				own: session.chats.get().map(chat => chat.ownWorkingDirectories?.get()?.map(directory => directory.toString())),
 			}, {
 				session: [primaryDirectory.toString(), peerDirectory.toString()],
 				defaultChat: [primaryDirectory.toString()],
 				peerChat: [peerDirectory.toString()],
 				inheritedPeerChat: [primaryDirectory.toString(), peerDirectory.toString()],
+				own: [[primaryDirectory.toString()], [peerDirectory.toString()], undefined],
 			});
 		});
 
@@ -12722,12 +13122,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}));
 			const recordedByEach = readIcons();
 
+			// A chat that only references a pull request another chat created does not show its icon.
+			agentHost.setSessionState('multi-pr-icon', 'copilotcli', makeState(chats, {
+				defaultChat,
+				meta: withSessionArtifacts(discovered, [
+					{ id: 'main-pr', chat: defaultChat, type: SessionArtifactType.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+					{ id: 'peer-ref', chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Peer reference', isArtifact: false, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				]),
+			}));
+			const referencedByPeer = readIcons();
+
 			const openIcon = computePullRequestIcon(GitHubPullRequestState.Open).id;
-			assert.deepStrictEqual({ discoveredOnly, recordedByPeer, recordedByUnknownChat, recordedByEach }, {
+			assert.deepStrictEqual({ discoveredOnly, recordedByPeer, recordedByUnknownChat, recordedByEach, referencedByPeer }, {
 				discoveredOnly: { session: openIcon, main: openIcon, peer: undefined },
 				recordedByPeer: { session: undefined, main: undefined, peer: openIcon },
 				recordedByUnknownChat: { session: undefined, main: undefined, peer: undefined },
 				recordedByEach: { session: openIcon, main: openIcon, peer: openIcon },
+				referencedByPeer: { session: openIcon, main: openIcon, peer: undefined },
 			});
 		});
 
@@ -16525,7 +16936,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const atReplacement: string[][] = [];
 		disposables.add(provider.onDidReplaceSession(({ from, to }) => atReplacement.push(provider.getSessions().map(listed => listed === to ? 'committed' : listed === from ? 'draft' : listed.sessionId))));
 		// Every folder: the scope lists every session, through its own listing
-		provider.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		provider.setListingScope({ folders: constObservable([]) });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		const chat = await provider.createNewChat(session.sessionId);
 		const ownRawId = AgentSession.id(chat.resource);

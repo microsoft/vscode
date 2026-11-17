@@ -894,7 +894,7 @@ suite('GitHubIssueModel', () => {
 		gate: DeferredPromise<void> | undefined;
 		private previous: Issue | undefined;
 
-		override async withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>): Promise<T> {
+		override async withClient<T>(task: (client: IGitHubAccountClient, cancellationToken: CancellationToken) => Promise<T>): Promise<T> {
 			const issues = upcastPartial<IGitHubAccountClient['issues']>({
 				get: async (_repository, _number, _signal, options) => {
 					this.calls++;
@@ -906,7 +906,7 @@ suite('GitHubIssueModel', () => {
 					return response;
 				},
 			});
-			return task(upcastPartial<IGitHubAccountClient>({ issues }), new AbortController().signal);
+			return task(upcastPartial<IGitHubAccountClient>({ issues }), CancellationToken.None);
 		}
 	}
 

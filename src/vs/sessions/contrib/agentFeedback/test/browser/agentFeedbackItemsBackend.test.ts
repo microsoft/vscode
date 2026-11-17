@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue, transaction, autorun } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -67,7 +67,9 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			override readonly providerId = 'agenthost-test';
 			override readonly sessionId = `s${i + 1}`;
 		}());
-		const annotationsUri = (session: ISession) => URI.parse(`test:/${session.sessionId}/annotations`);
+		const annotationResources = new Map<string, URI>();
+		const annotationsUri = (session: ISession) => annotationResources.get(session.sessionId) ?? URI.parse(`test:/${session.sessionId}/annotations`);
+		const changes = store.add(new Emitter<ISessionsChangeEvent>());
 		const hostState = new Map<string, AnnotationsState>();
 		// Channels subscribed on the host.
 		const open = new Set<string>();
@@ -84,6 +86,11 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const host = {
 			connected: true,
 			open,
+			dispatched: [] as string[],
+			replaceAnnotationsResource: (session: ISession, resource: URI) => {
+				annotationResources.set(session.sessionId, resource);
+				changes.fire({ added: [], changed: [session], removed: [] });
+			},
 			/** Feedback texts the host holds for the session. */
 			items: (session: ISession) => hostState.get(annotationsUri(session).toString())?.annotations.map(annotation => annotation.entries[0].text) ?? [],
 			/** Adds feedback from another client, such as the agent. */
@@ -108,6 +115,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 				return manager.getSubscription(kind, resource, owner);
 			}
 			override dispatch(channel: string, action: ClientAnnotationsAction): void {
+				host.dispatched.push(channel);
 				const seq = manager.dispatchOptimistic(channel, action);
 				if (host.connected) {
 					hostApply(channel, action, { clientId, clientSeq: seq });
@@ -123,7 +131,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
-			override onDidChangeSessions = Event.None;
+			override onDidChangeSessions = changes.event;
 			override getSession(resource: URI) { return sessions.find(session => session.resource.toString() === resource.toString()); }
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -150,47 +158,41 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		});
 		return { backend, host, sessions, showPanes, feedback };
 	}
-	test('scoped observation shares and releases annotations without populating the persistent cache', async () => {
-		const sessionResource = URI.parse('agent-host-claude:/saved');
-		const annotationsUri = URI.parse('claude:/saved/annotations');
-		const operations: string[] = [];
-		const state: AnnotationsState = { annotations: [] };
-		let seq = 0;
-		const manager = store.add(new AgentSubscriptionManager('test', () => ++seq, () => { }, async resource => {
-			operations.push('subscribe');
-			return { resource: resource.toString(), state, fromSeq: 0 };
-		}, () => operations.push('unsubscribe')));
-		const connection = new class extends mock<IAgentConnection>() {
-			override readonly resourceUris = createAgentHostResourceUriMapper('test');
-			override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
-				return manager.getSubscription(kind, resource, owner);
-			}
-		}();
-		const provider = new class extends mock<IAgentHostSessionsProvider>() {
-			override getFeedbackAnnotationsChannel() { return { connection, annotationsUri }; }
-		}();
-		const session = new class extends mock<ISession>() {
-			override readonly providerId = 'agenthost-test';
-			override readonly sessionId = 'saved';
-		}();
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsManagementService, {
-			onDidDeleteSession: Event.None, onDidChangeSessions: Event.None, getSession: () => session,
-		});
-		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }(), 'getProvider', () => provider);
-		stubVisibleSessions(instantiationService, constObservable([]));
-		const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
-		const feedback = backend.getItemsObservable(sessionResource);
-		assert.deepStrictEqual(operations, []);
-		const first = store.add(autorun(reader => feedback.read(reader)));
-		const second = store.add(autorun(reader => feedback.read(reader)));
+
+	test('rebinds a held subscription when the advertised annotations resource changes on the same connection', async () => {
+		const { backend, host, sessions: [session], showPanes, feedback } = createConnectedBackend(1);
+		showPanes([session]);
+		host.addFeedback(session, 'old');
+		backend.getItems(session.resource);
 		await timeout(0);
-		first.dispose();
-		const whileObserved = [...operations];
-		second.dispose();
+		const before = backend.getItems(session.resource).map(item => item.text);
+		const replacement = URI.parse('review-store://another-host/reviews?generation=2');
+
+		host.replaceAnnotationsResource(session, replacement);
+		const pending = {
+			items: backend.getItems(session.resource).map(item => item.text),
+			loaded: backend.hasLoaded(session.resource),
+			open: [...host.open],
+		};
 		await timeout(0);
-		assert.deepStrictEqual({ whileObserved, afterDisposal: operations, cachedSessions: backend.getSessionsWithItems() }, {
-			whileObserved: ['subscribe'], afterDisposal: ['subscribe', 'unsubscribe'], cachedSessions: [],
+		host.addFeedback(session, 'new');
+		backend.upsert(feedback('written', session));
+
+		assert.deepStrictEqual({
+			before, pending,
+			items: backend.getItems(session.resource).map(item => item.text),
+			hostItems: host.items(session),
+			channel: backend.getAnnotationsChannelResource(session.resource)?.toString(),
+			dispatched: host.dispatched,
+			open: [...host.open],
+		}, {
+			before: ['old'],
+			pending: { items: [], loaded: false, open: [replacement.toString()] },
+			items: ['new', 'written'],
+			hostItems: ['new', 'written'],
+			channel: replacement.toString(),
+			dispatched: [replacement.toString()],
+			open: [replacement.toString()],
 		});
 	});
 

@@ -444,7 +444,7 @@ jobs:
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
         id: compile
-        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts check-mobile-boundary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -743,6 +743,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
+      # The rebuild below compiles `kerberos` (an optional peer of the proxy agents that
+      # @vscode/test-web uses) whenever the lockfile resolves it for copilot-chat, which needs
+      # libkrb5-dev, one of the cached apt packages.
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
+
       - name: Build copilot dependencies
         run: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
 
@@ -830,14 +836,16 @@ jobs:
       - name: Install setuptools
         run: pip install setuptools
 
-      - name: Install system dependencies
-        run: |
-          set -e
-          # The extension host tests launch VS Code, whose Chromium sandbox needs unprivileged
-          # user namespaces, which Ubuntu 24.04 restricts by default via AppArmor
-          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          sudo apt-get update
-          sudo apt-get install -y xvfb libgtk-3-0 libgbm1
+      # The extension host tests launch VS Code, whose Chromium sandbox needs unprivileged
+      # user namespaces, which Ubuntu 24.04 restricts by default via AppArmor
+      - name: Allow unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # xvfb, libgtk-3-0 and libgbm1 for the extension host tests, and libkrb5-dev for the rebuild
+      # below, which compiles `kerberos` (an optional peer of the proxy agents that @vscode/test-web
+      # uses) whenever the lockfile resolves it for copilot-chat
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml.
       - name: Install dependencies

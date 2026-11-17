@@ -1056,6 +1056,19 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
+	test('lets an integration post a status notice about its resource only while the artifact is recorded', () => run(async store => {
+		const f = fixture(store);
+		store.add(await f.service.acquireArtifact('session', artifact.id));
+		const context = f.bindings[0].context;
+		await context.postNotice!('Checks failed: *Windows* / [Unit].');
+		f.session.set({ ...f.session.get(), artifacts: [] }, undefined);
+		await assert.rejects(() => context.postNotice!('The artifact was removed.'));
+		assert.deepStrictEqual({ notices: f.notices, prompts: f.submitted }, {
+			notices: [{ session: 'session', artifact, kind: 'status', content: 'Checks failed: \\*Windows\\* / \\[Unit\\].', iconId: 'link' }],
+			prompts: [],
+		});
+	}));
+
 	test('notices explain changed modes, remaining rules, and automatic disablements', () => run(async store => {
 		const options: readonly ArtifactAutomationOption[] = [
 			{ id: 'automatic', kind: 'boolean', label: 'Repair', description: 'Repair failures.', defaultValue: false, actionIds: ['act'], maxAttempts: 2 },

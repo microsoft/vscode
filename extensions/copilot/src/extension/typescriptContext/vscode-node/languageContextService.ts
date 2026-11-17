@@ -35,6 +35,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	private readonly _onCachePopulated: vscode.EventEmitter<OnCachePopulatedEvent>;
 	private readonly _onContextComputed: vscode.EventEmitter<OnContextComputedEvent>;
 	private readonly _onContextComputedOnTimeout: vscode.EventEmitter<OnContextComputedOnTimeoutEvent>;
+	private readonly _onDidChangeActivation: vscode.EventEmitter<void>;
 
 	private tsLanguageContextService: TSLanguageContextService;
 
@@ -49,6 +50,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this._onCachePopulated = this.disposables.add(new vscode.EventEmitter<OnCachePopulatedEvent>());
 		this._onContextComputed = this.disposables.add(new vscode.EventEmitter<OnContextComputedEvent>());
 		this._onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>());
+		this._onDidChangeActivation = this.disposables.add(new vscode.EventEmitter<void>());
 		const runsTS7 = TypeScript.runsVersion7();
 		const enableTS7 = TypeScript.isVersion7SupportEnabled(this.configurationService);
 		this.tsLanguageContextService = runsTS7
@@ -79,6 +81,13 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 
 	public get onContextComputedOnTimeout() {
 		return this._onContextComputedOnTimeout.event;
+	}
+
+	/**
+	 * Fires when {@link isActivated} may return a different result, for example because the language server started.
+	 */
+	public get onDidChangeActivation() {
+		return this._onDidChangeActivation.event;
 	}
 
 	async isActivated(documentOrLanguageId: vscode.TextDocument | string): Promise<boolean> {
@@ -128,6 +137,7 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this.serviceListeners.add(this.tsLanguageContextService.onCachePopulated(e => this._onCachePopulated.fire(e)));
 		this.serviceListeners.add(this.tsLanguageContextService.onContextComputed(e => this._onContextComputed.fire(e)));
 		this.serviceListeners.add(this.tsLanguageContextService.onContextComputedOnTimeout(e => this._onContextComputedOnTimeout.fire(e)));
+		this.serviceListeners.add(this.tsLanguageContextService.onDidChangeActivation(() => this._onDidChangeActivation.fire()));
 	}
 
 }
@@ -392,6 +402,9 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 				this.checkRegistration();
 			}
 		}));
+		if (this.languageContextService instanceof LanguageContextServiceImpl) {
+			this.disposables.add(this.languageContextService.onDidChangeActivation(() => this.checkRegistration()));
+		}
 	}
 
 	private checkRegistration(): void {

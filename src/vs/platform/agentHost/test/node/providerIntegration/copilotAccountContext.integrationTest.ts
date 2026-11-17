@@ -19,7 +19,6 @@ import { ServiceCollection } from '../../../../instantiation/common/serviceColle
 import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../../common/agent.js';
 import { copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../../common/meta/agentAuthenticationAccount.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
@@ -50,7 +49,7 @@ suite('Copilot account context native SDK', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Native Entra accounts support Windows/macOS only; see e2e/KNOWN_ISSUES.md.
-	(isLinux ? test.skip : test)('authenticates and configures a new conversation and resumes its live SDK binding without global login', async function () {
+	(isLinux ? test.skip : test)('authenticates and configures a new conversation, resumes its live SDK binding without global login and signs in again after a runtime restart', async function () {
 		this.timeout(90_000);
 		const { createServer } = await import('http');
 		const home = await mkdtemp(join(tmpdir(), 'copilot-account-context-'));
@@ -96,12 +95,13 @@ suite('Copilot account context native SDK', () => {
 				[IAgentConfigurationService, upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true })],
 			), true));
 			accounts = store.add(instantiation.createInstance(CopilotAccountService));
-			client = new CopilotClient({
+			const accountService = accounts;
+			const createClient = () => new CopilotClient({
 				connection: RuntimeConnection.forStdio(), env, useLoggedInUser: false,
 				requestHandler: new LocalAccountRequests(origin), logLevel: 'error',
-				entra: accounts.authenticationOptions,
+				entra: accountService.authenticationOptions,
 			});
-			const accountService = accounts;
+			client = createClient();
 			const runtime = client;
 			const provider = new class extends mock<IAgent>() {
 				override readonly id = 'copilotcli';
@@ -124,14 +124,14 @@ suite('Copilot account context native SDK', () => {
 			}();
 			const discovery: AuthenticateParams = {
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
+				accountId,
 			};
 			const challenged = waitForState(accounts.authentication!.authenticationRequired, requirement => requirement?.resource.resource === copilotEntraResources.get(copilotEntraM365Audience));
 			const discovering = authentication.authenticate(discovery, [provider]);
 			await challenged;
 			assert.deepStrictEqual(await authentication.authenticate({
 				resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
+				accountId,
 			}, [provider]), { authenticated: true });
 			assert.deepStrictEqual(await discovering, { authenticated: true });
 			const context = accounts.requireReady();
@@ -214,6 +214,22 @@ suite('Copilot account context native SDK', () => {
 				policyCompletions: 4,
 				globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
 			});
+			// A restarted runtime signs back in under a new registration, which names the Microsoft 365 account differently.
+			await accounts.releaseSession();
+			assert.deepStrictEqual(await client.stop(), []);
+			client = createClient();
+			await client.start();
+			const restarted = client;
+			const afterRestart = store.add(await launcher.launch({
+				...plan, sessionId: 'account-after-restart', kind: 'create', model: { id: modelId },
+				client: {
+					rpc: restarted.rpc, createSession: config => restarted.createSession(config),
+					resumeSession: (id, config) => restarted.resumeSession(id, config), deleteSession: id => restarted.deleteSession(id),
+				},
+			}, testRuntime));
+			assert.deepStrictEqual({ account: await activeAccount(afterRestart.session), sourceUnchanged: accounts.requireReady() === context }, { account: 'loki', sourceUnchanged: true });
+			await afterRestart.session.disconnect();
+			await client.deleteSession('account-after-restart');
 			await accounts.reset();
 			await assert.rejects(accounts.getSession(context, Promise.resolve(client)), /no longer available/);
 		} finally {

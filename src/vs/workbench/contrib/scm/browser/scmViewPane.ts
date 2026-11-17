@@ -1323,6 +1323,16 @@ registerAction2(SetSortByNameAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
 
+type StructuralDiffToggledEvent = {
+	enabled: 0 | 1;
+};
+
+type StructuralDiffToggledClassification = {
+	owner: 'dbaeumer';
+	comment: 'Reports when the user shows or hides structural diffs in the Source Control view, to understand whether they are used.';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: '1 if structural diffs are shown after the toggle, otherwise 0.' };
+};
+
 class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
 	constructor() {
 		super({
@@ -1338,8 +1348,11 @@ class ToggleShowStructuralDiffAction extends ViewAction<SCMViewPane> {
 		});
 	}
 
-	runInView(_: ServicesAccessor, view: SCMViewPane): void {
-		view.showStructuralDiff = !view.showStructuralDiff;
+	runInView(accessor: ServicesAccessor, view: SCMViewPane): void {
+		const show = !view.showStructuralDiff;
+		view.showStructuralDiff = show;
+		// Reported here rather than in the setter, which also runs when another window changes the choice.
+		accessor.get(ITelemetryService).publicLog2<StructuralDiffToggledEvent, StructuralDiffToggledClassification>('scmStructuralDiffToggled', { enabled: show ? 1 : 0 });
 	}
 }
 

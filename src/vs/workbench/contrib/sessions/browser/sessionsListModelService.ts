@@ -415,7 +415,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 		if (attention?.isHistoricalCompletion) {
 			if (!isUnreadSessionModifiedRecently(session, reader)) {
-				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
+				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds, isHistoricalCompletion: true };
 			}
 		}
 		return undefined;
@@ -465,30 +465,23 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		const state = new Map<string, StoredSessionInboxState>();
 		const raw = this.storageService.get(SessionsListModelService.INBOX_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
+			let entries: unknown;
 			try {
-				const entries: unknown = JSON.parse(raw);
-				if (!Array.isArray(entries)) {
-					throw new Error('Invalid sessions inbox state');
-				}
-				for (const entry of entries) {
-					if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string' || !entry[1] || typeof entry[1] !== 'object') {
-						throw new Error('Invalid sessions inbox entry');
-					}
-					const value = entry[1];
-					if (value.kind === 'snoozed' && typeof value.until === 'number' && Number.isFinite(value.until)) {
-						state.set(entry[0], { kind: 'snoozed', until: value.until });
-					} else if (value.kind === 'hold' || value.kind === 'resumed') {
-						state.set(entry[0], { kind: value.kind });
-					} else if ((value.kind === 'done' || value.kind === 'untilActivity') && typeof value.activity === 'string'
-						&& (value.notificationIds === undefined || isStringArray(value.notificationIds))) {
-						state.set(entry[0], { kind: value.kind, activity: value.activity, notificationIds: value.notificationIds });
-					} else {
-						throw new Error('Invalid sessions inbox value');
-					}
-				}
+				entries = JSON.parse(raw);
 			} catch (error) {
 				onUnexpectedError(error);
 				return;
+			}
+			if (!Array.isArray(entries)) {
+				onUnexpectedError(new Error('Invalid sessions inbox state'));
+				return;
+			}
+			for (const entry of entries) {
+				// Skip malformed entries individually so one bad value cannot discard every other triage decision.
+				const parsed = Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' ? parseStoredSessionInboxState(entry[1]) : undefined;
+				if (parsed) {
+					state.set(entry[0], parsed);
+				}
 			}
 		}
 		this.updateInboxState(state);
@@ -881,5 +874,27 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			StorageScope.PROFILE,
 			StorageTarget.USER,
 		);
+	}
+}
+
+/** Parses one persisted Inbox triage value, or returns `undefined` when it is malformed. */
+function parseStoredSessionInboxState(value: unknown): StoredSessionInboxState | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { kind?: unknown; until?: unknown; activity?: unknown; notificationIds?: unknown };
+	switch (candidate.kind) {
+		case 'snoozed':
+			return typeof candidate.until === 'number' && Number.isFinite(candidate.until) ? { kind: 'snoozed', until: candidate.until } : undefined;
+		case 'hold':
+		case 'resumed':
+			return { kind: candidate.kind };
+		case 'done':
+		case 'untilActivity':
+			return typeof candidate.activity === 'string' && (candidate.notificationIds === undefined || isStringArray(candidate.notificationIds))
+				? { kind: candidate.kind, activity: candidate.activity, notificationIds: candidate.notificationIds }
+				: undefined;
+		default:
+			return undefined;
 	}
 }

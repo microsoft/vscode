@@ -14,25 +14,55 @@ import { IScreenWindow, IScreenWindows } from '../common/appWindows.js';
 /**
  * Lists the normal windows of macOS with Core Graphics, front to back, including those on other Spaces, from JavaScript
  * for Automation. Unlike their titles, which need the Screen Recording permission, where windows are is not private.
- * It prints them as JSON.
+ * It also tells the path of each window's application, and which windows are on a Space, through a private API of
+ * macOS, `CGSCopySpacesForWindows`: when that fails, it leaves this out. It prints them as JSON.
  */
 const SCRIPT = `ObjC.import('AppKit');
 ObjC.import('CoreGraphics');
 function run() {
 	const frontmost = $.NSWorkspace.sharedWorkspace.frontmostApplication;
-	const windows = ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionAll | $.kCGWindowListExcludeDesktopElements, $.kCGNullWindowID))) || [];
+	const windows = (ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionAll | $.kCGWindowListExcludeDesktopElements, $.kCGNullWindowID))) || []).filter(window => window.kCGWindowLayer === 0);
+	const onSpace = getOnSpace(windows);
+	const appPaths = new Map();
 	return JSON.stringify({
 		frontmostPid: frontmost.isNil() ? undefined : frontmost.processIdentifier,
-		windows: windows.filter(window => window.kCGWindowLayer === 0).map(window => ({
+		windows: windows.map(window => ({
 			id: window.kCGWindowNumber,
 			pid: window.kCGWindowOwnerPID,
 			layer: window.kCGWindowLayer,
 			alpha: window.kCGWindowAlpha,
 			bounds: { x: window.kCGWindowBounds.X, y: window.kCGWindowBounds.Y, width: window.kCGWindowBounds.Width, height: window.kCGWindowBounds.Height },
 			onScreen: !!window.kCGWindowIsOnscreen,
+			onSpace: onSpace && onSpace.get(window.kCGWindowNumber),
 			title: window.kCGWindowName || undefined,
+			appPath: getAppPath(appPaths, window.kCGWindowOwnerPID),
 		})),
 	});
+}
+function getOnSpace(windows) {
+	try {
+		ObjC.bindFunction('CGSMainConnectionID', ['int', []]);
+		ObjC.bindFunction('CGSCopySpacesForWindows', ['id', ['int', 'int', 'id']]);
+		const connection = $.CGSMainConnectionID();
+		const onSpace = new Map();
+		for (const window of windows) {
+			// The mask 7 includes the current Space, the others and the user's.
+			const spaces = ObjC.deepUnwrap($.CGSCopySpacesForWindows(connection, 7, $([window.kCGWindowNumber])));
+			if (Array.isArray(spaces)) {
+				onSpace.set(window.kCGWindowNumber, spaces.length > 0);
+			}
+		}
+		return onSpace;
+	} catch (error) {
+		return undefined;
+	}
+}
+function getAppPath(appPaths, pid) {
+	if (!appPaths.has(pid)) {
+		const app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(pid);
+		appPaths.set(pid, app.isNil() || app.bundleURL.isNil() ? undefined : app.bundleURL.path.js);
+	}
+	return appPaths.get(pid);
 }`;
 
 /** How long listing the windows may take before a capture goes ahead without knowing where they are. */
@@ -115,7 +145,8 @@ function isScreenWindow(value: unknown): value is IScreenWindow {
 	const window = value as Partial<Record<keyof IScreenWindow, unknown>>;
 	const bounds = window.bounds as Partial<Record<keyof IScreenWindow['bounds'], unknown>> | undefined;
 	return typeof window.id === 'number' && typeof window.pid === 'number' && typeof window.layer === 'number' && typeof window.alpha === 'number'
-		&& typeof window.onScreen === 'boolean' && (window.title === undefined || typeof window.title === 'string')
+		&& typeof window.onScreen === 'boolean' && (window.onSpace === undefined || typeof window.onSpace === 'boolean')
+		&& (window.title === undefined || typeof window.title === 'string') && (window.appPath === undefined || typeof window.appPath === 'string')
 		&& typeof bounds === 'object' && bounds !== null
 		&& typeof bounds.x === 'number' && typeof bounds.y === 'number' && typeof bounds.width === 'number' && typeof bounds.height === 'number';
 }

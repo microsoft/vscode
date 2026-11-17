@@ -11,7 +11,6 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { AccountClient } from '../../../../../platform/github/common/account/accountClient.js';
 import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../../../../platform/github/common/client/request.js';
 import { parse } from '../../../../../platform/github/common/client/schema.js';
-import { GitHubAuthorizationContext } from '../../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -20,7 +19,7 @@ import { CloudSandboxApiService } from '../../../../contrib/chat/browser/remoteA
 import { withCloudSandboxDraftModelConfig } from '../../../../contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { ICloudSandboxTelemetryService } from '../../../../contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../services/github/common/githubService.js';
 import { TestUserDataProfileService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { renderPicker } from './tabbedModelPicker.fixture.js';
@@ -29,7 +28,7 @@ async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' 
 	const details = view !== 'list';
 	const unknownLimits = view === 'unknown';
 	const requestProvider: IApiRequestProvider = {
-		request: async <T>(_request: ApiRequest, _signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => ({
+		request: async <T>(_request: ApiRequest, _signal: CancellationToken, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => ({
 			status: 200,
 			data: parser?.(JSON.stringify({
 				data: [
@@ -67,7 +66,12 @@ async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' 
 			override reportRequest(): void { }
 		}(),
 		new class extends mock<IWorkbenchGitHubService>() {
-			override async acquireAccountApiClient(authorization: GitHubAuthorizationContext) {
+			override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>) {
+				if (args.length !== 3) {
+					throw new Error('Expected a selected authentication session');
+				}
+				const [providerId, session] = args;
+				const authorization = toGitHubAuthorizationContext(providerId, session);
 				return new AccountClient(authorization, { rest: requestProvider, graphql: requestProvider, missionControl: requestProvider }, Disposable.None);
 			}
 		}(),

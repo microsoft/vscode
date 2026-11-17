@@ -836,14 +836,16 @@ per-word capitalization does not survive translation. */
 	border-color: var(--vscode-contrastBorder, transparent);
 }
 
-/* "Managed by your organization" tag for customizations controlled by the user's organization */
-.inline-badge.organization-managed-tag {
+/* Tags next to a customization's name: "Managed by your organization" and "Managed by your GitHub Team" */
+.inline-badge.organization-managed-tag,
+.inline-badge.team-provided-tag {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
 }
 
-.inline-badge.organization-managed-tag .codicon {
+.inline-badge.organization-managed-tag .codicon,
+.inline-badge.team-provided-tag .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
@@ -1482,7 +1484,11 @@ per-word capitalization does not survive translation. */
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.ai-customization-management-editor .copilot-customization-tree-item.disabled .copilot-customization-tree-text {
+.ai-customization-management-editor .copilot-customization-tree-icon {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.disabled :is(.copilot-customization-tree-text, .copilot-customization-tree-icon) {
 	opacity: 0.6;
 }
 
