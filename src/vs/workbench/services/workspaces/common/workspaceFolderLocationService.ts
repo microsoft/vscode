@@ -80,8 +80,7 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	async getFolderLocations(folder: IWorkspaceFolder, token: CancellationToken): Promise<IFolderLocation[]> {
 		const primary = this.getPrimaryLocation(folder);
-		const current = this.getLocation(folder);
-		const result: IFolderLocation[] = [{ uri: primary, label: current?.label ?? basename(primary) }];
+		const result: IFolderLocation[] = [{ uri: primary, label: basename(primary) }];
 		if (this.isAtAlternateLocation(folder) || this.canSetLocation(folder)) {
 			const extUri = this.uriIdentityService.extUri;
 			for (const location of await this.getLocations(primary, token)) {

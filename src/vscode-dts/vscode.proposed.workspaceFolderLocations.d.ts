@@ -45,9 +45,14 @@ declare module 'vscode' {
 		 *
 		 * Resolution is lazy: it starts when this property is first read or when
 		 * {@link workspace.onDidChangeWorkspaceFolderLocations} is subscribed to.
-		 * The first read returns a synchronous value holding only the primary
-		 * location. The full set arrives later through the event, so prefer
-		 * subscribing to the event. The property is not enumerable, so spreading
+		 * Until the set is resolved, a read returns a synchronous initial value holding
+		 * only the primary location. The full set arrives later through the event, so
+		 * prefer subscribing to the event. Once the set is known, a read returns it right
+		 * away, for example for a late reader after another extension resolved it. When
+		 * the folder is switched to another location, the known set is carried over to the
+		 * folder objects delivered in the removed and added callback of
+		 * {@link workspace.onDidChangeWorkspaceFolders}, before that callback runs. The
+		 * primary location is always the first entry. The property is not enumerable, so spreading
 		 * or serializing a folder does not trigger resolution.
 		 *
 		 * Alternate locations are currently only discovered for a folder that is the

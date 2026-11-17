@@ -105,6 +105,31 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual({ events, set, cleared: service.getLocation(workspace.folders[0]) }, { events: ['/a:user', '/a:programmatic'], set: location, cleared: undefined });
 	});
 
+	test('the known locations do not depend on the location the folder is at', async () => {
+		const worktree = URI.file('/work/wt1');
+		const repo = URI.file('/work/repo');
+		const context = new TestContextService(new Workspace('id', [folder(repo)], false, null, () => false));
+		const labelService = new class extends mock<ILabelService>() {
+			override registerWorkspaceLabelDecorator() { return toDisposable(() => { }); }
+		}();
+		const service = disposables.add(new WorkspaceFolderLocationService(disposables.add(new UriIdentityService(disposables.add(new FileService(new NullLogService())))), context, labelService));
+		disposables.add(service.registerProvider(provider('x', [{ uri: worktree, label: 'wt1' }])));
+		let changes = 0;
+		disposables.add(service.onDidChangeLocations(() => changes++));
+		const read = () => service.getFolderLocations(context.getWorkspace().folders[0], CancellationToken.None);
+
+		const atPrimary = await read();
+		context.setWorkspace(new Workspace('id', [folder(worktree)], false, null, () => false, undefined, repo));
+		service.setLocation(context.getWorkspace().folders[0], { uri: worktree, label: 'wt1', providerId: 'x', builtIn: false }, 'user');
+		const atAlternate = await read();
+		context.setWorkspace(new Workspace('id', [folder(repo)], false, null, () => false));
+		service.setLocation(context.getWorkspace().folders[0], undefined, 'user');
+		const switchedBack = await read();
+
+		assert.deepStrictEqual({ atAlternate, switchedBack, changes }, { atAlternate: atPrimary, switchedBack: atPrimary, changes: 0 });
+		assert.deepStrictEqual(atPrimary.map(l => [l.uri.path, l.label]), [['/work/repo', 'repo'], ['/work/wt1', 'wt1']]);
+	});
+
 	test('folder identity and alternate location checks', () => {
 		const check = (workspace: Workspace) => disposables.add(createService(workspace)).isAtAlternateLocation(workspace.folders[0]);
 
