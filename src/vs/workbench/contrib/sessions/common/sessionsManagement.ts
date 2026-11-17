@@ -13,6 +13,7 @@ import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { SessionCategory } from './sessionCategory.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
@@ -77,6 +78,7 @@ export interface IProviderSessionType {
  * Options for {@link ISessionsManagementService.createNewSession}.
  */
 export interface ICreateNewSessionOptions {
+	readonly category?: SessionCategory;
 	/**
 	 * Force creation through a specific provider. When omitted, the service
 	 * iterates registered providers and picks the first one whose

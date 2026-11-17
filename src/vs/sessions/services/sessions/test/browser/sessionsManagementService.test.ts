@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { ISessionCategoriesService, SessionCategoriesService } from '../../../../../workbench/contrib/sessions/common/sessionCategory.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -275,6 +277,13 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async createSideChat(_sessionId: string, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 }
 
+function instantiateSessionsManagement(instantiationService: TestInstantiationService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsManagementService {
+	instantiationService.stub(ISessionCategoriesService, disposables.add(new SessionCategoriesService(
+		instantiationService.get(IStorageService), upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+	)));
+	return instantiationService.createInstance(SessionsManagementService);
+}
+
 function createSessionsManagementService(
 	session: ISession,
 	disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>,
@@ -285,7 +294,7 @@ function createSessionsManagementService(
 	partServiceOverride?: TestSessionsPartService,
 	storageOverride?: InMemoryStorageService,
 	openTelemetryService?: ISessionOpenTelemetryService,
-): { service: ISessionsManagementService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; canvasService: TestWindowCanvasService; layoutService: IWorkbenchLayoutService; focusPane: Emitter<string>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
+): { service: ISessionsManagementService; categories: ISessionCategoriesService; view: SessionsService; chatWidgetService: TestChatWidgetService; chatService: TestChatService; contextKeyService: MockContextKeyService; customViewService: ICustomViewService; canvasService: TestWindowCanvasService; layoutService: IWorkbenchLayoutService; focusPane: Emitter<string>; sessionsPartService: TestSessionsPartService; notifications: (NotificationMessage | NotificationMessage[])[] } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const notifications: (NotificationMessage | NotificationMessage[])[] = [];
 	instantiationService.stub(INotificationService, { error: message => notifications.push(message) });
@@ -317,11 +326,11 @@ function createSessionsManagementService(
 		instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
 	}
 
-	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+	const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 	const focusPane = disposables.add(new Emitter<string>());
 	const sessionsPartService = partServiceOverride ?? new TestSessionsPartService(focusPane.event);
 	const view = createView(instantiationService, service, disposables, customViewService, sessionsPartService, openTelemetryService, canvasService, layoutService);
-	return { service, view, chatWidgetService, chatService, contextKeyService, customViewService, canvasService, layoutService, focusPane, sessionsPartService, notifications };
+	return { service, categories: instantiationService.get(ISessionCategoriesService), view, chatWidgetService, chatService, contextKeyService, customViewService, canvasService, layoutService, focusPane, sessionsPartService, notifications };
 }
 
 function createSessionLayoutService(): IWorkbenchLayoutService {
@@ -5286,7 +5295,7 @@ suite('SessionsManagementService', () => {
 			override readonly onDidSubmitRequest = Event.None;
 		});
 
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		const view = createView(instantiationService, service, disposables);
 
 		// Open the original session so it becomes the active session
@@ -5372,7 +5381,7 @@ suite('SessionsManagementService', () => {
 			override readonly onDidSubmitRequest = Event.None;
 		});
 
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		const view = createView(instantiationService, service, disposables);
 
 		// At this point the provider does not yet know about the session
@@ -5429,7 +5438,7 @@ suite('SessionsManagementService', () => {
 			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 				override readonly onDidSubmitRequest = Event.None;
 			});
-			const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+			const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 			const view = createView(instantiationService, service, disposables);
 			return { service, view };
 		};
@@ -5486,7 +5495,7 @@ suite('SessionsManagementService', () => {
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 			override readonly onDidSubmitRequest = Event.None;
 		});
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		const view = createView(instantiationService, service, disposables);
 
 		// Restore starts but the provider has not yet surfaced the session.
@@ -5543,7 +5552,7 @@ suite('SessionsManagementService', () => {
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 			override readonly onDidSubmitRequest = Event.None;
 		});
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		const view = createView(instantiationService, service, disposables);
 		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
@@ -5977,7 +5986,7 @@ suite('SessionsManagementService', () => {
 			override readonly onDidSubmitRequest = Event.None;
 		});
 
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		const view = createView(instantiationService, service, disposables);
 
 		await view.restoreVisibleSessions();
@@ -6088,7 +6097,7 @@ suite('SessionsManagementService', () => {
 			override readonly onDidSubmitRequest = Event.None;
 		});
 
-		const managementService = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const managementService = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		const view = createView(instantiationService, managementService, disposables);
 		await view.restoreVisibleSessions();
 
@@ -6356,7 +6365,7 @@ suite('SessionsManagementService', () => {
 			override readonly onDidSubmitRequest = Event.None;
 		});
 
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		const view = createView(instantiationService, service, disposables);
 
 		// Record every grid state published while restoring.
@@ -6400,6 +6409,60 @@ suite('SessionsManagementService', () => {
 		// follows the send and never resets the active slot).
 		await service.sendNewChatRequest(session, { query: 'hi' });
 		assert.strictEqual(activeSessionOf(view)?.sessionId, 's1');
+	});
+
+	test('creation tab survives sending and graduation in either workspace mode, even after switching tabs', async () => {
+		const results: { background: boolean; quickChat: boolean; draft: string; started: string }[] = [];
+		for (const background of [false, true]) {
+			for (const quickChat of [false, true]) {
+				const folder = URI.file('/personal');
+				const workspace: ISessionWorkspace = { uri: folder, label: 'personal', icon: Codicon.folder, folders: [{ root: folder, workingDirectory: folder, name: 'personal', description: undefined }], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+				const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(quickChat), workspace: constObservable(quickChat ? undefined : workspace) });
+				const started = stubSession({ sessionId: 'started', providerId: 'test', isQuickChat: constObservable(quickChat) });
+				const provider = new class extends TestSessionsProvider {
+					override readonly supportsQuickChats = true;
+					override resolveWorkspace(): ISessionWorkspace { return workspace; }
+					override createQuickChat(): ISession { return draft; }
+					override async sendRequest(): Promise<ISession> { return started; }
+				}(draft);
+				const { service, categories } = createSessionsManagementService(draft, disposables, provider);
+				categories.selectCategory(quickChat ? 'work' : 'chat');
+				const created = quickChat ? service.createQuickChat()! : service.createNewSession(folder);
+				const draftCategory = categories.getCategory(created.sessionId);
+				categories.selectCategory(quickChat ? 'chat' : 'work');
+				const startedEvent = Event.toPromise(service.onDidStartSession);
+				await service.sendNewChatRequest(created, { query: 'hello', background });
+				await startedEvent;
+				results.push({ background, quickChat, draft: draftCategory, started: categories.getCategory(started.sessionId) });
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ background: false, quickChat: false, draft: 'chat', started: 'chat' },
+			{ background: false, quickChat: true, draft: 'work', started: 'work' },
+			{ background: true, quickChat: false, draft: 'chat', started: 'chat' },
+			{ background: true, quickChat: true, draft: 'work', started: 'work' },
+		]);
+	});
+
+	test('a Chat draft keeps its category when a workspace is selected after switching to Work', () => {
+		const quick = stubSession({ sessionId: 'quick', providerId: 'test', isQuickChat: constObservable(true) });
+		const folder = URI.file('/personal');
+		const workspace: ISessionWorkspace = { uri: folder, label: 'personal', icon: Codicon.folder, folders: [{ root: folder, workingDirectory: folder, name: 'personal', description: undefined }], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+		const project = stubSession({ sessionId: 'project', providerId: 'test', workspace: constObservable(workspace) });
+		const provider = new class extends TestSessionsProvider {
+			override readonly supportsQuickChats = true;
+			override createQuickChat(): ISession { return quick; }
+			override createNewSession(): ISession { return project; }
+			override resolveWorkspace(): ISessionWorkspace { return workspace; }
+		}(quick);
+		const { service, categories } = createSessionsManagementService(quick, disposables, provider);
+		categories.selectCategory('chat');
+		service.createQuickChat();
+		categories.selectCategory('work');
+		const replacement = service.createNewSession(folder);
+		assert.deepStrictEqual({ workspace: replacement.workspace.get()?.uri, category: categories.getCategory(replacement.sessionId) }, {
+			workspace: folder, category: 'chat',
+		});
 	});
 
 	test('forwards prompts and session references unchanged without special troubleshoot augmentation', async () => {
@@ -7806,7 +7869,7 @@ suite('SessionsManagementService', () => {
 			override async requestResourcesTrust(): Promise<boolean> { return true; }
 		});
 
-		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		const view = createView(instantiationService, service, disposables);
 		await view.openSession(extHostSession.resource);
 
@@ -9001,7 +9064,7 @@ suite('SessionsManagementService', () => {
 			instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
 				override moveHistory(): void { }
 			});
-			return disposables.add(instantiationService.createInstance(SessionsManagementService));
+			return disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		}
 
 		test('groups sessions by provider and continues when one provider fails (best-effort)', async () => {
@@ -9936,7 +9999,7 @@ suite('SessionsManagementService', () => {
 				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 					override readonly onDidSubmitRequest = Event.None;
 				});
-				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 				return createView(instantiationService, service, disposables);
 			};
 
@@ -9988,7 +10051,7 @@ suite('SessionsManagementService', () => {
 				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 					override readonly onDidSubmitRequest = Event.None;
 				});
-				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 				return createView(instantiationService, service, disposables);
 			};
 
@@ -10024,7 +10087,7 @@ suite('SessionsManagementService', () => {
 				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 					override readonly onDidSubmitRequest = Event.None;
 				});
-				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 				return createView(instantiationService, service, disposables);
 			};
 
@@ -10091,7 +10154,7 @@ suite('SessionsManagementService', () => {
 				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 					override readonly onDidSubmitRequest = Event.None;
 				});
-				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 				return createView(instantiationService, service, disposables);
 			};
 
@@ -10130,7 +10193,7 @@ suite('SessionsManagementService', () => {
 				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 					override readonly onDidSubmitRequest = Event.None;
 				});
-				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				const service = disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 				return createView(instantiationService, service, disposables);
 			};
 
@@ -10631,7 +10694,7 @@ suite('SessionsManagementService', () => {
 			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 				override readonly onDidSubmitRequest = Event.None;
 			});
-			return disposables.add(instantiationService.createInstance(SessionsManagementService));
+			return disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 		}
 
 		test('creates a session via the first capable provider (by order) and defaults the type', () => {
@@ -11406,5 +11469,5 @@ function createOrderedTypesService(disposables: ReturnType<typeof ensureNoDispos
 		override readonly onDidSubmitRequest = Event.None;
 	});
 
-	return disposables.add(instantiationService.createInstance(SessionsManagementService));
+	return disposables.add(instantiateSessionsManagement(instantiationService, disposables));
 }

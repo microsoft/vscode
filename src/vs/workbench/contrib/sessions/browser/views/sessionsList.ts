@@ -4648,6 +4648,7 @@ function toDropReaction(feedback: ISessionDropFeedback | undefined): ITreeDragOv
 interface ISessionsListControlBaseOptions {
 	/** A strict category scope, including the active session, pins, groups, and pending items. */
 	readonly kind?: IObservable<SessionsListKind>;
+	readonly getCategory?: (session: ISession, reader?: IReader) => SessionsListKind;
 	readonly pendingSections?: IObservable<readonly IPendingSessionSection[]>;
 	readonly schedulingEnabled?: IObservable<boolean>;
 	readonly scheduledSessions?: IObservable<readonly IPendingSessionItem[]>;
@@ -6058,6 +6059,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				session.application.read(reader);
 				session.workspace.read(reader);
 				session.isQuickChat?.read(reader);
+				this.options.getCategory?.(session, reader);
 			}
 			if (initialized && this.visible) {
 				this.sessionChatsUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
@@ -6135,9 +6137,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const isComparisonInScope = (comparison: ISessionComparison) => {
 			const sessions = getComparisonSessions(comparison, this._sessionsManagementService);
 			return (!scope || sessions.some(session => scope.has(session.sessionId)))
-				&& (sessions.length > 0
-					? sessions.some(session => matchesSessionsListKind(kind, session.isQuickChat?.get()))
-					: matchesSessionsListKind(kind, !comparison.workspace));
+				&& matchesSessionsListKind(kind, comparison.category);
 		};
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
@@ -6561,9 +6561,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 
-			// Chat-only lists start expanded; other hosts keep Chats collapsed by default.
-			// Saved collapse choices take precedence.
-			if (section.id === 'pinned' && !inbox || section.id === QUICK_CHATS_SECTION_ID && kind !== 'chat') {
+			// Saved collapse choices take precedence over the initially collapsed Pinned and Chats sections.
+			if (section.id === 'pinned' && !inbox || section.id === QUICK_CHATS_SECTION_ID) {
 				defaultCollapsed = ObjectTreeElementCollapseState.PreserveOrCollapsed;
 			}
 			const savedCollapsed = this.getSavedCollapseState(section.collapseStateId ?? section.id, section.collapseStateId ? section.id : undefined);
@@ -6691,7 +6690,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pendingItems = [
 			...(this.options.scheduledSessions?.get() ?? []),
 			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesSessionsListKind(this.options.kind?.get(), item.isQuickChat) && matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
+		].filter(item => matchesSessionsListKind(this.options.kind?.get(), item.category) && matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
 			children.push({
@@ -9508,7 +9507,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Whether the list includes the session before its source filters apply. */
 	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return matchesSessionsListKind(this.options.kind?.read(reader), session.isQuickChat?.read(reader))
+		return matchesSessionsListKind(this.options.kind?.read(reader), this.options.getCategory?.(session, reader))
 			&& this._sessionsListModelService.isSessionListed(session, reader, this.filters.isShowAutomationRuns(reader));
 	}
 
@@ -9731,7 +9730,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * folders, which lists no quick chat and starts none.
 	 */
 	private get hasQuickChatsSection(): boolean {
-		return !this.options.scoped?.get() && this.options.kind?.get() !== 'work';
+		return !this.options.scoped?.get() && !this.options.kind;
 	}
 
 	private isRenderedInExternalSection(session: ISession): boolean {

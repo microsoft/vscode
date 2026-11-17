@@ -60,8 +60,8 @@ suite('Sessions - pending list items', () => {
 	test('Work/Chat scope separates drafts and schedules without changing their saved targets', () => {
 		const harness = createListHarness(disposables, []);
 		const kind = observableValue<SessionsListKind>(disposables, 'work');
-		const drafts = [item('work-draft'), item('chat-draft', { isQuickChat: true })];
-		const schedules = [item('work-schedule', { kind: 'scheduled' }), item('chat-schedule', { kind: 'scheduled', isQuickChat: true })];
+		const drafts = [item('work-draft', { isQuickChat: true }), item('chat-draft', { category: 'chat', folderUri: URI.file('/personal') })];
+		const schedules = [item('work-schedule', { kind: 'scheduled', isQuickChat: true }), item('chat-schedule', { kind: 'scheduled', category: 'chat', folderUri: URI.file('/personal') })];
 		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 			kind, grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
 			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: drafts }]),

@@ -29,6 +29,7 @@ import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INeste
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
 import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISessionCategoriesService } from '../common/sessionCategory.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 
@@ -187,6 +188,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ISessionCategoriesService private readonly sessionCategoriesService: ISessionCategoriesService,
 	) {
 		super();
 
@@ -584,6 +586,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._getProvider(current)?.deleteNewSession(current.sessionId);
 		// The owner stays known while listeners handle the discard.
 		this._onDidDiscardNewSession.fire(current);
+		this.sessionCategoriesService.removeCategory(current.sessionId);
 		this._deleteOwnership(current.sessionId, 'draft', slot);
 	}
 
@@ -615,6 +618,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	/** Makes `session` the draft of `slot`, replacing (and deleting) the slot's previous draft. */
 	private _setSlotDraft(slot: NewSessionDraftSlot, session: ISession): void {
 		const previousNewSession = slot.newSession.get();
+		if (previousNewSession) {
+			this.sessionCategoriesService.transferCategory(previousNewSession.sessionId, session.sessionId);
+		}
+		this.sessionCategoriesService.assignCategory(session.sessionId);
 		this._ownership.set(session.sessionId, { owner: slot, session, state: 'draft', retry: false, removed: false });
 		// Providers no longer dispose the previous new session implicitly, so
 		// dispose the one this composer just replaced. Use its own provider
@@ -640,6 +647,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	/** Moves the ownership of a replaced session to its replacement. */
 	private _moveOwnership(from: ISession, to: ISession): void {
+		this.sessionCategoriesService.transferCategory(from.sessionId, to.sessionId);
 		const ownership = this._ownership.get(from.sessionId);
 		if (!ownership) {
 			return;
@@ -741,6 +749,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
 		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
 		this._setSlotDraft(slot, session);
+		if (options?.category) {
+			this.sessionCategoriesService.setCategory(session.sessionId, options.category);
+		}
 		return session;
 	}
 
@@ -824,6 +835,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
 		this._setSlotDraft(slot, session);
+		if (options?.category) {
+			this.sessionCategoriesService.setCategory(session.sessionId, options.category);
+		}
 		return session;
 	}
 
@@ -948,6 +962,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
+		if (isNewSessionRequest) {
+			this.sessionCategoriesService.assignCategory(session.sessionId);
+		}
 		if (isNewSessionRequest && !provider.sessionTypes.some(type => type.id === session.sessionType)) {
 			throw new Error(localize('newSession.typeUnavailable', "{0} is no longer available for new sessions. Choose an available agent to try again.", provider.label));
 		}
@@ -1016,6 +1033,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 			}
 			started = updatedSession;
+			this.sessionCategoriesService.transferCategory(session.sessionId, updatedSession.sessionId);
 			this._onDidStartSession.fire(updatedSession);
 			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, newSessionConfig, options });
 		} catch (e) {
@@ -1185,6 +1203,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * disposed through its provider and the error is rethrown.
 	 */
 	async createAndSendNewChatRequest(folderUri: URI, options: NewSessionRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
+		const category = createOptions?.category ?? this.sessionCategoriesService.selectedCategory.get();
 		const { provider, sessionTypeId, workspace } = this._resolveProviderForNewSession(folderUri, createOptions);
 		if (workspace.requiresWorkspaceTrust) {
 			const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(folderUri);
@@ -1193,6 +1212,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, createOptions));
+		this.sessionCategoriesService.assignCategory(session.sessionId, category);
 		this._unlistedNewSessions.set(session.resource, session);
 		const requestActivity = new MutableDisposable();
 		try {
@@ -1203,6 +1223,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				await createOptions?.onSessionCreated?.(session);
 			} catch (error) {
 				provider.deleteNewSession(session.sessionId);
+				this.sessionCategoriesService.removeCategory(session.sessionId);
 				throw error;
 			}
 			const supportsWorktreeConfiguration = provider.getSessionTypes(folderUri)
@@ -1217,10 +1238,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<ISession | undefined> {
 		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(createOptions);
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, createOptions));
+		this.sessionCategoriesService.assignCategory(session.sessionId, createOptions?.category);
 		try {
 			await createOptions?.onSessionCreated?.(session);
 		} catch (error) {
 			provider.deleteNewSession(session.sessionId);
+			this.sessionCategoriesService.removeCategory(session.sessionId);
 			throw error;
 		}
 		return this._configureAndSendNewSession(provider, session, options, createOptions, false, token);
@@ -1262,6 +1285,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			// through its provider to release the eager backend session before
 			// rethrowing. Safe no-op if the provider already removed it.
 			provider.deleteNewSession(session.sessionId);
+			this.sessionCategoriesService.removeCategory(session.sessionId);
 			throw e;
 		} finally {
 			inFlightRequest.dispose();
@@ -1440,6 +1464,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (this._store.isDisposed) {
 			return undefined;
 		}
+		this.sessionCategoriesService.transferCategory(session.sessionId, updatedSession.sessionId);
 		this._onDidStartSession.fire(updatedSession);
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, newSessionConfig, options });
 		return updatedSession;
@@ -1482,7 +1507,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (updatedSession.sessionId !== session.sessionId) {
 			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 		}
-
+		this.sessionCategoriesService.transferCategory(session.sessionId, updatedSession.sessionId);
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
 	}
 
@@ -1513,6 +1538,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (this._store.isDisposed) {
 			return;
 		}
+		this.sessionCategoriesService.transferCategory(session.sessionId, updatedSession.sessionId);
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
 	}
 
@@ -1753,6 +1779,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async deleteSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.deleteSession(session.sessionId);
+		this.sessionCategoriesService.removeCategory(session.sessionId);
 		this._explicitlyMarkedUnreadChats.delete(session.resource);
 		this._onDidDeleteSession.fire(session);
 	}
@@ -1777,6 +1804,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			try {
 				await provider.deleteSessions(providerSessions.map(session => session.sessionId));
 				for (const session of providerSessions) {
+					this.sessionCategoriesService.removeCategory(session.sessionId);
 					this._explicitlyMarkedUnreadChats.delete(session.resource);
 					this._onDidDeleteSession.fire(session);
 				}

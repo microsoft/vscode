@@ -32,6 +32,7 @@ import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
+import { ISessionCategoriesService } from '../../common/sessionCategory.js';
 
 /** The folder, provider and agent a new session inherits ({@link getInheritedNewSessionTarget}). */
 export interface IInheritedNewSessionTarget extends Pick<ICreateNewSessionOptions, 'providerId' | 'sessionTypeId'> {
@@ -110,10 +111,11 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const chatCategorySelected = !options && accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionKind === 'chat';
-		if (chatCategorySelected) {
+		const category = !options ? accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionKind : undefined;
+		const sessionCategoriesService = category ? accessor.get(ISessionCategoriesService) : undefined;
+		if (category === 'chat') {
 			if (!sessionsManagementService.isQuickChatTargetAvailable()) {
-				throw new Error(localize('sessions.newSession.quickChatUnavailable', "Chat is unavailable. Enable an agent that supports conversations without a project."));
+				throw new Error(localize('sessions.newSession.quickChatUnavailable', "Workspace-less chat is unavailable. Enable an agent that supports sessions without a project."));
 			}
 			options = { noWorkspace: true };
 		}
@@ -150,12 +152,15 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			if (options.agentHostProvider && !availableTarget) {
 				throw new Error(localize('sessions.newSession.agentUnavailable', "The requested Agent Host provider '{0}' is unavailable.", options.agentHostProvider));
 			}
-			const session = sessionsService.openQuickChat(availableTarget, true);
+			const session = sessionsService.openQuickChat(category ? { ...availableTarget, category } : availableTarget, true);
+			if (category && session) {
+				sessionCategoriesService!.setCategory(session.sessionId, category);
+			}
+			if (category === 'chat' && !session) {
+				throw new Error(localize('sessions.newSession.quickChatCreationFailed', "Could not create a conversation without a project."));
+			}
 			if (options.agentHostProvider && !session) {
 				throw new Error(localize('sessions.newSession.creationFailed', "Could not create a session for Agent Host provider '{0}'.", options.agentHostProvider));
-			}
-			if (chatCategorySelected && !session) {
-				throw new Error(localize('sessions.newSession.quickChatCreationFailed', "Could not create a conversation without a project."));
 			}
 			sendPrompt();
 			return session?.resource;
@@ -169,7 +174,10 @@ export class NewChatInSessionsWindowAction extends Action2 {
 				recentWorkspacesService.clearCheckedWorkspace();
 			}
 			sessionsService.unsetNewSession();
-			await sessionsService.openNewSession();
+			const { session } = await sessionsService.openNewSession();
+			if (category && session) {
+				sessionCategoriesService!.setCategory(session.sessionId, category);
+			}
 			partService.getSessionView(mainWindowHost.session.get()?.sessionId)?.focusWorkspacePicker();
 			sendPrompt();
 			return;
@@ -177,7 +185,11 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		const { session } = await sessionsService.openNewSession({
 			toSide: options?.toSide,
 			...getInheritedNewSessionTarget(sessionsManagementService, accessor.get(ISessionsProvidersService), isQuickChat ? undefined : activeSession),
+			...(category ? { category } : {}),
 		});
+		if (category && session) {
+			sessionCategoriesService!.setCategory(session.sessionId, category);
+		}
 		sendPrompt();
 		return session?.resource;
 	}

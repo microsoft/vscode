@@ -206,10 +206,10 @@ suite('Sessions - SessionsList', () => {
 	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
 		upcastPartial<IAutomationDescriptor>({ id, ownership });
 
-	test('Work/Chat scope separates active, pinned, grouped and archived sessions without treating missing workspace metadata as Chat', () => {
+	test('Work/Chat scope uses assigned categories for active, pinned, grouped and archived sessions, not workspace intent', () => {
 		const sessions = [
-			createTestSession('work', { status: SessionStatus.InProgress }).session,
-			createTestSession('chat', { isQuickChat: true, status: SessionStatus.InProgress }).session,
+			createTestSession('work', { isQuickChat: true, status: SessionStatus.InProgress }).session,
+			createTestSession('chat', { workspaceLabel: 'personal', status: SessionStatus.InProgress }).session,
 			createTestSession('pinned-work').session,
 			createTestSession('pinned-chat', { isQuickChat: true }).session,
 			createTestSession('archived-work', { isArchived: true }).session,
@@ -234,6 +234,7 @@ suite('Sessions - SessionsList', () => {
 			}
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 				kind, grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				getCategory: session => session.sessionId.includes('chat') ? 'chat' : 'work',
 			}));
 			list.setExcludeArchived(false);
 			const work = collectIds(list.getTreeSnapshot()).sort();
@@ -250,19 +251,21 @@ suite('Sessions - SessionsList', () => {
 		})));
 	});
 
-	test('Work/Chat scope expands Chats initially but preserves a saved collapse choice', () => {
-		const harness = createListHarness(disposables, [createTestSession('chat', { isQuickChat: true }).session]);
+	test('Work groups by folder and Chat lists folder-backed sessions by date without folder headers', () => {
+		const sessions = [
+			createTestSession('work', { workspaceLabel: 'Work Folder' }).session,
+			createTestSession('chat', { workspaceLabel: 'Personal Folder' }).session,
+		];
+		const harness = createListHarness(disposables, sessions);
 		const kind = observableValue<SessionsListKind>(disposables, 'work');
 		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
-			kind, grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			kind, grouping: () => kind.get() === 'work' ? SessionsGrouping.Workspace : SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			getCategory: session => session.sessionId === 'chat' ? 'chat' : 'work',
 		}));
-		const collapseState = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' && node.id === QUICK_CHATS_SECTION_ID ? [node.collapsed] : []);
+		const sections = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [node.label] : []);
+		const work = sections();
 		kind.set('chat', undefined);
-		const initial = collapseState();
-		list.setHeaderCollapsed(QUICK_CHATS_SECTION_ID, true);
-		kind.set('work', undefined);
-		kind.set('chat', undefined);
-		assert.deepStrictEqual({ initial, restored: collapseState() }, { initial: [false], restored: [true] });
+		assert.deepStrictEqual({ work, chat: sections() }, { work: ['Work Folder'], chat: ['Recent'] });
 	});
 
 	test('Work/Chat scope keeps comparisons in their category, including pending comparisons', () => {
@@ -271,7 +274,8 @@ suite('Sessions - SessionsList', () => {
 		const groups: ISessionGroup[] = ['work-comparison', 'chat-comparison', 'pending-work', 'pending-chat'].map(id => ({ id, name: id, createdAt: 1 }));
 		const comparisons: ISessionComparison[] = groups.map((group, index) => ({
 			id: group.id, groupId: group.id, title: group.name, prompt: 'Compare', createdAt: 1,
-			workspace: index % 2 === 0 ? URI.file('/workspace') : undefined,
+			category: index % 2 === 0 ? 'work' : 'chat',
+			workspace: index % 2 === 1 ? URI.file('/workspace') : undefined,
 			launching: index >= 2,
 			participants: index < 2 ? [{
 				id: 'attempt', role: SessionComparisonParticipantRole.Attempt,
@@ -285,6 +289,7 @@ suite('Sessions - SessionsList', () => {
 		const kind = observableValue<SessionsListKind>(disposables, 'work');
 		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 			kind, grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			getCategory: session => session.sessionId === chat.sessionId ? 'chat' : 'work',
 		}));
 		const collectGroups = (nodes: readonly SessionsListSnapshotNode[]): string[] => nodes.flatMap(node => node.type === 'session' ? [] : [
 			...(node.type === 'group' ? [node.label] : []), ...collectGroups(node.children),

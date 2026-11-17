@@ -34,9 +34,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentsView/' }, {
 	WorkAndChat: viewletFixture({
 		sessions: [
 			{ id: 'work', title: 'Review the navigation fix', workspace: 'vscode', minutesAgo: 2 },
-			{ id: 'personal', title: 'Plan a weekend trip', isQuickChat: true, minutesAgo: 10 },
+			{ id: 'personal', title: 'Plan a weekend trip', workspace: 'travel', category: 'chat', minutesAgo: 10 },
 		],
-	}, 'The Agents window Sessions view has a labeled Work/Chat segmented switch above the list. Work is selected and only the project session is listed. Selecting Chat shows the personal conversation instead.', { separateWorkAndChat: true }),
+	}, 'The Agents window Sessions view has a labeled Work/Chat segmented switch above the list. Work is selected and the work session is grouped by folder. Selecting Chat shows the personal conversation by date, without its workspace folder header.', { separateWorkAndChat: true }),
 	Viewlet: viewletFixture({
 		sessions: [
 			{ id: 'working', title: 'Add regression tests', workspace: 'vscode', status: SessionStatus.InProgress },

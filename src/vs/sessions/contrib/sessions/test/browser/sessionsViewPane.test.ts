@@ -36,6 +36,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatCustomizationsLocation } from '../../../../../workbench/contrib/chat/common/customizationsLocation.js';
 import { SessionsWorkChatToggle } from '../../../../../workbench/contrib/sessions/browser/views/sessionsWorkChatToggle.js';
+import { SessionCategoriesService } from '../../../../../workbench/contrib/sessions/common/sessionCategory.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
@@ -67,7 +69,9 @@ suite('Sessions - SessionsViewPane', () => {
 
 	test('Work/Chat switch supports pointer and keyboard selection and restores the selected category', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		const toggle = disposables.add(new SessionsWorkChatToggle(storage));
+		const environment = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true });
+		const categories = disposables.add(new SessionCategoriesService(storage, environment));
+		const toggle = disposables.add(new SessionsWorkChatToggle(categories));
 		mainWindow.document.body.appendChild(toggle.element);
 		disposables.add(toDisposable(() => toggle.element.remove()));
 		const buttons = [...toggle.element.querySelectorAll<HTMLElement>('[role="radio"]')];
@@ -78,7 +82,7 @@ suite('Sessions - SessionsViewPane', () => {
 		const initial = snapshot();
 		buttons[1].click();
 		const chat = snapshot();
-		const restored = disposables.add(new SessionsWorkChatToggle(storage)).kind.get();
+		const restored = disposables.add(new SessionCategoriesService(storage, environment)).selectedCategory.get();
 		buttons[1].focus();
 		buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
 		assert.deepStrictEqual({ initial, chat, restored, work: snapshot(), focused: mainWindow.document.activeElement === buttons[0] }, {
@@ -88,6 +92,30 @@ suite('Sessions - SessionsViewPane', () => {
 			work: { kind: 'work', buttons: [['Work', 'true', 0], ['Chat', 'false', -1]] },
 			focused: true,
 		});
+	});
+
+	test('session categories survive reload and identity changes without following the selected tab', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const environment = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true });
+		const categories = disposables.add(new SessionCategoriesService(storage, environment));
+		categories.selectCategory('chat');
+		categories.assignCategory('draft');
+		categories.selectCategory('work');
+		categories.assignCategory('draft');
+		categories.transferCategory('draft', 'started');
+		categories.assignCategory('work');
+		categories.selectCategory('chat');
+		categories.transferCategory('started', 'started');
+		const restored = disposables.add(new SessionCategoriesService(storage, environment));
+		const editor = disposables.add(new SessionCategoriesService(storage, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false })));
+		assert.deepStrictEqual({
+			chat: restored.getCategory('started'),
+			work: restored.getCategory('work'),
+			legacy: restored.getCategory('legacy'),
+			discardedDraft: restored.getCategory('draft'),
+			selection: restored.selectedCategory.get(),
+			editorSelection: editor.selectedCategory.get(),
+		}, { chat: 'chat', work: 'work', legacy: 'work', discardedDraft: 'work', selection: 'chat', editorSelection: 'work' });
 	});
 
 	test('keeps global customization actions operable before a draft session is bound', async () => {

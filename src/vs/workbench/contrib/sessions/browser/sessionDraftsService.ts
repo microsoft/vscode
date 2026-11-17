@@ -242,6 +242,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 					harness: draft.target.harness,
 					applicationId: draft.target.applicationId,
 					isQuickChat: !draft.target.folderUri,
+					category: draft.target.category,
 					open: () => this.open(draft.id),
 					actions: [
 						toAction({ id: 'sessions.drafts.resume', label: localize('draft.resume', "Resume Draft"), class: ThemeIcon.asClassName(Codicon.play), run: () => this.open(draft.id) }),

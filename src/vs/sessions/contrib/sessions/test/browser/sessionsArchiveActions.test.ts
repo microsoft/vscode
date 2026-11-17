@@ -27,6 +27,8 @@ import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService }
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionComparisonService } from '../../../../../workbench/contrib/sessions/browser/sessionComparisonService.js';
+import { SessionCategoriesService } from '../../../../../workbench/contrib/sessions/common/sessionCategory.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
@@ -129,6 +131,7 @@ suite('Sessions - Bulk archive undo', () => {
 		const comparisonService = store.add(new SessionComparisonService(
 			managementService, groupsService, storageService, new NullLogService(),
 			upcastPartial<IChatService>({ getSession: () => undefined }), new NullTelemetryServiceShape(),
+			store.add(new SessionCategoriesService(storageService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }))),
 		));
 		instantiationService.stub(ISessionComparisonService, comparisonService);
 		instantiationService.stub(ISessionAttentionService, upcastPartial<ISessionAttentionService>({ sessionAttention: constObservable(new Map()) }));

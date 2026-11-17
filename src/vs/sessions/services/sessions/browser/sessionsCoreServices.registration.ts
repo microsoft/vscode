@@ -25,10 +25,12 @@ import { SessionsManagementService } from '../../../../workbench/contrib/session
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionDraftsService, SessionDraftsService } from '../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { IScheduledChatsService, ScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
+import { ISessionCategoriesService, SessionCategoriesService } from '../../../../workbench/contrib/sessions/common/sessionCategory.js';
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only
 // when its entry point imports this module.
 registerSingleton(ISessionsProvidersService, SessionsProvidersService, InstantiationType.Delayed);
+registerSingleton(ISessionCategoriesService, SessionCategoriesService, InstantiationType.Delayed);
 registerSingleton(IAgentHostCustomizationService, AgentHostCustomizationService, InstantiationType.Delayed);
 registerSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);
 registerSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);

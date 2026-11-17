@@ -22,9 +22,11 @@ import { UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/co
 import { getScheduledRequestTimeLabel, renderScheduledRequestTime } from '../../../chat/browser/widget/chatScheduledRequestTime.js';
 import { SessionsListFilters } from './sessionsListFilters.js';
 import type { SessionListItem } from './sessionsList.js';
+import { SessionCategory } from '../../common/sessionCategory.js';
 
 /** Unsent work owned by the caller, never a provider-created session. */
 export interface IPendingSessionItem {
+	readonly category?: SessionCategory;
 	readonly pendingSession: true;
 	readonly id: string;
 	readonly kind: 'draft' | 'scheduled';

@@ -85,6 +85,7 @@ import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/c
 import { AgentsWindowUsage } from '../../../chat/common/agentsWindowUsage.js';
 import { INewSessionComposerService, INewSessionTargetLabels, NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
 import { ISessionDraftsService, SessionDraftComposer } from '../sessionDraftsService.js';
+import { ISessionCategoriesService } from '../../common/sessionCategory.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { renderScheduledRequestTime } from '../../../chat/browser/widget/chatScheduledRequestTime.js';
 import { ISavedSessionDraft } from '../../common/savedSessionDrafts.js';
@@ -323,6 +324,7 @@ export class NewChatWidget extends Disposable {
 		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 		@INewSessionWorktreeSendChoiceService private readonly worktreeSendChoiceService: INewSessionWorktreeSendChoiceService,
+		@ISessionCategoriesService private readonly sessionCategoriesService: ISessionCategoriesService,
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
@@ -1487,6 +1489,7 @@ export class NewChatWidget extends Disposable {
 			applicationId: session.application.get().id,
 			requireDevContainer: this._environment.get()?.kind === 'container',
 			groupId: composer.target.groupId,
+			category: this.sessionCategoriesService.getCategory(session.sessionId),
 		});
 		this._savedDraftTargetSessionId = session.sessionId;
 	}
@@ -1501,6 +1504,7 @@ export class NewChatWidget extends Disposable {
 			session?.workspace.read(reader);
 			this._environment.read(reader);
 			if (session) {
+				this.sessionCategoriesService.getCategory(session.sessionId, reader);
 				const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 				const configProvider = provider && getSessionConfigProvider(provider);
 				if (configProvider) {
@@ -1567,6 +1571,7 @@ export class NewChatWidget extends Disposable {
 				this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, preferDevContainer: target.requireDevContainer, persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
 			}
 			const options: ICreateNewSessionOptions = {
+				category: target.category ?? 'work',
 				providerId: target.providerId,
 				sessionTypeId: target.sessionTypeId,
 				draftConfiguration: target.configuration,

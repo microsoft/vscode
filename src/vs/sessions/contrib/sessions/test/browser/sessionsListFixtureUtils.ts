@@ -45,6 +45,7 @@ import { IMarkdownRendererService, MarkdownRendererService } from '../../../../.
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ISessionCategoriesService, SessionCategoriesService, SessionCategory } from '../../../../../workbench/contrib/sessions/common/sessionCategory.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -129,6 +130,7 @@ export interface ISessionsListFixtureChat extends ITestChatSpec {
 
 /** A session in the list, described as plain data. */
 export interface ISessionsListFixtureSession extends ITestSessionSpec {
+	readonly category?: SessionCategory;
 	readonly chats?: readonly ISessionsListFixtureChat[];
 	readonly hasScheduledMessages?: boolean;
 	/** Pinned to the sidebar's Pinned section. */
@@ -672,6 +674,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IQuickInputService, new TestQuickInputService());
 			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
+			reg.define(ISessionCategoriesService, SessionCategoriesService);
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
 			reg.defineInstance(IAICustomizationItemsModel, new class extends mock<IAICustomizationItemsModel>() { }());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
@@ -967,7 +970,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 /** Seeds pins, groups, and group order through the list-state services, returning real group ids by fixture id. */
 function seedListState(instantiationService: TestInstantiationService, state: ISessionsListFixtureState, getSession: (id: string) => ITestSession): Map<string, string> {
 	const listModelService = instantiationService.get(ISessionsListModelService);
+	const categories = instantiationService.get(ISessionCategoriesService);
 	for (const spec of state.sessions) {
+		categories.assignCategory(getSession(spec.id).session.sessionId, spec.category ?? 'work');
 		if (spec.pinned) {
 			listModelService.pinSession(getSession(spec.id).session);
 		}

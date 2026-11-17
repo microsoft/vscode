@@ -33,6 +33,7 @@ import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleB
 import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionCategoriesService, SessionCategory } from '../../../../../workbench/contrib/sessions/common/sessionCategory.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,6 +46,9 @@ suite('NewChatInSessionsWindowAction', () => {
 		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
+		const assigned: [string, SessionCategory][] = [];
+		instantiationService.stub(ISessionCategoriesService, { setCategory: (id, category) => { assigned.push([id, category]); } });
+		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		let navigations = 0;
 		instantiationService.stub(INewSessionComposerService, {
 			notifyUserNavigation: () => { navigations++; },
@@ -59,7 +63,11 @@ suite('NewChatInSessionsWindowAction', () => {
 			}) : undefined),
 			openQuickChat: (target, preserveNavigation) => {
 				opened.push({ target, preserveNavigation });
-				return options.creationFailed ? undefined : upcastPartial<NonNullable<ReturnType<ISessionsService['openQuickChat']>>>({ resource });
+				return options.creationFailed ? undefined : upcastPartial<NonNullable<ReturnType<ISessionsService['openQuickChat']>>>({ sessionId: 'new-session', resource });
+			},
+			openNewSession: async target => {
+				opened.push({ target, preserveNavigation: undefined });
+				return { session: upcastPartial<ITestSessionWithChat>({ sessionId: 'new-session', resource }), trustDeclined: false };
 			},
 		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
@@ -70,6 +78,7 @@ suite('NewChatInSessionsWindowAction', () => {
 		assert.ok(command);
 		return {
 			opened,
+			assigned,
 			get navigations() { return navigations; },
 			run: (args?: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
 		};
@@ -128,23 +137,18 @@ suite('NewChatInSessionsWindowAction', () => {
 		assert.deepStrictEqual(fixture.opened, [{ target: undefined, preserveNavigation: true }]);
 	});
 
-	test('New Session starts a workspace-less conversation in the Chat category', async () => {
+	test('New Session in Chat assigns the category and defaults the workspace picker to Chat', async () => {
 		const fixture = createCommand({ chatCategory: true });
-		assert.deepStrictEqual({ result: await fixture.run(), opened: fixture.opened }, {
+		assert.deepStrictEqual({ result: await fixture.run(), opened: fixture.opened, assigned: fixture.assigned }, {
 			result: resource,
-			opened: [{ target: undefined, preserveNavigation: true }],
+			opened: [{ target: { category: 'chat' }, preserveNavigation: true }],
+			assigned: [['new-session', 'chat']],
 		});
 	});
 
-	test('Chat category reports unavailable creation instead of starting a work session', async () => {
-		const fixture = createCommand({ chatCategory: true, available: false });
-		await assert.rejects(async () => fixture.run(), /Chat is unavailable/);
-		assert.deepStrictEqual(fixture.opened, []);
-	});
-
-	test('Chat category reports a failed creation', async () => {
-		const fixture = createCommand({ chatCategory: true, creationFailed: true });
-		await assert.rejects(async () => fixture.run(), /Could not create a conversation/);
+	test('Chat defaults report unsupported or failed workspace-less creation', async () => {
+		await assert.rejects(async () => createCommand({ chatCategory: true, available: false }).run(), /Workspace-less chat is unavailable/);
+		await assert.rejects(async () => createCommand({ chatCategory: true, creationFailed: true }).run(), /Could not create a conversation/);
 	});
 
 	test('uses the provider creation target instead of the active backend workspace', async () => {

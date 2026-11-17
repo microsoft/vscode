@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { SessionCategoriesService } from '../../common/sessionCategory.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { parse } from '../../../../../base/common/marshalling.js';
@@ -50,8 +52,9 @@ suite('Scheduled chat handoffs', () => {
 	const customTime = new Date(2030, 5, 15, 9, 30);
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const input: IChatDraft = { inputText: 'Review the changes', attachments: [] };
-	const target: ISavedSessionDraftTarget = { providerId: 'local', sessionTypeId: 'copilot' };
+	const target: ISavedSessionDraftTarget = { providerId: 'local', sessionTypeId: 'copilot', category: 'work' };
 	const session = new class extends mock<ISession>() {
+		override readonly sessionId = 'source';
 		override readonly providerId = 'local';
 		override readonly sessionType = 'copilot';
 	};
@@ -205,6 +208,7 @@ suite('Scheduled chat handoffs', () => {
 				return picker;
 			}
 		};
+		const categories = disposables.add(new SessionCategoriesService(storage, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true })));
 		const service = disposables.add(new ScheduledChatsService(config, automationService,
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = sessionsChanged.event;
@@ -253,9 +257,9 @@ suite('Scheduled chat handoffs', () => {
 						calls.push('group');
 					}
 				}
-			}));
+			}, categories));
 		return {
-			service, storage, config, calls, openedDrafts, previewInputs, previewTargets, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors, dispatched,
+			service, categories, storage, config, calls, openedDrafts, previewInputs, previewTargets, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors, dispatched,
 			get preview(): IObservable<IChatScheduledRequest | undefined> {
 				assert.ok(preview);
 				return preview;
@@ -913,7 +917,8 @@ suite('Scheduled chat handoffs', () => {
 			fixture.storage.remove('sessions.scheduledChatHandoffs', StorageScope.PROFILE);
 			await fixture.service.items.get()[0].open();
 			const restored = fixture.previewTargets[0];
-			assert.deepStrictEqual(restored, scheduledTarget);
+			const { category, ...unassignedTarget } = scheduledTarget;
+			assert.deepStrictEqual(restored, unassignedTarget);
 			fixture.configuration = restored.configuration;
 			await fixture.scheduledDraft.save(fixture.previewInputs[0], restored, session);
 			const saved = fixture.automations.get()[0];
@@ -1108,6 +1113,25 @@ suite('Scheduled chat handoffs', () => {
 		fixture.runs.set([...fixture.runs.get()], undefined);
 		assert.deepStrictEqual({ inherited, current: fixture.memberships.get('created'), calls: fixture.calls }, {
 			inherited: 'chosen-group', current: 'user-moved', calls: ['group'],
+		});
+	});
+
+	test('a schedule keeps its starting category without requiring a custom group', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, { ...target, category: 'chat', folderUri: URI.file('/personal') }, session, 'composition');
+		const pending = fixture.service.items.get()[0].category;
+		fixture.categories.selectCategory('work');
+		const resource = URI.parse('agent-host-copilot:/created');
+		const created = upcastPartial<ISession>({ resource, sessionId: 'created' });
+		fixture.runs.set([{
+			id: 'run', automationId: fixture.automations.get()[0].id, status: 'running', trigger: 'schedule',
+			startedAt: new Date().toISOString(), sessionResource: resource,
+		}], undefined);
+		fixture.automations.set([{ ...fixture.automations.get()[0], oneTimeRunId: 'run', oneTimeDispatchedAt: new Date().toISOString() }], undefined);
+		fixture.sessions.set(resource.toString(), created);
+		fixture.sessionsChanged.fire({ added: [created], removed: [], changed: [] });
+		assert.deepStrictEqual({ pending, started: fixture.categories.getCategory('created'), groups: [...fixture.memberships] }, {
+			pending: 'chat', started: 'chat', groups: [],
 		});
 	});
 });

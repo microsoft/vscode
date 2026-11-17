@@ -14,8 +14,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IChatDraft } from '../../chat/common/attachments/chatDraft.js';
 import { fromStoredChatDraft, toStoredChatDraft } from './newChatDraftState.js';
 import { ISessionDraftConfiguration } from './sessionsProvider.js';
+import { SessionCategory } from './sessionCategory.js';
 
 export interface ISavedSessionDraftTarget {
+	readonly category?: SessionCategory;
 	readonly folderUri?: URI;
 	readonly providerId?: string;
 	readonly sessionTypeId?: string;
@@ -90,6 +92,7 @@ export class SavedSessionDrafts extends Disposable {
 			if (!draft || typeof draft.id !== 'string' || typeof draft.revision !== 'string' || !Number.isFinite(draft.createdAt) || !Number.isFinite(draft.updatedAt) || !draft.target || typeof draft.target !== 'object'
 				|| (draft.target.folderUri !== undefined && !URI.isUri(draft.target.folderUri))
 				|| (draft.target.providerId !== undefined && typeof draft.target.providerId !== 'string')
+				|| (draft.target.category !== undefined && draft.target.category !== 'work' && draft.target.category !== 'chat')
 				|| (draft.target.sessionTypeId !== undefined && typeof draft.target.sessionTypeId !== 'string')) {
 				throw new Error('Invalid saved session draft.');
 			}

@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { getReasoningEffortLabel, isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { SessionCategory } from './sessionCategory.js';
 
 export const enum SessionComparisonParticipantRole {
 	Coordinator = 'coordinator',
@@ -134,6 +135,7 @@ export interface ISessionComparisonSynthesisPlan {
 }
 
 export interface ISessionComparison {
+	readonly category?: SessionCategory;
 	readonly id: string;
 	readonly groupId: string;
 	/** Exact initiating chat for agent-created comparisons; absent for manual and older comparisons. */

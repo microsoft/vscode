@@ -26,6 +26,7 @@ import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../se
 import { ISessionRepositoryPicker } from '../sessionRepositoryPicker.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { SessionsManagementService } from '../sessionsManagementService.js';
+import { ISessionCategoriesService, SessionCategoriesService } from '../../common/sessionCategory.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { EditorWindowSessionsProvidersService } from './editorWindowSessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
@@ -83,6 +84,7 @@ registerWorkbenchContribution2(EditorWindowWorktreeCleanup.ID, EditorWindowWorkt
 registerEditorWindowSessionsSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(ISessionCategoriesService, SessionCategoriesService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IChatHostOpenerService, ChatHostOpenerService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionChangesStatsCache, SessionChangesStatsCache, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionOpenTelemetryService, SessionOpenTelemetryService, InstantiationType.Delayed);

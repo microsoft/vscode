@@ -20,10 +20,11 @@ export type SessionFilter =
 	| { readonly kind: 'harness' | 'environment'; readonly id: string }
 	| { readonly kind: 'application'; readonly environment: string; readonly id: string };
 
-export type SessionsListKind = 'work' | 'chat';
+export type { SessionCategory as SessionsListKind } from '../../common/sessionCategory.js';
+import { SessionCategory as SessionsListKind } from '../../common/sessionCategory.js';
 
-export function matchesSessionsListKind(kind: SessionsListKind | undefined, isQuickChat: boolean | undefined): boolean {
-	return kind === undefined || (kind === 'chat') === (isQuickChat === true);
+export function matchesSessionsListKind(kind: SessionsListKind | undefined, category: SessionsListKind | undefined): boolean {
+	return kind === undefined || kind === (category ?? 'work');
 }
 
 export interface ISessionFilterOption {

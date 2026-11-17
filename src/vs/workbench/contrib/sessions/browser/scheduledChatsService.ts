@@ -48,6 +48,7 @@ import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../common/sessionConfig.js'
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionDraftsService } from './sessionDraftsService.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
+import { ISessionCategoriesService } from '../common/sessionCategory.js';
 import { ISessionsService } from './sessionsService.js';
 import { IPendingSessionItem } from './views/pendingSessions.js';
 import { IChatScheduledRequest, IChatScheduledRequestEditing } from '../../chat/common/model/chatViewModel.js';
@@ -146,6 +147,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		@IChatService private readonly chatService: IChatService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionGroupsService groupsService: ISessionGroupsService,
+		@ISessionCategoriesService private readonly sessionCategoriesService: ISessionCategoriesService,
 	) {
 		super();
 		const configured = observableConfigValue(SESSIONS_SEND_LATER_ENABLED_SETTING, false, configurationService);
@@ -178,14 +180,17 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 						this.removeHandoff(handoff.id);
 					}
 				}
-				if (!handoff.target.groupId || handoff.conversation || handoff.groupApplied) {
+				if ((!handoff.target.groupId && !handoff.target.category) || handoff.conversation || handoff.groupApplied) {
 					continue;
 				}
 				const automation = automations.find(automation => automation.id === handoff.automationId && automation.oneTimeDispatchedAt);
 				const resource = runs.find(run => run.id === automation?.oneTimeRunId)?.sessionResource;
 				const session = resource && sessionsManagementService.getSession(resource);
 				if (session) {
-					if (groupsService.getGroup(handoff.target.groupId) && !groupsService.getGroupOfSession(session.sessionId)) {
+					if (handoff.target.category) {
+						this.sessionCategoriesService.assignCategory(session.sessionId, handoff.target.category);
+					}
+					if (handoff.target.groupId && groupsService.getGroup(handoff.target.groupId) && !groupsService.getGroupOfSession(session.sessionId)) {
 						groupsService.addToGroup(session.sessionId, handoff.target.groupId);
 					}
 					this.writeHandoff({ ...handoff, groupApplied: true });
@@ -232,6 +237,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 						harness: handoff?.target.harness,
 						applicationId: handoff?.target.applicationId,
 						isQuickChat: automation.target.kind === 'quickChat',
+						category: handoff?.target.category,
 						open: async () => { if (conversation) { await this.startEditing(automation); } else { await this.preview(automation); } },
 						editAction: conversation ? editAction : undefined,
 						editing: requestEditing,
@@ -260,6 +266,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 					conversation: handoff.conversation,
 					description: localize('sendLater.confirming', "Scheduling outcome not yet confirmed"),
 					folderUri: handoff.target.folderUri, providerId: handoff.target.providerId, sessionType: handoff.target.sessionTypeId, isQuickChat: !handoff.target.folderUri,
+					category: handoff.target.category,
 					environmentId: handoff.target.environmentId, harness: handoff.target.harness, applicationId: handoff.target.applicationId,
 					open: async () => { await this.retryHandoff(handoff); },
 					actions: [toAction({ id: 'sessions.scheduled.reconcile', label: localize('sendLater.reconcile', "Reconcile Schedule"), class: ThemeIcon.asClassName(Codicon.sync), run: async () => { await this.retryHandoff(handoff); } })],
@@ -474,6 +481,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 	}
 
 	async schedule(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession, compositionId: string, conversation?: IAutomationDescriptor['conversation'], anchor?: HTMLElement): Promise<boolean> {
+		const category = target.category ?? this.sessionCategoriesService.getCategory(session.sessionId);
 		this.assertEnabled();
 		if (!this.canSchedule(session, conversation) || target.requireDevContainer) {
 			throw new Error(localize('sendLater.unavailable', "Send Later requires a supported local agent host with Automations enabled."));
@@ -501,13 +509,15 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		const request = await this.captureRequest(capturedInput);
 		const schedule: IAutomationSchedule = { interval: 'once', runAt: date.toISOString(), scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		const automationTarget = getAutomationTarget(target, session, configuration);
-		const handoff: IScheduledChatHandoff = { id: generateUuid(), compositionId, input: capturedInput, sourceTarget: target, target: { ...target, configuration }, request, automationTarget, schedule, conversation };
+		const handoff: IScheduledChatHandoff = { id: generateUuid(), compositionId, input: capturedInput, sourceTarget: target, target: { ...target, category, configuration }, request, automationTarget, schedule, conversation };
 		this.writeHandoff(handoff);
 		await this.submitHandoff(handoff, false);
 		return true;
 	}
 
 	scheduleRequest(options: IScheduledChatRequestOptions, operationId: string, mutationGuard?: AutomationMutationGuard, captureTemplate?: () => Promise<IScheduledChatRequestOptions['sessionTemplate']>): Promise<ScheduledChatSubmission> {
+		const conversationSession = options.conversation && this.sessionsManagementService.getSession(options.conversation.sessionResource);
+		const category = conversationSession ? this.sessionCategoriesService.getCategory(conversationSession.sessionId) : this.sessionCategoriesService.selectedCategory.get();
 		return this.toolRequests.queue(operationId, async () => {
 			this.assertEnabled();
 			mutationGuard?.();
@@ -540,7 +550,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 					options = { ...options, sessionTemplate: await captureTemplate() };
 				}
 				mutationGuard?.();
-				const target = getScheduledDraftTarget(options);
+				const target = { ...getScheduledDraftTarget(options), category };
 				handoff = {
 					id: generateUuid(), toolOperationId: operationId, name: options.name, compositionId: operationId,
 					input: { inputText: options.prompt, attachments: [] }, sourceReleased: true,

@@ -25,6 +25,7 @@ import { aggregateChatUsage } from '../../chat/common/chatUsage.js';
 import { setChatNotificationResource } from '../../chat/common/chatNotification.js';
 import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
+import { ISessionCategoriesService } from '../common/sessionCategory.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../common/sessionsTelemetry.js';
@@ -68,6 +69,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		@ILogService private readonly logService: ILogService,
 		@IChatService private readonly chatService: IChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionCategoriesService private readonly sessionCategoriesService: ISessionCategoriesService,
 	) {
 		super();
 		this._loadAttemptTelemetryState();
@@ -157,6 +159,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		} satisfies ISessionComparisonParticipant));
 		let comparison: ISessionComparison = {
 			id,
+			category: this.sessionCategoriesService.selectedCategory.get(),
 			groupId: group.id,
 			originatingChatResource: options.originatingChatResource,
 			title,
@@ -184,6 +187,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 					background: true,
 				}, {
 					...this._createOptions(harness, options, id, index),
+					category: comparison.category,
 					onSessionCreated: createdSession => {
 						const updated = this._updateComparisonParticipant(id, participant.id, currentParticipant => ({
 							...currentParticipant,
@@ -456,6 +460,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
 			}, {
+				category: comparison.category ?? 'work',
 				providerId: harness.providerId,
 				sessionTypeId: harness.sessionTypeId,
 				modelId: harness.modelId,
@@ -850,6 +855,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			title: localize('sessionComparison.judgeTitle', "Judge: {0}", comparison.title),
 			background: true,
 		}, {
+			category: comparison.category ?? 'work',
 			providerId: harness.providerId,
 			sessionTypeId: harness.sessionTypeId,
 			modelId: harness.modelId,

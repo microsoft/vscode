@@ -28,6 +28,8 @@ import { IChatDeletedEvent, ICreateNewSessionOptions, ISendRequestOptions, ISess
 import { IChatMovedEvent, ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
+import { SessionCategoriesService } from '../../common/sessionCategory.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { createSessionComparisonHarness } from '../../browser/sessionComparisonConfiguration.js';
 
 suite('SessionComparisonService', () => {
@@ -119,6 +121,7 @@ suite('SessionComparisonService', () => {
 				}
 			}
 		}();
+		const categories = disposables.add(new SessionCategoriesService(storageService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true })));
 		let service = disposables.add(new SessionComparisonService(
 			sessionsManagementService,
 			groupsService,
@@ -126,6 +129,7 @@ suite('SessionComparisonService', () => {
 			new NullLogService(),
 			chatService,
 			telemetryService,
+			categories,
 		));
 		async function restoreNestedComparison(comparison: ISessionComparison): Promise<SessionComparisonService> {
 			const sessions = comparison.participants.flatMap(participant => {
@@ -137,7 +141,7 @@ suite('SessionComparisonService', () => {
 			const stored: { id: string; sessionResource?: string }[] = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE)!);
 			stored.find(record => record.id === comparison.id)!.sessionResource = parent.resource.toString();
 			storageService.store('sessions.comparisons', JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
-			service = disposables.add(new SessionComparisonService(sessionsManagementService, groupsService, storageService, new NullLogService(), chatService, telemetryService));
+			service = disposables.add(new SessionComparisonService(sessionsManagementService, groupsService, storageService, new NullLogService(), chatService, telemetryService, categories));
 			for (const session of sessions.slice(1)) {
 				const anchor = parent.chats.get().findLast(chat => chat.origin?.kind !== ChatOriginKind.Tool && chat.interactivity.get() !== ChatInteractivity.Hidden);
 				await sessionsManagementService.moveSessionUnder(session, parent, anchor);
@@ -146,7 +150,7 @@ suite('SessionComparisonService', () => {
 			groupsService.deleteGroup(comparison.groupId, { automatic: true });
 			return service;
 		}
-		return { service, sessionsManagementService, groupsService, storageService, chatService, telemetryService, restoreNestedComparison };
+		return { service, categories, sessionsManagementService, groupsService, storageService, chatService, telemetryService, restoreNestedComparison };
 	}
 
 	test('rejects comparison setup without deleting a successfully launched attempt', async () => {
@@ -1942,20 +1946,25 @@ suite('SessionComparisonService', () => {
 	});
 
 	test('preserves the exact initiating chat independently of participants across reload', async () => {
-		const { service, sessionsManagementService, storageService, groupsService, chatService } = createServices();
+		const { service, categories, sessionsManagementService, storageService, groupsService, chatService } = createServices();
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
 		sessionsManagementService.enqueue(stubSession('attempt-two'));
 		const originatingChatResource = URI.parse('test:/evaluator#nested-chat');
-		const comparison = await service.startComparison({
+		categories.selectCategory('chat');
+		const pending = service.startComparison({
 			...startOptions(), originatingChatResource, judgeHarness: undefined, synthesisHarness: undefined,
 		});
+		categories.selectCategory('work');
+		const comparison = await pending;
 		service.dispose();
-		const restored = disposables.add(new SessionComparisonService(sessionsManagementService, groupsService, storageService, new NullLogService(), chatService, new RecordingTelemetryService()));
+		const restored = disposables.add(new SessionComparisonService(sessionsManagementService, groupsService, storageService, new NullLogService(), chatService, new RecordingTelemetryService(), categories));
 		assert.deepStrictEqual({
 			created: comparison.originatingChatResource?.toString(),
 			restored: restored.getComparison(comparison.id)?.originatingChatResource?.toString(),
 			legacyParent: restored.getComparison(comparison.id)?.sessionResource,
-		}, { created: originatingChatResource.toString(), restored: originatingChatResource.toString(), legacyParent: undefined });
+			category: restored.getComparison(comparison.id)?.category,
+			attemptCategories: sessionsManagementService.createCalls.map(call => call.createOptions?.category),
+		}, { created: originatingChatResource.toString(), restored: originatingChatResource.toString(), legacyParent: undefined, category: 'chat', attemptCategories: ['chat', 'chat'] });
 	});
 
 	test('restores persisted URI fields', () => {
