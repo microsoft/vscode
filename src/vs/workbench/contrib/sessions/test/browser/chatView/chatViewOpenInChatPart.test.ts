@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -39,7 +39,10 @@ import { ChatViewContainerId, ChatViewId, IChatWidget, IChatWidgetService } from
 import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../../chat/common/localChatAvailability.js';
 import { ActiveAuxiliaryContext, RemoteNameContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
-import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { isUntitledChatSession, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
+import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IEditorWindowShownChat, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
 import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -48,11 +51,31 @@ import { agentSessionsOrientationSubmenu, SetAgentSessionsOrientationSideBySideA
 import { ChatViewOpenInChatPartContribution } from '../../../browser/chatView/chatViewOpenInChatPart.contribution.js';
 import { IEditorWindowSessionsRuntime, IEditorWindowSessionsRuntimeOptions } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
+
+/** A chat widget's input and attachments, as a handover reads and writes them. */
+class FakeChatWidget {
+	private _input: string;
+	private _attachments: IChatRequestVariableEntry[];
+	constructor(input = '', attachments: IChatRequestVariableEntry[] = []) {
+		this._input = input;
+		this._attachments = attachments;
+	}
+	getInput(): string { return this._input; }
+	setInput(input: string): void { this._input = input; }
+	readonly attachmentModel = {
+		get attachments(): readonly IChatRequestVariableEntry[] { return this._owner._attachments; },
+		addContext: (...entries: IChatRequestVariableEntry[]) => { this._attachments.push(...entries); },
+		clear: () => { this._attachments = []; },
+		_owner: this,
+	};
+	get state() { return { input: this._input, attachments: this._attachments.map(entry => entry.id) }; }
+}
+
 suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean } = {}) {
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; orientation?: string; chatEnabled?: boolean; agentEnabled?: boolean; chatViewShows?: URI } = {}) {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
@@ -74,8 +97,40 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		// The seam owns the rule that the Chat view shows its chat while it hosts one: here, a registration is all that is asked for
 		const registrations = observableValue('registrations', 0);
 		const sessionsOnly = derived(reader => registrations.read(reader) > 0);
+		// The Chat view and, while it is registered, the chat part's host, each with the chat it shows and their chat widgets
+		const shown = { view: observableValue<URI | undefined>('view', options.chatViewShows), part: observableValue<URI | undefined>('part', undefined) };
+		const hostInUse = () => registrations.get() > 0 ? 'part' : 'view';
+		const handovers: string[] = [];
+		const widgets = new Map<string, FakeChatWidget>();
+		const widgetOf = (resource: URI | undefined) => (resource && widgets.get(resource.toString())) as IChatWidget | undefined;
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: resource => widgetOf(resource) }));
+		instantiationService.stub(IEditorWindowShownChatService, upcastPartial<IEditorWindowShownChatService>({
+			shown: derived(reader => {
+				const resource = shown.part.read(reader);
+				return resource && upcastPartial<IEditorWindowShownChat>({ session: upcastPartial<ISession>({ status: constObservable(isUntitledChatSession(resource) ? SessionStatus.Untitled : SessionStatus.Completed) }), chat: upcastPartial<IChat>({ resource }) });
+			}),
+		}));
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
 			sessionsOnly,
+			shownSession: derived(reader => {
+				const resource = (registrations.read(reader) > 0 ? shown.part : shown.view).read(reader);
+				return resource && { resource, reason: 'open' as const };
+			}),
+			openSession: async resource => {
+				const host = hostInUse();
+				handovers.push(`${host} opens ${resource.path}`);
+				shown[host].set(resource, undefined);
+				return widgetOf(resource);
+			},
+			newChat: async () => {
+				const host = hostInUse();
+				const resource = URI.parse(`agent-host-copilotcli:/untitled-new-in-${host}`);
+				handovers.push(`${host} new chat`);
+				widgets.set(resource.toString(), new FakeChatWidget());
+				shown[host].set(resource, undefined);
+				return true;
+			},
+			reveal: async () => widgetOf(shown[hostInUse()].get()),
 			register: (contribution: IChatViewContribution) => {
 				registered.push(contribution);
 				registrations.set(registrations.get() + 1, undefined);
@@ -107,7 +162,13 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			runtime: runtimeOptions.map(o => o.viewIds),
 			runtimeHeld,
 		});
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims };
+		const setSetting = async (value: boolean) => {
+			await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+			// The handover runs once the hosts changed
+			await timeout(0);
+		};
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly, registered, localChatAvailability, moveChatView, maximizeClaims: () => maximizeClaims, shown, handovers, widgets, setSetting };
 	}
 
 	test('is on only while the setting is on and the configured orientation is side by side', async () => {
@@ -255,6 +316,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IChatWidgetService, { getAllWidgets: () => [upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: agentSession }) })] });
 			stub(IWorkspaceContextService, { getWorkspace: () => ({ folders: [] }) as never });
 			stub(IAgentsViewProvidersService, { acquire: () => toDisposable(() => { }) });
+			stub(IEditorWindowShownChatService, { shown: constObservable(undefined) });
 			stub(IEditorService, { activeEditor: undefined });
 			const loadingModel = new DeferredPromise<void>();
 			stub(IChatService, { acquireOrLoadSession: async () => { await loadingModel.p; return { dispose: () => { } } as never; } });
@@ -364,6 +426,71 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			assert.deepStrictEqual({ cancelled, calls }, { cancelled: true, calls: [] });
 		});
 	});
+	suite('while the window runs, it moves the chat shown to the other host as it turns on or off', () => {
+
+		const session = URI.parse('agent-host-copilotcli:/session-a');
+		const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
+		const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file-a' });
+
+		test('a session moves from the Chat view to the chat part as it turns on, and the chat part\'s active one back as it turns off', async () => {
+			const { setSetting, handovers, shown } = setup({ chatViewShows: session });
+			await setSetting(true);
+			const onPart = shown.part.get()?.path;
+			shown.part.set(URI.parse('agent-host-copilotcli:/session-b'), undefined);
+			await setSetting(false);
+
+			assert.deepStrictEqual({ handovers, onPart, onView: shown.view.get()?.path }, {
+				handovers: ['part opens /session-a', 'view opens /session-b'],
+				onPart: '/session-a',
+				onView: '/session-b',
+			});
+		});
+
+		test('with no chat shown, the other host shows a new chat; a local chat stays in the Chat view; a chat the target shows already is not opened again', async () => {
+			const none = setup();
+			await none.setSetting(true);
+			const local = setup({ chatViewShows: LocalChatSessionUri.forSession('local-a') });
+			await local.setSetting(true);
+			// The Chat view shows the chat part's chat already, as it showed it before the chat part did
+			const already = setup({ chatViewShows: session, setting: true });
+			already.shown.part.set(session, undefined);
+			await already.setSetting(false);
+
+			assert.deepStrictEqual({ none: none.handovers, local: local.handovers, already: already.handovers }, {
+				none: ['part new chat'],
+				local: [],
+				already: [],
+			});
+		});
+
+		test('an unsent new chat moves with its input and attachments, which leave its source only once the target holds them, both ways', async () => {
+			const { setSetting, handovers, widgets, shown } = setup({ chatViewShows: draft });
+			const source = new FakeChatWidget('hello', [attachment]);
+			widgets.set(draft.toString(), source);
+			await setSetting(true);
+			const onPart = widgets.get(shown.part.get()!.toString())!.state;
+			const afterOn = { source: source.state, onPart };
+			await setSetting(false);
+
+			assert.deepStrictEqual({ handovers, afterOn, onView: widgets.get(shown.view.get()!.toString())!.state, partDraft: onPart }, {
+				handovers: ['part new chat', 'view new chat'],
+				afterOn: { source: { input: '', attachments: [] }, onPart: { input: 'hello', attachments: ['file-a'] } },
+				onView: { input: 'hello', attachments: ['file-a'] },
+				partDraft: { input: 'hello', attachments: ['file-a'] },
+			});
+		});
+
+		test('moves nothing as the window starts, nor as chat itself goes', async () => {
+			const atStart = setup({ chatViewShows: session, setting: true });
+			await timeout(0);
+			const chatGoes = setup({ chatViewShows: session, setting: true });
+			chatGoes.shown.part.set(session, undefined);
+			ChatContextKeys.enabled.bindTo(chatGoes.contextKeyService).set(false);
+			await timeout(0);
+
+			assert.deepStrictEqual({ atStart: atStart.handovers, chatGoes: chatGoes.handovers }, { atStart: [], chatGoes: [] });
+		});
+	});
 });
 
 suite('Sessions orientation submenu', () => {
@@ -387,4 +514,5 @@ suite('Sessions orientation submenu', () => {
 			legacy: [['Side by Side', false], ['Stacked', false]]
 		});
 	});
+
 });
