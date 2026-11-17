@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OS } from '../../../../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { localize } from '../../../../../../nls.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -34,6 +36,7 @@ export class RemotesEditor extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private content: HTMLElement | undefined;
+	private scrollable: DomScrollableElement | undefined;
 	private thisComputerContainer: HTMLElement | undefined;
 	private tableContainer: HTMLElement | undefined;
 	private disabledMessage: HTMLElement | undefined;
@@ -65,8 +68,12 @@ export class RemotesEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.container = dom.append(parent, dom.$('.remotes-editor'));
-		this.content = dom.append(this.container, dom.$('.remotes-editor-content'));
+		this.content = dom.$('.remotes-editor-content');
+		this.scrollable = this._register(new DomScrollableElement(this.content, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
+		this.container.appendChild(this.scrollable.getDomNode());
 		this.thisComputerContainer = dom.append(this.content, dom.$('.remotes-editor-this-computer'));
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('RemotesEditor.thisComputer', () => this.layoutContents(), dom.getWindow(this.container)));
+		this._register(resizeObserver.observe(this.thisComputerContainer));
 		this.tableContainer = dom.append(this.content, dom.$('.remotes-editor-table'));
 		this.disabledMessage = dom.append(this.container, dom.$('p.remotes-editor-disabled', { role: 'status', tabindex: '0' }));
 		this.disabledMessage.textContent = localize('remotes.editorDisabled', "Remote agent hosts are disabled.");
@@ -90,6 +97,7 @@ export class RemotesEditor extends EditorPane {
 	override clearInput(): void {
 		this.widget.clear();
 		this.thisComputer.clear();
+		this.content?.classList.remove('sharing-expanded');
 		super.clearInput();
 	}
 
@@ -107,9 +115,11 @@ export class RemotesEditor extends EditorPane {
 			: localize('remotes.managementDisabled', "Remote Environments management is disabled.");
 		this.disabledMessage.hidden = enabled;
 		this.content.hidden = !enabled;
+		this.scrollable?.getDomNode().toggleAttribute('hidden', !enabled);
 		if (!enabled) {
 			this.widget.clear();
 			this.thisComputer.clear();
+			this.content.classList.remove('sharing-expanded');
 			return;
 		}
 		if (!this.widget.value) {
@@ -120,12 +130,16 @@ export class RemotesEditor extends EditorPane {
 		this.thisComputerContainer.hidden = !showThisComputer;
 		if (!showThisComputer) {
 			this.thisComputer.clear();
+			this.content.classList.remove('sharing-expanded');
 		} else if (!this.thisComputer.value) {
-			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer);
+			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer, expanded => {
+				this.content?.classList.toggle('sharing-expanded', expanded);
+				this.layoutContents();
+			});
 		}
 		this.widget.value.setHeading(showThisComputer ? localize('remotes.otherEnvironments', "Other Environments") : undefined);
 		this.widget.value.setVisible(this.isVisible());
-		this.widget.value.layout();
+		this.layoutContents();
 	}
 
 	/**
@@ -145,7 +159,9 @@ export class RemotesEditor extends EditorPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.widget.value) {
+		if (this.thisComputer.value?.isExpanded) {
+			this.thisComputer.value.focus();
+		} else if (this.widget.value) {
 			this.widget.value.focus();
 		} else {
 			this.disabledMessage?.focus();
@@ -155,7 +171,12 @@ export class RemotesEditor extends EditorPane {
 	layout(dimension: dom.Dimension): void {
 		if (this.container) {
 			dom.size(this.container, dimension.width, dimension.height);
-			this.widget.value?.layout();
+			this.layoutContents();
 		}
+	}
+
+	private layoutContents(): void {
+		this.widget.value?.layout();
+		this.scrollable?.scanDomNode();
 	}
 }

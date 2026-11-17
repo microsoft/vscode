@@ -17,6 +17,10 @@
 	height: 100%;
 }
 
+.remotes-editor > .monaco-scrollable-element {
+	height: 100%;
+}
+
 .remotes-editor-content:not([hidden]) {
 	display: flex;
 	flex-direction: column;
@@ -32,6 +36,10 @@
 .remotes-editor-table {
 	flex: 1;
 	min-height: 0;
+}
+
+.remotes-editor-content.sharing-expanded > .remotes-editor-table {
+	min-height: 200px;
 }
 
 .remotes-editor-disabled {

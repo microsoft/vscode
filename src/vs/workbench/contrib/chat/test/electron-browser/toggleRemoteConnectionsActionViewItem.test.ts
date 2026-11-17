@@ -718,6 +718,26 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
+	test('keeps the name of the latest queued sharing choice and returns setup failures', async () => {
+		const { instantiation, run, sharing, notifications } = fixture();
+		const state = store.add(instantiation.createInstance(RemoteConnectionsState));
+		const editor = store.add(instantiation.createInstance(RemoteConnectionsSharing, state, () => run(), 'remotesEditor'));
+		const names = stub(sharing, 'setEnvironmentName').callThrough();
+		const notify = stub(notifications, 'error');
+		const results = await Promise.all([
+			editor.selectMethod('githubEnvironment', 'Superseded name'),
+			editor.selectMethod('githubEnvironment', 'Selected name'),
+		]);
+		const failure = await editor.selectMethod('githubEnvironment', '');
+		assert.deepStrictEqual({
+			results, names: names.args, name: sharing.environmentName.get(), failure,
+			errors: notify.callCount, pending: editor.pendingMethod,
+		}, {
+			results: [undefined, undefined], names: [['Selected name']], name: 'Selected name',
+			failure: { error: 'Enter a sharing name.' }, errors: 1, pending: undefined,
+		});
+	});
+
 	test('reflects changes made directly to the setting in the toggle and method menu', async () => {
 		const { configuration, primary, openMenu, closeMenu, sharing, run } = fixture();
 		openMenu();
