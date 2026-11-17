@@ -228,6 +228,13 @@ suite('Session Artifacts', () => {
 		]);
 	});
 
+	test('reads a category as one line, and ignores one that is blank, too long or not text', () => {
+		const entry = (category: unknown) => ({ id: 'id-1', type: SessionArtifactType.Resource, label: 'Card', uri: 'airlock:/decisions/1', isArtifact: true, category });
+		const read = (category: unknown) => readSessionArtifacts({ 'agentHost/sessionArtifacts': [entry(category)] }).map(artifact => artifact.category);
+
+		assert.deepStrictEqual([read('  Pull\n requests '), read(' '), read('x'.repeat(101)), read(42)], [['Pull requests'], [undefined], [undefined], [undefined]]);
+	});
+
 	test('rejects a malformed isArtifact rather than reading it as an artifact', () => {
 		const entry = (isArtifact: unknown) => ({ id: 'id-1', type: SessionArtifactType.Website, label: 'Docs', link: 'https://example.com', isArtifact });
 		const read = (isArtifact: unknown) => readSessionArtifacts({ 'agentHost/sessionArtifacts': [entry(isArtifact)] }).map(artifact => artifact.isArtifact);

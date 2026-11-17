@@ -410,6 +410,8 @@ export interface ISessionArtifact {
 	readonly commitHash?: string;
 	/** Whether a pull request or issue lives on GitHub. */
 	readonly isGitHub?: boolean;
+	/** A name of the provider's choosing that groups this entry with others of the same category, instead of with those of its kind. */
+	readonly category?: string;
 }
 
 /**

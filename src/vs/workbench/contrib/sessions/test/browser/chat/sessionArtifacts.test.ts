@@ -810,6 +810,22 @@ suite('Session Artifacts', () => {
 		}]);
 	});
 
+	test('lists entries with a category in a section named by it, after the kinds, in the order of their newest entries', () => {
+		const card = (id: string, category: string): ISessionArtifact => ({ id, kind: SessionArtifactKind.Resource, label: id, isArtifact: true, uri: URI.parse(`airlock:/decisions/${id}`), category });
+		const sections = buildSessionArtifactSections([
+			card('question', 'Questions'),
+			{ id: 'docs', kind: SessionArtifactKind.Website, label: 'Docs', isArtifact: true, link: URI.parse('https://example.com/docs') },
+			card('fix', 'Pull requests'),
+			card('other-question', 'Questions'),
+		], actions, labelService, true, new Set());
+
+		assert.deepStrictEqual(sections.map(section => [section.title, section.entries.map(entry => entry.id)]), [
+			['Websites', ['docs']],
+			['Questions', ['question', 'other-question']],
+			['Pull requests', ['fix']],
+		]);
+	});
+
 	test('leaves out websites the browsers pill already lists', () => {
 		const pullRequestLink = URI.parse('https://github.com/microsoft/vscode/pull/12');
 		const artifacts: readonly ISessionArtifact[] = [
