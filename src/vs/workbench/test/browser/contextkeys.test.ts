@@ -126,13 +126,13 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		]);
 	});
 
-	test('the empty editor group offers to hide the editor area only while the chat part shows, with that group alone, in the main window of an editor window, and not while the secondary side bar is maximized over it', () => {
+	test('the watermark of the empty editor group offers to hide the editor area only while the chat part shows, with that group alone, in the main window of an editor window, and not while the secondary side bar is maximized over it', () => {
 		const shown = (keys: { chatPartVisible?: boolean; isSessionsWindow?: boolean; isAuxiliaryWindow?: boolean; editorPartMultipleEditorGroups?: boolean; auxiliaryBarMaximized?: boolean }) => {
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			for (const [key, value] of Object.entries(keys)) {
 				contextKeyService.createKey(key, value);
 			}
-			return MenuRegistry.getMenuItems(MenuId.EmptyEditorGroup)
+			return MenuRegistry.getMenuItems(MenuId.EditorGroupWatermarkToolbar)
 				.filter(isIMenuItem)
 				.filter(item => item.command.id === 'workbench.action.hideEditorAreaForChat' && (!item.when || item.when.evaluate(contextKeyService.getContext(null))))
 				.map(item => ({ title: item.command.title, icon: (item.command.icon as { id: string } | undefined)?.id, group: item.group }));

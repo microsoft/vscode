@@ -35,7 +35,7 @@ import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } 
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
-import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, ChatWindowComposerModel, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
@@ -935,6 +935,23 @@ suite('AgentsChatPartService', () => {
 		await service.openComposer(undefined, { newComposer: true });
 
 		assert.deepStrictEqual({ layout: layout(), reused: part.activeGroup.activeEditor === first }, { layout: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true }, reused: true });
+	});
+
+	test('in Single, closing its new-session composer keeps what was typed in it for its next one, without asking', async () => {
+		const { service, part, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
+		const composerOf = (input: EditorInput | null) => input ? (service as unknown as { readonly _composerModels: Map<EditorInput, ChatWindowComposerModel> })._composerModels.get(input) : undefined;
+		await service.openChat(session, chatA);
+		await service.openComposer(undefined, { newComposer: true });
+		composerOf(part.activeGroup.activeEditor)!.input.set({ inputText: 'my draft', attachments: [] });
+		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
+		await timeout(0);
+		const afterClose = layout();
+		await service.openComposer(undefined, { newComposer: true });
+
+		assert.deepStrictEqual({ afterClose, reopened: composerOf(part.activeGroup.activeEditor)?.input.get().input.inputText }, {
+			afterClose: { groups: [{ tabs: ['/a'], active: '/a' }], activeGroup: 0, visible: true },
+			reopened: 'my draft',
+		});
 	});
 
 	test('a chat that the user opens in the Chat view while no host replaces it, or in an editor, leaves the chats it keeps; not one the Chat view restores, nor one it shows while a host replaces it', async () => {

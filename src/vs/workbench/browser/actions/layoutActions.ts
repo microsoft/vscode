@@ -297,7 +297,10 @@ class ToggleEditorVisibilityAction extends Action2 {
 }
 registerAction2(ToggleEditorVisibilityAction);
 
-/** Hides the editor area while the chat part shows, from the toolbar of its only editor group once that group is empty. */
+/**
+ * Hides the editor area while the chat part shows, from the toolbar of the watermark of its only editor group once that group
+ * is empty: the group's own toolbar does not show while it is the only one.
+ */
 registerAction2(class HideEditorAreaForChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.hideEditorAreaForChat';
@@ -310,9 +313,9 @@ registerAction2(class HideEditorAreaForChatAction extends Action2 {
 			f1: false,
 			precondition: ChatPartVisibleContext,
 			menu: {
-				id: MenuId.EmptyEditorGroup,
+				id: MenuId.EditorGroupWatermarkToolbar,
 				group: 'navigation',
-				order: 30,
+				order: 10,
 				// Not while the secondary side bar is maximized, over the editor area
 				when: ContextKeyExpr.and(ChatPartVisibleContext, IsSessionsWindowContext.negate(), IsAuxiliaryWindowContext.negate(), EditorPartMultipleEditorGroupsContext.negate(), AuxiliaryBarMaximizedContext.negate())
 			}

@@ -31,6 +31,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -240,6 +241,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	/** The composer of each composer's tab, which the tab disposes. */
 	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
+	/** In Single, what was typed in its new-session composer as it closed, for its next one: it has one new session at a time. */
+	private _closedComposerInput: IChatDraft | undefined;
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
 
 	private _part: IContentPart | undefined;
@@ -393,7 +396,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			return this._open(activeChat, options);
 		}
 		const resource = createChatWindowComposerResource();
-		const composer = this.composers.create(resource, { target, ...this.getComposerFolderOptions() }, session => this.openChat(session, undefined));
+		// What was typed in the composer it closed last, in Single
+		const input = this._isSingle() ? this._closedComposerInput : undefined;
+		this._closedComposerInput = undefined;
+		const composer = this.composers.create(resource, { target, ...this.getComposerFolderOptions(), ...(input ? { input: { input } } : {}) }, session => this.openChat(session, undefined));
 		await this._open(this._addChat(resource, composer), options);
 	}
 
@@ -766,6 +772,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				if (this._chats.get(editor) && !this._chats.get(editor)?.isComposer) {
 					this._closingChatTabs.add(editor);
 				}
+				this._keepClosingComposerInput(editor);
 			}));
 			store.add(group.onDidActiveEditorChange(() => {
 				updateActive();
@@ -785,6 +792,21 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		updateActive();
 
 		return part;
+	}
+
+	/**
+	 * In Single, closing its new-session composer keeps what was typed in it, without asking, for its next one: not as it
+	 * closes all its chats or the window shuts down, nor a composer that sends its session.
+	 */
+	private _keepClosingComposerInput(editor: EditorInput): void {
+		const composer = this._composerModels.get(editor);
+		if (!composer || !this._isSingle() || this._closingAll || this._lifecycleService.willShutdown || isSessionCreated(this._chats.get(editor)?.session.get()) || composer.input.isSubmitting) {
+			return;
+		}
+		const state = composer.input.get();
+		if (!state.attempt && (state.input.inputText || state.input.attachments.length)) {
+			this._closedComposerInput = state.input;
+		}
 	}
 
 	/**
