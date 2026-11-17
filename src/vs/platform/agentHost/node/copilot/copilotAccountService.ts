@@ -56,7 +56,7 @@ export interface ICopilotAccountService {
 	authenticate(client: Promise<AccountClient>, params: AuthenticateParams): Promise<void>;
 	requireReady(): ReadyAccountContext;
 	getSession(context: ReadyAccountContext, client: Promise<AccountClient>): Promise<CopilotSession>;
-	/** Signs a newly created conversation in to the context's service; a resumed conversation keeps the sign-in the runtime saved with it. */
+	/** Signs a newly created or reopened conversation in to the context's service; the runtime keeps the sign-in only while the conversation stays open. */
 	authenticateSession(session: CopilotSession, client: AccountClient, context: ReadyAccountContext, token: CancellationToken): Promise<void>;
 	isAuthenticationSession(sessionId: string): boolean;
 	reset(): Promise<void>;

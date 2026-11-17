@@ -17,7 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import type { IParsedAgent, IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -1355,7 +1355,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			try {
 				await this._accountService.authenticateSession(raw, plan.client, plan.accountContext, runtime.cancellationToken ?? CancellationToken.None);
 			} catch (error) {
-				// A resume does not sign in, so a conversation left without its account could never be used.
+				// A new conversation has no history to keep, so one that cannot be signed in is removed.
 				await raw.disconnect().catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to disconnect unauthenticated session`, cleanupError));
 				await plan.client.deleteSession(plan.sessionId).catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to delete unauthenticated session`, cleanupError));
 				throw error;
@@ -1367,6 +1367,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ICopilotSessionConfig, runtime: ICopilotSessionRuntime, trustWorkingDirectory?: NonNullable<CreateSessionOptions['filesystem']>['trustWorkingDirectory'], resetAutoTier = false): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
+			if (plan.kind === 'resume' && plan.accountContext) {
+				// TODO: Remove once the SDK takes the Microsoft account when opening a session: github/copilot-agent-runtime#40998. The runtime keeps the sign-in only with the open session, so a reopened one has none. Its history is kept if this fails.
+				await this._accountService.authenticateSession(raw, plan.client, plan.accountContext, runtime.cancellationToken ?? CancellationToken.None);
+			}
 			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
 			await raw.rpc.agent.list();
 			const nativeAgent = getNativeAgentSelection(plan);
@@ -1589,8 +1593,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
+		const pluginDirectoriesPromise = Promise.all(coalesce((plan.workspace?.kind === 'virtual' ? [] : plugins).map(p => p.pluginDir))
+			.filter(directory => directory.scheme === Schemas.file).map(async directory => {
+				try {
+					if ((await this._fileService.resolve(directory)).isDirectory) {
+						return directory.fsPath;
+					}
+				} catch (error) {
+					const result = toFileOperationResult(error);
+					if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_NOT_DIRECTORY) {
+						throw error;
+					}
+				}
+				this._logService.warn(`[Copilot:${plan.sessionId}] Skipping unavailable plugin directory: ${directory.fsPath}`);
+				return undefined;
+			}));
 		// These are independent, so resolve them concurrently rather than paying each in turn.
-		const [externalByok, shellTools, pluginCustomAgents, computerUseTools] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise]);
+		const [externalByok, shellTools, pluginCustomAgents, computerUseTools, pluginDirectories] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise, pluginDirectoriesPromise]);
 		if (externalByok.models?.length) {
 			// The provider base URL carries the proxy's host:port, which correlates a
 			// session with its `ByokLmProxyService` bind when reading logs.
@@ -1873,8 +1892,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			policy: { managedSettings: { permissions: managedSettingsPermissions } },
 			plugins: {
-				directories: coalesce((plan.workspace?.kind === 'virtual' ? [] : plugins).map(p => p.pluginDir))
-					.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
+				directories: coalesce(pluginDirectories),
 			},
 			tools: {
 				...toolConfiguration.sessionConfig.tools,

@@ -17,6 +17,9 @@ export const SESSIONS_FLOATING_DETAILS_SETTING = 'sessions.experimental.floating
 
 export type DetailsPosition = 'right' | 'left' | 'top' | 'bottom';
 
+/** Whether the desktop editor header of the Changes tab spans the Details docked beside the editor content. Read once at startup. */
+export const SESSIONS_EDITOR_HEADER_LAYOUT_SETTING = 'sessions.experimental.editorHeaderLayout';
+
 /** Whether the Session Activity Bar is shown beside the active chat in the desktop Agents window. */
 export const SESSION_ACTIVITY_BAR_SETTING = 'sessions.showSessionActivityBar';
 
@@ -40,6 +43,8 @@ export const SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING = 'sessions.list.inboxAuto
 
 /** When automation sessions automatically also appear in the Sessions list. */
 export const SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING = 'sessions.list.showAutomationSessions';
+
+export const SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING = 'sessions.automations.showSharedByOthers';
 
 export const enum AutomationSessionsListMode {
 	/** Every automation session is listed. */

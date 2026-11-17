@@ -200,6 +200,7 @@ import { ChatOutlineCreator } from './chatOutlineCreator.js';
 import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatLayoutService } from './widget/chatLayoutService.js';
+import { ChatMcpAppEditor, ChatMcpAppEditorInput } from './widget/chatContentParts/toolInvocationParts/chatMcpAppEditor.js';
 import './widget/input/chatInputNoticeHub.js';
 import './widget/input/chatInputNotificationService.js';
 import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
@@ -2677,6 +2678,16 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(ChatEditorInput)
+	]
+);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		ChatMcpAppEditor,
+		ChatMcpAppEditor.ID,
+		nls.localize('chatMcpApp', "MCP App")
+	),
+	[
+		new SyncDescriptor(ChatMcpAppEditorInput)
 	]
 );
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

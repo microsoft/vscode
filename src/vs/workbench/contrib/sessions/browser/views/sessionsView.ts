@@ -12,6 +12,7 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '.
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
@@ -55,8 +56,9 @@ import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../.
 import { ISessionsService } from '../sessionsService.js';
 import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
+import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { Menus } from '../menus.js';
+import { Menus, SessionsViewShowGroup } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
@@ -491,6 +493,16 @@ export class SessionsView extends ViewPane {
 			scheduledSessions: derived(this, reader => this.scheduledChatsService.items.read(reader).filter(item => !item.conversation)),
 			scheduledSessionResources: derived(this, reader => new Set(this.scheduledChatsService.items.read(reader)
 				.flatMap(item => item.conversation ? [item.conversation.sessionResource.toString()] : []))),
+			scheduledRequests: derived(this, reader => {
+				const requests = new Map<string, IChatScheduledRequest[]>();
+				for (const item of this.scheduledChatsService.items.read(reader)) {
+					if (item.conversation) {
+						const key = getComparisonKey(item.conversation.sessionResource);
+						requests.set(key, [...requests.get(key) ?? [], item]);
+					}
+				}
+				return requests;
+			}),
 			sectionRowHeight: this.presentation.sectionRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,
@@ -615,7 +627,6 @@ export class SessionsView extends ViewPane {
 		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 
 		this.registerSessionFilters(sessionsControl);
-		this.registerAutomationFilter(sessionsControl);
 		this.registerScheduledFilter(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
 		this.registerResetFiltersAction();
@@ -895,31 +906,6 @@ export class SessionsView extends ViewPane {
 
 	private readonly archivedFilterRegistration = this._register(new DisposableStore());
 
-	private registerAutomationFilter(sessionsControl: SessionsList): void {
-		const contextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showAutomationRuns', sessionsControl.filters.isShowAutomationRuns());
-		const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
-		this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, read: () => sessionsControl.filters.isShowAutomationRuns() });
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'sessionsViewPane.filterAutomationRuns',
-					title: localize('showAutomationRuns', "Show Automation Runs"),
-					toggled: ContextKeyExpr.equals(contextKey.key, true),
-					menu: [{
-						id: Menus.SessionsViewFilter,
-						group: '3_visibility',
-						order: 0.5,
-					}],
-				});
-			}
-			override run() {
-				const show = !sessionsControl.filters.isShowAutomationRuns();
-				sessionsControl.filters.setShowAutomationRuns(show);
-				contextKeyInstance.set(show);
-			}
-		}));
-	}
-
 	private registerScheduledFilter(sessionsControl: SessionsList): void {
 		const contextKey = new RawContextKey<boolean>('sessionsViewPane.filter.scheduledOnly', sessionsControl.filters.isScheduledOnly());
 		const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
@@ -928,13 +914,13 @@ export class SessionsView extends ViewPane {
 			constructor() {
 				super({
 					id: 'sessionsViewPane.filterScheduled',
-					title: localize('scheduledOnly', "Scheduled Only"),
+					title: localize('showOnlyScheduled', "Show Only Scheduled"),
 					toggled: ContextKeyExpr.equals(contextKey.key, true),
 					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
 					menu: [{
-						id: Menus.SessionsViewFilter,
-						group: '3_visibility',
-						order: 0.6,
+						id: Menus.SessionsViewShow,
+						group: SessionsViewShowGroup.Visibility,
+						order: 2,
 						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
 					}],
 				});
@@ -1053,8 +1039,8 @@ export class SessionsView extends ViewPane {
 						title,
 						toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
 						menu: [{
-							id: Menus.SessionsViewFilter,
-							group: '3_visibility',
+							id: Menus.SessionsViewShow,
+							group: SessionsViewShowGroup.Visibility,
 							order: 1,
 						}]
 					});

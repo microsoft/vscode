@@ -49,7 +49,7 @@ suite('Copilot account context native SDK', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Native Entra accounts support Windows/macOS only; see e2e/KNOWN_ISSUES.md.
-	(isLinux ? test.skip : test)('authenticates and configures a new conversation, resumes its live SDK binding without global login and signs in again after a runtime restart', async function () {
+	(isLinux ? test.skip : test)('authenticates and configures a new conversation and signs a reopened one in again, also after a runtime restart', async function () {
 		this.timeout(90_000);
 		const { createServer } = await import('http');
 		const home = await mkdtemp(join(tmpdir(), 'copilot-account-context-'));
@@ -162,13 +162,14 @@ suite('Copilot account context native SDK', () => {
 			};
 			const launcher = createTestLauncher(undefined, {}, undefined, undefined, undefined, undefined, undefined, accounts);
 			const opens: string[] = [];
+			const sessionClient = (sdk: CopilotClient): CopilotSessionLaunchPlan['client'] => ({
+				rpc: sdk.rpc,
+				createSession: config => { opens.push(`create:${config?.sessionId}`); return sdk.createSession(config); },
+				resumeSession: (id, config) => { opens.push(`resume:${id}`); return sdk.resumeSession(id, config); },
+				deleteSession: id => sdk.deleteSession(id),
+			});
 			const plan = {
-				client: {
-					rpc: client.rpc,
-					createSession: config => { opens.push(`create:${config?.sessionId}`); return runtime.createSession(config); },
-					resumeSession: (id, config) => { opens.push(`resume:${id}`); return runtime.resumeSession(id, config); },
-					deleteSession: id => runtime.deleteSession(id),
-				} satisfies CopilotSessionLaunchPlan['client'],
+				client: sessionClient(client),
 				sessionId: 'account-conversation', workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
 				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
@@ -184,13 +185,15 @@ suite('Copilot account context native SDK', () => {
 			});
 			const conversationAccount = await activeAccount(conversation.session);
 			const conversationModels = toCopilotAccountModelCatalog(await conversation.session.rpc.model.list());
+			// The fixture serves no inference, but the failed turn gives the conversation history, so the runtime accepts its resume. Closing it drops the runtime's sign-in for it.
+			await conversation.session.sendAndWait('hello', 20_000).catch(() => undefined);
+			await conversation.disconnect();
 			const resumed = store.add(await launcher.launch({ ...plan, kind: 'resume', fallback: { model: { id: modelId } } }, testRuntime));
 			const resumedAccount = await activeAccount(resumed.session);
 			const resumedModels = toCopilotAccountModelCatalog(await resumed.session.rpc.model.list());
 			const currentModel = await resumed.session.rpc.model.getCurrent();
 			const tools = await resumed.session.rpc.tools.getBuiltinDescriptors({});
 			await resumed.session.disconnect();
-			await client.deleteSession('account-conversation');
 			// A conversation closed before its first message has no history, so the runtime rejects its resume and a replacement is created and signed in.
 			const draftPlan = { ...plan, sessionId: 'account-draft' };
 			const draft = store.add(await launcher.launch({ ...draftPlan, kind: 'create', model: { id: modelId } }, testRuntime));
@@ -225,22 +228,16 @@ suite('Copilot account context native SDK', () => {
 				policyCompletions: 4,
 				globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
 			});
-			// A restarted runtime signs back in under a new registration, which names the Microsoft 365 account differently.
+			// A restarted runtime signs back in under a new registration, which names the Microsoft 365 account differently, and has no sign-in for the conversation it reopens.
 			await accounts.releaseSession();
 			assert.deepStrictEqual(await client.stop(), []);
 			client = createClient();
 			await client.start();
-			const restarted = client;
-			const afterRestart = store.add(await launcher.launch({
-				...plan, sessionId: 'account-after-restart', kind: 'create', model: { id: modelId },
-				client: {
-					rpc: restarted.rpc, createSession: config => restarted.createSession(config),
-					resumeSession: (id, config) => restarted.resumeSession(id, config), deleteSession: id => restarted.deleteSession(id),
-				},
-			}, testRuntime));
-			assert.deepStrictEqual({ account: await activeAccount(afterRestart.session), sourceUnchanged: accounts.requireReady() === context }, { account: 'loki', sourceUnchanged: true });
+			const afterRestart = store.add(await launcher.launch({ ...plan, kind: 'resume', fallback: { model: { id: modelId } }, client: sessionClient(client) }, testRuntime));
+			// The reopened conversation is not replaced; signing it in opens the restarted runtime's setup session.
+			assert.deepStrictEqual({ opened: opens.slice(-2), account: await activeAccount(afterRestart.session), sourceUnchanged: accounts.requireReady() === context }, { opened: ['resume:account-conversation', 'create:undefined'], account: 'loki', sourceUnchanged: true });
 			await afterRestart.session.disconnect();
-			await client.deleteSession('account-after-restart');
+			await client.deleteSession('account-conversation');
 			await accounts.reset();
 			await assert.rejects(accounts.getSession(context, Promise.resolve(client)), /no longer available/);
 		} finally {
