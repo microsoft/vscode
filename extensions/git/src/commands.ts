@@ -1633,7 +1633,9 @@ export class CommandCenter {
 			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
 		const uris = resources.map(r => r.resourceUri);
 
-		await repository.add(uris);
+		if (uris.length > 0) {
+			await repository.add(uris);
+		}
 	}
 
 	@command('git.stageAllUntracked', { repository: true })
@@ -1642,7 +1644,9 @@ export class CommandCenter {
 			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
 		const uris = resources.map(r => r.resourceUri);
 
-		await repository.add(uris);
+		if (uris.length > 0) {
+			await repository.add(uris);
+		}
 	}
 
 	@command('git.stageAllMerge', { repository: true })

@@ -5,9 +5,10 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff, ConfigurationTarget } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
@@ -127,6 +128,102 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.MODIFIED);
 		assert.strictEqual(repository.state.workingTreeChanges[1].uri.path, newfile.path);
 		assert.strictEqual(repository.state.workingTreeChanges[1].status, Status.UNTRACKED);
+	});
+
+	suite('selective stage-all commands', () => {
+		let root: string | undefined;
+		let stagingRepository: Repository | undefined;
+		let previousUntrackedChanges: string | undefined;
+
+		function status(): string {
+			assert.ok(root);
+			return cp.execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' });
+		}
+
+		suiteSetup(() => {
+			previousUntrackedChanges = workspace.getConfiguration('git').inspect<string>('untrackedChanges')?.workspaceValue;
+		});
+
+		suiteTeardown(async () => {
+			await workspace.getConfiguration('git').update('untrackedChanges', previousUntrackedChanges, ConfigurationTarget.Workspace);
+		});
+
+		setup(async () => {
+			root = undefined;
+			stagingRepository = undefined;
+			root = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-git-stage-'));
+			cp.execFileSync('git', ['init', '-b', 'main'], { cwd: root });
+			const opened = await git.openRepository(Uri.file(root));
+			assert.ok(opened);
+			stagingRepository = opened;
+			await stagingRepository.setConfig('user.name', 'testuser');
+			await stagingRepository.setConfig('user.email', 'monacotools@example.com');
+			await stagingRepository.setConfig('commit.gpgsign', 'false');
+			await stagingRepository.setConfig('core.autocrlf', 'false');
+			fs.writeFileSync(path.join(root, 'tracked.txt'), 'base\n');
+			fs.writeFileSync(path.join(root, 'staged.txt'), 'base\n');
+			await stagingRepository.add([path.join(root, 'tracked.txt'), path.join(root, 'staged.txt')]);
+			await stagingRepository.commit('initial commit');
+			fs.writeFileSync(path.join(root, 'staged.txt'), 'staged\n');
+			await stagingRepository.add([path.join(root, 'staged.txt')]);
+		});
+
+		teardown(async () => {
+			try {
+				if (stagingRepository) {
+					await commands.executeCommand('git.close', stagingRepository.rootUri);
+				}
+			} finally {
+				if (root) {
+					fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+				}
+			}
+		});
+
+		for (const untrackedChanges of ['mixed', 'separate', 'hidden']) {
+			test(`Stage All Tracked Changes ignores untracked files when no tracked changes remain (${untrackedChanges})`, async () => {
+				assert.ok(root && stagingRepository);
+				await workspace.getConfiguration('git').update('untrackedChanges', untrackedChanges, ConfigurationTarget.Workspace);
+				fs.writeFileSync(path.join(root, 'untracked.txt'), 'untracked\n');
+				await stagingRepository.status();
+
+				await commands.executeCommand('git.stageAllTracked', stagingRepository.rootUri);
+
+				assert.strictEqual(status(), 'M  staged.txt\n?? untracked.txt\n');
+			});
+
+			test(`Stage All Untracked Changes ignores tracked files when no untracked changes remain (${untrackedChanges})`, async () => {
+				assert.ok(root && stagingRepository);
+				await workspace.getConfiguration('git').update('untrackedChanges', untrackedChanges, ConfigurationTarget.Workspace);
+				fs.writeFileSync(path.join(root, 'tracked.txt'), 'modified\n');
+				await stagingRepository.status();
+
+				await commands.executeCommand('git.stageAllUntracked', stagingRepository.rootUri);
+
+				assert.strictEqual(status(), 'M  staged.txt\n M tracked.txt\n');
+			});
+
+			if (untrackedChanges !== 'hidden') {
+				test(`stages only the requested change type when matching changes exist (${untrackedChanges})`, async () => {
+					assert.ok(root && stagingRepository);
+					await workspace.getConfiguration('git').update('untrackedChanges', untrackedChanges, ConfigurationTarget.Workspace);
+					fs.writeFileSync(path.join(root, 'tracked.txt'), 'modified\n');
+					fs.writeFileSync(path.join(root, 'untracked.txt'), 'untracked\n');
+					await stagingRepository.status();
+
+					await commands.executeCommand('git.stageAllTracked', stagingRepository.rootUri);
+					const afterTracked = status();
+					fs.writeFileSync(path.join(root, 'tracked.txt'), 'modified again\n');
+					await stagingRepository.status();
+					await commands.executeCommand('git.stageAllUntracked', stagingRepository.rootUri);
+
+					assert.deepStrictEqual({ afterTracked, afterUntracked: status() }, {
+						afterTracked: 'M  staged.txt\nM  tracked.txt\n?? untracked.txt\n',
+						afterUntracked: 'M  staged.txt\nMM tracked.txt\nA  untracked.txt\n'
+					});
+				});
+			}
+		}
 	});
 
 	test('stages, commits changes and verifies outgoing change', async function () {
