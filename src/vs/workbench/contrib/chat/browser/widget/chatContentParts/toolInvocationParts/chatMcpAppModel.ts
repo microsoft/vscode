@@ -315,6 +315,11 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 		return this._displayMode.get();
 	}
 
+	/** Fires when the app's webview receives focus. */
+	public get onDidFocus(): Event<void> {
+		return this._webview.onDidFocus;
+	}
+
 	/** Focuses the app's webview. */
 	public focus(): void {
 		this._webview.focus();

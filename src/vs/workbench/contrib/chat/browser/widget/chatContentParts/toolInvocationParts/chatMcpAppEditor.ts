@@ -6,7 +6,8 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { IReference, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { DisposableStore, IReference, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue, transaction } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -40,7 +41,7 @@ export class ChatMcpAppEditorInput extends EditorInput {
 
 	override get typeId(): string { return ChatMcpAppEditorInput.ID; }
 	override get editorId(): string { return ChatMcpAppEditorInput.ID; }
-	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly; }
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton; }
 
 	/** The shared model displayed by this editor. */
 	get model(): ChatMcpAppModel { return this._reference.object; }
@@ -59,6 +60,10 @@ export class ChatMcpAppEditor extends EditorPane {
 
 	private _container: HTMLElement | undefined;
 	private readonly _attachment = this._register(new MutableDisposable());
+
+	// The app's overlay webview lives outside this pane's DOM, so focus is reported by the webview.
+	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
+	override get onDidFocus(): Event<void> { return this._onDidFocusWebview.event; }
 	private readonly _maxHeight = observableValue(this, 0);
 	private readonly _currentWidth = observableValue(this, 0);
 
@@ -82,12 +87,15 @@ export class ChatMcpAppEditor extends EditorPane {
 		if (token.isCancellationRequested || input.isDisposed() || this.input !== input || !this._container) {
 			return;
 		}
-		this._attachment.value = input.model.attach(this._container, {
+		const store = new DisposableStore();
+		store.add(input.model.attach(this._container, {
 			targetWindow: dom.getWindow(this._container),
 			maxHeight: this._maxHeight,
 			currentWidth: this._currentWidth,
 			clippingContainer: this._container,
-		});
+		}));
+		store.add(input.model.onDidFocus(() => this._onDidFocusWebview.fire()));
+		this._attachment.value = store;
 	}
 
 	override clearInput(): void {
