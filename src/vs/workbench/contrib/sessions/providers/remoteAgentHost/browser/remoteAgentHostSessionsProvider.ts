@@ -19,6 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { readCloudSandboxProjects } from '../../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -1392,6 +1393,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 */
 	private _isOnThisHost(uri: URI): boolean {
 		return uri.scheme === AGENT_HOST_SCHEME && uri.authority === this._connectionAuthority;
+	}
+
+	/**
+	 * Whether this host clones repositories: a cloud sandbox's agent host, which manages projects, as
+	 * {@link cloneRepository} requires.
+	 */
+	get canCloneRepository(): boolean {
+		const connection = this.connection;
+		const root = connection instanceof AgentHostProtocolClient ? connection.rootState.value : undefined;
+		return !!root && !(root instanceof Error) && readCloudSandboxProjects(root) !== undefined;
 	}
 
 	async cloneRepository(repository: URI, token: CancellationToken): Promise<ISessionWorkspace> {

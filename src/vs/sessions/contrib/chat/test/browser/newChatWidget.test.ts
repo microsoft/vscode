@@ -887,6 +887,7 @@ suite('NewChatWidget', () => {
 				_workspacePicker: {
 					selectedResolved: { providerId: 'cloud' },
 					getEnvironmentWorkspace: () => undefined,
+					offersWorkspaces: () => true,
 				},
 				_isCurrentWorkspaceSelection: () => false,
 				_onWorkspaceSelected: async () => { },
@@ -916,6 +917,7 @@ suite('NewChatWidget', () => {
 				_workspacePicker: {
 					selectedResolved: { providerId: 'new-cloud-provider' },
 					getEnvironmentWorkspace: () => undefined,
+					offersWorkspaces: () => true,
 				},
 				_isCurrentWorkspaceSelection: () => false,
 				_onWorkspaceSelected: async () => { },
@@ -962,6 +964,7 @@ suite('NewChatWidget', () => {
 				newSessionComposerService: { notifyUserWorkspaceSelection: () => calls.push('userSelection') },
 				_workspacePicker: {
 					get selectedFolderUri() { return selectedFolder; },
+					offersWorkspaces: () => true,
 					getEnvironmentWorkspace: (environment: ISessionCreationEnvironment, _reader?: IReader, preferredFolderUri?: URI) => {
 						const provider = providers.find(provider => environment.providerIds.includes(provider.id));
 						const folderUri = preferredFolderUri ?? selectedFolder;
@@ -1079,7 +1082,9 @@ suite('NewChatWidget', () => {
 		function createFolderlessHarness(quickChat = true, optOutEnabled = true) {
 			const remote: ISessionCreationEnvironment = { id: 'agenthost-ssh', kind: 'remote', label: 'SSH', icon: Codicon.remote, providerIds: ['agenthost-ssh'] };
 			const tunnel: ISessionCreationEnvironment = { id: 'agenthost-tunnel', kind: 'remote', label: 'Dead Tunnel', icon: Codicon.remote, providerIds: ['agenthost-tunnel'] };
+			const jobs: ISessionCreationEnvironment = { id: 'agenthost-jobs', kind: 'remote', label: 'Jobs', icon: Codicon.remote, providerIds: ['agenthost-jobs'] };
 			const picked = observableValue<ISessionCreationEnvironment | undefined>('picked', remote);
+			const persisted: boolean[] = [];
 			const createDraft = (providerId: string, sessionType: string, isQuickChat = true) => upcastPartial<ITestSessionWithChat>({
 				sessionId: `${providerId}:${sessionType}`,
 				providerId, sessionType,
@@ -1109,7 +1114,7 @@ suite('NewChatWidget', () => {
 			const handleClear = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: NewChatWidget, folderUri: URI | undefined) => Promise<void>;
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
 				_environment: picked,
-				_environments: constObservable([local, cloud, container, remote, tunnel]),
+				_environments: constObservable([local, cloud, container, remote, tunnel, jobs]),
 				_environmentWorkspaces: new Map<string, URI>(),
 				_pickedEnvironment: picked,
 				_session: session,
@@ -1130,7 +1135,8 @@ suite('NewChatWidget', () => {
 					isNoWorkspaceSelected: () => noWorkspaceSelected,
 					whenWorkspaceRestored: async () => true,
 					getEnvironmentWorkspace: () => undefined,
-					selectNoWorkspace: () => { selectedFolder = undefined; noWorkspaceSelected = true; },
+					offersWorkspaces: (environment: ISessionCreationEnvironment) => environment.id !== jobs.id,
+					selectNoWorkspace: (_userSelection?: boolean, persist = true) => { selectedFolder = undefined; noWorkspaceSelected = true; persisted.push(persist); },
 					clearSelection: () => {
 						selectedFolder = undefined;
 						noWorkspaceSelected = false;
@@ -1168,7 +1174,7 @@ suite('NewChatWidget', () => {
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: NewChatWidget, environment: ISessionCreationEnvironment) => Promise<void>;
 			const restore = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: NewChatWidget) => Promise<void>;
 			return {
-				widget, targetHarness, session, picked, remote, tunnel, targets, remoteTarget, localTarget, cloudTarget, opened, errors, announcements, traces,
+				widget, targetHarness, session, picked, remote, tunnel, jobs, persisted, targets, remoteTarget, localTarget, cloudTarget, opened, errors, announcements, traces,
 				select: async (environment: ISessionCreationEnvironment) => {
 					await select.call(widget, environment);
 					await pendingSelection;
@@ -1177,6 +1183,18 @@ suite('NewChatWidget', () => {
 				get noWorkspaceSelected() { return noWorkspaceSelected; },
 			};
 		}
+
+		test('starts without a workspace on a host that offers none, without remembering it as your choice', async () => {
+			const state = createFolderlessHarness(false, false);
+			await state.select(state.jobs);
+			const onJobs = { noWorkspaceSelected: state.noWorkspaceSelected, persisted: [...state.persisted] };
+			// A host that offers workspaces asks you to choose one again.
+			await state.select(state.remote);
+			assert.deepStrictEqual({ onJobs, onHostWithFolders: { noWorkspaceSelected: state.noWorkspaceSelected, persisted: state.persisted } }, {
+				onJobs: { noWorkspaceSelected: true, persisted: [false] },
+				onHostWithFolders: { noWorkspaceSelected: false, persisted: [false] },
+			});
+		});
 
 		for (const { quickChat, optOutEnabled } of [
 			{ quickChat: true, optOutEnabled: true },
