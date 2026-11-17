@@ -91,6 +91,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IMenuService, MenuId, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
@@ -1037,6 +1038,25 @@ suite('AutomationsCardsWidget', () => {
 			templatesVisible: templates.checkVisibility(), disabledDisplay: disabled.style.display,
 			onboardingAvailable: !!resolveOnboardingTarget(getWindow(widget.element), 'sessions.automations.templates'),
 		}, { templatesVisible: false, disabledDisplay: 'none', onboardingAvailable: false });
+	});
+
+	test('hidden disabled automations have accessible guidance until revealed or enabled', () => {
+		const { widget, automationService, toggleDisabled } = setup();
+		automationService.setAutomations([automation({ enabled: false })]);
+		const summary = widget.element.querySelector<HTMLElement>('.automations-ownership-summary')!;
+		const descriptions = [summary.getAttribute('aria-description')];
+		toggleDisabled();
+		descriptions.push(summary.getAttribute('aria-description'));
+		toggleDisabled();
+		descriptions.push(summary.getAttribute('aria-description'));
+		automationService.setAutomations([automation()]);
+		descriptions.push(summary.getAttribute('aria-description'));
+		assert.deepStrictEqual(descriptions, [
+			'Disabled automations are hidden. Use View options, then Show Disabled Automations to reveal them.',
+			null,
+			'Disabled automations are hidden. Use View options, then Show Disabled Automations to reveal them.',
+			null,
+		]);
 	});
 
 	test('template onboarding opens templates alongside disabled shared automations', async () => {
@@ -2091,9 +2111,14 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([]);
 		catalogueStates.push(discovered());
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const withoutChatReady = { hidden: !moreActions(), actions: discovered() };
+		ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService).set(true);
+		const hiddenWithAI = !moreActions();
+		ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService).set(false);
+		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({
 			withoutCloud, hiddenWithoutCloud, withCloud, catalogueStates, disabledCloud, menuIsLast, refreshInHeader, label: settings.label,
-			states: [before, afterOn, afterOff], hiddenWithAI: !moreActions(), writes,
+			states: [before, afterOn, afterOff], withoutChatReady, hiddenWithAI, hiddenWithAutomations: !moreActions(), writes,
 		}, {
 			withoutCloud: ['sessions.automations.toggleShowDisabled'], hiddenWithoutCloud: false,
 			withCloud: ['sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers', 'sessions.automations.toggleShowDisabled'],
@@ -2107,12 +2132,26 @@ suite('AutomationsCardsWidget', () => {
 			],
 			disabledCloud: { hidden: false, actions: ['sessions.automations.toggleShowDisabled'] },
 			menuIsLast: true, refreshInHeader: false, label: 'View options',
-			states: [false, true, false], hiddenWithAI: true,
+			states: [false, true, false],
+			withoutChatReady: { hidden: false, actions: ['sessions.automations.toggleShowDisabled'] },
+			hiddenWithAI: true, hiddenWithAutomations: true,
 			writes: [
 				{ key: SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value: true, target: ConfigurationTarget.USER },
 				{ key: SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, value: false, target: ConfigurationTarget.USER },
 			],
 		});
+	});
+
+	test('disabled filter remains usable before chat is ready', () => {
+		const { widget, automationService, contextKeyService, disabledFilter, toggleDisabled } = setup();
+		automationService.setAutomations([automation({ enabled: false })]);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const action = disabledFilter();
+		toggleDisabled();
+		assert.deepStrictEqual({
+			enabled: action.enabled, checked: disabledFilter().checked,
+			display: widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!.style.display,
+		}, { enabled: true, checked: true, display: '' });
 	});
 
 	test('renders collapsible ownership sections with repository guidance and removes empty groups', () => {
@@ -4170,7 +4209,14 @@ suite('AutomationsCardsWidget', () => {
 		template.focus();
 		template.click();
 		await timeout(0);
-		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-ownership-summary'));
+		const summary = widget.element.querySelector('.automations-ownership-summary');
+		assert.deepStrictEqual({
+			focused: document.activeElement === summary,
+			description: summary?.getAttribute('aria-description'),
+		}, {
+			focused: true,
+			description: 'Disabled automations are hidden. Use View options, then Show Disabled Automations to reveal them.',
+		});
 	});
 
 	for (const catalogueState of ['loading', 'unavailable', 'error'] as const) {

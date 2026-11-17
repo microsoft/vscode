@@ -51,6 +51,7 @@ import { IAgentPluginService } from '../../../../../workbench/contrib/chat/commo
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -616,6 +617,13 @@ class AutomationCardsSection extends Disposable {
 				this.ownershipSections.set(group.ownership, rendered);
 			}
 			rendered.title.textContent = group.label;
+			if (group.ownership === 'user') {
+				if (!showDisabled && group.automations.some(automation => !automation.enabled)) {
+					rendered.summary.setAttribute('aria-description', localize('hiddenDisabledAutomations', "Disabled automations are hidden. Use View options, then Show Disabled Automations to reveal them."));
+				} else {
+					rendered.summary.removeAttribute('aria-description');
+				}
+			}
 			if (rendered.emptyState) {
 				rendered.emptyState.style.display = group.automations.length === 0 ? '' : 'none';
 			}
@@ -3186,7 +3194,7 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
 	icon: Codicon.more,
 	group: 'navigation',
 	order: 4,
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatEntitlementContextKeys.Setup.hidden.negate()),
 });
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
@@ -3194,11 +3202,11 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
 		id: TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID,
 		title: localize2('showDisabledAutomations', "Show Disabled Automations"),
 		toggled: ShowDisabledAutomationsContext,
-		precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+		precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatEntitlementContextKeys.Setup.hidden.negate()),
 	},
 	group: '1_state',
 	order: 2,
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatEntitlementContextKeys.Setup.hidden.negate()),
 });
 
 registerAction2(class ToggleOtherSharedAutomationsAction extends Action2 {
