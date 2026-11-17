@@ -7,7 +7,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { IChatWidget, IChatWidgetRevealer, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
 export class MockChatWidgetService implements IChatWidgetService {
@@ -39,6 +39,10 @@ export class MockChatWidgetService implements IChatWidgetService {
 
 	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
 		return Promise.resolve(undefined);
+	}
+
+	registerWidgetRevealer(revealer: IChatWidgetRevealer): IDisposable {
+		return Disposable.None;
 	}
 
 	revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
