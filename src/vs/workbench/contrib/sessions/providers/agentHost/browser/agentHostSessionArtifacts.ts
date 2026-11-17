@@ -64,6 +64,7 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact, mapFileUri: (uri:
 		...(uri ? { uri } : {}),
 		...(artifact.commitHash ? { commitHash: artifact.commitHash } : {}),
 		...(artifact.isGitHub !== undefined ? { isGitHub: artifact.isGitHub } : {}),
+		...(artifact.category ? { category: artifact.category } : {}),
 	};
 }
 

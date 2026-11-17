@@ -41,6 +41,18 @@ export function isSessionArtifactMode(value: unknown): value is SessionArtifactM
 	return typeof value === 'string' && (SESSION_ARTIFACT_MODES as readonly string[]).includes(value);
 }
 
+/** The longest {@link ISessionArtifact.category} a client shows; a longer one is ignored. */
+export const MAX_SESSION_ARTIFACT_CATEGORY_LENGTH = 100;
+
+/** A category as clients show it: one line, trimmed, or undefined when it is blank or too long. */
+function parseSessionArtifactCategory(value: unknown): string | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	const category = value.replace(/\s+/g, ' ').trim();
+	return category && category.length <= MAX_SESSION_ARTIFACT_CATEGORY_LENGTH ? category : undefined;
+}
+
 /** A chat artifact or reference as stored by the host and published to clients. */
 export interface ISessionArtifact {
 	readonly id: string;
@@ -61,6 +73,12 @@ export interface ISessionArtifact {
 	readonly commitHash?: string;
 	/** Whether a pull request or issue link points at GitHub. Host-computed. */
 	readonly isGitHub?: boolean;
+	/**
+	 * A name of the host's choosing that clients list the entry under, with the other entries of the
+	 * same category, instead of under its type, such as the kind of decision a host waits for. Plain
+	 * text, shown as given.
+	 */
+	readonly category?: string;
 	readonly origin?: ArtifactOrigin;
 	readonly mode?: SessionArtifactMode;
 	/** Counts the changes of {@link mode} after the first, so that a client can tell a new request from one it applied. */
@@ -103,6 +121,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 		uri?: string;
 		commitHash?: string;
 		isGitHub?: boolean;
+		category?: string;
 		origin?: ArtifactOrigin;
 		mode?: SessionArtifactMode;
 		modeRevision?: number;
@@ -118,6 +137,8 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 	if (typeof raw['uri'] === 'string') { artifact.uri = raw['uri']; }
 	if (typeof raw['commitHash'] === 'string') { artifact.commitHash = raw['commitHash']; }
 	if (typeof raw['isGitHub'] === 'boolean') { artifact.isGitHub = raw['isGitHub']; }
+	const category = parseSessionArtifactCategory(raw['category']);
+	if (category) { artifact.category = category; }
 	if (isSessionArtifactMode(raw['mode'])) { artifact.mode = raw['mode']; }
 	if (typeof raw['modeRevision'] === 'number' && Number.isSafeInteger(raw['modeRevision']) && raw['modeRevision'] > 0) { artifact.modeRevision = raw['modeRevision']; }
 	const origin = raw['origin'];
