@@ -161,6 +161,7 @@ import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContex
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { buildMcpServerLogsChannelTemplate, MCP_SERVER_LOGS_META_KEY } from '../../common/otlp/mcpServerLogsChannel.js';
 
 type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
 type TaskOutputRead = Parameters<CopilotSession['rpc']['tasks']['readOutput']>[0];
@@ -36730,6 +36731,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Stopped },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				afterRuntimeUpdate: [{
 					type: CustomizationType.McpServer,
@@ -36741,6 +36743,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Starting, blocking: true },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				afterReconcile: [{
 					type: CustomizationType.McpServer,
@@ -36752,6 +36755,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Stopped },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				enableCalls: [{ serverName }],
 				afterEnable: [{
@@ -36762,6 +36766,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Starting, blocking: true },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 			});
 		});
@@ -39009,6 +39014,7 @@ Use the attached image as context.
 				},
 				channel: undefined,
 				mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+				_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', 'github') },
 			});
 
 			assert.strictEqual(await session.resolveMcpAuthentication({ resource: 'https://api.githubcopilot.com/mcp', scopes: ['repo', 'notifications'], token: 'token-1' }), true);
