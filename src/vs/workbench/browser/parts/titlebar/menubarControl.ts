@@ -426,7 +426,7 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
-	private get currentMenubarVisibility(): MenuBarVisibility {
+	protected get currentMenubarVisibility(): MenuBarVisibility {
 		return getMenuBarVisibility(this.configurationService);
 	}
 
@@ -473,7 +473,8 @@ export class CustomMenubarControl extends MenubarControl {
 		return enableMenuBarMnemonics && (!isWeb || isFullscreen(mainWindow));
 	}
 
-	private get currentCompactMenuMode(): IMenuDirection | undefined {
+	/** The direction the compact menu opens in, or `undefined` for a menu bar that is not compact. */
+	protected get currentCompactMenuMode(): IMenuDirection | undefined {
 		if (this.currentMenubarVisibility !== 'compact') {
 			return undefined;
 		}

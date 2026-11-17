@@ -38,6 +38,7 @@ import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { createMainWindowInstantiationService } from '../../../workbench/services/sessions/browser/sessionHost.js';
+import { ApplicationMenu } from './applicationMenu.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
@@ -52,11 +53,11 @@ const FULLSCREEN_RECHECK_DELAY = 300;
  * Simplified agent sessions titlebar part.
  *
  * Three sections driven entirely by menus:
- * - **Left**: `Menus.TitleBarLeft` toolbar
+ * - **Left**: the application menu where the window has no native menu, then the `Menus.TitleBarLeft` toolbar
  * - **Center**: `AgentsWindowMenus.CommandCenter` toolbar (renders session picker via IActionViewItemService)
  * - **Right**: `Menus.TitleBarRight` toolbar (includes account submenu)
  *
- * No menubar, no editor actions, no layout controls, no WindowTitle dependency.
+ * No menu bar beyond the compact application menu, no editor actions, no layout controls, no WindowTitle dependency.
  */
 export class TitlebarPart extends Part implements ITitlebarPart {
 
@@ -172,6 +173,14 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	 * windows with layout modes, such as chat windows: the title bars of other windows than the main window.
 	 */
 	protected get showsWindowLayoutActions(): boolean {
+		return false;
+	}
+
+	/**
+	 * Whether the title bar shows the application menu ({@link ApplicationMenu}) at its start, which only the main window's
+	 * title bar does, where its window has no native menu.
+	 */
+	protected get showsApplicationMenu(): boolean {
 		return false;
 	}
 
@@ -300,6 +309,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 		}));
+
+		// Application menu, the first entry before the left toolbar
+		if (this.showsApplicationMenu) {
+			this._register(this.instantiationService.createInstance(ApplicationMenu, this.leftContent, this.leftToolbarContainer));
+		}
 
 		// Center section: [nav toolbar] [command center box] [actions toolbar]
 		// All live inside .titlebar-center so the cluster is window-centered.
