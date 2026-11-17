@@ -41,7 +41,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWork, type BackgroundWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResourceType, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, SessionOriginKind, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -4588,6 +4588,56 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	for (const kind of agentHostConnectionKinds) {
+		test(`maps worktree inventory, existence, and cleanup exactly once (${kind.name})`, async () => {
+			agentHost.resourceUris = kind.resourceUris;
+			const repository = URI.file('/workspace');
+			const worktree = URI.file('/workspace.worktrees/task');
+			const calls: { operation: string; uris: string[] }[] = [];
+			agentHost.listManagedWorktrees = async repositories => {
+				calls.push({ operation: 'list', uris: repositories.map(uri => uri.toString()) });
+				return [{ repository: repository.toString(), worktree: worktree.toString(), branch: 'user/agents/task', cleanupStatus: { state: 'unknown' } }];
+			};
+			agentHost.cleanupManagedWorktree = async (repository, worktree) => {
+				calls.push({ operation: 'cleanup', uris: [repository.toString(), worktree.toString()] });
+			};
+			agentHost.resourceResolve = async params => {
+				calls.push({ operation: 'exists', uris: [params.uri] });
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			agentHost.measureWorktreeDiskUsage = async root => {
+				calls.push({ operation: 'measure', uris: [root.toString()] });
+				return 100;
+			};
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { 'vscode.worktreeDiskUsage': true } }, undefined);
+			const provider = createProvider(disposables, agentHost, undefined, {
+				recentWorkspacesService: upcastPartial<ISessionsRecentWorkspacesService>({
+					onDidChangeRecentWorkspaces: Event.None,
+					onDidRemoveRecentWorkspaces: Event.None,
+					getRecentWorkspaces: () => [],
+				}),
+			});
+			await timeout(0);
+			fireSessionAdded(agentHost, 'task', { project: { uri: repository.toString(), displayName: 'workspace' }, workingDirectory: worktree.toString() });
+			const session = provider.getSessions()[0];
+			const inventory = await provider.listManagedWorktrees([kind.toClient(repository), URI.parse('vscode-agent-host://another-host/workspace')]);
+			await provider.cleanupManagedWorktree(inventory[0]);
+			const managedExists = await provider.managedWorktreeExists(inventory[0]);
+			const linkedExists = await provider.sessionWorktreeExists(session.sessionId);
+			const size = await provider.getSessionWorktreeDiskUsage(session.sessionId);
+			assert.deepStrictEqual({
+				inventory: inventory.map(row => [row.repository, row.worktree]), managedExists, linkedExists, size, calls,
+			}, {
+				inventory: [[kind.toClient(repository).toString(), kind.toClient(worktree).toString()]], managedExists: true, linkedExists: true, size: 100,
+				calls: [
+					{ operation: 'list', uris: [repository.toString()] },
+					{ operation: 'cleanup', uris: [repository.toString(), worktree.toString()] },
+					{ operation: 'exists', uris: [worktree.toString()] },
+					{ operation: 'exists', uris: [worktree.toString()] },
+					{ operation: 'measure', uris: [kind.toClient(worktree).toString()] },
+				],
+			});
+		});
+
 		test(`projects host roots and draft agents into client-space session state (${kind.name})`, () => {
 			agentHost.resourceUris = kind.resourceUris;
 			class TestProvider extends LocalAgentHostSessionsProvider {

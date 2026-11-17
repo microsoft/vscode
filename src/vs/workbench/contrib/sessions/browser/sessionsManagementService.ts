@@ -1560,6 +1560,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return this._getProvider(session)?.sessionWorktreeExists?.(session.sessionId, token) ?? Promise.resolve(undefined);
 	}
 
+	canCleanupWorktree(owner: ISession | IManagedSessionWorktree): boolean {
+		if (hasKey(owner, { sessionId: true })) {
+			return this._getProvider(owner)?.supportsWorktreeCleanup === true;
+		}
+		return this.sessionsProvidersService.getProvider(owner.providerId)?.supportsManagedWorktreeCleanup === true;
+	}
+
 	canForceWorktreeCleanup(owner: ISession | IManagedSessionWorktree): boolean {
 		const provider = hasKey(owner, { sessionId: true }) ? this._getProvider(owner) : this.sessionsProvidersService.getProvider(owner.providerId);
 		return provider?.supportsForceWorktreeCleanup === true;

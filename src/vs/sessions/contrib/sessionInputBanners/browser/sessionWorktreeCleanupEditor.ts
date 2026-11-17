@@ -839,7 +839,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	private getVisibleWorktrees(): readonly ISessionWorktree[] {
-		return this.getMatchingWorktrees().filter(worktree => !this.hasRemovalIssue(worktree) && (worktree.isMeasuring || this.isWorktreeInProgress(worktree) || this.canScheduleCleanup(worktree)));
+		return this.getMatchingWorktrees().filter(worktree => worktree.cleanupUnavailableReason || (!this.hasRemovalIssue(worktree) && (worktree.isMeasuring || this.isWorktreeInProgress(worktree) || this.canScheduleCleanup(worktree))));
 	}
 
 	private renderRows(): void {
@@ -1139,6 +1139,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			worktree.sizeBytes === undefined,
 			worktree.worktreeCount,
 			worktree.cleanupState,
+			worktree.cleanupUnavailableReason,
 			worktree.session?.isArchived.get(),
 			worktree.isMeasuring,
 			worktree.cleanupStatus?.state,
@@ -1160,6 +1161,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}
 
 	private getWorktreeCleanupLabel(worktree: ISessionWorktree, cleaning: boolean): string | undefined {
+		if (worktree.cleanupUnavailableReason) {
+			return worktree.cleanupUnavailableReason;
+		}
 		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
 		if (batch?.state === 'removed') {
 			return localize('sessionWorktreeCleanup.removed', "Worktree removed");
@@ -1272,7 +1276,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private canScheduleCleanup(worktree: ISessionWorktree): boolean {
 		const batch = this.cleanupBatch.get(getWorktreeCleanupId(worktree));
-		return worktree.isListedByHost !== false && worktree.worktreeExists !== false && batch?.state !== 'queued' && batch?.state !== 'pending' && batch?.state !== 'removed'
+		return !worktree.cleanupUnavailableReason && worktree.isListedByHost !== false && worktree.worktreeExists !== false && batch?.state !== 'queued' && batch?.state !== 'pending' && batch?.state !== 'removed'
 			&& (worktree.unlinkedWorktree
 				? !!worktree.unlinkedWorktree.branch && !worktree.cleanupStatusError && !worktree.worktreeCheckError && worktree.cleanupStatus?.state !== 'inUse' && !this.hasPendingCleanup(worktree)
 				: worktree.cleanupState === 'archived'

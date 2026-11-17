@@ -42,7 +42,7 @@ import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace 
 import { supportsAgentHostSessionImport } from '../../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { supportsAgentHostSessionMove } from '../../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeDiskUsageMeta.js';
-import { supportsForceWorktreeCleanup } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeCleanupMeta.js';
+import { supportsAgentHostManagedWorktrees, supportsAgentHostWorktreeCleanup, supportsForceWorktreeCleanup, supportsPrepareSessionWorktreeCleanup } from '../../../../../../platform/agentHost/common/meta/agentHostWorktreeCleanupMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
@@ -5475,8 +5475,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Maps a host working-directory URI into the owning connection's client space. */
 	protected mapWorkingDirectoryUri(uri: URI): URI { return this.connection?.resourceUris.fromAgentHost(uri) ?? uri; }
 
-	/** Maps a project URI from the session summary to a local URI. Default identity; remote overrides for `file:` paths. */
-	protected mapProjectUri(uri: URI): URI { return uri; }
+	/** Maps host filesystem projects into client space while retaining repository URLs. */
+	protected mapProjectUri(uri: URI): URI { return uri.scheme === Schemas.file ? this.mapWorkingDirectoryUri(uri) : uri; }
 
 	// -- Session listing ------------------------------------------------------
 
@@ -8201,8 +8201,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		for (const worktree of worktrees) {
 			try {
-				// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): worktree existence sends a client resource without connection.resourceUris.toAgentHost
-				await raceCancellationError(connection.resourceResolve({ channel: 'ahp-root://', uri: fromAgentHostUri(worktree).toString(), followSymlinks: false }), token);
+				await raceCancellationError(connection.resourceResolve({ channel: 'ahp-root://', uri: connection.resourceUris.toAgentHost(worktree).toString(), followSymlinks: false }), token);
 				return true;
 			} catch (error) {
 				if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound) {
@@ -8215,6 +8214,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async unarchiveSession(sessionId: string): Promise<void> {
 		this._setSessionArchived(sessionId, false);
+	}
+
+	get supportsWorktreeCleanup(): boolean {
+		const connection = this.connection;
+		return !!connection?.prepareSessionWorktreeCleanup && !!connection.sessionWorktreeCleanup
+			&& supportsPrepareSessionWorktreeCleanup(connection.initializeResult.get())
+			&& supportsAgentHostWorktreeCleanup(connection.initializeResult.get());
+	}
+
+	get supportsManagedWorktreeCleanup(): boolean {
+		const connection = this.connection;
+		return !!connection?.listManagedWorktrees && !!connection.cleanupManagedWorktree
+			&& supportsAgentHostManagedWorktrees(connection.initializeResult.get());
 	}
 
 	get supportsForceWorktreeCleanup(): boolean {
@@ -8244,21 +8256,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async listManagedWorktrees(knownRepositories: readonly URI[] = []): Promise<IAgentHostManagedWorktree[]> {
+		const connection = this.connection;
+		if (!connection?.listManagedWorktrees) {
+			return [];
+		}
 		const workspaces = [
 			...this.getAllSessions().flatMap(session => session.workspace.get() ?? []),
 			...this.recentWorkspacesService.getRecentWorkspaces().filter(recent => recent.providerId === this.id).map(recent => recent.workspace),
 		];
 		const repositories = new ResourceSet([
-			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): known repository roots need this.connection.resourceUris before host-side worktree listing
-			...knownRepositories.map(repository => fromAgentHostUri(repository)),
-			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): workspace repository roots need this.connection.resourceUris before host-side worktree listing
-			...workspaces.flatMap(workspace => workspace.folders.flatMap(folder => folder.gitRepository ? [fromAgentHostUri(folder.gitRepository.uri)] : [])),
-		].filter(repository => repository.scheme === Schemas.file));
-		const worktrees = await this.connection?.listManagedWorktrees?.([...repositories]) ?? [];
+			...knownRepositories,
+			...workspaces.flatMap(workspace => workspace.folders.flatMap(folder => folder.gitRepository ? [folder.gitRepository.uri] : [])),
+		].map(repository => connection.resourceUris.toAgentHost(repository)).filter(repository => repository.scheme === Schemas.file));
+		const worktrees = await connection.listManagedWorktrees([...repositories]);
 		return worktrees.map(worktree => ({
 			...worktree,
-			repository: this.mapWorkingDirectoryUri(URI.parse(worktree.repository)).toString(),
-			worktree: this.mapWorkingDirectoryUri(URI.parse(worktree.worktree)).toString(),
+			repository: connection.resourceUris.fromAgentHost(URI.parse(worktree.repository)).toString(),
+			worktree: connection.resourceUris.fromAgentHost(URI.parse(worktree.worktree)).toString(),
 		}));
 	}
 
@@ -8267,8 +8281,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!connection?.cleanupManagedWorktree) {
 			throw new Error(localize('managedWorktreeCleanupUnavailable', "Connect to this worktree's host to clean it up."));
 		}
-		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): managed-worktree cleanup bypasses the available connection.resourceUris mapper
-		await connection.cleanupManagedWorktree(fromAgentHostUri(URI.parse(worktree.repository)), fromAgentHostUri(URI.parse(worktree.worktree)), worktree.branch, force);
+		await connection.cleanupManagedWorktree(connection.resourceUris.toAgentHost(URI.parse(worktree.repository)), connection.resourceUris.toAgentHost(URI.parse(worktree.worktree)), worktree.branch, force);
 	}
 
 	async managedWorktreeExists(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined> {
@@ -8277,8 +8290,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		try {
-			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): managed-worktree existence bypasses the available connection.resourceUris mapper
-			await connection.resourceResolve({ channel: 'ahp-root://', uri: fromAgentHostUri(URI.parse(worktree.worktree)).toString(), followSymlinks: false });
+			await connection.resourceResolve({ channel: 'ahp-root://', uri: connection.resourceUris.toAgentHost(URI.parse(worktree.worktree)).toString(), followSymlinks: false });
 			return true;
 		} catch (error) {
 			if (error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound) {
