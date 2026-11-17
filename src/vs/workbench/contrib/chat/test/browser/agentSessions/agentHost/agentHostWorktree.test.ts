@@ -102,7 +102,7 @@ suite('AgentHostWorktree', () => {
 			onDidChange: onDidChangeSessionLayer.event,
 			resolve: (chat: URI) => {
 				const path = sessionLayerDirectories.get(chat.toString());
-				return chat.scheme === 'ahp-chat' ? { workingDirectory: path ? URI.file(path) : undefined, isArchived: false } : undefined;
+				return chat.scheme === 'ahp-chat' ? { workingDirectory: path ? URI.file(path) : undefined, isArchived: archived.has(chat.toString()) } : undefined;
 			},
 		}));
 		instantiationService.stub(IAgentHostWorktreeChatResolverService, chatResolver);
@@ -349,6 +349,26 @@ suite('AgentHostWorktree', () => {
 			whileArchived: [],
 			unarchived: ['/a (restore)'],
 		});
+	});
+
+	test('does not reopen the last chat of a location once its session layer archived it, such as a chat of the chat part', async () => {
+		const chat = URI.from({ scheme: 'ahp-chat', path: '/remembered' });
+		const feature = createWorktree({ enabled: true });
+		feature.sessionLayerDirectories.set(chat.toString(), worktree.fsPath);
+		feature.show(chat);
+		await settle();
+		feature.show(localChat);
+		await settle();
+		feature.archived.add(chat.toString());
+		feature.onDidChangeSessionLayer.fire();
+		feature.userMovesTo(worktree);
+		const reopened = () => feature.opened.filter(opened => opened.startsWith('/remembered '));
+		const whileArchived = reopened();
+		feature.userMovesTo(URI.file('/work/vscode'));
+		feature.archived.delete(chat.toString());
+		feature.userMovesTo(worktree);
+
+		assert.deepStrictEqual({ whileArchived, unarchived: reopened() }, { whileArchived: [], unarchived: ['/remembered (restore)'] });
 	});
 
 	test('with the setting off, logs the same trigger but moves nothing; turned off at a worktree, returns the folder to its own location', async () => {

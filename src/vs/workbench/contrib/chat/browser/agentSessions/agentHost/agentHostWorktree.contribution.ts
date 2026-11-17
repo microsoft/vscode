@@ -557,7 +557,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	private _openLastSession(folder: IWorkspaceFolder): void {
 		const last = this.getLastSession(folder.uri);
 		// A chat archived since is not reopened: the location starts fresh, as one without a last chat does
-		if (!last || this._agentSessionsService.getSession(last)?.isArchived()) {
+		if (!last || this._isArchived(last)) {
 			return;
 		}
 		// The location the user picked again, and its chat, stay the most recent
