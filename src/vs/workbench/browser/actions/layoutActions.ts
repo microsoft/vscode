@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -253,11 +253,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 
 // --- Toggle Editor Visibility
 
-registerAction2(class extends Action2 {
+const EDITOR_AREA_CHAT_CASE = ContextKeyExpr.or(ChatPartVisibleContext, EditorAreaHiddenByChatContext);
+
+class ToggleEditorVisibilityAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleEditorVisibility';
 
 	constructor() {
 		super({
-			id: 'workbench.action.toggleEditorVisibility',
+			id: ToggleEditorVisibilityAction.ID,
 			title: {
 				...localize2('toggleEditor', "Toggle Editor Area Visibility"),
 				mnemonicTitle: localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
@@ -265,15 +269,33 @@ registerAction2(class extends Action2 {
 			category: Categories.View,
 			f1: true,
 			toggled: MainEditorAreaVisibleContext,
-			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-			precondition: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom')))
+			precondition: ContextKeyExpr.and(
+				IsAuxiliaryWindowFocusedContext.toNegated(),
+				ContextKeyExpr.or(
+					EDITOR_AREA_CHAT_CASE,
+					// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+					ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom'))
+				)
+			),
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 6,
+				when: ContextKeyExpr.and(EDITOR_AREA_CHAT_CASE, IsSessionsWindowContext.negate())
+			}
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).toggleMaximizedPanel();
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		if (layoutService.isEditorHiddenByChat() || layoutService.isVisible(Parts.CHAT_PART)) {
+			layoutService.setEditorHiddenByChat(!layoutService.isEditorHiddenByChat());
+		} else {
+			layoutService.toggleMaximizedPanel();
+		}
 	}
-});
+}
+registerAction2(ToggleEditorVisibilityAction);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',

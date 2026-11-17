@@ -52,6 +52,7 @@ import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../work
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatNativeComponentsRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
+import { canShowApplicationMenu, SESSIONS_SHOW_APPLICATION_MENU_SETTING } from '../../../browser/parts/applicationMenu.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -84,6 +85,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		if (!isPhoneLayout(accessor.get(IWorkbenchLayoutService))) {
 			content.push(localize('sessionsChat.commandCenterSessions', "In the title bar, hover over the session command center to preview recent sessions. The current session is selected in the preview. When another session first requires input, the command center shows the full orange attention message and its preview focuses on sessions needing attention. Opening that session dismisses the message; if you navigate to a different session while the request is still unresolved, a compact orange question marker remains as a reminder and the preview returns to the full recent sessions list. Moving the pointer into the preview keeps it open; moving away starts a short close delay. Click the command center, or focus it and press Enter or Space, to keep the preview open and move focus into its list. Click outside the preview, click the command center again, or press Escape to close it. Choose Show All Sessions for the searchable Sessions picker."));
+		}
+		if (canShowApplicationMenu(configurationService) && configurationService.getValue<boolean>(SESSIONS_SHOW_APPLICATION_MENU_SETTING)) {
+			content.push(localize('sessionsChat.applicationMenu', "The Application Menu button at the start of the main window's title bar opens the window's menus, such as File, Edit, View, and Help. Press Alt to move focus to it, unless the window.customMenuBarAltFocus setting is off, or press Tab to reach it. Press Enter, Space, or Right Arrow to open it, Up and Down Arrow to move between menus and commands, Right Arrow to open a submenu, Left Arrow to close it, and Escape to close the menu. Turn the button off with the {0} setting.", SESSIONS_SHOW_APPLICATION_MENU_SETTING));
 		}
 		content.push(getChatInputSessionLinkAccessibilityHelp());
 		if (!accessor.get(IChatEntitlementService).sentiment.hidden && configurationService.getValue<boolean>('chat.disableAIFeatures') !== true) {
