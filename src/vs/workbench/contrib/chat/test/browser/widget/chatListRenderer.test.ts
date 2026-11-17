@@ -6914,7 +6914,8 @@ suite('ChatListRenderer', () => {
 		const sessions = new Map<string, URI>();
 		const visible = new Map<string, boolean>();
 		const focused: string[] = [];
-		const toolCarousels = new Map<string, ((tool: IChatToolInvocation) => ChatToolInvocationPart)[]>();
+		// The tool approvals in each widget's carousel, one for each tool, as the chat input keeps them
+		const toolCarousels = new Map<string, Map<string, (tool: IChatToolInvocation) => ChatToolInvocationPart>>();
 		const onDidFocus = new Map<string, Emitter<void>>();
 		const onDidChangeViewModel = new Map<string, Emitter<IChatWidgetViewModelChangeEvent>>();
 		const onDidShow = new Map<string, Emitter<void>>();
@@ -6950,8 +6951,15 @@ suite('ChatListRenderer', () => {
 			const input = new class extends mock<ChatInputPart>() {
 				override get questionCarousel() { return undefined; }
 				override get hasActiveToolConfirmationCarousel() { return false; }
-				override addToolToConfirmationCarousel(...[, factory]: Parameters<ChatInputPart['addToolToConfirmationCarousel']>) {
-					toolCarousels.set(name, [...toolCarousels.get(name) ?? [], factory]);
+				override addToolToConfirmationCarousel(...[tool, factory]: Parameters<ChatInputPart['addToolToConfirmationCarousel']>) {
+					const tools = toolCarousels.get(name) ?? new Map();
+					toolCarousels.set(name, tools);
+					if (!tools.has(tool.toolCallId)) {
+						tools.set(tool.toolCallId, factory);
+					}
+				}
+				override removeToolFromConfirmationCarousel(...[tool]: Parameters<ChatInputPart['removeToolFromConfirmationCarousel']>) {
+					toolCarousels.get(name)?.delete(tool.toolCallId);
 				}
 				override renderQuestionCarousel(...[carousel, context, options]: Parameters<ChatInputPart['renderQuestionCarousel']>) {
 					const key = carousel.resolveId ?? `${context && isResponseVM(context.element) ? context.element.requestId : ''}_${context?.contentIndex}`;
@@ -7225,6 +7233,100 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('a tool approval that two widgets show is in the carousel of the one that docks it only: closing the other keeps it there, and answering it focuses that one', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve-once' });
+		const { chatWidgetService, widgets, focused, toolCarousels, focus } = createInputRequestWidgets(session, ['a', 'b']);
+		const b = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('b') });
+		b.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		const a = b.createRenderer(() => widgets.get('a'), ownedHost());
+		focus('b');
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
+			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+			'approve-once', undefined, {},
+		);
+		b.model.acceptResponseProgress(b.request, tool);
+		b.renderer.renderElement(b.node, 0, b.template);
+		a.renderer.renderElement(b.node, 0, a.template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const carousels = () => [...toolCarousels].map(([name, tools]) => [name, [...tools.keys()]]);
+		const registered = carousels();
+
+		// The other widget closes
+		a.renderer.dispose();
+		const afterClose = carousels();
+		const carouselPart = b.disposables.add(toolCarousels.get('b')!.get('approve-once')!(tool));
+		[...carouselPart.domNode.querySelectorAll<HTMLElement>('.chat-buttons .monaco-button')].at(-1)?.click();
+
+		assert.deepStrictEqual({ registered, afterClose, focused }, { registered: [['b', ['approve-once']]], afterClose: [['b', ['approve-once']]], focused: ['b'] });
+	});
+
+	test('a question docked in a widget is removed from its input as it is settled or another widget docks it, also once its row renders another response', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/recycled-row' });
+		const { chatWidgetService, widgets, dockedIn, focus } = createInputRequestWidgets(session, ['a', 'b']);
+		const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+		const dismissed = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Dismissed?' }], true, 'dismissed');
+		const handedOff = new ChatQuestionCarouselData([{ id: 'q2', type: 'text', title: 'Handed off?' }], true, 'handed-off');
+		a.model.acceptResponseProgress(a.request, dismissed);
+		a.model.acceptResponseProgress(a.request, handedOff);
+		await renderAgain(a.node, a, b);
+		const docked = { dismissed: dockedIn('dismissed'), handedOff: dockedIn('handed-off') };
+		// The row's template is used for another item, as the list scrolls: nothing renders the questions in a's list
+		a.renderer.renderElement({ ...a.node, element: a.viewModel.getItems().find(isRequestVM)! }, 0, a.template);
+
+		dismissed.dismiss(undefined);
+		focus('b');
+		// Only b's list renders the response again, as the list renders it
+		await renderAgain(a.node, b);
+
+		assert.deepStrictEqual({ docked, after: { dismissed: dockedIn('dismissed'), handedOff: dockedIn('handed-off') } }, {
+			docked: { dismissed: ['a'], handedOff: ['a'] },
+			after: { dismissed: [], handedOff: ['b'] },
+		});
+	});
+
+	test('a question that a list without a widget of its own docked is removed from the input as it is settled, also once that list goes', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/list-gone' });
+		const { chatWidgetService, dockedIn } = createInputRequestWidgets(session, ['a']);
+		// Such as the list of an agent session's hover
+		const { model, viewModel, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService });
+		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'list-gone');
+		model.acceptResponseProgress(request, question);
+		renderer.renderElement(node, 0, template);
+		const docked = dockedIn('list-gone');
+
+		// Its row renders another item, and the list goes
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isRequestVM)! }, 0, template);
+		renderer.dispose();
+		question.dismiss(undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ docked, after: dockedIn('list-gone') }, { docked: ['a'], after: [] });
+	});
+
+	for (const order of ['the widget it moves to first', 'the widget it moves from first'] as const) {
+		test(`an answer typed in a widget's list is kept as the question moves to another widget, whose copy rendered before it was typed goes (${order})`, async () => {
+			const session = URI.from({ scheme: 'vscode-chat-session', path: `/typed-${order.replace(/ /g, '-')}` });
+			const { chatWidgetService, widgets, dockedIn, focus } = createInputRequestWidgets(session, ['a', 'b', 'c']);
+			const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+			const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+			const c = a.createRenderer(() => widgets.get('c'), ownedHost());
+			const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'typed');
+			a.model.acceptResponseProgress(a.request, question);
+			await renderAgain(a.node, a, b, c);
+			// Typed in b's list, as a's input docks it: c's copy has nothing typed
+			const editor = a.instantiationService.get(ICodeEditorService).listCodeEditors().find(candidate => b.template.value.contains(candidate.getDomNode()));
+			editor!.getModel()!.setValue('Weave');
+			const typed = question.draftAnswers;
+
+			focus('c');
+			await renderAgain(a.node, ...order === 'the widget it moves to first' ? [c, a, b] : [a, b, c]);
+
+			assert.deepStrictEqual({ typed, docked: dockedIn('typed'), kept: question.draftAnswers }, { typed: { q1: 'Weave' }, docked: ['c'], kept: { q1: 'Weave' } });
+		});
+	}
+
 	for (const [kind, toolSpecificData] of [['base', undefined], ['agent feedback review', { kind: 'agentFeedbackReviewConfirmation', options: ['Reveal Selected'] }]] as const) {
 		test(`answering a tool approval (${kind}) in the carousel of one of two widgets that show the chat focuses that widget's input, not the other's`, async () => {
 			const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve' });
@@ -7241,14 +7343,14 @@ suite('ChatListRenderer', () => {
 			model.acceptResponseProgress(request, tool);
 			renderer.renderElement(node, 0, template);
 			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-			const factory = toolCarousels.get('own')?.[0];
+			const factory = toolCarousels.get('own')?.get('approve-build');
 			const carouselPart = factory && disposables.add(factory(tool));
 			// The last button, Skip or the feedback review's own Cancel, is enabled in every kind
 			const last = [...carouselPart?.domNode.querySelectorAll<HTMLElement>('.chat-buttons .monaco-button') ?? []].at(-1);
 			const specialized = last?.textContent === 'Cancel';
 			last?.click();
 
-			assert.deepStrictEqual({ carousels: [...toolCarousels.keys()], specialized, focused }, { carousels: ['own'], specialized: kind !== 'base', focused: ['own'] });
+			assert.deepStrictEqual({ carousels: [...toolCarousels].filter(([, tools]) => tools.size).map(([name]) => name), specialized, focused }, { carousels: ['own'], specialized: kind !== 'base', focused: ['own'] });
 		});
 	}
 

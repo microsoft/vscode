@@ -2281,7 +2281,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	override dispose(): void {
-		if (!this._isSkipped && !this.carousel.isUsed) {
+		// Edits are saved as they happen. A part replaced as it went stale, such as as another widget docks the carousel, keeps
+		// what it has from overwriting what the user typed since in another widget that renders it
+		if (!this._isSkipped && !this.carousel.isUsed && !this._options.isStale?.()) {
 			this.saveCurrentAnswer();
 		}
 
