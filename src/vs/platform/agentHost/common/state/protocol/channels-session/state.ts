@@ -129,7 +129,7 @@ export interface SessionMetadata {
 	workingDirectories?: URI[];
 	/**
 	 * Lightweight summary of this session's inline annotations channel
-	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+	 * (`ahp-annotations:/<uuid>`). Surfaced so badge UI can render
 	 * annotation / entry counts without subscribing. Absent when the session
 	 * does not expose an annotations channel.
 	 */
@@ -587,6 +587,7 @@ export interface ChangesSummary {
  * A message with no `agent` selected uses the provider's default behavior.
  *
  * @category Session State
+ * @preserveUnknownMembers
  */
 export interface AgentSelection {
 	/** Stable agent URI (matches an {@link AgentCustomization.uri}). */
@@ -754,7 +755,10 @@ export const enum CustomizationEnablementKind {
 	Session = 'session',
 }
 
-/** A single explicit enablement decision. */
+/**
+ * A single explicit enablement decision.
+ * @preserveUnknownMembers
+ */
 export type CustomizationEnablement =
 	| { kind: CustomizationEnablementKind.Global; enabled: boolean }
 	| { kind: CustomizationEnablementKind.Workspace; uri: URI; enabled: boolean }
@@ -778,6 +782,7 @@ export type ChildCustomizationType =
  * Fields shared by every customization variant.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 interface CustomizationBase {
 	/**
@@ -834,6 +839,7 @@ export const enum CustomizationLoadStatus {
  * Container is being loaded by the host.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface CustomizationLoadingState {
 	kind: CustomizationLoadStatus.Loading;
@@ -843,6 +849,7 @@ export interface CustomizationLoadingState {
  * Container loaded successfully.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface CustomizationLoadedState {
 	kind: CustomizationLoadStatus.Loaded;
@@ -852,6 +859,7 @@ export interface CustomizationLoadedState {
  * Container partially loaded but has warnings.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface CustomizationDegradedState {
 	kind: CustomizationLoadStatus.Degraded;
@@ -863,6 +871,7 @@ export interface CustomizationDegradedState {
  * Container failed to load.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface CustomizationErrorState {
 	kind: CustomizationLoadStatus.Error;
@@ -886,6 +895,7 @@ export type CustomizationLoadState =
  * Fields shared by container customizations.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 interface ContainerCustomizationBase extends CustomizationBase {
 	/**
@@ -912,6 +922,7 @@ interface ContainerCustomizationBase extends CustomizationBase {
  * An [Open Plugins](https://open-plugins.com/) plugin.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface PluginCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Plugin;
@@ -940,6 +951,7 @@ export interface PluginCustomization extends ContainerCustomizationBase {
  * plugin appears in {@link SessionState.customizations}.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface ClientPluginCustomization extends PluginCustomization {
 	/** Opaque version token used by the host to detect changes. */
@@ -990,6 +1002,7 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
  * base because it can appear as a top-level customization too.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 interface ChildCustomizationBase extends CustomizationBase {
 	/**
@@ -1018,6 +1031,7 @@ interface ChildCustomizationBase extends CustomizationBase {
  * agent's system prompt.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface AgentCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Agent;
@@ -1065,6 +1079,7 @@ export interface AgentCustomization extends ChildCustomizationBase {
  * skills.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface SkillCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Skill;
@@ -1091,6 +1106,7 @@ export interface SkillCustomization extends ChildCustomizationBase {
  * A prompt contributed by a plugin or directory.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface PromptCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Prompt;
@@ -1110,6 +1126,7 @@ export interface PromptCustomization extends ChildCustomizationBase {
  * activation, and optional glob scoping.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface RuleCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Rule;
@@ -1134,6 +1151,7 @@ export interface RuleCustomization extends ChildCustomizationBase {
  * A hook manifest contributed by a plugin or directory.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface HookCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Hook;
@@ -1150,6 +1168,7 @@ export interface HookCustomization extends ChildCustomizationBase {
  * The MCP server customization also reflects its current status.
  *
  * @category Customization Types
+ * @preserveUnknownMembers
  */
 export interface McpServerCustomization extends CustomizationBase {
 	type: CustomizationType.McpServer;
@@ -1218,6 +1237,7 @@ export interface McpServerCustomization extends CustomizationBase {
  * by this MCP server.
  *
  * @category MCP Server State
+ * @preserveUnknownMembers
  */
 export interface McpServerCustomizationApps {
 	/**
@@ -1268,6 +1288,7 @@ export interface McpServerCustomizationApps {
  *
  * @category MCP Server State
  * @see {@link https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx | MCP Apps spec (SEP-1865)}
+ * @preserveUnknownMembers
  */
 export interface AhpMcpUiHostCapabilities {
 	/** Producer proxies the MCP `tools/*` methods to the upstream server. */
@@ -1386,6 +1407,7 @@ export const enum McpAuthRequiredReason {
  * Server is registered with the host but has not yet started.
  *
  * @category MCP Server State
+ * @preserveUnknownMembers
  */
 export interface McpServerStartingState {
 	kind: McpServerStatus.Starting;
@@ -1406,6 +1428,7 @@ export interface McpServerStartingState {
  * Server is running and serving requests.
  *
  * @category MCP Server State
+ * @preserveUnknownMembers
  */
 export interface McpServerReadyState {
 	kind: McpServerStatus.Ready;
@@ -1416,6 +1439,7 @@ export interface McpServerReadyState {
  * registration when resolving an MCP authentication challenge.
  *
  * @category MCP Server State
+ * @preserveUnknownMembers
  */
 export interface McpOAuthClient {
 	/** OAuth client identifier registered with the authorization server. */
@@ -1447,6 +1471,7 @@ export interface McpOAuthClient {
  *   can be true independently.
  *
  * @category MCP Server State
+ * @preserveUnknownMembers
  */
 export interface McpAuthRequirement {
 	/** Why authentication is required. */
@@ -1499,6 +1524,7 @@ export interface McpAuthRequirement {
  * customization’s status badge.
  *
  * @category MCP Server State
+ * @preserveUnknownMembers
  */
 export interface McpServerAuthRequiredState extends McpAuthRequirement {
 	kind: McpServerStatus.AuthRequired;
@@ -1510,6 +1536,7 @@ export interface McpServerAuthRequiredState extends McpAuthRequirement {
  * for authentication failures.
  *
  * @category MCP Server State
+ * @preserveUnknownMembers
  */
 export interface McpServerErrorState {
 	kind: McpServerStatus.Error;
@@ -1522,6 +1549,7 @@ export interface McpServerErrorState {
  * session entirely shortly after this state.
  *
  * @category MCP Server State
+ * @preserveUnknownMembers
  */
 export interface McpServerStoppedState {
 	kind: McpServerStatus.Stopped;

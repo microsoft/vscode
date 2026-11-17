@@ -2435,6 +2435,19 @@ export interface ChatArtifactIntegrationProviderMetadataDto {
 	readonly canSignIn: boolean;
 }
 
+export interface RemoteAgentHostDto {
+	readonly extensionId: string;
+	readonly extensionDisplayName: string;
+	readonly name: string;
+	readonly address: string;
+	readonly connectionToken?: string;
+}
+
+export interface MainThreadRemoteAgentHostsShape extends IDisposable {
+	$registerRemoteAgentHost(handle: number, host: RemoteAgentHostDto): void;
+	$unregisterRemoteAgentHost(handle: number): void;
+}
+
 export interface MainThreadChatArtifactIntegrationsShape extends IDisposable {
 	$registerProvider(handle: number, id: string, metadata: ChatArtifactIntegrationProviderMetadataDto): void;
 	$unregisterProvider(handle: number): void;
@@ -4348,6 +4361,7 @@ export const MainContext = {
 	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
 	MainThreadChatDebug: createProxyIdentifier<MainThreadChatDebugShape>('MainThreadChatDebug'),
 	MainThreadBrowsers: createProxyIdentifier<MainThreadBrowsersShape>('MainThreadBrowsers'),
+	MainThreadRemoteAgentHosts: createProxyIdentifier<MainThreadRemoteAgentHostsShape>('MainThreadRemoteAgentHosts'),
 };
 
 export const ExtHostContext = {

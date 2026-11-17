@@ -190,7 +190,7 @@ suite('AgentHostProcessExit', () => {
 		const source = new TestProcessSource(disposables);
 		const collector = disposables.add(new AgentHostProcessExitDiagnosticsCollector(source, {
 			sampleMemory: () => undefined,
-			getExitContext: exitTime => ({ msSinceResume: exitTime - 1000, systemSuspended: false, quitRequested: false, lifecyclePhase: exitTime === Date.now() ? 3 : 4, windowCount: 2, osSessionEnd: 'none' }),
+			getExitContext: exitTime => ({ msSinceResume: exitTime - 1000, systemSuspended: false, quitRequested: false, lifecyclePhase: exitTime === Date.now() ? 3 : 4, windowCount: 2, agentsWindowConnected: false, osSessionEnd: 'none' }),
 		}, {
 			gracePeriodMs: 500,
 			memorySampleIntervalMs: 60_000,
@@ -231,7 +231,7 @@ suite('AgentHostProcessExit', () => {
 			heartbeat: heartbeat(919, 'tool:mcp'),
 			heartbeatAgeMs: 500,
 			peakHeapUsedMb: 3900,
-			context: { msSinceResume: Date.now() - 500 - 1000, systemSuspended: false, quitRequested: false, lifecyclePhase: 3, windowCount: 2, osSessionEnd: 'none' },
+			context: { msSinceResume: Date.now() - 500 - 1000, systemSuspended: false, quitRequested: false, lifecyclePhase: 3, windowCount: 2, agentsWindowConnected: false, osSessionEnd: 'none' },
 		}]);
 	}));
 

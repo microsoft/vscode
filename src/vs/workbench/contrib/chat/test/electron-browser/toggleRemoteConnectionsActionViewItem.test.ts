@@ -28,7 +28,9 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { TestConfigurationService as TestBackendConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentSharingError, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { FileSystemProviderErrorCode } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -764,8 +766,43 @@ suite('RemoteConnectionsActionViewItem', () => {
 		closeMenu();
 		assert.deepStrictEqual({ errors: notify.args, checked: openMenu().map(action => action.checked), events: selectMethodEvents() }, {
 			errors: [['Failed to enable GitHub environment sharing: Unable to enable sharing']], checked: [true, false, false],
-			events: [{ source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' }],
+			events: [{ source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled', failureReason: 'unknown', errorCategory: 'unknown' }],
 		});
+	});
+
+	test('logs why GitHub Environments choices did not enable sharing', async () => {
+		const { openMenu, closeMenu, sharing, notifications, selectMethodEvents } = fixture('githubEnvironment');
+		stub(notifications, 'error');
+		const setEnabled = stub(sharing, 'setEnabled');
+		setEnabled.onCall(0).rejects(new CancellationError());
+		setEnabled.onCall(1).rejects(new GitHubEnvironmentSharingError('Service unavailable', 'connection', { diagnostic: getConnectionDiagnosticError(Object.assign(new Error('Service unavailable'), { status: 503 })) }));
+		setEnabled.onCall(2).rejects(new GitHubEnvironmentSharingError('Access denied', 'fileSystemRoot', { fileErrorCode: FileSystemProviderErrorCode.NoPermissions }));
+		for (let i = 0; i < 3; i++) {
+			await openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!.run();
+			closeMenu();
+		}
+		const event = { source: 'titleBar', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', gitHubEnvironments: 'enabled' };
+		assert.deepStrictEqual(selectMethodEvents(), [
+			{ ...event, result: 'applied', failureReason: 'canceled' },
+			{ ...event, result: 'failed', failureReason: 'connection', errorCategory: 'httpServer', statusCode: 503 },
+			{ ...event, result: 'failed', failureReason: 'fileSystemRoot', fileErrorCode: 'NoPermissions' },
+		]);
+	});
+
+	test('logs only allowlisted values from a failed toggle result', async () => {
+		const { instantiation, selectMethodEvents } = fixture('githubEnvironment');
+		const toggle = stub();
+		toggle.onCall(0).resolves({ failureReason: 'connection', errorCategory: 'httpServer', statusCode: 503, fileErrorCode: 'NoPermissions', message: 'C:\\Users\\someone\\project' });
+		toggle.onCall(1).resolves({ failureReason: 'C:\\Users\\someone', errorCategory: 'someone@example.com', errorCode: 12345, statusCode: 99999, fileErrorCode: 'Secret' });
+		const state = store.add(instantiation.createInstance(RemoteConnectionsState));
+		const editor = store.add(instantiation.createInstance(RemoteConnectionsSharing, state, () => toggle(), 'remotesEditor'));
+		await editor.selectMethod('githubEnvironment');
+		await editor.selectMethod('githubEnvironment');
+		const event = { source: 'remotesEditor', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' };
+		assert.deepStrictEqual(selectMethodEvents(), [
+			{ ...event, failureReason: 'connection', errorCategory: 'httpServer', statusCode: 503, fileErrorCode: 'NoPermissions' },
+			{ ...event, failureReason: 'unknown' },
+		]);
 	});
 
 	test('canceling Dev Tunnel enablement leaves Off selected and remembers the method', async () => {
@@ -808,7 +845,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await staleAction.run();
 		assert.deepStrictEqual(selectMethodEvents(), [
 			{ source: 'chatInput', method: 'devTunnel', previousMethod: 'off', activeMethod: 'off', result: 'applied', gitHubEnvironments: 'enabled' },
-			{ source: 'chatInput', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' },
+			{ source: 'chatInput', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled', failureReason: 'settingsUpdate', errorCategory: 'unknown' },
 			{ source: 'chatInput', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'unavailable', gitHubEnvironments: 'unavailable' },
 		]);
 	});
@@ -1222,12 +1259,14 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 				const notify = stub(notificationService, 'error').callThrough();
 				const logService = store.add(new NullLogService());
 				const log = stub(logService, 'error');
-				await toggle(remoteTunnel, commands, undefined, backend, sharing, notificationService, logService);
+				const result = await toggle(remoteTunnel, commands, undefined, backend, sharing, notificationService, logService);
 				assert.deepStrictEqual({
+					result,
 					notifications: notify.args,
 					logs: log.args,
 					commands: commands.commands,
 				}, {
+					result: operation === 'cancel sign-in' ? 'canceled' : { failureReason: operation === 'stop tunnel' ? 'stopDevTunnel' : 'unknown', errorCategory: 'unknown' },
 					notifications: operation === 'cancel sign-in' ? [] : [[operation === 'disable'
 						? 'Failed to disable GitHub environment sharing: fetch failed'
 						: 'Failed to enable GitHub environment sharing: fetch failed']],

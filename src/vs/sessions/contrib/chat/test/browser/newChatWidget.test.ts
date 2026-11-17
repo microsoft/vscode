@@ -11,19 +11,19 @@ import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler, isCancellationError } from '../../../../../base/common/errors.js';
 import { createErrorWithActions, isErrorWithActions } from '../../../../../base/common/errorMessage.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, INewSessionDraftSlot, INewSessionRequestEndedEvent, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -32,14 +32,25 @@ import { SessionsManagementService } from '../../../../../workbench/contrib/sess
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
 import { NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
+import { NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
+import { NewWorktreeChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
+import { IChatSubmitRequest } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { IUsersClient, User } from '../../../../../platform/github/common/core/users.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import type { ISessionOptionsIconOnlyPickers } from '../../../../../workbench/contrib/sessions/browser/chat/iconOnlySessionPickers.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { DefaultNewSessionPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/defaultNewSessionPresentation.js';
+import { INewSessionPresentationController } from '../../../../../workbench/contrib/sessions/browser/newSessionPresentation.js';
 import { getNewSessionWelcomePhrases } from '../../../../../workbench/contrib/sessions/common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -58,13 +69,13 @@ import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { SessionComparisonModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonModelSelection.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IModelConfigurationAccess } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getDefaultSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment } from '../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -77,6 +88,16 @@ import { SessionConfigSchema } from '../../../../../platform/agentHost/common/st
 import { ISessionHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISavedSessionDraft, ISavedSessionDraftTarget } from '../../../../../workbench/contrib/sessions/common/savedSessionDrafts.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../workbench/browser/media/style.css';
+import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -220,8 +241,8 @@ const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.protot
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const prepareChatTipSession = Reflect.get(NewChatWidget.prototype, '_prepareChatTipSession') as (this: IChatTipSessionHarness) => void;
 const updateChatTip = Reflect.get(NewChatWidget.prototype, '_updateChatTip') as (this: { _renderChatTip(): void; focusInput(): void }, isShowing: boolean, container: HTMLElement) => void;
-const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
-const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
+const restoreSessionOptionsExpanded = Reflect.get(DefaultNewSessionPresentation.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
+const setSessionOptionsExpandedFromUser = Reflect.get(DefaultNewSessionPresentation.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const seedRequestedTarget = Reflect.get(NewChatWidget.prototype, '_seedRequestedTarget') as (this: object, target: INewSessionTarget) => void;
 const seedWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_seedWorkspaceDraft') as (this: object) => void;
@@ -270,18 +291,19 @@ const refreshGitHubProfileName = Reflect.get(WelcomeName.prototype, '_refreshGit
 	readonly _store: { readonly isDisposed: boolean };
 	_githubProfileAccountKey: string | undefined;
 	readonly _githubProfileName: ReturnType<typeof observableValue<string | undefined>>;
-	readonly configurationService: { getValue<T>(key: string): T };
+	readonly configurationService: { getValue<T>(key: string): T | undefined };
 	readonly defaultAccountService: {
 		currentDefaultAccount: { readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null;
 		getDefaultAccount(): Promise<{ readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null>;
 	};
+	readonly logService: Pick<ILogService, 'warn'>;
 	_fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined>;
 }) => Promise<void>;
 const fetchGitHubProfileName = Reflect.get(WelcomeName.prototype, '_fetchGitHubProfileName') as (this: {
-	readonly authenticationService: { getSessions(): Promise<readonly never[]> };
-	readonly defaultAccountService: { resolveGitHubUrl(path: string): URI | undefined };
-	readonly requestService: { request(): Promise<never> };
-	readonly logService: { warn(message: string): void };
+	readonly authenticationService: Pick<IAuthenticationService, 'getSessions'>;
+	readonly defaultAccountService: Pick<IDefaultAccountService, 'resolveGitHubUrl'>;
+	readonly gitHubService: Pick<IWorkbenchGitHubService, 'acquireAccountApiClient'>;
+	readonly logService: Pick<ILogService, 'warn'>;
 }, providerId: string, enterprise: boolean, sessionId: string) => Promise<string | undefined>;
 
 interface IPromptOptionsWorkspaceHarness {
@@ -330,7 +352,7 @@ interface ISendHarness {
 	_lastBackgroundSentSessionResource?: URI;
 	_lastBackgroundSendOptions?: ISendRequestOptions;
 	readonly _newChatInput?: Pick<SharedChatInputComposer, 'hasInput'>;
-	readonly notificationService: { error(message: string | Error): void; info?(message: string): void };
+	readonly notificationService: { error(message: string | Error): void; info?(message: string): void; prompt?: INotificationService['prompt'] };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
 	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
@@ -366,7 +388,7 @@ interface ISendHarness {
 		} | undefined;
 	};
 	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };
-	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: { readonly source: 'chat' }): Promise<void> };
+	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: IOpenSessionOptions): Promise<void> };
 	readonly commandService?: { executeCommand(commandId: string, ...args: unknown[]): Promise<unknown> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_getComparisonBranch?(session: ISession): string | undefined;
@@ -418,23 +440,23 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 		readonly pickerHoverDelegate?: ReturnType<typeof getDefaultHoverDelegate>;
 		readonly pickerVisibility: SessionInputPickerVisibility;
 		placeRepositoryControls(container?: HTMLElement): void;
+		getRepositoryControlId(element: HTMLElement): string | undefined;
 	};
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
 		readonly onDidChangeSelection: Event<void>;
-		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
+		getSelectedLocationDescription?(): string | undefined;
+		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string | (() => string); readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
 	};
 	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
-	_renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable;
 	_workspacePickerRow: HTMLElement | undefined;
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
-	_setSessionOptionsExpandedFromUser(expanded: boolean): void;
+	readonly _presentation: INewSessionPresentationController;
 	readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	readonly _workspaceOptOutEnabled: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
-	readonly _iconOnlyPickers: ISessionOptionsIconOnlyPickers;
 	readonly _onDidChangeChatPetPlatform: Emitter<void>;
 	readonly telemetryService: ITelemetryService;
 }
@@ -522,12 +544,34 @@ interface IClearWorkspaceHarness {
 }
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
-const noIconOnlyPickers: IRenderWorkspacePickerHarness['_iconOnlyPickers'] = {
-	iconOnlyPickerIds: constObservable(new Set<string>()),
-	showOptionsToggle: constObservable(true),
-	getPickerId: () => undefined,
-	showContextMenu: () => { },
-};
+function createDefaultPresentationHarness(store: Pick<DisposableStore, 'add'>, telemetryService: ITelemetryService, expanded: boolean) {
+	const screenReader = observableValue('screenReader', false);
+	const collapsedIcons = observableValue('collapsedIcons', false);
+	const storageService = store.add(new InMemoryStorageService());
+	storageService.store('agentSessions.newSession.sessionOptionsExpanded2', expanded, StorageScope.PROFILE, StorageTarget.USER);
+	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IStorageService, storageService);
+	instantiationService.stub(ITelemetryService, telemetryService);
+	instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+		override onDidChangeScreenReaderOptimized = Event.fromObservableLight(screenReader);
+		override isScreenReaderOptimized() { return screenReader.get(); }
+	}());
+	instantiationService.stub(IConfigurationService, new class extends mock<IConfigurationService>() {
+		override readonly onDidChangeConfiguration = Event.map(Event.fromObservableLight(collapsedIcons),
+			() => upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING }));
+		override getValue<T>() { return collapsedIcons.get() as T; }
+	}());
+	instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() { }());
+	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+	instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() { }());
+	const presentation = store.add(instantiationService.createInstance(DefaultNewSessionPresentation, false));
+	return {
+		_presentation: presentation,
+		_sessionOptionsExpanded: Reflect.get(presentation, '_sessionOptionsExpanded') as ISettableObservable<boolean>,
+		_screenReaderOptimized: screenReader,
+		_collapsedSessionOptionsShowIcons: collapsedIcons,
+	};
+}
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
@@ -536,7 +580,7 @@ const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspa
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 const canSendRequestToWorkspace = Reflect.get(NewChatWidget.prototype, '_canSendRequestToWorkspace') as (this: ICanSendRequestToWorkspaceHarness, session: ISession, environment: ISessionCreationEnvironment, reader: IReader) => boolean;
 const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => Promise<void>;
-const handleWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_handleWorkspaceSelection') as (this: IHandleWorkspaceSelectionHarness, folderUri: URI | undefined) => Promise<void>;
+const handleWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_handleWorkspaceSelection') as (this: IHandleWorkspaceSelectionHarness, folderUri: URI | undefined, notByUser?: boolean) => Promise<void>;
 const onWorkspaceSelected = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: IClearWorkspaceHarness, folderUri: URI | undefined) => Promise<void>;
 const getWorkspaceOptOutTarget = Reflect.get(NewChatWidget.prototype, '_getWorkspaceOptOutTarget') as (
 	this: { readonly sessionsManagementService: Pick<ISessionsManagementService, 'isQuickChatTargetAvailable' | 'getQuickChatSessionTypes'> },
@@ -574,6 +618,446 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('saved draft navigation captures only when the shown input hides, not on host disposal or send', () => {
+		const hostVisible = observableValue('hostVisible', true);
+		const inputVisible = observableValue('inputVisible', false);
+		const composer = { isSending: false, preview: constObservable(undefined), hasScheduledChanges: constObservable(false) };
+		let captures = 0;
+		const stowed: boolean[] = [];
+		const harness = {
+			options: { hostVisible, inputVisible },
+			_savedDraftComposer: composer,
+			_captureSavedDraftTarget: () => { captures++; },
+			sessionDraftsService: {
+				stowAndClear: (value: typeof composer) => {
+					stowed.push(value === composer);
+				},
+			},
+			notificationService: { error: (error: Error) => { throw error; } },
+		};
+		const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftVisibility') as (this: typeof harness) => IDisposable;
+		disposables.add(track.call(harness));
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		inputVisible.set(true, undefined);
+		inputVisible.set(false, undefined);
+		hostVisible.set(false, undefined);
+		inputVisible.set(true, undefined);
+		hostVisible.set(true, undefined);
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		composer.isSending = true;
+		inputVisible.set(false, undefined);
+		assert.deepStrictEqual({ captures, stowed }, {
+			captures: 1, stowed: [true],
+		});
+	});
+
+	suite('scheduled draft submit', () => {
+		test('dispatch keeps the scheduled label until the composer clears', () => {
+			const store = disposables.add(new DisposableStore());
+			const request = observableValue<{ runAt: string } | undefined>('request', { runAt: new Date(Date.now() + 3_600_000).toISOString() });
+			const preview = observableValue<{ request: typeof request } | undefined>('preview', { request });
+			const harness = {
+				_savedDraftComposer: { preview },
+				_savingScheduledDraft: observableValue('saving', false),
+				_scheduledDraftLabel: observableValue<string | undefined>('label', undefined),
+				_register: <T extends IDisposable>(value: T): T => store.add(value),
+			};
+			const track = Reflect.get(NewChatWidget.prototype, '_trackScheduledDraftLabel') as (this: typeof harness, parent: HTMLElement) => void;
+			track.call(harness, $('div'));
+			const original = harness._scheduledDraftLabel.get();
+			const labels: (string | undefined)[] = [];
+			store.add(autorun(reader => { labels.push(harness._scheduledDraftLabel.read(reader)); }));
+			harness._savingScheduledDraft.set(true, undefined);
+			request.set(undefined, undefined);
+			preview.set(undefined, undefined);
+			harness._savingScheduledDraft.set(false, undefined);
+			assert.deepStrictEqual(labels, [original, undefined]);
+			store.clear();
+		});
+
+		test('the text-only control keeps its label and suppresses the icon in split and disabled states', () => {
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
+			disposables.add(toDisposable(() => workbench.remove()));
+			const sessionsPart = append(workbench, $('.part.sessionspart'));
+			const root = append(sessionsPart, $('.interactive-session'));
+			root.style.setProperty('--chat-input-control-height', '22px');
+			root.style.setProperty('--vscode-button-background', 'rgb(14, 99, 156)');
+			root.style.setProperty('--vscode-button-hoverBackground', 'rgb(14, 99, 156)');
+			root.style.setProperty('--vscode-button-foreground', 'rgb(255, 255, 255)');
+			root.style.setProperty('--vscode-icon-foreground', 'rgb(128, 128, 128)');
+			const toolbars = append(root, $('.chat-input-toolbars'));
+			const toolbar = append(toolbars, $('.chat-execute-toolbar'));
+			const actionBar = append(toolbar, $('.monaco-action-bar'));
+			const split = append(actionBar, $('.action-item.monaco-dropdown-with-default.chat-submit-button-label-only'));
+			const button = append(split, $('.action-container.menu-entry.chat-submit-button.labeled.label-only'));
+			const action = append(button, $('a.action-label.codicon.codicon-arrow-up-compact', { role: 'button', tabindex: '0' }));
+			action.textContent = 'Send in 19 minutes';
+			const duplicate = append(button, $('span.chat-submit-button-label'));
+			duplicate.textContent = action.textContent;
+			const disabledButton = append(actionBar, $('.action-item.disabled.chat-submit-button.labeled.label-only'));
+			const disabledAction = append(disabledButton, $('a.action-label.disabled.codicon.codicon-arrow-up-compact'));
+			disabledAction.textContent = action.textContent;
+			action.focus();
+			assert.deepStrictEqual({
+				height: button.getBoundingClientRect().height,
+				actionHeight: action.getBoundingClientRect().height,
+				background: mainWindow.getComputedStyle(button).backgroundColor,
+				foreground: mainWindow.getComputedStyle(action).color,
+				icon: mainWindow.getComputedStyle(action, '::before').display,
+				disabledIcon: mainWindow.getComputedStyle(disabledAction, '::before').display,
+				duplicate: mainWindow.getComputedStyle(duplicate).display,
+				focused: mainWindow.document.activeElement === action,
+			}, {
+				height: 22, actionHeight: 22, background: 'rgb(14, 99, 156)', foreground: 'rgb(255, 255, 255)',
+				icon: 'none', disabledIcon: 'none', duplicate: 'none', focused: true,
+			});
+		});
+
+		function createHarness(changed: boolean, fail = false, sendNow = false, failSend = false) {
+			let input: IChatDraft = { inputText: 'Scheduled request', attachments: [] };
+			const events: string[] = [];
+			const scheduled = {
+				request: constObservable({ runAt: new Date(Date.now() + 3_600_000).toISOString() }),
+				save: async () => {
+					events.push('save');
+					if (fail) {
+						throw new Error('Schedule changed');
+					}
+				},
+				sendNow: async () => {
+					events.push('send');
+					if (failSend) {
+						throw new Error('Send failed');
+					}
+				},
+				reschedule: async (_anchor?: HTMLElement, onSendNow?: () => Promise<void>) => {
+					events.push('picker');
+					if (sendNow) {
+						await onSendNow!();
+					}
+				},
+			};
+			const composer = {
+				preview: constObservable(scheduled),
+				hasScheduledChanges: constObservable(changed),
+				target: {},
+				isScheduling: false,
+				markScheduledSaved: () => { events.push('saved'); },
+			};
+			const harness = {
+				_savedDraftComposer: composer,
+				_savingScheduledDraft: observableValue('saving', false),
+				_session: constObservable(upcastPartial<ISession>({})),
+				_comparisonSelection: { enabled: constObservable(false) },
+				_feedbackItems: constObservable([]),
+				_captureSavedDraftTarget: () => { },
+				_newChatInput: {
+					getDraft: () => input,
+					setInputEnabled: (enabled: boolean) => { events.push(enabled ? 'enabled' : 'disabled'); },
+					focus: () => { events.push('focus'); },
+				},
+				sessionDraftsService: {
+					stowAndClear: () => {
+						assert.strictEqual(composer.isScheduling, false);
+						events.push('clear');
+						input = { inputText: '', attachments: [] };
+					},
+				},
+			};
+			const submit = Reflect.get(NewChatWidget.prototype, '_submitScheduledDraft') as (this: typeof harness, anchor?: HTMLElement, reschedule?: boolean) => Promise<boolean>;
+			return { submit: (reschedule = false) => submit.call(harness, undefined, reschedule), events, input: () => input.inputText };
+		}
+
+		for (const changed of [false, true]) {
+			test(`Send in saves and clears without opening the picker (edited: ${changed})`, async () => {
+				const fixture = createHarness(changed);
+				await fixture.submit();
+				assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+					events: ['disabled', 'save', 'saved', 'clear', 'enabled', 'focus'], input: '',
+				});
+			});
+		}
+
+		test('the dropdown alone opens the picker and retains input', async () => {
+			const fixture = createHarness(true);
+			await fixture.submit(true);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		test('a failed scheduled save keeps the editable input', async () => {
+			const fixture = createHarness(true, true);
+			await assert.rejects(() => fixture.submit(), /Schedule changed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'save', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		for (const changed of [false, true]) {
+			test(`Send Now saves before dispatch and clears only after acceptance (edited: ${changed})`, async () => {
+				const fixture = createHarness(changed, false, true);
+				await fixture.submit(true);
+				assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+					events: ['disabled', 'picker', 'save', 'saved', 'send', 'clear', 'enabled', 'focus'], input: '',
+				});
+			});
+		}
+
+		test('Send Now does not dispatch when saving fails', async () => {
+			const fixture = createHarness(true, true, true);
+			await assert.rejects(() => fixture.submit(true), /Schedule changed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'save', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		test('Send Now keeps the editable input when dispatch fails', async () => {
+			const fixture = createHarness(true, false, true, true);
+			await assert.rejects(() => fixture.submit(true), /Send failed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'save', 'saved', 'send', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+	});
+
+	suite('saved draft restoration', () => {
+		function createHarness(session: ISession) {
+			let input: IChatDraft = { inputText: 'previous input', attachments: [] };
+			let inputEnabled = true;
+			const focusStates: boolean[] = [];
+			const configured: ISession[] = [];
+			const harness = {
+				_store: disposables.add(new DisposableStore()),
+				_restoringSavedDraft: observableValue('restoring', false),
+				_isDraftPreview: constObservable(false),
+				_captureSavedDraftTarget: () => { },
+				_savedDraftTargetUnavailable: observableValue('unavailable', false),
+				_pendingPreferredUpgrade: disposables.add(new MutableDisposable<IDisposable>()),
+				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
+				_pendingWorkspaceCreation: Promise.resolve(),
+				_savedDraftComposer: { id: 'previous', target: {} as ISavedSessionDraftTarget },
+				_newChatInput: {
+					setInputEnabled: (enabled: boolean) => { inputEnabled = enabled; },
+					setDraft: (draft: IChatDraft) => { input = draft; },
+					focus: () => { focusStates.push(inputEnabled); },
+				},
+				storageService: disposables.add(new InMemoryStorageService()),
+				sessionsProvidersService: { getProvider: (): Pick<ISessionsProvider, 'sessionTypes'> | undefined => ({ sessionTypes: [{ id: 'agent', label: 'Agent', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None }] }) },
+				_environments: constObservable<readonly ISessionCreationEnvironment[]>([]),
+				_pickedEnvironment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
+				_workspacePicker: { ...workspaceIdentity(), setSelectedWorkspace: () => { } },
+				sessionsService: {
+					openNewSession: async () => ({ session }),
+					openQuickChat: () => session,
+				},
+				sessionsManagementService: {
+					onDidChangeSessionTypes: Event.None,
+					configureNewSessionDraft: async (value: ISession) => { configured.push(value); },
+				},
+			};
+			const restore = Reflect.get(NewChatWidget.prototype, '_restoreSavedDraft') as (this: typeof harness, draft: ISavedSessionDraft, token?: CancellationToken, preserveFocus?: boolean) => Promise<void>;
+			return {
+				harness, configured, focusStates,
+				input: () => input,
+				restore: (draft: ISavedSessionDraft, token?: CancellationToken, preserveFocus?: boolean) => restore.call(harness, draft, token, preserveFocus),
+			};
+		}
+
+		const requested = URI.file('/requested');
+		const draft: ISavedSessionDraft = {
+			id: 'requested', revision: 'revision', createdAt: 1, updatedAt: 1,
+			input: { inputText: 'saved input', attachments: [] },
+			target: { providerId: 'provider', sessionTypeId: 'agent', folderUri: requested },
+		};
+
+		test('startup cannot seed or capture the picker default while recovering a saved target', async () => {
+			const session = {
+				sessionId: 'picker-default', providerId: 'provider', sessionType: 'agent',
+				status: constObservable(SessionStatus.Untitled),
+				modelId: constObservable('user-model'), mode: constObservable(undefined),
+				application: constObservable({ id: 'test' }),
+			};
+			const composer = {
+				target: draft.target,
+				isRestoring: true,
+				updateTarget: (target: ISavedSessionDraftTarget) => { composer.target = target; },
+			};
+			const seeded: URI[] = [];
+			const harness = {
+				_savedDraftComposer: composer,
+				_restoringSavedDraft: constObservable(false),
+				_savedDraftTargetUnavailable: constObservable(false),
+				_session: constObservable(session),
+				_workspacePicker: { selectedFolderUri: URI.file('/picker-default') },
+				_syncWorkspacePickerFromActiveSession: () => false,
+				_createNewSession: (folder: URI) => { seeded.push(folder); },
+				_environment: constObservable(undefined),
+				sessionsProvidersService: { getProvider: () => undefined },
+			};
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness, restorationComplete?: boolean) => void;
+			const restoreNoWorkspace = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: typeof harness) => Promise<void>;
+			seedWorkspaceDraft.call(harness);
+			await restoreNoWorkspace.call(harness);
+			capture.call(harness);
+			const startupTarget = composer.target;
+			harness._workspacePicker.selectedFolderUri = requested;
+			capture.call(harness, true);
+			const restoredTarget = composer.target.folderUri;
+			composer.isRestoring = false;
+			harness._workspacePicker.selectedFolderUri = URI.file('/user-picked');
+			capture.call(harness);
+			assert.deepStrictEqual({ seeded, startupTarget, restoredTarget, userTarget: composer.target.folderUri }, {
+				seeded: [], startupTarget: draft.target, restoredTarget: requested, userTarget: URI.file('/user-picked'),
+			});
+		});
+
+		test('captures Agent Host mode, worktree and model options as their owning configuration changes', () => {
+			const configChanged = disposables.add(new Emitter<string>());
+			const modelChanged = disposables.add(new Emitter<readonly string[]>());
+			let configuration = { mode: 'interactive', isolationMode: 'workspace', branch: 'main', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } };
+			const session = upcastPartial<ISession>({
+				sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'agent',
+				status: constObservable(SessionStatus.Untitled),
+				modelId: constObservable('model'), mode: constObservable(undefined),
+				workspace: constObservable(undefined), application: constObservable({ id: 'test', label: 'Test' }),
+			});
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				onDidChangeSessionConfig: configChanged.event,
+				getDraftSessionConfiguration: () => configuration,
+				getAutomationModelConfiguration: () => upcastPartial<IModelConfigurationAccess>({ onDidChange: modelChanged.event }),
+			});
+			const captured: ISavedSessionDraftTarget[] = [];
+			const composer = { target: {}, updateTarget: (target: ISavedSessionDraftTarget) => { captured.push(target); } };
+			const harness = {
+				_session: constObservable(session),
+				_environment: constObservable(undefined),
+				_savedDraftComposer: composer,
+				_restoringSavedDraft: constObservable(false),
+				_savedDraftTargetUnavailable: constObservable(false),
+				_workspacePicker: { selectedFolderUri: requested },
+				sessionsProvidersService: { getProvider: () => provider },
+				_captureSavedDraftTarget: () => capture.call(harness),
+			};
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness) => void;
+			const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftTarget') as (this: typeof harness) => IDisposable;
+			disposables.add(track.call(harness));
+			configuration = { ...configuration, mode: 'plan', isolationMode: 'worktree', branch: 'selected' };
+			configChanged.fire('unrelated');
+			configChanged.fire(session.sessionId);
+			configuration = { ...configuration, sessionTemplate: { modelConfiguration: { reasoningEffort: 'high' } } };
+			modelChanged.fire(['model']);
+			assert.deepStrictEqual(captured.map(target => target.configuration), [
+				{ mode: 'interactive', isolationMode: 'workspace', branch: 'main', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } },
+				{ mode: 'plan', isolationMode: 'worktree', branch: 'selected', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } },
+				configuration,
+			]);
+		});
+
+		test('restoring the singleton backup does not move focus', async () => {
+			const session = upcastPartial<ISession>({
+				providerId: 'provider', sessionType: 'agent',
+				isQuickChat: constObservable(true),
+				workspace: constObservable(undefined),
+			});
+			const fixture = createHarness(session);
+			await fixture.restore({ ...draft, target: { ...draft.target, folderUri: undefined } }, CancellationToken.None, true);
+			assert.deepStrictEqual({ input: fixture.input(), focusStates: fixture.focusStates, unavailable: fixture.harness._savedDraftTargetUnavailable.get() }, {
+				input: draft.input, focusStates: [], unavailable: false,
+			});
+		});
+
+		test('reload recovery waits for the saved provider and its session type', async () => {
+			const session = upcastPartial<ISession>({
+				providerId: 'provider', sessionType: 'agent',
+				isQuickChat: constObservable(true), workspace: constObservable(undefined),
+			});
+			const fixture = createHarness(session);
+			const changed = disposables.add(new Emitter<void>());
+			let provider: Pick<ISessionsProvider, 'sessionTypes'> | undefined;
+			fixture.harness.sessionsProvidersService.getProvider = () => provider;
+			fixture.harness.sessionsManagementService.onDidChangeSessionTypes = changed.event;
+			const restoring = fixture.restore({ ...draft, target: { ...draft.target, folderUri: undefined } }, CancellationToken.None, true);
+			await Promise.resolve();
+			provider = { sessionTypes: [] };
+			changed.fire();
+			const pending = { configured: fixture.configured.length, unavailable: fixture.harness._savedDraftTargetUnavailable.get() };
+			provider = { sessionTypes: [{ id: 'agent', label: 'Agent', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None }] };
+			changed.fire();
+			await restoring;
+			assert.deepStrictEqual({
+				pending, configured: fixture.configured, input: fixture.input(),
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(), focusStates: fixture.focusStates,
+			}, {
+				pending: { configured: 0, unavailable: true }, configured: [session], input: draft.input,
+				unavailable: false, focusStates: [],
+			});
+		});
+
+		test('reload recovery can be cancelled while waiting for the saved provider', async () => {
+			const fixture = createHarness(upcastPartial<ISession>({}));
+			fixture.harness.sessionsProvidersService.getProvider = () => undefined;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const restoring = fixture.restore(draft, cancellation.token, true);
+			await Promise.resolve();
+			cancellation.cancel();
+			await assert.rejects(restoring, /Canceled/);
+			assert.deepStrictEqual({
+				configured: fixture.configured, input: fixture.input(),
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+				restoring: fixture.harness._restoringSavedDraft.get(),
+			}, { configured: [], input: draft.input, unavailable: true, restoring: false });
+		});
+
+		for (const matches of [false, true]) {
+			for (const quickChat of [false, true]) {
+				test(`validates the restored target before enabling Send (quick chat: ${quickChat}, matches: ${matches})`, async () => {
+					const session = upcastPartial<ISession>({
+						providerId: 'provider', sessionType: 'agent',
+						isQuickChat: constObservable(quickChat && matches),
+						workspace: constObservable(upcastPartial<ISessionWorkspace>({
+							folders: [{ root: matches ? requested : URI.file('/previous'), workingDirectory: requested, name: 'workspace', description: undefined }],
+						})),
+					});
+					const fixture = createHarness(session);
+					const restoring = fixture.restore({ ...draft, target: { ...draft.target, folderUri: quickChat ? undefined : requested } });
+					if (matches) {
+						await restoring;
+					} else {
+						await assert.rejects(restoring, /workspace is unavailable/);
+					}
+					assert.deepStrictEqual({
+						configured: fixture.configured.length,
+						unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+						input: fixture.input(),
+						focusStates: fixture.focusStates,
+					}, { configured: matches ? 1 : 0, unavailable: !matches, input: draft.input, focusStates: matches ? [true] : [] });
+				});
+			}
+
+		}
+
+		test('cancelling before target restoration preserves the previous input and Send availability', async () => {
+			const fixture = createHarness(upcastPartial<ISession>({}));
+			const pending = new DeferredPromise<void>();
+			fixture.harness._pendingWorkspaceCreation = pending.p;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const restoring = fixture.restore(draft, cancellation.token);
+			cancellation.cancel();
+			pending.complete();
+			await restoring;
+			assert.deepStrictEqual({
+				id: fixture.harness._savedDraftComposer.id,
+				input: fixture.input().inputText,
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+				restoring: fixture.harness._restoringSavedDraft.get(),
+			}, { id: 'previous', input: 'previous input', unavailable: false, restoring: false });
+		});
+	});
 
 	test('builds customization target labels from the selected environment, workspace, and harness', () => {
 		const root = URI.file('/workspace');
@@ -633,6 +1117,7 @@ suite('NewChatWidget', () => {
 		});
 		const harness = {
 			_session: current,
+			_isDraftPreview: constObservable(false),
 			_newChatInput: { onDidChangeInput: changed.event, getInputValue: () => input },
 			sessionsProvidersService: {
 				getProvider: (id: string) => upcastPartial<ISessionsProvider>({
@@ -810,6 +1295,8 @@ suite('NewChatWidget', () => {
 				return value;
 			};
 			const harness = {
+				_savedDraftComposer: undefined as { cancelRecovery(): void } | undefined,
+				_savedDraftTargetUnavailable: observableValue('unavailable', false),
 				_environment: derived(reader => picked.read(reader) ?? local),
 				_environmentWorkspaces: new Map<string, URI>(),
 				_environmentWorkspaceChanged: { trigger: () => { } },
@@ -848,6 +1335,16 @@ suite('NewChatWidget', () => {
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: typeof harness, environment: ISessionCreationEnvironment) => Promise<void>;
 			return { harness, calls, select: (environment: ISessionCreationEnvironment) => select.call(harness, environment) };
 		}
+
+		test('choosing an environment cancels saved draft recovery before applying the selection', async () => {
+			const { harness, calls, select } = createHarness(true);
+			harness._savedDraftComposer = { cancelRecovery: () => { calls.push('cancelRecovery'); } };
+			harness._savedDraftTargetUnavailable.set(true, undefined);
+			await select(cloud);
+			assert.deepStrictEqual({ firstAction: calls[0], unavailable: harness._savedDraftTargetUnavailable.get(), environment: harness._pickedEnvironment.get()?.id }, {
+				firstAction: 'cancelRecovery', unavailable: false, environment: 'cloud',
+			});
+		});
 
 		test('a composer outside the main window requests the Dev Container of the environment the user picks, and no longer once the user picks another environment', async () => {
 			const { harness, select } = createHarness(true);
@@ -1539,6 +2036,7 @@ suite('NewChatWidget', () => {
 			let clearable: IObservable<boolean> | undefined;
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const harness: IRenderWorkspacePickerHarness = {
+				...createDefaultPresentationHarness(disposables, telemetryService, true),
 				_environment: observableValue('environment', undefined),
 				_environmentPicker: { isVisible: constObservable(false), render: () => assert.fail('No environment picker expected') },
 				agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
@@ -1553,19 +2051,14 @@ suite('NewChatWidget', () => {
 				_newChatInput: {
 					pickerVisibility: disposables.add(new SessionInputPickerVisibility()),
 					placeRepositoryControls: () => { },
+					getRepositoryControlId: () => undefined,
 					sessionTypePicker: { render: () => { } },
 				},
 				_renderSessionTypePicker: () => { },
-				_renderPlaceRow: () => toDisposable(() => { }),
 				_workspacePickerRow: undefined,
 				_workspaceSessionOptionsHost: undefined,
-				_sessionOptionsExpanded: observableValue('expanded', true),
-				_setSessionOptionsExpandedFromUser: () => { },
 				_workspaceOptOutTarget: target,
 				_workspaceOptOutEnabled: observableValue('optOut', enabled),
-				_screenReaderOptimized: observableValue('screenReader', false),
-				_collapsedSessionOptionsShowIcons: observableValue('icons', false),
-				_iconOnlyPickers: noIconOnlyPickers,
 				_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
 				telemetryService,
 			};
@@ -1608,6 +2101,7 @@ suite('NewChatWidget', () => {
 		const telemetryService = new TestExperimentTriggerTelemetryService();
 		let environmentRenderCount = 0;
 		const harness: IRenderWorkspacePickerHarness = {
+			...createDefaultPresentationHarness(disposables, telemetryService, false),
 			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
 			_environmentPicker: {
 				isVisible: constObservable(true),
@@ -1627,6 +2121,7 @@ suite('NewChatWidget', () => {
 			_workspacePicker: {
 				selectedFolderUri: undefined,
 				onDidChangeSelection: Event.None,
+				getSelectedLocationDescription: () => undefined,
 				renderCategoryTriggers: (target, triggers) => {
 					workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 					const row = document.createElement('div');
@@ -1637,7 +2132,7 @@ suite('NewChatWidget', () => {
 						item.tabIndex = 0;
 						item.textContent = trigger.label ?? 'More';
 						row.appendChild(item);
-						workspaceTriggers.push({ tooltip: trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext });
+						workspaceTriggers.push({ tooltip: typeof trigger.tooltip === 'function' ? trigger.tooltip() : trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext });
 					}
 					return row;
 				},
@@ -1645,6 +2140,7 @@ suite('NewChatWidget', () => {
 			_newChatInput: {
 				pickerVisibility,
 				pickerHoverDelegate: getDefaultHoverDelegate('element'),
+				getRepositoryControlId: () => undefined,
 				placeRepositoryControls: target => {
 					if (target) {
 						for (const label of ['Worktree', 'Branch']) {
@@ -1671,23 +2167,10 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_renderSessionTypePicker: (target, isQuickChat) => renderSessionTypePicker.call(harness, target, isQuickChat),
-			_renderPlaceRow: (target, chipRow) => {
-				const placeRow = document.createElement('div');
-				placeRow.className = 'sessions-new-session-place-row';
-				placeRow.textContent = 'Cloud';
-				target.insertBefore(placeRow, chipRow);
-				return toDisposable(() => placeRow.remove());
-			},
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
-			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
-			_setSessionOptionsExpandedFromUser: expanded => harness._sessionOptionsExpanded.set(expanded, undefined),
 			_workspaceOptOutTarget: constObservable(undefined),
 			_workspaceOptOutEnabled: observableValue('workspaceOptOutEnabled', false),
-			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
-			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
-			_collapsedSessionOptionsShowIcons: observableValue('collapsedSessionOptionsShowIcons', false),
-			_iconOnlyPickers: noIconOnlyPickers,
 			_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
 			telemetryService,
 		};
@@ -1711,7 +2194,6 @@ suite('NewChatWidget', () => {
 		const collapsedAgain = snapshot();
 
 		assert.deepStrictEqual({
-			placeRow: container.firstElementChild?.className,
 			workspace: harness._workspacePickerRow?.firstElementChild?.textContent,
 			items: Array.from(details.children, element => ({
 				label: element.textContent,
@@ -1725,7 +2207,6 @@ suite('NewChatWidget', () => {
 			controlsTarget: toggle.getAttribute('aria-controls') === details.id,
 			sameDetails: details === harness._workspaceSessionOptionsHost,
 		}, {
-			placeRow: 'sessions-new-session-place-row',
 			workspace: isWeb ? 'Select Repository' : 'Workspace',
 			items: [
 				{ label: 'WorktreeBranch', className: 'new-chat-repository-controls-host' },
@@ -1855,7 +2336,7 @@ suite('NewChatWidget', () => {
 		const expanded = observableValue('sessionOptionsExpanded', false);
 		let expandedWhenOpened = false;
 		const harness = {
-			_sessionOptionsExpanded: expanded,
+			_presentation: { revealOptions: () => expanded.set(true, undefined) },
 			_newChatInput: { sessionTypePicker: { showPicker: () => expandedWhenOpened = expanded.get() } },
 		};
 		const focusHarnessPicker = NewChatWidget.prototype.focusHarnessPicker as (this: typeof harness) => void;
@@ -2797,6 +3278,7 @@ suite('NewChatWidget', () => {
 					return currentDefaultAccount;
 				},
 			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
 			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
 				profileRequests.push(`${providerId}:${sessionId}`);
 				return 'Octo Cat';
@@ -2840,6 +3322,7 @@ suite('NewChatWidget', () => {
 				get currentDefaultAccount() { return currentDefaultAccount; },
 				async getDefaultAccount() { return currentDefaultAccount; },
 			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
 			_fetchGitHubProfileName(providerId: string) {
 				return providerId === 'github' ? githubProfile.p : enterpriseProfile.p;
 			},
@@ -2848,10 +3331,10 @@ suite('NewChatWidget', () => {
 		const publicRefresh = refreshGitHubProfileName.call(harness);
 		currentDefaultAccount = { authenticationProvider: { id: 'github-enterprise', enterprise: true }, sessionId: 'shared-session' };
 		const enterpriseRefresh = refreshGitHubProfileName.call(harness);
-		githubProfile.complete('Public Name');
-		await publicRefresh;
 		enterpriseProfile.complete('Enterprise Name');
 		await enterpriseRefresh;
+		githubProfile.complete('Public Name');
+		await publicRefresh;
 
 		assert.deepStrictEqual({
 			accountKey: harness._githubProfileAccountKey,
@@ -2874,8 +3357,8 @@ suite('NewChatWidget', () => {
 				},
 			},
 			defaultAccountService: { resolveGitHubUrl: () => undefined },
-			requestService: {
-				async request() {
+			gitHubService: {
+				async acquireAccountApiClient() {
 					profileRequests++;
 					throw new Error('Unexpected profile request');
 				},
@@ -2889,6 +3372,176 @@ suite('NewChatWidget', () => {
 			profileRequests: 0,
 			warnings: ['Failed to fetch GitHub profile name because the enterprise URL is unavailable.'],
 		});
+	});
+
+	suite('GitHub welcome profile', () => {
+		const selectedSession: AuthenticationSession = {
+			id: 'welcome-selected-session',
+			account: { id: 'welcome-account', label: 'Welcome Account' },
+			scopes: ['read:user'],
+			accessToken: 'selected-token',
+		};
+
+		function createProfileHarness(session: AuthenticationSession, getAuthenticated: IUsersClient['getAuthenticated']) {
+			const sessions: AuthenticationSession[] = [
+				{ ...session, id: 'other-account-session', account: { id: 'other-account', label: 'Other Account' }, scopes: ['repo'] },
+				{ ...session, id: 'broader-session', scopes: ['repo', 'read:user'] },
+				session,
+			];
+			const authenticationRequests: Parameters<IAuthenticationService['getSessions']>[] = [];
+			const acquisitions: { providerId: string; session: AuthenticationSession }[] = [];
+			const warnings: { message: string; error: Error | undefined }[] = [];
+			let clientDisposals = 0;
+			const harness: ThisParameterType<typeof fetchGitHubProfileName> = {
+				authenticationService: {
+					async getSessions(...args) {
+						authenticationRequests.push(args);
+						return sessions;
+					},
+				},
+				defaultAccountService: { resolveGitHubUrl: () => session.authorizationServer?.toString() },
+				gitHubService: {
+					async acquireAccountApiClient(...args) {
+						assert.ok(args.length === 3);
+						const [providerId, session] = args;
+						acquisitions.push({ providerId, session });
+						return upcastPartial<IGitHubAccountClient>({
+							users: upcastPartial<IUsersClient>({ getAuthenticated }),
+							dispose: () => { clientDisposals++; },
+						});
+					},
+				},
+				logService: { warn: (message, error?: Error) => warnings.push({ message, error }) },
+			};
+			return { harness, sessions, authenticationRequests, acquisitions, warnings, get clientDisposals() { return clientDisposals; } };
+		}
+
+		for (const { providerId, issuer } of [
+			{ providerId: 'github', issuer: undefined },
+			{ providerId: 'github', issuer: URI.parse('https://github.com/login/oauth') },
+			{ providerId: 'github-enterprise', issuer: URI.parse('https://tenant.ghe.com') },
+		]) {
+			test(`uses the exact selected ${providerId} grant with issuer ${issuer ?? 'unset'}`, async () => {
+				const session = { ...selectedSession, authorizationServer: issuer };
+				let disposalsWhileReading: number | undefined;
+				const state = createProfileHarness(session, async () => {
+					await timeout(0);
+					disposalsWhileReading = state.clientDisposals;
+					return upcastPartial<User>({ name: '  Octo Cat  ' });
+				});
+
+				const profileName = await fetchGitHubProfileName.call(state.harness, providerId, providerId === 'github-enterprise', session.id);
+
+				assert.deepStrictEqual({
+					profileName,
+					authenticationRequests: state.authenticationRequests,
+					acquisitions: state.acquisitions,
+					disposalsWhileReading,
+					clientDisposals: state.clientDisposals,
+					warnings: state.warnings,
+				}, {
+					profileName: 'Octo Cat',
+					authenticationRequests: [[providerId, [], { silent: true }]],
+					acquisitions: [{ providerId, session }],
+					disposalsWhileReading: 0,
+					clientDisposals: 1,
+					warnings: [],
+				});
+			});
+		}
+
+		test('does not replace a missing selected session with another grant', async () => {
+			const state = createProfileHarness(selectedSession, async () => {
+				throw new Error('Unexpected profile request');
+			});
+			state.sessions.pop();
+
+			const profileName = await fetchGitHubProfileName.call(state.harness, 'github', false, selectedSession.id);
+
+			assert.deepStrictEqual({ profileName, acquisitions: state.acquisitions, warnings: state.warnings }, {
+				profileName: undefined,
+				acquisitions: [],
+				warnings: [],
+			});
+		});
+
+		for (const name of ['Octo Cat', undefined]) {
+			test(`evicts failed lookups and caches a successful ${name ? 'named' : 'nameless'} profile`, async () => {
+				const session = { ...selectedSession, id: name ? 'welcome-cache-name' : 'welcome-cache-empty' };
+				const started = new DeferredPromise<void>();
+				const interrupted = new DeferredPromise<User>();
+				let profileRequests = 0;
+				const state = createProfileHarness(session, async () => {
+					if (++profileRequests === 1) {
+						void started.complete();
+						return interrupted.p;
+					}
+					return upcastPartial<User>({ name });
+				});
+				const account = { authenticationProvider: { id: 'github', enterprise: false }, sessionId: session.id };
+				const configurationService = new TestConfigurationService({ [NEW_SESSION_WELCOME_NAME_SETTING]: '' });
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				const harness: ThisParameterType<typeof refreshGitHubProfileName> = {
+					_githubProfileAccountKey: undefined,
+					_githubProfileName: observableValue<string | undefined>('githubProfileName', undefined),
+					enabled: constObservable(true),
+					_store: { isDisposed: false },
+					configurationService,
+					defaultAccountService: {
+						currentDefaultAccount: account,
+						async getDefaultAccount() { return account; },
+					},
+					logService: state.harness.logService,
+					_fetchGitHubProfileName: (providerId, enterprise, sessionId) => fetchGitHubProfileName.call(state.harness, providerId, enterprise, sessionId),
+				};
+
+				const refreshes = [refreshGitHubProfileName.call(harness), refreshGitHubProfileName.call(harness)];
+				await started.p;
+				const renewedSession = { ...session, accessToken: 'renewed-token' };
+				state.sessions[state.sessions.indexOf(session)] = renewedSession;
+				await interrupted.error(new GitHubRequestError('GitHub credential generation was superseded', 'unknown'));
+				await Promise.all(refreshes);
+				const afterFailure = { profileName: harness._githubProfileName.get(), profileRequests, clientDisposals: state.clientDisposals };
+
+				await refreshGitHubProfileName.call(harness);
+				await refreshGitHubProfileName.call(harness);
+
+				assert.deepStrictEqual({
+					afterFailure,
+					profileName: harness._githubProfileName.get(),
+					profileRequests,
+					acquisitions: state.acquisitions,
+					clientDisposals: state.clientDisposals,
+					warnings: state.warnings,
+				}, {
+					afterFailure: { profileName: undefined, profileRequests: 1, clientDisposals: 1 },
+					profileName: name,
+					profileRequests: 2,
+					acquisitions: [{ providerId: 'github', session }, { providerId: 'github', session: renewedSession }],
+					clientDisposals: 2,
+					warnings: [{ message: 'Failed to fetch GitHub profile name.', error: undefined }],
+				});
+			});
+		}
+
+		for (const failure of ['acquisition', 'profile'] as const) {
+			test(`propagates ${failure} errors and releases any acquired client`, async () => {
+				const error = new Error('GitHub profile unavailable');
+				let profileRequests = 0;
+				const state = createProfileHarness(selectedSession, async () => { profileRequests++; throw error; });
+				if (failure === 'acquisition') {
+					state.harness.gitHubService.acquireAccountApiClient = async () => { throw error; };
+				}
+
+				await assert.rejects(fetchGitHubProfileName.call(state.harness, 'github', false, selectedSession.id), error);
+
+				assert.deepStrictEqual({ profileRequests, clientDisposals: state.clientDisposals, warnings: state.warnings }, {
+					profileRequests: failure === 'profile' ? 1 : 0,
+					clientDisposals: failure === 'profile' ? 1 : 0,
+					warnings: [],
+				});
+			});
+		}
 	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {
@@ -4064,12 +4717,16 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const [backgroundSend, inboxSelected] of [[false, false], [false, true], [true, false]]) {
-		test(`confirms background sends based on grouping and reseeds the workspace (always background: ${backgroundSend}, Inbox selected: ${inboxSelected})`, async () => {
+	for (const [backgroundSend, inboxSelected, openFails] of [[false, false, false], [false, true, false], [true, false, false], [false, true, true]]) {
+		test(`notifies background sends and reseeds the workspace, preserving hosted status (always background: ${backgroundSend}, Inbox selected: ${inboxSelected}, open fails: ${openFails})`, async () => {
 			const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 			const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
 			const folderUri = URI.file('/dismissed');
 			const restored: URI[] = [];
+			const notifications: Parameters<INotificationService['prompt']>[] = [];
+			const opened: { resource: URI; options: IOpenSessionOptions }[] = [];
+			const openError = new Error('Session no longer available');
+			const errors: Error[] = [];
 			const session = upcastPartial<ISession>({ sessionId: 'draft' });
 			const sentSession = upcastPartial<ISession>({ resource: URI.parse('test-session:/started') });
 			let sentOptions: ISendRequestOptions | undefined;
@@ -4080,7 +4737,19 @@ suite('NewChatWidget', () => {
 				_backgroundSend: backgroundSend,
 				_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
 				_newChatInput: { hasInput: false },
-				notificationService: { error: () => assert.fail('Unexpected error') },
+				notificationService: {
+					error: () => assert.fail('Unexpected error'),
+					prompt: (...args) => { notifications.push(args); return upcastPartial<ReturnType<INotificationService['prompt']>>({}); },
+				},
+				sessionsService: {
+					unsetNewSession: () => assert.fail('Unexpected navigation'),
+					openSession: async (resource, options) => {
+						opened.push({ resource, options });
+						if (openFails) {
+							throw openError;
+						}
+					},
+				},
 				_pendingBackgroundSends: pendingSends,
 				recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
 				_session: constObservable(session),
@@ -4099,16 +4768,28 @@ suite('NewChatWidget', () => {
 				_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 			};
 			await send.call(harness, 'hello', undefined, backgroundSend ? undefined : true);
-			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get(), notifications: notifications.length };
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
-			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get(), notifications: notifications.length };
 			assert.ok(sentOptions);
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
-			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
-				beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
+			const openedBeforeAction = [...opened];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				await notifications[0]?.[2][0].run();
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(previousHandler);
+			}
+			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource, notifications: notifications.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })), openedBeforeAction, opened, errors }, {
+				beforeSuccess: { restored: [], status: undefined, notifications: 0 }, afterUnrelatedSend: { restored: [], status: undefined, notifications: 0 },
 				restored: [folderUri], pending: 0, background: true,
-				status: backgroundSend || inboxSelected ? 'Message sent' : undefined,
-				resource: backgroundSend || inboxSelected ? sentSession.resource : undefined,
+				status: backgroundSend ? 'Message sent' : undefined,
+				resource: backgroundSend ? sentSession.resource : undefined,
+				notifications: backgroundSend ? [] : [{ severity: Severity.Info, message: 'Message sent', choices: ['Open Session'] }],
+				openedBeforeAction: [],
+				opened: backgroundSend ? [] : [{ resource: sentSession.resource, options: { source: 'link', forceMainChat: true } }],
+				errors: openFails ? [openError] : [],
 			});
 		});
 	}
@@ -4370,8 +5051,8 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		for (const outcome of ['dispatched', 'rejected'] as const) {
-			test(`hands an Alt+Enter send to its host before sending it, and ${outcome === 'dispatched' ? 'clears its own status when the request fails' : 'cancels that when the send is rejected'}`, async () => {
+		for (const [outcome, requestedInBackground] of [['dispatched', true], ['rejected', true], ['dispatched', false], ['rejected', false]] as const) {
+			test(`hands ${requestedInBackground ? 'an Alt+Enter send' : 'an Enter send of a composer that sends in the background'} to its host before sending it, and ${outcome === 'dispatched' ? 'clears its own status when the request fails' : 'cancels that when the send is rejected'}`, async () => {
 				const replaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 				const ended = disposables.add(new Emitter<INewSessionRequestEndedEvent>());
 				const pending = disposables.add(new DisposableMap<object, IDisposable>());
@@ -4384,6 +5065,7 @@ suite('NewChatWidget', () => {
 				const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file', name: 'file' });
 				let trackedWhenSent: number | undefined;
 				const harness: ISendHarness = {
+					_backgroundSend: !requestedInBackground,
 					_draftHost: host(slot, [], tracked),
 					_backgroundSendStatus: status,
 					_newChatInput: { hasInput: false },
@@ -4415,7 +5097,7 @@ suite('NewChatWidget', () => {
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 				};
 
-				const result = await send.call(harness, 'hello', [attachment], true);
+				const result = await send.call(harness, 'hello', [attachment], requestedInBackground || undefined);
 				status.set('Pending', undefined);
 				const latest = tracked[0]?.send.isLatest();
 				replaced.fire({ from: draft, to: prepared });
@@ -4426,7 +5108,7 @@ suite('NewChatWidget', () => {
 				assert.deepStrictEqual({
 					result,
 					trackedWhenSent,
-					tracked: tracked.map(({ send, cancelled }) => ({ session: send.session.sessionId, query: send.query, attachedContext: send.attachedContext, cancelled })),
+					tracked: tracked.map(({ send, cancelled }) => ({ session: send.session.sessionId, query: send.query, attachedContext: send.attachedContext, requestedInBackground: send.requestedInBackground, cancelled })),
 					latest,
 					statusAfterOther,
 					status: status.get(),
@@ -4435,7 +5117,7 @@ suite('NewChatWidget', () => {
 				}, outcome === 'dispatched' ? {
 					result: true,
 					trackedWhenSent: 1,
-					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], cancelled: false }],
+					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], requestedInBackground, cancelled: false }],
 					latest: true,
 					statusAfterOther: 'Pending',
 					status: undefined,
@@ -4444,7 +5126,7 @@ suite('NewChatWidget', () => {
 				} : {
 					result: false,
 					trackedWhenSent: 1,
-					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], cancelled: true }],
+					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], requestedInBackground, cancelled: true }],
 					latest: true,
 					statusAfterOther: 'Pending',
 					status: 'Pending',
@@ -4591,10 +5273,612 @@ suite('NewChatWidget', () => {
 					_selectRequestedNoWorkspace: (requested: INewSessionTarget) => { calls.push({ noWorkspace: requested }); },
 					_restoreNoWorkspaceDraft: async () => { calls.push('restore no workspace'); },
 					_seedRequestedTarget: (requested: INewSessionTarget) => seedRequestedTarget.call(harness, requested),
+					_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+					_applyRequestedWorktreePlacement: () => { },
 				};
 				seedWorkspaceDraft.call(harness);
 				return calls;
 			}
+
+			test('a composer restricted to folders without worktrees offers New Worktree as a checkbox instead of in its picker, only with AI features on, the old sessions list and a draft that can work in a new worktree', () => {
+				const createVisible = Reflect.get(NewChatWidget.prototype, '_createNewWorktreeCheckboxVisible') as (this: object, newWorktree: object | undefined, allowedFolders: IObservable<readonly URI[]> | undefined) => IObservable<boolean>;
+				const getPickerNewWorktree = Reflect.get(NewChatWidget.prototype, '_getPickerNewWorktree') as (this: object, newWorktree: object) => { isAvailable(): boolean };
+				const repo = URI.file('/repo');
+				const worktree = URI.file('/repo.worktrees/feature');
+				function offers(options: { chatEnabled?: boolean; sessionsList?: boolean; available?: boolean; folders?: readonly URI[]; draftHost?: boolean } = {}) {
+					const configurationService = new TestConfigurationService(options.sessionsList ? { 'chat.viewSessions.sessionsList.enabled': true } : {});
+					disposables.add(configurationService.onDidChangeConfigurationEmitter);
+					const newWorktree = { isAvailable: () => options.available ?? true };
+					const harness: Record<string, unknown> = {
+						contextKeyService: { onDidChangeContext: Event.None, contextMatchesRules: () => options.chatEnabled ?? true },
+						configurationService,
+						_environmentWorkspaceChanged: observableSignal('changed'),
+						_session: constObservable(undefined),
+						_draftHost: { getFolderPresentation: (folder: URI) => folder.path === worktree.path ? { kind: 'worktree' } : undefined },
+					};
+					const visible = createVisible.call(harness, options.draftHost === false ? undefined : newWorktree, options.draftHost === false ? undefined : constObservable(options.folders ?? [repo]));
+					harness._newWorktreeCheckboxVisible = visible;
+					const shown = visible.get();
+					return { checkbox: shown, inPicker: options.draftHost === false ? undefined : getPickerNewWorktree.call(harness, newWorktree).isAvailable() };
+				}
+
+				assert.deepStrictEqual({
+					noWorktrees: offers(),
+					withWorktrees: offers({ folders: [repo, worktree] }),
+					newSessionsList: offers({ sessionsList: true }),
+					aiOff: offers({ chatEnabled: false }),
+					cannotWorkInNewWorktree: offers({ available: false }),
+					agentsWindow: offers({ draftHost: false }),
+				}, {
+					noWorktrees: { checkbox: true, inPicker: false },
+					withWorktrees: { checkbox: false, inPicker: true },
+					newSessionsList: { checkbox: false, inPicker: true },
+					aiOff: { checkbox: false, inPicker: true },
+					cannotWorkInNewWorktree: { checkbox: false, inPicker: false },
+					agentsWindow: { checkbox: false, inPicker: undefined },
+				});
+			});
+
+			suite('Work in Parallel, as its first request is sent in its folder', () => {
+
+				const handle = Reflect.get(NewChatWidget.prototype, '_handleWorktreeSendChoice') as (this: object, request: IChatSubmitRequest) => Promise<boolean>;
+				const getControl = Reflect.get(NewChatWidget.prototype, '_getWorktreeSendChoiceControl') as (this: object) => HTMLElement | undefined;
+				const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
+				const folder = URI.file('/repo');
+
+				/** A composer of a draft of `/repo` that would work in it, whose provider answers with `answer` once asked. */
+				function harness(options: { aiOn?: boolean; quickChat?: boolean; available?: boolean; selected?: boolean; userChosen?: boolean; placement?: boolean; control?: boolean; provider?: boolean; availableOnAnswer?: boolean; applies?: Promise<boolean>; recent?: boolean | Error } = {}) {
+					const calls: string[] = [];
+					const answer = new DeferredPromise<'worktree' | 'folder' | undefined>();
+					let available = options.available ?? true;
+					const control = $('div.new-worktree-control');
+					const session = upcastPartial<ISession>({
+						sessionId: 'draft', resource: draft, status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(!!options.quickChat),
+						workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ root: folder, workingDirectory: folder })] })),
+					});
+					const registration = disposables.add(new DisposableStore());
+					const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+					if (options.provider !== false) {
+						let recentIn = '';
+						registration.add(worktreeSendChoiceService.registerProvider({
+							isRecentChatInFolder: (askedFolder, askedDraft) => {
+								if (options.recent instanceof Error) {
+									throw options.recent;
+								}
+								recentIn = `${askedDraft.path} in ${askedFolder.path}`;
+								return options.recent ?? true;
+							},
+							askWorktreeOnSend: askedControl => {
+								calls.push(`ask ${recentIn}${askedControl === control ? ' on its control' : ''}`);
+								return answer.p.then(choice => {
+									available = options.availableOnAnswer ?? available;
+									return choice;
+								});
+							},
+						}));
+					}
+					const current = observableValue<ISession | undefined>('session', session);
+					const store = { isDisposed: false };
+					let selected = !!options.selected;
+					const harness = {
+						worktreeSendChoiceService,
+						_session: current,
+						_store: store,
+						_askingWorktreeOnSend: new Set<string>(),
+						_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', options.placement ? { folderUri: folder, sessionId: 'draft' } : undefined),
+						_newWorktree: {
+							isAvailable: () => available,
+							isSelected: () => selected,
+							getIsolation: () => selected ? 'worktree' : 'folder',
+							isUserChosen: () => !!options.userChosen,
+							setSelected: async (value: boolean) => {
+								calls.push(`New Worktree ${value}`);
+								// As the draft's agent leaves it: one that does not take the write keeps the draft as it was
+								const applied = await (options.applies ?? Promise.resolve(true));
+								selected = applied ? value : selected;
+								return applied;
+							},
+						},
+						contextKeyService: { contextMatchesRules: () => options.aiOn ?? true },
+						_getWorktreeSendChoiceControl: () => options.control === false ? undefined : control,
+						_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
+						_warnNewWorktreeUnavailable: () => calls.push('warning'),
+					};
+					return {
+						calls, answer, unregister: () => registration.dispose(),
+						/** The composer moves to another draft, as the user picks another workspace. */
+						switchDraft: () => current.set(upcastPartial<ISession>({ sessionId: 'other', resource: URI.parse('agent-host-copilotcli:/untitled-other') }), undefined),
+						close: () => { store.isDisposed = true; },
+						/** Sends the draft's first request as the composer does, through its submit handler; the result is whether the handler took it. */
+						send: (resource: URI = draft) => handle.call(harness, { sessionResource: resource, input: 'hello' }),
+					};
+				}
+
+				test('does not ask where the draft would not work in its folder, the user chose for it, or there is nothing to ask with', async () => {
+					const asked = async (options: Parameters<typeof harness>[0], resource?: URI) => {
+						const { calls, send, unregister } = harness(options);
+						const taken = await send(resource);
+						unregister();
+						return { taken, calls };
+					};
+					const none = { taken: false, calls: [] };
+
+					assert.deepStrictEqual({
+						noProvider: await asked({ provider: false }),
+						aiOff: await asked({ aiOn: false }),
+						quickChat: await asked({ quickChat: true }),
+						noNewWorktree: await asked({ available: false }),
+						newWorktree: await asked({ selected: true }),
+						userChose: await asked({ userChosen: true }),
+						requestedPlacement: await asked({ placement: true }),
+						noRecentChat: await asked({ recent: false }),
+						noControl: await asked({ control: false }),
+						anotherChat: await asked({}, URI.parse('agent-host-copilotcli:/untitled-other')),
+					}, { noProvider: none, aiOff: none, quickChat: none, noNewWorktree: none, newWorktree: none, userChose: none, requestedPlacement: none, noRecentChat: none, noControl: none, anotherChat: none });
+				});
+
+				test('a provider that fails to tell of recent chats never costs the request', async () => {
+					const failing = harness({ recent: new Error('recent failed') });
+					const errors: unknown[] = [];
+					const previousHandler = errorHandler.getUnexpectedErrorHandler();
+					errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+					let failingResult;
+					try {
+						failingResult = { taken: await failing.send(), calls: failing.calls };
+					} finally {
+						errorHandler.setUnexpectedErrorHandler(previousHandler);
+						failing.unregister();
+					}
+
+					assert.deepStrictEqual({ failing: failingResult, reported: errors.map(error => (error as Error).message) }, {
+						failing: { taken: false, calls: [] },
+						reported: ['recent failed'],
+					});
+				});
+
+				test('holds the send while it asks on the New Worktree control; Use New Worktree makes it work in a new worktree, and it is then sent once', async () => {
+					const { calls, answer, send } = harness();
+					let sent = false;
+					const sending = send().then(taken => { sent = !taken; });
+					await timeout(0);
+					const held = { sent, calls: [...calls] };
+					answer.complete('worktree');
+					await sending;
+
+					assert.deepStrictEqual({ held, sent, calls }, {
+						held: { sent: false, calls: ['ask /untitled-draft in /repo on its control'] },
+						sent: true,
+						calls: ['ask /untitled-draft in /repo on its control', 'New Worktree true'],
+					});
+				});
+
+				test('Continue in Folder, closing the callout, or a remembered or no choice sends once in the folder', async () => {
+					const results = [];
+					for (const choice of ['folder', undefined] as const) {
+						const { calls, answer, send, unregister } = harness();
+						answer.complete(choice);
+						results.push({ taken: await send(), calls });
+						unregister();
+					}
+
+					assert.deepStrictEqual(results, [
+						{ taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
+						{ taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
+					]);
+				});
+
+				test('a request sent again while it asks is not sent: the held one is, once answered', async () => {
+					const { calls, answer, send } = harness();
+					const first = send();
+					await timeout(0);
+					const again = await send();
+					answer.complete('folder');
+
+					assert.deepStrictEqual({ again, first: await first, asked: calls.length }, { again: true, first: false, asked: 1 });
+				});
+
+				test('an answer given once the user switched to another draft or closed the composer is applied to none', async () => {
+					const results = [];
+					for (const change of ['switchDraft', 'close'] as const) {
+						const composer = harness();
+						const sending = composer.send();
+						await timeout(0);
+						composer[change]();
+						composer.answer.complete('worktree');
+						results.push({ change, taken: await sending, calls: composer.calls });
+						composer.unregister();
+					}
+
+					assert.deepStrictEqual(results, [
+						{ change: 'switchDraft', taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
+						{ change: 'close', taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
+					]);
+				});
+
+				test('a request sent again while the answer is applied is not sent: the held one is, once applied', async () => {
+					const applying = new DeferredPromise<boolean>();
+					const { calls, answer, send } = harness({ applies: applying.p });
+					answer.complete('worktree');
+					let firstSettled = false;
+					const first = send().then(taken => { firstSettled = true; return taken; });
+					await timeout(0);
+					const again = await send();
+					const heldWhileApplying = !firstSettled;
+					applying.complete(true);
+
+					assert.deepStrictEqual({ again, heldWhileApplying, first: await first, calls }, {
+						again: true,
+						heldWhileApplying: true,
+						first: false,
+						calls: ['ask /untitled-draft in /repo on its control', 'New Worktree true'],
+					});
+				});
+
+				test('a new worktree its agent does not take is reported, and the request sent in the folder', async () => {
+					const { calls, answer, send } = harness({ applies: Promise.resolve(false) });
+					answer.complete('worktree');
+
+					assert.deepStrictEqual({ taken: await send(), calls }, { taken: false, calls: ['ask /untitled-draft in /repo on its control', 'New Worktree true', 'warning'] });
+				});
+
+				test('as its agent settles New Worktree: taken, it is sent there, also where it can no longer change; rejected after showing it, or settled without it, it is reported and sent in the folder, once back there; neither, or where it cannot be told, it is not sent and the draft kept', async () => {
+					const results: Record<string, unknown> = {};
+					const errors: unknown[] = [];
+					const previousHandler = errorHandler.getUnexpectedErrorHandler();
+					errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+					try {
+						for (const agent of ['takes', 'rejects', 'ignores', 'stuck', 'takesReadOnly', 'stuckReadOnly', 'stuckUnknown'] as const) {
+							const store = disposables.add(new DisposableStore());
+							const values: Record<string, unknown> = { isolation: 'folder' };
+							// Whether its isolation can change, and whether its configuration is known, as the agent tells
+							let readOnly = false;
+							let known = true;
+							const provider = upcastPartial<IAgentHostSessionsProvider>({
+								id: LOCAL_AGENT_HOST_PROVIDER_ID,
+								getCreateSessionConfig: () => values,
+								getSessionConfig: () => known ? { schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'folder', readOnly } } }, values } : undefined,
+								setSessionConfigValue: async (_sessionId, _chat, property, value) => {
+									await timeout(0);
+									readOnly = agent === 'takesReadOnly' || agent === 'stuckReadOnly';
+									known = agent !== 'stuckUnknown';
+									if (agent === 'takes' || agent === 'takesReadOnly') {
+										values[property] = value;
+									} else if (value === 'worktree' && agent !== 'ignores') {
+										// It shows New Worktree, then rejects it, without undoing it
+										values[property] = value;
+										throw new Error('isolation rejected');
+									} else if (agent === 'rejects') {
+										values[property] = value;
+									}
+								},
+								trackSessionConfigOperation: () => { },
+							});
+							const instantiationService = store.add(new TestInstantiationService());
+							instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as unknown as T }));
+							const session = upcastPartial<ISession>({
+								sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, resource: draft, status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(false),
+								mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/draft') })),
+								workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ root: folder, workingDirectory: folder })] })),
+							});
+							const current = observableValue<ISession | undefined>('session', session);
+							const newWorktree = instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true));
+							const warnings: string[] = [];
+							const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+							store.add(worktreeSendChoiceService.registerProvider({ isRecentChatInFolder: () => true, askWorktreeOnSend: async () => 'worktree' }));
+							const handling = handle.call({
+								worktreeSendChoiceService,
+								_session: current,
+								_store: { isDisposed: false },
+								_askingWorktreeOnSend: new Set<string>(),
+								_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+								_newWorktree: newWorktree,
+								contextKeyService: { contextMatchesRules: () => true },
+								_getWorktreeSendChoiceControl: () => $('div'),
+								_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
+								_warnNewWorktreeUnavailable: () => warnings.push('warning'),
+								notificationService: { error: () => warnings.push('error') },
+							}, { sessionResource: draft, input: 'hello' });
+							// Not taken, the composer sends it; failing, the composer keeps the draft and sends nothing
+							const outcome = await handling.then(taken => taken ? 'taken' : 'sent', error => isCancellationError(error) ? 'kept' : String(error));
+							results[agent] = { outcome, isolation: values.isolation, warnings };
+							store.dispose();
+						}
+					} finally {
+						errorHandler.setUnexpectedErrorHandler(previousHandler);
+					}
+
+					assert.deepStrictEqual({ results, reported: errors.map(error => (error as Error).message) }, {
+						results: {
+							takes: { outcome: 'sent', isolation: 'worktree', warnings: [] },
+							rejects: { outcome: 'sent', isolation: 'folder', warnings: ['warning'] },
+							ignores: { outcome: 'sent', isolation: 'folder', warnings: ['warning'] },
+							stuck: { outcome: 'kept', isolation: 'worktree', warnings: ['error'] },
+							takesReadOnly: { outcome: 'sent', isolation: 'worktree', warnings: [] },
+							stuckReadOnly: { outcome: 'kept', isolation: 'worktree', warnings: ['error'] },
+							stuckUnknown: { outcome: 'kept', isolation: 'worktree', warnings: ['error'] },
+						},
+						reported: ['isolation rejected', 'isolation rejected', 'isolation rejected', 'isolation rejected'],
+					});
+				});
+
+				test('a new worktree the draft can no longer work in is reported and the request sent in the folder; a failing provider never costs the request', async () => {
+					const unavailable = harness({ availableOnAnswer: false });
+					unavailable.answer.complete('worktree');
+					const unavailableResult = { taken: await unavailable.send(), calls: unavailable.calls };
+					unavailable.unregister();
+					const failing = harness();
+					failing.answer.error(new Error('provider failed'));
+					const errors: unknown[] = [];
+					const previousHandler = errorHandler.getUnexpectedErrorHandler();
+					errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+					let failingTaken: boolean;
+					try {
+						failingTaken = await failing.send();
+					} finally {
+						errorHandler.setUnexpectedErrorHandler(previousHandler);
+					}
+
+					assert.deepStrictEqual({ unavailable: unavailableResult, failingTaken, reported: errors.map(error => (error as Error).message) }, {
+						unavailable: { taken: false, calls: ['ask /untitled-draft in /repo on its control', 'warning'] },
+						failingTaken: false,
+						reported: ['provider failed'],
+					});
+				});
+
+				test('asks on the New Worktree checkbox while shown, else on the workspace picker where it offers New Worktree, and only as shown', () => {
+					const container = mainWindow.document.body.appendChild($('div'));
+					disposables.add(toDisposable(() => container.remove()));
+					const row = container.appendChild($('div.picker-row'));
+					const checkbox = row.appendChild($('div.checkbox'));
+					const visible = observableValue('visible', true);
+					const composer = { _newWorktreeCheckboxVisible: visible, _newWorktreeCheckbox: { element: checkbox }, _workspacePickerRow: row };
+					const shown = getControl.call(composer);
+					visible.set(false, undefined);
+					const inPicker = getControl.call(composer);
+					row.remove();
+
+					assert.deepStrictEqual({ shown: shown === checkbox, inPicker: inPicker === row, detached: getControl.call(composer) }, { shown: true, inPicker: true, detached: undefined });
+				});
+			});
+
+			suite('in a new worktree', () => {
+
+				const applyRequestedWorktreePlacement = Reflect.get(NewChatWidget.prototype, '_applyRequestedWorktreePlacement') as (this: object) => void;
+				const bindWorktreePlacement = Reflect.get(NewChatWidget.prototype, '_bindWorktreePlacement') as (this: object, placement: object, result: IOpenNewSessionResult | undefined) => void;
+				const isDraftOfFolder = Reflect.get(NewChatWidget.prototype, '_isDraftOfFolder') as (this: object, session: ISession, folderUri: URI) => boolean;
+				const recreateDraft = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as (this: object, folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined) => void;
+				const onUserWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_onUserWorkspaceSelection') as (this: object) => void;
+				const requestTarget = Reflect.get(NewChatWidget.prototype, '_requestTarget') as (this: object, change: (target: INewSessionTarget) => INewSessionTarget) => void;
+				const onWorkspaceSelected = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: object, folderUri: URI | undefined, userPick?: IPreferredSessionType) => Promise<void>;
+
+				/** An untitled draft `id` of folder `path`. */
+				function draftOf(id: string, path: string) {
+					const folder = URI.file(path);
+					return upcastPartial<ISession>({ sessionId: id, status: constObservable(SessionStatus.Untitled), workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ root: folder, workingDirectory: folder })] })) });
+				}
+
+				/**
+				 * A composer that shows draft `a` and is asked for a new worktree of folder `/b`, whose draft `b` its creation
+				 * installs only once `create` completes, as a folder that asks for trust first does. Its New Worktree writes are
+				 * recorded per draft; `agent` says whether a draft's configuration is known and can work in a new worktree.
+				 */
+				function placementHarness(agent: { resolved: boolean; available: boolean } | 'noNewWorktree' = { resolved: true, available: true }) {
+					const calls: string[] = [];
+					const a = draftOf('a', '/a');
+					const b = draftOf('b', '/b');
+					const create = new DeferredPromise<IOpenNewSessionResult>();
+					const harness = {
+						_store: { isDisposed: false },
+						uriIdentityService: { extUri },
+						// The draft shown, of any folder, is of the folder the composer recreates it for
+						_workspacePicker: { setSelectedWorkspace: () => { }, isWorkspaceOfFolder: () => true },
+						_session: observableValue<ISession | undefined>('session', a),
+						_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+						_newWorktree: agent === 'noNewWorktree' ? undefined : {
+							isAvailable: () => agent.available,
+							isResolved: () => agent.resolved,
+							setSelected: (selected: boolean) => calls.push(`New Worktree ${selected} for ${harness._session.get()?.sessionId}`),
+						},
+						notificationService: { warn: () => { calls.push(`warning for ${harness._session.get()?.sessionId}`); } },
+						/** The first creation is the requested folder's, `b`; any later one installs `c` of its folder at once. */
+						_createNewSession: (folderUri: URI, pick?: IPreferredSessionType): Promise<IOpenNewSessionResult> => {
+							if (!create.isSettled) {
+								return create.p;
+							}
+							calls.push(`create ${folderUri.path} ${pick?.providerId ?? 'preferred'}`);
+							const replacement = draftOf('c', folderUri.path);
+							harness._session.set(replacement, undefined);
+							return Promise.resolve({ session: replacement, trustDeclined: false });
+						},
+						_selectRequestedNoWorkspace: () => { calls.push('no workspace'); },
+						// What the routes that replace a draft read
+						_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: 'p2', sessionTypeId: 't2' }) }, preparePromptOptionsRefresh: () => false, showPromptOptions: () => { } },
+						_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
+						_preferredDevContainerFolderUri: undefined,
+						_workspaceOptOutEnabled: constObservable(false),
+						_workspaceOptOutTarget: constObservable(undefined),
+						_isPreferredServable: () => true,
+						_savedDraftTargetUnavailable: observableValue('savedDraftTargetUnavailable', false),
+						newSessionComposerService: { notifyUserWorkspaceSelection: () => calls.push('user workspace selection') },
+						_draftHost: { requestedTarget: observableValue<INewSessionTarget>('target', { folderUri: URI.file('/b'), placement: 'worktree' }), setRequestedTarget: (next: INewSessionTarget) => harness._draftHost.requestedTarget.set(next, undefined) },
+						_applyRequestedWorktreePlacement: () => applyRequestedWorktreePlacement.call(harness),
+						_bindWorktreePlacement: (placement: object, result: IOpenNewSessionResult | undefined) => bindWorktreePlacement.call(harness, placement, result),
+						_warnNewWorktreeUnavailable: () => (Reflect.get(NewChatWidget.prototype, '_warnNewWorktreeUnavailable') as (this: object) => void).call(harness),
+						_isDraftOfFolder: (session: ISession, folderUri: URI) => isDraftOfFolder.call(harness, session, folderUri),
+					};
+					// As the widget's autorun does on each draft change
+					disposables.add(autorun(reader => {
+						harness._session.read(reader);
+						applyRequestedWorktreePlacement.call(harness);
+					}));
+					seedRequestedTarget.call(harness, { folderUri: URI.file('/b'), placement: 'worktree' });
+					return {
+						harness, calls,
+						/** As the composer's configuration, session and folders autorun applies it. */
+						configChanged: () => applyRequestedWorktreePlacement.call(harness),
+						/** The creation installs `b`, as a draft creation completes. */
+						install: async () => { harness._session.set(b, undefined); create.complete({ session: b, trustDeclined: false }); await timeout(0); },
+						complete: async (result: IOpenNewSessionResult) => { create.complete(result); await timeout(0); },
+					};
+				}
+
+				test('only the draft its creation installs works in a new worktree, once and as the user\'s choice: not the draft shown while the creation waits, also as that draft\'s configuration changes', async () => {
+					const { harness, calls, configChanged, install } = placementHarness();
+					configChanged();
+					const whileCreating = { pending: !!harness._pendingWorktreePlacement.get(), calls: [...calls] };
+					await install();
+					configChanged();
+
+					assert.deepStrictEqual({ whileCreating, pending: !!harness._pendingWorktreePlacement.get(), calls }, {
+						whileCreating: { pending: true, calls: [] },
+						pending: false,
+						calls: ['New Worktree true for b'],
+					});
+				});
+
+				test('waits for the installed draft\'s configuration, which it cannot be sent before', async () => {
+					const agent = { resolved: false, available: false };
+					const { harness, calls, install } = placementHarness(agent);
+					await install();
+					const whileUnknown = { pending: !!harness._pendingWorktreePlacement.get(), calls: [...calls] };
+					agent.resolved = agent.available = true;
+					harness._applyRequestedWorktreePlacement();
+					harness._applyRequestedWorktreePlacement();
+
+					assert.deepStrictEqual({ whileUnknown, pending: !!harness._pendingWorktreePlacement.get(), calls }, {
+						whileUnknown: { pending: true, calls: [] },
+						pending: false,
+						calls: ['New Worktree true for b'],
+					});
+				});
+
+				test('a new draft of the requested folder that replaces the installed one before its configuration is known, such as of an agent that connected since, takes it once; any other draft shown instead cancels it, and Send is never kept waiting', async () => {
+					const agent = { resolved: false, available: false };
+					const upgraded = placementHarness(agent);
+					await upgraded.install();
+					// The installed draft `b` is replaced by a draft of the same folder, `c`, whose configuration then resolves
+					upgraded.harness._session.set(draftOf('c', '/b'), undefined);
+					upgraded.configChanged();
+					const whileUnknown = !!upgraded.harness._pendingWorktreePlacement.get();
+					agent.resolved = agent.available = true;
+					upgraded.configChanged();
+					upgraded.configChanged();
+
+					const elsewhere = placementHarness({ resolved: false, available: false });
+					await elsewhere.install();
+					elsewhere.harness._session.set(draftOf('d', '/other'), undefined);
+					elsewhere.configChanged();
+					const previous = placementHarness({ resolved: false, available: false });
+					await previous.install();
+					// The draft shown as it was requested comes back
+					previous.harness._session.set(draftOf('a', '/b'), undefined);
+					previous.configChanged();
+
+					assert.deepStrictEqual({
+						upgraded: { whileUnknown, pending: !!upgraded.harness._pendingWorktreePlacement.get(), calls: upgraded.calls },
+						elsewhere: { pending: !!elsewhere.harness._pendingWorktreePlacement.get(), calls: elsewhere.calls },
+						previous: { pending: !!previous.harness._pendingWorktreePlacement.get(), calls: previous.calls },
+					}, {
+						upgraded: { whileUnknown: true, pending: false, calls: ['New Worktree true for c'] },
+						elsewhere: { pending: false, calls: [] },
+						previous: { pending: false, calls: [] },
+					});
+				});
+
+				test('a creation that installs no draft drops it, and the draft shown takes nothing: declined trust, a superseded creation, a composer gone meanwhile', async () => {
+					const declined = placementHarness();
+					await declined.complete({ session: undefined, trustDeclined: true });
+					// Superseded: the creation made `b`, but another draft is shown
+					const superseded = placementHarness();
+					await superseded.complete({ session: upcastPartial<ISession>({ sessionId: 'b' }), trustDeclined: false });
+					const disposed = placementHarness();
+					disposed.harness._store.isDisposed = true;
+					await disposed.install();
+					const results = [declined, superseded, disposed].map(({ harness, calls, configChanged }) => {
+						configChanged();
+						return { pending: !!harness._pendingWorktreePlacement.get(), calls };
+					});
+
+					assert.deepStrictEqual(results, [
+						{ pending: false, calls: [] },
+						{ pending: false, calls: [] },
+						{ pending: false, calls: [] },
+					]);
+				});
+
+				test('a newer request cancels it: the older creation\'s draft takes nothing', async () => {
+					const { harness, calls, install } = placementHarness();
+					// The host asks for another folder before the first creation completes
+					seedRequestedTarget.call(harness, { folderUri: URI.file('/c') });
+					await install();
+
+					assert.deepStrictEqual({ pending: !!harness._pendingWorktreePlacement.get(), calls }, { pending: false, calls: [] });
+				});
+
+				test('the user\'s own choice of workspace cancels it, also once bound to a draft whose configuration is not known yet: that draft takes nothing as it resolves, and Send does not wait for it', async () => {
+					const agent = { resolved: false, available: false };
+					const { harness, calls, install, configChanged } = placementHarness(agent);
+					await install();
+					const bound = !!harness._pendingWorktreePlacement.get();
+					onUserWorkspaceSelection.call(harness);
+					agent.resolved = agent.available = true;
+					configChanged();
+
+					assert.deepStrictEqual({ bound, pending: !!harness._pendingWorktreePlacement.get(), calls }, { bound: true, pending: false, calls: ['user workspace selection'] });
+				});
+
+				test('replaced by an agent that registers since, with no agent requested, the new draft of the folder takes it once its configuration resolves, and the replaced draft nothing', async () => {
+					const agent = { resolved: false, available: false };
+					const { harness, calls, install, configChanged } = placementHarness(agent);
+					await install();
+					// The preferred agent changes, as one registers: the composer recreates the folder's draft for it
+					recreateDraft.call(harness, URI.file('/b'), undefined, harness._session.get());
+					await timeout(0);
+					const whileUnknown = { draft: harness._session.get()?.sessionId, pending: !!harness._pendingWorktreePlacement.get() };
+					agent.resolved = agent.available = true;
+					configChanged();
+					configChanged();
+
+					assert.deepStrictEqual({ whileUnknown, pending: !!harness._pendingWorktreePlacement.get(), calls }, {
+						whileUnknown: { draft: 'c', pending: true },
+						pending: false,
+						calls: ['create /b preferred', 'New Worktree true for c'],
+					});
+				});
+
+				test('replaced as the user picks another agent, the new draft of the folder takes it once its configuration resolves, and the replaced draft nothing: the pick changes the agent, not where it works', async () => {
+					const agent = { resolved: false, available: false };
+					const { harness, calls, install, configChanged } = placementHarness(agent);
+					await install();
+					// As the composer's agent picker does: the pick becomes the requested agent, and the folder's draft is created for it
+					const pick = { providerId: 'p2', sessionTypeId: 't2' };
+					requestTarget.call(harness, target => ({ ...target, ...pick }));
+					await onWorkspaceSelected.call(harness, URI.file('/b'), pick);
+					const whileUnknown = { draft: harness._session.get()?.sessionId, pending: !!harness._pendingWorktreePlacement.get() };
+					agent.resolved = agent.available = true;
+					configChanged();
+					configChanged();
+
+					assert.deepStrictEqual({ whileUnknown, requested: harness._draftHost.requestedTarget.get(), pending: !!harness._pendingWorktreePlacement.get(), calls }, {
+						whileUnknown: { draft: 'c', pending: true },
+						requested: { folderUri: URI.file('/b'), placement: 'worktree', providerId: 'p2', sessionTypeId: 't2' },
+						pending: false,
+						calls: ['create /b p2', 'New Worktree true for c'],
+					});
+				});
+
+				test('an agent that cannot work in a new worktree is reported for the installed draft, not made a chat in the folder silently', async () => {
+					const unavailable = placementHarness({ resolved: true, available: false });
+					await unavailable.install();
+					const notOffered = placementHarness('noNewWorktree');
+					await notOffered.install();
+
+					assert.deepStrictEqual([unavailable, notOffered].map(({ harness, calls }) => ({ pending: !!harness._pendingWorktreePlacement.get(), calls })), [
+						{ pending: false, calls: ['warning for b'] },
+						{ pending: false, calls: ['warning for b'] },
+					]);
+				});
+			});
 
 			test('a draft starts from the requested target, not from the main composer\'s last workspace', () => {
 				assert.deepStrictEqual({
@@ -4754,6 +6038,9 @@ suite('NewChatWidget', () => {
 					_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
 					_pendingRequestedAgent: disposables.add(new MutableDisposable()),
 					_applyingRequestedSelection: undefined,
+					// Its requested targets work in their folders: New Worktree is tested on its own
+					_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+					_applyRequestedWorktreePlacement: () => { },
 					_newSessionCreation: disposables.add(new MutableDisposable()),
 					_isWorkspacePickerQuickChat: constObservable(false),
 					_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined }, onDidSelectModel: agents.modelSelections.event },
@@ -4877,6 +6164,42 @@ suite('NewChatWidget', () => {
 					],
 					sameAgent: 't1 available agent:/x',
 					otherAgent: 'r1 default no agent',
+				});
+			});
+
+			test('in an editor window, a composer has no chat without a workspace: no No Workspace option, none selected, and what aims at none, or nothing, works in the window\'s folder; in an empty window, in the restored folder, else none', () => {
+				const agents = createAgents([new ModelProvider(LOCAL_AGENT_HOST_PROVIDER_ID, ['t'])]);
+				const target = observableValue<INewSessionTarget | undefined>('target', undefined);
+				const calls: string[] = [];
+				const composer = withWidgetMethods(Object.assign(hostedComposer(agents, target), {
+					_inEditorWindow: true,
+					_syncWorkspacePickerFromActiveSession: () => false,
+					_reconcileWorkspaceEnvironment: () => { },
+					_restoreNoWorkspaceDraft: async () => { calls.push('no workspace draft'); },
+					_createNewSession: async (folderUri: URI, pick: { sessionTypeId?: string } | undefined) => { calls.push(`draft of ${folderUri.path}${pick ? ` ${pick.sessionTypeId}` : ''}`); return undefined; },
+				}), ['_getNoWorkspaceOption', '_seedRequestedTarget', '_seedWorkspaceDraft', '_getEditorWindowFolder']);
+				Object.assign(composer._draftHost, { allowedFolders: constObservable([URI.file('/window')]) });
+				Object.assign(composer._workspacePicker, { setSelectedWorkspace: (folderUri: URI) => calls.push(`picked ${folderUri.path}`) });
+
+				const option = composer._getNoWorkspaceOption();
+				const selected = composer.selectNoWorkspace();
+				composer._seedRequestedTarget({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 't' });
+				composer._seedWorkspaceDraft();
+
+				// An empty window: the folder the picker restored, such as a recent one, else none to send in until the user picks one
+				const windowFolders = calls.length;
+				Object.assign(composer._draftHost, { allowedFolders: constObservable([]) });
+				composer._workspacePicker.selectedFolderUri = URI.file('/recent');
+				composer._seedWorkspaceDraft();
+				composer._workspacePicker.selectedFolderUri = undefined;
+				composer._seedWorkspaceDraft();
+
+				assert.deepStrictEqual({ option, selected, draft: draftOf(agents.slot.newSession.get()), windowFolders: calls.slice(0, windowFolders), emptyWindow: calls.slice(windowFolders) }, {
+					option: undefined,
+					selected: undefined,
+					draft: undefined,
+					windowFolders: ['picked /window', 'draft of /window t', 'picked /window', 'draft of /window'],
+					emptyWindow: ['draft of /recent'],
 				});
 			});
 
@@ -5540,6 +6863,32 @@ suite('NewChatWidget', () => {
 			beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', resource: undefined, preservesHeight: true,
 		});
 	}));
+
+	test('a workspace selection the user did not make leaves focus in the input being typed in', async () => {
+		const input = append(mainWindow.document.body, $('input'));
+		const button = append(mainWindow.document.body, $('button'));
+		disposables.add(toDisposable(() => { input.remove(); button.remove(); }));
+		const run = async (notByUser: boolean, focused: HTMLElement) => {
+			let focusCalls = 0;
+			focused.focus();
+			await handleWorkspaceSelection.call(upcastPartial<IHandleWorkspaceSelectionHarness>({
+				_environment: constObservable(undefined),
+				_workspaceOptOutEnabled: constObservable(false),
+				_newChatInput: { focus: () => focusCalls++ },
+				_isCurrentWorkspaceSelection: () => true,
+			}), URI.file('/handed-off'), notByUser);
+			return focusCalls;
+		};
+		assert.deepStrictEqual({
+			byUserWhileTyping: await run(false, input),
+			notByUserWhileTyping: await run(true, input),
+			notByUserWhileNotTyping: await run(true, button),
+		}, {
+			byUserWhileTyping: 1,
+			notByUserWhileTyping: 0,
+			notByUserWhileNotTyping: 1,
+		});
+	});
 
 	for (const origin of [
 		WorkspaceSelectionOrigin.None, WorkspaceSelectionOrigin.CheckedWorkspace, WorkspaceSelectionOrigin.AgentsRecent,

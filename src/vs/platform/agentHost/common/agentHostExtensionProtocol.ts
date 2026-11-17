@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ValidatorBase, vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
+import { ValidatorBase, vArray, vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
@@ -23,7 +23,7 @@ import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from 
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IAgentHostSavedChatDto, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
-import { AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryDeletionStateCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
+import { AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryDeletionStateCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey, AgentHostScheduledChatExistingConversationCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
@@ -55,12 +55,29 @@ export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClo
 export const DevContainerCloseConnectionNotification = 'vscode/devContainers/closeConnection';
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
 export const DevContainerSandboxSupportNotification = 'vscode/devContainers/sandboxSupport';
+export const DevContainerUserStateNotification = 'vscode/devContainers/userState';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
-export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()) });
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
 export const devContainerSandboxSupportValidator = vObj({ connectionId: vString(), supported: vBoolean() });
+export const devContainerUserStateValidator = vObj({
+	connectionId: vString(),
+	stage: vEnum('mount', 'up', 'link', 'userCommands'),
+	outcome: vString(),
+	reason: vOptionalProp(vString()),
+	step: vOptionalProp(vString()),
+	exitCode: vOptionalProp(vNumber()),
+	target: vOptionalProp(vString()),
+	restoredFolders: vOptionalProp(vNumber()),
+	movedFolders: vOptionalProp(vNumber()),
+	createdFolders: vOptionalProp(vNumber()),
+	existingFolders: vOptionalProp(vNumber()),
+	skippedFolders: vOptionalProp(vNumber()),
+	skipReasons: vOptionalProp(vString()),
+	errorMessage: vOptionalProp(vString()),
+});
 export const devContainerConnectResultValidator = vObj({
 	connectionId: vString(),
 	address: vString(),
@@ -83,6 +100,7 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
+export const AnswerShellAuthenticationExtensionMethod = 'vscode/answerShellAuthentication';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
 export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString(), session: vOptionalProp(vString()) });
@@ -168,6 +186,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostAutomationHistoryCapabilityMetaKey]?: true;
 	readonly [AgentHostAutomationHistoryReceiptsCapabilityMetaKey]?: true;
 	readonly [AgentHostAutomationHistoryDeletionStateCapabilityMetaKey]?: true;
+	/** Present when scheduled chats can target an existing chat. */
+	readonly [AgentHostScheduledChatExistingConversationCapabilityMetaKey]?: true;
 }
 
 /** Standard AHP initialize response with typed VS Code-specific capability metadata. */
@@ -239,6 +259,13 @@ export const removeSessionArtifactParamsValidator = vObj({
 export const stopBackgroundWorkParamsValidator = vObj({
 	chat: vString(),
 	id: vString(),
+});
+
+/** Answers a chat's pending shell authentication prompt; without `answer`, cancels it. */
+export const answerShellAuthenticationParamsValidator = vObj({
+	chat: vString(),
+	requestId: vString(),
+	answer: vOptionalProp(vString()),
 });
 
 export const importSessionParamsValidator = vObj({ session: vString(), takeOver: vOptionalProp(vBoolean()) });
@@ -380,6 +407,11 @@ export interface IAgentHostExtensionCommandMap {
 		/** `stopped` is false when the work had already finished or the host no longer tracks it. */
 		result: { stopped: boolean };
 	};
+	[AnswerShellAuthenticationExtensionMethod]: {
+		params: ValidatorType<typeof answerShellAuthenticationParamsValidator>;
+		/** `delivered` is false when the prompt had already ended, for example because its command finished. */
+		result: { delivered: boolean };
+	};
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
 	'getManagedSettingsDiagnostics': { params: undefined; result: readonly IAgentHostManagedSettingsDiagnostics[] };
@@ -431,6 +463,7 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
+	[DevContainerUserStateNotification]: ValidatorType<typeof devContainerUserStateValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {

@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createCancellableFetch } from '../../../base/parts/request/common/fetch.js';
 import { createGitHubClientMetadata } from '../../github/common/githubRequestMetadata.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
@@ -16,7 +17,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema } from '../common/agentHostSchema.js';
 import { MissionControlUseLocalCredentialsConfigKey } from '../common/missionControlEnvironment.js';
-import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
+import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -24,9 +25,9 @@ import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } fro
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentServiceCallbackBinder, IAgentServiceCallbacks } from './agentService.js';
 import type { IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import type { IAgentServiceSessionServerToolAccessor } from './shared/sessionServerTools.js';
-import { hostBuildInfoFromProduct } from '../common/state/sessionState.js';
 
 export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder {
 	private callbacks: IAgentServiceCallbacks | undefined;
@@ -45,6 +46,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
+		restoreChat: (session, chat, credentials) => this.value.sessionServerToolAccessor.restoreChat(session, chat, credentials),
 		startPrompt: (session, chat, prompt, delegation, credentials) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation, credentials),
 		createChat: (session, chat, options, credentials) => this.value.sessionServerToolAccessor.createChat(session, chat, options, credentials),
 		prepareChatWorkingDirectory: (session, directory, options) => this.value.sessionServerToolAccessor.prepareChatWorkingDirectory(session, directory, options),
@@ -65,6 +67,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
+		isChatResourcesEnabled: () => this.value.artifactServerToolAccessor.isChatResourcesEnabled?.() === true,
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
 		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
 		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
@@ -170,7 +173,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
 				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
 				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
-			fetch: fetchFn,
+			fetch: createCancellableFetch(fetchFn),
 		},
 	};
 }

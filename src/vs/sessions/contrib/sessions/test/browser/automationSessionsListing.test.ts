@@ -12,8 +12,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IChatRequestAcceptedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -29,16 +27,16 @@ suite('AutomationSessionsListingContribution', () => {
 		test(`shows an automation session once the user sends a message in it only when the setting is afterReply (${mode})`, () => {
 			const automation: ISession = { ...createTestSession('Automation').session, isAutomation: constObservable(true) };
 			const regular = createTestSession('Regular').session;
+			const scheduled: ISession = { ...createTestSession('Scheduled').session, isAutomation: constObservable(true), isScheduledChat: constObservable(true) };
 			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
 			const shown: string[] = [];
-			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 				override readonly onDidAcceptRequest = accepted.event;
 			});
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override getSessionForChatResource(resource: URI) {
-					const session = [automation, regular].find(candidate => candidate.mainChat.get().resource.toString() === resource.toString());
+					const session = [automation, regular, scheduled].find(candidate => candidate.mainChat.get().resource.toString() === resource.toString());
 					return session && { session, chat: session.mainChat.get() };
 				}
 			});
@@ -48,20 +46,19 @@ suite('AutomationSessionsListingContribution', () => {
 				}
 			});
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: mode }));
-			instantiationService.stub(ITelemetryService, telemetryService);
 			disposables.add(instantiationService.createInstance(AutomationSessionsListingContribution));
 			const accept = (chatSessionResource: URI) => accepted.fire({ chatSessionResource, isNewSession: false });
 
 			accept(regular.mainChat.get().resource);
+			accept(scheduled.mainChat.get().resource);
 			accept(URI.parse('test-session://unknown'));
-			const beforeAutomation = { shown: [...shown], triggers: [...telemetryService.triggers] };
+			const beforeAutomation = [...shown];
 			accept(automation.mainChat.get().resource);
 			accept(automation.mainChat.get().resource);
 
-			assert.deepStrictEqual({ beforeAutomation, shown, triggers: telemetryService.triggers }, {
-				beforeAutomation: { shown: [], triggers: [] },
+			assert.deepStrictEqual({ beforeAutomation, shown }, {
+				beforeAutomation: [],
 				shown: mode === AutomationSessionsListMode.AfterReply ? ['Automation', 'Automation'] : [],
-				triggers: [`config.${SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING}`],
 			});
 		});
 	}

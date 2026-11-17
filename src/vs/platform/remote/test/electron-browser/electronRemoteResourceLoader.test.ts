@@ -15,7 +15,7 @@ import { IMainProcessService } from '../../../ipc/common/mainProcessService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse } from '../../common/electronRemoteResources.js';
 import { createBrowserResourceUriProvider, ElectronRemoteResourceLoader } from '../../electron-browser/electronRemoteResourceLoader.js';
 import { BrowserResourceService } from '../../../files/browser/browserResourceService.js';
-import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri, toAgentHostUri } from '../../../agentHost/common/agentHostUri.js';
 
 suite('ElectronRemoteResourceLoader', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -89,6 +89,37 @@ suite('ElectronRemoteResourceLoader', () => {
 				path: '/resource.txt',
 			}],
 		});
+	});
+
+	test('reads agent host files through the agent host file system', async () => {
+		const { channel, reads } = createLoader();
+		const response = await request(channel, URI.from({
+			scheme: Schemas.vscodeManagedRemoteResource,
+			authority: 'window:7',
+			path: '/a/index.html',
+			query: new URLSearchParams({ authority: 'host-a', scheme: AGENT_HOST_SCHEME }).toString(),
+		}));
+
+		assert.deepStrictEqual({
+			status: response.statusCode,
+			reads: reads.map(resource => resource.toString()),
+		}, {
+			status: 200,
+			reads: [toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString()],
+		});
+	});
+
+	test('reads agent host paths without applying the client OS path rules', async () => {
+		const { channel, reads } = createLoader();
+
+		await request(channel, URI.from({
+			scheme: Schemas.vscodeManagedRemoteResource,
+			authority: 'window:7',
+			path: '/trusted/a\\b.html',
+			query: new URLSearchParams({ authority: 'host-a', scheme: AGENT_HOST_SCHEME }).toString(),
+		}));
+
+		assert.deepStrictEqual(reads.map(resource => fromAgentHostUri(resource).path), ['/trusted/a\\b.html']);
 	});
 
 	test('ignores downstream scheme substitution', async () => {

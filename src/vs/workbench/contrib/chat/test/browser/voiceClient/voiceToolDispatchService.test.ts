@@ -12,7 +12,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock, upcastDeepPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastDeepPartial, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -35,6 +35,7 @@ import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuesti
 import { derivePendingId, getVoiceRecentTurns, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { VoiceLiveInputRouter } from '../../../common/voiceClient/voiceLiveInputRouter.js';
+import { ILocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 
 function createDispatchService(store: Pick<DisposableStore, 'add'>, agentSessions: IAgentSessionsService, chat: IChatService, tools: ILanguageModelToolsService, options: {
 	hostEnabled?: boolean; preferCopilot?: boolean; managed?: boolean; configuration?: TestConfigurationService; gate?: IAccountPolicyGateService;
@@ -57,6 +58,7 @@ function createDispatchService(store: Pick<DisposableStore, 'add'>, agentSession
 		options.gate ?? {
 			_serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { },
 		},
+		upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }),
 	);
 }
 
@@ -929,6 +931,19 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 
 		assert.deepStrictEqual(result, { ok: false, reason: 'stale_pending' });
 		assert.deepStrictEqual(part.data, { region: { selectedValue: 'westus' } });
+	});
+
+	test('refuses to answer a password question by voice and leaves it open', async () => {
+		const part = new ChatQuestionCarouselData([
+			{ id: 'answer', type: 'text', title: 'Password', required: true, password: true },
+		], true, 'resolve-1');
+		const call = answerCall(part, { type: 'answer', answers: [{ question_id: 'answer', value: 'spoken-password' }] });
+
+		assert.deepStrictEqual({ result: await serviceFor(part).respondToSession(call), isUsed: part.isUsed, data: part.data }, {
+			result: { ok: false, reason: 'unsupported' },
+			isUsed: undefined,
+			data: undefined,
+		});
 	});
 
 	test('refuses an answer that leaves a required question blank', async () => {

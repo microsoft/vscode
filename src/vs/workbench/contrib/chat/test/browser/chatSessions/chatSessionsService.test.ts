@@ -42,7 +42,7 @@ import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agen
 import { AgentHostInputCompletions } from '../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
-import '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { LocalAgentHostActivationContribution } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 suite('Codex Agent Host preference', () => {
 
@@ -487,6 +487,8 @@ suite('ChatSessionsService - policy history activation', () => {
 		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 			override registerSessionResource(resource: URI): URI { return resource.with({ scheme: `agent-host-${provider}` }); }
 		}());
+		// As the window starts: what waits for a local agent host's provider before the service resolves its chats
+		store.add(instantiationService.createInstance(LocalAgentHostActivationContribution));
 		const service = store.add(instantiationService.createInstance(ChatSessionsService));
 		return { service, subscription, sessionType: `agent-host-${provider}`, contentProvider: instantiationService.createInstance(PolicyUnavailableAgentHostContentProvider) };
 	}
@@ -1713,6 +1715,29 @@ suite('ChatSessionsService - requiresCopilotSignInForSessionType', () => {
 			{ afterRegister, afterChange, afterDispose, afterChangePostDispose },
 			{ afterRegister: 1, afterChange: 2, afterDispose: 3, afterChangePostDispose: 3 },
 		);
+	});
+
+	test('creation availability changes preserve the registered type and stop notifying after disposal', () => {
+		const changed = store.add(new Emitter<void>());
+		let hidden = false;
+		const availability: (boolean | undefined)[] = [];
+		const registration = store.add(service.registerChatSessionContribution({
+			type: 'dyn', name: 'dyn', displayName: 'dyn', description: '',
+			get hideFromSessionTypePicker() { return hidden; },
+			onDidChangeAvailability: changed.event,
+		}));
+		store.add(service.onDidChangeAvailability(() => {
+			availability.push(service.getChatSessionContribution('dyn')?.hideFromSessionTypePicker);
+		}));
+
+		hidden = true;
+		changed.fire();
+		hidden = false;
+		changed.fire();
+		registration.dispose();
+		changed.fire();
+
+		assert.deepStrictEqual(availability, [true, false, undefined]);
 	});
 });
 

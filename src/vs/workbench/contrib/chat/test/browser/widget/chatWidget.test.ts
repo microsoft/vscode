@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toAction } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { createStringDataTransferItem, VSDataTransfer } from '../../../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../../../base/common/hierarchicalKind.js';
@@ -66,7 +67,7 @@ import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
-import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatRequestViewModel, IChatScheduledRequestEditing } from '../../../common/model/chatViewModel.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -932,6 +933,104 @@ suite('ChatWidget', () => {
 		return widget;
 	}
 
+	test('scheduled inline input inherits the conversation model, configuration, and model pool', () => {
+		const input = mockObject<ChatInputPart>()({});
+		input.requestModelByIdentifier.resolves(true);
+		const resource = URI.parse('agent-host-copilot:/session');
+		const modelConfiguration = { reasoningEffort: 'high' };
+		const mainInput = mockObject<ChatInputPart>()({
+			currentModeObs: constObservable(upcastPartial<IChatMode>({ id: 'agent' })),
+			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ permissionLevel: ChatPermissionLevel.Default }),
+			currentLanguageModel: 'agent-host-copilot:opus',
+		});
+		mainInput.getModelConfiguration.returns(modelConfiguration);
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_respondent: { resource, respondent: { modelSessionType: 'agent-host-copilot' } },
+			_scheduledRequestEdit: {},
+			createInput: () => { },
+			_onDidChangeActiveInputEditor: { fire: () => { } },
+		});
+		Object.defineProperties(widget, { input: { value: input }, inputPart: { value: mainInput } });
+		const container = dom.$('div');
+		const timestamp = dom.append(container, dom.$('div'));
+		const create = Reflect.get(ChatWidget.prototype, 'createInlineInput') as (this: ChatWidget, item: IChatListItemTemplate, store: DisposableStore, type: undefined) => void;
+		create.call(widget, upcastPartial<IChatListItemTemplate>({ requestTimestampContainer: timestamp }), store.add(new DisposableStore()), undefined);
+		assert.deepStrictEqual({
+			pool: input.setModelSessionTypeOverride.args,
+			model: input.requestModelByIdentifier.args,
+			mode: input.setChatMode.args,
+			mainModelChanged: mainInput.requestModelByIdentifier.called,
+		}, {
+			pool: [[{ sessionType: 'agent-host-copilot' }, resource]],
+			model: [['agent-host-copilot:opus', modelConfiguration]],
+			mode: [['agent']],
+			mainModelChanged: false,
+		});
+	});
+
+	test('scheduled inline editing captures text deletion and attachment removal', async () => {
+		await withAsyncTestCodeEditor('Message', {}, async editor => {
+			const attachmentChange = store.add(new Emitter<void>());
+			const attachments = [{ id: 'context', kind: 'generic' as const, name: 'Context', value: 'Captured context' }];
+			const state: IChatScheduledRequestEditing = {
+				text: 'Message', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }),
+				save: async () => { }, cancel: () => { },
+			};
+			const input = {
+				inputEditor: editor,
+				onDidChangeDraft: Event.None,
+				attachmentModel: { attachments, onDidChange: attachmentChange.event, addContext: () => { } },
+				setValue: (text: string) => editor.setValue(text),
+				focus: () => editor.focus(),
+			};
+			const widget = Object.setPrototypeOf({
+				input,
+				inputContainer: dom.$('div'),
+				viewModel: undefined,
+				_editingDisposables: store.add(new MutableDisposable<DisposableStore>()),
+				_editingAutoScrollHold: store.add(new MutableDisposable<IDisposable>()),
+				createInlineInput: () => { },
+				inputPart: {
+					toggleChatInputOverlay: () => { },
+					dnd: { setDisabledOverlay: () => { } },
+					onDidClickOverlay: Event.None,
+				},
+				listWidget: { acquireAutoScrollHold: () => toDisposable(() => { }) },
+			}, ChatWidget.prototype);
+			widget.renderScheduledRequestInput({}, { id: 'later', editing: state });
+			editor.executeEdits('test', [{ range: new Range(1, 4, 1, 8), text: '' }]);
+			const afterDeletion = { text: state.text, attachmentIds: state.input?.attachments.map(attachment => attachment.id) };
+			attachments.length = 0;
+			attachmentChange.fire();
+			assert.deepStrictEqual({ afterDeletion, input: state.input }, {
+				afterDeletion: { text: 'Mes', attachmentIds: ['context'] },
+				input: { inputText: 'Mes', attachments: [], references: [] },
+			});
+		});
+	});
+
+	test('scheduled inline submission saves instead of sending and retains the editor on failure', async () => {
+		const calls: string[] = [];
+		const state: IChatScheduledRequestEditing = {
+			text: 'Scheduled edit', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+			selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }),
+			save: async () => { calls.push('save'); throw new Error('conflict'); },
+			cancel: () => { calls.push('cancel'); },
+		};
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_scheduledRequestEdit: { id: 'scheduled:later', state },
+			isInputSubmissionBlocked: () => { throw new Error('Must not enter ordinary submission'); },
+		});
+		Object.defineProperty(widget, 'input', { value: { inputEditor: { getContribution: () => undefined } } });
+
+		await assert.rejects(() => widget.acceptInput(), /conflict/);
+		state.save = async () => { calls.push('save'); };
+		const response = await widget.acceptInput();
+		await widget.cancelEditing();
+		assert.deepStrictEqual({ calls, response }, { calls: ['save', 'save', 'cancel'], response: undefined });
+	});
+
 	test('editing a steering request passes its model and configuration to the input', async () => {
 		const modelId = 'agent-host-copilot:claude-opus-4.8';
 		const modelConfiguration = { reasoningEffort: 'xhigh' };
@@ -1607,6 +1706,7 @@ suite('ChatWidget', () => {
 			renderChatSuggestNextWidget: () => { },
 			bodyDimension: { width: 100, height: 100 },
 			_inputVisible: true,
+			_inputVisibleObs: observableValue('inputVisible', true),
 			inputPartDisposable: { value: { height: observableValue('inputHeight', 10), element: { offsetHeight: 10 }, setVisible: () => { } } },
 			listContainer: mainWindow.document.createElement('div'),
 			welcomeMessageContainer: mainWindow.document.createElement('div'),
@@ -1719,6 +1819,7 @@ suite('ChatWidget', () => {
 		} = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
 			_draftOnly: draftOnly,
+			_inputVisibleObs: observableValue('inputVisible', true),
 			_visible: constObservable(false),
 			_readOnlyContextKey: { set: () => { } },
 			policyRequiresAgentHost: constObservable(false),
@@ -2718,6 +2819,42 @@ suite('ChatWidget - acceptInput submission', () => {
 		}
 	});
 
+	for (const phase of ['save', 'attachments'] as const) {
+		test(`validates the captured user input immediately before dispatch after ${phase}`, async () => {
+			const fixture = createSubmissionWidget(undefined, 'Original input');
+			const entered = new DeferredPromise<void>();
+			const released = new DeferredPromise<void>();
+			const wait = async () => { entered.complete(); await released.p; };
+			if (phase === 'save') {
+				fixture.editorService.saveAll.callsFake(async () => {
+					await wait();
+					return { success: true, editors: [] };
+				});
+			} else {
+				Object.defineProperty(fixture.widget, '_resolveDirectoryImageAttachments', { value: async () => { await wait(); return []; } });
+			}
+			const validated: string[] = [];
+			let scheduling = false;
+			fixture.viewOptions.validateInput = query => {
+				validated.push(query);
+				if (scheduling) {
+					throw new Error('Scheduling handoff is pending');
+				}
+			};
+			const sending = fixture.widget.acceptInput();
+			const rejected = assert.rejects(sending, /Scheduling handoff is pending/);
+			await entered.p;
+			scheduling = true;
+			fixture.parsedInput.text = 'Scheduled input';
+			released.complete();
+			await rejected;
+			assert.deepStrictEqual({
+				validated, sent: fixture.chatService.sendRequest.callCount,
+				accepted: fixture.input.acceptInput.callCount, input: fixture.parsedInput.text,
+			}, { validated: ['Original input'], sent: 0, accepted: 0, input: 'Scheduled input' });
+		});
+	}
+
 	test('does not send an incomplete draft when paste fails', async () => {
 		const fixture = createSubmissionWidget();
 		fixture.pasteController.finishedPaste.rejects(new Error('Paste failed'));
@@ -3574,6 +3711,30 @@ suite('ChatWidget - acceptInput submission', () => {
 			}
 		});
 	}
+
+	test('a host that sends the input takes part in its submit from before the files save, which can take a while, until its submit handler ends', async () => {
+		const fixture = createSubmissionWidget();
+		const events: string[] = [];
+		const saving = new DeferredPromise<void>();
+		fixture.editorService.saveAll.callsFake(async () => {
+			events.push('save');
+			await saving.p;
+			return { success: true, editors: [] };
+		});
+		fixture.viewOptions.hostSubmit = { canSubmit: constObservable(true), beginSubmit: () => { events.push('begin'); return toDisposable(() => events.push('end')); } };
+		fixture.viewOptions.submitHandler = async () => {
+			events.push('handler');
+			return true;
+		};
+
+		const sending = fixture.widget.acceptInput('Test request', fixture.options);
+		await timeout(0);
+		const whileSaving = [...events];
+		saving.complete();
+		await sending;
+
+		assert.deepStrictEqual({ whileSaving, events }, { whileSaving: ['begin', 'save'], events: ['begin', 'save', 'handler', 'end'] });
+	});
 
 	for (const explicit of [false, true]) {
 		test(`excludes ${explicit ? 'explicitly' : 'implicitly'} queued submissions without cancelling the request`, async () => {

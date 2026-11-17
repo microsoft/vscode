@@ -100,6 +100,7 @@ export class ArtifactAutopilotModel extends Disposable {
 		const pending = this.pendingRules.has(id);
 		const disabled = pending || (!checked && !canEnableArtifactAutomationOption(contribution, option));
 		const available = contribution.view.automationAvailability.find(available => available.id === option.id);
+		const grant = contribution.configuration.grants?.[option.id];
 		const reason = contribution.configuration.disablements[option.id]?.reason ?? available?.unavailableReason
 			?? (!checked ? available?.enablement?.disabledReason : undefined)
 			?? (contribution.view.availability.kind !== 'available' && contribution.view.availability.kind !== 'loading' ? contribution.view.availability.reason : undefined)
@@ -109,7 +110,11 @@ export class ArtifactAutopilotModel extends Disposable {
 			description: [
 				...describeArtifactAutomationConsent(contribution, option, { location: this.location(contribution, snapshot) }),
 				option.kind === 'enum' ? localize('artifactPolicyPreparation', "Choosing a policy while this rule is off does not enable it. Turning it on uses the displayed policy.") : '',
-				checked && contribution.configuration.grants?.[option.id]?.kind === 'agent' ? localize('artifactAutopilot.agentGrant', "Turned on at the agent's request after you confirmed.") : '',
+				checked && grant?.kind === 'agent'
+					? grant.autoApproved
+						? localize('artifactAutopilot.agentAutoApprovedGrant', "Turned on by the agent (auto-approved).")
+						: localize('artifactAutopilot.agentGrant', "Turned on at the agent's request after you confirmed.")
+					: '',
 				reason,
 			].filter(Boolean).join(' '),
 			policy: option.kind === 'enum' ? {

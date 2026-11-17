@@ -36,6 +36,7 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/service
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { withCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
+import { withCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { AICustomizationItemNormalizer, expandHookFileItems, ICustomizationSkillItem, ItemProviderItemSource } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
@@ -298,6 +299,14 @@ suite('AgentCustomizationItemProvider', () => {
 						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
 						...(organization ? { _meta: withCustomizationOrganizationMeta(undefined, organization) } : {}),
 					})),
+					// A runtime-installed plugin states what the organization requires with its activation.
+					...([['runtime-required', true], ['runtime-blocked', false], ['runtime-unmanaged', undefined]] as const).map(([name, managedDesiredEnabled]): PluginCustomization => ({
+						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
+						_meta: withRuntimePluginEnablement(undefined, {
+							provider: 'copilotcli', plugin: `${name}@enterprise`, globalEnabled: false, effectiveEnabled: managedDesiredEnabled ?? false,
+							repositorySupported: true, managedDesiredEnabled,
+						}),
+					})),
 				];
 			}
 		}
@@ -310,9 +319,35 @@ suite('AgentCustomizationItemProvider', () => {
 			{ key: 'required', organizationControl: { requiredEnabled: true } },
 			{ key: 'supplied', organizationControl: {} },
 			{ key: 'unmanaged', organizationControl: undefined },
+			{ key: 'runtime-required', organizationControl: { requiredEnabled: true } },
+			{ key: 'runtime-blocked', organizationControl: { requiredEnabled: false } },
+			{ key: 'runtime-unmanaged', organizationControl: undefined },
 			{ key: 'hook-0', organizationControl: { requiredEnabled: true } },
 			{ key: 'hook-1', organizationControl: {} },
 			{ key: 'hook-2', organizationControl: undefined },
+		]);
+	});
+
+	test('marks plugins the host reports as provided by a GitHub Team, and no others', async () => {
+		const customizations: PluginCustomization[] = ([['assigned', true, undefined], ['assigned-and-required', true, { requiredEnabled: true }], ['unmarked', undefined, undefined]] as const).map(([name, team, organization]) => {
+			const meta = withCustomizationTeamProvided(organization ? withCustomizationOrganizationMeta(undefined, organization) : undefined, team);
+			return { type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name, ...(meta ? { _meta: meta } : {}) };
+		});
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			// The host's metadata reaches the client as JSON.
+			override getCustomizations(): readonly Customization[] {
+				return JSON.parse(JSON.stringify(customizations));
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('remote') }, undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(), labelService,
+		));
+		const items = await provider.provideChatSessionCustomizations(URI.parse('other-host:/opaque/session'), CancellationToken.None);
+		assert.deepStrictEqual(items.map(item => ({ key: item.itemKey ?? item.name, teamProvided: item.teamProvided, organizationControl: item.organizationControl })), [
+			{ key: 'assigned', teamProvided: true, organizationControl: undefined },
+			{ key: 'assigned-and-required', teamProvided: true, organizationControl: { requiredEnabled: true } },
+			{ key: 'unmarked', teamProvided: undefined, organizationControl: undefined },
 		]);
 	});
 
@@ -540,10 +575,10 @@ suite('AgentCustomizationItemProvider', () => {
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
 		assert.deepStrictEqual(result.map(agent => {
 			const mode = new CustomChatMode(agent);
-			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage };
+			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage, sourceUri: agent.sourceUri?.toString() };
 		}), [
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension },
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension, sourceUri: files[0].uri.toString() },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension, sourceUri: files[1].uri.toString() },
 		]);
 	});
 
@@ -932,6 +967,40 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: PromptsType.instructions, name: 'Review Instructions', uri: workspaceInstructionsUri.toString() },
 			{ type: PromptsType.skill, name: 'Review Skill', uri: workspaceSkillUri.toString() },
 		]);
+	});
+
+	test('labels bundled extension customizations with the extension display name', async () => {
+		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
+		const syncedSkillUri = URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md');
+		const extensionSkillUri = URI.file('/extensions/acme.acme-chat-kit/skills/review/SKILL.md');
+		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
+		await fileService.writeFile(syncedSkillUri, VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
+			undefined,
+			syncedUri => isEqual(syncedUri, syncedSkillUri)
+				? { uri: extensionSkillUri, source: AICustomizationSources.extension, extensionId: 'acme.acme-chat-kit', extensionLabel: 'Acme Chat Kit' }
+				: undefined,
+			fileService,
+			new NullLogService(),
+			new NullAgentHostCustomizationService(),
+			makePromptsService(), labelService,
+		));
+		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
+			type: CustomizationType.Plugin,
+			id: bundleUri.toString(),
+			uri: bundleUri.toString(),
+			name: 'VS Code Standalone Customizations',
+			nonce: '1',
+		}]));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilotcli:///draft'), CancellationToken.None);
+		const normalized = new AICustomizationItemNormalizer(labelService, upcastPartial<IProductService>({})).normalizeItems(items, PromptsType.skill);
+
+		assert.deepStrictEqual(normalized.map(item => ({ uri: item.uri.toString(), origin: item.origin })), [{
+			uri: extensionSkillUri.toString(),
+			origin: { kind: 'extension', id: 'extension:acme.acme-chat-kit', label: 'Acme Chat Kit' },
+		}]);
 	});
 
 	test('surfaces session agents through directory customizations', async () => {

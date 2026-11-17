@@ -320,6 +320,9 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
 				groupValidation: { expected: { cid: staged.creds.token.client_id } },
 				onDidReceiveFrame: () => telemetry?.recordReceivedFrame(),
+				onHandshakeProgress: staged.options.environmentKind === 'user-local' ? (handshakeMethod, handshakeState) => diagnosticObserver({
+					operationId: staged.clientId, phase: 'protocol.handshake', outcome: 'info', timestamp: Date.now(), handshakeMethod, handshakeState,
+				}) : undefined,
 				ahpLogger: ahpLoggingEnabled
 					? this._instantiationService.createInstance(AhpJsonlLogger, {
 						logsHome: this._environmentService.logsHome,

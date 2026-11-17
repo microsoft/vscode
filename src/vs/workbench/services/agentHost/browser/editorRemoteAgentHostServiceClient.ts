@@ -82,6 +82,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private readonly _protocolClient: AgentHostProtocolClient | undefined;
 	private readonly _connectionAuthority: string | undefined;
 	get clientConnectionKind() { return this._protocolClient?.clientConnectionKind; }
+	get connectionAvailable(): IObservable<boolean> { return this._protocolClient?.connectionAvailable ?? constObservable(false); }
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
@@ -424,6 +425,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().disposeChat(chat);
 	}
 
+	answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		return this._requireClient().answerShellAuthentication(chat, requestId, answer);
+	}
+
 	createTerminal(params: CreateTerminalParams): Promise<void> {
 		return this._requireClient().createTerminal(params);
 	}
@@ -442,6 +447,26 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	resourceList(uri: URI): Promise<ResourceListResult> {
 		return this._requireClient().resourceList(uri);
+	}
+
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._requireClient().measureWorktreeDiskUsage(root, token, session);
+	}
+
+	prepareSessionWorktreeCleanup(session: URI): Promise<void> {
+		return this._requireClient().prepareSessionWorktreeCleanup(session);
+	}
+
+	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
+		return this._requireClient().sessionWorktreeCleanup(session, retry, force);
+	}
+
+	listManagedWorktrees(repositories: readonly URI[]) {
+		return this._requireClient().listManagedWorktrees(repositories);
+	}
+
+	cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force?: boolean) {
+		return this._requireClient().cleanupManagedWorktree(repository, worktree, branch, force);
 	}
 
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult> {

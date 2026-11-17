@@ -12,12 +12,14 @@ import es from 'event-stream';
 import File from 'vinyl';
 import * as i18n from './lib/i18n.ts';
 import * as standalone from './lib/standalone.ts';
+import { applyMonacoConditionals } from './lib/monacoConditionals.ts';
 import * as cp from 'child_process';
 import * as compilation from './lib/compilation.ts';
 import * as monacoapi from './lib/monaco-api.ts';
 import * as fs from 'fs';
 import { createReporter } from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
+import rootPackage from '../package.json' with { type: 'json' };
 
 const root = path.dirname(import.meta.dirname);
 const standaloneEnumsPath = path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts');
@@ -64,6 +66,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
 		importIgnorePattern: /\.css$/,
+		transformSource: (fileName, contents) => applyMonacoConditionals(contents, fileName),
 		destRoot: path.join(root, 'out-editor-src'),
 		tsOutDir: '../out-monaco-editor-core/esm/vs',
 	});
@@ -176,7 +179,9 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 				setUnsetField(json, 'dependencies', {
 					'marked': markedVersion,
-					'dompurify': dompurifyVersion
+					'dompurify': dompurifyVersion,
+					// Imported by Monaco-only code (see // #if MONACO in build/lib/monacoConditionals.ts).
+					'@vscode/diff': rootPackage.dependencies['@vscode/diff'],
 				});
 
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
