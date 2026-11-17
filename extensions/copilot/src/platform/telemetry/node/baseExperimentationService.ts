@@ -278,7 +278,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	 * Reports `exp_exposure` for reads of assigned treatment variables while the VS Code
 	 * exposure gate (`copilotchat.expExposureEvents.vscode`) is on.
 	 */
-	protected enableExposureEvents(getContext: () => IExposureContext, report: (exposure: IExperimentExposure) => void): void {
+	protected enableExposureEvents(getContext: () => IExposureContext | undefined, report: (exposure: IExperimentExposure) => void): void {
 		this._exposureTracker = new ExperimentExposureTracker('vscode', gate => this._readTreatmentVariable(gate), getContext, report);
 	}
 
@@ -308,10 +308,19 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	}
 
 	getTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
-		const result = this._readTreatmentVariable<T>(name);
-		this._previouslyReadTreatments.set(name, result);
+		const result = this.peekTreatmentVariable<T>(name);
 		this._exposureTracker?.onRead(name, result);
 		return result;
+	}
+
+	peekTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		const result = this._readTreatmentVariable<T>(name);
+		this._previouslyReadTreatments.set(name, result);
+		return result;
+	}
+
+	recordTreatmentExposure(name: string, value: boolean | number | string): void {
+		this._exposureTracker?.onRead(name, value);
 	}
 
 	/**

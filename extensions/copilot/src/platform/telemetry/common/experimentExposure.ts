@@ -66,11 +66,16 @@ export interface IExperimentExposure extends IExposureContext {
 
 export class ExperimentExposureTracker {
 	private readonly _exposed = new Map<string, TreatmentValue>();
+	private _trackingId: string | undefined;
 
+	/**
+	 * @param _getContext Returns undefined while the assignment's unit isn't known yet (e.g. while
+	 * signing in); such reads aren't exposed, so the first read once it's known is.
+	 */
 	constructor(
 		private readonly _surface: ExposureSurface,
 		private readonly _readGate: (gate: string) => TreatmentValue | undefined,
-		private readonly _getContext: () => IExposureContext,
+		private readonly _getContext: () => IExposureContext | undefined,
 		private readonly _report: (exposure: IExperimentExposure) => void,
 	) { }
 
@@ -79,10 +84,28 @@ export class ExperimentExposureTracker {
 	 * throws because of exposure reporting.
 	 */
 	onRead(flag: string, value: TreatmentValue | undefined): void {
-		if (value === undefined || GATE_TREATMENT_NAMES.has(flag) || this._exposed.get(flag) === value) {
+		if (GATE_TREATMENT_NAMES.has(flag)) {
 			return;
 		}
-		if (this._readGate(EXPOSURE_GATE_TREATMENTS[this._surface]) !== true) {
+		if (value === undefined) {
+			this._exposed.delete(flag);
+			return;
+		}
+		let context: IExposureContext | undefined;
+		try {
+			context = this._getContext();
+		} catch {
+			return;
+		}
+		if (!context) {
+			return;
+		}
+		if (context.trackingId !== this._trackingId) {
+			// A different account has its own assignment, so its reads expose again.
+			this._trackingId = context.trackingId;
+			this._exposed.clear();
+		}
+		if (this._exposed.get(flag) === value || this._readGate(EXPOSURE_GATE_TREATMENTS[this._surface]) !== true) {
 			return;
 		}
 
@@ -90,7 +113,7 @@ export class ExperimentExposureTracker {
 		// resolving an experiment-based setting), and that read must not report it again.
 		this._exposed.set(flag, value);
 		try {
-			this._report({ ...this._getContext(), flag, value, surface: this._surface });
+			this._report({ ...context, flag, value, surface: this._surface });
 		} catch {
 			// Exposure logging must never break a flag read.
 		}

@@ -214,13 +214,14 @@ describe('SimpleExperimentationService', () => {
 				getEditorInfo: () => new NameAndVersion(editorName, '1.0.0'),
 				getEditorPluginInfo: () => new NameAndVersion('copilot-intellij', '1.5.0'),
 			} as unknown as IEnvService;
-			const authService = { copilotToken: trackingId ? { getTokenValue: (key: string) => key === 'tid' ? trackingId : undefined } : undefined };
+			const token = (tid: string) => ({ getTokenValue: (key: string) => key === 'tid' ? tid : undefined });
+			const authService: { copilotToken: ReturnType<typeof token> | undefined } = { copilotToken: trackingId ? token(trackingId) : undefined };
 			const instantiationService = {
 				invokeFunction: <R>(fn: (accessor: ServicesAccessor) => R) => fn({ get: (id: unknown) => id === IAuthenticationService ? authService : undefined } as unknown as ServicesAccessor),
 			} as unknown as IInstantiationService;
 			const service = new SimpleExperimentationService(false, new DefaultsOnlyConfigurationService(), telemetryService, envService, instantiationService);
 			const metadata = () => sent.map(e => Object.fromEntries(Object.entries(e.properties ?? {}).map(([k, v]) => [k, v instanceof TelemetryTrustedValue ? v.value : v])));
-			return { service, sent, metadata };
+			return { service, sent, metadata, signIn: (tid: string) => authService.copilotToken = token(tid) };
 		}
 
 		it('sends exp_exposure with the monolith metadata for a JetBrains host when its gate is on', () => {
@@ -248,13 +249,21 @@ describe('SimpleExperimentationService', () => {
 			service.dispose();
 		});
 
-		it('sends empty assignment units when signed out', () => {
-			const { service, metadata } = createHostedService('JetBrains-IC', null);
+		it('waits for the tracking ID before exposing, and exposes again for a different account', () => {
+			const { service, metadata, signIn } = createHostedService('JetBrains-IC', null);
 			service.updateTreatmentVariables({ [EXPOSURE_GATE_TREATMENTS.jetbrains]: true, 'feature-a': true });
 
 			service.getTreatmentVariable('feature-a');
+			signIn('tid-1');
+			service.getTreatmentVariable('feature-a');
+			service.getTreatmentVariable('feature-a');
+			signIn('tid-2');
+			service.getTreatmentVariable('feature-a');
 
-			expect(metadata().map(m => m.assignment_units)).toEqual(['{}']);
+			expect(metadata().map(m => m.assignment_units)).toEqual([
+				'{"copilot_tracking_id":"tid-1"}',
+				'{"copilot_tracking_id":"tid-2"}',
+			]);
 			service.dispose();
 		});
 

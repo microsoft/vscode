@@ -672,15 +672,20 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 			this._exposureTracker = new ExperimentExposureTracker(
 				surface,
 				gate => this.variables[gate],
-				() => ({
-					// Hosts pass treatment variables without the assignment's data version.
-					dataVersion: '',
-					entryPoint: envService.getEditorPluginInfo().name,
+				() => {
 					// Resolved lazily: the authentication service may depend on this service.
-					trackingId: instantiationService?.invokeFunction(accessor => accessor.get(IAuthenticationService).copilotToken?.getTokenValue('tid')),
-					// chat-lib has no device ID the host's ExP assignment is known to use.
-					deviceId: undefined,
-				}),
+					const trackingId = instantiationService?.invokeFunction(accessor => accessor.get(IAuthenticationService).copilotToken?.getTokenValue('tid'));
+					// Exposures go to GitHub telemetry only, so they need the tracking ID; reads
+					// before the token arrives (or while signed out) wait for it.
+					return trackingId ? {
+						// Hosts pass treatment variables without the assignment's data version.
+						dataVersion: '',
+						entryPoint: envService.getEditorPluginInfo().name,
+						trackingId,
+						// chat-lib has no device ID the host's ExP assignment is known to use.
+						deviceId: undefined,
+					} : undefined;
+				},
 				exposure => sendExperimentExposureGHTelemetry(telemetryService, exposure),
 			);
 		}
@@ -694,6 +699,14 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 		const value = this.variables[name];
 		this._exposureTracker?.onRead(name, value);
 		return value as T | undefined;
+	}
+
+	peekTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		return this.variables[name] as T | undefined;
+	}
+
+	recordTreatmentExposure(name: string, value: boolean | number | string): void {
+		this._exposureTracker?.onRead(name, value);
 	}
 
 	async setCompletionsFilters(_filters: Map<string, string>): Promise<void> { }

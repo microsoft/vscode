@@ -129,9 +129,19 @@ export class ExpConfig {
 
 	constructor(
 		variables: Partial<Record<ExpTreatmentVariables, ExpTreatmentVariableValue>>,
-		features: string
+		features: string,
+		onRead?: (name: ExpTreatmentVariables, value: ExpTreatmentVariableValue) => void
 	) {
-		this.variables = variables;
+		// Reading a variable is where it controls behavior, so that's where it's exposed.
+		this.variables = onRead ? new Proxy(variables, {
+			get(target, key, receiver) {
+				const value = Reflect.get(target, key, receiver);
+				if (typeof key === 'string' && value !== undefined && Object.hasOwn(target, key)) {
+					onRead(key as ExpTreatmentVariables, value);
+				}
+				return value;
+			},
+		}) : variables;
 		this.features = features;
 	}
 
