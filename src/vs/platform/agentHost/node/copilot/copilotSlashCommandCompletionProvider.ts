@@ -291,8 +291,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		}
 	}
 
-	private async _getKnownSkills(sessionId: string): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
+	private async _getKnownSkills(sessionId: string): Promise<{ readonly known: ReadonlySet<string>; readonly ineligible: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
 		const known = new Set<string>();
+		const ineligible = new Set<string>();
 		const syncedContainerNames = new Set<string>();
 		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
 		for (const c of customizations) {
@@ -301,11 +302,18 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 		}
 		for (const { skill, container, containerEnabled } of getSkillCustomizations(customizations)) {
+			const name = this._toSlashCommandCandidate(container, skill).toLowerCase();
 			if (containerEnabled && isSkillEligibleForUserInvocation(skill)) {
-				known.add(this._toSlashCommandCandidate(container, skill).toLowerCase());
+				known.add(name);
+			} else {
+				ineligible.add(name);
+				if (container.type === CustomizationType.Plugin) {
+					// Keep qualified runtime identities even when autocomplete uses the bare name.
+					ineligible.add(`${container.name}:${skill.name}`.toLowerCase());
+				}
 			}
 		}
-		return { known, syncedContainerNames };
+		return { known, ineligible, syncedContainerNames };
 	}
 
 	/**
@@ -353,7 +361,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	}
 
 	private async _getRuntimeSlashCommandCompletionInfo(sessionId: string, chat: string | undefined, typed: string, { rangeStart, rangeEnd }: { rangeStart: number; rangeEnd: number }, returnJustSkills: boolean, argumentTyped?: string): Promise<CompletionItem[]> {
-		const [runtimeCommands, { known: knownSkills, syncedContainerNames }] = await Promise.all([
+		const [runtimeCommands, { known: knownSkills, ineligible: ineligibleSkills, syncedContainerNames }] = await Promise.all([
 			this._sessionInfo.getRuntimeSlashCommands?.(sessionId, { maxWaitMs: this._runtimeSlashCommandCompletionWaitMs }) ?? [],
 			this._getKnownSkills(sessionId)
 		]);
@@ -370,6 +378,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				continue;
 			}
 			if (returnJustSkills && command.kind !== 'skill') {
+				continue;
+			}
+			if (command.kind === 'skill' && (ineligibleSkills.has(command.name.toLowerCase()) || command.aliases?.some(alias => ineligibleSkills.has(alias.toLowerCase())))) {
 				continue;
 			}
 			if (command.kind === 'skill' && this._isKnownSkillDuplicate(command.name, knownSkills, syncedContainerNames, runtimeCommands)) {
