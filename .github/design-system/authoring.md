@@ -103,6 +103,8 @@ Omit `paragraph` to read the whole section. Use `list: true` for a section conta
 
 Authored text and page sources participate in topic refresh. Catalog structure and static fixture metadata currently require an extension reload; do not present a stale navigation index as a successful live catalog update.
 
+Guidance-only chapters, such as [Illustration](pages/illustration.json), use the shared article frame and `guidance` section bindings. Keep the introduction in its owning Markdown, bind it through `$text`, and select the remaining sections without copying prose or adding page-specific chrome.
+
 ## Preserve evidence boundaries
 
 An extracted value describes this checkout. A fixture demonstrates the component or composition it actually renders. An authored recommendation expresses design intent. Adoption requires evidence and an explicit scope. These are related but not interchangeable; source-backed presentation must not turn observations into recommendations.

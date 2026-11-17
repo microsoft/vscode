@@ -169,6 +169,17 @@
 			"page": "pages/iconography.json"
 		},
 		{
+			"id": "illustration",
+			"title": "Illustration",
+			"group": "Foundations",
+			"section": "illustration",
+			"aliases": ["illustrations", "artwork"],
+			"compare": true,
+			"fixture": false,
+			"renderer": "guidance",
+			"page": "pages/illustration.json"
+		},
+		{
 			"id": "motion",
 			"title": "Motion",
 			"group": "Foundations",

@@ -154,6 +154,15 @@ Use separate phase bindings where timings differ, even if the current normalized
 
 Use these patterns in their intended context. Each live example renders the product component or its owned rendering helper.
 
+### When to use motion
+
+Start with one question: **Would the change be harder to understand without motion?**
+
+- **Yes: add the smallest fitting motion.** Use it only if state, input, focus, reading, and the next action stay immediate; it does not duplicate another cue; it remains lightweight during realistic concurrent use; and it has an equivalent reduced-motion response.
+- **No: do not add motion.** Use an immediate still response such as a state change, icon, label, focus indicator, or updated content.
+
+If any constraint fails, do not add motion. Motion must earn its attention and CPU cost; it is not a default treatment for change.
+
 ### Acknowledge actions
 
 Make the response to an action visible before awaiting remote work. A pending state means the request is in flight, not that it has succeeded. Keep the affected content available until confirmation, prevent accidental duplicate requests, and restore an actionable state when the operation fails.
@@ -163,6 +172,23 @@ Use completion motion after confirmation, not as a substitute for pending feedba
 ### Preserve context
 
 Keep the current task understandable while a region changes. Preserve reading anchors and navigation, retain usable content during a refresh, and avoid clearing a surface before its replacement is ready.
+
+### Response and wait timing
+
+Apply response and wait feedback in this order:
+
+1. **Acknowledge input immediately.** Add no intentional delay before showing a local state change.
+2. **Choose optimistic or pending behavior by risk.** Update safe, reversible actions optimistically only when the owner can reconcile failure. Show an immediate pending state for unsafe actions or results with dependencies.
+3. **Choose wait feedback by expected duration.** Suppress animated wait feedback for work expected to finish in under 1 second. Use concise local indeterminate feedback for work expected to take 1–3 seconds. Beyond 3 seconds, show measured progress when available or a descriptive status that explains what is happening.
+4. **Treat AI conversation as a continuous interaction.** Show immediate activity feedback so the conversation never appears unresponsive while generation or tool work begins.
+
+The 1-second and 3-second boundaries are starting points for scenario validation, not universal VS Code timing tokens. Validate actual latency distributions, animation flashes, failure recovery, screen-reader feedback, concurrent indicators, and CPU cost before adopting them for a component. Never delay acknowledgment, usable results, or the next action to keep a spinner visible or complete an animation.
+
+### Lifecycle and performance
+
+Stop motion when its state ends. Pause decorative updates when hidden or offscreen, and dispose animation work when its component is removed.
+
+Test realistic concurrent activity, not only one isolated example. Measure frame pacing, layout, paint, and CPU cost alongside clarity and accessibility. If motion does not earn that cost, use a still response.
 
 ### Feedback
 
@@ -260,7 +286,7 @@ Suspend decorative updates while the indicator is out of view without changing t
 
 A [dot matrix](../../../../base/browser/ui/pixelSpinner/pixelSpinner.ts) indicates agent working status in agent experiences. Use the conventional spinner for generic loading, waiting, and refreshing. This distinguishes the agent's ongoing work from a resource that is loading.
 
-Keep an accompanying status label. Matrix and ring share the same working, input-needed, and idle meanings; the shape is not a progress value. Keep the established treatment within its host rather than switching shapes to invent new states.
+Keep an accompanying status label. Use the matrix for active agent work. When input is needed, stop the working motion and use a static question-mark icon with a clear label and available action. The ring treatment is being retired; do not introduce new uses.
 
 #### Known progress
 
@@ -344,7 +370,15 @@ Check JavaScript-driven effects as well as CSS. A static-looking frame should no
 
 ### Preserve meaning and access
 
-Keep focus and reading position steady. Static status must distinguish working, input needed, failure, and completion; a frozen spinner alone is ambiguous. Announce meaningful changes once through existing accessibility services, not every animation cycle. Screen-reader announcements and motion preferences are separate concerns.
+Keep focus and reading position steady. Static status must distinguish working, paused, cancelled, needs input or approval, failure, and completion; a frozen spinner alone is ambiguous. Announce meaningful changes once through existing accessibility services, not every animation cycle. Screen-reader announcements and motion preferences are separate concerns.
+
+Do not force a streaming surface back to the latest output after someone scrolls away. Continue the operation without moving their reading position and provide a clear return-to-latest action.
+
+For Undo countdowns and other timed actions, keep an equivalent persistent recovery route or provide a compliant way to turn off, adjust, or extend the time limit. Removing countdown motion does not remove the time barrier.
+
+### Validate the complete experience
+
+Test motion enabled and reduced across working, paused, cancelled, needs-input, completed, and failed states. Include keyboard and screen-reader use, dark, light, and high-contrast themes, enlarged UI, multiple sessions, split chats, and concurrent activity.
 
 ## Authoring and validation
 

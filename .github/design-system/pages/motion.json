@@ -38,6 +38,9 @@
 			"id": "practices", "heading": "product-usage", "title": "Best practices",
 			"description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Best practices" } },
 			"blocks": [
+				{ "type": "guidance", "heading": "when-to-use-motion" },
+				{ "type": "guidance", "heading": "response-and-wait-timing" },
+				{ "type": "guidance", "heading": "lifecycle-and-performance" },
 				{ "type": "guidance", "heading": "define-intent", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Best-practice steps" } } }
 			]
 		},
@@ -48,7 +51,8 @@
 				{ "type": "guidance", "heading": "keep-people-in-control" },
 				{ "type": "guidance", "heading": "avoid-flashing-and-aggressive-movement" },
 				{ "type": "guidance", "heading": "offer-reduced-motion", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Reduced motion" } } },
-				{ "type": "guidance", "heading": "preserve-meaning-and-access" }
+				{ "type": "guidance", "heading": "preserve-meaning-and-access" },
+				{ "type": "guidance", "heading": "validate-the-complete-experience" }
 			]
 		}
 	],
@@ -99,7 +103,7 @@
 		{ "id": "disclosure", "heading": "anchored-disclosure", "interactive": true, "presetBindingId": "disclosure", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Disclosure caption" } } },
 		{ "id": "notification", "heading": "notification-awareness", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Notification guidance" } }, "presetBindingId": "notification", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Notification caption" } } },
 		{ "id": "compact-activity", "heading": "compact-activity", "title": "Loading and refreshing", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Generic loading" } }, "action": "working", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Activity caption" } } },
-		{ "id": "agent-activity", "heading": "patterned-activity", "title": "Agent working status", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Agent status" } }, "action": "working", "variants": [{ "id": "grid", "name": "Matrix" }, { "id": "ring", "name": "Ring" }], "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Patterned caption" } } },
+		{ "id": "agent-activity", "heading": "patterned-activity", "title": "Agent working status", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Agent status" } }, "action": "working", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Patterned caption" } } },
 		{ "id": "progress", "heading": "known-progress", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Measured progress" } }, "action": "advance", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Known progress caption" } } },
 		{ "id": "unknown-progress", "heading": "unknown-progress", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Region loading" } }, "action": "working", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Unknown progress caption" } } },
 		{ "id": "working-logo", "heading": "illustrated-activity", "description": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Working illustration guidance" } }, "action": "working", "caption": { "$text": { "file": "src/vs/platform/theme/common/motion/motion-examples.md", "heading": "Working illustration caption" } } },

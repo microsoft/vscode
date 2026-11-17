@@ -60,6 +60,13 @@
 			"Glyph catalog",
 			"Selected glyph and implementation usage"
 		],
+		"illustration": [
+			"Principles",
+			"Usage",
+			"Visual style",
+			"Accessibility",
+			"Build and review"
+		],
 		"motion": [
 			"Principles",
 			"Motion foundations",
@@ -140,6 +147,9 @@
 		"iconography": [
 			"Glyph catalog",
 			"Glyph sizing and naming guidance"
+		],
+		"illustration": [
+			"Illustration guidance"
 		],
 		"motion": [
 			"Motion intent",

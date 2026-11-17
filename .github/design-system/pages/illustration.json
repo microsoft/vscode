@@ -1,0 +1,23 @@
+{
+	"version": 1,
+	"id": "illustration",
+	"renderer": "guidance",
+	"content": "content/foundations/illustration.json",
+	"sources": [
+		{ "file": ".github/design-system/guidance/illustration.md" }
+	],
+	"sections": [
+		{ "id": "illustration-principles", "title": "Principles" },
+		{ "id": "illustration-usage", "title": "Usage" },
+		{ "id": "illustration-style", "title": "Visual style" },
+		{ "id": "illustration-accessibility", "title": "Accessibility" },
+		{ "id": "illustration-review", "title": "Build and review" }
+	],
+	"guidance": [
+		{ "id": "illustration-principles", "file": ".github/design-system/guidance/illustration.md", "heading": "Principles" },
+		{ "id": "illustration-usage", "file": ".github/design-system/guidance/illustration.md", "heading": "Usage" },
+		{ "id": "illustration-style", "file": ".github/design-system/guidance/illustration.md", "heading": "Visual style" },
+		{ "id": "illustration-accessibility", "file": ".github/design-system/guidance/illustration.md", "heading": "Accessibility" },
+		{ "id": "illustration-review", "file": ".github/design-system/guidance/illustration.md", "heading": "Build and review" }
+	]
+}

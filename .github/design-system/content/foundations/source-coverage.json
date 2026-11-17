@@ -88,6 +88,11 @@
 				"source-defined": "Base/compact glyphs, accessible names and text labels are documented."
 			}
 		},
+		"illustration": {
+			"Illustration guidance": {
+				"source-defined": "Authored illustration guidance covers usage, visual style, theme tokens, accessibility, and review. Product-wide adoption has not been assessed."
+			}
+		},
 		"motion": {
 			"Motion intent": {
 				"source-defined": "Motion should guide, confirm or orient, remain interruptible, and preserve meaning with reduced motion."

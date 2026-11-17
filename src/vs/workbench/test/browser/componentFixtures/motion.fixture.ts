@@ -267,13 +267,15 @@ class MotionPreviewClock extends Disposable {
 	private elapsed = 0;
 	private readonly jobs = new Set<PreviewJob>();
 	private readonly animations = new Set<Animation>();
-	private readonly targetWindow = dom.getWindow(this.context.container);
-	private updatedAt = this.targetWindow.performance.now();
+	private readonly targetWindow: ReturnType<typeof dom.getWindow>;
+	private updatedAt: number;
 	private input: MotionInput;
 	private pendingOperations = 0;
 
 	constructor(private readonly context: ComponentFixtureContext) {
 		super();
+		this.targetWindow = dom.getWindow(context.container);
+		this.updatedAt = this.targetWindow.performance.now();
 		this.input = inputSchema.parse(context.input).motion;
 		const update = () => {
 			const { paused, playbackRate } = this.input;
@@ -947,7 +949,7 @@ async function renderDelayedContent(context: ComponentFixtureContext, clock: Mot
 	}());
 	const control = context.disposableStore.add(services.createInstance(AgentSessionsControl, host, {
 		overrideStyles: {}, source: 'motionFixture', disableHover: true,
-		filter: { onDidChange: Event.None, exclude: () => false, getExcludes: () => ({ providers: [], states: [], archived: false, read: false, repositoryGroupCapped: true }), isDefault: () => true, reset: () => { } },
+		filter: { onDidChange: Event.None, exclude: () => false, getExcludes: () => ({ providers: [], states: [], archived: false, read: false, automation: true, repositoryGroupCapped: true }), isDefault: () => true, reset: () => { } },
 		createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW, trackActiveEditorSession: () => false,
 		overrideSessionOpen: async resource => { status.textContent = localize('motion.fixture.sessionSelected', "Selected: {0}", model.getSession(resource)!.label); },
 	}));

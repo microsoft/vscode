@@ -15,10 +15,12 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { getMotionCssVariables } from '../../../../../platform/theme/common/motion/motionRecipes.js';
 import { resolveMotionPreset } from '../../../../../platform/theme/common/motion/motionPresets.js';
 import { WebviewThemeDataProvider } from '../../../../contrib/webview/browser/themeing.js';
 import { generateColorThemeCSS } from '../../browser/colorThemeCss.js';
+import { WorkbenchSizeService } from '../../browser/workbenchSizeService.js';
 import { ColorThemeData } from '../../common/colorThemeData.js';
 import { IWorkbenchThemeService } from '../../common/workbenchThemeService.js';
 
@@ -32,7 +34,10 @@ suite('Motion theme export', () => {
 				override readonly onDidColorThemeChange = Event.None;
 				override getColorTheme() { return theme; }
 			};
-			const provider = store.add(new WebviewThemeDataProvider(themeService, new TestConfigurationService({ editor: {} })));
+			const configuration = new TestConfigurationService({ editor: {} });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const sizes = store.add(new WorkbenchSizeService(configuration, store.add(new NullLogService())));
+			const provider = store.add(new WebviewThemeDataProvider(themeService, configuration, sizes));
 			const css = generateColorThemeCSS(theme, '.test').code;
 			const styles = provider.getWebviewThemeData().styles;
 			assert.deepStrictEqual(Object.entries(getMotionCssVariables()).map(([name, value]) => ({

@@ -262,6 +262,8 @@ suite('SessionActionViewItem', () => {
 			particleOrigin: ['24px', '12px'],
 			inheritsWorkbenchTheme: true,
 		});
+		overlay?.remove();
+		await Promise.resolve();
 	});
 
 	test('does not animate when archiving fails after disposing the view item', async () => {

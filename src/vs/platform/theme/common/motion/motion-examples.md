@@ -197,7 +197,7 @@ Use the dot matrix for an agent that is working, such as reasoning or running to
 
 ## Patterned caption
 
-The matrix and ring are two established treatments of the same working status.
+The matrix indicates active agent work. Input-needed states use a static question-mark icon and clear label.
 
 ## Known progress caption
 
