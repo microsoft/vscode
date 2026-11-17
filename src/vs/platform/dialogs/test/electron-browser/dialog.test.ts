@@ -29,7 +29,7 @@ suite('Dialog', () => {
 			copilotVersions: { runtime, sdk }
 		};
 		const { details, detailsToCopy } = createNativeAboutDialogDetails(productService, osProperties);
-		const selectCopilotVersionLines = (value: string) => value.split('\n').filter(line => line.startsWith('@github/copilot'));
+		const selectCopilotVersionLines = (value: string) => value.split('\n').filter(line => line.startsWith('@github/copilot:') || line.startsWith('@microsoft/copilot-sdk:'));
 
 		return {
 			details: selectCopilotVersionLines(details),
