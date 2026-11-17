@@ -2407,7 +2407,8 @@ function createSessionTitleFromArgs(toolInput: string | undefined): string | und
 }
 
 function toolCallOriginMessage(tc: ToolCallState): string | undefined {
-	const serverName = readToolCallMeta(tc).mcpServerName?.trim();
+	const meta = readToolCallMeta(tc);
+	const serverName = (meta.mcpServerDisplayName ?? meta.mcpServerName)?.trim();
 	return serverName ? localize('agentHost.mcpServer.origin', "{0} (MCP Server)", serverName) : undefined;
 }
 
@@ -3124,7 +3125,7 @@ export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolC
 	return {
 		id: `${sessionAuthority}/${tc.contributor.customizationId}`,
 		target: { kind: AuthenticateTargetKind.McpServer, session: backendSession.toString(), customizationId: tc.contributor.customizationId },
-		name: name ?? tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
+		name: name ?? tc.auth.resource.resource_name ?? metadata.mcpServerDisplayName ?? metadata.mcpServerName ?? tc.displayName,
 		resource: tc.auth.resource.resource,
 		oauthClient: tc.auth.oauthClient,
 		authorizationServers: tc.auth.resource.authorization_servers,

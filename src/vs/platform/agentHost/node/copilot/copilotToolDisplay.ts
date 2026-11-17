@@ -1493,11 +1493,12 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 		}
 		case 'mcp': {
 			const title = request.toolTitle?.trim() || toolName || localize('copilot.permission.mcp.defaultTool', "MCP Tool");
+			const serverLabel = request.serverDisplayName?.trim() || serverName;
 			return {
-				confirmationTitle: serverName
-					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverName)
+				confirmationTitle: serverLabel
+					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverLabel)
 					: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: serverName ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverName, title) : title,
+				invocationMessage: serverLabel ? localize('copilot.permission.mcp.invocation', "{0}: {1}", serverLabel, title) : title,
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: path,

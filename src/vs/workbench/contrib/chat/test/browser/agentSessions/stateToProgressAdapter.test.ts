@@ -2913,6 +2913,19 @@ suite('stateToProgressAdapter', () => {
 			), [undefined, undefined, undefined, undefined]);
 		});
 
+		test('MCP origin prefers the server display name and falls back to the server name', () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			assert.deepStrictEqual([
+				{ mcpServerName: serverName, mcpServerDisplayName: 'Slack' },
+				{ mcpServerName: serverName, mcpServerDisplayName: '  ' },
+				{ mcpServerName: serverName },
+			].map(_meta => toolCallStateToInvocation(createToolCallState({ _meta })).originMessage), [
+				'Slack (MCP Server)',
+				`${serverName} (MCP Server)`,
+				`${serverName} (MCP Server)`,
+			]);
+		});
+
 		test('set_workspace confirmation hides implementation input', () => {
 			const invocation = toolCallStateToInvocation({
 				toolCallId: 'tc-set-workspace',

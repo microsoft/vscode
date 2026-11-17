@@ -343,6 +343,15 @@ suite('Agent host _meta readers', () => {
 			assert.deepStrictEqual(result, {});
 		});
 
+		test('reads a trimmed MCP server display name and drops invalid ones', () => {
+			assert.deepStrictEqual([' Slack ', '   ', 42, 'x'.repeat(257)].map(value => readToolCallMeta(toolCall({ mcpServerDisplayName: value }))), [
+				{ mcpServerDisplayName: 'Slack' },
+				{},
+				{},
+				{},
+			]);
+		});
+
 		test('reads valid tool-search candidates and drops malformed corpora', () => {
 			const candidates = [{ name: 'everything-get-sum', description: 'Adds numbers' }];
 			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: candidates })), { toolSearchCandidates: candidates });

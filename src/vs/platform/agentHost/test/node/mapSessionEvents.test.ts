@@ -1471,6 +1471,25 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	}
 
+	for (const source of ['toolRequest', 'execution_start'] as const) {
+		test(`restores the MCP server display name from ${source}`, async () => {
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			const toolName = `${serverName}-slack_read_thread`;
+			const mcp = { mcpServerName: serverName, mcpServerDisplayName: 'Slack', mcpToolName: 'slack_read_thread' };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'm1', content: 'Read the thread' } },
+				{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-mcp', name: toolName, ...(source === 'toolRequest' ? mcp : {}) }] } },
+				...(source === 'execution_start' ? [{ type: 'tool.execution_start', data: { toolCallId: 'tc-mcp', toolName, ...mcp } } satisfies ISessionEvent] : []),
+				{ type: 'tool.execution_complete', data: { toolCallId: 'tc-mcp', success: true, result: { content: 'Thread' } } },
+			];
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			const part = turns[0].responseParts[0];
+			assert.ok(part.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual(readToolCallMeta(part.toolCall), mcp);
+		});
+	}
+
 	test('resolves relative patch links in restored tool messages', async () => {
 		const patch = [
 			'*** Begin Patch',
