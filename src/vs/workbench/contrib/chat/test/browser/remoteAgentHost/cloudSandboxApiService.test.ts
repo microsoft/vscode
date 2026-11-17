@@ -5,51 +5,51 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { VSBuffer, bufferToStream, newWriteableBufferStream } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxConnectionRequest, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
+import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { AccountClient } from '../../../../../../platform/github/common/account/accountClient.js';
-import { IApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { LocalApiRequestProvider } from '../../../../../../platform/github/common/client/localApiRequestProvider.js';
 import { LocalMissionControlRequestProvider } from '../../../../../../platform/github/common/client/localMissionControlRequestProvider.js';
+import { IApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { SchemaError } from '../../../../../../platform/github/common/client/schema.js';
 import { IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
 import { GitHubRestTextRequest, GitHubTransport, IGitHubTransport } from '../../../../../../platform/github/common/githubTransport.js';
-import { AccountHandle, RequestError } from '../../../../../../platform/github/common/types.js';
 import { GitHubRequestError, GitHubRequestTimeoutError } from '../../../../../../platform/github/common/githubTypes.js';
 import { ClientTokenResponse } from '../../../../../../platform/github/common/missionControl/environments.js';
 import { MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import type { TaskClient } from '../../../../../../platform/github/common/missionControl/tasks.js';
+import { AccountHandle, RequestError } from '../../../../../../platform/github/common/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
-import { asText, IRequestService } from '../../../../../../platform/request/common/request.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IRequestService, asText } from '../../../../../../platform/request/common/request.js';
+import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../services/github/common/githubService.js';
+import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
+import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
+import { ICloudSandboxTelemetryService, type ICloudSandboxDiscoveryTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { ModelCard } from '../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { createModelAction } from '../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { getModelConfigSummary } from '../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
-import { ICloudSandboxTelemetryService, type ICloudSandboxDiscoveryTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
-import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../services/github/common/githubService.js';
-import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import { CloudSandboxLifecycleTelemetry } from '../../../browser/remoteAgentHost/cloudSandboxLifecycleTelemetry.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string | string[]> = {}): IRequestContext {
 	return {
@@ -310,14 +310,14 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		}
 	}());
 	const transport = store.add(new class extends GitHubTransport {
-		override restText(account: AccountHandle, token: string, request: GitHubRestTextRequest, signal: AbortSignal) {
+		override restText(account: AccountHandle, token: string, request: GitHubRestTextRequest, cancellationToken: CancellationToken) {
 			typedRequests.push(request);
-			return super.restText(account, token, request, signal);
+			return super.restText(account, token, request, cancellationToken);
 		}
-	}(async (input, init = {}) => {
+	}(async (input, init = {}, fetchToken) => {
 		const lifetime = new DisposableStore();
 		try {
-			const token = init.signal ? CancellationToken.fromAbortSignal(init.signal, lifetime) : CancellationToken.None;
+			const token = fetchToken ? fetchToken : CancellationToken.None;
 			const headers = new Headers(init.headers);
 			const headerNames: Record<string, string> = {
 				accept: 'Accept', authorization: 'Authorization', 'content-type': 'Content-Type',
@@ -355,12 +355,12 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			const lifetime = new DisposableStore();
 			const invalidation = lifetime.add(new Emitter<void>());
 			clientInvalidations.push(invalidation);
-			const controller = new AbortController();
+			const controller = new CancellationTokenSource();
+			lifetime.add(toDisposable(() => controller.dispose(true)));
 			const state = { authorization, disposed: false };
 			clientLifetimes.push(state);
 			lifetime.add(toDisposable(() => {
 				state.disposed = true;
-				controller.abort(new CancellationError());
 			}));
 			let refresh = false;
 			const credentials: IGitHubCredentials = {
@@ -372,7 +372,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 					if (!current) {
 						throw new GitHubRequestError('The selected authentication session is unavailable', 'authentication');
 					}
-					return { account: { host: 'api.github.com', accountId: current.account.id }, token: current.accessToken, generation: 0, signal: controller.signal };
+					return { account: { host: 'api.github.com', accountId: current.account.id }, token: current.accessToken, generation: 0, cancellationToken: controller.token };
 				},
 				handleRequestError: (_credential, error) => {
 					refresh ||= error instanceof GitHubRequestError && error.statusCode === 401;
@@ -383,8 +383,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents',
 				identityApiBaseUri: 'https://api.github.com/cmc_internal/api/agents',
 				integrationId: COPILOT_INTEGRATION_ID,
-			}, credentials, transport, options.logService ?? new NullLogService(), controller.signal);
-			const rest = new LocalApiRequestProvider('https://api.github.com', transport, credentials, 'rest', controller.signal);
+			}, credentials, transport, options.logService ?? new NullLogService(), controller.token);
+			const rest = new LocalApiRequestProvider('https://api.github.com', transport, credentials, 'rest', controller.token);
 			return new AccountClient(authorization, {
 				rest, graphql: rest, missionControl: options.missionControlProvider ?? provider,
 				onDidInvalidate: invalidation.event,
@@ -1648,7 +1648,7 @@ suite('CloudSandboxApiService session feed', () => {
 			}, {
 				onDidInvalidate: Event.None,
 				getCredential: async () => ({
-					account: { host: 'github.com', accountId: 'a' }, token: 'tok', generation: 0, signal: new AbortController().signal,
+					account: { host: 'github.com', accountId: 'a' }, token: 'tok', generation: 0, cancellationToken: CancellationToken.None,
 				}),
 				handleRequestError: () => { },
 			}, new class extends mock<IGitHubTransport>() {

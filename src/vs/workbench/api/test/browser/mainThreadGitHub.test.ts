@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
@@ -17,13 +18,14 @@ import { ApiRequest, ApiRequestOptions, ApiResponse, IApiRequestProvider } from 
 import { parse } from '../../../../platform/github/common/client/schema.js';
 import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
-import { MainThreadGitHub } from '../../browser/mainThreadGitHub.js';
 import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { createInternalGitHubModule, ExtHostGitHub } from '../../common/extHostGitHub.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
+import { MainThreadGitHub } from '../../browser/mainThreadGitHub.js';
+import { ExtHostGitHub, createInternalGitHubModule } from '../../common/extHostGitHub.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+
 
 const extensionId = 'vscode.configuration-editing';
 const scopes = ['gist', 'user:email'];
@@ -76,7 +78,7 @@ suite('MainThreadGitHub', () => {
 		readonly lookupSessions?: () => Promise<readonly AuthenticationSession[]>;
 		/** Sessions of the `github-enterprise` provider, which the proposal must never bind. */
 		readonly enterpriseSessions?: readonly AuthenticationSession[];
-		readonly respond?: (request: ApiRequest, signal: AbortSignal) => Promise<unknown>;
+		readonly respond?: (request: ApiRequest, cancellationToken: CancellationToken) => Promise<unknown>;
 		readonly acquisitionGate?: () => Promise<void>;
 	}
 
@@ -90,9 +92,9 @@ suite('MainThreadGitHub', () => {
 		const onDidChangeAccess = store.add(new Emitter<{ providerId: string; accountName: string }>());
 		const onDidUnregisterProvider = store.add(new Emitter<{ id: string; label: string }>());
 		const provider: IApiRequestProvider = {
-			request: async <T>(request: ApiRequest, signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
+			request: async <T>(request: ApiRequest, cancellationToken: CancellationToken, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
 				requests.push(request);
-				const data = await (options.respond ?? (async () => gistResponse('gist-id', { 'profile.json': { content: '{}' } })))(request, signal);
+				const data = await (options.respond ?? (async () => gistResponse('gist-id', { 'profile.json': { content: '{}' } })))(request, cancellationToken);
 				return { data: parser?.(data), status: typeof request.expectedStatus === 'number' ? request.expectedStatus : 200 };
 			},
 		};
@@ -479,10 +481,10 @@ suite('MainThreadGitHub', () => {
 				}
 				return gate.p;
 			},
-			respond: (_request, signal) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => {
+			respond: (_request, cancellationToken) => new Promise((_resolve, reject) => store.add(cancellationToken.onCancellationRequested(() => {
 				observedAbort = true;
-				reject(signal.reason);
-			})),
+				reject(new CancellationError());
+			}))),
 		});
 		allow('alice');
 

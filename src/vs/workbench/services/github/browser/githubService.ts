@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { cancelOnDispose, CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -32,7 +34,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	private readonly _credentialProvider: WorkbenchGitHubCredentialProvider;
 	private readonly _defaultClient = this._register(new MutableDisposable<IReference<IGitHubClient>>());
 	private readonly _apiScope = this._register(new MutableDisposable<IGitHubRequestProviderScope>());
-	private readonly _lifetime = new AbortController();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 	private _defaultClientGeneration = 0;
 	private _defaultSessionAccountId: string | undefined;
 
@@ -81,65 +83,81 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 			this._defaultClientGeneration++;
 			this._defaultClient.clear();
 		}));
-		this._register(toDisposable(() => this._lifetime.abort(new GitHubRequestError('GitHub service was disposed', 'unknown'))));
 	}
 
-	async acquireAnonymousApiClient(signal: AbortSignal): Promise<IGitHubAnonymousClient> {
-		signal.throwIfAborted();
+	async acquireAnonymousApiClient(cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		return this.acquireAnonymousClient();
 	}
 
-	async acquireDefaultAccountClient(signal: AbortSignal): Promise<IReference<IGitHubClient>> {
-		const { options } = await this.resolveDefaultAccountOptions(signal);
-		this._defaultClient.value = this.acquireClient(options);
-		return this.acquireClient(options);
+	async acquireDefaultAccountClient(cancellationToken: CancellationToken): Promise<IReference<IGitHubClient>> {
+		return this.withLifetime(cancellationToken, async token => {
+			const { options } = await this.resolveDefaultAccountOptions(token);
+			this._defaultClient.value = this.acquireClient(options);
+			return this.acquireClient(options);
+		});
 	}
 
-	async acquireAccountApiClient(providerId: string, session: AuthenticationSession, signal: AbortSignal): Promise<IGitHubAccountClient> {
+	async acquireAccountApiClient(providerId: string, session: AuthenticationSession, cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
 		const authorization = toGitHubAuthorizationContext(providerId, session);
-		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
-		const options = await withGitHubCredentialDeadline(combinedSignal, signal => this._credentialProvider.resolveClient(authorization, signal));
-		combinedSignal.throwIfAborted();
-		const client = await this.acquireApiClient(options, combinedSignal);
-		if (combinedSignal.aborted) {
-			client.dispose();
-			combinedSignal.throwIfAborted();
-		}
-		return client;
-	}
-
-	async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
-		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
-		const { options, accountId, generation } = await this.resolveDefaultAccountOptions(combinedSignal);
-		const client = await this.acquireApiClient({ ...options, authorization: { ...options.authorization, accountId } }, combinedSignal);
-		try {
-			combinedSignal.throwIfAborted();
-			if (generation !== this._defaultClientGeneration) {
-				throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
+		return this.withLifetime(cancellationToken, async token => {
+			const options = await withGitHubCredentialDeadline(token, token => this._credentialProvider.resolveClient(authorization, token));
+			CancellationToken.throwIfCanceled(token);
+			const client = await this.acquireApiClient(options, token);
+			if (token.isCancellationRequested) {
+				client.dispose();
+				CancellationToken.throwIfCanceled(token);
 			}
 			return client;
-		} catch (error) {
-			client.dispose();
-			throw error;
-		}
+		});
 	}
 
-	protected async acquireApiClient(options: GitHubClientOptions, signal: AbortSignal): Promise<IGitHubAccountClient> {
-		signal.throwIfAborted();
+	async acquireDefaultAccountApiClient(cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
+		return this.withLifetime(cancellationToken, async token => {
+			const { options, accountId, generation } = await this.resolveDefaultAccountOptions(token);
+			const client = await this.acquireApiClient({ ...options, authorization: { ...options.authorization, accountId } }, token);
+			try {
+				CancellationToken.throwIfCanceled(token);
+				if (generation !== this._defaultClientGeneration) {
+					throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
+				}
+				return client;
+			} catch (error) {
+				client.dispose();
+				throw error;
+			}
+		});
+	}
+
+	protected async acquireApiClient(options: GitHubClientOptions, cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const scope = this._apiScope.value ??= this.createRequestProviderScope(this._credentialProvider);
 		const reference = scope.acquireClient(options);
 		return new AccountClient(reference.object.authorization, reference.object, reference);
 	}
 
-	private async resolveDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
-		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
-		const { options, accountId, generation } = await withGitHubCredentialDeadline(combinedSignal, signal => this._getDefaultAccountOptions(signal));
-		combinedSignal.throwIfAborted();
+	private async resolveDefaultAccountOptions(cancellationToken: CancellationToken): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
+		const { options, accountId, generation } = await withGitHubCredentialDeadline(cancellationToken, cancellationToken => this._getDefaultAccountOptions(cancellationToken));
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (generation !== this._defaultClientGeneration) {
 			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
 		}
 		this._defaultSessionAccountId = accountId;
 		return { options, accountId, generation };
+	}
+
+	private async withLifetime<T>(token: CancellationToken, task: (token: CancellationToken) => Promise<T>): Promise<T> {
+		const lifetime = new DisposableStore();
+		try {
+			return await task(CancellationToken.any([token, this._disposeToken], lifetime));
+		} catch (error) {
+			if (isCancellationError(error) && this._disposeToken.isCancellationRequested && !token.isCancellationRequested) {
+				throw new GitHubRequestError('GitHub service was disposed', 'unknown');
+			}
+			throw error;
+		} finally {
+			lifetime.dispose();
+		}
 	}
 
 	private _getDefaultAccountKey(): string {
@@ -148,10 +166,10 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		return JSON.stringify([provider.id, account?.sessionId, provider.enterprise, provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined]);
 	}
 
-	private async _getDefaultAccountOptions(signal: AbortSignal): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
-		signal.throwIfAborted();
+	private async _getDefaultAccountOptions(cancellationToken: CancellationToken): Promise<{ options: GitHubClientOptions; accountId: string; generation: number }> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const account = this._defaultAccountService.currentDefaultAccount ?? await this._defaultAccountService.getDefaultAccount();
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!account) {
 			throw new GitHubRequestError(localize('githubAuthenticationRequired', "Sign in to GitHub to load GitHub data."), 'authentication');
 		}
@@ -161,8 +179,8 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 			throw new GitHubRequestError(localize('githubAccountChanged', "The selected GitHub account changed. Try again."), 'authentication');
 		}
 		const provider = account.authenticationProvider;
-		const sessions = await this._credentialProvider.getSessions(provider.id, signal);
-		signal.throwIfAborted();
+		const sessions = await this._credentialProvider.getSessions(provider.id, cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const selected = sessions.find(session => session.id === account.sessionId);
 		if (!selected) {
 			throw new GitHubRequestError(localize('githubSessionUnavailable', "The selected GitHub session is unavailable."), 'authentication');

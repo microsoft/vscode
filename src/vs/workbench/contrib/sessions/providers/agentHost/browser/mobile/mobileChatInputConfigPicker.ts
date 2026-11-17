@@ -372,7 +372,7 @@ export class MobileChatInputConfigPickerAction extends Action2 {
 				id: Menus.NewSessionChatInputToolbar,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}

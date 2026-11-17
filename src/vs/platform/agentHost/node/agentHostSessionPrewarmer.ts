@@ -140,7 +140,7 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		// started while the draft was created, so warming never causes a cold
 		// SDK download.
 		this._experimentTrigger.report();
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostPrewarmSessionsConfigKey) !== true) {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostPrewarmSessionsConfigKey) === false) {
 			noteSkipped('disabled');
 			return;
 		}

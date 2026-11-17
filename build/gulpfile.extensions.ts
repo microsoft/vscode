@@ -275,8 +275,8 @@ export const compileNativeExtensionsBuildTask = task.define('compile-native-exte
 task.task(compileNativeExtensionsBuildTask);
 
 /**
- * Compiles the built-in Copilot extension for the build, with the files of its VSIX (see
- * {@link ext.packageCopilotExtensionStream}). The platform Compile jobs run it on its own (see
+ * Compiles the built-in Copilot extension for the build, with the files that its `.vscodeignore`
+ * selects (see {@link ext.packageCopilotExtensionStream}). The platform Compile jobs run it on its own (see
  * `build/azure-pipelines/copilot/builtin-steps.yml`), and the local builds with the other built-in
  * extensions.
  */

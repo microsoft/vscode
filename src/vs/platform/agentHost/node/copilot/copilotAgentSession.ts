@@ -829,6 +829,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly realpath?: (path: string) => Promise<string>;
 	/** Overrides the control-plane RPC timeout for deterministic tests. */
 	readonly controlPlaneRpcTimeoutMs?: number;
+	/** Reads a canvas icon as {@link CopilotCanvasIconLoader} does; injectable so tests can control when reads finish. */
+	readonly readCanvasIcon?: (path: string, extensionId: string) => Promise<string | undefined>;
 	/** Bounds one Connector reconciliation attempt; a timed-out request remains pending. */
 	readonly connectorRefreshTimeoutMs?: number;
 	/** Bounds the Connector status read that classifies a server published Connector state does not know. */
@@ -1520,6 +1522,14 @@ export class CopilotAgentSession extends Disposable {
 	 * Managed approval requests never reuse an approval.
 	 */
 	private readonly _approvedDuplicablePermissionSignatures = new Map<string, string>();
+	/**
+	 * Client tool calls whose `ChatToolCallReady` waits on the permission flow. The runtime can
+	 * authorize a custom tool without a permission request (standing approvals, managed allow,
+	 * hooks), so the SDK handler, which runs only after authorization, releases a held call whose
+	 * permission never ran. `'permission'` marks a call the permission flow owns; `'handler'` marks
+	 * a handler that ran before the call's start was observed.
+	 */
+	private readonly _clientToolReadyWaits = new Map<string, 'permission' | 'handler' | { readonly ready: ChatToolCallReadyAction; readonly parentToolCallId: string | undefined }>();
 	/**
 	 * Pending user input requests awaiting a renderer-side answer. `responseSource` is set only by a client's
 	 * report that a person answered, so a settlement made by teardown stays unattributed.
@@ -2263,6 +2273,15 @@ export class CopilotAgentSession extends Disposable {
 	private _deferredCanvasCloseFlush: Promise<void> | undefined;
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private _canvasIconLoader: CopilotCanvasIconLoader | undefined;
+	private readonly _readCanvasIconOverride: ((path: string, extensionId: string) => Promise<string | undefined>) | undefined;
+	/** The latest icon read of each canvas that one is in flight for, by instance ID; only the latest read shows its image. */
+	private readonly _canvasIconReads = new Map<string, number>();
+	private _canvasIconReadCount = 0;
+	/**
+	 * The revision of each canvas projection, created when first asked for. A projection that only shows a new icon shares
+	 * the revision of the one it replaced, so that restoration still recognizes it; any other new projection starts one.
+	 */
+	private readonly _canvasProjectionRevisions = new WeakMap<ICopilotCanvasProjection, object>();
 	private _canvasRegistryGeneration = 0;
 	private _canvasRegistrySettlementPending = false;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
@@ -2316,6 +2335,15 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _onDidChangeRuntimePlugins = this._register(new Emitter<void>());
 	readonly onDidChangeRuntimePlugins = this._onDidChangeRuntimePlugins.event;
+	/**
+	 * Fires when the runtime reloads its top-level skills, custom agents or MCP
+	 * servers, as every runtime plugin reload does. Unlike
+	 * {@link onDidChangeRuntimePlugins} it also fires after a partially failed
+	 * or best-effort plugin preparation, so listeners should cheaply re-check
+	 * plugin state rather than rediscover.
+	 */
+	private readonly _onDidReloadRuntimeContributions = this._register(new Emitter<void>());
+	readonly onDidReloadRuntimeContributions = this._onDidReloadRuntimeContributions.event;
 
 	/** In-flight server and MCP App sampling executions, keyed by their SDK cancellation handle. */
 	private readonly _pendingMcpSamplings = new Set<string>();
@@ -2443,6 +2471,7 @@ export class CopilotAgentSession extends Disposable {
 		this._getSessionPathRoots = options.getSessionPathRoots ?? (() => []);
 		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
+		this._readCanvasIconOverride = options.readCanvasIcon;
 		this._extensionSessionApprovals = options.extensionSessionApprovals ?? new Set();
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
 		this._connectorOwnershipLookupTimeoutMs = options.connectorOwnershipLookupTimeoutMs ?? CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS;
@@ -4595,6 +4624,7 @@ export class CopilotAgentSession extends Disposable {
 								: this._toolSearchFailure('Tool call cancelled: client tool replacement was not applied');
 						}
 						this._surfaceUnobservedClientToolStart(invocation);
+						this._releaseClientToolReadyForHandler(toolCallId);
 						return await this._pendingClientToolCalls.register(toolCallId);
 					} catch (error) {
 						this._logService.error(error, `[Copilot:${this.sessionId}] Failed in client tool handler: tool=${def.name}, toolCallId=${toolCallId}`);
@@ -5275,8 +5305,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._publishSettledCanvasRegistry();
 		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
-		return Promise.all(result.canvases.map(async canvas => {
-			const icon = await this._canvasIcons.load(canvas.icon, canvas.extensionId);
+		const definitions = await Promise.all(result.canvases.map(async canvas => {
+			const icon = await this._readCanvasIcon(canvas.icon, canvas.extensionId);
 			return {
 				canvasId: canvas.canvasId,
 				extensionId: canvas.extensionId,
@@ -5289,6 +5319,12 @@ export class CopilotAgentSession extends Disposable {
 				actionCount: canvas.actions?.length ?? 0,
 			};
 		}));
+		// Extensions that reloaded, or a runtime handed off, while the icons were read make the listing stale.
+		if (generation !== this._canvasRegistryGeneration) {
+			this.publishCanvases();
+			return undefined;
+		}
+		return definitions;
 	}
 
 	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
@@ -5464,8 +5500,15 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private get _canvasIcons(): CopilotCanvasIconLoader {
-		return this._canvasIconLoader ??= new CopilotCanvasIconLoader(this._logService);
+	private _readCanvasIcon(path: string | undefined, extensionId: string): Promise<string | undefined> {
+		if (!path) {
+			return Promise.resolve(undefined);
+		}
+		if (this._readCanvasIconOverride) {
+			return this._readCanvasIconOverride(path, extensionId);
+		}
+		this._canvasIconLoader ??= new CopilotCanvasIconLoader(this._logService);
+		return this._canvasIconLoader.load(path, extensionId);
 	}
 
 	/**
@@ -5893,14 +5936,15 @@ export class CopilotAgentSession extends Disposable {
 		}
 		for (const projection of projections) {
 			const { instanceId, extensionId, canvasId } = projection.canvas;
-			if (this._canvasByInstanceId.get(instanceId) !== projection) {
+			const current = this._canvasByInstanceId.get(instanceId);
+			if (!current || !this._isCurrentCanvasProjection(projection)) {
 				continue;
 			}
 			if (declared && !declared.some(canvas => canvas.extensionId === extensionId && canvas.canvasId === canvasId)) {
 				this._canvasByInstanceId.delete(instanceId);
 				continue;
 			}
-			const { handedOver: _handedOver, ...unavailable } = projection;
+			const { handedOver: _handedOver, ...unavailable } = current;
 			this._canvasByInstanceId.set(instanceId, unavailable);
 			if (declared) {
 				void this._reopenCanvas(wrapper, unavailable);
@@ -5921,7 +5965,7 @@ export class CopilotAgentSession extends Disposable {
 		const askedForConsent = () => this._extensionConsentShownCount(extensionId) > consentShownBefore;
 		const extension = await this._readCanvasOpenExtension(wrapper, extensionId);
 		// A close or a replaced runtime during the read supersedes the restore; opening now would bring the canvas back.
-		if (this._store.isDisposed || this._wrapper !== wrapper || this._canvasByInstanceId.get(instanceId) !== projection) {
+		if (this._store.isDisposed || this._wrapper !== wrapper || !this._isCurrentCanvasProjection(projection)) {
 			return;
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
@@ -5943,7 +5987,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		// Events received during the request, such as a close, supersede its result.
-		if (!this._store.isDisposed && this._wrapper === wrapper && this._canvasByInstanceId.get(instanceId) === projection) {
+		if (!this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
 			this._projectOpenedCanvas(reopened);
 		}
 	}
@@ -6098,19 +6142,41 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Reads the icon of a projected canvas and republishes the canvas when its image changed, unless its state changed
-	 * meanwhile. An update that only changes the canvas's input keeps its state, so the image still applies.
+	 * Reads the icon of a projected canvas and republishes the canvas when its image changed. Only the latest read of a
+	 * canvas shows its image, which applies while the canvas still declares that icon, whatever else changed meanwhile.
 	 */
 	private async _showCanvasIcon(projection: ICopilotCanvasProjection): Promise<void> {
-		const icon = await this._canvasIcons.load(projection.iconPath, projection.canvas.extensionId);
 		const instanceId = projection.canvas.instanceId;
+		const read = ++this._canvasIconReadCount;
+		this._canvasIconReads.set(instanceId, read);
+		const icon = await this._readCanvasIcon(projection.iconPath, projection.canvas.extensionId);
+		if (this._canvasIconReads.get(instanceId) !== read) {
+			return;
+		}
+		this._canvasIconReads.delete(instanceId);
 		const current = this._canvasByInstanceId.get(instanceId);
-		if (this._store.isDisposed || current?.canvas !== projection.canvas || icon === readCanvasIcon(current.canvas)) {
+		if (this._store.isDisposed || !current || current.iconPath !== projection.iconPath || icon === readCanvasIcon(current.canvas)) {
 			return;
 		}
 		const shown: ICopilotCanvasProjection = { ...current, canvas: withCanvasIcon(current.canvas, icon) };
+		this._canvasProjectionRevisions.set(shown, this._canvasProjectionRevision(current));
 		this._canvasByInstanceId.set(instanceId, shown);
 		this._publishCanvasState(shown);
+	}
+
+	/** Whether `projection` is still its canvas's projection, also after updates that only showed a new icon. */
+	private _isCurrentCanvasProjection(projection: ICopilotCanvasProjection): boolean {
+		const current = this._canvasByInstanceId.get(projection.canvas.instanceId);
+		return current === projection || (!!current && this._canvasProjectionRevision(current) === this._canvasProjectionRevision(projection));
+	}
+
+	private _canvasProjectionRevision(projection: ICopilotCanvasProjection): object {
+		let revision = this._canvasProjectionRevisions.get(projection);
+		if (!revision) {
+			revision = {};
+			this._canvasProjectionRevisions.set(projection, revision);
+		}
+		return revision;
 	}
 
 	private _clearCanvasProjection(): void {
@@ -8879,6 +8945,7 @@ export class CopilotAgentSession extends Disposable {
 				return attributePermissionResult({ kind: 'reject' }, 'host_policy');
 			}
 			if (request.kind === 'custom-tool') {
+				this._clientToolReadyWaits.set(toolCallId, 'permission');
 				const pending = this._waitForClientToolReplacement(request.toolName, toolCallId);
 				if (pending && !await pending) {
 					return attributePermissionResult({ kind: 'reject' }, 'host_policy');
@@ -9254,15 +9321,15 @@ export class CopilotAgentSession extends Disposable {
 
 	private _getSessionPathDisplay(path: string): ISessionPathDisplay {
 		const resource = copilotSdkPathToUri(this._pathMapper, path);
-		const ownerSession = this._ownerSessionUri;
+		const currentSession = this._chatChannelUri;
 		// The live chat's own storage root is authoritative; only consult other chats on a miss.
-		const currentChatDisplay = getSessionPathDisplay(path, resource, ownerSession, [
-			{ root: URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId), session: ownerSession },
+		const currentChatDisplay = getSessionPathDisplay(path, resource, currentSession, [
+			{ root: URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId), session: currentSession },
 		], extUriBiasedIgnorePathCase);
 		if (currentChatDisplay.isCurrentSession) {
 			return currentChatDisplay;
 		}
-		return getSessionPathDisplay(path, resource, ownerSession, this._getSessionPathRoots(), extUriBiasedIgnorePathCase);
+		return getSessionPathDisplay(path, resource, currentSession, this._getSessionPathRoots(), extUriBiasedIgnorePathCase);
 	}
 
 	/**
@@ -11542,9 +11609,6 @@ export class CopilotAgentSession extends Disposable {
 			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
 				&& !isTrustedCoordinationTool
 				&& (isToolSearch || (!sdkPolicy.skipPermission && !clientToolAutoApproved));
-			if (shouldWaitForClientToolReady) {
-				return;
-			}
 
 			const ready: ChatToolCallReadyAction = {
 				type: ActionType.ChatToolCallReady,
@@ -11557,6 +11621,12 @@ export class CopilotAgentSession extends Disposable {
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta(clientToolAutoApproved ? { ...meta, autoApproveBySetting: true } : meta),
 			};
+			if (shouldWaitForClientToolReady) {
+				if (!isToolSearch) {
+					this._holdClientToolReady(e.data.toolCallId, ready, parentToolCallId);
+				}
+				return;
+			}
 			// Native image tool start precedes its permission request, not image generation.
 			if (tracked && e.data.toolName === CopilotToolName.ImageGeneration && !isClientTool && !mcpServerName) {
 				tracked.pendingImageReady = ready;
@@ -11580,6 +11650,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
+			this._clientToolReadyWaits.delete(e.data.toolCallId);
 			const held = this._pendingClientToolReplacement?.calls.get(e.data.toolCallId);
 			if (held) {
 				if (!held.completed && this._isHeldClientToolCallCurrent(held)) {
@@ -12776,6 +12847,21 @@ export class CopilotAgentSession extends Disposable {
 			this._mcpCustomizations.clearSkills();
 			this._mcpSkillCacheWriter.write(new Map());
 		}
+		store.add(wrapper.onSkillsLoaded(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
+		store.add(wrapper.onCustomAgentsUpdated(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
+		store.add(wrapper.onMcpServersLoaded(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
 		store.add(wrapper.onMcpServersLoaded(() => {
 			// The SDK re-emits a cached loaded snapshot on later turns, not live connection state.
 			this._logService.trace(`[Copilot:${sessionId}] MCP server inventory invalidated by session.mcp_servers_loaded; refreshing rpc.mcp.listConfigured`);
@@ -13884,6 +13970,35 @@ export class CopilotAgentSession extends Disposable {
 		return true;
 	}
 
+	/** Holds a client tool's ready until the permission flow or its SDK handler releases it. */
+	private _holdClientToolReady(toolCallId: string, ready: ChatToolCallReadyAction, parentToolCallId: string | undefined): void {
+		const wait = this._clientToolReadyWaits.get(toolCallId);
+		if (wait === 'handler') {
+			this._releaseClientToolReady(toolCallId, ready, parentToolCallId);
+		} else if (wait === undefined) {
+			this._clientToolReadyWaits.set(toolCallId, { ready, parentToolCallId });
+		}
+	}
+
+	/**
+	 * The runtime invokes a client tool's SDK handler only after authorizing the call. When no
+	 * permission request ran, nothing else will emit the held ready, so the client would never run it.
+	 */
+	private _releaseClientToolReadyForHandler(toolCallId: string): void {
+		const wait = this._clientToolReadyWaits.get(toolCallId);
+		if (typeof wait === 'object') {
+			this._releaseClientToolReady(toolCallId, wait.ready, wait.parentToolCallId);
+		} else if (wait === undefined && !this._activeToolCalls.has(toolCallId)) {
+			this._clientToolReadyWaits.set(toolCallId, 'handler');
+		}
+	}
+
+	private _releaseClientToolReady(toolCallId: string, ready: ChatToolCallReadyAction, parentToolCallId: string | undefined): void {
+		this._clientToolReadyWaits.delete(toolCallId);
+		this._logService.info(`[Copilot:${this.sessionId}] Runtime authorized client tool call ${toolCallId} without a permission request; marking it ready`);
+		this._emitAction(ready, parentToolCallId);
+	}
+
 	/**
 	 * A client tool only runs once the client sees its start. Fusion stages the
 	 * phase's `tool.execution_start` until commit, so without this the SDK
@@ -14182,7 +14297,12 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const { uri, ...canvas } = projection.canvas;
-			const unavailable: ICopilotCanvasProjection = { resource: projection.resource, canvas, ...(projection.input !== undefined ? { input: projection.input } : {}) };
+			const unavailable: ICopilotCanvasProjection = {
+				resource: projection.resource,
+				canvas,
+				...(projection.input !== undefined ? { input: projection.input } : {}),
+				...(projection.iconPath !== undefined ? { iconPath: projection.iconPath } : {}),
+			};
 			this._canvasByInstanceId.set(canvas.instanceId, unavailable);
 			if (uri !== undefined) {
 				this._publishCanvasState(unavailable);
@@ -14734,6 +14854,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingClientToolCalls(): void {
+		this._clientToolReadyWaits.clear();
 		this._cancelHeldClientToolCalls();
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}
