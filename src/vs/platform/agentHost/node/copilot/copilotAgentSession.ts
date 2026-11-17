@@ -1523,6 +1523,14 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _approvedDuplicablePermissionSignatures = new Map<string, string>();
 	/**
+	 * Client tool calls whose `ChatToolCallReady` waits on the permission flow. The runtime can
+	 * authorize a custom tool without a permission request (standing approvals, managed allow,
+	 * hooks), so the SDK handler, which runs only after authorization, releases a held call whose
+	 * permission never ran. `'permission'` marks a call the permission flow owns; `'handler'` marks
+	 * a handler that ran before the call's start was observed.
+	 */
+	private readonly _clientToolReadyWaits = new Map<string, 'permission' | 'handler' | { readonly ready: ChatToolCallReadyAction; readonly parentToolCallId: string | undefined }>();
+	/**
 	 * Pending user input requests awaiting a renderer-side answer. `responseSource` is set only by a client's
 	 * report that a person answered, so a settlement made by teardown stays unattributed.
 	 */
@@ -4616,6 +4624,7 @@ export class CopilotAgentSession extends Disposable {
 								: this._toolSearchFailure('Tool call cancelled: client tool replacement was not applied');
 						}
 						this._surfaceUnobservedClientToolStart(invocation);
+						this._releaseClientToolReadyForHandler(toolCallId);
 						return await this._pendingClientToolCalls.register(toolCallId);
 					} catch (error) {
 						this._logService.error(error, `[Copilot:${this.sessionId}] Failed in client tool handler: tool=${def.name}, toolCallId=${toolCallId}`);
@@ -8936,6 +8945,7 @@ export class CopilotAgentSession extends Disposable {
 				return attributePermissionResult({ kind: 'reject' }, 'host_policy');
 			}
 			if (request.kind === 'custom-tool') {
+				this._clientToolReadyWaits.set(toolCallId, 'permission');
 				const pending = this._waitForClientToolReplacement(request.toolName, toolCallId);
 				if (pending && !await pending) {
 					return attributePermissionResult({ kind: 'reject' }, 'host_policy');
@@ -11599,9 +11609,6 @@ export class CopilotAgentSession extends Disposable {
 			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
 				&& !isTrustedCoordinationTool
 				&& (isToolSearch || (!sdkPolicy.skipPermission && !clientToolAutoApproved));
-			if (shouldWaitForClientToolReady) {
-				return;
-			}
 
 			const ready: ChatToolCallReadyAction = {
 				type: ActionType.ChatToolCallReady,
@@ -11614,6 +11621,12 @@ export class CopilotAgentSession extends Disposable {
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta(clientToolAutoApproved ? { ...meta, autoApproveBySetting: true } : meta),
 			};
+			if (shouldWaitForClientToolReady) {
+				if (!isToolSearch) {
+					this._holdClientToolReady(e.data.toolCallId, ready, parentToolCallId);
+				}
+				return;
+			}
 			// Native image tool start precedes its permission request, not image generation.
 			if (tracked && e.data.toolName === CopilotToolName.ImageGeneration && !isClientTool && !mcpServerName) {
 				tracked.pendingImageReady = ready;
@@ -11637,6 +11650,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
+			this._clientToolReadyWaits.delete(e.data.toolCallId);
 			const held = this._pendingClientToolReplacement?.calls.get(e.data.toolCallId);
 			if (held) {
 				if (!held.completed && this._isHeldClientToolCallCurrent(held)) {
@@ -13956,6 +13970,35 @@ export class CopilotAgentSession extends Disposable {
 		return true;
 	}
 
+	/** Holds a client tool's ready until the permission flow or its SDK handler releases it. */
+	private _holdClientToolReady(toolCallId: string, ready: ChatToolCallReadyAction, parentToolCallId: string | undefined): void {
+		const wait = this._clientToolReadyWaits.get(toolCallId);
+		if (wait === 'handler') {
+			this._releaseClientToolReady(toolCallId, ready, parentToolCallId);
+		} else if (wait === undefined) {
+			this._clientToolReadyWaits.set(toolCallId, { ready, parentToolCallId });
+		}
+	}
+
+	/**
+	 * The runtime invokes a client tool's SDK handler only after authorizing the call. When no
+	 * permission request ran, nothing else will emit the held ready, so the client would never run it.
+	 */
+	private _releaseClientToolReadyForHandler(toolCallId: string): void {
+		const wait = this._clientToolReadyWaits.get(toolCallId);
+		if (typeof wait === 'object') {
+			this._releaseClientToolReady(toolCallId, wait.ready, wait.parentToolCallId);
+		} else if (wait === undefined && !this._activeToolCalls.has(toolCallId)) {
+			this._clientToolReadyWaits.set(toolCallId, 'handler');
+		}
+	}
+
+	private _releaseClientToolReady(toolCallId: string, ready: ChatToolCallReadyAction, parentToolCallId: string | undefined): void {
+		this._clientToolReadyWaits.delete(toolCallId);
+		this._logService.info(`[Copilot:${this.sessionId}] Runtime authorized client tool call ${toolCallId} without a permission request; marking it ready`);
+		this._emitAction(ready, parentToolCallId);
+	}
+
 	/**
 	 * A client tool only runs once the client sees its start. Fusion stages the
 	 * phase's `tool.execution_start` until commit, so without this the SDK
@@ -14811,6 +14854,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingClientToolCalls(): void {
+		this._clientToolReadyWaits.clear();
 		this._cancelHeldClientToolCalls();
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}
