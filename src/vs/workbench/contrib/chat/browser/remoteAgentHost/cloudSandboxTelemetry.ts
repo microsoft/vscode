@@ -8,7 +8,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { LRUCache } from '../../../../../base/common/map.js';
 import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
 import { CloudSandboxRequestError, cloudSandboxDiscoveryTriggers, cloudSandboxFullScanReasons, cloudSandboxTaskCreationPaths, type CloudSandboxFullScanReason, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { connectionCloseReasons, type ConnectionCloseReason, type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { connectionCloseReasons, connectionHandshakeMethods, connectionHandshakeStates, type ConnectionCloseReason, type ConnectionHandshakeMethod, type ConnectionHandshakeState, type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -393,6 +393,9 @@ interface IConnectionOperation {
 	suspendedMs: number;
 	recoveryStopReason?: RecoveryStopReason;
 	closeReason?: ConnectionCloseReason;
+	lastCloseReason?: ConnectionCloseReason;
+	lastHandshakeMethod?: ConnectionHandshakeMethod;
+	lastHandshakeState?: ConnectionHandshakeState;
 	firstFailure?: { readonly phase: string; readonly code: number | undefined; readonly error: IConnectionTelemetryError };
 	readonly failures: Record<CloudSandboxConnectionPhase, number>;
 	readonly durations: Record<CloudSandboxConnectionPhase, number>;
@@ -518,6 +521,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 					this._lifecycle?.record({ ...this._lifecycleContext, phase: 'connection.closed', operationId: generateUuid(), outcome: 'observed' });
 					this._operation = this._newOperation('recover', 'connection');
 					this._operation.closeReason = this._closeReason;
+					this._operation.lastCloseReason = this._closeReason;
 					this._lifecycleOperation = this._lifecycle?.start('connection.recover', this._lifecycleContext);
 				}
 				break;
@@ -565,7 +569,14 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			this._closeReason ??= reason;
 			if (this._operation) {
 				this._operation.closeReason ??= reason;
+				this._operation.lastCloseReason = reason;
 			}
+		}
+		if (this._environmentKind === 'user-local' && this._operation && event.phase === 'protocol.handshake'
+			&& event.handshakeMethod && connectionHandshakeMethods.includes(event.handshakeMethod)
+			&& event.handshakeState && connectionHandshakeStates.includes(event.handshakeState)) {
+			this._operation.lastHandshakeMethod = event.handshakeMethod;
+			this._operation.lastHandshakeState = event.handshakeState;
 		}
 		if (event.phase === 'power.suspend') {
 			this._suspendedAt ??= Date.now();
@@ -790,6 +801,8 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		const preparationMs = Math.min(durationMs, operation.preparationMs);
 		this._reportOutcome({
 			...(operation.closeReason ? { closeReason: operation.closeReason } : {}),
+			...(operation.lastCloseReason ? { lastCloseReason: operation.lastCloseReason } : {}),
+			...(operation.lastHandshakeMethod ? { lastHandshakeMethod: operation.lastHandshakeMethod, lastHandshakeState: operation.lastHandshakeState } : {}),
 			suspendCount: operation.suspendCount,
 			suspendedMs: operation.suspendedMs + (operation.suspendedAt === undefined ? 0 : Math.max(0, Date.now() - operation.suspendedAt)),
 			...(operation.recoveryStopReason === undefined ? {} : { recoveryStopReason: operation.recoveryStopReason }),
@@ -830,6 +843,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 
 type CloudSandboxConnectionOutcomeEvent = {
 	closeReason?: ConnectionCloseReason;
+	lastCloseReason?: ConnectionCloseReason;
+	lastHandshakeMethod?: ConnectionHandshakeMethod;
+	lastHandshakeState?: ConnectionHandshakeState;
 	suspendCount: number;
 	suspendedMs: number;
 	recoveryStopReason?: RecoveryStopReason;
@@ -869,6 +885,9 @@ type CloudSandboxConnectionOutcomeEvent = {
 
 export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmentClassification & CloudSandboxTaskCreationClassification & {
 	closeReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'User-local only: first source-owned close boundary initiating this connect/recovery operation, preserved across retries. Allowlisted socket, relay/host handshake, publish acknowledgement/rejection, send, offline/lane/generation/limit, watchdog, protocol reinitialize, OS suspend, external close or unknown; not a server-side root cause.' };
+	lastCloseReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'User-local only: latest allowlisted source-owned transport close boundary during this operation, including the initiating close. Distinct from the final recovery stop decision; not a server-side root cause.' };
+	lastHandshakeMethod?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'User-local only: latest attempted AHP handshake, initialize or reconnect, including fallback initialization. Absent before any handshake is attempted in this operation.' };
+	lastHandshakeState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'User-local only: furthest receive milestone for the latest AHP handshake: waiting, chunksReceived, otherMessagesReceived or responseReceived. Excludes relay acknowledgements. Traffic may belong to a stale generation; matching response receipt does not imply acceptance or success.' };
 	suspendCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'OS suspend intervals observed during this operation, including an interval already active when recovery began. Zero when no suspension was reported.' };
 	suspendedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds of this operation spent in reported OS suspension, included in durationMs. Zero when no suspension was reported.' };
 	recoveryStopReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded source-owned reason automatic recovery stopped: attemptsExhausted, timeout, authentication, protocol, or nonReconnectable. Absent without an observed stop decision.' };

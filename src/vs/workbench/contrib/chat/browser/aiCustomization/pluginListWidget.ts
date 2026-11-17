@@ -38,6 +38,7 @@ import { ICustomizationMarketplaceInstallService } from '../../common/customizat
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { OrganizationManagedTag, withOrganizationManagedAriaLabel } from './customizationOrganizationPolicy.js';
+import { getTeamProvidedPluginTooltip, isTeamProvidedVisible, TeamProvidedTag, withTeamProvidedPluginAriaLabel } from './customizationTeamProvenance.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
@@ -266,6 +267,7 @@ interface IPluginInstalledItemTemplateData {
 	readonly syncToggleContainer: HTMLElement;
 	readonly name: HTMLElement;
 	readonly managedTag: OrganizationManagedTag;
+	readonly teamTag: TeamProvidedTag;
 	readonly location: MiddleEllipsisPathLabel;
 	readonly metadata: HTMLElement;
 	readonly actions: HTMLElement;
@@ -284,6 +286,8 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		private readonly _hoverService: IHoverService,
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
 		private readonly _getOrganizationControl: (item: IInstalledPluginItem, reader: IReader) => ICustomizationOrganizationControl | undefined,
+		private readonly _isTeamProvided: (item: IInstalledPluginItem, reader: IReader) => boolean,
+		private readonly _isEnabled: (item: IInstalledPluginItem, reader: IReader) => boolean,
 		private readonly _showSyncToggle = true,
 	) { }
 
@@ -296,13 +300,14 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		const templateDisposables = new DisposableStore();
 		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
+		const teamTag = templateDisposables.add(new TeamProvidedTag(nameRow, this._hoverService));
 		const location = templateDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(syncToggleContainer));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, syncToggleContainer, name, managedTag, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, syncToggleContainer, name, managedTag, teamTag, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -313,6 +318,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 
 		templateData.name.textContent = formatDisplayName(element.item.name);
 		templateData.disposables.add(autorun(reader => templateData.managedTag.update(this._getOrganizationControl(element.item, reader))));
+		templateData.disposables.add(autorun(reader => templateData.teamTag.update(this._isTeamProvided(element.item, reader) ? getTeamProvidedPluginTooltip() : undefined)));
 
 		templateData.location.set(element.item.location ?? '');
 		templateData.metadata.textContent = getInstalledPluginMetadata(element.item);
@@ -322,10 +328,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		// inline status badge ("Enabled"/"Disabled") is intentionally omitted —
 		// items are already grouped under "Enabled Locally" / "Disabled Locally"
 		// section headers, and the row's aria-label conveys state to screen readers.
-		templateData.disposables.add(autorun(reader => {
-			const enabled = isContributionEnabled(element.item.plugin.enablement.read(reader));
-			templateData.container.classList.toggle('disabled', !enabled);
-		}));
+		templateData.disposables.add(autorun(reader => templateData.container.classList.toggle('disabled', !this._isEnabled(element.item, reader))));
 
 		const syncProvider = this._showSyncToggle ? this._harnessService.getActiveDescriptor().syncProvider : undefined;
 		if (syncProvider) {
@@ -372,6 +375,7 @@ interface IPluginRemoteItemTemplateData {
 	readonly name: HTMLElement;
 	readonly badge: HTMLElement;
 	readonly managedTag: OrganizationManagedTag;
+	readonly teamTag: TeamProvidedTag;
 	readonly description: HTMLElement;
 	readonly metadata: HTMLElement;
 	readonly statusIcon: HTMLElement;
@@ -379,6 +383,11 @@ interface IPluginRemoteItemTemplateData {
 	readonly templateDisposables: DisposableStore;
 	readonly disposables: DisposableStore;
 	currentItemId: string | undefined;
+}
+
+/** Whether to show an Agent Host plugin as provided by the user's GitHub Team. */
+function isRemotePluginTeamProvided(item: Pick<ICustomizationItem, 'teamProvided' | 'organizationControl'>): boolean {
+	return isTeamProvidedVisible(item.teamProvided, item.organizationControl !== undefined);
 }
 
 function getRemotePluginDescription(item: ICustomizationItem): string | undefined {
@@ -408,13 +417,14 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
 		const templateDisposables = new DisposableStore();
 		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
+		const teamTag = templateDisposables.add(new TeamProvidedTag(nameRow, this._hoverService));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const statusIcon = DOM.append(container, $('.plugin-list-item-status-icon', { 'aria-hidden': 'true' }));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
 		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, name, badge, managedTag, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, name, badge, managedTag, teamTag, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -434,6 +444,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 			templateData.badge.title = '';
 		}
 		templateData.managedTag.update(element.item.organizationControl);
+		templateData.teamTag.update(isRemotePluginTeamProvided(element.item) ? getTeamProvidedPluginTooltip() : undefined);
 
 		const description = getRemotePluginDescription(element.item);
 		if (description) {
@@ -773,7 +784,7 @@ function getRemotePluginAriaLabel(item: ICustomizationItem): string {
 		: localize('pluginSessionItemAriaLabel', "{0}. Agent host", nameAndDescription);
 	const reason = item.actions?.find(action => action.checked !== undefined && action.enabled === false)?.tooltip;
 	const enablementLabel = reason ? localize('pluginEnablementUnavailableAria', "{0}. {1}", label, reason) : label;
-	return withOrganizationManagedAriaLabel(enablementLabel, item.organizationControl);
+	return withTeamProvidedPluginAriaLabel(withOrganizationManagedAriaLabel(enablementLabel, item.organizationControl), isRemotePluginTeamProvided(item));
 }
 
 function getInstalledPluginContributionSummary(item: IInstalledPluginItem): string | undefined {
@@ -851,7 +862,7 @@ export class PluginListWidget extends Disposable {
 	private installedItems: IInstalledPluginItem[] = [];
 	private remoteItems: ICustomizationItem[] = [];
 	/** The session's plugins before the search filter. A runtime-installed row pairs with one of these even when only the row matches the search. */
-	private sessionPluginItems: readonly ICustomizationItem[] = [];
+	private readonly sessionPluginItems = observableValue<readonly ICustomizationItem[]>(this, []);
 	private marketplaceItems: IMarketplacePluginItem[] = [];
 	private readonly marketplaceSnapshot = new PluginMarketplaceSnapshotModel();
 	private searchQuery: string = '';
@@ -1106,7 +1117,7 @@ export class PluginListWidget extends Disposable {
 			(entry, container, disposables) => this.renderPluginTreeGroupActions(entry, container, disposables),
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), (item, reader) => this.getInstalledPluginOrganizationControl(item, reader), false);
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), (item, reader) => this.getInstalledPluginOrganizationControl(item, reader), (item, reader) => this.isInstalledPluginTeamProvided(item, reader), (item, reader) => this.isInstalledPluginEnabled(item, reader), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), this.hoverService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 
@@ -1402,10 +1413,13 @@ export class PluginListWidget extends Disposable {
 			const details = [element.item.location, getInstalledPluginMetadata(element.item)].filter(detail => !!detail);
 			const withDetails = details.reduce((label, detail) => localize('pluginInstalledItemAriaLabelWithDetail', "{0}. {1}", label, detail), name);
 			return derived(this, reader => {
-				const label = isContributionEnabled(element.item.plugin.enablement.read(reader))
+				const label = this.isInstalledPluginEnabled(element.item, reader)
 					? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
 					: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails);
-				return withOrganizationManagedAriaLabel(label, this.getInstalledPluginOrganizationControl(element.item, reader));
+				return withTeamProvidedPluginAriaLabel(
+					withOrganizationManagedAriaLabel(label, this.getInstalledPluginOrganizationControl(element.item, reader)),
+					this.isInstalledPluginTeamProvided(element.item, reader),
+				);
 			});
 		}
 		if (element.type === 'remote-item') {
@@ -2385,7 +2399,7 @@ export class PluginListWidget extends Disposable {
 
 	/** Keeps every session plugin for pairing with runtime-installed rows, and shows those that match `query`. */
 	private setSessionPluginItems(items: readonly ICustomizationItem[], query: string): void {
-		this.sessionPluginItems = items;
+		this.sessionPluginItems.set(items, undefined);
 		this.remoteItems = items.filter(item => customizationSearchMatchesAny(query, [item.name, item.description, item.badge]));
 	}
 
@@ -2572,11 +2586,15 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
-	private getSessionPluginItem(item: IInstalledPluginItem): ICustomizationItem | undefined {
+	/**
+	 * The session plugin of an installation the runtime owns. The two are paired by resource rather than
+	 * by name, because plugins installed from different marketplaces can share a name.
+	 */
+	private getSessionPluginItem(item: IInstalledPluginItem, reader?: IReader): ICustomizationItem | undefined {
 		if (!item.plugin.copilotCliInstallation) {
 			return undefined;
 		}
-		const matches = this.sessionPluginItems.filter(remote => remote.name.toLowerCase() === item.name.toLowerCase()
+		const matches = this.sessionPluginItems.read(reader).filter(remote => isEqual(remote.uri, item.plugin.uri)
 			&& !isSyncedFromClientCustomizationItem(remote) && remote.actions?.some(action => action.checked !== undefined));
 		return matches.length === 1 ? matches[0] : undefined;
 	}
@@ -2587,7 +2605,26 @@ export class PluginListWidget extends Disposable {
 	 */
 	private getInstalledPluginOrganizationControl(item: IInstalledPluginItem, reader?: IReader): ICustomizationOrganizationControl | undefined {
 		const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
-		return policyEnablement !== undefined ? { requiredEnabled: policyEnablement } : this.getSessionPluginItem(item)?.organizationControl;
+		return policyEnablement !== undefined ? { requiredEnabled: policyEnablement } : this.getSessionPluginItem(item, reader)?.organizationControl;
+	}
+
+	/**
+	 * Whether to show an installed plugin as provided by the user's GitHub Team. Team assignment follows the
+	 * signed-in account, so either the runtime's installation or the plugin's session plugin may report it.
+	 */
+	isInstalledPluginTeamProvided(item: IInstalledPluginItem, reader?: IReader): boolean {
+		const sessionItem = this.getSessionPluginItem(item, reader);
+		const team = item.plugin.teamProvided?.read(reader) || sessionItem?.teamProvided;
+		return isTeamProvidedVisible(team, this.getInstalledPluginOrganizationControl(item, reader) !== undefined);
+	}
+
+	/**
+	 * Whether an installed plugin is active, which decides whether its row is shown as disabled. For a plugin the
+	 * runtime installed, its session plugin reports the activation that applies to the chat: a GitHub Team
+	 * assignment or a workspace setting can turn on a plugin that the user has not enabled globally.
+	 */
+	isInstalledPluginEnabled(item: IInstalledPluginItem, reader?: IReader): boolean {
+		return this.getSessionPluginItem(item, reader)?.enabled ?? isContributionEnabled(item.plugin.enablement.read(reader));
 	}
 
 	private getInstalledPluginActions(item: IInstalledPluginItem, disposables: DisposableStore): IAction[] {

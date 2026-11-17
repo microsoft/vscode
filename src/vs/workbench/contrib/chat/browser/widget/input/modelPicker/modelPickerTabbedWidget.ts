@@ -47,6 +47,7 @@ import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVari
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IModelPickerOrganizationSupport, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
+import { compareModelNames } from './modelPickerLineage.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isModelComparisonSupported } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
@@ -1080,7 +1081,7 @@ export class TabbedModelPicker extends Disposable {
 		// On-device models are found under the name of their tab, which no provider shares.
 		if (destination.id === MODEL_PICKER_ON_DEVICE_DESTINATION) {
 			return [...destination.models]
-				.sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+				.sort((left, right) => compareModelNames(left.metadata.name, right.metadata.name))
 				.map(model => this._createModelItem(model, context, undefined, destination.label));
 		}
 		const routingModels = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION
@@ -1088,7 +1089,7 @@ export class TabbedModelPicker extends Disposable {
 			: [];
 		const modelToProviderGroup = this._modelToProviderGroup(context);
 		return [...sections.pinned, ...sections.suggested, ...sections.other, ...routingModels]
-			.sort((left, right) => this._getRowLabel(left, context).localeCompare(this._getRowLabel(right, context)))
+			.sort((left, right) => compareModelNames(this._getRowLabel(left, context), this._getRowLabel(right, context)))
 			.map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService, modelToProviderGroup)));
 	}
 

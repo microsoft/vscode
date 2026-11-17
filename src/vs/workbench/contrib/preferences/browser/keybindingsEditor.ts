@@ -8,9 +8,9 @@ import './media/keybindingsEditor.css';
 import { localize } from '../../../../nls.js';
 import { Delayer } from '../../../../base/common/async.js';
 import * as DOM from '../../../../base/browser/dom.js';
-import { isIOS, isWeb, OS } from '../../../../base/common/platform.js';
+import { isIOS, OS } from '../../../../base/common/platform.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Checkbox, ToggleActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
+import { ToggleActionViewItem } from '../../../../base/browser/ui/toggle/toggle.js';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction, Action, Separator } from '../../../../base/common/actions.js';
@@ -48,7 +48,7 @@ import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/
 import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
-import { defaultCheckboxStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultKeybindingLabelStyles, defaultToggleStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { isString } from '../../../../base/common/types.js';
@@ -59,13 +59,11 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { HoverStyle, type IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 
 const $ = DOM.$;
 
@@ -131,9 +129,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(KeybindingsEditor.ID, group, telemetryService, themeService, storageService);
 		this.delayedFiltering = this._register(new Delayer<void>(300));
@@ -292,31 +288,6 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		}
 	}
 
-	async setSystemWide(keybindingEntry: IKeybindingItemEntry, systemWide: boolean): Promise<void> {
-		const disabledReason = getSystemWideDisabledReason(keybindingEntry);
-		if (disabledReason) {
-			this.notificationService.warn(disabledReason);
-			return;
-		}
-		this.selectEntry(keybindingEntry, false);
-		try {
-			if (systemWide && keybindingEntry.keybindingItem.when) {
-				const { confirmed } = await this.dialogService.confirm({
-					type: 'warning',
-					message: localize('enableSystemWide', "Enable this system-wide keybinding?"),
-					detail: localize('enableSystemWideDetail', "This shortcut will invoke the command regardless of which app is focused. Its When expression will be ignored for the system-wide trigger. It may conflict with shortcuts used by the operating system or other apps."),
-					primaryButton: localize('enableSystemWideButton', "&&Enable"),
-				});
-				if (!confirmed) {
-					return;
-				}
-			}
-			await this.keybindingEditingService.setSystemWide(keybindingEntry.keybindingItem.keybindingItem, systemWide);
-		} catch (error) {
-			this.onKeybindingEditingError(error);
-		}
-	}
-
 	async copyKeybinding(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
@@ -325,9 +296,6 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		};
 		if (keybinding.keybindingItem.when) {
 			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
-		}
-		if (keybinding.keybindingItem.keybindingItem.systemWide && !keybinding.keybindingItem.keybindingItem.isDefault) {
-			userFriendlyKeybinding.systemWide = true;
 		}
 		await this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
 	}
@@ -501,20 +469,6 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 	private createTable(parent: HTMLElement): void {
 		this.keybindingsTableContainer = DOM.append(parent, $('.keybindings-table-container'));
-		const systemWideHeader = DOM.$('span.system-wide-header', undefined, localize('systemWideColumn', "System-wide"));
-		const infoContainer = DOM.append(systemWideHeader, $('.system-wide-info'));
-		const infoAction = this._register(new Action('keybindings.editor.systemWideInfo', localize('systemWideInfo', "About System-wide Keybindings"), ThemeIcon.asClassName(Codicon.info), true, () => {
-			this.hoverService.showInstantHover({
-				id: 'keybindings.systemWideInfo',
-				target: infoContainer,
-				content: infoAction.tooltip,
-				style: HoverStyle.Pointer,
-				trapFocus: true,
-			}, true);
-		}));
-		infoAction.tooltip = localize('systemWideDescription', "System-wide keybindings can invoke commands regardless of which app is focused, while this application is running. They may conflict with shortcuts used by the operating system or other apps. A checked box indicates the configured scope, not whether the operating system registered the shortcut. User system-wide keybindings ignore their When expression for the global trigger; built-in system-wide keybindings respect their When condition. Only single supported key combinations are available on desktop.");
-		const infoActionBar = this._register(new ActionBar(infoContainer, { hoverDelegate: this._register(createInstantHoverDelegate()) }));
-		infoActionBar.push(infoAction, { icon: true, label: false });
 		this.keybindingsTable = this._register(this.instantiationService.createInstance(WorkbenchTable,
 			'KeybindingsEditor',
 			this.keybindingsTableContainer,
@@ -532,7 +486,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 				{
 					label: localize('command', "Command"),
 					tooltip: '',
-					weight: 0.28,
+					weight: 0.3,
 					templateId: CommandColumnRenderer.TEMPLATE_ID,
 					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
 				},
@@ -544,24 +498,16 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
 				},
 				{
-					label: localize('systemWideColumn', "System-wide"),
-					headerElement: systemWideHeader,
-					weight: 0.12,
-					minimumWidth: 136,
-					templateId: SystemWideColumnRenderer.TEMPLATE_ID,
-					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
-				},
-				{
 					label: localize('when', "When"),
 					tooltip: '',
-					weight: 0.27,
+					weight: 0.35,
 					templateId: WhenColumnRenderer.TEMPLATE_ID,
 					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
 				},
 				{
 					label: localize('source', "Source"),
 					tooltip: '',
-					weight: 0.13,
+					weight: 0.15,
 					templateId: SourceColumnRenderer.TEMPLATE_ID,
 					project(row: IKeybindingItemEntry): IKeybindingItemEntry { return row; }
 				},
@@ -570,7 +516,6 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 				this.instantiationService.createInstance(ActionsColumnRenderer, this),
 				this.instantiationService.createInstance(CommandColumnRenderer),
 				this.instantiationService.createInstance(KeybindingColumnRenderer),
-				this.instantiationService.createInstance(SystemWideColumnRenderer, this),
 				this.instantiationService.createInstance(WhenColumnRenderer, this),
 				this.instantiationService.createInstance(SourceColumnRenderer),
 			],
@@ -760,12 +705,8 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		this.keybindingsTable.setFocus([currentFocusIndices.length ? currentFocusIndices[0] : 0]);
 	}
 
-	selectKeybinding(keybindingItemEntry: IKeybindingItemEntry, focus: boolean = true): void {
-		this.selectEntry(keybindingItemEntry, focus);
-		const index = this.getIndexOf(keybindingItemEntry);
-		if (index !== -1) {
-			this.keybindingsTable.setFocus([index]);
-		}
+	selectKeybinding(keybindingItemEntry: IKeybindingItemEntry): void {
+		this.selectEntry(keybindingItemEntry);
 	}
 
 	recordSearchKeys(): void {
@@ -794,15 +735,6 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 					...(keybindingItemEntry.keybindingItem.keybinding
 						? [this.createDefineKeybindingAction(keybindingItemEntry), this.createAddKeybindingAction(keybindingItemEntry)]
 						: [this.createDefineKeybindingAction(keybindingItemEntry)]),
-					{
-						id: 'keybindings.editor.toggleSystemWide',
-						label: localize('systemWideAction', "System-wide"),
-						tooltip: getSystemWideDisabledReason(keybindingItemEntry) || '',
-						class: undefined,
-						checked: keybindingItemEntry.keybindingItem.keybindingItem.systemWide,
-						enabled: !getSystemWideDisabledReason(keybindingItemEntry),
-						run: () => this.setSystemWide(keybindingItemEntry, !keybindingItemEntry.keybindingItem.keybindingItem.systemWide),
-					},
 					new Separator(),
 					this.createRemoveAction(keybindingItemEntry),
 					this.createResetAction(keybindingItemEntry),
@@ -1109,83 +1041,6 @@ interface ISourceColumnTemplateData {
 	disposables: DisposableStore;
 }
 
-function getSystemWideDisabledReason({ keybindingItem }: IKeybindingItemEntry): string | undefined {
-	if (isWeb) {
-		return localize('systemWideDesktopOnly', "System-wide keybindings are only available in the desktop application.");
-	}
-	if (!keybindingItem.keybinding) {
-		return localize('systemWideUnassigned', "Assign a keybinding before making it system-wide.");
-	}
-	if (!keybindingItem.keybindingItem.systemWide && !keybindingItem.keybinding.getElectronAccelerator()) {
-		return localize('systemWideSingleCombination', "Only single supported key combinations can be made system-wide. Chords are not supported.");
-	}
-	return undefined;
-}
-
-interface ISystemWideColumnTemplateData {
-	readonly checkbox: Checkbox;
-	readonly disposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
-	entry?: IKeybindingItemEntry;
-}
-
-class SystemWideColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISystemWideColumnTemplateData> {
-
-	static readonly TEMPLATE_ID = 'system-wide';
-	readonly templateId = SystemWideColumnRenderer.TEMPLATE_ID;
-
-	constructor(
-		private readonly keybindingsEditor: KeybindingsEditor,
-	) { }
-
-	renderTemplate(container: HTMLElement): ISystemWideColumnTemplateData {
-		const disposables = new DisposableStore();
-		const elementDisposables = disposables.add(new DisposableStore());
-		const element = DOM.append(container, $('.system-wide'));
-		const checkbox = disposables.add(new Checkbox('', false, defaultCheckboxStyles));
-		element.appendChild(checkbox.domNode);
-		disposables.add(DOM.addDisposableListener(element, DOM.EventType.DBLCLICK, event => DOM.EventHelper.stop(event, true)));
-		disposables.add(DOM.addDisposableListener(checkbox.domNode, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
-		return { checkbox, disposables, elementDisposables };
-	}
-
-	renderElement(entry: IKeybindingItemEntry, index: number, templateData: ISystemWideColumnTemplateData): void {
-		templateData.elementDisposables.clear();
-		templateData.entry = entry;
-		templateData.elementDisposables.add(DOM.addDisposableListener(templateData.checkbox.domNode, DOM.EventType.FOCUS, () => {
-			this.keybindingsEditor.selectKeybinding(entry, false);
-		}));
-		const item = entry.keybindingItem;
-		const disabledReason = getSystemWideDisabledReason(entry);
-		const { checkbox } = templateData;
-		checkbox.checked = item.keybindingItem.systemWide;
-		const checkboxLabel = localize('systemWideCheckbox', "System-wide: {0} ({1})", item.commandLabel || item.command, item.keybinding?.getAriaLabel() || localize('systemWideNoKeybinding', "No keybinding assigned"));
-		checkbox.setTitle(disabledReason ? localize('systemWideCheckboxDisabled', "{0}. {1}", checkboxLabel, disabledReason) : checkboxLabel);
-		if (disabledReason) {
-			checkbox.disable();
-		} else {
-			checkbox.enable();
-		}
-		templateData.elementDisposables.add(checkbox.onChange(async () => {
-			const checked = checkbox.checked;
-			checkbox.checked = item.keybindingItem.systemWide;
-			checkbox.disable();
-			try {
-				await this.keybindingsEditor.setSystemWide(entry, checked);
-			} finally {
-				if (templateData.entry === entry) {
-					this.renderElement(entry, index, templateData);
-				}
-			}
-		}));
-	}
-
-	disposeTemplate(templateData: ISystemWideColumnTemplateData): void {
-		templateData.entry = undefined;
-		templateData.disposables.dispose();
-	}
-}
-
 function onClick(element: HTMLElement, callback: () => void): IDisposable {
 	const disposables = new DisposableStore();
 	disposables.add(DOM.addDisposableListener(element, DOM.EventType.CLICK, DOM.finalHandler(callback)));
@@ -1400,26 +1255,16 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 		return localize('keybindingsLabel', "Keybindings");
 	}
 
-	getAriaLabel(entry: IKeybindingItemEntry): string {
-		const { keybindingItem } = entry;
-		const disabledReason = getSystemWideDisabledReason(entry);
+	getAriaLabel({ keybindingItem }: IKeybindingItemEntry): string {
 		const ariaLabel = [
 			keybindingItem.commandLabel ? keybindingItem.commandLabel : keybindingItem.command,
 			keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No keybinding assigned"),
-			keybindingItem.keybindingItem.systemWide ? localize('systemWideAria', "System-wide") : localize('appOnlyAria', "Application only"),
 			keybindingItem.when ? keybindingItem.when : localize('noWhen', "No when context"),
 			isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.description ?? keybindingItem.source.identifier.value,
 		];
-		if (disabledReason) {
-			ariaLabel.push(disabledReason);
-		}
 		if (this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor)) {
-			const kbEditorAriaLabel = localize('keyboard shortcuts aria label', "Use space or enter to change the keybinding.");
+			const kbEditorAriaLabel = localize('keyboard shortcuts aria label', "use space or enter to change the keybinding.");
 			ariaLabel.push(kbEditorAriaLabel);
-			if (!disabledReason) {
-				ariaLabel.push(localize('systemWideCheckboxNavigation', "Use Tab to reach the System-wide checkbox and space to toggle it."));
-			}
-			ariaLabel.push(localize('systemWideHeaderInformation', "The information button in the System-wide column header explains how these shortcuts can run while another app is focused and may conflict with shortcuts in other apps."));
 		}
 		return ariaLabel.join(', ');
 	}

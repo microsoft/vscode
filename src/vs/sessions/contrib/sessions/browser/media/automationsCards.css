@@ -124,6 +124,12 @@
 	min-width: 0;
 }
 
+.automations-ownership-summary,
+.automations-template-section-summary {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	margin-inline: calc(-1 * var(--vscode-spacing-size60));
+}
+
 .automations-ownership-summary {
 	display: flex;
 	align-items: center;
@@ -420,7 +426,7 @@
 }
 
 .automations-cards-create-button {
-	max-width: 180px;
+	max-width: 160px;
 }
 
 .automations-cards-create-button .monaco-button {
@@ -428,10 +434,23 @@
 	font-size: 12px;
 }
 
-/* The header's flex row would otherwise leave the chevron shorter than the primary button. */
-.custom-view-header-actions .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
-	height: auto;
-	align-self: stretch;
+.custom-view-node[data-view-id="sessions.customView.automations"] .custom-view-header-actions .monaco-button {
+	box-sizing: border-box;
+	height: 26px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.custom-view-node[data-view-id="sessions.customView.automations"] .custom-view-header-actions .monaco-button-dropdown > .monaco-text-button {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.custom-view-node[data-view-id="sessions.customView.automations"] .custom-view-header-actions .monaco-button-dropdown > .monaco-dropdown-button {
+	width: 26px;
+	flex-shrink: 0;
+	justify-content: center;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
 }
 
 /* Loading and error states */
@@ -471,7 +490,7 @@
 
 .automations-cards-state-create-button {
 	margin-top: var(--vscode-spacing-size120);
-	max-width: 180px;
+	max-width: 160px;
 }
 
 .automations-cards-unavailable .automations-cards-state-description,
@@ -548,13 +567,12 @@
 
 /* Starter templates */
 .automations-templates {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size240);
 	width: 100%;
 	margin-top: var(--vscode-spacing-size240);
 	text-align: left;
-}
-
-.automations-template-section + .automations-template-section {
-	margin-top: var(--vscode-spacing-size240);
 }
 
 .automations-templates-description {
@@ -617,6 +635,7 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
+.automations-ownership-grid,
 .automations-template-section > .automations-templates-description,
 .automations-template-section > .automations-templates-grid {
 	width: calc(100% - var(--vscode-codiconFontSize) - var(--vscode-spacing-size60));

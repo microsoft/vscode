@@ -500,6 +500,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/** Whether renderer options changed since the list rows were last rerendered. */
 	private _listRowsStale = false;
 	private readonly _draftOnly = observableValue(this, false);
+	private readonly _inputVisibleObs = observableValue(this, true);
+	/** Whether its input shows: not while the chat is read-only without it (see {@link setInputVisible}). */
+	readonly inputVisible: IObservable<boolean> = this._inputVisibleObs;
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
@@ -2409,6 +2412,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setInputVisible(visible: boolean): void {
 		const changed = this._inputVisible !== visible;
 		this._inputVisible = visible;
+		this._inputVisibleObs.set(visible, undefined);
 		// Re-applied in `createInput` so a rebuilt input part keeps the correct visibility.
 		this._applyInputVisibility();
 		if (changed && this.bodyDimension) {
@@ -2498,6 +2502,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					listShadow: this.styles.listShadow,
 				},
 				currentChatMode: () => this.input.currentModeKind,
+				getWidget: () => this,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions) } : undefined,
 				viewModel: this.viewModel,
 				editorOptions: this.editorOptions,
@@ -2578,6 +2583,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const editedRequest = this.listWidget.getTemplateDataForRequestId(requestId);
 		if (editedRequest) {
 			this.clickedRequest(editedRequest);
+		}
+	}
+
+	revealScheduledRequest(requestId: string): void {
+		const request = this.viewModel?.getItems().find((item): item is IChatScheduledRequestViewModel => isScheduledRequestVM(item) && item.id === `scheduled:${requestId}`);
+		if (!request?.editing || this._readOnly) {
+			return;
+		}
+
+		// View-model changes are batched; refresh before revealing a newly edited, virtualized row.
+		this.listWidget.refresh();
+		this.listWidget.reveal(request);
+		if (this._scheduledRequestEdit?.state === request.editing) {
+			this.input.focus();
 		}
 	}
 
@@ -2966,6 +2985,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			sessionWorkingSet: this.viewOptions.sessionWorkingSet,
 			inputPartHorizontalPadding: this.viewOptions.inputPartHorizontalPadding,
 			hostModelSelection: this.viewOptions.hostModelSelection,
 			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
@@ -4052,6 +4072,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 			this._submitHandlerInFlight = true;
+			// The host's submit begins before the files save, which can take a while, such as with save participants
+			const hostSubmit = this.viewOptions.hostSubmit?.beginSubmit?.();
 			try {
 				const inputValue = !query ? this.getInput() : query.query;
 				await saveAllBeforeChatSend(this.configurationService, this.editorService);
@@ -4065,6 +4087,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					return;
 				}
 			} finally {
+				hostSubmit?.dispose();
 				this._submitHandlerInFlight = false;
 			}
 		}

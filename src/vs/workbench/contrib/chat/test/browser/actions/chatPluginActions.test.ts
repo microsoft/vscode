@@ -26,7 +26,7 @@ import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCu
 import { getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -924,6 +924,40 @@ suite('ManagePluginMarketplacesAction', () => {
 			removeCalls: ['removable-marketplace'],
 			removedItemIds: ['removable-marketplace'],
 		});
+	});
+
+	test('labels provider marketplaces from a GitHub Team, deferring to the organization label', async () => {
+		const marketplace = (name: string, overrides: Partial<ICustomizationMarketplaceInfo>): ICustomizationMarketplaceInfo =>
+		({ name, source: `GitHub: owner/${name}`, isDefault: false, managed: false, available: true, ...overrides });
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
+			list: async () => [
+				marketplace('team', { team: true }),
+				marketplace('team-unavailable', { team: true, available: false }),
+				marketplace('team-and-managed', { team: true, managed: true }),
+				marketplace('user', {}),
+			],
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => { throw new Error('Unexpected remove'); },
+			refresh: async () => [],
+		};
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+		}, false, provider);
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(fixture.quickInputService.picks[0]
+			.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace' && pick.id !== 'browseMarketplaces')
+			.map(pick => [pick.id, pick.description, pick.buttons?.map(button => button.tooltip)]), [
+			['team', 'Managed by GitHub Team', ['Remove Marketplace']],
+			['team-unavailable', 'Managed by GitHub Team, Unavailable', ['Remove Marketplace']],
+			['team-and-managed', 'Managed by Organization', undefined],
+			['user', undefined, ['Remove Marketplace']],
+		]);
 	});
 
 	test('returns to the provider marketplace list from the marketplace actions', async () => {

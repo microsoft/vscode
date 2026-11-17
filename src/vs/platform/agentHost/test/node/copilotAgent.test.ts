@@ -10,6 +10,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { readCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
+import { readCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
@@ -128,7 +129,7 @@ import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscove
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { captureCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
-import { AhpErrorCodes, AuthenticateTargetKind, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, AuthenticateTargetKind, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
@@ -3092,11 +3093,11 @@ suite('CopilotAgent', () => {
 			afterTest(() => disposeAgent(agent));
 
 			const marketplaces = await agent.listPluginMarketplaces();
-			assert.deepStrictEqual(marketplaces.map(marketplace => ({ name: marketplace.name, source: marketplace.source })), [
-				{ name: 'user-marketplace', source: `${source.source === 'github' ? source.repo : source.url}#${source.ref}` },
-				{ name: 'managed-marketplace', source: displaySource },
-				{ name: 'default-marketplace', source: displaySource },
-				{ name: 'team-marketplace', source: displaySource },
+			assert.deepStrictEqual(marketplaces.map(marketplace => ({ name: marketplace.name, source: marketplace.source, team: marketplace.team })), [
+				{ name: 'user-marketplace', source: `${source.source === 'github' ? source.repo : source.url}#${source.ref}`, team: undefined },
+				{ name: 'managed-marketplace', source: displaySource, team: undefined },
+				{ name: 'default-marketplace', source: displaySource, team: undefined },
+				{ name: 'team-marketplace', source: displaySource, team: true },
 			]);
 		});
 	}
@@ -3174,6 +3175,7 @@ suite('CopilotAgent', () => {
 			{ name: 'disabled', marketplace: 'marketplace', enabled: false, version: '1.0' },
 			{ name: 'direct', marketplace: '', enabled: true, directSourceId: 'opaque-source', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, description: 'Verified plugin', iconUrl: 'https://example.test/icon.png' },
 			{ name: 'live', marketplace: 'local', enabled: true, installedFrom: '/marketplaces/local' },
+			{ name: 'assigned', marketplace: 'marketplace', enabled: true, team: true },
 			{ name: 'missing-managed', marketplace: 'enterprise', enabled: false, managed: true, installed: false },
 			{ name: 'builtin', marketplace: '', enabled: true, source: 'builtin' },
 		];
@@ -3183,6 +3185,7 @@ suite('CopilotAgent', () => {
 			{ name: 'disabled', marketplace: 'marketplace', directSourceId: undefined, enabled: false, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: '1.0', description: undefined, verifiedSource: undefined, iconUrl: undefined },
 			{ name: 'direct', marketplace: '', directSourceId: 'opaque-source', enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: 'Verified plugin', verifiedSource: { repository: 'owner/repo', revision: 'abc' }, iconUrl: 'https://example.test/icon.png' },
 			{ name: 'live', marketplace: 'local', directSourceId: undefined, enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, resource: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
+			{ name: 'assigned', marketplace: 'marketplace', directSourceId: undefined, enabled: true, effectiveEnabled: undefined, managedDesiredEnabled: undefined, team: true, resource: undefined, version: undefined, description: undefined, verifiedSource: undefined, iconUrl: undefined },
 		]);
 	});
 
@@ -3237,20 +3240,21 @@ suite('CopilotAgent', () => {
 		afterTest(() => disposeAgent(agent));
 		const session = AgentSession.uri('copilotcli', 'managed-inventory');
 		setDefaultSessionStub(agent, 'managed-inventory', {
+			// Team assignment follows the signed-in account, so only the chat inventory reports it here.
 			listInstalledPlugins: async () => [
 				{ ...client.pluginInstallations[0], enabled: true, managed: true, managedDesiredEnabled: true, installed: true },
-				client.pluginInstallations[1],
-				{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+				{ ...client.pluginInstallations[1], team: true },
+				{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false, team: true },
 			],
 		});
 		const customizations = await agent['_getOrCreateActiveClient'](session, URI.file('/workspace')).pluginController.getCustomizationsSettled();
 		assert.deepStrictEqual(Object.fromEntries(customizations.filter(item => item.type === CustomizationType.Plugin).map(plugin => {
 			const runtime = readRuntimePluginEnablement(plugin);
-			return [plugin.name, { load: plugin.load?.kind, global: runtime?.globalEnabled, effective: runtime?.effectiveEnabled, required: runtime?.managedDesiredEnabled, organization: readCustomizationOrganizationMeta(plugin) }];
+			return [plugin.name, { load: plugin.load?.kind, global: runtime?.globalEnabled, effective: runtime?.effectiveEnabled, required: runtime?.managedDesiredEnabled, organization: readCustomizationOrganizationMeta(plugin), team: readCustomizationTeamProvided(plugin) }];
 		})), {
-			required: { load: CustomizationLoadStatus.Loaded, global: false, effective: true, required: true, organization: undefined },
-			own: { load: CustomizationLoadStatus.Loaded, global: true, effective: true, required: undefined, organization: undefined },
-			missing: { load: CustomizationLoadStatus.Error, global: undefined, effective: undefined, required: undefined, organization: { requiredEnabled: true } },
+			required: { load: CustomizationLoadStatus.Loaded, global: false, effective: true, required: true, organization: undefined, team: false },
+			own: { load: CustomizationLoadStatus.Loaded, global: true, effective: true, required: undefined, organization: undefined, team: true },
+			missing: { load: CustomizationLoadStatus.Error, global: undefined, effective: undefined, required: undefined, organization: { requiredEnabled: true }, team: true },
 		});
 	});
 
@@ -33256,6 +33260,224 @@ suite('CopilotAgent', () => {
 			assert.strictEqual(archived, 'true');
 		});
 
+		test('invalidates a cached legacy marker after an uncached miss and retries recreated markers', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), userHome });
+			afterTest(async () => {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+			const sessionId = 'legacy-marker-cache';
+			const internals = agent as unknown as {
+				_isExtensionHostCliSession(id: string): Promise<boolean>;
+				_readExtensionHostCliMarkerUncached(id: string): Promise<unknown>;
+			};
+			await writeExtensionHostMarker(userHome, sessionId);
+			await internals._isExtensionHostCliSession(sessionId);
+			await fs.unlink(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId, 'vscode.metadata.json'));
+			await internals._readExtensionHostCliMarkerUncached(sessionId);
+			const afterDeletion = await internals._isExtensionHostCliSession(sessionId);
+			await writeExtensionHostMarker(userHome, sessionId);
+
+			assert.deepStrictEqual({ afterDeletion, afterRecreation: await internals._isExtensionHostCliSession(sessionId) }, {
+				afterDeletion: false, afterRecreation: true,
+			});
+		});
+
+		for (const scenario of ['deleted', 'deleted-during-adoption', 'marker-only', 'unavailable-root', 'read-error'] as const) {
+			test(`restores a discovery-registered legacy session safely after ${scenario}`, async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+				const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+				const sessionId = `legacy-${scenario}`;
+				const session = AgentSession.uri('copilotcli', sessionId);
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+				const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, useRealResumePath: true });
+				registerAgentCleanup(agent, userHome, workingDirectory);
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', workspacePath: workingDirectory });
+				await collectDiscoveredChats(agent);
+				const root = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state');
+				const directory = join(root, sessionId);
+				if (scenario === 'read-error') {
+					const inaccessible = stub(agent as unknown as { _getLegacyStoragePathStatus(path: string): Promise<string> }, '_getLegacyStoragePathStatus')
+						.callsFake(async path => path === root ? 'directory' : 'readError');
+					afterTest(async () => inaccessible.restore());
+				}
+				const removeBacking = async () => {
+					if (scenario === 'marker-only') {
+						await fs.writeFile(join(directory, 'events.jsonl'), '{"type":"user.message"}\n');
+						await fs.unlink(join(directory, 'vscode.metadata.json'));
+					} else if (scenario === 'unavailable-root') {
+						await fs.rename(root, `${root}-unavailable`);
+					} else {
+						await fs.rm(directory, { recursive: true });
+					}
+				};
+				if (scenario !== 'deleted-during-adoption') {
+					await removeBacking();
+				}
+				let removed = scenario !== 'deleted-during-adoption';
+				client.getSessionMetadata = async () => {
+					if (!removed) {
+						await removeBacking();
+						removed = true;
+					}
+					return undefined;
+				};
+				client.listSessions = async () => [];
+				const host = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService()));
+				registerTestAgentProvider(host, agent);
+				await (host as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.register(session, {
+					provider: agent.id, startTime: 1000, modifiedTime: 2000, source: 'discovery',
+				}, { checkTombstone: true });
+
+				for (let attempt = 0; attempt < 2; attempt++) {
+					await assert.rejects(host.restoreSession(session), (error: Error) =>
+						error instanceof ProtocolError && (scenario === 'deleted' || scenario === 'deleted-during-adoption'
+							? error.code === AHP_SESSION_NOT_FOUND
+							: error.code !== AHP_SESSION_NOT_FOUND));
+				}
+				assert.strictEqual(getTestAgentStateManager(host).getSessionState(session.toString()), undefined);
+				if (scenario === 'deleted') {
+					await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', workspaceFolder: { folderPath: workingDirectory } });
+					client.getSessionMetadata = async () => sdkSession(sessionId, workingDirectory);
+					client.resumeSession = async () => new MockCopilotSession(sessionId) as unknown as CopilotSession;
+					await host.restoreSession(session);
+					assert.ok(getTestAgentStateManager(host).getSessionState(session.toString()), 'a recreated session can be opened without clearing a tombstone');
+				}
+			});
+		}
+
+		test('revalidates legacy provenance before contacting the SDK', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-provenance-changed';
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { copilotClient: client, userHome });
+			registerAgentCleanup(agent, userHome, workingDirectory);
+			await agent.authenticate('https://api.github.com', 'token');
+			await writeExtensionHostMarker(userHome, sessionId);
+			await collectDiscoveredChats(agent);
+			const reads = client.getSessionMetadataCalls.length;
+			await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
+
+			const result = await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', sessionId));
+			assert.deepStrictEqual({ eligible: result.eligible, adopted: result.adopted, sdkReads: client.getSessionMetadataCalls.length - reads }, {
+				eligible: false, adopted: false, sdkReads: 0,
+			});
+		});
+
+		test('restores skipped adoption with missing SDK metadata as read-only history without claiming ownership', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-skipped-read-only';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let resumes = 0;
+			client.resumeSession = async () => { resumes++; throw new Error('Must not execute an unadopted chat'); };
+			const history = toSessionEvents([
+				{ type: 'user.message', data: { content: 'Preserved legacy prompt' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { description: 'Explore', agent_type: 'explore' } } },
+				{ type: 'subagent.started', agentId: 'child', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explorer', agentDescription: 'Explore' } },
+				{ type: 'user.message', agentId: 'child', data: { content: 'Preserved child prompt' } },
+				{ type: 'assistant.message', agentId: 'child', data: { messageId: 'child-message', content: 'Child reply', toolRequests: [] } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true, result: { content: 'Done' } } },
+				{ type: 'assistant.message', data: { messageId: 'reply', content: 'Preserved reply', toolRequests: [] } },
+				{ type: 'session.idle', data: {} },
+			]);
+			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
+			const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, useRealResumePath: true });
+			registerAgentCleanup(agent, userHome, workingDirectory);
+			const internals = agent as unknown as { _checkDirectoryStatus(path: string): Promise<'directory' | 'missing' | 'inaccessible'> };
+			const inaccessible = stub(internals, '_checkDirectoryStatus').callsFake(async path =>
+				path === workingDirectory ? 'inaccessible' : 'directory');
+			afterTest(async () => inaccessible.restore());
+			await agent.authenticate('https://api.github.com', 'token');
+			await writeExtensionHostMarker(userHome, sessionId, {
+				origin: 'vscode', workspaceFolder: { folderPath: workingDirectory }, created: 1000, modified: 2000, archived: false,
+			});
+			const eventsPath = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId, 'events.jsonl');
+			const original = history.map(event => JSON.stringify(event)).join('\n');
+			await fs.writeFile(eventsPath, original);
+			const host = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService()));
+			registerTestAgentProvider(host, agent);
+
+			await host.restoreSession(session);
+			const state = getTestAgentStateManager(host);
+			const preparation = await agent.chats.prepareChat?.(chat, exactChatContext(session, chat, session));
+			const childTurns = await agent.chats.getMessages(URI.parse(`${chat.toString()}/child`), {
+				...exactChatContext(session, chat, session), origin: { kind: ChatOriginKind.Tool, chat: chat.toString(), toolCallId: 'task' },
+			});
+			const db = await sessionDataService.tryOpenDatabase(session);
+			const workingDirectoryMetadata = await db?.object.getMetadata('copilot.workingDirectory');
+			const adoptedMetadata = await db?.object.getMetadata('agentHost.ehcliAdopted');
+			db?.dispose();
+			assert.deepStrictEqual({
+				prompts: state.getChatState(chat.toString())?.turns.map(turn => turn.message.text),
+				childPrompts: childTurns.map(turn => turn.message.text),
+				archived: (state.getSessionSummary(session.toString())!.status & SessionStatus.IsArchived) !== 0,
+				interactivity: state.getChatState(chat.toString())?.interactivity,
+				restriction: agent.chats.getInputRestriction?.(chat)?.errorType,
+				preparation: preparation?.error?.errorType,
+				workingDirectoryMetadata, adoptedMetadata, resumes,
+				unchanged: await fs.readFile(eventsPath, 'utf8') === original,
+			}, {
+				prompts: ['Preserved legacy prompt'], childPrompts: ['Preserved child prompt'], archived: false, interactivity: ChatInteractivity.ReadOnly,
+				restriction: 'sessionAdoptionPending', preparation: 'sessionAdoptionPending',
+				workingDirectoryMetadata: undefined, adoptedMetadata: undefined, resumes: 0, unchanged: true,
+			});
+			host.dispatchAction(chat.toString(), {
+				type: ActionType.ChatTurnStarted, turnId: 'blocked-turn', startedAt: '2026-03-02T00:00:00.000Z',
+				message: { text: 'Must not execute', origin: { kind: MessageKind.User } },
+			}, 'client-1', 1);
+			assert.deepStrictEqual({
+				resumes,
+				error: state.getChatState(chat.toString())?.turns.at(-1)?.responseParts.find(part => part.kind === ResponsePartKind.Error)?.error.errorType,
+			}, { resumes: 0, error: 'sessionAdoptionPending' });
+			inaccessible.restore();
+			await ensureDefaultChatAdopted(agent, session);
+			assert.strictEqual(agent.chats.getInputRestriction?.(chat), undefined, 'successful adoption clears the pending restriction');
+		});
+
+		test('keeps cached legacy history read-only when its marker disappears before adoption despite available SDK metadata', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-marker-only-with-sdk';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			let resumes = 0;
+			client.resumeSession = async () => { resumes++; throw new Error('Must not claim an unverified legacy chat'); };
+			const history = toSessionEvents([
+				{ type: 'user.message', data: { content: 'Surviving history' } },
+				{ type: 'assistant.message', data: { messageId: 'reply', content: 'Reply', toolRequests: [] } },
+				{ type: 'session.idle', data: {} },
+			]);
+			client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome, useRealResumePath: true });
+			registerAgentCleanup(agent, userHome, workingDirectory);
+			await agent.authenticate('https://api.github.com', 'token');
+			await writeExtensionHostMarker(userHome, sessionId);
+			await collectDiscoveredChats(agent);
+			await fs.unlink(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId, 'vscode.metadata.json'));
+
+			const adoption = await ensureDefaultChatAdopted(agent, session);
+			const context = exactChatContext(session, chat, session);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sessionId }));
+			const turns = await agent.chats.getMessages(chat, context);
+			assert.deepStrictEqual({
+				eligible: adoption.eligible, adopted: adoption.adopted,
+				prompts: turns.map(turn => turn.message.text),
+				restriction: agent.chats.getInputRestriction?.(chat)?.errorType, resumes,
+			}, {
+				eligible: false, adopted: false, prompts: ['Surviving history'], restriction: 'sessionAdoptionPending', resumes: 0,
+			});
+		});
+
 		test('declines adoption when the archived state can no longer be read', async () => {
 			// Adoption commits the archived state and makes the extension host stop
 			// listing the chat, so guessing "not archived" would resurface a session the
@@ -33270,9 +33492,10 @@ suite('CopilotAgent', () => {
 			registerAgentCleanup(agent, userHome, workingDirectory);
 			await agent.authenticate('https://api.github.com', 'token');
 			await writeExtensionHostMarker(userHome, sessionId);
-			// Classify it as legacy while the marker is readable, then corrupt it.
-			await (agent as unknown as { _isExtensionHostCliSession(id: string): Promise<boolean> })._isExtensionHostCliSession(sessionId);
-			await fs.writeFile(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId, 'vscode.metadata.json'), '{ not json', 'utf8');
+			client.getSessionMetadata = async () => {
+				await fs.writeFile(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId, 'vscode.metadata.json'), '{ not json', 'utf8');
+				return sdkSession(sessionId, workingDirectory);
+			};
 
 			const adopted = await ensureDefaultChatAdopted(agent, session);
 
@@ -33927,7 +34150,7 @@ suite('CopilotAgent', () => {
 			});
 		}
 
-		test('does not cache a failed marker read and identifies subsequently cached external evidence', async () => {
+		test('does not cache a failed marker read and refreshes subsequent external evidence', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-retry-evidence-`));
 			const sessionId = 'marker-retry';
 			const session = AgentSession.uri('copilotcli', sessionId);
@@ -33941,11 +34164,11 @@ suite('CopilotAgent', () => {
 			const missing = await ensureDefaultChatAdopted(agent, session);
 			await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
 			const fresh = await ensureDefaultChatAdopted(agent, session);
-			const cached = await ensureDefaultChatAdopted(agent, session);
-			assert.deepStrictEqual([missing.diagnostics, fresh.diagnostics, cached.diagnostics], [
+			const refreshed = await ensureDefaultChatAdopted(agent, session);
+			assert.deepStrictEqual([missing.diagnostics, fresh.diagnostics, refreshed.diagnostics], [
 				{ ...uninspectedStorage, sessionStateRootStatus: 'missing', markerOrigin: 'unavailable', markerStatus: 'missing', provenance: 'unknown', markerFromCache: false },
 				{ ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: false },
-				{ ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: true },
+				{ ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: false },
 			]);
 		});
 
@@ -34152,7 +34375,7 @@ suite('CopilotAgent', () => {
 				client: result.diagnostics?.lastKnownClient, cachedMarker: result.diagnostics?.markerFromCache,
 			})), [
 				{ reason: 'notLegacyChat', provenance: 'external', client: 'vscode', cachedMarker: false },
-				{ reason: 'notLegacyChat', provenance: 'external', client: 'github-cli', cachedMarker: true },
+				{ reason: 'notLegacyChat', provenance: 'external', client: 'github-cli', cachedMarker: false },
 			]);
 		});
 
@@ -34423,6 +34646,103 @@ suite('CopilotAgent', () => {
 				},
 			);
 		});
+
+		for (const scenario of ['extensions', 'tools', 'corrupt', 'raw-corrupt', 'storage-error', 'authentication'] as const) {
+			test(`restores ${scenario} history read-only, including subagents, and retries only on prepare`, async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+				const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+				const sessionId = `legacy-${scenario}`;
+				const session = AgentSession.uri('copilotcli', sessionId);
+				const chat = defaultChatUri(session);
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+				const history = toSessionEvents([
+					{ type: 'user.message', data: { content: 'Preserved prompt' } },
+					{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { description: 'Explore', agent_type: 'explore' } } },
+					{ type: 'subagent.started', agentId: 'child', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explorer', agentDescription: 'Explore' } },
+					{ type: 'user.message', agentId: 'child', data: { content: 'Child prompt' } },
+					{ type: 'assistant.message', agentId: 'child', data: { messageId: 'child-message', content: 'Child reply', toolRequests: [] } },
+					{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true, result: { content: 'Done' } } },
+					{ type: 'assistant.message', data: { messageId: 'reply', content: 'Preserved reply', toolRequests: [] } },
+					{ type: 'session.idle', data: {} },
+				]).map((event, index) => ({ ...event, id: `event-${index}`, timestamp: '2026-03-01T00:00:00.000Z', parentId: null }));
+				const resumeError = new Error(scenario === 'authentication' ? 'Authentication failed' : scenario === 'extensions' || scenario === 'tools'
+					? `Request session.resume failed with message: Failed to initialize standalone session ${scenario}: Cannot inspect plugin path: The system cannot find the path specified (os error 3)`
+					: 'Request session.resume failed with message: Session file is corrupted (line 9: missing field totalApiDurationMs)');
+				let repaired = false;
+				let resumeCalls = 0;
+				let historyReads = 0;
+				client.resumeSession = async () => {
+					resumeCalls++;
+					if (!repaired) {
+						throw resumeError;
+					}
+					const runtime = new MockCopilotSession(sessionId);
+					runtime.historyEvents.push(...history);
+					return runtime as unknown as CopilotSession;
+				};
+				client.rpc.sessions.readPersistedEvents = async () => {
+					historyReads++;
+					if (scenario === 'storage-error') {
+						throw new Error('Access denied reading persisted event journal');
+					}
+					if (scenario === 'raw-corrupt') {
+						throw new Error('Failed to read persisted event journal: Invalid event at line 9: missing field totalApiDurationMs');
+					}
+					return { events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' };
+				};
+				const { agent } = createTestAgentContext(disposables, {
+					sessionDataService, copilotClient: client, userHome, useRealResumePath: true,
+				});
+				registerAgentCleanup(agent, userHome, workingDirectory);
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', workspacePath: workingDirectory });
+				const eventsPath = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId, 'events.jsonl');
+				const original = [...history.map(event => JSON.stringify(event)), '{"type":"session.shutdown","data":{}}', '{truncated'].join('\n');
+				await fs.writeFile(eventsPath, original);
+				await ensureDefaultChatAdopted(agent, session);
+				const context = exactChatContext(session, chat, session);
+				await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sessionId }));
+				if (scenario === 'storage-error' || scenario === 'authentication') {
+					await assert.rejects(agent.chats.getMessages(chat, context), scenario === 'storage-error' ? /Access denied/ : /Authentication failed/);
+					assert.deepStrictEqual({ historyReads, original: await fs.readFile(eventsPath, 'utf8') }, {
+						historyReads: scenario === 'storage-error' ? 1 : 0, original,
+					});
+					return;
+				}
+				const turns = await agent.chats.getMessages(chat, context);
+				const child = URI.parse(`${chat.toString()}/child`);
+				const childTurns = await agent.chats.getMessages(child, {
+					...context, origin: { kind: ChatOriginKind.Tool, chat: chat.toString(), toolCallId: 'task' },
+				});
+				const restriction = agent.chats.getInputRestriction?.(chat);
+				const preparation = await agent.chats.prepareChat?.(chat, context);
+				const callsBeforeRepair = resumeCalls;
+				repaired = true;
+				await agent.chats.prepareChat?.(chat, context);
+				assert.deepStrictEqual({
+					prompts: turns.map(turn => turn.message.text),
+					childPrompts: childTurns.map(turn => turn.message.text),
+					errorType: restriction?.errorType,
+					explanation: restriction?.message.includes('read-only'),
+					stillBlocked: preparation?.error?.errorType,
+					clearedAfterRepair: agent.chats.getInputRestriction?.(chat),
+					retried: resumeCalls === callsBeforeRepair + 1,
+					historyReads,
+					originalUnchanged: await fs.readFile(eventsPath, 'utf8') === original,
+				}, {
+					prompts: ['Preserved prompt'],
+					childPrompts: ['Child prompt'],
+					errorType: scenario === 'extensions' || scenario === 'tools' ? 'sessionExtensionsUnavailable' : 'sessionHistoryCorrupted',
+					explanation: true,
+					stillBlocked: scenario === 'extensions' || scenario === 'tools' ? 'sessionExtensionsUnavailable' : 'sessionHistoryCorrupted',
+					clearedAfterRepair: undefined,
+					retried: true,
+					historyReads: 1,
+					originalUnchanged: true,
+				});
+			});
+		}
 
 		for (const outcome of ['repaired', 'different failure'] as const) {
 			test(`preparing a recovered chat stays blocked on invalid workspace metadata, then handles ${outcome}`, async () => {

@@ -35,6 +35,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 
@@ -1225,6 +1226,23 @@ suite('AgentSessions', () => {
 
 			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
+		});
+
+		test('hides local chats while a feature hides them, and shows them again once it no longer does', () => {
+			const availability = disposables.add(new LocalChatAvailabilityService());
+			instantiationService.stub(ILocalChatAvailabilityService, availability);
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId: MenuId.ViewTitle }));
+			let changes = 0;
+			disposables.add(filter.onDidChange(() => changes++));
+			const local = createSession({ providerType: AgentSessionProviders.Local });
+			const other = createSession();
+
+			const shown = [filter.exclude(local), filter.exclude(other)];
+			const hide = availability.hide();
+			const hidden = [filter.exclude(local), filter.exclude(other)];
+			hide.dispose();
+
+			assert.deepStrictEqual({ shown, hidden, again: filter.exclude(local), changes }, { shown: [false, false], hidden: [true, false], again: false, changes: 2 });
 		});
 
 		test('should hide automation sessions by default and persist the filter choice', () => {

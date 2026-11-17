@@ -16,7 +16,9 @@ import { getEditorWindowSessionsSingletons, IEditorWindowSessionsSingleton } fro
 import { ISessionAttentionService } from '../../../../common/sessionAttentionService.js';
 import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { EditorWindowMainSessionHost } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { EditorWindowMainSessionHost, EditorWindowShownChatService } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { AgentsChatViewHost } from '../../../../browser/agentsView/agentsChatViewHost.js';
+import { EditorWindowChatPartService } from '../../../../browser/agentsView/agentsChatPartContribution.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../../../../../services/sessions/common/session.js';
@@ -46,6 +48,7 @@ import { SessionsListNotification } from '../../../../browser/views/sessionsList
 import { SessionStorageCleanupNotice } from '../../../../browser/views/sessionStorageCleanupNotice.js';
 import { ResponseSelectionSideChatController } from '../../../../../chat/browser/responseSelectionSideChatController.js';
 import { ISessionChatPillsDebugService } from '../../../../browser/chat/sessionChatInputToolbarDebug.js';
+import { INewSessionWorktreeSendChoiceService } from '../../../../browser/chat/newSessionWorktreeSendChoice.js';
 // What an editor window registers for its sessions: the shared editor-window services and the Agents view's
 import '../../../../browser/editorWindow/editorWindowSessions.contribution.js';
 import '../../browser/agentsViewProviders.contribution.js';
@@ -76,7 +79,7 @@ const CORE_SERVICES = new Set([
  * of core features, such as chat, MCP and extensions. Each is an inert stub; the sessions services only need them to exist.
  */
 const STUBBED_CORE_SERVICES = [
-	'IChatService', 'IChatWidgetHistoryService', 'IMcpService', 'agentHostCustomizationService', 'chatSessionsService', 'chatViewHostService',
+	'IChatService', 'IChatWidgetHistoryService', 'IMcpService', 'IUserDataProfileStorageService', 'agentHostCustomizationService', 'chatSessionsService', 'chatViewHostService',
 	'commandService', 'customizationHarnessService', 'extensionManifestPropertiesService', 'extensionsWorkbenchService', 'gitHubService', 'onboardingScenarioService',
 	'remoteAgentHostService', 'viewsService',
 ];
@@ -90,16 +93,17 @@ function editorWindowSessionsSingletons(): readonly IEditorWindowSessionsSinglet
 		// Registered by their modules, which the Agents window loads too
 		{ id: ISessionAttentionService, ctor: descriptorOf(ISessionAttentionService)!.ctor },
 		{ id: IDevContainerAgentHostService, ctor: descriptorOf(IDevContainerAgentHostService)!.ctor },
+		{ id: INewSessionWorktreeSendChoiceService, ctor: descriptorOf(INewSessionWorktreeSendChoiceService)!.ctor },
 		{ id: ISessionsViewLocator, ctor: descriptorOf(ISessionsViewLocator)!.ctor },
 	];
 }
 
 /**
- * The views of an editor window's sessions, and what they create as they show a session, such as a chat's input toolbar:
+ * The views of an editor window's sessions and its chat part, and what they create as they show a session, such as a chat's input toolbar:
  * their services are checked as they are created, not as the views that create them are.
  */
 const SESSIONS_UI = [
-	SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer,
+	SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer, AgentsChatViewHost, EditorWindowChatPartService,
 	NewChatView, SessionChatInputToolbar, SessionInputBanners, SessionArchiveNudge, SessionStatusIcon, ResponseSelectionSideChatController,
 	SessionHeader, ChatCompositeBar, ChatHeader, ChatViewSessionActivityBar, RemoteHostUnavailableEmptyState, SessionReadOnlyBanner, SessionRemoteConnection,
 	SessionsListNotification, SessionsInboxScope, SessionStorageCleanupNotice, SessionsListFilters,
@@ -182,11 +186,11 @@ suite('Editor window sessions services', () => {
 		assert.deepStrictEqual(failures, []);
 	});
 
-	test('an editor window registers every sessions service that its sessions list and chats depend on', () => {
+	test('an editor window registers every sessions service that its sessions list, chats and chat part depend on', () => {
 		assert.deepStrictEqual(missingServices(SESSIONS_UI, editorWindowSessionsSingletons()), []);
 	});
 
-	test('a sessions service that its sessions list or chats depend on is missing when the editor window does not register it, also when the Agents window does', () => {
+	test('a sessions service that its sessions list, chats or chat part depend on is missing when the editor window does not register it, also when the Agents window does', () => {
 		// The Agents window registers it too, in the registry that this test process shares
 		const competing = getSingletonServiceDescriptors().some(([id]) => id === ISessionChatPillsDebugService);
 		const withoutIt = editorWindowSessionsSingletons().filter(({ id }) => id !== ISessionChatPillsDebugService);
@@ -198,25 +202,34 @@ suite('Editor window sessions services', () => {
 		// Records every use of its only service: it neither listens to it nor reads it until something reads the host
 		const used: string[] = [];
 		const contextKeyService = new Proxy({}, { get: (_target, property) => { used.push(String(property)); return undefined; } }) as IContextKeyService;
-		const host = new EditorWindowMainSessionHost(contextKeyService);
+		const host = new EditorWindowMainSessionHost(contextKeyService, new EditorWindowShownChatService());
 
 		assert.deepStrictEqual({ used, content: host.content.get(), session: host.session.get(), chat: host.chat.get() }, { used: [], content: { kind: 'empty' }, session: undefined, chat: undefined });
 	});
 
-	test('the session host of an editor window shows the chat an override names in place of the bound one, until the override ends', () => {
-		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const host = new EditorWindowMainSessionHost(contextKeyService);
+	test('the session host of an editor window shows the chat of the binding that wins: an override over the others, else the one bound last; releasing one shows the one it was bound over again', () => {
+		const shownChatService = new EditorWindowShownChatService();
+		const host = new EditorWindowMainSessionHost(upcastPartial<IContextKeyService>({}), shownChatService);
 		const chat = (id: string) => ({ session: upcastPartial<ISession>({ sessionId: id, status: constObservable(SessionStatus.Completed), mainChat: constObservable(upcastPartial<IChat>({})) }), chat: upcastPartial<IChat>({}) });
 		const shownId = () => host.session.get()?.sessionId;
+		const steps: Record<string, string | undefined> = {};
 
-		const bound = host.bindShownChat(constObservable(chat('chat part')));
-		const beforeOverride = shownId();
-		const override = host.overrideShownChat(constObservable(chat('chat view')));
-		const overridden = shownId();
+		const first = shownChatService.bind(constObservable(chat('first')));
+		const second = shownChatService.bind(constObservable(chat('second')));
+		steps.latestOfTwo = shownId();
+		second.dispose();
+		steps.firstAgain = shownId();
+		const third = shownChatService.bind(constObservable(chat('third')));
+		const override = shownChatService.bind(constObservable(chat('override')), { override: true });
+		const afterOverride = shownChatService.bind(constObservable(chat('after override')));
+		steps.overrideWins = shownId();
 		override.dispose();
-		const afterOverride = shownId();
-		bound.dispose();
+		steps.latestAfterOverride = shownId();
+		afterOverride.dispose();
+		third.dispose();
+		first.dispose();
+		steps.none = shownId();
 
-		assert.deepStrictEqual({ beforeOverride, overridden, afterOverride, afterBound: shownId() }, { beforeOverride: 'chat part', overridden: 'chat view', afterOverride: 'chat part', afterBound: undefined });
+		assert.deepStrictEqual(steps, { latestOfTwo: 'second', firstAgain: 'first', overrideWins: 'override', latestAfterOverride: 'after override', none: undefined });
 	});
 });
