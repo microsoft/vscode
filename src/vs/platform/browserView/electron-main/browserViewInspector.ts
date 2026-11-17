@@ -189,12 +189,10 @@ export class BrowserViewInspector extends Disposable {
 		this._registry.pruneRetiredFrames();
 		// Cross-origin (OOPIF) targets get their own session — watch it for contexts.
 		// Targets discovered before this point never fire again, so replay the known ones.
-		const attachedTargets = new Set<string>();
 		const watchTarget = async ({ targetId, type }: CDPTargetInfo) => {
-			if (type !== 'iframe' || attachedTargets.has(targetId) || this._store.isDisposed) {
+			if (type !== 'iframe' || this._store.isDisposed) {
 				return;
 			}
-			attachedTargets.add(targetId);
 			try {
 				this._watchSession(await this.browser.debugger.attachToTarget(targetId));
 			} catch {
