@@ -279,7 +279,7 @@ export class IssueReporterController extends Disposable {
 				return;
 			}
 			try {
-				const opened = await this.issueFormService.submitIssue(wizard, data, title, body, input.submissionSignal);
+				const opened = await this.issueFormService.submitIssue(wizard, data, title, body, input.submissionToken);
 				if (opened && this.wizard === wizard) {
 					// User opened the link — keep the wizard editable, but offer an explicit close action.
 					wizard.markPreviewOpened();

@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
@@ -49,6 +49,8 @@ const MARKDOWN_EDITOR_ID = 'vscode.markdown.editor';
 
 export interface IChatPlanReviewPartOptions {
 	onSubmit: (result: IChatPlanReviewResult) => void;
+	/** Whether the list should render the review again, such as as it is settled elsewhere, or another widget docks it. */
+	isStale?: () => boolean;
 }
 
 export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
@@ -133,10 +135,11 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			registrationStore.add(this._planReviewFeedbackService.registerPlanReview(planUri, {
 				sessionResource: context.element.sessionResource,
 				actions: review.actions,
-				hasOverallFeedback: () => !!this._feedbackTextarea?.value.trim(),
+				hasOverallFeedback: () => !!this.getOverallFeedback(),
 				submitFeedback: () => this.submitFeedback(),
 				submitAction: action => this.submitApproval(action),
 				reject: () => this.submitRejection(),
+				feedback: review instanceof ChatPlanReviewData ? review.feedback : undefined,
 			}));
 			registrationStore.add(this._planReviewFeedbackService.onDidChangeFeedback(uri => {
 				if (uri.toString() === planUriString) {
@@ -303,8 +306,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		status(localize('chat.planReview.outdatedAnnouncement', 'Plan summary is outdated'));
 	}
 
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
+	}
+
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
-		if (other.kind !== 'planReview') {
+		if (other.kind !== 'planReview' || this._options.isStale?.()) {
 			return false;
 		}
 		if (!!other.isUsed !== !!this.review.isUsed) {
@@ -635,7 +642,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	}
 
 	private canSubmitFeedback(): boolean {
-		const textareaText = this._feedbackTextarea?.value.trim() ?? '';
+		const textareaText = this.getOverallFeedback();
 		if (textareaText) {
 			return true;
 		}
@@ -762,7 +769,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			}
 			// Only the textarea-only flow (no planUri) attaches a draft to the action click.
 			const ridesAlong = !this.review.planUri;
-			const textareaFeedback = ridesAlong ? this._feedbackTextarea?.value.trim() : undefined;
+			const textareaFeedback = ridesAlong ? this.getOverallFeedback() : undefined;
 			this._options.onSubmit({
 				action: action.label,
 				...(action.id ? { actionId: action.id } : {}),
@@ -790,7 +797,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				return;
 			}
 			const ridesAlong = !this.review.planUri;
-			const textareaFeedback = ridesAlong ? this._feedbackTextarea?.value.trim() : undefined;
+			const textareaFeedback = ridesAlong ? this.getOverallFeedback() : undefined;
 			this._options.onSubmit({
 				rejected: true,
 				...(textareaFeedback ? { feedback: textareaFeedback, feedbackOverall: textareaFeedback } : {}),
@@ -889,11 +896,19 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._feedbackTextarea?.focus();
 	}
 
+	/**
+	 * The overall comment on the plan: as the review's model part keeps it, the same in every widget that shows the review,
+	 * else as this part's box has it.
+	 */
+	private getOverallFeedback(): string {
+		return (this.review instanceof ChatPlanReviewData ? this.review.draftFeedback : this._feedbackTextarea?.value)?.trim() ?? '';
+	}
+
 	private async submitFeedback(): Promise<boolean> {
 		if (this._isSubmitted || this._isSubmitting) {
 			return false;
 		}
-		const textareaFeedback = this._feedbackTextarea?.value.trim();
+		const textareaFeedback = this.getOverallFeedback();
 
 		const editorFeedbackItems = [...this.getInlineFeedbackItems()];
 

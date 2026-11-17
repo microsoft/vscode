@@ -65,6 +65,7 @@ interface UpdateContentEvent {
 		allowMultipleAPIAcquire: boolean;
 		allowScripts: boolean;
 		allowForms: boolean;
+		allowFullscreen?: boolean;
 		includeHorizontalScrollbarInContentHeight?: boolean;
 	};
 	state: any;

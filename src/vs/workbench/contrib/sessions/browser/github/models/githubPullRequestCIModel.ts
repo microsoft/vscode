@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
-import { cancelOnDispose } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource, cancelOnDispose } from '../../../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -247,10 +247,10 @@ export class GitHubPullRequestCIModel extends Disposable {
 		this._requiredChecksSubscription.value = store;
 		this._requiredChecksHandle = undefined;
 		this._pullRequestChecks.set(undefined, undefined);
-		const controller = new AbortController();
-		store.add(toDisposable(() => controller.abort()));
-		this._checksSource.subscribe(this.owner, this.repo, this.prNumber, this.headSha, controller.signal).then(subscription => {
-			if (controller.signal.aborted) {
+		const controller = new CancellationTokenSource();
+		store.add(toDisposable(() => controller.dispose(true)));
+		this._checksSource.subscribe(this.owner, this.repo, this.prNumber, this.headSha, controller.token).then(subscription => {
+			if (controller.token.isCancellationRequested) {
 				subscription.dispose();
 				return;
 			}
@@ -265,7 +265,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 			this._pullRequestChecks.set(subscription.checks, undefined);
 			void subscription.refresh(false, this._token).catch(error => this._logRequiredChecksError(error));
 		}, error => {
-			if (controller.signal.aborted) {
+			if (controller.token.isCancellationRequested) {
 				return;
 			}
 			this._logRequiredChecksError(error);

@@ -174,7 +174,8 @@
 	min-width: 0;
 }
 
-.monaco-workbench .chat-pill-icon.codicon[class*=codicon-] {
+.monaco-workbench .chat-pill-icon.codicon[class*=codicon-],
+.monaco-workbench .chat-pill-icon.chat-pill-image-icon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -182,6 +183,13 @@
 	height: var(--vscode-codiconFontSize-compact);
 	margin: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+/* An image icon in the pill's dropdown takes the size of the codicons beside it. */
+.action-widget .monaco-list-row.action .icon.chat-pill-image-icon {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
 	flex-shrink: 0;
 }
 

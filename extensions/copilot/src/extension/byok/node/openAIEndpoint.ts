@@ -304,6 +304,11 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;
+			if (body.truncation === 'disabled') {
+				// `disabled` is the Responses API default. Omit it so OpenAI-compatible servers
+				// that do not implement `truncation` (e.g. Kimi Code) accept the request.
+				delete body.truncation;
+			}
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;

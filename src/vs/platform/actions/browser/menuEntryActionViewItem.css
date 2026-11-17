@@ -43,11 +43,11 @@
 	background-size: 16px;
 }
 
-.monaco-dropdown-with-default > .action-container.disabled {
+.monaco-dropdown-with-default > :is(.action-container, .dropdown-action-container).disabled {
 	cursor: default;
 }
 
-.monaco-dropdown-with-default > .action-container.disabled > .action-label {
+.monaco-dropdown-with-default > :is(.action-container, .dropdown-action-container).disabled > .action-label {
 	opacity: 0.4;
 	pointer-events: none;
 }

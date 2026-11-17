@@ -206,6 +206,8 @@ export interface ICustomizationMarketplaceSourceInfo {
 	readonly id: string;
 	readonly displayName?: string;
 	readonly enablementSetting: string;
+	/** Set when the user's GitHub Team provides this source and the organization doesn't manage it. */
+	readonly teamProvided?: boolean;
 	/** Sources without a legacy management surface are unavailable while Marketplace is hidden. */
 	readonly requiresMarketplaceVisibility?: boolean;
 	/** Configuration settings that change the source's availability or query identity. */
