@@ -127,6 +127,8 @@ export interface IChatInlineAttachmentsHost {
 
 /** The smallest width that keeps the spacer after an anchor, which must exist to place the cursor after a pill at the end of a line. */
 const minWrapWidthInEm = 0.001;
+/** The horizontal padding of a pill, see `.chat-inline-attachment` in chatInlineAttachments.css. */
+const pillPaddingWidth = 4;
 const gitHubLinkPattern = /https?:\/\/github\.com\/[^\s/]+\/[^\s/]+\/(?:issues|pull)\/\d+[^\s]*/gi;
 const inlineAttachmentDragType = 'application/vnd.code.chat-inline-attachment';
 const sessionLinkKind: IChatRequestSessionLinkVariableEntry['kind'] = 'sessionLink';
@@ -1625,6 +1627,8 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 		// The attachment widgets are styled for attachments in this container.
 		this._container = dom.append(this._domNode, dom.$('.chat-attached-context'));
 		this._decorations = this._editor.createDecorationsCollection([{ range, options: getAnchorDecorationOptions(undefined, 0, undefined) }]);
+		this._updateMaxWidth();
+		this._register(this._editor.onDidLayoutChange(() => this._updateMaxWidth()));
 		this._editor.addContentWidget(this);
 		this._register(toDisposable(() => {
 			this._editor.removeContentWidget(this);
@@ -1768,6 +1772,23 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 
 	private _measure(): number {
 		return Math.ceil(this._domNode.getBoundingClientRect().width);
+	}
+
+	/**
+	 * Keeps the pill within a row of the input, so that a pill wider than the input
+	 * shortens its label rather than making the input scroll horizontally.
+	 */
+	private _updateMaxWidth(): void {
+		const { contentWidth, verticalScrollbarWidth } = this._editor.getOption(EditorOption.layoutInfo);
+		const { typicalHalfwidthCharacterWidth } = this._editor.getOption(EditorOption.fontInfo);
+		// The pill's padding is part of its width. Lines wrap at a whole character, which loses up to a character's
+		// width, and the anchor needs another character's width to spare to stay on its row.
+		const maxWidth = Math.floor(contentWidth - verticalScrollbarWidth - pillPaddingWidth - 2 * typicalHalfwidthCharacterWidth);
+		if (maxWidth > 0) {
+			this._domNode.style.setProperty('--chat-inline-attachment-max-width', `${maxWidth}px`);
+		} else {
+			this._domNode.style.removeProperty('--chat-inline-attachment-max-width');
+		}
 	}
 
 	private _updateDecoration(): void {

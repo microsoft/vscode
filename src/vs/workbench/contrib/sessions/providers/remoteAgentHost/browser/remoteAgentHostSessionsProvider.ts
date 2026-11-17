@@ -14,6 +14,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableValu
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
@@ -209,7 +210,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	private _browseActions: readonly ISessionWorkspaceBrowseAction[];
-	get browseActions(): readonly ISessionWorkspaceBrowseAction[] { return this._browseActions; }
+	/**
+	 * Offered unless the connected host has no folder of its own to start browsing from, such as a host
+	 * that lists sessions but advertises no default directory. A disconnected host keeps it, since
+	 * browsing connects on demand.
+	 */
+	get browseActions(): readonly ISessionWorkspaceBrowseAction[] {
+		return this._connection && !this._folderBrowseUri() ? [] : this._browseActions;
+	}
 	readonly canConnectOnDemand: boolean;
 	readonly onDidReportConnectProgress: Event<IAgentHostConnectProgress> | undefined;
 	readonly showConnectionLog?: () => Promise<void>;
@@ -303,6 +311,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * re-announced so the UI can repopulate.
 	 */
 	private _unpublished = false;
+	/** The connection whose session listing the cache last reconciled with; peer chats of sessions are known only from it. */
+	private _listedConnection: IAgentConnection | undefined;
+	/** Whether {@link adoptSession} declined to wait for {@link _listedConnection}, so its listing should prompt another attempt. */
+	private _adoptionAwaitsListing = false;
 	private readonly _detachedWorktreeDeletionTasks = new Map<string, Promise<void>>();
 	private _detachedWorktreeReconciliation = 0;
 
@@ -803,6 +815,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override _onHostReconciledSessions(rawIds: ReadonlySet<string>): void {
+		this._listedConnection = this.connection;
+		if (this._adoptionAwaitsListing) {
+			this._adoptionAwaitsListing = false;
+			// Callers of `adoptSession` retry on a change of sessions; one fires after this hook only when the listing changed any session.
+			queueMicrotask(() => {
+				if (!this._store.isDisposed) {
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+				}
+			});
+		}
 		const scope = this._devContainerWorktreeScope;
 		if (!scope) {
 			return;
@@ -908,8 +930,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return remoteAgentHostSessionTypeId(this._connectionAuthority, provider);
 	}
 
-	override getSessions(): ISession[] {
-		return this._unpublished ? [] : super.getSessions();
+	override getAllSessions(): ISession[] {
+		return this._unpublished ? [] : super.getAllSessions();
 	}
 
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
@@ -1094,7 +1116,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
-	protected override _mapBackendSessionResource(resource: URI): URI {
+	protected override _mapBackendSessionResource(resource: URI): URI | undefined {
 		return this._mapSessionResource?.(resource) ?? super._mapBackendSessionResource(resource);
 	}
 
@@ -1204,6 +1226,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._listedConnection = undefined;
 		this._passiveRelay.set(false, undefined);
 		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
@@ -1273,6 +1296,47 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
+	/**
+	 * Continues a session that another provider listed for the same agent host
+	 * session, so that open views move to this provider's session.
+	 */
+	adoptSession(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean {
+		if (this._unpublished) {
+			return false;
+		}
+		// A cache restored from storage or listed over an earlier connection can lack the session's peer chats.
+		if (!this._connection || this._listedConnection !== this._connection) {
+			this._adoptionAwaitsListing = true;
+			this._ensureSessionCache();
+			return false;
+		}
+		this._ensureSessionCache();
+		const to = this._sessionCache.get(backendSession.toString());
+		if (!to) {
+			return false;
+		}
+		// Chat resources differ between providers; map them through the host's chat resources.
+		const chats = new ResourceMap<URI>();
+		chats.set(from.mainChat.get().resource, to.mainChat.get().resource);
+		if (backendChats?.size) {
+			const ownChats = new ResourceMap<URI>();
+			for (const chat of to.chats.get()) {
+				const backendChat = this.getBackendChatResource(chat.resource);
+				if (backendChat) {
+					ownChats.set(backendChat, chat.resource);
+				}
+			}
+			for (const [chat, backendChat] of backendChats) {
+				const ownChat = ownChats.get(backendChat);
+				if (ownChat) {
+					chats.set(chat, ownChat);
+				}
+			}
+		}
+		this._onDidReplaceSession.fire({ from, to, chats });
+		return true;
+	}
+
 	// -- Session-type sync ---------------------------------------------------
 
 	protected _formatSessionTypeLabel(agentLabel: string): string {
@@ -1318,18 +1382,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
-		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
-			return undefined;
-		}
-		// Only claim URIs that belong to *this* connection. Without this
-		// check, every agent-host provider matches every agent-host URI
-		// and the workspace picker's first-match-wins lookup attributes
-		// the folder to whichever provider is iterated first — so a folder
-		// picked from WSL ends up labelled with another host's name.
-		if (repositoryUri.authority !== this._connectionAuthority) {
-			return undefined;
-		}
-		return this._buildWorkspaceFromUri(repositoryUri);
+		return this._isOnThisHost(repositoryUri) ? this._buildWorkspaceFromUri(repositoryUri) : undefined;
+	}
+
+	/**
+	 * Whether a URI is a resource of this connection. Every agent-host provider shares the
+	 * agent-host scheme, so without the authority check the workspace picker's first-match-wins
+	 * lookup would attribute a folder picked on one host to whichever provider is iterated first.
+	 */
+	private _isOnThisHost(uri: URI): boolean {
+		return uri.scheme === AGENT_HOST_SCHEME && uri.authority === this._connectionAuthority;
 	}
 
 	async cloneRepository(repository: URI, token: CancellationToken): Promise<ISessionWorkspace> {
@@ -1365,17 +1427,24 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	// -- Browse --------------------------------------------------------------
 
-	private _folderBrowseUri(): URI {
+	/**
+	 * Where folder browsing starts: the host's default directory, or else a folder of one of its
+	 * sessions. Folders outside this connection, such as the repository URL a host reports as a
+	 * session's project, are not on the host, and the file dialog would fall back to local files for
+	 * them; a session with such a project still offers its working directory.
+	 */
+	private _folderBrowseUri(): URI | undefined {
 		if (this._defaultDirectory) {
 			return agentHostUri(this._connectionAuthority, this._defaultDirectory);
 		}
 		for (const session of this.getSessions()) {
-			const root = session.workspace.get()?.folders[0]?.root;
-			if (root) {
-				return root;
+			const folder = session.workspace.get()?.folders[0];
+			const start = [folder?.root, folder?.workingDirectory].find(uri => uri && this._isOnThisHost(uri));
+			if (start) {
+				return start;
 			}
 		}
-		return agentHostUri(this._connectionAuthority, '/');
+		return undefined;
 	}
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
@@ -1394,10 +1463,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return undefined;
 		}
 
-		if (!this._defaultDirectory && this.getSessions().length === 0) {
+		if (!this._folderBrowseUri()) {
 			await this._refreshSessions();
 		}
 		const defaultUri = this._folderBrowseUri();
+		if (!defaultUri) {
+			this._notificationService.info(localize('noRemoteFolders', "'{0}' does not offer folders to browse.", this.label));
+			return undefined;
+		}
 
 		try {
 			const selected = await this._fileDialogService.showOpenDialog({
@@ -1450,6 +1523,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 
 		const rootAgentHostUri = this._folderBrowseUri();
+		if (!rootAgentHostUri) {
+			return [];
+		}
 
 		// Parse path navigation out of the query. Anything before the
 		// last `/` is a relative directory we descend into; the part

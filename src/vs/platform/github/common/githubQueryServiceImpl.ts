@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
 import { getGraphQLErrorKind } from './client/graphql.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
+import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
+import { FragmentState, GitHubActor } from './githubPullRequestService.js';
 import {
 	GitHubCommit,
 	GitHubCommitRef,
@@ -28,15 +32,11 @@ import {
 	GitHubResourcePriority,
 	GitHubResourceSubscriptionOptions,
 } from './githubQueryService.js';
-import { FragmentState, GitHubActor } from './githubPullRequestService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
-import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { arrayProperty, asObject, idProperty, nullableStringProperty, numberProperty, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
-import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
-import { BackoffPolicy, backoffDelay } from './backoff.js';
 import { IGitHubEndpointProvider } from './githubTypes.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { AccountHandle } from './types.js';
 
 export interface GitHubEntityPollingPolicy {
@@ -83,9 +83,9 @@ type EntityRef = GitHubRepositoryRef | GitHubIssueRef | GitHubCommitRef;
 type EntityValue = GitHubRepository | GitHubIssue | GitHubCommit;
 
 interface IEntityOperation {
-	readonly controller: AbortController;
+	readonly controller: CancellationTokenSource;
 	readonly promise: Promise<void>;
-	requestSignal?: AbortSignal;
+	requestToken?: CancellationToken;
 }
 
 class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
@@ -250,13 +250,13 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		return subscription;
 	}
 
-	async hydrateResources(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void> {
+	async hydrateResources(refs: readonly GitHubHydratableResourceRef[], cancellationToken: CancellationToken): Promise<void> {
 		for (let index = 0; index < refs.length; index += maximumHydrationBatchSize) {
-			await this._hydrateResourceBatch(refs.slice(index, index + maximumHydrationBatchSize), signal);
+			await this._hydrateResourceBatch(refs.slice(index, index + maximumHydrationBatchSize), cancellationToken);
 		}
 	}
 
-	private async _hydrateResourceBatch(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void> {
+	private async _hydrateResourceBatch(refs: readonly GitHubHydratableResourceRef[], cancellationToken: CancellationToken): Promise<void> {
 		if (refs.length === 0) {
 			return;
 		}
@@ -301,15 +301,16 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		}
 		const query = `query HydrateGitHubResources(${definitions.join(', ')}) { ${selections.join('\n')} rateLimit { limit remaining used resetAt } }`;
 		let data: object;
+		const lifetime = new DisposableStore();
 		try {
-			const credential = await this._credentials.getCredential(signal);
+			const credential = await this._credentials.getCredential(cancellationToken);
 			if (!sameAccount(firstRef, credential)) {
 				throw new GitHubRequestError('GitHub query account does not match the current credential', 'authentication');
 			}
-			const combinedSignal = AbortSignal.any([signal, credential.signal]);
+			const combinedToken = CancellationToken.any([cancellationToken, credential.cancellationToken], lifetime);
 			let responseData: unknown;
 			try {
-				const capabilities = await this._capabilities.getCapabilities(credential, combinedSignal);
+				const capabilities = await this._capabilities.getCapabilities(credential, combinedToken);
 				if (!capabilities.graphql) {
 					throw new GitHubRequestError('GitHub GraphQL is unavailable on this host', 'schema');
 				}
@@ -324,7 +325,7 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 						this._endpoint.getGraphQlUri(),
 						query,
 						variables,
-						combinedSignal,
+						combinedToken,
 						'interactive',
 						{ caller: 'github.query' },
 					);
@@ -354,6 +355,8 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 				}
 			}
 			throw error;
+		} finally {
+			lifetime.dispose();
 		}
 		const observedAt = new Date(this._clock.now()).toISOString();
 		let hydratedCount = 0;
@@ -450,8 +453,8 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 	}
 
 	updateEntitySubscription(entry: EntityEntry<EntityRef, EntityValue>): void {
-		if (entry.operation?.requestSignal) {
-			this._transport.promote(entry.operation.requestSignal, toRequestPriority(this._effectivePriority(entry)));
+		if (entry.operation?.requestToken) {
+			this._transport.promote(entry.operation.requestToken, toRequestPriority(this._effectivePriority(entry)));
 		}
 		if (this._shouldPollEntity(entry)) {
 			this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry));
@@ -467,11 +470,12 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 			await raceCancellationError(entry.operation.promise, token);
 			return;
 		}
-		const controller = new AbortController();
+		const controller = new CancellationTokenSource();
 		entry.generation++;
 		const operation: IEntityOperation = {
 			controller,
 			promise: this._runEntityFetch(entry, controller).finally(() => {
+				controller.dispose();
 				if (entry.operation === operation) {
 					entry.operation = undefined;
 				}
@@ -497,7 +501,7 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		entry.dormantAt = this._clock.now();
 		this._logService.trace(`[GitHubQueryService] ${entry.kind} ${formatEntityRef(entry.ref)} became dormant (entry ${entry.id})`);
 		this._scheduler.cancel(this._entityTaskKey(entry));
-		entry.operation?.controller.abort(new Error('GitHub resource became dormant'));
+		entry.operation?.controller.dispose(true);
 		entry.operation = undefined;
 		this._dormant.set(entry.id, entry);
 		this._scheduler.schedule(this._dormantTaskKey(entry), this._clock.now() + this._policy.dormantGrace, () => {
@@ -550,7 +554,7 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		}
 	}
 
-	private async _runEntityFetch(entry: EntityEntry<EntityRef, EntityValue>, controller: AbortController): Promise<void> {
+	private async _runEntityFetch(entry: EntityEntry<EntityRef, EntityValue>, controller: CancellationTokenSource): Promise<void> {
 		const previous = entry.state.get();
 		entry.state.set({
 			...previous,
@@ -562,8 +566,9 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		let credential: GitHubCredential | undefined;
 		const startedAt = this._clock.now();
 		this._logService.trace(`[GitHubQueryService] Refreshing ${entry.kind} ${formatEntityRef(entry.ref)} (entry ${entry.id})`);
+		const lifetime = new DisposableStore();
 		try {
-			credential = await this._credentials.getCredential(controller.signal);
+			credential = await this._credentials.getCredential(controller.token);
 			if (!sameAccount(entry.ref, credential)) {
 				throw new GitHubRequestError('GitHub resource account does not match the current credential', 'authentication');
 			}
@@ -572,9 +577,9 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 				: entry.kind === 'issue'
 					? `issues/${(entry.ref as GitHubIssueRef).number}`
 					: `commits/${encodeURIComponent((entry.ref as GitHubCommitRef).sha)}`;
-			const signal = AbortSignal.any([controller.signal, credential.signal]);
+			const cancellationToken = CancellationToken.any([controller.token, credential.cancellationToken], lifetime);
 			if (entry.operation?.controller === controller) {
-				entry.operation.requestSignal = signal;
+				entry.operation.requestToken = cancellationToken;
 			}
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 				caller: 'github.query',
@@ -582,8 +587,8 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 				url: this._restUrl(entry.ref, route),
 				etag: true,
 				priority: toRequestPriority(this._effectivePriority(entry)),
-			}, signal);
-			if (entry.disposed || controller.signal.aborted || entry.subscriptions.size === 0) {
+			}, cancellationToken);
+			if (entry.disposed || controller.token.isCancellationRequested || entry.subscriptions.size === 0) {
 				return;
 			}
 			const value = entry.kind === 'repository'
@@ -610,8 +615,8 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 			if (credential && sameAccount(entry.ref, credential)) {
 				this._credentials.handleRequestError(credential, error);
 			}
-			if (!entry.disposed && !controller.signal.aborted && entry.subscriptions.size > 0) {
-				if (credential?.signal.aborted) {
+			if (!entry.disposed && !controller.token.isCancellationRequested && entry.subscriptions.size > 0) {
+				if (credential?.cancellationToken.isCancellationRequested) {
 					this._scheduleEntity(entry, this._clock.now());
 					throw error;
 				}
@@ -626,8 +631,10 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 					this._scheduleAfterFailure(entry);
 				}
 			}
-			this._logService.debug(`[GitHubQueryService] Refresh ${entry.kind} ${formatEntityRef(entry.ref)} ${controller.signal.aborted ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${queryErrorKind(error)})`);
+			this._logService.debug(`[GitHubQueryService] Refresh ${entry.kind} ${formatEntityRef(entry.ref)} ${controller.token.isCancellationRequested ? 'cancelled' : 'failed'} after ${this._clock.now() - startedAt}ms (${queryErrorKind(error)})`);
 			throw error;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 
@@ -677,7 +684,7 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		}
 		entry.disposed = true;
 		this._logService.trace(`[GitHubQueryService] Disposing ${entry.kind} ${formatEntityRef(entry.ref)} (entry ${entry.id})`);
-		entry.operation?.controller.abort(new Error('GitHub resource was disposed'));
+		entry.operation?.controller.dispose(true);
 		this._scheduler.cancel(this._entityTaskKey(entry));
 		this._scheduler.cancel(this._dormantTaskKey(entry));
 		for (const key of entry.keys) {

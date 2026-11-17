@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions } from '../client/request.js';
 import { withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
@@ -14,7 +15,7 @@ import { ISearchClient, IssueSearchItem, PullRequestSearchItem, RepositorySearch
 export class SearchClient implements ISearchClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async repositories(query: string, signal: AbortSignal, options?: SearchRepositoriesOptions): Promise<SearchPage<RepositorySearchItem>> {
+	async repositories(query: string, cancellationToken: CancellationToken, options?: SearchRepositoriesOptions): Promise<SearchPage<RepositorySearchItem>> {
 		const { query: queryOptions, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -25,7 +26,7 @@ export class SearchClient implements ISearchClient {
 				expectedStatus: 200,
 				options: requestOptions,
 			},
-			signal,
+			cancellationToken,
 			parseRepositorySearch,
 			pages => ({
 				...pages[pages.length - 1],
@@ -35,11 +36,11 @@ export class SearchClient implements ISearchClient {
 		);
 	}
 
-	async issues(query: string, signal: AbortSignal, options?: SearchIssuesOptions): Promise<SearchPage<IssueSearchItem>> {
-		return this.issuesAndPullRequests(`is:issue ${query}`, signal, options);
+	async issues(query: string, cancellationToken: CancellationToken, options?: SearchIssuesOptions): Promise<SearchPage<IssueSearchItem>> {
+		return this.issuesAndPullRequests(`is:issue ${query}`, cancellationToken, options);
 	}
 
-	async issuesAndPullRequests(query: string, signal: AbortSignal, options?: SearchIssuesOptions): Promise<SearchPage<IssueSearchItem>> {
+	async issuesAndPullRequests(query: string, cancellationToken: CancellationToken, options?: SearchIssuesOptions): Promise<SearchPage<IssueSearchItem>> {
 		const { query: queryOptions, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
@@ -50,7 +51,7 @@ export class SearchClient implements ISearchClient {
 				expectedStatus: 200,
 				options: requestOptions,
 			},
-			signal,
+			cancellationToken,
 			parseIssueSearch,
 			pages => ({
 				...pages[pages.length - 1],
@@ -60,13 +61,13 @@ export class SearchClient implements ISearchClient {
 		);
 	}
 
-	async pullRequests(query: string, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestSearchItem>> {
+	async pullRequests(query: string, cancellationToken: CancellationToken, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestSearchItem>> {
 		const { query: queryOptions = {}, ...requestOptions } = options ?? {};
 		return this._client.graphqlPages(
 			'search',
 			searchPullRequestsQuery,
 			{ ...cursorVariables(queryOptions), query: `is:pr ${query}` },
-			signal,
+			cancellationToken,
 			data => parsePullRequestSearch(data).search,
 			requestOptions
 		);

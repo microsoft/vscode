@@ -254,6 +254,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private _partOptions: IEditorPartOptions;
 	get partOptions(): IEditorPartOptions { return this._partOptions; }
 
+	get supportsSplitting(): boolean { return true; }
+
 	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable {
 		this.enforcedPartOptions.push(options);
 		this.handleChangedPartOptions();
@@ -1069,7 +1071,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				options: {
 					index: actualIndex,
 					inactive,
-					preserveFocus: inactive
+					preserveFocus: inactive || options?.preserveFocus
 				}
 			});
 		}
@@ -1126,7 +1128,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	 * the check of explicit transfers: each editor is still asked as it
 	 * moves (see `EditorInput.canMove`), and one that cannot go stays.
 	 */
-	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart): boolean {
+	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart, options?: { preserveFocus?: boolean }): boolean {
 		if (!this.groups.some(group => group.count > 0)) {
 			return true; // skip if we have no editors opened
 		}
@@ -1148,9 +1150,12 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			// Try to reduce the impact of closing this part
 			// as much as possible by not changing existing
 			// editors in the main part.
-			preserveExistingIndex: true
+			preserveExistingIndex: true,
+			preserveFocus: options?.preserveFocus
 		}, GroupMergeReason.Close);
-		targetGroup.focus();
+		if (!options?.preserveFocus) {
+			targetGroup.focus();
+		}
 
 		return result;
 	}
@@ -1822,7 +1827,7 @@ export class MainEditorPart extends EditorPart {
 		super(editorPartsView, Parts.EDITOR_PART, '', mainWindow.vscodeWindowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
-	// The new tab button shows while its menu has entries, which the `workbench.editor.experimental.newTabButton` setting controls.
+	// The new tab button shows while its menu has entries, which the `workbench.editor.newTabButton` setting controls.
 	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
 		return { menuIds: { tabsBarAddTab: MenuId.EditorTabsBarAddTab } };
 	}

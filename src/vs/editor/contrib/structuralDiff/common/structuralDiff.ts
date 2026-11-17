@@ -42,7 +42,9 @@ export namespace StructuralDiffs {
 	 * is shared and is not protected by the usual size limits for diffs. A text diff that exceeds the
 	 * limit rejects with a {@link TimeoutError}.
 	 *
-	 * A result that violates the requirements of the provider API is reported and treated like a failing provider.
+	 * A provider that fails is reported and skipped, and so is a result that violates the requirements of the provider
+	 * API. Each such failure is also passed to `onProviderError`, so that callers can tell failures from providers that
+	 * supply no result.
 	 */
 	export async function compute(
 		workerService: IEditorWorkerService,
@@ -51,6 +53,7 @@ export namespace StructuralDiffs {
 		originalModel: ITextModel,
 		modifiedModel: ITextModel,
 		token: CancellationToken,
+		onProviderError?: (error: unknown) => void,
 	): Promise<StructuralDiffResult | undefined> {
 		if (token.isCancellationRequested || originalModel.isDisposed() || modifiedModel.isDisposed()) {
 			throw new CancellationError();
@@ -115,6 +118,7 @@ export namespace StructuralDiffs {
 						throw new CancellationError();
 					}
 					onUnexpectedExternalError(error);
+					onProviderError?.(error);
 				}
 			}
 			return undefined;

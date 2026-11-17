@@ -43,7 +43,7 @@ import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, Sessio
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
@@ -79,13 +79,25 @@ function ensureAgentModeEnabled(configurationService: IConfigurationService): vo
 }
 
 function getInvokingWorkspaceFolder(accessor: ServicesAccessor): URI | undefined {
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
+	return getActiveWorkspaceFolder(accessor.get(IWorkspaceContextService), () => accessor.get(IEditorService));
+}
+
+/** The window's only folder, or in a multi-root workspace the folder of the active editor. */
+export function getActiveWorkspaceFolder(workspaceContextService: IWorkspaceContextService, editorService: () => IEditorService): URI | undefined {
 	const folders = workspaceContextService.getWorkspace().folders;
 	if (folders.length <= 1) {
 		return folders[0]?.uri;
 	}
-	const resource = EditorResourceAccessor.getOriginalUri(accessor.get(IEditorService).activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	const resource = EditorResourceAccessor.getOriginalUri(editorService().activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	return resource ? workspaceContextService.getWorkspaceFolder(resource)?.uri : undefined;
+}
+
+/**
+ * A remote window's own agent host runs on its remote machine. For a session of that agent host, names the machine
+ * so the Agents Window can open the session there, and passes the window's folder, which it opens where it can't.
+ */
+export function getRemoteSessionHandoff(sessionResource: URI, remoteAuthority: string | undefined, folderUri: URI | undefined): Pick<IOpenAgentsWindowOptions, 'folderUri' | 'revealRemoteAuthority'> | undefined {
+	return remoteAuthority && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? { folderUri: folderUri?.toJSON(), revealRemoteAuthority: remoteAuthority } : undefined;
 }
 
 function isChatWidget(widget: IChatWidget | undefined): widget is IChatWidget {
@@ -263,6 +275,23 @@ export class ResetCopilotHarnessIntroductionAction extends Action2 {
 	}
 }
 
+export class AgentsLauncherAction extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_LAUNCHER_COMMAND_ID,
+			title: localize2('agentsLauncher', "Show Agents Launcher"),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
+		await accessor.get(INativeHostService).showAgentsLauncher();
+	}
+}
+
 export class OpenAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
@@ -371,13 +400,11 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const draftOptions = commandOptions?.reveal === 'new' ? getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
-		// A remote window's own agent host runs on its remote machine. Where the Agents Window can't open that host's
-		// sessions, it falls back to the window's folder.
-		const remoteAuthority = sessionResource && hasRealSession && isLocalAgentHostTarget(getChatSessionType(sessionResource)) ? accessor.get(IWorkbenchEnvironmentService).remoteAuthority : undefined;
+		const remote = sessionResource && hasRealSession ? getRemoteSessionHandoff(sessionResource, accessor.get(IWorkbenchEnvironmentService).remoteAuthority, folderUri) : undefined;
 		await nativeHostService.openAgentsWindow({
-			folderUri: remoteAuthority || (!hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file)) ? folderUri?.toJSON() : undefined,
+			folderUri: remote ? remote.folderUri : !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
 			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,
-			revealRemoteAuthority: remoteAuthority,
+			revealRemoteAuthority: remote?.revealRemoteAuthority,
 			source,
 			...draftOptions,
 		});

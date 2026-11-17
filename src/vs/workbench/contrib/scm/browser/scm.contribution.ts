@@ -382,6 +382,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.compactFolders', "Controls whether the Source Control view should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element."),
 			default: true
 		},
+		'scm.structuralDiff.enabled': {
+			type: 'boolean',
+			description: localize('scm.structuralDiff.enabled', "Controls whether the Source Control view can show the symbols that changed in a file. When enabled and an extension provides structural diffs for the file, use \"Show Structural Diff\" in the \"View & Sort\" menu to show or hide them."),
+			default: false,
+			tags: ['experimental']
+		},
 		'scm.graph.pageOnScroll': {
 			type: 'boolean',
 			description: localize('scm.graph.pageOnScroll', "Controls whether the Source Control Graph view will load the next page of items when you scroll to the end of the list."),

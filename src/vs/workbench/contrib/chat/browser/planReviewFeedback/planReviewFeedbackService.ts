@@ -9,17 +9,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatPlanApprovalAction } from '../../common/chatService/chatService.js';
+import { ChatPlanReviewFeedback, IChatPlanReviewFeedbackItem } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { IAgentEditorComment, IAgentEditorCommentsBridge, IAgentEditorCommentsProvider } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
 
-export interface IPlanReviewFeedbackItem {
-	readonly id: string;
-	readonly resource: URI;
-	readonly range: IRange;
-	readonly line: number;
-	readonly column: number;
-	readonly text: string;
-}
+export type IPlanReviewFeedbackItem = IChatPlanReviewFeedbackItem;
 
 export interface IPlanReviewFeedbackRegistration {
 	readonly sessionResource: URI;
@@ -28,6 +22,11 @@ export interface IPlanReviewFeedbackRegistration {
 	readonly submitFeedback: () => Promise<boolean>;
 	readonly submitAction: (action: IChatPlanApprovalAction) => Promise<void>;
 	readonly reject: () => Promise<void>;
+	/**
+	 * The comments on the plan, as the review's model part keeps them: shared by every widget that shows the review, and kept
+	 * as the widget that registered it lets go of it, such as as another widget docks the review. Else the registration's own.
+	 */
+	readonly feedback?: ChatPlanReviewFeedback;
 }
 
 export const IPlanReviewFeedbackService = createDecorator<IPlanReviewFeedbackService>('planReviewFeedbackService');
@@ -59,9 +58,7 @@ export interface IPlanReviewFeedbackService {
 
 interface IPlanReviewRegistration {
 	readonly review: IPlanReviewFeedbackRegistration;
-	readonly items: IPlanReviewFeedbackItem[];
-	readonly existingCommentIds: Set<string>;
-	navigationAnchor: string | undefined;
+	readonly feedback: ChatPlanReviewFeedback;
 }
 
 export class PlanReviewFeedbackService extends Disposable implements IPlanReviewFeedbackService, IAgentEditorCommentsProvider {
@@ -98,17 +95,15 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		if (previous) {
 			this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: previous.review.sessionResource, active: false });
 		}
-		const registration: IPlanReviewRegistration = {
-			review,
-			items: [],
-			existingCommentIds: new Set(),
-			navigationAnchor: undefined,
-		};
+		const registration: IPlanReviewRegistration = { review, feedback: review.feedback ?? new ChatPlanReviewFeedback() };
 		registrations.push(registration);
 		this._registrations.set(key, registrations);
 		this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: review.sessionResource, active: true });
-		for (const commentId of this._commentsBridge.getCommentIds(planUri, true)) {
-			registration.existingCommentIds.add(commentId);
+		// The plan's comments as the review starts are not its own: once it has its own, the comments include them
+		if (registration.feedback.items.length === 0) {
+			for (const commentId of this._commentsBridge.getCommentIds(planUri, true)) {
+				registration.feedback.existingCommentIds.add(commentId);
+			}
 		}
 		this._onDidChangeRegistrations.fire();
 		return toDisposable(() => {
@@ -162,7 +157,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 		}
 
 		const id = generateUuid();
-		registration.items.push({
+		registration.feedback.items.push({
 			id,
 			resource: planUri,
 			range,
@@ -170,7 +165,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			column: range.startColumn,
 			text,
 		});
-		registration.items.sort((a, b) => a.line - b.line || a.column - b.column);
+		registration.feedback.items.sort((a, b) => a.line - b.line || a.column - b.column);
 		this._onDidChangeFeedback.fire(planUri);
 		return id;
 	}
@@ -181,9 +176,9 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			return;
 		}
 
-		const idx = registration.items.findIndex(item => item.id === feedbackId);
+		const idx = registration.feedback.items.findIndex(item => item.id === feedbackId);
 		if (idx >= 0) {
-			registration.items.splice(idx, 1);
+			registration.feedback.items.splice(idx, 1);
 			this._onDidChangeFeedback.fire(planUri);
 			return;
 		}
@@ -199,10 +194,10 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			return;
 		}
 
-		const idx = registration.items.findIndex(item => item.id === feedbackId);
+		const idx = registration.feedback.items.findIndex(item => item.id === feedbackId);
 		if (idx >= 0) {
-			const old = registration.items[idx];
-			registration.items[idx] = { ...old, text: newText };
+			const old = registration.feedback.items[idx];
+			registration.feedback.items[idx] = { ...old, text: newText };
 			this._onDidChangeFeedback.fire(planUri);
 		}
 	}
@@ -213,7 +208,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			return [];
 		}
 		return this._commentsBridge.getComments(planUri, true)
-			.filter(comment => !registration.existingCommentIds.has(comment.id))
+			.filter(comment => !registration.feedback.existingCommentIds.has(comment.id))
 			.map(comment => ({
 				id: comment.id,
 				resource: comment.resource,
@@ -230,9 +225,9 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			return;
 		}
 		const feedback = this.getFeedback(planUri);
-		const localIds = new Set(registration.items.map(item => item.id));
-		registration.items.length = 0;
-		registration.navigationAnchor = undefined;
+		const localIds = new Set(registration.feedback.items.map(item => item.id));
+		registration.feedback.items.length = 0;
+		registration.feedback.navigationAnchor = undefined;
 		for (const item of feedback) {
 			if (!localIds.has(item.id)) {
 				this._commentsBridge.deleteComment(planUri, item.id);
@@ -248,8 +243,8 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			return undefined;
 		}
 
-		const anchorIdx = registration.navigationAnchor
-			? items.findIndex(item => item.id === registration.navigationAnchor)
+		const anchorIdx = registration.feedback.navigationAnchor
+			? items.findIndex(item => item.id === registration.feedback.navigationAnchor)
 			: -1;
 
 		let targetIdx: number;
@@ -275,18 +270,18 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 
 		const items = this.getFeedback(planUri);
 		const totalCount = items.length;
-		if (!registration.navigationAnchor) {
+		if (!registration.feedback.navigationAnchor) {
 			return { activeIdx: -1, totalCount };
 		}
 
-		const activeIdx = items.findIndex(item => item.id === registration.navigationAnchor);
+		const activeIdx = items.findIndex(item => item.id === registration.feedback.navigationAnchor);
 		return { activeIdx, totalCount };
 	}
 
 	setNavigationAnchor(planUri: URI, itemId: string | undefined): void {
 		const registration = this._getRegistration(planUri);
 		if (registration) {
-			registration.navigationAnchor = itemId;
+			registration.feedback.navigationAnchor = itemId;
 			this._onDidChangeNavigation.fire(planUri);
 		}
 	}
@@ -313,7 +308,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	getComments(resource: URI): readonly IAgentEditorComment[] {
-		return this._getRegistration(resource)?.items.map(item => ({
+		return this._getRegistration(resource)?.feedback.items.map(item => ({
 			id: item.id,
 			resource,
 			range: item.range,
@@ -322,7 +317,7 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	}
 
 	getCommentIds(resource: URI): readonly string[] {
-		return this._getRegistration(resource)?.items.map(item => item.id) ?? [];
+		return this._getRegistration(resource)?.feedback.items.map(item => item.id) ?? [];
 	}
 
 	addComment(resource: URI, range: IRange, body: string): void {

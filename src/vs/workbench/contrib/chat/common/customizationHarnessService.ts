@@ -122,6 +122,8 @@ export interface ICustomizationMarketplaceInfo {
 	readonly isDefault: boolean;
 	readonly managed: boolean;
 	readonly available: boolean;
+	/** Set when the user's GitHub Team provides this marketplace. */
+	readonly team?: boolean;
 }
 
 export interface ICustomizationMarketplaceRemoveResult {
@@ -148,7 +150,8 @@ export interface ICustomizationMarketplaceManagementProvider {
 	 */
 	readonly onDidChangeMarketplaces: Event<void>;
 	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
-	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
+	/** Omit the session for a global mutation through the local provider. */
+	add(sessionResource: URI | undefined, source: string): Promise<ICustomizationMarketplaceInfo>;
 	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
 	remove(sessionResource: URI, name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
 	refresh(sessionResource: URI, name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
@@ -308,6 +311,8 @@ export interface ICustomizationItem {
 	readonly disabledReason?: CustomizationDisabledReason;
 	/** Set when the user's organization manages this customization. */
 	readonly organizationControl?: ICustomizationOrganizationControl;
+	/** Set when the user's GitHub Team provides this customization. Provenance only; it doesn't restrict enablement. */
+	readonly teamProvided?: boolean;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/**

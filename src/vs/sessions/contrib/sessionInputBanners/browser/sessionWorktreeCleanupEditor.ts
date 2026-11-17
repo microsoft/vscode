@@ -1292,7 +1292,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		return worktree.cleanupStatus?.state === 'failed' || worktree.cleanupStatus?.state === 'skipped' || worktree.cleanupStatus?.state === 'inUse'
 			|| worktree.isListedByHost === false || !!worktree.worktreeCheckError || !!worktree.cleanupStatusError || worktree.measurementFailed === true
-			|| batch?.state === 'failed' || batch?.state === 'attention';
+			|| ((batch?.state === 'failed' || batch?.state === 'attention') && !batch.schedulingError);
 	}
 
 	private updateCleanupBatch(): void {
@@ -1437,7 +1437,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private renderAutomaticCleanup(content: HTMLElement): void {
 		const section = dom.append(content, dom.$<HTMLDetailsElement>('details.session-worktree-cleanup-automatic'));
-		const summary = dom.append(section, dom.$('summary'));
+		const summary = dom.append(section, dom.$('summary.agent-sessions-interactive.agent-sessions-interactive-bordered'));
 		const icon = dom.append(summary, renderIcon(Codicon.settingsGear));
 		icon.setAttribute('aria-hidden', 'true');
 		dom.append(summary, dom.$('span', undefined, localize('sessionWorktreeCleanup.automaticHeading', "Automatic Cleanup")));

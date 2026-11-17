@@ -260,14 +260,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.session-worktree-cleanup-automatic > summary:hover {
-	background: var(--vscode-toolbar-hoverBackground);
-}
-
-.session-worktree-cleanup-automatic > summary:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-}
-
 .session-worktree-cleanup-setting {
 	min-height: 36px;
 }

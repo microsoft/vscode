@@ -21,7 +21,8 @@ import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -107,12 +108,14 @@ suite('Sessions - SessionsViewPane', () => {
 		const container = mainWindow.document.createElement('div');
 		const location = observableValue<ChatCustomizationsLocation>(disposables, 'chatInput');
 		const navigation = observableValue(disposables, true);
+		const customizationsAtBottom = observableValue(disposables, false);
 		const calls: Array<[string, boolean]> = [];
 		const host = {
 			layoutService: { mainContainer: container },
 			scopedContextKeyService: { contextMatchesRules: () => true },
 			chatEntitlementService: { sentimentObs: constObservable({ hidden: false }) },
 			separateNavigation: navigation,
+			customizationsAtBottom,
 			customizationsLocation: location,
 			updateCustomizationsPresentation: (presentation: string, shortcuts: boolean) => calls.push([presentation, shortcuts]),
 		};
@@ -128,7 +131,13 @@ suite('Sessions - SessionsViewPane', () => {
 		location.set('sidebar', undefined);
 		navigation.set(true, undefined);
 		refresh.call(host);
-		assert.deepStrictEqual(calls, [['hidden', true], ['hidden', false], ['hidden', true], ['treatment', false], ['control', true]]);
+		location.set('auto', undefined);
+		refresh.call(host);
+		customizationsAtBottom.set(true, undefined);
+		refresh.call(host);
+		navigation.set(false, undefined);
+		refresh.call(host);
+		assert.deepStrictEqual(calls, [['hidden', true], ['hidden', false], ['hidden', true], ['treatment', false], ['control', true], ['treatment', true], ['control', true], ['control', false]]);
 	});
 
 	test('floating toolbar view items follow their own draft rather than the focused session', () => {
@@ -185,6 +194,7 @@ suite('Sessions - SessionsViewPane', () => {
 			configurationService,
 			storageService,
 			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+			get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
 			updateHeaderLayout: () => { },
 		};
 		const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
@@ -212,6 +222,43 @@ suite('Sessions - SessionsViewPane', () => {
 		});
 	});
 
+	test('a view offers only its groupings: the editor window shows Time until one of its groupings is chosen, also for a stored grouping that only the Agents window offers, which it leaves stored', () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const createHost = (groupings: { readonly offered: readonly SessionsGrouping[]; readonly default: SessionsGrouping } | undefined) => ({
+			currentGrouping: getStoredSessionsGrouping(storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE), groupings?.offered ?? DEFAULT_SESSIONS_GROUPINGS),
+			groupings,
+			configurationService,
+			storageService,
+			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+			get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
+			updateHeaderLayout: () => { },
+		});
+		const setGrouping = SessionsView.prototype.setGrouping as (this: ReturnType<typeof createHost>, grouping: SessionsGrouping) => void;
+		const saved = () => storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE);
+
+		const editorWindowDefault = createHost(EDITOR_WINDOW_SESSIONS_GROUPINGS).grouping;
+		const agentsWindow = createHost(undefined);
+		setGrouping.call(agentsWindow, SessionsGrouping.Repository);
+		const editorWindow = createHost(EDITOR_WINDOW_SESSIONS_GROUPINGS);
+		const fallback = { shown: editorWindow.grouping, saved: saved() };
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Inbox]) {
+			setGrouping.call(editorWindow, grouping);
+		}
+		const notOffered = { shown: editorWindow.grouping, saved: saved() };
+		setGrouping.call(editorWindow, SessionsGrouping.Worktree);
+		const worktree = { shown: editorWindow.grouping, saved: saved(), agentsWindow: createHost(undefined).grouping, editorWindow: createHost(EDITOR_WINDOW_SESSIONS_GROUPINGS).grouping };
+
+		assert.deepStrictEqual({ editorWindowDefault, fallback, notOffered, worktree, unknown: getStoredSessionsGrouping('unknown-grouping', DEFAULT_SESSIONS_GROUPINGS) }, {
+			editorWindowDefault: SessionsGrouping.Date,
+			fallback: { shown: SessionsGrouping.Date, saved: SessionsGrouping.Repository },
+			notOffered: { shown: SessionsGrouping.Date, saved: SessionsGrouping.Repository },
+			worktree: { shown: SessionsGrouping.Worktree, saved: SessionsGrouping.Worktree, agentsWindow: SessionsGrouping.Workspace, editorWindow: SessionsGrouping.Worktree },
+			unknown: undefined,
+		});
+	});
+
 	for (const enabled of [false, true]) {
 		test(`persists an explicit selection of the default grouping (${enabled})`, async () => {
 			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: enabled });
@@ -222,6 +269,7 @@ suite('Sessions - SessionsViewPane', () => {
 				configurationService,
 				storageService,
 				get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+				get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
 				updateHeaderLayout: () => { },
 			};
 			const initial = host.grouping;

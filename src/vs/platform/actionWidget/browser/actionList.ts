@@ -1252,7 +1252,8 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._register(this._list.onKeyDown(() => this._setKeyboardNavigation(true)));
 		this._register(dom.addDisposableListener(this._list.getHTMLElement(), dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
-			if (e.movementX !== 0 || e.movementY !== 0) {
+			const target = dom.isHTMLElement(e.target) ? e.target.closest('.monaco-list-row.action:not(.option-disabled)') : null;
+			if ((e.movementX !== 0 || e.movementY !== 0) && target && this._list.getHTMLElement().contains(target)) {
 				this._setKeyboardNavigation(false);
 			}
 		}));
@@ -1272,10 +1273,12 @@ export class ActionListWidget<T> extends Disposable {
 				this.onListHover(e);
 			}
 		});
-		this._register(this._list.onMouseDown(() => {
+		this._register(this._list.onMouseDown(e => {
 			initialMouseMove.clear();
 			this._ignoreInitialHover = false;
-			this._setKeyboardNavigation(false);
+			if (e.element?.item && this.focusCondition(e.element)) {
+				this._setKeyboardNavigation(false);
+			}
 		}));
 		this._register(this._list.onDidChangeFocus(() => {
 			this._updateToolbarFocusability();
@@ -1342,7 +1345,6 @@ export class ActionListWidget<T> extends Disposable {
 						e.stopPropagation();
 					}
 				}));
-				this._register(dom.addDisposableListener(this._filterInput, dom.EventType.MOUSE_DOWN, () => this._setKeyboardNavigation(false)));
 				if (this._options.tabThroughItemActions) {
 					this._register(dom.addDisposableListener(this._filterInput, 'keydown', e => this._handleTabThroughPanelKeyDown(e), true));
 				}
@@ -2156,7 +2158,7 @@ export class ActionListWidget<T> extends Disposable {
 					const element = this._list.element(i);
 					if (this.focusCondition(element) && (element.item as { id?: string })?.id === initialFocusItemId) {
 						this._list.setFocus([i]);
-						this._list.reveal(i);
+						this._revealOnceLaidOut(i);
 						return;
 					}
 				}
@@ -2165,7 +2167,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (focusedIndex !== undefined) {
 				const focusedElement = this._list.element(focusedIndex);
 				if (focusedElement && this.focusCondition(focusedElement)) {
-					this._list.reveal(focusedIndex);
+					this._revealOnceLaidOut(focusedIndex);
 					return;
 				}
 			}
@@ -2174,7 +2176,7 @@ export class ActionListWidget<T> extends Disposable {
 				const element = this._list.element(i);
 				if (this.focusCondition(element) && (element.item as { checked?: boolean })?.checked) {
 					this._list.setFocus([i]);
-					this._list.reveal(i);
+					this._revealOnceLaidOut(i);
 					return;
 				}
 			}
@@ -2182,7 +2184,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._list.focusFirst(undefined, this.focusCondition);
 			const focused = this._list.getFocus();
 			if (focused.length > 0) {
-				this._list.reveal(focused[0]);
+				this._revealOnceLaidOut(focused[0]);
 			}
 		} finally {
 			this._suppressHover = suppressHover;
@@ -2335,15 +2337,31 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	/**
+	 * Reveals the item at `index` once the list has its height: before, the list would take any item to be out of view, and
+	 * scroll it to the top, hiding the items above it, such as a list's first items above its checked one.
+	 */
+	private _revealOnceLaidOut(index: number): void {
+		if (this._hasLaidOut) {
+			this._list.reveal(index);
+		}
+	}
+
+	/**
 	 * Lays out the list widget with the given explicit dimensions.
 	 */
 	layout(height: number, width?: number): void {
+		const firstLayout = !this._hasLaidOut;
 		this._hasLaidOut = true;
 		if (this._options?.wrapDetails) {
 			this.domNode.style.width = width === undefined ? '' : `${width}px`;
 		}
 		this._list.layout(height, width);
 		this.domNode.style.height = `${height}px`;
+		// What was focused before the list had its height shows now, scrolling only where it is out of view
+		const [focused] = firstLayout ? this._list.getFocus() : [];
+		if (focused !== undefined && focused < this._list.length) {
+			this._list.reveal(focused);
+		}
 
 		// Keep the filter above the list. Skipped when the caller mounted the filter
 		// somewhere else entirely (e.g. inside a tab bar), where it has no list to sit above.
@@ -3439,10 +3457,10 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
-		this._setKeyboardNavigation(false);
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
+			this._setKeyboardNavigation(false);
 			const focus = typeof e.index === 'number' ? [e.index] : [];
 			this._restoreListFocusBeforeHidingToolbar(e.index);
 			// Check if the hover target is inside a toolbar - if so, skip the splice

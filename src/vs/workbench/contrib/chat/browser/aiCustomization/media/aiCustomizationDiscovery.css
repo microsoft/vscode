@@ -200,6 +200,11 @@
 	white-space: nowrap;
 }
 
+/* Keeps the "Managed by your GitHub Team" tag beside the section title rather than centered between the title and "View All" */
+.customization-discovery-section-header > .team-provided-tag {
+	margin-right: auto;
+}
+
 .customization-discovery-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));

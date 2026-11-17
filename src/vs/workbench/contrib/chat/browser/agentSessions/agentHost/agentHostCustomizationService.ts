@@ -18,6 +18,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentProvider, type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
 import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
+import { withCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
@@ -347,6 +348,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				const clientPluginUri = plugin?.clientId !== undefined ? getAgentHostCustomizationUri(URI.parse(plugin.uri), target, plugin) : undefined;
 				const channel = server.channel;
 				const handleMcpRequest = target.handleMcpRequest;
+				const runtimePlugin = plugin && readRuntimePluginEnablement(plugin);
+				const waitingForSessionStart = runtimePlugin !== undefined && runtimePlugin.globalEnabled !== false
+					&& runtimePlugin.effectiveEnabled === undefined && plugin?.load?.kind === CustomizationLoadStatus.Loading
+					&& isCustomizationEnabled(server);
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
@@ -365,6 +370,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					isClientBundled: clientPluginUri !== undefined && target.isBundledMcpServer(clientPluginUri.toString(), server.name),
 					owningPluginClientId: plugin?.clientId,
 					disabledReason: getCustomizationDisabledReason(server, plugin),
+					...(waitingForSessionStart ? { waitingForSessionStart: true } : {}),
 					status: server.state.kind,
 					authenticating: this._isAutoAuthenticatingMcpServer(sessionResource, target, server),
 					state: server.state,
@@ -771,17 +777,19 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					? { kind: CustomizationLoadStatus.Error, message: localize('runtimePluginMissing', "This plugin is no longer installed.") } as const
 					: customization.load?.kind === CustomizationLoadStatus.Error ? customization.load
 						: { kind: effectiveEnabled === undefined ? CustomizationLoadStatus.Loading : CustomizationLoadStatus.Loaded } as const;
+			const meta = withRuntimePluginEnablement(customization._meta, {
+				...runtime,
+				globalEnabled: installation?.enabled ?? runtime.globalEnabled,
+				managedDesiredEnabled: installation ? installation.managedDesiredEnabled : runtime.managedDesiredEnabled,
+				effectiveEnabled,
+				repositoryEnabled: installation?.repositoryEnabled,
+			});
 			return {
 				...customization,
 				load,
 				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: effectiveEnabled ?? false }],
-				_meta: withRuntimePluginEnablement(customization._meta, {
-					...runtime,
-					globalEnabled: installation?.enabled ?? runtime.globalEnabled,
-					managedDesiredEnabled: installation ? installation.managedDesiredEnabled : runtime.managedDesiredEnabled,
-					effectiveEnabled,
-					repositoryEnabled: installation?.repositoryEnabled,
-				}),
+				// The inventory is newer than the published customization, so it decides Team provenance when it lists the plugin.
+				_meta: installation ? withCustomizationTeamProvided(meta, installation.team) : meta,
 			};
 		});
 	}

@@ -61,6 +61,20 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual({ labels: actual.map(l => l.label), reported }, { labels: ['A', 'B'], reported: ['fail'] });
 	});
 
+	test('relays a change of the locations that a provider knows while it is registered', () => {
+		const service = disposables.add(createService());
+		const onDidChangeLocations = disposables.add(new Emitter<void>());
+		const provider: IWorkspaceFolderLocationProvider = { id: 'changing', provideLocations: async () => [], resolveLocation: async () => undefined, onDidChangeLocations: onDidChangeLocations.event };
+		let changes = 0;
+		disposables.add(service.onDidChangeLocations(() => changes++));
+		const registration = service.registerProvider(provider);
+		onDidChangeLocations.fire();
+		registration.dispose();
+		onDidChangeLocations.fire();
+
+		assert.strictEqual(changes, 1);
+	});
+
 	test('resolveLocation reports provider and built-in flag', async () => {
 		const service = disposables.add(createService());
 		const registration = disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A' }]), { builtIn: true }));
@@ -112,13 +126,14 @@ suite('WorkspaceFolderLocationService', () => {
 		const before = decorator.getFolderLocationLabel(a);
 
 		service.setLocation(workspace.folders[0], { uri: a, label: 'A', description: 'x', providerId: 'x', builtIn: false });
+		const withDescription = decorator.getFolderLocationLabel(a);
 		const changed: string[] = [];
 		disposables.add(decorator.onDidChange(uri => changed.push(uri.path)));
 		service.setLocation(workspace.folders[0], { uri: a, label: 'A', providerId: 'x', builtIn: false });
 
 		assert.deepStrictEqual(
-			{ before, current: decorator.getFolderLocationLabel(a), byIdentity: decorator.getFolderLocationLabel(primary), other: decorator.getFolderLocationLabel(b), changed },
-			{ before: undefined, current: 'A', byIdentity: 'A', other: undefined, changed: ['/a'] });
+			{ before, withDescription, current: decorator.getFolderLocationLabel(a), byIdentity: decorator.getFolderLocationLabel(primary), other: decorator.getFolderLocationLabel(b), changed },
+			{ before: undefined, withDescription: 'A', current: 'A', byIdentity: 'A', other: undefined, changed: ['/a'] });
 	});
 
 	test('canSetLocation is true only for the folder of a local single-folder workspace', () => {

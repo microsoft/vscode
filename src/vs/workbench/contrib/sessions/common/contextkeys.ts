@@ -164,9 +164,9 @@ export const SessionChatsPickerVisibleContext = new RawContextKey<boolean>('sess
 
 //#endregion
 
-//#region < --- Blocked Sessions --- >
+//#region < --- Command Center Sessions --- >
 
-export const SessionsBlockedSessionsVisibleContext = new RawContextKey<boolean>('sessionsBlockedSessionsVisible', false, localize('sessionsBlockedSessionsVisible', "Whether the blocked-sessions dropdown (surfacing sessions that require input) is open in the sessions titlebar"));
+export const SessionsCommandCenterDropdownVisibleContext = new RawContextKey<boolean>('sessionsCommandCenterDropdownVisible', false, localize('sessionsCommandCenterDropdownVisible', "Whether the sessions dropdown is open from the command center in the sessions titlebar"));
 
 //#endregion
 
