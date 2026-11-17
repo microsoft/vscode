@@ -6,7 +6,7 @@
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -18,6 +18,7 @@ import { Extensions as WorkbenchConfigurationExtensions, IConfigurationMigration
 import { EditorExtensions } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
+import { ChatViewId } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { Menus } from '../menus.js';
 import { sessionStorageCleanupSuggestionConfigurationMigration } from './sessionStorageCleanupConfiguration.js';
@@ -44,6 +45,11 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 				group: '2_manage',
 				order: 0,
 				when: ChatContextKeys.enabled,
+			}, {
+				id: MenuId.ViewTitle,
+				group: '3_configure',
+				order: 14.5,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 			}],
 		});
 	}

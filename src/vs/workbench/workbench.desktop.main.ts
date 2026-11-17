@@ -229,6 +229,4 @@ import './contrib/keybindings/electron-browser/systemWideKeybindings.contributio
 //#endregion
 
 
-import './contrib/sessions/electron-browser/sessionDiskSpace.contribution.js';
-
 export { main } from './electron-browser/desktop.main.js';

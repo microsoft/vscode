@@ -118,6 +118,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(getAppWindowScreenshotAccessibilityHelp());
 	}
 	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.worktreeCleanup', "Choose Open Worktree Cleanup in the Chat view's More Actions menu or the Command Palette to review agent worktree storage."));
 		content.push(localize('chat.agentPickerInAttachContext', "When {0} is enabled, the default Agent picker is in Add Context. Open Add Context and choose Agent to change agents. A one-time spotlight introduces the + menu when onboarding is enabled. Choose Understood or press Escape to dismiss it, or activate the highlighted + menu. Non-default selections remain visible in the toolbar; selecting the default Agent moves the picker back into Add Context and returns focus to the input. The Open Agent Picker shortcut{1} still opens the picker.", ChatConfiguration.AgentsPickerInAttachContextMenu, '<keybinding:workbench.action.chat.openModePicker>'));
 	}
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
