@@ -69,6 +69,11 @@
 
 			& .monaco-dialog-box {
 				--vscode-editorWidget-background: transparent;
+			}
+
+			/* Paint behind the dialog border instead of clipping the glass to its inner edge. */
+			& .monaco-dialog-modal-block .dialog-shadow {
+				position: relative;
 				--modern-ui-glass-background: var(--modern-ui-glass-dialog-background);
 			}
 
@@ -89,7 +94,7 @@
 			& .monaco-resizable-hover,
 			& .monaco-hover:not(.monaco-resizable-hover > .monaco-hover),
 			& .agent-feedback-widget-item,
-			& .monaco-dialog-box,
+			& .monaco-dialog-modal-block .dialog-shadow,
 			& .notifications-center,
 			& .notifications-toasts .notification-toast.notification-fade-in-done,
 			&.monaco-reduce-motion .notifications-toasts .notification-toast.notification-fade-in {
