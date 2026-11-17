@@ -27,7 +27,7 @@ import { WorkbenchListFocusContextKey } from '../../../../../platform/list/brows
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { SessionsCategories } from '../../common/categories.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../common/contextkeys.js';
 import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
@@ -1025,6 +1025,35 @@ function createSessionsListActions(): DisposableStore {
 		order: 1,
 		when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
 	}));
+
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+		submenu: Menus.SessionsViewAutomationRuns,
+		title: localize2('showAutomationRuns', "Show Automation Runs"),
+		group: '3_visibility',
+		order: 0.5,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+	}));
+
+	for (const [index, { mode, title }] of [
+		{ mode: AutomationSessionsListMode.Always, title: localize2('showAutomationRuns.always', "Always") },
+		{ mode: AutomationSessionsListMode.AfterReply, title: localize2('showAutomationRuns.afterReply', "After Reply") },
+		{ mode: AutomationSessionsListMode.Never, title: localize2('showAutomationRuns.never', "Never") },
+	].entries()) {
+		store.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `sessionsViewPane.showAutomationRuns.${mode}`,
+					title,
+					toggled: ContextKeyExpr.equals(`config.${SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING}`, mode),
+					menu: { id: Menus.SessionsViewAutomationRuns, group: '1_modes', order: index },
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				await accessor.get(IConfigurationService).updateValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode, ConfigurationTarget.USER);
+			}
+		}));
+	}
 
 	store.add(registerAction2(class InboxModeAction extends Action2 {
 		constructor() {

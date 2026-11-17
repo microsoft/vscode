@@ -6,19 +6,22 @@
 import assert from 'assert';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { buildTestSession, buildTestWorkspace } from '../../common/testSessionBuilder.js';
 import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 
 suite('SessionsListFilters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const listAll = () => true;
 
-	function createFilters(storage = store.add(new InMemoryStorageService())): SessionsListFilters {
-		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+	function createFilters(storage = store.add(new InMemoryStorageService()), configurationService: IConfigurationService = new TestConfigurationService()): SessionsListFilters {
+		return store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configurationService));
 	}
 
 	test('scheduled-only filtering persists and participates in reset and undo', () => {
@@ -288,35 +291,32 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
-	test('persists, resets, and restores the show automation runs choice', () => {
+	test('migrates an enabled Show Automation Runs filter to the automation listing setting once', () => {
 		const storage = store.add(new InMemoryStorageService());
-		const filters = createFilters(storage);
-		const initial = filters.isShowAutomationRuns();
-		filters.setShowAutomationRuns(true);
-		const restored = createFilters(storage);
-		const reloaded = restored.isShowAutomationRuns();
-		const restore = restored.capture();
-		restored.reset();
-		const reset = restored.isShowAutomationRuns();
-		restore();
+		const updates: unknown[][] = [];
+		const configurationService = new class extends TestConfigurationService {
+			override async updateValue(key: string, value: unknown, target?: unknown): Promise<void> {
+				updates.push([key, value, target]);
+			}
+		}({ [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: AutomationSessionsListMode.AfterReply });
+		const load = (stored?: readonly [string, boolean][]) => {
+			if (stored) {
+				storage.store('sessionsListControl.filters', JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const filters = createFilters(storage, configurationService);
+			return { scheduledOnly: filters.isScheduledOnly(), stored: storage.get('sessionsListControl.filters', StorageScope.PROFILE) };
+		};
 
-		assert.deepStrictEqual({ initial, reloaded, reset, undo: restored.isShowAutomationRuns() }, {
-			initial: false,
-			reloaded: true,
-			reset: false,
-			undo: true,
+		const enabled = load([['showAutomationRuns', true], ['scheduledOnly', true]]);
+		const reloaded = load();
+		const disabled = load([['showAutomationRuns', false]]);
+
+		assert.deepStrictEqual({ enabled, reloaded, disabled, updates }, {
+			enabled: { scheduledOnly: true, stored: JSON.stringify([['scheduledOnly', true]]) },
+			reloaded: enabled,
+			disabled: { scheduledOnly: false, stored: undefined },
+			updates: [[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always, ConfigurationTarget.USER]],
 		});
-	});
-
-	test('tracks the show automation runs choice through a reader', () => {
-		const filters = createFilters();
-		const states: boolean[] = [];
-		store.add(autorun(reader => states.push(filters.isShowAutomationRuns(reader))));
-
-		filters.setShowAutomationRuns(true);
-		filters.setShowAutomationRuns(false);
-
-		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
 	test('keeps cached application groups when a remote disconnects and tracks metadata hydration', () => {
