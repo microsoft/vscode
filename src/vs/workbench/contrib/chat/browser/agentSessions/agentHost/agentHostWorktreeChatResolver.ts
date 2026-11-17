@@ -18,7 +18,8 @@ export interface IAgentHostWorktreeChat {
 
 /**
  * Resolves the chats of the editor window's session layer, such as those the chat part shows (`ahp-chat:`), which the Chat
- * view's sessions list does not list, for the folder follow. The sessions layer registers it.
+ * view's sessions list does not list, for the folder follow only: not an inventory of sessions, nor a trust decision. The
+ * sessions layer registers it.
  */
 export interface IAgentHostWorktreeChatResolver {
 	/** Fires as where its chats work, or whether they are archived, may have changed. */
@@ -32,7 +33,7 @@ export const IAgentHostWorktreeChatResolverService = createDecorator<IAgentHostW
 /** Where the session layer registers its {@link IAgentHostWorktreeChatResolver}, which the folder follow reads. */
 export interface IAgentHostWorktreeChatResolverService extends IAgentHostWorktreeChatResolver {
 	readonly _serviceBrand: undefined;
-	/** Registers the resolver, in place of any registered before, until disposed. */
+	/** Registers the resolver until disposed: the last one registered wins; disposing an earlier one leaves it in place. */
 	registerResolver(resolver: IAgentHostWorktreeChatResolver): IDisposable;
 }
 
