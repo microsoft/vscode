@@ -339,6 +339,24 @@ suite('ChatMcpAppModel', () => {
 		assert.deepStrictEqual({ state: fixture.model.loadState.get(), reads: fixture.reads }, { state: { status: 'loaded' }, reads: 2 });
 	});
 
+	test('starts a stopped server once after a failed load and leaves failed servers to explicit starts', async () => {
+		let starts = 0;
+		const start = async () => { starts++; };
+		const fixture = createFixture(McpServerStatus.Stopped, async () => { throw new Error('MCP server not connected: verification'); });
+		fixture.setServer(McpServerStatus.Stopped, { enabled: true, start });
+		await waitForState(fixture.model.loadState, state => state.status === 'unavailable');
+		const startsAfterFirstLoad = starts;
+
+		fixture.setServer(McpServerStatus.Error, { enabled: true, start });
+		await waitForState(fixture.model.loadState, state => state.status === 'unavailable');
+		const startsAfterFailure = starts;
+
+		await fixture.model.startServer();
+		assert.deepStrictEqual({ startsAfterFirstLoad, startsAfterFailure, starts, reads: fixture.reads }, {
+			startsAfterFirstLoad: 1, startsAfterFailure: 1, starts: 2, reads: 2,
+		});
+	});
+
 	test('keeps errors for a Ready server without auto-retrying and supports manual retry', async () => {
 		const error = new Error('Resource denied');
 		let denied = true;

@@ -19,11 +19,12 @@ import { localize } from '../../../../../../../nls.js';
 import { McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { defaultButtonStyles, getButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, ChatMcpAppData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostMcpAppToolsService } from '../../../agentSessions/agentHost/agentHostMcpAppToolsService.js';
-import { renderMcpServerSignInButton } from '../../../aiCustomization/mcpServerSignInButton.js';
+import { registerMcpInlineButtonAction, renderMcpServerSignInButton } from '../../../aiCustomization/mcpServerSignInButton.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatErrorWidget } from '../chatErrorContentPart.js';
@@ -49,6 +50,7 @@ interface IMcpAppServerPresentation {
 	readonly status: McpServerStatus | undefined;
 	readonly label: string | undefined;
 	readonly authenticating: boolean;
+	readonly canStart: boolean;
 }
 
 const maxWebviewHeightPct = 0.75;
@@ -93,6 +95,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostMcpAppToolsService appToolsService: IAgentHostMcpAppToolsService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super(toolInvocation);
 
@@ -123,13 +126,14 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		actionBar.push(toggleEditor, { icon: true, label: false });
 
 		const serverPresentation = derivedOpts<IMcpAppServerPresentation>({
-			equalsFn: (a, b) => a.status === b.status && a.label === b.label && a.authenticating === b.authenticating,
+			equalsFn: (a, b) => a.status === b.status && a.label === b.label && a.authenticating === b.authenticating && a.canStart === b.canStart,
 		}, reader => {
 			const server = this._model.server.read(reader);
 			return {
 				status: server?.status,
 				label: server ? getMcpServerDisplayLabel(server) : this._renderData.kind === 'agentHost' ? this._renderData.serverName : undefined,
 				authenticating: !!server?.authenticating,
+				canStart: !!server?.enabled && (server.status === McpServerStatus.Stopped || server.status === McpServerStatus.Error),
 			};
 		});
 
@@ -228,6 +232,9 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 					text.textContent = server?.label
 						? localize('mcpAppWaitingForServer', "MCP server {0} isn't available yet. The app will load when it is.", server.label)
 						: localize('mcpAppWaitingForUnknownServer', "The MCP server for this app isn't available yet. The app will load when it is.");
+					if (server?.canStart) {
+						this._renderStartServerButton(placeholder, server.label);
+					}
 				}
 				this.domNode.appendChild(placeholder);
 				this._placeholderNode = placeholder;
@@ -245,6 +252,33 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 				break;
 			}
 		}
+	}
+
+	private _renderStartServerButton(parent: HTMLElement, serverLabel: string | undefined): void {
+		const label = localize('mcpAppStartServer', "Start Server");
+		const button = this._loadStateDisposables.add(new Button(parent, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+			small: true,
+			title: label,
+			supportIcons: true,
+		}));
+		button.label = label;
+		registerMcpInlineButtonAction(this._loadStateDisposables, button, async () => {
+			button.enabled = false;
+			button.label = `$(${Codicon.loading.id}) ${localize('mcpAppStartingServer', "Starting...")}`;
+			try {
+				await this._model.startServer();
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				this._notificationService.error(serverLabel
+					? localize('mcpAppStartServerError', "Failed to start MCP server '{0}': {1}", serverLabel, message)
+					: localize('mcpAppStartUnknownServerError', "Failed to start the MCP server for this app: {0}", message));
+			} finally {
+				button.label = label;
+				button.enabled = true;
+			}
+		});
 	}
 
 	private _updateContainerHeight(): void {
