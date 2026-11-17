@@ -51,6 +51,8 @@ interface IMcpAppServerPresentation {
 	readonly label: string | undefined;
 	readonly authenticating: boolean;
 	readonly canStart: boolean;
+	/** Startup failure the host reported for the server. */
+	readonly error: string | undefined;
 }
 
 const maxWebviewHeightPct = 0.75;
@@ -126,7 +128,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		actionBar.push(toggleEditor, { icon: true, label: false });
 
 		const serverPresentation = derivedOpts<IMcpAppServerPresentation>({
-			equalsFn: (a, b) => a.status === b.status && a.label === b.label && a.authenticating === b.authenticating && a.canStart === b.canStart,
+			equalsFn: (a, b) => a.status === b.status && a.label === b.label && a.authenticating === b.authenticating && a.canStart === b.canStart && a.error === b.error,
 		}, reader => {
 			const server = this._model.server.read(reader);
 			return {
@@ -134,6 +136,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 				label: server ? getMcpServerDisplayLabel(server) : this._renderData.kind === 'agentHost' ? this._renderData.serverName : undefined,
 				authenticating: !!server?.authenticating,
 				canStart: !!server?.enabled && (server.status === McpServerStatus.Stopped || server.status === McpServerStatus.Error),
+				error: server?.state.kind === McpServerStatus.Error ? server.state.error.message : undefined,
 			};
 		});
 
@@ -228,6 +231,13 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 							await this._agentHostCustomizationService.authenticateMcpServer(this._renderData.sessionResource, currentServer.id);
 						}
 					}, server.authenticating);
+				} else if (server?.error !== undefined) {
+					text.textContent = server.label
+						? localize('mcpAppServerFailed', "MCP server {0} failed to start: {1}", server.label, server.error)
+						: localize('mcpAppUnknownServerFailed', "The MCP server for this app failed to start: {0}", server.error);
+					if (server.canStart) {
+						this._renderStartServerButton(placeholder, server.label);
+					}
 				} else {
 					text.textContent = server?.label
 						? localize('mcpAppWaitingForServer', "MCP server {0} isn't available yet. The app will load when it is.", server.label)
@@ -268,6 +278,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 			button.enabled = false;
 			button.label = `$(${Codicon.loading.id}) ${localize('mcpAppStartingServer', "Starting...")}`;
 			try {
+				// Startup failures arrive later as the server's Error state, which the placeholder shows.
 				await this._model.startServer();
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
