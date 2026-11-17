@@ -34,7 +34,8 @@ jobs:
     - job: macOSUniversal_${{ arch }}_Compile
       displayName: Universal App - Compile (${{ upper(arch) }})
       dependsOn: macOSUniversalChanges
-      condition: and(succeeded(), eq(dependencies.macOSUniversalChanges.outputs['changes.AFFECTED'], 'true'))
+      # Also when Detect changes fails or times out, so that the check runs when the build can't tell
+      condition: and(not(canceled()), or(ne(dependencies.macOSUniversalChanges.result, 'Succeeded'), eq(dependencies.macOSUniversalChanges.outputs['changes.AFFECTED'], 'true')))
       timeoutInMinutes: 90
       variables:
         VSCODE_ARCH: ${{ arch }}

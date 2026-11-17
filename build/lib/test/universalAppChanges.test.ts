@@ -4,14 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { suite, test } from 'node:test';
-import { affectsUniversalApp } from '../../azure-pipelines/darwin/universalAppChanges.ts';
+import { affectsUniversalApp, packagingFiles } from '../../azure-pipelines/darwin/universalAppChanges.ts';
+
+const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 
 suite('universal app changes', () => {
+	const packaging = packagingFiles(repositoryRoot);
+
 	test('the packaging, the merge and the dependencies affect the universal app', () => {
 		const files = [
 			'build/gulpfile.vscode.ts',
 			'build/lib/asar.ts',
+			// imported by the packaging, transitively
+			'build/lib/copilot.ts',
+			'build/lib/osProxyResolver.ts',
+			'build/lib/extensions.ts',
+			'product.json',
+			'build/.moduleignore',
+			'build/.moduleignore.darwin',
 			'build/darwin/create-universal-app.ts',
 			'build/azure-pipelines/darwin/product-build-darwin-universal.yml',
 			'package.json',
@@ -22,18 +34,18 @@ suite('universal app changes', () => {
 			'build/pnpm-lock.yaml',
 			'build/.npmrc',
 		];
-		assert.deepStrictEqual(files.filter(file => !affectsUniversalApp(file)), []);
+		assert.deepStrictEqual(files.filter(file => !affectsUniversalApp(file, packaging)), []);
 	});
 
 	test('other changes do not', () => {
 		const files = [
 			'src/vs/workbench/browser/workbench.ts',
 			'extensions/git/package.json',
-			'build/lib/compilation.ts',
+			'build/lib/test/asar.test.ts',
 			'build/azure-pipelines/linux/product-build-linux-ci.yml',
 			'remote/package.json',
 			'test/unit/browser/index.js',
 		];
-		assert.deepStrictEqual(files.filter(affectsUniversalApp), []);
+		assert.deepStrictEqual(files.filter(file => affectsUniversalApp(file, packaging)), []);
 	});
 });
