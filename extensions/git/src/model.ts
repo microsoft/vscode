@@ -296,6 +296,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
+		workspace.onDidChangeWorkspaceFolderLocations(this.onDidChangeWorkspaceFolderLocations, this, this.disposables);
 		workspace.onDidChangeWorkspaceTrustedFolders(this.onDidChangeWorkspaceTrustedFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this.disposables);
@@ -488,6 +489,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 		catch (err) {
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
+		}
+	}
+
+	private onDidChangeWorkspaceFolderLocations(): void {
+		// The repository of a location that was left before the locations were known
+		for (const openRepository of this.workspaceFolderRepositories.onDidChangeWorkspaceFolderLocations(workspace.workspaceFolders || [])) {
+			this.logger.trace(`[Model][onDidChangeWorkspaceFolderLocations] Closing repository at another location of a workspace folder: ${openRepository.repository.root}`);
+			openRepository.dispose();
 		}
 	}
 

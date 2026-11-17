@@ -43,6 +43,7 @@
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
+    "workspaceFolderLocations",
     "workspaceTrust"
   ],
   "categories": [
