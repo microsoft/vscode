@@ -8,7 +8,7 @@ import './media/accountWidget.css';
 import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -182,6 +182,26 @@ MenuRegistry.appendMenuItem(AccountMenu, {
 
 // Update actions
 registerUpdateMenuItems(AccountMenu, '3_updates');
+
+/**
+ * Marks a signed-out provider row as disabled while none of its sign-in actions can run, so the
+ * row's interaction colors, which also apply to its provider icon, skip it.
+ */
+export function trackSignInRowEnablement(identity: HTMLElement, actions: readonly IAction[]): IDisposable {
+	const store = new DisposableStore();
+	const update = () => identity.classList.toggle('disabled', actions.every(action => !action.enabled));
+	update();
+	for (const action of actions) {
+		if (action instanceof Action) {
+			store.add(action.onDidChange(e => {
+				if (e.enabled !== undefined) {
+					update();
+				}
+			}));
+		}
+	}
+	return store;
+}
 
 export class TitleBarAccountWidget extends BaseActionViewItem {
 
@@ -636,6 +656,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				this.clickPanelDisposable.clear();
 			}));
 			signInActionBar.push(partitioned.signIn, { icon: false, label: true });
+			panelStore.add(trackSignInRowEnablement(copilotIdentity, [partitioned.signIn]));
 		}
 
 		if (hasSignedInCodexChatGPTAccount(codexAccount, codexAccountVisible)) {
@@ -706,6 +727,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				for (const action of codexAccountActions) {
 					signInActionBar.push(action instanceof Action ? panelStore.add(action) : action, { icon: false, label: true });
 				}
+				panelStore.add(trackSignInRowEnablement(accountIdentity, codexAccountActions));
 			}
 		}
 

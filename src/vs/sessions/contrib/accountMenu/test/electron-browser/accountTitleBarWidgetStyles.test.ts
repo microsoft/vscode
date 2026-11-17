@@ -13,6 +13,7 @@ import { Action } from '../../../../../base/common/actions.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { trackSignInRowEnablement } from '../../browser/account.contribution.js';
 
 /** Focus styles only match while the document has focus, so give the test's web contents real focus. */
 async function setWebContentsFocus(focused: boolean): Promise<void> {
@@ -56,11 +57,18 @@ suite('Account Title Bar Widget Styles - signed-out sign-in rows', () => {
 			const identity = append(section, $('.sessions-account-titlebar-panel-provider-identity'));
 			const icon = append(identity, $('span.sessions-account-titlebar-panel-provider-icon.codicon.codicon-github'));
 			const actionBar = store.add(new ActionBar(append(identity, $('.sessions-account-titlebar-panel-provider-sign-in-actions'))));
-			actionBar.push(store.add(new Action('signIn', 'Sign in with GitHub', undefined, enabled)), { icon: false, label: true });
-			return { section, icon, label: identity.querySelector<HTMLElement>('.action-label')! };
+			const action = store.add(new Action('signIn', 'Sign in with GitHub', undefined, enabled));
+			actionBar.push(action, { icon: false, label: true });
+			store.add(trackSignInRowEnablement(identity, [action]));
+			const label = identity.querySelector<HTMLElement>('.action-label')!;
+			// Let focus reach a disabled row, so the test can show its icon ignores the row's focus.
+			label.tabIndex = -1;
+			return { section, icon, label, action };
 		};
 		const enabledRow = renderSignedOutRow(true);
 		const disabledRow = renderSignedOutRow(false);
+		const reenabledRow = renderSignedOutRow(false);
+		reenabledRow.action.enabled = true;
 
 		const measure = ({ section, icon, label }: ReturnType<typeof renderSignedOutRow>) => {
 			const sectionRect = section.getBoundingClientRect();
@@ -86,7 +94,8 @@ suite('Account Title Bar Widget Styles - signed-out sign-in rows', () => {
 		const disabled = measure(disabledRow).focused;
 		assert.deepStrictEqual({
 			enabled: measure(enabledRow),
-			disabled: { background: disabled.background, color: disabled.color },
+			disabled: { background: disabled.background, color: disabled.color, iconColor: disabled.iconColor },
+			reenabledIconColor: measure(reenabledRow).focused.iconColor,
 		}, {
 			enabled: {
 				spansRow: true,
@@ -100,7 +109,8 @@ suite('Account Title Bar Widget Styles - signed-out sign-in rows', () => {
 					outline: 'solid rgb(80, 80, 80)',
 				},
 			},
-			disabled: { background: 'rgba(0, 0, 0, 0)', color: 'rgb(32, 32, 32)' },
+			disabled: { background: 'rgba(0, 0, 0, 0)', color: 'rgb(32, 32, 32)', iconColor: 'rgb(16, 16, 16)' },
+			reenabledIconColor: 'rgb(64, 64, 64)',
 		});
 	});
 });

@@ -329,8 +329,8 @@
 }
 
 /* The identity row holds only the icon and the full-width action, so its hover and focus are the row's. */
-.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out .sessions-account-titlebar-panel-provider-identity:hover .sessions-account-titlebar-panel-provider-icon,
-.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out .sessions-account-titlebar-panel-provider-identity:focus-within .sessions-account-titlebar-panel-provider-icon {
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out .sessions-account-titlebar-panel-provider-identity:not(.disabled):hover .sessions-account-titlebar-panel-provider-icon,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out .sessions-account-titlebar-panel-provider-identity:not(.disabled):focus-within .sessions-account-titlebar-panel-provider-icon {
 	color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
 }
 
