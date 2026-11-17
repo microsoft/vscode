@@ -81,6 +81,8 @@ export const RemoteTunnelCommandIds = {
 	learnMore: 'workbench.remoteTunnel.actions.learnMore',
 } as const;
 
+export type RemoteTunnelStartResult = 'completed' | 'canceled';
+
 // name shown in nofications
 namespace RemoteTunnelCommandLabels {
 	export const turnOn = localize('remoteTunnel.actions.turnOn', 'Turn on Remote Tunnel Access...');
@@ -572,7 +574,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, options?: IRemoteTunnelStartOptions) {
+			async run(accessor: ServicesAccessor, options?: IRemoteTunnelStartOptions): Promise<RemoteTunnelStartResult> {
 				const notificationService = accessor.get(INotificationService);
 				const clipboardService = accessor.get(IClipboardService);
 				const commandService = accessor.get(ICommandService);
@@ -588,7 +590,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 						primaryButton: localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, '&&Enable')
 					});
 					if (!confirmed) {
-						return;
+						return 'canceled';
 					}
 
 					storageService.store(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
@@ -616,7 +618,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					});
 
 				if (asService === undefined) {
-					return; // no-op
+					return 'canceled';
 				}
 
 				const connectionInfo = await that.startTunnel(/* installAsService= */ asService, options?.authenticationProviderId);
@@ -675,6 +677,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					});
 					await commandService.executeCommand(RemoteTunnelCommandIds.showLog);
 				}
+				return 'completed';
 			}
 
 		}));

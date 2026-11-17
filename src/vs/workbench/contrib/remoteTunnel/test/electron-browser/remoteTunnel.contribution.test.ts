@@ -12,6 +12,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -30,6 +32,8 @@ import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../..
 import { NotificationService } from '../../../../services/notification/common/notificationService.js';
 import { TestProgressService } from '../../../../test/browser/workbenchTestServices.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { executeToggleRemoteConnections } from '../../../../contrib/chat/electron-browser/tunnelHost.contribution.js';
+import { AgentHostRemoteConnectionsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 
 const tunnelApplicationConfig: ITunnelApplicationConfig = {
 	authenticationProviders: {
@@ -167,6 +171,37 @@ function createContribution(store: Pick<DisposableStore, 'add'>, authenticationS
 
 suite('RemoteTunnelWorkbenchContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('declining preview propagates cancellation through the sharing toggle without starting a tunnel', async () => {
+		const authenticationService = new TestAuthenticationService([githubSession]);
+		const quickInputService = new TestQuickInputService();
+		const remoteTunnelService = new TestRemoteTunnelService();
+		createContribution(store, authenticationService, quickInputService, remoteTunnelService);
+		const instantiation = store.add(new TestInstantiationService());
+		const storageService = store.add(new InMemoryStorageService());
+		instantiation.set(IStorageService, storageService);
+		instantiation.set(IRemoteTunnelService, remoteTunnelService);
+		instantiation.set(IConfigurationService, new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: 'devTunnel' }));
+		instantiation.set(INotificationService, new TestNotificationService());
+		instantiation.set(IClipboardService, new class extends mock<IClipboardService>() { }());
+		instantiation.set(IProductService, new class extends mock<IProductService>() { }());
+		instantiation.set(IQuickInputService, quickInputService);
+		let confirmations = 0;
+		instantiation.set(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { confirmations++; return { confirmed: false }; }
+		}());
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, {}, 'executeCommand', async (id: string) => {
+			commands.push(id);
+			assert.strictEqual(id, RemoteTunnelCommandIds.turnOn);
+			return instantiation.invokeFunction(CommandsRegistry.getCommand(id)!.handler);
+		});
+		const result = await instantiation.invokeFunction(executeToggleRemoteConnections);
+		assert.deepStrictEqual({
+			result, confirmations, commands, startedModes: remoteTunnelService.startedModes,
+			quickPicks: quickInputService.createQuickPickCalls, authentication: authenticationService.requestedSessions,
+		}, { result: 'canceled', confirmations: 1, commands: [RemoteTunnelCommandIds.turnOn], startedModes: [], quickPicks: 0, authentication: [] });
+	});
 
 	for (const hasLink of [false, true]) {
 		test(`preserves success notification links without interpreting tunnel names (web link: ${hasLink})`, async () => {

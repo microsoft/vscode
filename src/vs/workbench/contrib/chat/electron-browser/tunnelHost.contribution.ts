@@ -21,7 +21,7 @@ import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } 
 import { IsSessionsWindowContext, RemoteNameContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
+import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds, RemoteTunnelStartResult } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
 import { getRemoteConnectionsToggleFailure, getRemoteTunnelAccessState, RemoteConnectionsFailureReason, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
 
@@ -67,12 +67,10 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 	]);
 	const state = getRemoteTunnelAccessState(mode, status);
 	const command = state.isSharing || state.isConnecting ? RemoteTunnelCommandIds.turnOff : RemoteTunnelCommandIds.turnOn;
-	if (command === RemoteTunnelCommandIds.turnOn && startOptions) {
-		await commandService.executeCommand(command, startOptions);
-	} else {
-		await commandService.executeCommand(command);
-	}
-	return 'completed';
+	const result = command === RemoteTunnelCommandIds.turnOn && startOptions
+		? await commandService.executeCommand<RemoteTunnelStartResult>(command, startOptions)
+		: await commandService.executeCommand<RemoteTunnelStartResult>(command);
+	return result === 'canceled' ? result : 'completed';
 }
 
 export class TunnelHostContribution extends Disposable implements IWorkbenchContribution {

@@ -117,6 +117,9 @@ export class RemotesEditor extends EditorPane {
 		this.content.hidden = !enabled;
 		this.scrollable?.getDomNode().toggleAttribute('hidden', !enabled);
 		if (!enabled) {
+			if (this.input instanceof RemotesEditorInput) {
+				this.input.sharingState = undefined;
+			}
 			this.widget.clear();
 			this.thisComputer.clear();
 			this.content.classList.remove('sharing-expanded');
@@ -129,13 +132,25 @@ export class RemotesEditor extends EditorPane {
 		const showThisComputer = this.isThisComputerEnabled();
 		this.thisComputerContainer.hidden = !showThisComputer;
 		if (!showThisComputer) {
+			if (this.input instanceof RemotesEditorInput) {
+				this.input.sharingState = undefined;
+			}
 			this.thisComputer.clear();
 			this.content.classList.remove('sharing-expanded');
 		} else if (!this.thisComputer.value) {
 			this.thisComputer.value = this.widgetInstantiationService.createInstance(ThisComputerSection, this.thisComputerContainer, expanded => {
 				this.content?.classList.toggle('sharing-expanded', expanded);
 				this.layoutContents();
+			}, state => {
+				if (this.input instanceof RemotesEditorInput) {
+					this.input.sharingState = state;
+				}
 			});
+			if (this.input instanceof RemotesEditorInput && this.input.sharingState) {
+				const state = this.input.sharingState;
+				this.input.sharingState = undefined;
+				this.thisComputer.value.restoreState(state);
+			}
 		}
 		this.widget.value.setHeading(showThisComputer ? localize('remotes.otherEnvironments', "Other Environments") : undefined);
 		this.widget.value.setVisible(this.isVisible());

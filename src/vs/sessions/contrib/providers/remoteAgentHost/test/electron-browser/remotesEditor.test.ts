@@ -30,7 +30,7 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { CONFIGURATION_KEY_HOST_NAME, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { EditorInputCapabilities, IVisibleEditorPane } from '../../../../../../workbench/common/editor.js';
@@ -106,7 +106,7 @@ class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 suite('RemotesEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEditor(initialSettings: Record<string, unknown> = {}) {
+	function createEditor(initialSettings: Record<string, unknown> = {}, existingInput?: RemotesEditorInput) {
 		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]: true, [ENVIRONMENT_PICKER_SETTING]: true, ...initialSettings });
 		configuration.updateValue = async (key, value) => configuration.setUserConfiguration(key, value);
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -134,7 +134,7 @@ suite('RemotesEditor', () => {
 		store.add(toDisposable(() => container.remove()));
 		editor.create(container);
 		editor.layout(new dom.Dimension(900, 600));
-		const input = store.add(new RemotesEditorInput());
+		const input = existingInput ?? store.add(new RemotesEditorInput());
 		return { editor, model, container, input, configuration, instantiation, tunnel, telemetry, sharing };
 	}
 
@@ -388,6 +388,110 @@ suite('RemotesEditor', () => {
 		}, {
 			expanded: true, feedbackHidden: true, selected: 'true', retryDisabled: 'false', focusRestored: true,
 			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID, RemoteTunnelCommandIds.turnOn], errors: [],
+		});
+	});
+
+	for (const method of ['devTunnel', 'githubEnvironment'] as const) {
+		test(`starting ${method} preserves the existing name configuration when sign-in is canceled`, async () => {
+			const { editor, container, input, instantiation, configuration, sharing } = createEditor({
+				[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
+			});
+			const updates: string[] = [];
+			configuration.updateValue = async (key, value) => {
+				updates.push(key);
+				await configuration.setUserConfiguration(key, value);
+			};
+			instantiation.stub(ICommandService, {}, 'executeCommand', async () => 'canceled');
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			await timeout(0);
+			container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
+			container.querySelector<HTMLElement>(`[data-sharing-method="${method}"]`)!.click();
+			container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!.click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				override: configuration.getValue(CONFIGURATION_KEY_HOST_NAME), environmentName: sharing.environmentName.get(),
+				updates, expanded: !container.querySelector<HTMLElement>('.remotes-sharing-details')!.hidden,
+			}, { override: undefined, environmentName: undefined, updates: method === 'devTunnel' ? [] : [AgentHostRemoteConnectionsSettingId], expanded: true });
+		});
+
+		for (const otherOutcome of ['pending', 'failed'] as const) {
+			test(`${method} becomes ready independently when the other name lookup is ${otherOutcome}`, async () => {
+				const { editor, container, input, instantiation, tunnel } = createEditor({
+					[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
+				});
+				const pendingName = new DeferredPromise<string | undefined>();
+				const errors: Error[] = [];
+				instantiation.stub(INotificationService, 'error', (error: Error) => { errors.push(error); });
+				instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+					override async getMissionControlEnvironmentName() {
+						return method === 'githubEnvironment' ? 'Available environment' : pendingName.p;
+					}
+				}());
+				tunnel.getTunnelName = async () => method === 'devTunnel' ? 'available-tunnel' : pendingName.p;
+				await editor.setInput(input, undefined, {}, CancellationToken.None);
+				if (otherOutcome === 'failed') {
+					await pendingName.error(new Error('Name lookup failed'));
+				}
+				await timeout(0);
+				container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
+				container.querySelector<HTMLElement>(`[data-sharing-method="${method}"]`)!.click();
+				assert.deepStrictEqual({
+					name: container.querySelector('.remotes-this-computer-name')?.textContent,
+					startDisabled: container.querySelector('.remotes-sharing-footer .monaco-button:not(.secondary)')?.getAttribute('aria-disabled'),
+					errors: errors.map(error => error.message),
+				}, {
+					name: method === 'devTunnel' ? 'available-tunnel' : 'Available environment', startDisabled: 'false',
+					errors: otherOutcome === 'failed' ? ['Name lookup failed'] : [],
+				});
+				editor.dispose();
+				if (otherOutcome === 'pending') {
+					await pendingName.complete('Late name');
+				}
+				await timeout(0);
+			});
+		}
+	}
+
+	test('reopening management after diagnostics restores the sharing draft and failure', async () => {
+		const firstInput = store.add(RemotesEditorInput.getOrCreate());
+		const first = createEditor({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true }, firstInput);
+		const commands: string[] = [];
+		first.instantiation.stub(INotificationService, 'error', () => { });
+		first.instantiation.stub(ICommandService, {}, 'executeCommand', async (id: string) => {
+			commands.push(id);
+			if (id === TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID) {
+				throw new Error('Connection failed');
+			}
+			if (id === 'workbench.action.closeModalEditor') {
+				first.editor.clearInput();
+				first.editor.dispose();
+				firstInput.dispose();
+			}
+		});
+		await first.editor.setInput(firstInput, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		first.container.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
+		first.container.querySelector<HTMLElement>('[data-sharing-method="devTunnel"]')!.click();
+		first.container.querySelector<HTMLElement>('.remotes-sharing-footer .monaco-button:not(.secondary)')!.click();
+		await timeout(0);
+		first.container.querySelector<HTMLElement>('.remotes-sharing-feedback-container .monaco-link')!.click();
+		await timeout(0);
+		const reopenedInput = store.add(RemotesEditorInput.getOrCreate());
+		const reopened = createEditor({ [REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true }, reopenedInput);
+		await reopened.editor.setInput(reopenedInput, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		assert.deepStrictEqual({
+			recreatedInput: reopenedInput !== firstInput,
+			expanded: !reopened.container.querySelector<HTMLElement>('.remotes-sharing-details')!.hidden,
+			selected: reopened.container.querySelector('[aria-checked="true"]')?.getAttribute('data-sharing-method'),
+			feedback: reopened.container.querySelector('.remotes-sharing-feedback')?.textContent,
+			retryDisabled: reopened.container.querySelector('.remotes-sharing-footer .monaco-button:not(.secondary)')?.getAttribute('aria-disabled'),
+			consumed: reopenedInput.sharingState === undefined, commands,
+		}, {
+			recreatedInput: true, expanded: true, selected: 'devTunnel',
+			feedback: 'Sharing via Dev Tunnel didn\'t start. Open the sharing log for details, then try again. Connection failed',
+			retryDisabled: 'false', consumed: true,
+			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID, 'workbench.action.closeModalEditor', RemoteTunnelCommandIds.showLog],
 		});
 	});
 

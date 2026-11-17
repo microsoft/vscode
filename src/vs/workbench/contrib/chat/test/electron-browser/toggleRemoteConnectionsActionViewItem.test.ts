@@ -718,23 +718,21 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
-	test('keeps the name of the latest queued sharing choice and returns setup failures', async () => {
-		const { instantiation, run, sharing, notifications } = fixture();
+	test('starting sharing does not save fallback names or rename the environment', async () => {
+		const { instantiation, run, sharing, configuration, update } = fixture();
 		const state = store.add(instantiation.createInstance(RemoteConnectionsState));
 		const editor = store.add(instantiation.createInstance(RemoteConnectionsSharing, state, () => run(), 'remotesEditor'));
 		const names = stub(sharing, 'setEnvironmentName').callThrough();
-		const notify = stub(notifications, 'error');
-		const results = await Promise.all([
-			editor.selectMethod('githubEnvironment', 'Superseded name'),
-			editor.selectMethod('githubEnvironment', 'Selected name'),
-		]);
-		const failure = await editor.selectMethod('githubEnvironment', '');
+		await editor.selectMethod('githubEnvironment');
+		await editor.selectMethod('off');
+		await editor.selectMethod('devTunnel');
 		assert.deepStrictEqual({
-			results, names: names.args, name: sharing.environmentName.get(), failure,
-			errors: notify.callCount, pending: editor.pendingMethod,
+			names: names.args,
+			hostNameOverride: configuration.getValue('remote.tunnels.access.hostNameOverride'),
+			updatedKeys: update.args.map(args => args[0]),
 		}, {
-			results: [undefined, undefined], names: [['Selected name']], name: 'Selected name',
-			failure: { error: 'Enter a sharing name.' }, errors: 1, pending: undefined,
+			names: [], hostNameOverride: undefined,
+			updatedKeys: [AgentHostRemoteConnectionsSettingId, AgentHostRemoteConnectionsSettingId],
 		});
 	});
 
@@ -1039,7 +1037,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
-	test('reloads names once per change without accumulating subscriptions after tunnel renames', async () => {
+	test('reloads only the changed method name without accumulating subscriptions after tunnel renames', async () => {
 		const { remoteTunnel, configuration, sharing, viewItem } = fixture('githubEnvironment');
 		await timeout(0);
 		const loadName = stub(remoteTunnel, 'getTunnelName').callThrough();
@@ -1062,10 +1060,10 @@ suite('RemoteConnectionsActionViewItem', () => {
 			afterEnvironmentChange,
 			afterDisposal: loadName.callCount,
 		}, {
-			initialEnvironmentChange: 1,
-			afterTunnelRenames: 3,
-			afterEnvironmentChange: 4,
-			afterDisposal: 4,
+			initialEnvironmentChange: 0,
+			afterTunnelRenames: 2,
+			afterEnvironmentChange: 2,
+			afterDisposal: 2,
 		});
 	});
 
@@ -1258,6 +1256,13 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			id: 'workbench.remoteTunnel.actions.turnOn',
 			args: [{ authenticationProviderId: 'github', showServiceOption: false }],
 		}]);
+	});
+
+	test('propagates preview and service-choice cancellation from the tunnel command', async () => {
+		const remoteTunnelService = store.add(new TestRemoteTunnelService());
+		const commandService = new TestCommandService();
+		stub(commandService, 'executeCommand').resolves('canceled');
+		assert.strictEqual(await toggle(remoteTunnelService, commandService), 'canceled');
 	});
 
 	for (const backend of ['githubEnvironment', 'missionControl'] as const) {

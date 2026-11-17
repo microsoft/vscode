@@ -75,7 +75,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			? { ...inspect<T>(key), policyValue: false as T }
 			: inspect<T>(key);
 	}
-	const section = disposableStore.add(instantiationService.createInstance(ThisComputerSection, container, () => { }));
+	const section = disposableStore.add(instantiationService.createInstance(ThisComputerSection, container, () => { }, () => { }));
 	await waitForFixtureCondition(() => !!container.querySelector('.remotes-this-computer-name')?.textContent, 'This computer should show its sharing name before capture');
 	if (state.showOptions) {
 		container.style.height = state.width === 360 ? '800px' : '620px';
