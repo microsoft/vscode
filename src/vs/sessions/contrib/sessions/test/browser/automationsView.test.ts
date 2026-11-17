@@ -1386,7 +1386,7 @@ suite('AutomationsCardsWidget', () => {
 			],
 			activations: 1,
 			labels: ['Create with Agent', 'Create Manually'],
-			dropdown: ['Import Automation'],
+			dropdown: ['Import Automation...'],
 			executed: [
 				['sessions.automations.createWithAgent'],
 				['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }],
@@ -1525,7 +1525,7 @@ suite('AutomationsCardsWidget', () => {
 				finalTabStops: [wrapper, primary, dropdown, other].map(element => element.tabIndex),
 			}, {
 				initialTabStops: [-1, 0, -1, -1],
-				primaryDisabled: 'false', entry: true, rightToDropdown: true, menu: ['Import Automation'],
+				primaryDisabled: 'false', entry: true, rightToDropdown: true, menu: ['Import Automation...'],
 				rightToOther: true, leftFromOther: true, leftWithinSplit: true, finalTabStops: [-1, -1, -1, -1],
 			});
 		});
@@ -6160,7 +6160,7 @@ suite('AutomationsCardsWidget', () => {
 		disposables.add(provider);
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
 		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.startsWith('Create with Agent')), [
-			'Create with Agent opens a new session with /automate prefilled and the input focused. It is the only creation button in the empty state. In the view header, Create with Agent is followed by a secondary Create Manually split button. Activate Create Manually to open the automation dialog, or use its adjacent More Actions dropdown to import an automation. Use Left Arrow and Right Arrow to move between header actions and the parts of the split button. Press Enter or Space to activate a control. Create Manually remains available while chat is not ready.',
+			'Create with Agent opens a new session with /automate prefilled and the input focused. It is the only creation button in the empty state. Once an automation exists, Create with Agent moves to the view header and is followed by a secondary Create Manually split button. Activate Create Manually to open the automation dialog, or use its adjacent More Actions dropdown to import an automation. Use Left Arrow and Right Arrow to move between header actions and the parts of the split button. Press Enter or Space to activate a control. Create Manually remains available while chat is not ready.',
 		]);
 		assert.ok(provider.provideContent().includes('Existing attachments are kept. Choose View Draft to return to the new session page without changing the draft, or Cancel to stay in Automations.'));
 	});
