@@ -864,7 +864,7 @@ export class PluginListWidget extends Disposable {
 	private installedItems: IInstalledPluginItem[] = [];
 	private remoteItems: ICustomizationItem[] = [];
 	/** The session's plugins before the search filter. A runtime-installed row pairs with one of these even when only the row matches the search. */
-	private sessionPluginItems: readonly ICustomizationItem[] = [];
+	private readonly sessionPluginItems = observableValue<readonly ICustomizationItem[]>(this, []);
 	private marketplaceItems: IMarketplacePluginItem[] = [];
 	private readonly marketplaceSnapshot = new PluginMarketplaceSnapshotModel();
 	private searchQuery: string = '';
@@ -2401,7 +2401,7 @@ export class PluginListWidget extends Disposable {
 
 	/** Keeps every session plugin for pairing with runtime-installed rows, and shows those that match `query`. */
 	private setSessionPluginItems(items: readonly ICustomizationItem[], query: string): void {
-		this.sessionPluginItems = items;
+		this.sessionPluginItems.set(items, undefined);
 		this.remoteItems = items.filter(item => customizationSearchMatchesAny(query, [item.name, item.description, item.badge]));
 	}
 
@@ -2588,11 +2588,15 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
-	private getSessionPluginItem(item: IInstalledPluginItem): ICustomizationItem | undefined {
+	/**
+	 * The session plugin of an installation the runtime owns. The two are paired by resource rather than
+	 * by name, because plugins installed from different marketplaces can share a name.
+	 */
+	private getSessionPluginItem(item: IInstalledPluginItem, reader?: IReader): ICustomizationItem | undefined {
 		if (!item.plugin.copilotCliInstallation) {
 			return undefined;
 		}
-		const matches = this.sessionPluginItems.filter(remote => remote.name.toLowerCase() === item.name.toLowerCase()
+		const matches = this.sessionPluginItems.read(reader).filter(remote => isEqual(remote.uri, item.plugin.uri)
 			&& !isSyncedFromClientCustomizationItem(remote) && remote.actions?.some(action => action.checked !== undefined));
 		return matches.length === 1 ? matches[0] : undefined;
 	}
@@ -2603,7 +2607,7 @@ export class PluginListWidget extends Disposable {
 	 */
 	private getInstalledPluginOrganizationControl(item: IInstalledPluginItem, reader?: IReader): ICustomizationOrganizationControl | undefined {
 		const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
-		return policyEnablement !== undefined ? { requiredEnabled: policyEnablement } : this.getSessionPluginItem(item)?.organizationControl;
+		return policyEnablement !== undefined ? { requiredEnabled: policyEnablement } : this.getSessionPluginItem(item, reader)?.organizationControl;
 	}
 
 	/**
@@ -2611,7 +2615,8 @@ export class PluginListWidget extends Disposable {
 	 * signed-in account, so either the runtime's installation or the plugin's session plugin may report it.
 	 */
 	isInstalledPluginTeamProvided(item: IInstalledPluginItem, reader?: IReader): boolean {
-		const team = item.plugin.teamProvided?.read(reader) || this.getSessionPluginItem(item)?.teamProvided;
+		const sessionItem = this.getSessionPluginItem(item, reader);
+		const team = item.plugin.teamProvided?.read(reader) || sessionItem?.teamProvided;
 		return isTeamProvidedVisible(team, this.getInstalledPluginOrganizationControl(item, reader) !== undefined);
 	}
 

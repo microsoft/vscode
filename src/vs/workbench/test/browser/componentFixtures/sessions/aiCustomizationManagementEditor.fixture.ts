@@ -278,7 +278,9 @@ interface IFixtureAgentHostPlugin {
 	readonly organizationControl?: ICustomizationOrganizationControl;
 	/** Set when the user's GitHub Team assigns the plugin. */
 	readonly teamProvided?: boolean;
-	/** Enablement actions, which pair the plugin with a runtime-installed plugin of the same name. */
+	/** Marketplace the runtime installed the plugin from, which locates it where its runtime-installed plugin is. */
+	readonly marketplace?: string;
+	/** Enablement actions, which a plugin needs to pair with the runtime-installed plugin at the same location. */
 	readonly actions?: ICustomizationItem['actions'];
 }
 
@@ -287,7 +289,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 		onDidChange: Event.None,
 		async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
 			const pluginItems = plugins.map((plugin): ICustomizationItem => ({
-				uri: URI.file(`/home/dev/.copilot/installed-plugins/${plugin.name}`),
+				uri: URI.file(`/home/dev/.copilot/installed-plugins/${plugin.marketplace ? `${plugin.marketplace}/` : ''}${plugin.name}`),
 				type: 'plugin',
 				name: plugin.name,
 				description: plugin.description,
@@ -4588,11 +4590,11 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			runtimeInstalledPlugins: ['contoso-compliance', 'azure'],
 			agentHostPlugins: [
 				{
-					name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', organizationControl: { requiredEnabled: true },
+					name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', organizationControl: { requiredEnabled: true }, marketplace: 'contoso',
 					actions: [{ id: 'agentPlugin.runtime.disable.global', label: 'Disable Globally', checked: true, enabled: false, tooltip: 'This plugin is managed by your organization.', scope: 'global', run: () => { } }],
 				},
 				{
-					name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded',
+					name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded', marketplace: 'contoso',
 					actions: [{ id: 'agentPlugin.runtime.disable.global', label: 'Disable Globally', checked: true, scope: 'global', run: () => { } }],
 				},
 				{ name: 'contoso-security', description: 'Security scanning required by your organization', scope: 'user', status: 'error', statusMessage: 'Your organization requires this plugin, but it isn\'t installed.', organizationControl: { requiredEnabled: true } },
