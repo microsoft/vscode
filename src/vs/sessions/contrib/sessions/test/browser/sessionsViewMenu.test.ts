@@ -47,7 +47,7 @@ import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../..
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { AutomationSessionsListMode, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { AutomationSessionsListMode, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
@@ -144,12 +144,14 @@ suite('Sessions - View Menu', () => {
 			_register: <T extends IDisposable>(disposable: T): T => store.add(disposable),
 			sessionsControl,
 			registerSessionFilters: Reflect.get(SessionsView.prototype, 'registerSessionFilters') as (control: SessionsList) => void,
+			registerScheduledFilter: Reflect.get(SessionsView.prototype, 'registerScheduledFilter') as (control: SessionsList) => void,
 			registerArchivedFilter: Reflect.get(SessionsView.prototype, 'registerArchivedFilter') as (control: SessionsList) => void,
 			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as () => void,
 			resetFilters: SessionsView.prototype.resetFilters,
 			syncFilterContextKeys: Reflect.get(SessionsView.prototype, 'syncFilterContextKeys') as (control: SessionsList) => void,
 		};
 		host.registerSessionFilters(sessionsControl);
+		host.registerScheduledFilter(sessionsControl);
 		host.registerArchivedFilter(sessionsControl);
 		host.registerResetFiltersAction();
 
@@ -585,7 +587,7 @@ suite('Sessions - View Menu', () => {
 		const { snapshot, grouping, contextKeyService } = createMenu();
 		const state = SessionItemInboxStateContext.bindTo(contextKeyService);
 		const actions = () => snapshot(SessionItemContextMenuId).filter(item => ['Acknowledge', 'Return to Inbox', 'Put on Hold', 'Snooze...', 'Mark as Done'].includes(item.title)).map(item => item.title);
-		const archiveFilter = () => snapshot(Menus.SessionsViewFilter).filter(item => ['Show Done', 'Show Archived'].includes(item.title)).map(item => item.title);
+		const archiveFilter = () => snapshot(Menus.SessionsViewShow).filter(item => ['Show Done', 'Show Archived'].includes(item.title)).map(item => item.title);
 		const ordinary = actions();
 		const ordinaryFilter = archiveFilter();
 		grouping.set(SessionsGrouping.Inbox);
@@ -1273,7 +1275,6 @@ suite('Sessions - View Menu', () => {
 			{ title: 'Created In', group: '2_filters', submenu: Menus.SessionsViewSource.id },
 			{ title: 'Harness', group: '2_filters', submenu: Menus.SessionsViewHarness.id },
 			{ title: 'Created Externally', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
-			{ title: 'Show Done', group: '3_visibility', checked: false },
 			{ title: 'Reset Filters', group: '5_reset' },
 		]);
 	});
@@ -1366,24 +1367,38 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('Show Automation Runs chooses the automation listing setting while Automations are enabled', async () => {
-		const { snapshot, run, contextKeyService, configurationService } = createMenu();
-		const entry = () => snapshot(Menus.SessionsViewFilter).filter(item => item.submenu === Menus.SessionsViewAutomationRuns.id);
-		const disabled = entry();
+	test('Show lists Show Automations, Show Done and Show Only Scheduled below Recent and All, and Show Automations chooses the setting', async () => {
+		const { snapshot, run, grouping, contextKeyService, configurationService } = createMenu();
+		const disabled = snapshot(Menus.SessionsViewShow);
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
-		const enabled = entry();
-		const defaults = snapshot(Menus.SessionsViewAutomationRuns);
-		await run(`sessionsViewPane.showAutomationRuns.${AutomationSessionsListMode.Always}`);
+		await configurationService.updateValue(SESSIONS_SEND_LATER_ENABLED_SETTING, true);
+		const enabled = snapshot(Menus.SessionsViewShow);
+		grouping.set(SessionsGrouping.Date);
+		const time = snapshot(Menus.SessionsViewShow);
+		const defaults = snapshot(Menus.SessionsViewAutomations);
+		configurationService.updates.length = 0;
+		await run(`sessionsViewPane.showAutomations.${AutomationSessionsListMode.Always}`);
 
+		const capping = [
+			{ title: 'Recent', group: '1_show', checked: true },
+			{ title: 'All', group: '1_show', checked: false },
+		];
+		const visibility = [
+			{ title: 'Show Automations', group: '2_visibility', submenu: Menus.SessionsViewAutomations.id },
+			{ title: 'Show Done', group: '2_visibility', checked: false },
+			{ title: 'Show Only Scheduled', group: '2_visibility', checked: false, enabled: true },
+		];
 		assert.deepStrictEqual({
 			disabled,
 			enabled,
+			time,
 			defaults,
-			checked: snapshot(Menus.SessionsViewAutomationRuns).filter(item => item.checked).map(item => item.title),
+			checked: snapshot(Menus.SessionsViewAutomations).filter(item => item.checked).map(item => item.title),
 			updates: configurationService.updates,
 		}, {
-			disabled: [],
-			enabled: [{ title: 'Show Automation Runs', group: '3_visibility', submenu: Menus.SessionsViewAutomationRuns.id }],
+			disabled: [...capping, { title: 'Show Done', group: '2_visibility', checked: false }],
+			enabled: [...capping, ...visibility],
+			time: visibility,
 			defaults: [
 				{ title: 'Always', group: '1_modes', checked: false },
 				{ title: 'After Reply', group: '1_modes', checked: true },
@@ -1416,6 +1431,7 @@ suite('Sessions - View Menu', () => {
 			environmentGrouping,
 			environmentShow,
 			timeTitles: snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title),
+			timeShow: snapshot(Menus.SessionsViewShow),
 			ordering: snapshot(Menus.SessionsViewOrdering),
 			grouping: snapshot(Menus.SessionsViewGrouping),
 			show,
@@ -1434,8 +1450,10 @@ suite('Sessions - View Menu', () => {
 			environmentShow: [
 				{ title: 'Recent', group: '1_show', checked: false },
 				{ title: 'All', group: '1_show', checked: true },
+				{ title: 'Show Done', group: '2_visibility', checked: false },
 			],
-			timeTitles: ['Ordering', 'Grouping'],
+			timeTitles: ['Ordering', 'Grouping', 'Show'],
+			timeShow: [{ title: 'Show Done', group: '2_visibility', checked: false }],
 			ordering: [
 				{ title: 'Created', group: '1_sort', checked: false },
 				{ title: 'Updated', group: '1_sort', checked: true },
@@ -1450,10 +1468,12 @@ suite('Sessions - View Menu', () => {
 			show: [
 				{ title: 'Recent', group: '1_show', checked: false },
 				{ title: 'All', group: '1_show', checked: true },
+				{ title: 'Show Done', group: '2_visibility', checked: false },
 			],
 			repositoryShow: [
 				{ title: 'Recent', group: '1_show', checked: false },
 				{ title: 'All', group: '1_show', checked: true },
+				{ title: 'Show Done', group: '2_visibility', checked: false },
 			],
 		});
 	});
@@ -1596,7 +1616,7 @@ suite('Sessions - View Menu', () => {
 		const state = () => ({
 			local: filters.matches(local),
 			localChecked: snapshot(Menus.SessionsViewSource).find(item => item.title === 'VS Code (This Computer)')?.checked,
-			showDoneChecked: snapshot(Menus.SessionsViewFilter).find(item => item.title === 'Show Done')?.checked,
+			showDoneChecked: snapshot(Menus.SessionsViewShow).find(item => item.title === 'Show Done')?.checked,
 			showRecent: capped.get(),
 		});
 		const before = state();
@@ -1766,9 +1786,8 @@ suite('Sessions - View Menu', () => {
 
 	test('uses Show Archived when the archive wording is configured', () => {
 		const { snapshot } = createMenu([], [], ChatSessionArchiveActionWording.Archive);
-		assert.deepStrictEqual(snapshot(Menus.SessionsViewFilter).filter(item => item.group === '3_visibility'), [
-			{ title: 'Created Externally', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
-			{ title: 'Show Archived', group: '3_visibility', checked: false },
+		assert.deepStrictEqual(snapshot(Menus.SessionsViewShow).filter(item => item.group === '2_visibility'), [
+			{ title: 'Show Archived', group: '2_visibility', checked: false },
 		]);
 	});
 });

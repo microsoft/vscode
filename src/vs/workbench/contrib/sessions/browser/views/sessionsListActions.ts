@@ -36,7 +36,7 @@ import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, getSessionsViewResolver, ISessionsViewLocator, openSessionsView } from '../views/sessionsView.js';
-import { Menus, SessionHeaderMenus } from '../menus.js';
+import { Menus, SessionHeaderMenus, SessionsViewShowGroup } from '../menus.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -963,10 +963,10 @@ function createSessionsListActions(): DisposableStore {
 		order: 1,
 	}));
 
+	// Recent and All apply only to groupings that cap their sections; the visibility section below them applies to every grouping
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 		submenu: Menus.SessionsViewShow,
 		title: localize2('showSessions', "Show"),
-		when: GroupedBySectionContext,
 		group: '1_presentation',
 		order: 2,
 	}));
@@ -1026,26 +1026,26 @@ function createSessionsListActions(): DisposableStore {
 		when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'external'),
 	}));
 
-	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
-		submenu: Menus.SessionsViewAutomationRuns,
-		title: localize2('showAutomationRuns', "Show Automation Runs"),
-		group: '3_visibility',
-		order: 0.5,
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
+		submenu: Menus.SessionsViewAutomations,
+		title: localize2('showAutomations', "Show Automations"),
+		group: SessionsViewShowGroup.Visibility,
+		order: 0,
 		when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
 	}));
 
 	for (const [index, { mode, title }] of [
-		{ mode: AutomationSessionsListMode.Always, title: localize2('showAutomationRuns.always', "Always") },
-		{ mode: AutomationSessionsListMode.AfterReply, title: localize2('showAutomationRuns.afterReply', "After Reply") },
-		{ mode: AutomationSessionsListMode.Never, title: localize2('showAutomationRuns.never', "Never") },
+		{ mode: AutomationSessionsListMode.Always, title: localize2('showAutomations.always', "Always") },
+		{ mode: AutomationSessionsListMode.AfterReply, title: localize2('showAutomations.afterReply', "After Reply") },
+		{ mode: AutomationSessionsListMode.Never, title: localize2('showAutomations.never', "Never") },
 	].entries()) {
 		store.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `sessionsViewPane.showAutomationRuns.${mode}`,
+					id: `sessionsViewPane.showAutomations.${mode}`,
 					title,
 					toggled: ContextKeyExpr.equals(`config.${SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING}`, mode),
-					menu: { id: Menus.SessionsViewAutomationRuns, group: '1_modes', order: index },
+					menu: { id: Menus.SessionsViewAutomations, group: '1_modes', order: index },
 				});
 			}
 
@@ -1199,7 +1199,7 @@ function createSessionsListActions(): DisposableStore {
 				toggled: IsWorkspaceGroupCappedContext,
 				menu: [{
 					id: Menus.SessionsViewShow,
-					group: '1_show',
+					group: SessionsViewShowGroup.Capping,
 					order: 0,
 					when: GroupedBySectionContext,
 				}]
@@ -1221,7 +1221,7 @@ function createSessionsListActions(): DisposableStore {
 				toggled: IsWorkspaceGroupCappedContext.negate(),
 				menu: [{
 					id: Menus.SessionsViewShow,
-					group: '1_show',
+					group: SessionsViewShowGroup.Capping,
 					order: 1,
 					when: GroupedBySectionContext,
 				}]
@@ -1859,22 +1859,15 @@ function createSessionsListActions(): DisposableStore {
 	}));
 
 	// Worktree grouping caps its sections as the other groupings by section do, which Show switches between Recent and All
-	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
-		submenu: Menus.SessionsViewShow,
-		title: localize2('showSessions', "Show"),
-		when: GroupedByWorktreeContext,
-		group: '1_presentation',
-		order: 2,
-	}));
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
 		command: { id: 'sessionsViewPane.showRecentSessions', title: localize2('recent', "Recent"), toggled: IsWorkspaceGroupCappedContext },
-		group: '1_show',
+		group: SessionsViewShowGroup.Capping,
 		order: 0,
 		when: GroupedByWorktreeContext,
 	}));
 	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
 		command: { id: 'sessionsViewPane.showAllSessions', title: localize2('all', "All"), toggled: IsWorkspaceGroupCappedContext.negate() },
-		group: '1_show',
+		group: SessionsViewShowGroup.Capping,
 		order: 1,
 		when: GroupedByWorktreeContext,
 	}));
