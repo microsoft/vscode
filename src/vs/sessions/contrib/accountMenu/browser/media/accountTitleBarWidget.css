@@ -223,8 +223,7 @@
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out {
-	padding-top: 10px;
-	padding-bottom: 10px;
+	padding: 4px 0;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-account + .sessions-account-titlebar-panel-provider-account {
@@ -310,33 +309,58 @@
 	transform: translateX(1px);
 }
 
+/*
+ * A signed-out provider renders its sign-in action as a full-width menu row, like the panel's
+ * other actions. The provider icon is drawn over the row's leading padding and lets pointer
+ * events through, so the whole row, icon included, is the hover and click target.
+ */
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out .sessions-account-titlebar-panel-provider-identity {
+	position: relative;
+	gap: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out .sessions-account-titlebar-panel-provider-icon {
+	position: absolute;
+	inset-inline-start: 16px;
+	top: 50%;
+	transform: translateY(-50%);
+	z-index: 1;
+	pointer-events: none;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions {
-	flex: 0 1 auto;
+	flex: 1 1 auto;
 	min-width: 0;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .actions-container,
-.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-item {
-	width: max-content;
-	max-width: 100%;
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .action-item {
+	width: 100%;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-label {
-	width: auto;
-	max-width: 100%;
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .action-label {
+	width: 100%;
 	box-sizing: border-box;
-	min-height: 24px;
-	padding: 2px 6px;
+	min-height: 32px;
+	padding-block: 3px;
+	padding-inline: calc(16px + 22px + 8px) 16px;
 	justify-content: flex-start;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: 0;
 	font-size: var(--vscode-fontSize-label1);
 	line-height: 20px;
+	/* The panel is a workbench hover, whose link rules would otherwise underline and recolor the action. */
+	text-decoration: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .action-item:not(.disabled) .action-label {
 	color: var(--vscode-foreground);
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-item:not(.disabled) .action-label:hover,
-.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions .action-item:not(.disabled) .action-label:focus-visible {
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:hover,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:focus-visible,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:active {
 	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-actions > .monaco-action-bar .actions-container {
