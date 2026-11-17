@@ -283,6 +283,79 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	}
 
+	for (const kind of agentHostConnectionKinds.filter(kind => kind.name !== 'local')) {
+		test(`keeps case-distinct remote worktrees separate when cleaning one checkout (${kind.name})`, async () => {
+			const sessions = ['Task', 'task'].map(id => {
+				const session = createSession(id, oldDate());
+				const workspace = session.workspace.get()!;
+				return {
+					...session,
+					workspace: constObservable({
+						...workspace,
+						folders: workspace.folders.map(folder => ({
+							...folder,
+							gitRepository: {
+								...folder.gitRepository!,
+								uri: kind.toClient(URI.file('/repo')),
+								workTreeUri: kind.toClient(URI.file(`/repo.worktrees/${id}`)),
+							},
+						})),
+					}),
+				};
+			});
+			const archived: string[] = [];
+			const service = disposables.add(createService(sessions, true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+				canCleanupWorktree: () => true,
+				onArchive: async session => { archived.push(session.sessionId); },
+				onCleanup: async () => ({ state: 'pending' }),
+				dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			}));
+			const rows = await service.getWorktrees(0);
+			await service.cleanupWorktrees([rows[0]]);
+			assert.deepStrictEqual({ rows: rows.map(row => ({ id: getWorktreeCleanupId(row), count: row.worktreeCount })), archived }, {
+				rows: [{ id: 'Task', count: 1 }, { id: 'task', count: 1 }], archived: ['Task'],
+			});
+		});
+
+		test(`retains unscheduled remote worktrees through disconnection and reconciles on reconnect (${kind.name})`, async () => {
+			const worktree = {
+				...managedWorktree(),
+				repository: kind.toClient(URI.file('/repo')).toString(),
+				worktree: kind.toClient(URI.file('/repo.worktrees/unlinked')).toString(),
+			};
+			let connected = true;
+			let inventory = [worktree];
+			const service = disposables.add(createService([], true, () => undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+				canCleanupWorktree: () => connected,
+				listManagedWorktrees: async () => connected ? inventory : [],
+			}));
+			const initial = await service.getWorktrees(0);
+			connected = false;
+			const disconnected = await service.getWorktrees(0);
+			connected = true;
+			const reconnected = await service.getWorktrees(0);
+			connected = false;
+			await service.getWorktrees(0);
+			connected = true;
+			inventory = [];
+			const removed = await service.getWorktrees(0);
+			assert.deepStrictEqual({
+				states: [initial, disconnected, reconnected, removed].map(rows => rows.map(row => ({
+					id: getWorktreeCleanupId(row), exists: row.worktreeExists, unavailable: !!row.cleanupUnavailableReason,
+				}))),
+				operations: service.cleanupOperations.get(),
+			}, {
+				states: [
+					[{ id: `managed:test:${worktree.worktree}`, exists: true, unavailable: false }],
+					[{ id: `managed:test:${worktree.worktree}`, exists: undefined, unavailable: true }],
+					[{ id: `managed:test:${worktree.worktree}`, exists: true, unavailable: false }],
+					[],
+				],
+				operations: [],
+			});
+		});
+	}
+
 	test('does not group or deduplicate identical worktree paths on different hosts', async () => {
 		const original = createSession('same-path', oldDate());
 		const workspace = original.workspace.get()!;

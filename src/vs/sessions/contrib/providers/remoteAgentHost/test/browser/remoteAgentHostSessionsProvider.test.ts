@@ -1540,6 +1540,29 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('cleanup capabilities follow live availability without replacing the connection', () => {
+		const liveConnection = disposables.add(new class extends MockAgentConnection {
+			override readonly connectionAvailable = observableValue(this, true);
+		}());
+		liveConnection.handshakeState.set({
+			...liveConnection.handshakeState.get(), _meta: {
+				'vscode.worktreeCleanup': true, 'vscode.prepareSessionWorktreeCleanup': true, 'vscode.managedWorktrees': true,
+			}
+		}, undefined);
+		liveConnection.prepareSessionWorktreeCleanup = async () => { };
+		liveConnection.sessionWorktreeCleanup = async () => ({ state: 'pending' });
+		liveConnection.listManagedWorktrees = async () => [];
+		liveConnection.cleanupManagedWorktree = async () => { };
+		const provider = createProvider(disposables, liveConnection);
+		const capabilities = () => [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup];
+		const states = [capabilities()];
+		liveConnection.connectionAvailable.set(false, undefined);
+		states.push(capabilities());
+		liveConnection.connectionAvailable.set(true, undefined);
+		states.push(capabilities());
+		assert.deepStrictEqual(states, [[true, true], [false, false], [true, true]]);
+	});
+
 	suite('Copilot head-branch PR metadata', () => {
 		const backend = URI.parse('ahp-session://tenant/opaque-session');
 		const chat = URI.parse('conversation://tenant/root');

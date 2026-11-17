@@ -301,7 +301,9 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const tcpTargets: Array<{ host: string; port: number }> = [];
 		const tcpConnection = upcastPartial<IAgentHostTcpConnection>({});
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const connectionAvailable = observableValue('connectionAvailable', false);
 		const protocolClient = {
+			connectionAvailable,
 			clientId: 'test-client',
 			clientConnectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
 			connect: async () => {
@@ -365,6 +367,13 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const createInstanceSpy = sinon.spy(instantiationService, 'createInstance');
 
 		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		const availability: boolean[] = [];
+		disposables.add(autorun(reader => {
+			const available = service.connectionAvailable?.read(reader);
+			if (available !== undefined) {
+				availability.push(available);
+			}
+		}));
 		const started = Event.toPromise(service.onAgentHostStart);
 		agentHostEnabled.set(true, undefined);
 		const beforeReady = connectCalls;
@@ -374,13 +383,17 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			await Promise.resolve();
 		}
 		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		connectionAvailable.set(true, undefined);
 		await started;
+		connectionAvailable.set(false, undefined);
+		connectionAvailable.set(true, undefined);
 
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
 		const createTransport = protocolClientCall?.args[2] as () => IClientTransport;
 		const transport = disposables.add(createTransport());
 		const openedTcpConnection = await service.openTcpConnection({ host: 'canvas.test', port: 4321 });
 		assert.deepStrictEqual({
+			availability,
 			beforeReady,
 			afterReady: connectCalls,
 			connectionKind: service.clientConnectionKind,
@@ -393,6 +406,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			tcpTargets,
 			openedTcpConnection: openedTcpConnection === tcpConnection,
 		}, {
+			availability: [false, true, false, true],
 			beforeReady: 0,
 			afterReady: 1,
 			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,

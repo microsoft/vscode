@@ -8219,6 +8219,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	get supportsWorktreeCleanup(): boolean {
 		const connection = this.connection;
 		return !!connection?.prepareSessionWorktreeCleanup && !!connection.sessionWorktreeCleanup
+			&& connection.connectionAvailable?.get() !== false
 			&& supportsPrepareSessionWorktreeCleanup(connection.initializeResult.get())
 			&& supportsAgentHostWorktreeCleanup(connection.initializeResult.get());
 	}
@@ -8226,6 +8227,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	get supportsManagedWorktreeCleanup(): boolean {
 		const connection = this.connection;
 		return !!connection?.listManagedWorktrees && !!connection.cleanupManagedWorktree
+			&& connection.connectionAvailable?.get() !== false
 			&& supportsAgentHostManagedWorktrees(connection.initializeResult.get());
 	}
 

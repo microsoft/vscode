@@ -82,6 +82,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private readonly _protocolClient: AgentHostProtocolClient | undefined;
 	private readonly _connectionAuthority: string | undefined;
 	get clientConnectionKind() { return this._protocolClient?.clientConnectionKind; }
+	get connectionAvailable(): IObservable<boolean> { return this._protocolClient?.connectionAvailable ?? constObservable(false); }
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,

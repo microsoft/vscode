@@ -63,7 +63,7 @@ export function getWorktreeCleanupLastActivity(candidate: ISessionWorktreeCleanu
 }
 
 function getPhysicalWorktreeId(providerId: string, repository: URI, worktree: URI): string {
-	const key = (uri: URI) => extUriBiasedIgnorePathCase.getComparisonKey(extUri.removeTrailingPathSeparator(extUri.normalizePath(uri)));
+	const key = (uri: URI) => (uri.scheme === Schemas.file ? extUriBiasedIgnorePathCase : extUri).getComparisonKey(extUri.removeTrailingPathSeparator(extUri.normalizePath(uri)));
 	return JSON.stringify([providerId, key(repository), key(worktree)]);
 }
 
@@ -530,19 +530,23 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			}
 		}
 		for (const previous of this._unlinkedWorktrees) {
-			if (previous.unlinkedWorktree && isWorktreeCleanupBranchSupported(previous) && this._requestedManagedCleanups.has(getWorktreeCleanupId(previous))
+			const unavailable = this._getCleanupUnavailableReason(previous) !== undefined;
+			if (previous.unlinkedWorktree && isWorktreeCleanupBranchSupported(previous)
+				&& (this._requestedManagedCleanups.has(getWorktreeCleanupId(previous)) || (unavailable && previous.worktreeExists !== false))
 				&& !seen.has(`${previous.unlinkedWorktree.providerId}:${extUri.getComparisonKey(URI.parse(previous.unlinkedWorktree.worktree))}`)
 				&& !linkedPaths.has(`${previous.unlinkedWorktree.providerId}:${extUri.getComparisonKey(URI.parse(previous.unlinkedWorktree.worktree))}`)) {
 				let worktreeExists: boolean | undefined;
 				let worktreeCheckError: string | undefined;
-				try {
-					worktreeExists = await raceCancellationError(this.sessionsManagementService.managedWorktreeExists?.(previous.unlinkedWorktree) ?? Promise.resolve(undefined), token);
-				} catch (error) {
-					if (token.isCancellationRequested || isCancellationError(error)) {
-						throw error;
+				if (!unavailable) {
+					try {
+						worktreeExists = await raceCancellationError(this.sessionsManagementService.managedWorktreeExists?.(previous.unlinkedWorktree) ?? Promise.resolve(undefined), token);
+					} catch (error) {
+						if (token.isCancellationRequested || isCancellationError(error)) {
+							throw error;
+						}
+						worktreeCheckError = getErrorMessage(error);
+						this.logService.warn('[SessionWorktreeCleanupService] Failed to verify managed worktree existence', error);
 					}
-					worktreeCheckError = getErrorMessage(error);
-					this.logService.warn('[SessionWorktreeCleanupService] Failed to verify managed worktree existence', error);
 				}
 				unlinked.push({
 					...previous,
