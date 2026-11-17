@@ -13,6 +13,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { originatingTriggerTelemetry, type IOriginatingTriggerContext, type IOriginatingTriggerTelemetry, type OriginatingTriggerClassification } from '../../common/originatingTrigger.js';
 import { toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
@@ -29,6 +30,7 @@ import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './edit
  * revisit when we have a notebook-aware tracker.
  */
 export interface IEditSurvivalReporterLaunchParams {
+	readonly originatingTrigger?: IOriginatingTriggerContext;
 	readonly provider?: string;
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 	/** Full session URI string (e.g. `claude:/abc123`). */
@@ -89,7 +91,7 @@ export class NullEditSurvivalReporterFactory implements IEditSurvivalReporterFac
 	}
 }
 
-interface IEditSurvivalTelemetryEvent extends IAgentHostEventTelemetry {
+interface IEditSurvivalTelemetryEvent extends IAgentHostEventTelemetry, IOriginatingTriggerTelemetry {
 	provider: string;
 	modelId: string;
 	autoTier?: string;
@@ -112,7 +114,7 @@ interface IEditSurvivalTelemetryEvent extends IAgentHostEventTelemetry {
 	currentTextLength: number;
 }
 
-type IEditSurvivalTelemetryClassification = IAgentHostEventClassification & {
+type IEditSurvivalTelemetryClassification = IAgentHostEventClassification & OriginatingTriggerClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
 	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The committed Copilot Auto tier (efficiency, balance, intelligence, fast, or a tier the Copilot service advertises, such as hydrafusion) when the edit was produced under Auto. Omitted when unknown or not Auto.' };
@@ -211,6 +213,7 @@ class SessionEditSurvivalReporter extends Disposable {
 				'agentHost.trackEditSurvival',
 				{
 					...toInitiatorTelemetry(this._params.clientContext),
+					...originatingTriggerTelemetry(this._params.originatingTrigger),
 					provider: this._params.provider ?? AgentSession.provider(sessionUri) ?? 'unknown',
 					modelId: this._params.modelId ?? '',
 					...(this._params.autoTier !== undefined ? { autoTier: this._params.autoTier } : {}),

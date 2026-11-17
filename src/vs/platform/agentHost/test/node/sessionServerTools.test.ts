@@ -23,6 +23,7 @@ import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessi
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import type { IOriginatingTriggerContext } from '../../common/originatingTrigger.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError } from '../../common/agentHostChatMove.js';
@@ -66,6 +67,16 @@ suite('SessionServerTools', () => {
 
 	const workspace = URI.parse('file:///workspace/app');
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
+	const firstOrigin: IOriginatingTriggerContext = {
+		triggers: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'user' }],
+		incomplete: false,
+		involvesSteering: false,
+	};
+	const nextOrigin: IOriginatingTriggerContext = {
+		triggers: [{ id: '00000000-0000-4000-8000-000000000002', kind: 'automation' }],
+		incomplete: false,
+		involvesSteering: true,
+	};
 
 	/** Defaults to read; tests that care about unread clear the `IsRead` bit. */
 	/** A session's recorded default chat: the default-shaped chat VS Code mints. */
@@ -1259,7 +1270,7 @@ suite('SessionServerTools', () => {
 		});
 		const group = createSessionServerToolGroup(accessor);
 
-		const text = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'New Task', model: 'gpt-4o' });
+		const text = await group.execute(stateManager, { ...executionContext('copilot:/caller'), originatingTrigger: firstOrigin }, SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'New Task', model: 'gpt-4o' });
 
 		assert.deepStrictEqual(createConfigSnapshot(created), {
 			workingDirectories: [workspace.toString()],
@@ -1284,6 +1295,7 @@ suite('SessionServerTools', () => {
 			title: 'New Task',
 		});
 		assert.deepStrictEqual(prompted?.delegation, {
+			originatingTrigger: firstOrigin,
 			sourceSession: 'copilot:/caller',
 			sourceChat: buildDefaultChatUri('copilot:/caller'),
 			sourceTurnId: 'turn-1',
@@ -1947,7 +1959,7 @@ suite('SessionServerTools', () => {
 		const source = URI.parse(buildDefaultChatUri('copilot:/s1'));
 		const group = createSessionServerToolGroup(accessor);
 
-		const text = await group.execute(stateManager, { sessionUri: 'copilot:/s1', chatUri: source.toString(), turnId: 'turn-1' }, SessionServerToolName.CreateSession, {
+		const text = await group.execute(stateManager, { sessionUri: 'copilot:/s1', chatUri: source.toString(), turnId: 'turn-1', originatingTrigger: firstOrigin }, SessionServerToolName.CreateSession, {
 			relationship: 'currentSession',
 			prompt: 'do it',
 			title: 'Task A',
@@ -1976,6 +1988,7 @@ suite('SessionServerTools', () => {
 			promptedPrompt: 'do it',
 			operations: ['create', 'rename', 'prompt'],
 			delegation: {
+				originatingTrigger: firstOrigin,
 				sourceSession: 'copilot:/s1',
 				sourceChat: source.toString(),
 				sourceTurnId: 'turn-1',
@@ -2885,7 +2898,7 @@ suite('SessionServerTools', () => {
 		const context = executionContext('copilot:/s1');
 
 		const firstResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'first' });
-		const secondResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'second' });
+		const secondResult = await group.execute(stateManager, { ...context, turnId: 'turn-2', originatingTrigger: nextOrigin }, SessionServerToolName.SendMessage, { session: targetSession, message: 'second' });
 		const first = JSON.parse(firstResult);
 		const second = JSON.parse(secondResult);
 
@@ -2918,9 +2931,10 @@ suite('SessionServerTools', () => {
 					text: 'second',
 					origin: { kind: MessageKind.Agent },
 					delegation: {
+						originatingTrigger: nextOrigin,
 						sourceSession: 'copilot:/s1',
 						sourceChat: buildDefaultChatUri('copilot:/s1'),
-						sourceTurnId: 'turn-1',
+						sourceTurnId: 'turn-2',
 						messageId: second.messageId,
 						revision: 1,
 					},
@@ -3093,7 +3107,7 @@ suite('SessionServerTools', () => {
 		const notOwned = JSON.parse(await group.execute(stateManager, otherSource, SessionServerToolName.SendMessage, {
 			operation: 'replace', session: targetSession, messageId: first.messageId, expectedRevision: 1, message: 'forged',
 		}));
-		const replaced = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+		const replaced = JSON.parse(await group.execute(stateManager, { ...source, turnId: 'turn-replacement', originatingTrigger: nextOrigin }, SessionServerToolName.SendMessage, {
 			operation: 'replace', session: targetSession, messageId: first.messageId, expectedRevision: 1, message: 'updated first',
 		}));
 		const conflict = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
@@ -3105,6 +3119,14 @@ suite('SessionServerTools', () => {
 
 		const queuedMessage = stateManager.getChatState(targetChat)?.queuedMessages?.[0]?.message;
 		assert.ok(queuedMessage);
+		assert.deepStrictEqual(readAgentMessageDelegationMeta(queuedMessage), {
+			sourceSession: 'copilot:/s1',
+			sourceChat: buildDefaultChatUri('copilot:/s1'),
+			sourceTurnId: 'turn-replacement',
+			messageId: first.messageId,
+			revision: 2,
+			originatingTrigger: nextOrigin,
+		});
 		stateManager.dispatchServerAction(targetChat, chatTurnComplete('active-turn', 1));
 		stateManager.dispatchServerAction(targetChat, {
 			type: ActionType.ChatTurnStarted,

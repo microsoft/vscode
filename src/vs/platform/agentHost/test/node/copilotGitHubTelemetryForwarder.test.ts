@@ -98,6 +98,53 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}))));
 	});
 
+	test('preserves originating triggers separately from host turns and usage', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);
+		const originatingTriggerId = '00000000-0000-4000-8000-000000000001';
+		forwarder.forward({
+			sessionId: 'peer-sdk-session',
+			restricted: false,
+			event: {
+				kind: 'response.success',
+				properties: {
+					model: 'serving-model',
+					modelCallId: 'model-call-1',
+					originatingTriggerAttribution: 'known',
+					originatingTriggerId,
+					originatingTriggerKind: 'automation',
+				},
+				metrics: { promptTokenCount: 123, completionTokens: 45, involvesSteering: 1 },
+			},
+		}, 'peer-execution-turn');
+
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName,
+			turnId: data?.turnId,
+			sessionId: data?.sdk_session_id,
+			model: data?.model,
+			modelCallId: data?.modelCallId,
+			origin: data?.originatingTriggerId,
+			kind: data?.originatingTriggerKind,
+			attribution: data?.originatingTriggerAttribution,
+			steering: data?.involvesSteering,
+			inputTokens: data?.promptTokenCount,
+			outputTokens: data?.completionTokens,
+		})), [{
+			eventName: 'copilotSdk/response.success',
+			turnId: 'peer-execution-turn',
+			sessionId: 'peer-sdk-session',
+			model: 'serving-model',
+			modelCallId: 'model-call-1',
+			origin: originatingTriggerId,
+			kind: 'automation',
+			attribution: 'known',
+			steering: 1,
+			inputTokens: 123,
+			outputTokens: 45,
+		}]);
+	});
+
 	test('reuses standard runtime canvas tool and authoring events without requiring restricted telemetry', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(telemetryService);

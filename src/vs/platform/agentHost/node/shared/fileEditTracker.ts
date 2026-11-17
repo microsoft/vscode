@@ -19,6 +19,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import type { IOriginatingTriggerContext } from '../../common/originatingTrigger.js';
 import { IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
 import { getFileEditResourceKey } from '../fileEditPath.js';
 import { extractAiChunks } from './editChunkExtractor.js';
@@ -221,7 +222,7 @@ export class FileEditTracker extends Disposable {
 	 * whole-file scoring. `toolInput` also tells the edit apart from other
 	 * edits of the file, as passed to {@link trackEditStart}.
 	 */
-	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: string | Promise<string | undefined>, fusionModel?: string, copilotTrackingId?: string): Promise<ToolResultFileEditContent | undefined> {
+	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: string | Promise<string | undefined>, fusionModel?: string, copilotTrackingId?: string, originatingTrigger?: IOriginatingTriggerContext): Promise<ToolResultFileEditContent | undefined> {
 		const edits = this._edits.get(filePath);
 		if (!edits) {
 			return Promise.resolve(undefined);
@@ -238,7 +239,7 @@ export class FileEditTracker extends Disposable {
 		this._releaseEdits(edits.completed.splice(0, Math.max(completedIndex, 0)));
 		const [edit] = edits.completed.splice(0, 1);
 		this._deleteIfSettled(filePath, edits);
-		return this._completedEditSequencer.queue(getFileEditResourceKey(this._paths.toUri(filePath)), () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel, copilotTrackingId))
+		return this._completedEditSequencer.queue(getFileEditResourceKey(this._paths.toUri(filePath)), () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel, copilotTrackingId, originatingTrigger))
 			.finally(() => this._runningEdits.delete(edit.lease));
 	}
 
@@ -264,7 +265,7 @@ export class FileEditTracker extends Disposable {
 		}
 	}
 
-	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined, copilotTrackingId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
+	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined, copilotTrackingId: string | undefined, originatingTrigger: IOriginatingTriggerContext | undefined): Promise<ToolResultFileEditContent | undefined> {
 
 		if (!modelId) {
 			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
@@ -336,6 +337,7 @@ export class FileEditTracker extends Disposable {
 
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
+			originatingTrigger,
 			sessionUri: this._sessionUri,
 			ownerSessionUri: this._owner(),
 			...(this._provider ? { provider: this._provider } : {}),

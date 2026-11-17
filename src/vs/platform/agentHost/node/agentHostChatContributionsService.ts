@@ -228,6 +228,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 	async outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult> {
 		this._recordChatOwner(turn.chat, turn.session);
 		const instructions: string[] = [];
+		let originatingTrigger: IOutgoingTurnContributionResult['originatingTrigger'];
 		let message = turn.message;
 		for (const registration of this._getOrderedContributions()) {
 			const { contribution } = registration;
@@ -236,6 +237,9 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 			}
 			try {
 				const result = await contribution.onOutgoingTurn({ ...turn, message });
+				if (result?.originatingTrigger) {
+					originatingTrigger = result.originatingTrigger;
+				}
 				if (result?.instructions) {
 					instructions.push(...result.instructions);
 				}
@@ -248,6 +252,7 @@ export class AgentHostChatContributions extends Disposable implements IAgentHost
 		}
 		return {
 			...(instructions.length ? { instructions } : {}),
+			...(originatingTrigger ? { originatingTrigger } : {}),
 			message,
 		};
 	}

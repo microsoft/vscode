@@ -1185,7 +1185,7 @@ export class AgentSideEffects extends Disposable {
 		if (turnIdRouting === 'remap') {
 			agent.recordModelCallTurnCorrelation?.(signal.resource, signal.modelCallId, turnId);
 		}
-		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId);
+		this._turnTracker.modelCallCompleted(sessionKey, turnId, signal.modelCallId, signal.originatingTrigger);
 	}
 
 	private _recordModelCallFinished(signal: IAgentModelCallFinishedSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting): void {
@@ -2335,6 +2335,7 @@ export class AgentSideEffects extends Disposable {
 			const sendContext = {
 				...clientOperationContext,
 				originalMessageText: message.text,
+				originatingTrigger: contribution.originatingTrigger,
 				messageProvenance: resolveAgentMessageProvenance(message, this._stateManager.getSessionState(sessionChannel)?.origin),
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),

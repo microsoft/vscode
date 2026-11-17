@@ -65,6 +65,11 @@ type ModelCallTurnCorrelatedClassification = {
 
 /* __GDPR__FRAGMENT__
 	"CopilotModelCallCorrelation": {
+		"originatingTriggerId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime-issued UUID of the initiating request or automation occurrence." },
+		"originatingTriggerKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "User, automation, system, or API origin category." },
+		"originatingTriggerAttribution": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Known, multiple, partial, or unknown initiating provenance captured by the runtime." },
+		"originatingTriggers": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded JSON array of runtime UUIDs and origin categories for shared or partial attribution." },
+		"involvesSteering": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether steering was consumed in the execution input chain, encoded as 1 or 0." },
 		"ahCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, responseAlreadyForwarded, sessionNotFound, activeTurnFallback, or noActiveTurn. A conversation-compaction response is correlated through its compaction attempt instead and may also report noOwningTurn (the compaction ran between turns) or missingAttemptId. A wait expiry does not establish that a completion was produced." },
 		"ahCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Actual elapsed correlation wait in milliseconds; absent when no wait occurred." },
 		"ahActiveRootTurnIdAtResponse": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Active root turn identifier captured at response callback entry before any wait, only when no authoritative turnId was resolved. A contextual root candidate, not an attribution repair; it may not own this model call." },

@@ -3659,8 +3659,13 @@ suite('AgentHostChatContributions', () => {
 			sourceSession: 'copilot:/source',
 			sourceChat: buildDefaultChatUri('copilot:/source'),
 			sourceTurnId: 'source-turn',
+			originatingTrigger: {
+				triggers: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'automation' as const }],
+				incomplete: false,
+				involvesSteering: true,
+			},
 		};
-		await contributions.service.outgoingTurn({
+		const outgoing = await contributions.service.outgoingTurn({
 			session: contributions.session,
 			chat: contributions.chat,
 			turnId: 'host-turn',
@@ -3679,16 +3684,30 @@ suite('AgentHostChatContributions', () => {
 			{ session: contributions.session, chat: contributions.chat, isDefaultChat: true, storageResource: creationTimeChatStorageResource(contributions.session, contributions.chat, buildDefaultChatUri(contributions.session)) },
 			[hydrationTurn('provider-turn')],
 		);
+		const restoredOutgoing = await contributions.service.outgoingTurn({
+			session: contributions.session,
+			chat: contributions.chat,
+			turnId: 'continued-turn',
+			message: providerRestored.message,
+		});
 
 		assert.deepStrictEqual(
-			[directlyRestored, providerRestored].map(turn => ({
-				origin: turn.message.origin,
-				delegation: readAgentMessageDelegationMeta(turn.message),
-			})),
-			[
-				{ origin: { kind: MessageKind.Agent }, delegation },
-				{ origin: { kind: MessageKind.Agent }, delegation },
-			],
+			{
+				outgoingOrigin: outgoing.originatingTrigger,
+				restoredOutgoingOrigin: restoredOutgoing.originatingTrigger,
+				restored: [directlyRestored, providerRestored].map(turn => ({
+					origin: turn.message.origin,
+					delegation: readAgentMessageDelegationMeta(turn.message),
+				})),
+			},
+			{
+				outgoingOrigin: delegation.originatingTrigger,
+				restoredOutgoingOrigin: delegation.originatingTrigger,
+				restored: [
+					{ origin: { kind: MessageKind.Agent }, delegation },
+					{ origin: { kind: MessageKind.Agent }, delegation },
+				],
+			},
 		);
 	});
 

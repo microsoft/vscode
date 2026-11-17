@@ -3,7 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasKey } from '../../../../../base/common/types.js';
+import { parseOriginatingTrigger, type IOriginatingTriggerContext } from '../../originatingTrigger.js';
+
 const MESSAGE_DELEGATION_META_KEY = 'vscode.chat.delegation';
+const trustedOrigins = new WeakMap<object, IOriginatingTriggerContext>();
 
 interface IHasMessageDelegationMeta {
 	readonly _meta?: Record<string, unknown>;
@@ -14,6 +18,7 @@ export interface IAgentMessageThreadDelegationMeta {
 }
 
 export interface IAgentMessageSessionDelegationMeta {
+	readonly originatingTrigger?: IOriginatingTriggerContext;
 	readonly sourceSession: string;
 	readonly sourceChat?: string;
 	readonly sourceTurnId?: string;
@@ -39,6 +44,7 @@ export function parseAgentMessageDelegationMeta(value: unknown): IAgentMessageDe
 	}
 	return {
 		sourceSession,
+		...(candidate.originatingTrigger !== undefined ? { originatingTrigger: parseOriginatingTrigger(candidate.originatingTrigger) } : {}),
 		...(typeof candidate.sourceChat === 'string' ? { sourceChat: candidate.sourceChat } : {}),
 		...(typeof candidate.sourceTurnId === 'string' ? { sourceTurnId: candidate.sourceTurnId } : {}),
 		...(typeof candidate.messageId === 'string' && candidate.messageId.length > 0 ? { messageId: candidate.messageId } : {}),
@@ -48,12 +54,23 @@ export function parseAgentMessageDelegationMeta(value: unknown): IAgentMessageDe
 
 /** Reads recognized Agent Host message-delegation metadata. */
 export function readAgentMessageDelegationMeta(source: IHasMessageDelegationMeta): IAgentMessageDelegationMeta | undefined {
-	return parseAgentMessageDelegationMeta(source._meta?.[MESSAGE_DELEGATION_META_KEY]);
+	const value = source._meta?.[MESSAGE_DELEGATION_META_KEY];
+	const parsed = parseAgentMessageDelegationMeta(value);
+	if (!parsed || !hasKey(parsed, { sourceSession: true })) {
+		return parsed;
+	}
+	const { originatingTrigger: _untrusted, ...delegation } = parsed;
+	const originatingTrigger = value && typeof value === 'object' ? trustedOrigins.get(value) : undefined;
+	return { ...delegation, ...(originatingTrigger ? { originatingTrigger } : {}) };
 }
 
 /** Serializes Agent Host message-delegation metadata for the open protocol bag. */
 export function toAgentMessageDelegationMeta(meta: IAgentMessageDelegationMeta): Record<string, unknown> {
-	return { [MESSAGE_DELEGATION_META_KEY]: meta };
+	const value = { ...meta };
+	if (hasKey(meta, { sourceSession: true }) && meta.originatingTrigger) {
+		trustedOrigins.set(value, meta.originatingTrigger);
+	}
+	return { [MESSAGE_DELEGATION_META_KEY]: value };
 }
 
 /** Removes Agent Host message-delegation metadata while preserving unrelated metadata. */

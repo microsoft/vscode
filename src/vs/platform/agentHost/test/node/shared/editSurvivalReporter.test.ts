@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { FileService } from '../../../../files/common/fileService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../files/common/files.js';
@@ -161,6 +163,44 @@ suite('agentHost editSurvivalReporter', () => {
 			{ toolCallId: 'tc-plain', hasFusionModel: false, fusionModel: undefined },
 		]);
 	});
+
+	test('delayed samples retain the originating trigger and model of each edit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(URI.file('/workspace/origin.ts'), VSBuffer.fromString('after'));
+		const reporters = disposables.add(new DisposableStore());
+		try {
+			for (const suffix of ['1', '2']) {
+				reporters.add(factory.launch({
+					sessionUri: 'copilot:/session-1',
+					ownerSessionUri: 'copilot:/session-1',
+					turnId: `turn-${suffix}`,
+					toolCallId: `edit-${suffix}`,
+					filePath: '/workspace/origin.ts',
+					beforeText: 'before',
+					afterText: 'after',
+					isCreate: false,
+					modelId: `model-${suffix}`,
+					originatingTrigger: {
+						triggers: [{ id: `00000000-0000-4000-8000-00000000000${suffix}`, kind: 'automation' }],
+						incomplete: false,
+						involvesSteering: false,
+					},
+				}));
+			}
+			await timeout(5_001);
+			assert.deepStrictEqual(telemetry.events.map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					turnId: data.turnId, model: data.modelId, origin: data.originatingTriggerId,
+					attribution: data.originatingTriggerAttribution, delay: data.timeDelayMs,
+				};
+			}), [0, 5_000].flatMap(delay => ['1', '2'].map(suffix => ({
+				turnId: `turn-${suffix}`, model: `model-${suffix}`,
+				origin: `00000000-0000-4000-8000-00000000000${suffix}`, attribution: 'known', delay,
+			}))));
+		} finally {
+			reporters.dispose();
+		}
+	}));
 
 	test('emits a delete event when the file is missing', async () => {
 		const reporter = factory.launch({

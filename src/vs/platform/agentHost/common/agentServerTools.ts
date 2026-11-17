@@ -4,6 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { StringOrMarkdown, ToolDefinition, URI } from './state/sessionState.js';
+import type { IOriginatingTriggerContext } from './originatingTrigger.js';
+
+export interface IAgentServerToolInvocationContext {
+	readonly turnId?: string;
+	readonly originatingTrigger?: IOriginatingTriggerContext;
+}
 
 /**
  * A server tool definition plus agent-host-local metadata that is not part of
@@ -91,5 +97,5 @@ export interface IAgentServerToolHost {
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string): string | Promise<string>;
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string, context?: IAgentServerToolInvocationContext): string | Promise<string>;
 }

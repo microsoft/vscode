@@ -11,6 +11,7 @@ import { createDecorator, type BrandedService } from '../../instantiation/common
 import type { IAgent, IAgentChatUsageSignal } from './agent.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { IOriginatingTriggerContext } from './originatingTrigger.js';
 import type { ActionOrigin, StateAction } from './state/sessionActions.js';
 import type { ChatConfigState, ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
@@ -70,6 +71,7 @@ export interface IOutgoingTurn {
  * The object form lets this hook grow without replacing a bare instruction array.
  */
 export interface ISendContribution {
+	readonly originatingTrigger?: IOriginatingTriggerContext;
 	readonly instructions?: readonly string[];
 	/**
 	 * Replaces the outgoing message text. Ordered contributions receive the
@@ -83,6 +85,7 @@ export interface ISendContribution {
 
 /** The combined output of all outgoing-turn contributions. */
 export interface IOutgoingTurnContributionResult {
+	readonly originatingTrigger?: IOriginatingTriggerContext;
 	/** Omitted when no contribution supplied an instruction. */
 	readonly instructions?: readonly string[];
 	/** The final message after ordered contributions have applied text replacements. */
