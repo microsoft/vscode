@@ -486,12 +486,12 @@ suite('CopilotSessionLauncher Microsoft account', () => {
 	}
 
 	for (const scenario of ['create', 'resume', 'virtual-create', 'virtual-resume'] as const) {
-		test(`signs a new session in after creating it fully configured and resumes once without signing in: ${scenario}`, async () => {
+		test(`signs a session in after opening it fully configured: ${scenario}`, async () => {
 			const kind = scenario.endsWith('resume') ? 'resume' : 'create';
 			const f = setup(scenario.startsWith('virtual') ? URI.parse('vscode-vfs://github/microsoft/vscode') : testWorkingDirectory);
 			store.add(await f.launcher.launch(f.plan(kind), testRuntime));
 			assert.deepStrictEqual({ calls: f.calls, storage: f.storage }, {
-				calls: kind === 'create' ? ['policy', 'create', 'authenticate', 'agents'] : ['policy', 'resume', 'agents'], storage: [false],
+				calls: ['policy', kind, 'authenticate', 'agents'], storage: [false],
 			});
 		});
 	}
@@ -516,12 +516,14 @@ suite('CopilotSessionLauncher Microsoft account', () => {
 		});
 	});
 
-	test('a new session that cannot be signed in is disconnected and deleted', async () => {
-		const f = setup();
-		f.accounts.authenticateSession = async () => { f.calls.push('authenticate'); throw new Error('Login rejected'); };
-		await assert.rejects(f.launcher.launch(f.plan('create'), testRuntime), /Login rejected/);
-		assert.deepStrictEqual(f.calls, ['policy', 'create', 'authenticate', 'disconnect', 'delete']);
-	});
+	for (const kind of ['create', 'resume'] as const) {
+		test(`a session that cannot be signed in is disconnected, and deleted only when it is new: ${kind}`, async () => {
+			const f = setup();
+			f.accounts.authenticateSession = async () => { f.calls.push('authenticate'); throw new Error('Login rejected'); };
+			await assert.rejects(f.launcher.launch(f.plan(kind), testRuntime), /Login rejected/);
+			assert.deepStrictEqual(f.calls, ['policy', kind, 'authenticate', 'disconnect', ...(kind === 'create' ? ['delete'] : [])]);
+		});
+	}
 
 	test('an account change while a signed-in session is finalized disconnects it', async () => {
 		const f = setup();
