@@ -5202,7 +5202,7 @@ suite('Automation dialog end date', () => {
 			clearHidden: clearButton.style.display === 'none', focusRestored: document.activeElement === endDateButton,
 		}, {
 			saved: { label: new Date(date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }), date },
-			cleared: undefined, enabled: false, label: 'Select End Date...', clearHidden: true, focusRestored: true,
+			cleared: undefined, enabled: false, label: 'Select End Date', clearHidden: true, focusRestored: true,
 		});
 	});
 

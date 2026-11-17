@@ -1984,7 +1984,7 @@ export function renderForm(
 	const endDateError = DOM.append(formContent, $('span.automation-form-error', {
 		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
 	}));
-	DOM.append(durationRow, $('span.automation-form-label', { id: 'automation-end-date-label' }, localize('automation.form.endDate', "End date")));
+	DOM.append(durationRow, $('span.automation-form-label', { id: 'automation-end-date-label' }, localize('automation.form.disableAfter', "Disable after")));
 	const endDateButton = disposables.add(new Button(durationRow, { ...defaultButtonStyles, secondary: true }));
 	endDateButton.element.id = 'automation-end-date';
 	endDateButton.element.setAttribute('aria-haspopup', 'dialog');
@@ -2036,11 +2036,11 @@ export function renderForm(
 		const supportsEndDate = !runInCloud.get();
 		customizationSelection.setEndDateContentVisible(supportsEndDate);
 		endDateButton.label = state.endDate === undefined
-			? localize('automation.form.chooseEndDate', "Select End Date...")
+			? localize('automation.form.chooseEndDate', "Select End Date")
 			: isAutomationAfterDate(state.endDate)
 				? new Date(state.endDate).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
 				: localize('automation.form.changeInvalidEndDate', "Change End Date...");
-		endDateButton.element.setAttribute('aria-label', localize('automation.form.endDateAria', "End date: {0}", endDateButton.label));
+		endDateButton.element.setAttribute('aria-label', localize('automation.form.disableAfterAria', "Disable after: {0}", endDateButton.label));
 		DOM.setVisibility(state.endDate !== undefined, clearEndDateButton.element);
 		validation.endDateError = supportsEndDate
 			? getAutomationEndDateError(state.endDate, initialEndDate)
