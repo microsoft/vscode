@@ -429,18 +429,18 @@ suite('Frosted glass styles', () => {
 				sharesBorderBox: Math.abs(paintWidth - bounds.width) < 0.01 && Math.abs(paintHeight - bounds.height) < 0.01,
 			};
 		};
-		const radii = ['8px', '8px', '5px', '8px', '4px', '4px'];
+		const radii = ['8px', '8px', '5px', '8px', '8px', '4px', '4px'];
 		const expected = (bordered: boolean) => overlays.geometrySurfaces.map(({ name }, index) => ({
 			name,
 			hostRadius: radii[index],
-			hostBorder: bordered ? 'solid 1px' : 'none 0px',
-			hostBorderColor: bordered ? 'rgb(90, 123, 157)' : undefined,
+			hostBorder: bordered || name === 'spotlight callout' ? 'solid 1px' : 'none 0px',
+			hostBorderColor: name === 'spotlight callout' ? 'rgba(0, 0, 0, 0)' : bordered ? 'rgb(90, 123, 157)' : undefined,
 			paintRadius: radii[index],
-			paintBorder: bordered ? 'solid 1px' : 'none 0px',
+			paintBorder: bordered || name === 'spotlight callout' ? 'solid 1px' : 'none 0px',
 			paintBorderColor: 'rgba(0, 0, 0, 0)',
 			paintBoxSizing: 'content-box',
-			paintClip: 'padding-box',
-			paintBackgroundClip: 'padding-box',
+			paintClip: name === 'spotlight callout' ? 'border-box' : 'padding-box',
+			paintBackgroundClip: name === 'spotlight callout' ? 'border-box' : 'padding-box',
 			paintFilter: 'blur(12px)',
 			sharesBorderBox: true,
 		}));
@@ -704,6 +704,45 @@ suite('Frosted glass styles', () => {
 			});
 		});
 	}
+
+	test('paints the spotlight pointer with the callout material outside the callout only', () => {
+		const overlays = createOverlays();
+		overlays.root.style.setProperty('--modern-ui-glass-opacity', '50%');
+		const read = () => {
+			const paint = getWindow(overlays.spotlightPointer).getComputedStyle(overlays.spotlightPointer, '::after');
+			return { tint: Math.round(readColor(overlays.spotlightPointer, '::after').rgba.a * 100), filter: paint.backdropFilter, clipped: paint.clipPath !== 'none' };
+		};
+		const solid = read();
+		overlays.root.classList.add('modern-ui-frosted-glass');
+		const supported = supportsGlass(overlays.root);
+		assert.deepStrictEqual({ solid, glass: read() }, {
+			solid: { tint: 100, filter: 'none', clipped: false },
+			glass: supported ? { tint: 50, filter: 'blur(12px)', clipped: true } : solid,
+		});
+	});
+
+	(supportsGlass(document.body) ? test : test.skip)('interrupts the spotlight border at the pointer on every side', () => {
+		const { root, spotlightCallout, spotlightPointer } = createOverlays();
+		root.classList.add('modern-ui-frosted-glass');
+		spotlightCallout.style.setProperty('--spotlight-pointer-offset', '45px');
+		const targetWindow = getWindow(spotlightCallout);
+		const clips = ['top', 'right', 'bottom', 'left'].map(side => {
+			spotlightPointer.className = `spotlight-callout-pointer ${side}`;
+			return targetWindow.getComputedStyle(spotlightCallout, '::after').clipPath;
+		});
+		assert.deepStrictEqual({
+			border: targetWindow.getComputedStyle(spotlightCallout, '::after').borderTopColor,
+			clips,
+		}, {
+			border: 'rgb(90, 123, 157)',
+			clips: [
+				'polygon(0px 0px, 39px 0px, 39px 1px, 51px 1px, 51px 0px, 100% 0px, 100% 100%, 0px 100%)',
+				'polygon(0px 0px, 100% 0px, 100% 39px, calc(100% - 1px) 39px, calc(100% - 1px) 51px, 100% 51px, 100% 100%, 0px 100%)',
+				'polygon(0px 0px, 100% 0px, 100% 100%, 51px 100%, 51px calc(100% - 1px), 39px calc(100% - 1px), 39px 100%, 0px 100%)',
+				'polygon(0px 0px, 100% 0px, 100% 100%, 0px 100%, 0px 51px, 1px 51px, 1px 39px, 0px 39px)',
+			],
+		});
+	});
 
 	test('updates the material when theme tokens change without changing text opacity', () => {
 		const overlays = createOverlays();

@@ -118,6 +118,25 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('keeps the callout border gap aligned with the pointer as placement changes', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, mainWindow.innerWidth / 2, mainWindow.innerHeight / 2, 20, 20);
+		const positions = (['above', 'below', 'left', 'right'] as const).map(placement => {
+			overlay.show(target, content(), { placement });
+			const callout = container.querySelector<HTMLElement>('.spotlight-callout')!;
+			const pointer = container.querySelector<HTMLElement>('.spotlight-callout-pointer')!;
+			const vertical = pointer.classList.contains('top') || pointer.classList.contains('bottom');
+			return {
+				offset: parseFloat(callout.style.getPropertyValue('--spotlight-pointer-offset')),
+				pointerCenter: vertical
+					? parseFloat(pointer.style.left) + 5 - parseFloat(callout.style.left)
+					: parseFloat(pointer.style.top) + 5 - parseFloat(callout.style.top),
+			};
+		});
+		assert.deepStrictEqual(positions.map(({ offset, pointerCenter }) => offset === pointerCenter), [true, true, true, true]);
+	});
+
 	test('shows progress only for multi-step tours and clears it when reused for one step', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
