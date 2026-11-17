@@ -555,7 +555,7 @@ suite('WebPubSubRelayTransport', () => {
 		});
 	});
 
-	for (const traffic of ['silence', 'chunks', 'otherMessages'] as const) {
+	for (const traffic of ['silence', 'chunks', 'broadcastChunks', 'otherMessages'] as const) {
 		test(`handshake diagnostics preserve ${traffic} through timeout and ignore late data`, () => runWithFakedTimers({}, async () => {
 			const fake = new FakeWebSocket();
 			const progress: [ConnectionHandshakeMethod, ConnectionHandshakeState][] = [];
@@ -563,19 +563,22 @@ suite('WebPubSubRelayTransport', () => {
 			await connectHandshake(transport, fake);
 			transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
 			fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
-			if (traffic === 'chunks') {
+			await timeout(20_000);
+			if (traffic === 'chunks' || traffic === 'broadcastChunks') {
 				const segments = chunk({ jsonrpc: '2.0', id: 1, result: 'x'.repeat(1000) }, { maxChunkBytes: 512 });
 				for (const [index, segment] of segments.slice(0, -1).entries()) {
-					fake.emitGroupMessage(index + 1, { ...segment, generation: 7 });
+					fake.emitGroupMessage(index + 1, { ...segment, generation: 7 }, traffic === 'broadcastChunks' ? BROADCAST : TO_CLIENT);
 				}
 			} else if (traffic === 'otherMessages') {
 				fake.emitGroupMessage(1, { kind: 'message', generation: 6, data: { jsonrpc: '2.0', id: 99, result: null } });
 			}
-			await timeout(30_000);
+			await timeout(10_000);
+			const openAtHandshakeDeadline = transport.isOpen;
+			await timeout(20_000);
 			fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, result: {} } } });
-			assert.deepStrictEqual({ progress, open: transport.isOpen, reason: transport.closeReason }, {
-				progress: [['reconnect', 'waiting'], ...(traffic === 'silence' ? [] : [['reconnect', traffic === 'chunks' ? 'chunksReceived' : 'otherMessagesReceived']])],
-				open: false, reason: 'hostHandshakeTimeout',
+			assert.deepStrictEqual({ progress, openAtHandshakeDeadline, open: transport.isOpen, reason: transport.closeReason }, {
+				progress: [['reconnect', 'waiting'], ...(traffic === 'silence' ? [] : [['reconnect', traffic === 'otherMessages' ? 'otherMessagesReceived' : 'chunksReceived']])],
+				openAtHandshakeDeadline: traffic === 'chunks', open: false, reason: 'hostHandshakeTimeout',
 			});
 		}));
 	}

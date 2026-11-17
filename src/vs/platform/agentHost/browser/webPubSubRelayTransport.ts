@@ -454,8 +454,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._deliver(value as ProtocolMessage, result.generation);
 			}
 		} else if (result.kind === 'pending') {
-			if (this._handshakeId !== undefined && result.group.scope === 'client' && result.group.lane === 'to-client') {
-				this._handshakeTimer.schedule();
+			if (this._handshakeId !== undefined) {
+				if (result.group.scope === 'client' && result.group.lane === 'to-client') {
+					this._handshakeTimer.schedule();
+				}
 				if (this._handshakeState === 'waiting') {
 					this._reportHandshakeProgress('chunksReceived');
 				}
