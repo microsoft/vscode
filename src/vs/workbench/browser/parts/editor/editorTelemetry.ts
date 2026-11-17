@@ -38,6 +38,10 @@ const knownEditorIds: ReadonlySet<string> = new Set([
 	'vscode.markdown.editor',
 	'vscode.markdown.preview.editor',
 	'jupyter-notebook',
+	// Webview panels report their view type with this prefix
+	'mainThreadWebview-markdown.preview',
+	'mainThreadWebview-vscode.mermaid-markdown-features.preview',
+	'mainThreadWebview-simpleBrowser.view',
 
 	// Well-known first-party extensions
 	'hexEditor.hexedit',
