@@ -500,6 +500,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/** Whether renderer options changed since the list rows were last rerendered. */
 	private _listRowsStale = false;
 	private readonly _draftOnly = observableValue(this, false);
+	private readonly _inputVisibleObs = observableValue(this, true);
+	/** Whether its input shows: not while the chat is read-only without it (see {@link setInputVisible}). */
+	readonly inputVisible: IObservable<boolean> = this._inputVisibleObs;
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
@@ -2409,6 +2412,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setInputVisible(visible: boolean): void {
 		const changed = this._inputVisible !== visible;
 		this._inputVisible = visible;
+		this._inputVisibleObs.set(visible, undefined);
 		// Re-applied in `createInput` so a rebuilt input part keeps the correct visibility.
 		this._applyInputVisibility();
 		if (changed && this.bodyDimension) {
@@ -2966,6 +2970,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			sessionWorkingSet: this.viewOptions.sessionWorkingSet,
 			inputPartHorizontalPadding: this.viewOptions.inputPartHorizontalPadding,
 			hostModelSelection: this.viewOptions.hostModelSelection,
 			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
