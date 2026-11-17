@@ -7309,7 +7309,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('switching the folder of a single-folder window to another location and back keeps its sessions listed', async () => {
+		test('switching the folder of a single-folder window to another location and back keeps its sessions listed, but not those of a nested project', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
 			// The folder of the window moves to a linked checkout, as its folder location: the workspace stays the same
@@ -7325,9 +7325,10 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkbenchState: Event.None,
 			});
 
-			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')] });
-			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout] });
-			agentHostService.addSession({ session: AgentSession.uri('copilot', 'elsewhere'), startTime: 1000, modifiedTime: 1500, summary: 'Elsewhere', workingDirectories: [URI.file('/other/place')] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')], project: { uri: primary, displayName: 'root' } });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout], project: { uri: primary, displayName: 'root' } });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'nested'), startTime: 1000, modifiedTime: 1200, summary: 'Nested repository', workingDirectories: [URI.file('/other/nested')], project: { uri: URI.file('/workspace/root/nested'), displayName: 'nested' } });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'elsewhere'), startTime: 1000, modifiedTime: 1500, summary: 'Elsewhere', workingDirectories: [URI.file('/other/place')], project: { uri: URI.file('/other'), displayName: 'other' } });
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);
 			const removed: string[] = [];
@@ -7344,16 +7345,54 @@ suite('AgentHostChatContribution', () => {
 			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
 			await timeout(0);
 
-			// Removing a session from the list disposes the content of its chats that are open, which turns them read-only
+			// The sessions of the primary location stay listed while the folder is at the checkout, and the session of the checkout is only listed there
 			assert.deepStrictEqual({ atPrimary, atCheckout, back: labels(), removed }, {
 				atPrimary: ['In the folder'],
 				atCheckout: ['In the checkout', 'In the folder'],
-				back: ['In the checkout', 'In the folder'],
-				removed: [],
+				back: ['In the folder'],
+				removed: ['/checkout'],
 			});
 		});
 
-		test('a folder location switch keeps a session with multi-root metadata listed too, and Save Workspace As forgets the locations the folder had', async () => {
+		test('switching the folder to another location keeps the sessions working in the primary location that have no project or one that is not it, but not those of a nested project', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const primary = URI.file('/workspace/root');
+			const checkout = URI.file('/workspace/root.worktrees/feature');
+			let folder = primary;
+			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => testIWorkspace({ id: '', uri: primary, folders: [{ uri: folder, name: 'root', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+				onDidChangeWorkbenchState: Event.None,
+			});
+
+			// A session without a project, and one of a window opened on a linked checkout, whose project is the main worktree
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'no-project'), startTime: 1000, modifiedTime: 2000, summary: 'No project', workingDirectories: [URI.file('/workspace/root/sub')] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'main-worktree'), startTime: 1000, modifiedTime: 1800, summary: 'Main worktree project', workingDirectories: [URI.file('/workspace/root/other')], project: { uri: URI.file('/workspace/main'), displayName: 'main' } });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'nested'), startTime: 1000, modifiedTime: 1200, summary: 'Nested repository', workingDirectories: [URI.file('/workspace/root/nested/src')], project: { uri: URI.file('/workspace/root/nested'), displayName: 'nested' } });
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const removed: string[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => removed.push(...(delta.removed ?? []).map(resource => resource.path))));
+			const labels = () => listController.items.map(item => item.label).sort();
+
+			await listController.refresh(CancellationToken.None);
+			const atPrimary = labels();
+			folder = checkout;
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+
+			assert.deepStrictEqual({ atPrimary, atCheckout: labels(), removed }, {
+				atPrimary: ['Main worktree project', 'Nested repository', 'No project'],
+				atCheckout: ['Main worktree project', 'No project'],
+				removed: ['/nested'],
+			});
+		});
+
+		test('a folder location switch keeps a session with multi-root metadata listed too, and Save Workspace As drops the sessions of the primary location of the folder', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
 			const primary = URI.file('/workspace/root');
@@ -7371,9 +7410,9 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkbenchState: onDidChangeWorkbenchState.event,
 			});
 
-			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')] });
-			agentHostService.addSession({ session: AgentSession.uri('copilot', 'multi-root'), startTime: 1000, modifiedTime: 2500, summary: 'Multi-root in the folder', workingDirectories: [URI.file('/workspace/root/sub')], _meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/other.code-workspace').toString() }) });
-			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')], project: { uri: primary, displayName: 'root' } });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'multi-root'), startTime: 1000, modifiedTime: 2500, summary: 'Multi-root in the folder', workingDirectories: [URI.file('/workspace/root/sub')], project: { uri: primary, displayName: 'root' }, _meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/other.code-workspace').toString() }) });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout], project: { uri: primary, displayName: 'root' } });
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);
 			const labels = () => listController.items.map(item => item.label).sort();

@@ -230,7 +230,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private static getId(keybindingItem: IKeybindingItem): string {
-		return keybindingItem.command + (keybindingItem?.keybinding?.getAriaLabel() ?? '') + keybindingItem.when + (isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.identifier.value) + keybindingItem.keybindingItem.systemWide;
+		return keybindingItem.command + (keybindingItem?.keybinding?.getAriaLabel() ?? '') + keybindingItem.when + (isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.identifier.value);
 	}
 
 	private getExtensionsMapping(): ExtensionIdentifierMap<IExtensionDescription> {

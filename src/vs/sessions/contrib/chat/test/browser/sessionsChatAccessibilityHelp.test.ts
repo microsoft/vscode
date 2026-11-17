@@ -964,7 +964,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const content = provider.provideContent();
-		const pillHelp = content.split('\n').find(line => line.includes('Pull Requests Options'));
+		const pillHelp = content.split('\n').find(line => line.includes('Pull Requests Artifact Options'));
 
 		assert.deepStrictEqual({
 			keyboard: pillHelp?.includes('<keybinding:editor.action.showContextMenu>'),
@@ -1008,7 +1008,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			artifactDownload: content.includes('Files and folders from a remote device, such as one reached over SSH or a dev tunnel, offer Download... instead, as do other image rows'),
 			artifactReveal: content.includes('that are on this device offer Reveal in Finder, Reveal in File Explorer, or Open Containing Folder'),
 			draftImages: content.includes('includes all images attached to that draft'),
-			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
+			transcriptImages: content.includes('Images shown from the transcript do not offer Remove Artifact unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
 			copyActions: content.includes('its context menu offers the item\'s copy actions'),
 			persistence: content.includes('waits for persistence'),
