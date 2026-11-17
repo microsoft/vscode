@@ -952,31 +952,62 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('inbox merge uses only the available provider operation and rejects stale or multiple targets', async () => {
+	test('inbox merge invokes one repeated provider operation and rejects stale or multiple targets', async () => {
 		const built = buildTestSession({ id: 'merge', title: 'Merge', workspace: 'Project', repository: 'owner/repo', pullRequest: { number: 1, title: 'PR' } });
-		const operations = observableValue<readonly ISessionChangesetOperation[]>('operations', [{
+		const merge: ISessionChangesetOperation = {
 			id: 'pr-merge', label: 'Merge', scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle,
-		}]);
+		};
+		const operations = ['branch', 'uncommitted', 'session'].map(id => observableValue<readonly ISessionChangesetOperation[]>(id, [merge]));
+		const started = new DeferredPromise<void>();
+		const completed = new DeferredPromise<void>();
 		const calls: string[] = [];
-		const changeset = upcastPartial<ISessionChangeset>({
-			isEnabled: constObservable(true), operations,
-			invokeOperation: async id => { calls.push(id); },
-		});
-		const session: ISession = { ...built.session, mainChat: constObservable({ ...built.mainChat.chat, changesets: constObservable([changeset]) }) };
+		const changesets = ['branch', 'uncommitted', 'session'].map((changesetId, index) => upcastPartial<ISessionChangeset>({
+			id: changesetId, isEnabled: constObservable(true), operations: operations[index],
+			invokeOperation: async id => {
+				calls.push(`${changesetId}:${id}`);
+				operations[index].set([{ ...merge, status: SessionChangesetOperationStatus.Running }], undefined);
+				await started.complete();
+				await completed.p;
+				operations[index].set([merge], undefined);
+			},
+		}));
+		const session: ISession = { ...built.session, mainChat: constObservable({ ...built.mainChat.chat, changesets: constObservable(changesets) }) };
 		const harness = createListHarness(store, [session]);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
 		harness.instantiationService.stub(ISessionsListModelService, model);
 		const attention = new Map<string, IInboxSessionAttention>([[session.sessionId, { tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false }]]);
 		harness.instantiationService.stub(ISessionAttentionService, upcastPartial<ISessionAttentionService>({ sessionAttention: constObservable(attention) }));
 		const run = async (target: ISession | ISession[] = session) => CommandsRegistry.getCommand('sessionsViewPane.inboxMergePullRequest')!.handler(harness.instantiationService, target);
-		await run();
+		const first = run();
+		await started.p;
+		const blocked = assert.rejects(run(), /no longer available/);
+		await completed.complete();
+		await first;
+		await blocked;
 		await assert.rejects(run([session, session]), /no longer available/);
 		model.setInboxState([session], 'hold');
 		await assert.rejects(run(), /no longer available/);
 		model.setInboxState([session], undefined);
-		operations.set([{ ...operations.get()[0], status: SessionChangesetOperationStatus.Disabled }], undefined);
+		for (const operation of operations) {
+			operation.set([{ ...merge, status: SessionChangesetOperationStatus.Disabled }], undefined);
+		}
 		await assert.rejects(run(), /no longer available/);
-		assert.deepStrictEqual(calls, ['pr-merge']);
+		assert.deepStrictEqual(calls, ['branch:pr-merge']);
+	});
+
+	test('inbox merge checks every changeset for a running copy before selecting an idle operation', () => {
+		const built = buildTestSession({ id: 'merge', title: 'Merge', workspace: 'Project', repository: 'owner/repo', pullRequest: { number: 1, title: 'PR' } });
+		const merge: ISessionChangesetOperation = { id: 'pr-merge', label: 'Merge', scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle };
+		const operations = ['branch', 'uncommitted', 'session'].map(id => observableValue<readonly ISessionChangesetOperation[]>(id, [merge]));
+		const changesets = operations.map(operations => upcastPartial<ISessionChangeset>({ isEnabled: constObservable(true), operations }));
+		const session: ISession = { ...built.session, mainChat: constObservable({ ...built.mainChat.chat, changesets: constObservable(changesets) }) };
+		const results = operations.map(operations => {
+			operations.set([{ ...merge, status: SessionChangesetOperationStatus.Running }], undefined);
+			const result = getInboxPullRequestMergeOperation(session);
+			operations.set([merge], undefined);
+			return result;
+		});
+		assert.deepStrictEqual(results, [undefined, undefined, undefined]);
 	});
 
 	test('inbox merge is context-menu-only, AI-gated and disabled for multi-selection', () => {
@@ -998,7 +1029,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('inbox merge rejects local, resource-only, disabled, running and ambiguous operations', () => {
+	test('inbox merge rejects local, resource-only, disabled and running operations and ambiguous pull requests', () => {
 		const built = buildTestSession({ id: 'merge', title: 'Merge', workspace: 'Project', repository: 'owner/repo', pullRequest: { number: 1, title: 'PR' } });
 		const merge: ISessionChangesetOperation = { id: 'pr-merge', label: 'Merge', scopes: [SessionChangesetOperationScope.Changeset], status: SessionChangesetOperationStatus.Idle };
 		const operations = observableValue<readonly ISessionChangesetOperation[]>('operations', []);
@@ -1010,7 +1041,6 @@ suite('Sessions - View Menu', () => {
 			[{ ...merge, scopes: [SessionChangesetOperationScope.Resource] }],
 			[{ ...merge, status: SessionChangesetOperationStatus.Disabled }],
 			[{ ...merge, status: SessionChangesetOperationStatus.Running }],
-			[merge, merge],
 		].map(candidates => {
 			operations.set(candidates, undefined);
 			return getInboxPullRequestMergeOperation(session);
@@ -1026,7 +1056,7 @@ suite('Sessions - View Menu', () => {
 			...session, workspace: constObservable({ ...workspace, folders: [...workspace.folders, ...other.folders] }),
 		}));
 		assert.deepStrictEqual({ rejected, available: getInboxPullRequestMergeOperation(session) }, {
-			rejected: Array(8).fill(undefined), available: { changeset, operation: merge },
+			rejected: Array(7).fill(undefined), available: { changeset, operation: merge },
 		});
 	});
 

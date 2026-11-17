@@ -12,7 +12,7 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/erro
 import { DeferredPromise, timeout } from '../../../../common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
-import { registerTestIframe } from '../../testWindow.js';
+import { registerTestIframe, whenTestIframeLaidOut } from '../../testWindow.js';
 
 
 /**
@@ -1363,6 +1363,7 @@ suite('ContextView', () => {
 			// Auxiliary windows clone the main window's stylesheets, see `AuxiliaryWindowService`
 			const collectRules = (sheet: CSSStyleSheet): string[] => Array.from(sheet.cssRules).flatMap(rule => rule instanceof CSSImportRule ? (rule.styleSheet ? collectRules(rule.styleSheet) : []) : [rule.cssText]);
 			otherDocument.head.appendChild(otherDocument.createElement('style')).textContent = Array.from(mainWindow.document.styleSheets).flatMap(collectRules).join('\n');
+			await whenTestIframeLaidOut(iframe);
 			const owner = otherDocument.createElement('div');
 			owner.style.cssText = 'position: absolute; top: 20px; left: 20px; width: 200px; height: 40px; overflow: hidden; transform: scale(0.97);';
 			const input = owner.appendChild(otherDocument.createElement('input'));
@@ -1639,7 +1640,7 @@ suite('ContextView', () => {
 			});
 		}
 
-		test('reads the overlay and viewport of the container\'s window', () => {
+		test('reads the overlay and viewport of the container\'s window', async () => {
 			const iframe = mainWindow.document.createElement('iframe');
 			iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 400px; height: 300px; border: 0;';
 			mainWindow.document.body.appendChild(iframe);
@@ -1650,6 +1651,7 @@ suite('ContextView', () => {
 			otherDocument.body.style.margin = '0';
 			const collectRules = (sheet: CSSStyleSheet): string[] => Array.from(sheet.cssRules).flatMap(rule => rule instanceof CSSImportRule ? (rule.styleSheet ? collectRules(rule.styleSheet) : []) : [rule.cssText]);
 			otherDocument.head.appendChild(otherDocument.createElement('style')).textContent = Array.from(mainWindow.document.styleSheets).flatMap(collectRules).join('\n');
+			await whenTestIframeLaidOut(iframe);
 			const overlay = new DOMRect(80, 0, 200, 30);
 			const windows: Window[] = [];
 

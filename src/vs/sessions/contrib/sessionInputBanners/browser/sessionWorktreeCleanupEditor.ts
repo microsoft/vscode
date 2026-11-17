@@ -1292,7 +1292,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		return worktree.cleanupStatus?.state === 'failed' || worktree.cleanupStatus?.state === 'skipped' || worktree.cleanupStatus?.state === 'inUse'
 			|| worktree.isListedByHost === false || !!worktree.worktreeCheckError || !!worktree.cleanupStatusError || worktree.measurementFailed === true
-			|| batch?.state === 'failed' || batch?.state === 'attention';
+			|| ((batch?.state === 'failed' || batch?.state === 'attention') && !batch.schedulingError);
 	}
 
 	private updateCleanupBatch(): void {
