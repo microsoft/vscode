@@ -1167,11 +1167,11 @@ class UnifiedEnvironmentVariableCollection extends Disposable {
 		return scopeKey.length ? `${variable}:::${scopeKey}` : variable;
 	}
 
-	private getScopeKey(scope: { workspaceFolder?: { uri: URI } } | undefined): string {
+	private getScopeKey(scope: vscode.EnvironmentVariableScope | undefined): string {
 		return this.getWorkspaceKey(scope?.workspaceFolder) ?? '';
 	}
 
-	private getWorkspaceKey(workspaceFolder: { uri: URI } | undefined): string | undefined {
+	private getWorkspaceKey(workspaceFolder: vscode.WorkspaceFolder | undefined): string | undefined {
 		return workspaceFolder ? workspaceFolder.uri.toString() : undefined;
 	}
 

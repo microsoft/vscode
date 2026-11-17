@@ -89,12 +89,6 @@ export interface IWorkspaceFolderLocationService {
 	isAtAlternateLocation(folder: IWorkspaceFolder): boolean;
 
 	/**
-	 * The primary location of `folder`: the workspace's own location when the
-	 * folder is opened at an alternate location, otherwise the folder's location.
-	 */
-	getPrimaryLocation(folder: IWorkspaceFolder): URI;
-
-	/**
 	 * Whether the location of `folder` can be set with `IWorkspaceEditingService.setFolderLocation`.
 	 * This is the case for the folder of a local single-folder workspace.
 	 */

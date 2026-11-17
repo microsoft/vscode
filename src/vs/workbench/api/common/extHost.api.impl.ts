@@ -1192,7 +1192,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeWorkspaceFolderLocations: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'workspaceFolderLocations');
-				extHostWorkspace.requestWorkspaceFolderLocations();
 				return _asExtensionEvent(extHostWorkspace.onDidChangeWorkspaceFolderLocations)(listener, thisArgs, disposables);
 			},
 			asRelativePath: (pathOrUri, includeWorkspace?) => {

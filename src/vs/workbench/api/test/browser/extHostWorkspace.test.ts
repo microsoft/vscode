@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { basename } from '../../../../base/common/path.js';
+import type * as vscode from 'vscode';
+import { timeout } from '../../../../base/common/async.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
@@ -30,11 +31,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ExcludeSettingOptions } from '../../../services/search/common/searchExtTypes.js';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
-	if (mainContext instanceof TestRPCProtocol && !mainContext.has(MainContext.MainThreadWorkspace)) {
-		mainContext.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
-			override $getWorkspaceFolderLocations(): void { }
-		});
-	}
 	mainContext.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
 		override $publicLog2(): void { }
 	});
@@ -276,195 +272,71 @@ suite('ExtHostWorkspace', function () {
 		assert.notStrictEqual(firstFolder, ws.workspace!.folders[0]);
 	});
 
-	test('Workspace folder locations default to the folder itself', function () {
-		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
+	suite('workspace folder locations', function () {
 
-		assert.deepStrictEqual(ws.getWorkspaceFolders()![0].locations.map(l => ({ uri: l.uri.toString(), label: l.label, isPrimary: l.isPrimary })), [
-			{ uri: 'foo:bar', label: 'bar', isPrimary: true }
-		]);
-	});
-
-	suite('lazy location resolution', function () {
-
-		function create() {
+		function create(folders = [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')]) {
 			const rpc = new TestRPCProtocol();
 			let requests = 0;
 			rpc.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
 				override $getWorkspaceFolderLocations(): void { requests++; }
 			});
-			const ws = createExtHostWorkspace(rpc, { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
+			const ws = createExtHostWorkspace(rpc, { id: 'foo', name: 'Test', folders }, new NullLogService());
 			return { ws, requests: () => requests };
 		}
 
-		test('nothing is requested until locations are read', async function () {
-			const { ws, requests } = create();
-			ws.getWorkspaceFolders();
-			await timeout(0);
-			assert.strictEqual(requests(), 0);
-		});
+		const view = (folder: vscode.WorkspaceFolder | undefined) => folder?.locations?.map(l => [l.uri.toString(), l.name]);
 
-		test('the first read requests once', async function () {
+		test('locations are undefined and resolution starts on the first subscription only', async function () {
 			const { ws, requests } = create();
-			const folder = ws.getWorkspaceFolders()![0];
-			assert.ok(folder.locations);
-			assert.ok(folder.locations);
+
+			await timeout(0);
+			assert.deepStrictEqual({ locations: ws.getWorkspaceFolders()![0].locations, requests: requests() }, { locations: undefined, requests: 0 });
+
+			store.add(ws.onDidChangeWorkspaceFolderLocations(() => { }));
+			store.add(ws.onDidChangeWorkspaceFolderLocations(() => { }));
 			await timeout(0);
 			assert.strictEqual(requests(), 1);
 		});
 
-		test('subscribing to the event requests', async function () {
-			const { ws, requests } = create();
-			ws.requestWorkspaceFolderLocations();
-			await timeout(0);
-			assert.strictEqual(requests(), 1);
-		});
-
-		test('enumerating or serializing a folder does not request', async function () {
-			const { ws, requests } = create();
+		test('locations are set in place and fire an event once per change, ignoring unknown folders', function () {
+			const { ws } = create();
 			const folder = ws.getWorkspaceFolders()![0];
-			Object.keys(folder);
-			JSON.stringify(folder);
-			assert.ok({ ...folder });
-			await timeout(0);
-			assert.strictEqual(requests(), 0);
+			const events: string[][] = [];
+			store.add(ws.onDidChangeWorkspaceFolderLocations(e => events.push(e.workspaceFolders.map(f => f.uri.toString()))));
+
+			const locations = [{ uri: URI.parse('foo:bar'), name: 'main' }, { uri: URI.parse('foo:wt'), name: 'wt' }];
+			const dto = [{ folder: URI.parse('foo:unknown'), locations }, { folder: URI.parse('foo:bar'), locations }];
+			ws.$acceptWorkspaceFolderLocations(dto);
+			ws.$acceptWorkspaceFolderLocations(dto);
+			ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [locations[0], { ...locations[1], name: 'renamed' }] }]);
+
+			assert.deepStrictEqual({ same: ws.getWorkspaceFolders()![0] === folder, locations: view(folder), events }, {
+				same: true,
+				locations: [['foo:bar', 'main'], ['foo:wt', 'renamed']],
+				events: [['foo:bar'], ['foo:bar']]
+			});
 		});
-	});
 
-	test('Workspace folder locations before resolution name only the primary when the folder is at an alternate location', function () {
-		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(URI.parse('foo:wt'), 0, 'wt'), primary: URI.parse('foo:main') }] }, new NullLogService());
-		const folder = ws.getWorkspaceFolders()![0];
-		const view = () => folder.locations.map(l => ({ uri: l.uri.toString(), isPrimary: l.isPrimary }));
+		test('locations are kept while the folder is reused', function () {
+			const { ws } = create();
+			const folder = ws.getWorkspaceFolders()![0];
+			ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [{ uri: URI.parse('foo:bar'), name: 'main' }] }]);
+			ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:other'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'bar')] });
 
-		const events: number[] = [];
-		store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
+			assert.deepStrictEqual({ same: ws.getWorkspaceFolders()![1] === folder, other: ws.getWorkspaceFolders()![0].locations, kept: view(folder) }, {
+				same: true, other: undefined, kept: [['foo:bar', 'main']]
+			});
+		});
 
-		assert.deepStrictEqual(view(), [{ uri: 'foo:main', isPrimary: true }]);
-
-		ws.$acceptWorkspaceFolderLocations([{
-			folder: URI.parse('foo:wt'),
-			locations: [
-				{ uri: URI.parse('foo:main'), label: 'main', isPrimary: true },
-				{ uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false }
-			]
-		}]);
-		assert.deepStrictEqual([view().length, events.length], [2, 1]);
-	});
-
-	test('Resolving the locations of a Windows drive or UNC folder fires no event for the seeded primary', function () {
-		const cases = [
-			{ uri: URI.from({ scheme: 'file', path: '/C:/work/repo' }), name: 'repo', resolved: URI.from({ scheme: 'file', path: '/c:/work/repo' }), label: 'repo' },
-			{ uri: URI.from({ scheme: 'file', authority: 'server', path: '/' }), name: 'server', resolved: URI.from({ scheme: 'file', authority: 'server', path: '/' }), label: 'server' }
-		];
-		const events: number[] = [];
-		for (const { uri, name, resolved, label } of cases) {
-			const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(uri, 0, name)] }, new NullLogService());
-			store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
-			ws.$acceptWorkspaceFolderLocations([{ folder: uri, locations: [{ uri: resolved, label, isPrimary: true }] }]);
-		}
-
-		assert.strictEqual(events.length, 0);
-	});
-
-	test('Workspace folder locations of Windows drive and UNC primaries are seeded first, carried over a switch and fire no spurious event', function () {
-		const file = (authority: string, path: string) => URI.from({ scheme: 'file', authority, path });
-		const worktree = file('', '/C:/work/wt1');
-		const cases = [
-			{ primary: file('', '/C:/work/repo/'), label: 'repo' },
-			{ primary: file('server', '/share/'), label: 'share' },
-			{ primary: file('server', '/'), label: 'server' },
-			{ primary: file('', '/C:/'), label: 'C:' }
-		];
-		const actual: { seeded: string[][]; events: number; afterSwitch: string[][] }[] = [];
-		for (const { primary, label } of cases) {
-			const view = (ws: ExtHostWorkspace) => ws.getWorkspaceFolders()![0].locations.map(l => [l.uri.toString(), l.label]);
-			const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(worktree, 0, 'wt1'), primary }] }, new NullLogService());
+		test('locations of a Windows drive folder match regardless of drive letter case', function () {
+			const { ws } = create([aWorkspaceFolderData(URI.from({ scheme: 'file', path: '/C:/work/repo' }), 0, 'repo')]);
 			const events: number[] = [];
 			store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
-			const seeded = view(ws);
 
-			const locations = [{ uri: primary, label, isPrimary: true }, { uri: worktree, label: 'wt1', isPrimary: false }];
-			ws.$acceptWorkspaceFolderLocations([{ folder: worktree, locations }]);
-			const resolved = view(ws);
-			events.length = 0;
-			ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(primary, 0, label), primary }] });
-			const afterSwitch = view(ws);
-			ws.$acceptWorkspaceFolderLocations([{ folder: primary, locations }]);
+			ws.$acceptWorkspaceFolderLocations([{ folder: URI.from({ scheme: 'file', path: '/c:/work/repo' }), locations: [{ uri: URI.from({ scheme: 'file', path: '/C:/work/repo' }), name: 'repo' }] }]);
 
-			assert.deepStrictEqual({ seeded, resolved: resolved.map(l => l[1]) }, { seeded: [[primary.toString(), label]], resolved: [label, 'wt1'] });
-			actual.push({ seeded, events: events.length, afterSwitch });
-		}
-
-		assert.deepStrictEqual(actual.map(a => ({ events: a.events, carried: a.afterSwitch.map(l => l[1]) })), cases.map(c => ({ events: 0, carried: [c.label, 'wt1'] })));
-	});
-
-	test('A location switch is reported as removed and added and does not change the locations', function () {
-		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(URI.parse('foo:main'), 0, 'repo'), primary: URI.parse('foo:main') }] }, new NullLogService());
-		const locations = [
-			{ uri: URI.parse('foo:main'), label: 'main', isPrimary: true },
-			{ uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false }
-		];
-		ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:main'), locations }]);
-		const before = ws.getWorkspaceFolders()![0].locations.map(l => l.uri.toString());
-
-		const locationEvents: number[] = [];
-		const changes: { added: string[]; removed: string[] }[] = [];
-		store.add(ws.onDidChangeWorkspaceFolderLocations(() => locationEvents.push(1)));
-		store.add(ws.onDidChangeWorkspace(e => changes.push({ added: e.added.map(f => f.uri.toString()), removed: e.removed.map(f => f.uri.toString()) })));
-
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(URI.parse('foo:wt'), 0, 'repo'), primary: URI.parse('foo:main') }] });
-		ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:wt'), locations }]);
-
-		assert.deepStrictEqual({ changes, locationEvents: locationEvents.length, after: ws.getWorkspaceFolders()![0].locations.map(l => l.uri.toString()) }, {
-			changes: [{ added: ['foo:wt'], removed: ['foo:main'] }],
-			locationEvents: 0,
-			after: before
+			assert.deepStrictEqual({ locations: view(ws.getWorkspaceFolders()![0]), events: events.length }, { locations: [['file:///c%3A/work/repo', 'repo']], events: 1 });
 		});
-	});
-
-	test('Workspace folder locations are updated in place and fire an event once per change', function () {
-		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
-		const folder = ws.getWorkspaceFolders()![0];
-
-		const events: string[][] = [];
-		store.add(ws.onDidChangeWorkspaceFolderLocations(e => events.push(e.workspaceFolders.map(f => f.uri.toString()))));
-
-		const dto = [{
-			folder: URI.parse('foo:bar'),
-			locations: [
-				{ uri: URI.parse('foo:bar'), label: 'main', isPrimary: true },
-				{ uri: URI.parse('foo:wt'), label: 'wt', description: 'feature', isPrimary: false }
-			]
-		}];
-		ws.$acceptWorkspaceFolderLocations(dto);
-		ws.$acceptWorkspaceFolderLocations(dto);
-
-		assert.strictEqual(ws.getWorkspaceFolders()![0], folder);
-		assert.deepStrictEqual(folder.locations.map(l => ({ uri: l.uri.toString(), label: l.label, description: l.description, isPrimary: l.isPrimary })), [
-			{ uri: 'foo:bar', label: 'main', description: undefined, isPrimary: true },
-			{ uri: 'foo:wt', label: 'wt', description: 'feature', isPrimary: false }
-		]);
-		assert.deepStrictEqual(events, [['foo:bar']]);
-
-		ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [dto[0].locations[0], { ...dto[0].locations[1], label: 'renamed' }] }]);
-		assert.deepStrictEqual(events, [['foo:bar'], ['foo:bar']]);
-	});
-
-	test('Workspace folder locations are kept when the folder is reused and ignore unknown folders', function () {
-		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
-		const folder = ws.getWorkspaceFolders()![0];
-		const events: number[] = [];
-		store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
-
-		ws.$acceptWorkspaceFolderLocations([
-			{ folder: URI.parse('foo:unknown'), locations: [{ uri: URI.parse('foo:unknown'), label: 'x', isPrimary: true }] },
-			{ folder: URI.parse('foo:bar'), locations: [{ uri: URI.parse('foo:bar'), label: 'main', isPrimary: true }, { uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false }] }
-		]);
-		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:other'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'bar')] });
-
-		assert.strictEqual(ws.getWorkspaceFolders()![1], folder);
-		assert.strictEqual(folder.locations.length, 2);
-		assert.strictEqual(ws.getWorkspaceFolders()![0].locations.length, 1);
-		assert.strictEqual(events.length, 1);
 	});
 
 	test('updateWorkspaceFolders - invalid arguments', function () {

@@ -120,9 +120,7 @@ export type IconPathDto =
 
 export interface IWorkspaceFolderLocationDto {
 	uri: UriComponents;
-	label: string;
-	description?: string;
-	isPrimary: boolean;
+	name: string;
 }
 
 export interface IWorkspaceFolderLocationsDto {
@@ -131,10 +129,7 @@ export interface IWorkspaceFolderLocationsDto {
 }
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
-	/**
-	 * `primary` is the primary location of the folder, which differs from `uri` when the folder is at an alternate location.
-	 */
-	folders: { uri: UriComponents; name: string; index: number; primary?: UriComponents }[];
+	folders: { uri: UriComponents; name: string; index: number }[];
 }
 
 export interface IConfigurationInitData extends IConfigurationData {

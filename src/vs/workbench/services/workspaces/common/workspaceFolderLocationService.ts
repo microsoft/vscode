@@ -79,7 +79,7 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		return !workspace.configuration && !!workspace.uri && workspace.folders.length === 1 && extUri.isEqual(workspace.folders[0].uri, folder.uri) && !extUri.isEqual(folder.uri, workspace.uri);
 	}
 
-	getPrimaryLocation(folder: IWorkspaceFolder): URI {
+	private getPrimaryLocation(folder: IWorkspaceFolder): URI {
 		return this.isAtAlternateLocation(folder) ? this.contextService.getWorkspace().uri! : folder.uri;
 	}
 

@@ -18,50 +18,24 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * A human readable label of this location.
+		 * The name of this location.
 		 */
-		readonly label: string;
-
-		/**
-		 * An optional human readable description of this location.
-		 */
-		readonly description?: string;
-
-		/**
-		 * Whether this is the primary location of the workspace folder.
-		 */
-		readonly isPrimary: boolean;
+		readonly name: string;
 	}
 
 	export interface WorkspaceFolder {
 
 		/**
-		 * All known locations of this workspace folder, the primary location first.
-		 * Never empty. This is only the set of known locations: it does not change when
-		 * the folder is switched to another location. A switch is reported as the folder
-		 * being removed and added again in {@link workspace.onDidChangeWorkspaceFolders}
-		 * and does not fire {@link workspace.onDidChangeWorkspaceFolderLocations}. The location the folder is currently
-		 * at is {@link WorkspaceFolder.uri}.
+		 * The locations of this workspace folder, the primary location first, or
+		 * `undefined` until they are known or when they are not supported.
 		 *
-		 * Resolution is lazy: it starts when this property is first read or when
-		 * {@link workspace.onDidChangeWorkspaceFolderLocations} is subscribed to.
-		 * Until the set is resolved, a read returns a synchronous initial value holding
-		 * only the primary location. The full set arrives later through the event, so
-		 * prefer subscribing to the event. Once the set is known, a read returns it right
-		 * away, for example for a late reader after another extension resolved it. When
-		 * the folder is switched to another location, the known set is carried over to the
-		 * folder objects delivered in the removed and added callback of
-		 * {@link workspace.onDidChangeWorkspaceFolders}, before that callback runs. The
-		 * primary location is always the first entry. The property is not enumerable, so spreading
-		 * or serializing a folder does not trigger resolution.
-		 *
-		 * Alternate locations are currently only discovered for a folder that is the
-		 * only folder of a local workspace.
-		 *
-		 * The value is replaced on the same {@link WorkspaceFolder} object when the
-		 * locations change, see {@link workspace.onDidChangeWorkspaceFolderLocations}.
+		 * Resolution starts when {@link workspace.onDidChangeWorkspaceFolderLocations}
+		 * is subscribed to; the value is set on the same {@link WorkspaceFolder} object
+		 * and the event fires. Switching a folder to another location is reported as the
+		 * folder being removed and added in {@link workspace.onDidChangeWorkspaceFolders};
+		 * the new folder object starts with `undefined` locations.
 		 */
-		readonly locations: readonly WorkspaceFolderLocation[];
+		readonly locations?: readonly WorkspaceFolderLocation[];
 	}
 
 	/**
@@ -71,7 +45,7 @@ declare module 'vscode' {
 
 		/**
 		 * The workspace folders whose set of known {@link WorkspaceFolder.locations locations}
-		 * changed. Switching a folder to another location does not fire this event.
+		 * changed.
 		 */
 		readonly workspaceFolders: readonly WorkspaceFolder[];
 	}

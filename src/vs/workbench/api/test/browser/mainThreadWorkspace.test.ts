@@ -37,7 +37,6 @@ suite('MainThreadWorkspace', () => {
 			onDidChangeLocations: Event.None,
 			onDidChangeProviders: Event.None,
 			getLocations: async () => [],
-			getPrimaryLocation: folder => folder.uri,
 			getFolderLocations: async folder => [{ uri: folder.uri, label: folder.name }]
 		});
 	});
@@ -168,10 +167,6 @@ suite('MainThreadWorkspace', () => {
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 
 		assert.ok(pushed.length > 0);
-		for (const [data] of pushed) {
-			assert.strictEqual(data.locations.filter(l => l.isPrimary).length, 1);
-			assert.strictEqual(data.locations[0].isPrimary, true);
-		}
 	});
 	suite('location resolution lifetime', () => {
 
@@ -189,7 +184,6 @@ suite('MainThreadWorkspace', () => {
 				onDidChangeLocations: Event.map(changes.event, () => undefined),
 				onDidChangeProviders: Event.None,
 				getLocations: async () => [],
-				getPrimaryLocation: f => f.uri,
 				// ignores the cancellation token on purpose
 				getFolderLocations: () => {
 					const request = new DeferredPromise<IFolderLocation[]>();
@@ -305,9 +299,9 @@ suite('MainThreadWorkspace', () => {
 
 		test('the pushed model comes from the location service', async () => {
 			const { requests, pushed } = await setup2();
-			requests[0].complete([{ uri: folder, label: 'repo', description: 'main' }, location(URI.file('/work/wt'))]);
+			requests[0].complete([{ uri: folder, label: 'repo' }, location(URI.file('/work/wt'))]);
 			await tick();
-			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => [l.uri.path, l.isPrimary])), [[['/work/repo', true], ['/work/wt', false]]]);
+			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => [l.uri.path, l.name])), [[['/work/repo', 'repo'], ['/work/wt', '/work/wt']]]);
 		});
 
 		test('a service locations change resolves and pushes again', async () => {

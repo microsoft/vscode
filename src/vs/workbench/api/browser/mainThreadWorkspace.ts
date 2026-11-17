@@ -175,7 +175,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			this._folderLocationService.getFolderLocations(folder, cts.token).then(result => {
 				// the resolver may ignore the token, so check that this resolve is still the current one
 				if (!cts.token.isCancellationRequested && this._locationResolves.get(key) === cts) {
-					const locations = result.map((l, i) => ({ uri: l.uri, label: l.label, description: l.description, isPrimary: i === 0 }));
+					const locations = result.map(l => ({ uri: l.uri, name: l.label }));
 					this._proxy.$acceptWorkspaceFolderLocations([{ folder: folder.uri, locations }]);
 				}
 			}, error => {
@@ -199,7 +199,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		return {
 			configuration: workspace.configuration || undefined,
 			isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
-			folders: workspace.folders.map(folder => ({ uri: folder.uri, name: folder.name, index: folder.index, primary: this._folderLocationService.getPrimaryLocation(folder) })),
+			folders: workspace.folders,
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace),
 			transient: workspace.transient,
