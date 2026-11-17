@@ -161,12 +161,12 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this._fileListAvailable.set(input.showFileList, undefined);
-		// Order the diffs like the file list before the view model is created. The input keeps
-		// the order when it is no longer shown, so that the diffs do not move when it is shown again.
+		// Order the diffs like the file list before the view model is created, unless the input has none. The input keeps
+		// the order when the list is no longer shown, so that the diffs do not move when it is shown again.
 		const fileListResourceOrder = this._fileListResourceOrder;
-		if (fileListResourceOrder) {
-			this._inputResourceOrder.value = autorun(reader => input.setResourceOrder(fileListResourceOrder.read(reader)));
-		}
+		this._inputResourceOrder.value = fileListResourceOrder && input.showFileList
+			? autorun(reader => input.setResourceOrder(fileListResourceOrder.read(reader)))
+			: undefined;
 		this._viewModel = await input.getViewModel();
 		this._contentOverlay.value?.updateResource(input.resource);
 

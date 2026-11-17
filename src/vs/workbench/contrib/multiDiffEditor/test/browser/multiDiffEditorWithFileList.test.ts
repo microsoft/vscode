@@ -197,7 +197,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}
 	});
 
-	test('orders the diffs of an input like the file list while it is used', async () => {
+	test('orders the diffs of an input like the file list while it is used, and keeps the source order of an input without one', async () => {
 		stubBinaryDocuments();
 		const paths = ['/repo/src/c.png', '/repo/d.png', '/repo/docs/b.png', '/repo/src/a.png'];
 
@@ -205,6 +205,8 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		const input = createInput('ordered', paths);
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		const viewModel = editor.viewModel!;
+		const withoutFileList = createEditor(300);
+		await withoutFileList.editor.setInput(createInput('without', paths, false), undefined, {}, CancellationToken.None);
 		const files = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
 			.filter(row => row.querySelector('.multi-diff-file-list-item-status'))
 			.sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
@@ -223,13 +225,15 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 			await editor.setInput(input, undefined, {}, CancellationToken.None);
 			const reopened = { files: files(container), diffs: diffs(viewModel) };
 
-			assert.deepStrictEqual({ list, tree, reopened }, {
+			assert.deepStrictEqual({ list, tree, reopened, withoutFileList: diffs(withoutFileList.editor.viewModel!) }, {
 				list: { files: ['d.png', 'b.png', 'a.png', 'c.png'], diffs: ['d.png', 'b.png', 'a.png', 'c.png'] },
 				tree: { files: ['b.png', 'a.png', 'c.png', 'd.png'], diffs: ['b.png', 'a.png', 'c.png', 'd.png'] },
 				reopened: { files: ['d.png', 'b.png', 'a.png', 'c.png'], diffs: ['d.png', 'b.png', 'a.png', 'c.png'] },
+				withoutFileList: ['c.png', 'd.png', 'b.png', 'a.png'],
 			});
 		} finally {
 			await editor.clearInput();
+			await withoutFileList.editor.clearInput();
 		}
 	});
 
