@@ -20,6 +20,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IExtensionRemoteAgentHostsService } from '../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -98,6 +99,7 @@ import { NullWorktreeSuggestionService } from '../../../../../workbench/contrib/
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionDraftsService, SessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { IScheduledChatsService } from '../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -551,6 +553,9 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 				override readonly accountKey = undefined;
 				override readonly hosts = constObservable([]);
 			}());
+			reg.defineInstance(IExtensionRemoteAgentHostsService, new class extends mock<IExtensionRemoteAgentHostsService>() {
+				override readonly hosts = constObservable([]);
+			}());
 			if (petEnabled) {
 				reg.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(container, disposableStore));
 				reg.defineInstance(IChatPetService, disposableStore.add(new FixtureChatPetService({
@@ -668,6 +673,7 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			reg.defineInstance(ISessionsService, sessionsService);
 			reg.defineInstance(IFocusedSessionHostService, focusedSessionHostServiceOf(activeSessionObservable));
 			reg.define(ISessionDraftsService, SessionDraftsService);
+			reg.define(INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoiceService);
 			reg.defineInstance(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 				override getPendingNewSessionGroup() { return undefined; }
 			}());

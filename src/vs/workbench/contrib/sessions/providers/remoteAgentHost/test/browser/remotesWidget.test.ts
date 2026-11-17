@@ -19,6 +19,8 @@ import { NullHoverService } from '../../../../../../../platform/hover/test/brows
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../../../../../platform/extensions/common/extensions.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
@@ -161,6 +163,7 @@ suite('RemotesWidget', () => {
 		const opened: { input: IResourceEditorInput; group: PreferredGroup | undefined }[] = [];
 		const documentation: string[] = [];
 		const settings: Parameters<IPreferencesService['openSettings']>[0][] = [];
+		const commands: unknown[][] = [];
 		let configFailure: Error | undefined;
 		let configRequests = 0;
 		instantiationService.stub(ISSHRemoteAgentHostService, {
@@ -175,6 +178,7 @@ suite('RemotesWidget', () => {
 		instantiationService.stub(IEditorService, 'openEditor', async (input: IResourceEditorInput, group?: PreferredGroup) => { opened.push({ input, group }); return undefined; });
 		instantiationService.stub(IOpenerService, { open: async resource => { documentation.push(resource.toString()); return true; } });
 		instantiationService.stub(IPreferencesService, { openSettings: async options => { settings.push(options); return undefined; } });
+		instantiationService.stub(ICommandService, { executeCommand: async (id: string, ...args: unknown[]) => { commands.push([id, ...args]); return undefined; } });
 		instantiationService.stub(INotificationService, 'error', (error: Parameters<INotificationService['error']>[0]) => { errors.push(error); });
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
 			override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>) {
@@ -197,7 +201,7 @@ suite('RemotesWidget', () => {
 		const model = store.add(new TestRemotesModel());
 		const widget = store.add(instantiationService.createInstance(TestRemotesWidget, parent, model, operatingSystem));
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		return { widget, parent, model, errors, hoverContents, mouseHoverTargets, opened, documentation, settings, commands, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
 	function getManagementAction(parent: HTMLElement, id: string, action: 'rename' | 'delete'): HTMLElement {
@@ -710,6 +714,34 @@ suite('RemotesWidget', () => {
 			assert.strictEqual(dom.getActiveElement(), button);
 		}
 		assert.deepStrictEqual({ copied: model.copiedAddresses, connections: model.connectionChanges }, { copied: ids, connections: [] });
+	});
+
+	test('extension rows name their registering extension, find it by search and show it on request', async () => {
+		const { parent, model, widget, commands, hoverContents, mouseHoverTargets } = createWidget();
+		model.remotes.set([...model.remotes.get(), {
+			id: '127.0.0.1:8445', kind: 'extension', name: 'Jobs', detail: '127.0.0.1:8445', canRemove: false,
+			contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' },
+			connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
+		const row = parent.querySelector<HTMLElement>('[data-remote-id="127.0.0.1:8445"]')!;
+		const detail = row.querySelector<HTMLElement>('.remotes-name-detail')!;
+		const actions = [...row.querySelectorAll<HTMLElement>('.remotes-actions-column [role="button"]')];
+		row.querySelector<HTMLElement>('.remotes-actions-column .codicon-extensions')!.click();
+		await timeout(0);
+		widget.setSearchQuery('job runner');
+		assert.deepStrictEqual({
+			details: [...parent.querySelectorAll<HTMLElement>('.remotes-name-detail:not([hidden])')].map(element => element.textContent),
+			detailHover: mouseHoverTargets.has(detail) ? hoverContents.get(detail) : undefined,
+			actions: actions.map(action => action.getAttribute('aria-label')),
+			commands,
+			searched: [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId),
+		}, {
+			details: ['Registered by the Job Runner extension'],
+			detailHover: 'Registered by the Job Runner extension',
+			actions: ['Disconnect Jobs', 'Rename Jobs...', 'Copy Address of Jobs', 'Show Job Runner Extension'],
+			commands: [[MANAGE_EXTENSION_COMMAND_ID, 'publisher.jobs']],
+			searched: ['127.0.0.1:8445'],
+		});
 	});
 
 	for (const id of ['ssh:build', 'tunnel:laptop']) {

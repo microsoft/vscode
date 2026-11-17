@@ -263,8 +263,8 @@ function withRemoveAction(artifact: ISessionArtifactPresentation, entry: IChatPi
 		promotedAction: withChatPillHoverLabel(toAction({
 			id: `sessions.artifacts.remove.${artifact.id}`,
 			label: artifact.isArtifact
-				? localize('sessionArtifacts.removeArtifact', "Remove Artifact {0} from Session", artifact.label)
-				: localize('sessionArtifacts.removeReference', "Remove Reference {0} from Session", artifact.label),
+				? localize('sessionArtifacts.removeArtifact', "Remove \"{0}\" Artifact", artifact.label)
+				: localize('sessionArtifacts.removeReference', "Remove \"{0}\" Reference", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
 			run: () => remove(artifact.id, artifact.label),
 		}), artifact.isArtifact ? chatPillRemoveArtifactHoverLabel : chatPillRemoveReferenceHoverLabel),

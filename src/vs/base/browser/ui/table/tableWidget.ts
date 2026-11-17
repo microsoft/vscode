@@ -132,7 +132,7 @@ class ColumnHeader<TRow, TCell> extends Disposable implements IView {
 	constructor(readonly column: ITableColumn<TRow, TCell>, private index: number) {
 		super();
 
-		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.headerElement ?? column.label);
+		this.element = $('.monaco-table-th', { 'data-col-index': index }, column.label);
 
 		if (column.tooltip) {
 			this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, column.tooltip));

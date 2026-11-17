@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf } from '../../browser/commentThreadFloatingWidgetLayout.js';
 
 suite('Comment thread floating widget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -207,6 +207,22 @@ suite('Comment thread floating widget', () => {
 				belowForLaterCode: false,
 				besideForLaterCode: false,
 				aboveForSameCode: false,
+			});
+		});
+	});
+
+	suite('getDefaultFloatingWidgetWidth', () => {
+		test('starts a new comment wider than other widgets when the editor has room for it', () => {
+			assert.deepStrictEqual({
+				existingComment: getDefaultFloatingWidgetWidth(1000, 1000, false),
+				newComment: getDefaultFloatingWidgetWidth(1000, 1000, true),
+				newCommentInWideEditor: getDefaultFloatingWidgetWidth(2000, 2000, true),
+				newCommentInNarrowEditor: getDefaultFloatingWidgetWidth(500, 500, true),
+			}, {
+				existingComment: 400,
+				newComment: 500,
+				newCommentInWideEditor: 640,
+				newCommentInNarrowEditor: 320,
 			});
 		});
 	});

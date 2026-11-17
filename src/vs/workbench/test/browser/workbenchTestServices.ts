@@ -132,7 +132,7 @@ import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput
 import { TextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
-import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetRevealer, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
@@ -677,6 +677,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidAddContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
 	onDidChangeAuxiliaryBarMaximized = Event.None;
+	onDidChangeAuxiliaryBarMaximizeHidden = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
@@ -714,6 +715,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	toggleMaximizedAuxiliaryBar(): void { }
 	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
 	isAuxiliaryBarMaximized(): boolean { return false; }
+	hideAuxiliaryBarMaximize(): IDisposable { return Disposable.None; }
+	isAuxiliaryBarMaximizeHidden(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
@@ -2235,6 +2238,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
+	registerWidgetRevealer(revealer: IChatWidgetRevealer): IDisposable { return Disposable.None; }
 	async revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
 	getAllWidgets(): ReadonlyArray<IChatWidget> { return []; }
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined { return undefined; }

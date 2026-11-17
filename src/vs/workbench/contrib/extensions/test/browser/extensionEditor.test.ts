@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -24,14 +24,16 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ExtensionEditor } from '../../browser/extensionEditor.js';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../common/extensions.js';
+import { ExtensionEditorTab, ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../common/extensions.js';
 import { ExtensionsInput } from '../../common/extensionsInput.js';
 
 suite('ExtensionEditor', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/**
+	const manifest: IExtensionManifest = { name: 'extension', publisher: 'pub', version: '1.0.0', engines: { vscode: '*' } };
+
+/**
 	 * Creates an editor, with what its actions and widgets use to show extensions that aren't installed, which shows the
 	 * actions that `getMenuActions` returns for the context menu of extensions in its Manage action.
 	 */
@@ -87,12 +89,12 @@ suite('ExtensionEditor', () => {
 		return { editor, container };
 	}
 
-	test('shows the extension that it shows last, and stops showing extensions once cleared, when the manifest of an extension that it showed before arrives later', async () => {
-		const { editor, container } = createEditor();
-		// The extensions whose READMEs the editor requested, which it does once it shows their details.
-		const readmes: string[] = [];
-		// The editor shows a Changelog tab for extensions that have a changelog, which shows the extension whose tabs it shows.
-		const anExtension = (id: string, displayName: string, manifest: Promise<IExtensionManifest>, changelog: boolean) => new class extends mock<IExtension>() {
+	/**
+	 * An extension that isn't installed, which records in `readmes` that the editor requested its README, as it does once it
+	 * shows its details. The editor shows a Changelog tab for extensions that have a changelog.
+	 */
+	function anExtension(id: string, displayName: string, manifest: Promise<IExtensionManifest>, changelog: boolean, readmes: string[] = []): IExtension {
+		return new class extends mock<IExtension>() {
 			override readonly identifier = { id };
 			override readonly displayName = displayName;
 			override readonly description = '';
@@ -107,25 +109,31 @@ suite('ExtensionEditor', () => {
 			}
 			override hasChangelog() { return changelog; }
 		}();
+	}
+
+	test('shows the extension that it shows last, and stops showing extensions once cleared, when the manifest of an extension that it showed before arrives later', async () => {
+		const { editor, container } = createEditor();
+
+		// The extensions whose READMEs the editor requested.
+		const readmes: string[] = [];
 		const show = (extension: IExtension) => editor.setInput(disposables.add(new ExtensionsInput(extension)), { preserveFocus: true }, {}, CancellationToken.None);
 		const shown = () => ({
 			name: container.querySelector('.extension-editor .header .name')?.textContent,
 			tabs: [...container.querySelectorAll('.extension-editor .navbar .action-label')].map(tab => tab.textContent),
 			readmes: readmes.splice(0),
 		});
-		const manifest: IExtensionManifest = { name: 'extension', publisher: 'pub', version: '1.0.0', engines: { vscode: '*' } };
 
 		const slowManifest = new DeferredPromise<IExtensionManifest>();
-		const showingSlow = show(anExtension('pub.slow', 'Slow', slowManifest.p, true));
+		const showingSlow = show(anExtension('pub.slow', 'Slow', slowManifest.p, true, readmes));
 		// While the editor waits for the manifest.
 		await timeout(0);
-		await show(anExtension('pub.fast', 'Fast', Promise.resolve(manifest), false));
+		await show(anExtension('pub.fast', 'Fast', Promise.resolve(manifest), false, readmes));
 		await slowManifest.complete(manifest);
 		await showingSlow;
 		const superseded = shown();
 
 		const clearedManifest = new DeferredPromise<IExtensionManifest>();
-		const showingCleared = show(anExtension('pub.cleared', 'Cleared', clearedManifest.p, true));
+		const showingCleared = show(anExtension('pub.cleared', 'Cleared', clearedManifest.p, true, readmes));
 		await timeout(0);
 		editor.clearInput();
 		await clearedManifest.complete(manifest);
@@ -135,6 +143,30 @@ suite('ExtensionEditor', () => {
 		assert.deepStrictEqual({ superseded, cleared }, {
 			superseded: { name: 'Fast', tabs: ['Details', 'Features'], readmes: ['pub.fast'] },
 			cleared: { readmes: [] },
+		});
+	});
+
+	test('shows the Features tab without the additional details when the editor is too narrow for both, like the extension pages of the Agents window', async () => {
+		const { editor, container } = createEditor();
+
+		const showsAdditionalDetails = async (width: number, tab: ExtensionEditorTab) => {
+			container.style.width = `${width}px`;
+			container.style.height = '600px';
+			editor.layout(new Dimension(width, 600));
+			const extension = anExtension(`pub.${tab}${width}`, 'Extension', Promise.resolve(manifest), false);
+			await editor.setInput(disposables.add(new ExtensionsInput(extension)), { tab, preserveFocus: true }, {}, CancellationToken.None);
+			return container.querySelector<HTMLElement>('.extension-editor .details > .additional-details-container')!.offsetWidth > 0;
+		};
+
+		assert.deepStrictEqual({
+			// As wide as the extension pages of the Agents window can be.
+			narrowFeatures: await showsAdditionalDetails(840, ExtensionEditorTab.Features),
+			narrowDetails: await showsAdditionalDetails(840, ExtensionEditorTab.Readme),
+			wideFeatures: await showsAdditionalDetails(1400, ExtensionEditorTab.Features),
+		}, {
+			narrowFeatures: false,
+			narrowDetails: true,
+			wideFeatures: true,
 		});
 	});
 
