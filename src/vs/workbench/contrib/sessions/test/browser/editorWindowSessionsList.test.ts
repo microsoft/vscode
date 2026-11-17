@@ -90,10 +90,6 @@ suite('EditorWindowSessionsList', () => {
 		});
 	});
 
-	function localize2Value(value: string) {
-		return { value, original: value, toString: () => value };
-	}
-
 	test('the accessibility help of the sessions list\'s Undo notice registers once while any holder holds it, also the list\'s actions, and goes with the last', () => {
 		const helps = () => AccessibleViewRegistry.getImplementations().filter(help => help.name === 'sessions-list-notification').length;
 		// The Agents window's list, which other tests load, may hold it for good
