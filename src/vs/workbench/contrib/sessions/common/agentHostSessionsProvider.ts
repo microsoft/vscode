@@ -190,6 +190,17 @@ export interface IAgentHostMcpServer {
 }
 
 /**
+ * Another provider that continues an agent host provider's host
+ * ({@link IAgentHostSessionsProvider.successor}).
+ */
+export interface IAgentHostSuccessor {
+	/** The provider new session selections move to. */
+	readonly providerId: string;
+	/** Maps a folder of the replaced provider to the same folder on {@link providerId}, or `undefined` when it is not one. */
+	mapFolder(folderUri: URI): URI | undefined;
+}
+
+/**
  * Extended sessions provider for agent host providers (local and remote).
  * Adds remote connection properties and dynamic session configuration.
  */
@@ -276,6 +287,11 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	/** Reveals this host after an explicit picker selection without changing its availability. */
 	showInEnvironmentPicker?(): void;
+	/**
+	 * Set while another provider continues this host, such as a shared remote's direct connection once it is connected
+	 * again: a new session selected on this provider moves to it.
+	 */
+	readonly successor?: IObservable<IAgentHostSuccessor | undefined>;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 
