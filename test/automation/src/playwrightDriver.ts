@@ -6,7 +6,9 @@
 import * as playwright from '@playwright/test';
 import type { Protocol } from 'playwright-core/types/protocol';
 import { dirname, join } from 'path';
-import { promises, readFileSync } from 'fs';
+import { createReadStream, createWriteStream, promises, readFileSync } from 'fs';
+import { promises as streamPromises } from 'stream';
+import { createGzip } from 'zlib';
 import { IWindowDriver } from './driver';
 import { measureAndLog } from './logger';
 import { LaunchOptions } from './code';
@@ -94,9 +96,16 @@ export class PlaywrightDriver {
 		 *
 		 * Undefined when the run is not recording.
 		 */
-		readonly videoStartedAt?: number
+		readonly videoStartedAt?: number,
+		/**
+		 * Raw Chromium network log of this browser, written outside of the logs folder.
+		 * Kept compressed in the logs folder only when the workbench did not restore.
+		 */
+		private readonly netLogPath?: string
 	) {
 	}
+
+	private workbenchRestored = false;
 
 	get browserContext(): playwright.BrowserContext {
 		return this.context;
@@ -765,9 +774,31 @@ export class PlaywrightDriver {
 			this.options.logger.log(`Error closing application (${error})`);
 		}
 
+		// Chromium writes the network log when it closes
+		if (this.netLogPath) {
+			try {
+				await measureAndLog(() => this.saveOrDeleteNetLog(this.netLogPath!), 'saveOrDeleteNetLog()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error saving network log (${error})`);
+			}
+		}
+
 		// Server: via `teardown`
 		if (this.serverProcess) {
 			await measureAndLog(() => teardown(this.serverProcess!, this.options.logger), 'teardown server process', this.options.logger);
+		}
+	}
+
+	private async saveOrDeleteNetLog(netLogPath: string): Promise<void> {
+		try {
+			if (!this.workbenchRestored) {
+				const target = join(this.options.logsPath, 'chromium-netlog.json.gz');
+				await promises.mkdir(this.options.logsPath, { recursive: true });
+				await streamPromises.pipeline(createReadStream(netLogPath), createGzip(), createWriteStream(target));
+				this.options.logger.log(`The workbench did not restore, so the Chromium network log was kept: ${target}`);
+			}
+		} finally {
+			await promises.rm(netLogPath, { force: true });
 		}
 	}
 
@@ -945,8 +976,9 @@ export class PlaywrightDriver {
 		return wait(ms);
 	}
 
-	whenWorkbenchRestored(): Promise<void> {
-		return this.evaluateWithDriver(([driver]) => driver.whenWorkbenchRestored());
+	async whenWorkbenchRestored(): Promise<void> {
+		await this.evaluateWithDriver(([driver]) => driver.whenWorkbenchRestored());
+		this.workbenchRestored = true;
 	}
 
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
