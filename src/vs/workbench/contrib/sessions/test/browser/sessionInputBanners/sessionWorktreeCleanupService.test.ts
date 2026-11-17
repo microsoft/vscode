@@ -24,7 +24,11 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IProgress, IProgressOptions, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../browser/sessionsListModelService.js';
+import { ISessionAttentionService } from '../../../common/sessionAttentionService.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileStorageService } from '../../../../../../platform/userDataProfile/common/userDataProfileStorageService.js';
 import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
@@ -36,6 +40,88 @@ suite('SessionWorktreeCleanupService', () => {
 	function managedWorktree(worktree = '/repo.worktrees/unlinked'): IManagedSessionWorktree {
 		return { providerId: 'test', repository: URI.file('/repo').toString(), worktree: URI.file(worktree).toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'unknown' } };
 	}
+
+	test('includes sessions outside the editor listing scope without treating their worktrees as unlinked', async () => {
+		const session = createSession('hidden', oldDate());
+		const repository = session.workspace.get()!.folders[0].gitRepository!;
+		const service = disposables.add(createService([], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			getSessions: options => options?.includeHidden ? [session] : [],
+			listManagedWorktrees: async () => [{
+				providerId: session.providerId,
+				repository: repository.uri.toString(),
+				worktree: repository.workTreeUri!.toString(),
+				branch: repository.branchName!,
+				cleanupStatus: { state: 'unknown' },
+			}],
+		}));
+		const worktrees = await service.getWorktrees(0);
+		assert.deepStrictEqual(worktrees.map(worktree => ({ sessionId: worktree.session?.sessionId, unlinked: !!worktree.unlinkedWorktree })), [{ sessionId: 'hidden', unlinked: false }]);
+	});
+
+	test('editor cleanup protects persisted Agents profile pins and rechecks them after confirmation', async () => {
+		const session = createSession('pinned-in-agents', oldDate());
+		const agentsStorage = disposables.add(new InMemoryStorageService());
+		const editorStorage = disposables.add(new InMemoryStorageService());
+		const management = upcastPartial<ISessionsManagementService>({
+			getSessions: () => [session],
+			onDidChangeSessions: Event.None,
+			onDidReplaceSession: Event.None,
+			onDidDeleteSession: Event.None,
+		});
+		const attention = upcastPartial<ISessionAttentionService>({ sessionAttention: constObservable(new Map()) });
+		const agentsModel = disposables.add(new SessionsListModelService(agentsStorage, management, new TestConfigurationService(), attention));
+		const editorModel = disposables.add(new SessionsListModelService(editorStorage, management, new TestConfigurationService(), attention));
+		const profileStorages = new Map([
+			[toUserDataProfile('agents', 'Agents', URI.file('/profiles/agents'), URI.file('/cache')), agentsStorage],
+			[toUserDataProfile('editor', 'Editor', URI.file('/profiles/editor'), URI.file('/cache')), editorStorage],
+		]);
+		agentsModel.pinSession(session);
+		agentsModel.dispose();
+
+		const prepared: string[] = [];
+		const service = disposables.add(createService([session], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			profileStorages,
+			onPrepare: async session => { prepared.push(session.sessionId); },
+			dialogService: upcastPartial<IDialogService>({
+				confirm: async () => {
+					restoredAgentsModel.pinSession(session);
+					return { confirmed: true };
+				}
+			}),
+		}));
+		const pinned = await service.getWorktrees(0);
+		const restoredAgentsModel = disposables.add(new SessionsListModelService(agentsStorage, management, new TestConfigurationService(), attention));
+		restoredAgentsModel.unpinSession(session);
+		const unpinned = await service.getWorktrees(0);
+		await assert.rejects(service.cleanupWorktrees(unpinned), /pinned in a VS Code profile/);
+		assert.deepStrictEqual({
+			editorPinned: editorModel.isSessionPinned(session),
+			pinned: pinned.map(worktree => worktree.cleanupState),
+			unpinned: unpinned.map(worktree => worktree.cleanupState),
+			prepared,
+			scheduling: service.isSchedulingCleanup.get(),
+		}, { editorPinned: false, pinned: ['pinned'], unpinned: ['eligible'], prepared: [], scheduling: false });
+	});
+
+	test('unreadable profile pins fail closed before publishing inventory or submitting cleanup', async () => {
+		const session = createSession('task', oldDate());
+		const storage = disposables.add(new InMemoryStorageService());
+		const profile = toUserDataProfile('agents', 'Agents', URI.file('/profiles/agents'), URI.file('/cache'));
+		const prepared: string[] = [];
+		const published: string[] = [];
+		const service = disposables.add(createService([session], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			profileStorages: new Map([[profile, storage]]),
+			onPrepare: async session => { prepared.push(session.sessionId); },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		const rows = await service.getWorktrees(0);
+		for (const value of ['invalid json', '{"invalid":"shape"}']) {
+			storage.store('sessionsListControl.pinnedSessions', value, StorageScope.PROFILE, StorageTarget.USER);
+			await assert.rejects(service.getWorktrees(0, worktrees => published.push(...worktrees.map(getWorktreeCleanupId))));
+			await assert.rejects(service.cleanupWorktrees(rows));
+		}
+		assert.deepStrictEqual({ prepared, published, scheduling: service.isSchedulingCleanup.get() }, { prepared: [], published: [], scheduling: false });
+	});
 
 	test('groups shared checkouts, measures once, and cleans up every associated session', async () => {
 		const first = createSession('first', oldDate());
@@ -1517,6 +1603,7 @@ suite('SessionWorktreeCleanupService', () => {
 
 		const fourteenDays = service.getWorktrees(14);
 		const sevenDays = service.getWorktrees(7);
+		await timeout(0);
 		diskUsage.complete(ByteSize.GB);
 
 		assert.deepStrictEqual({
@@ -2129,6 +2216,7 @@ suite('SessionWorktreeCleanupService', () => {
 		));
 
 		const measurement = service.getWorktrees(14);
+		await timeout(0);
 		progressService.cancel();
 
 		await assert.rejects(measurement, error => isCancellationError(error));
@@ -2149,6 +2237,7 @@ suite('SessionWorktreeCleanupService', () => {
 			},
 		));
 		const measurement = service.getWorktrees(14, () => { }, cancellation.token);
+		await timeout(0);
 		cancellation.cancel();
 		await assert.rejects(measurement, error => isCancellationError(error));
 		assert.deepStrictEqual({ scanned, canceled: tokens.every(token => token.isCancellationRequested) }, {
@@ -2167,6 +2256,7 @@ suite('SessionWorktreeCleanupService', () => {
 		}));
 		const firstMeasurement = service.getWorktrees(14, () => { }, first.token);
 		const secondMeasurement = service.getWorktrees(14, () => { }, second.token);
+		await timeout(0);
 		first.cancel();
 		await assert.rejects(firstMeasurement, error => isCancellationError(error));
 		assert.strictEqual(scanToken.isCancellationRequested, false);
@@ -2194,6 +2284,7 @@ suite('SessionWorktreeCleanupService', () => {
 
 		const backgroundMeasurement = service.activate();
 		const foregroundMeasurement = service.getWorktrees(14);
+		await timeout(0);
 		progressService.cancel();
 
 		await assert.rejects(foregroundMeasurement, error => isCancellationError(error));
@@ -2353,6 +2444,8 @@ function createService(
 	configurationService = new TestConfigurationService({ [AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: enabled }),
 	onDidChangeSessions: Event<ISessionsChangeEvent> = Event.None,
 	overrides: {
+		readonly profileStorages?: ReadonlyMap<IUserDataProfile, IStorageService>;
+		readonly getSessions?: ISessionsManagementService['getSessions'];
 		readonly progressService?: IProgressService;
 		readonly dialogService?: IDialogService;
 		readonly onArchive?: (session: ISession) => Promise<void>;
@@ -2370,7 +2463,7 @@ function createService(
 ): SessionWorktreeCleanupService {
 	return new SessionWorktreeCleanupService(
 		upcastPartial<ISessionsManagementService>({
-			getSessions: () => sessions,
+			getSessions: overrides.getSessions ?? (() => sessions),
 			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
 			prepareSessionWorktreeCleanup: async session => overrides.onPrepare?.(session),
@@ -2394,6 +2487,14 @@ function createService(
 		upcastPartial<ICommandService>({
 			executeCommand: async (id, ...args) => {
 				onCommand?.(id, args);
+			},
+		}),
+		upcastPartial<IUserDataProfilesService>({ profiles: [...overrides.profileStorages?.keys() ?? []] }),
+		upcastPartial<IUserDataProfileStorageService>({
+			withProfileScopedStorageService: async (profile, fn) => {
+				const storage = overrides.profileStorages?.get(profile);
+				assert.ok(storage);
+				return fn(storage);
 			},
 		}),
 	);

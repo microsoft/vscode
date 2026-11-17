@@ -305,9 +305,9 @@ export interface ISessionsManagementService {
 
 	/**
 	 * The sessions the providers list, within their listing scope: without those a provider's listing scope hides, such as
-	 * the sessions of other folders in an editor window.
+	 * the sessions of other folders in an editor window. `includeHidden` includes those sessions for cross-workspace maintenance.
 	 */
-	getSessions(): ISession[];
+	getSessions(options?: { readonly includeHidden?: boolean }): ISession[];
 
 
 	/**

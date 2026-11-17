@@ -544,9 +544,10 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			listed: service.getSessions().map(session => session.sessionId),
+			maintenance: service.getSessions({ includeHidden: true }).map(session => session.sessionId),
 			found: service.getSession(hidden.resource)?.sessionId,
 			changes,
-		}, { listed: ['listed'], found: 'hidden', changes: ['changed hidden'] });
+		}, { listed: ['listed'], maintenance: ['listed', 'hidden'], found: 'hidden', changes: ['changed hidden'] });
 	});
 
 	suite('session grid integration', () => {

@@ -23,7 +23,9 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../../nls.js';
-import { ISessionsListModelService } from '../sessionsListModelService.js';
+import { ISessionsListModelService, readSessionPinnedIds } from '../sessionsListModelService.js';
+import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileStorageService } from '../../../../../platform/userDataProfile/common/userDataProfileStorageService.js';
 import { ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -206,6 +208,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	private _lastMeasuredWorktrees: readonly IMeasuredSessionWorktree[] | undefined;
 	private _unlinkedWorktrees: readonly ISessionWorktree[] = [];
 	private readonly _requestedManagedCleanups = new Set<string>();
+	private _pinnedSessionIds: ReadonlySet<string> = new Set();
 	private _lastMeasuredSessionSignature = '';
 	private _measurement: {
 		readonly sessionSignature: string;
@@ -241,6 +244,8 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileStorageService private readonly userDataProfileStorageService: IUserDataProfileStorageService,
 	) {
 		super();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
@@ -312,6 +317,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	private async _refresh(): Promise<void> {
 		this._lastScanAt = Date.now();
+		await this._refreshPinnedSessions();
 		await this._getMeasuredWorktrees(DEFAULT_MINIMUM_SESSION_AGE_DAYS);
 		if (this._store.isDisposed || !this._isEnabled()) {
 			return;
@@ -329,7 +335,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			this._suggestion.set(undefined, undefined);
 			return;
 		}
-		const hasLocalWorktree = this.sessionsManagementService.getSessions().some(session =>
+		const hasLocalWorktree = this.sessionsManagementService.getSessions({ includeHidden: true }).some(session =>
 			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri?.scheme === Schemas.file)
 		);
 		if (hasLocalWorktree && this._availableDiskSpace !== undefined && this._availableDiskSpace < LOW_DISK_SPACE_BYTES) {
@@ -356,7 +362,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private async _measureWorktrees(token: CancellationToken, onProgress: (progress: IWorktreeMeasurementProgress) => void): Promise<readonly IMeasuredSessionWorktree[]> {
-		const worktreeSessions = this.sessionsManagementService.getSessions().filter(session =>
+		const worktreeSessions = this.sessionsManagementService.getSessions({ includeHidden: true }).filter(session =>
 			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri) === true
 			&& isWorktreeCleanupBranchSupported({ session })
 		);
@@ -509,7 +515,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return;
 		}
 		const inventory = await raceCancellationError(this.sessionsManagementService.listManagedWorktrees(this._unlinkedWorktrees.flatMap(worktree => worktree.unlinkedWorktree ?? [])), token);
-		const linkedPaths = new Set(this.sessionsManagementService.getSessions().flatMap(session =>
+		const linkedPaths = new Set(this.sessionsManagementService.getSessions({ includeHidden: true }).flatMap(session =>
 			session.workspace.get()?.folders.flatMap(folder => folder.gitRepository?.workTreeUri
 				? [`${session.providerId}:${extUri.getComparisonKey(folder.gitRepository.workTreeUri)}`] : []) ?? []));
 		const seen = new Set<string>();
@@ -705,7 +711,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private _getWorktreeSessionSignature(includeActivity = true): string {
-		return this.sessionsManagementService.getSessions()
+		return this.sessionsManagementService.getSessions({ includeHidden: true })
 			.flatMap(session => session.workspace.get()?.folders
 				.map(folder => folder.gitRepository?.workTreeUri)
 				.filter(worktreeUri => worktreeUri !== undefined)
@@ -717,6 +723,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private _getCleanupState(session: ISession, cutoff: number): SessionWorktreeCleanupState {
+		if (this._isSessionPinned(session)) {
+			return 'pinned';
+		}
 		if (session.isArchived.get()) {
 			return 'archived';
 		}
@@ -730,9 +739,6 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		if (session.status.get() === SessionStatus.NeedsInput) {
 			return 'needsInput';
 		}
-		if (this.sessionsListModelService.isSessionPinned(session)) {
-			return 'pinned';
-		}
 		if (session.updatedAt.get().getTime() > cutoff) {
 			return 'recent';
 		}
@@ -743,6 +749,17 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return 'error';
 		}
 		return 'eligible';
+	}
+
+	private async _refreshPinnedSessions(): Promise<void> {
+		const pins = await Promise.all(this.userDataProfilesService.profiles.map(profile =>
+			this.userDataProfileStorageService.withProfileScopedStorageService(profile, async storage => readSessionPinnedIds(storage))));
+		this._pinnedSessionIds = new Set(pins.flat());
+	}
+
+	private _isSessionPinned(session: ISession): boolean {
+		return this.sessionsListModelService.isSessionPinned(session) || this._pinnedSessionIds.has(session.sessionId)
+			|| session.previousIdentities?.some(previous => this._pinnedSessionIds.has(previous.sessionId)) === true;
 	}
 
 	private _getCleanupCandidates(worktrees: readonly ISessionWorktree[]): readonly (ISessionWorktreeCleanupCandidate & { readonly sizeBytes: number })[] {
@@ -777,6 +794,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	async getWorktrees(minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[], progress?: ISessionWorktreeMeasurementProgress) => void, token = CancellationToken.None, forceRefresh = false): Promise<readonly ISessionWorktree[]> {
+		await raceCancellationError(this._refreshPinnedSessions(), token);
 		let latestWorktrees: readonly ISessionWorktree[] = this._withCleanupState(this._lastMeasuredWorktrees ?? [], minimumAgeDays);
 		let latestProgress: ISessionWorktreeMeasurementProgress | undefined;
 		const inventory = this.sessionsManagementService.listManagedWorktrees
@@ -906,6 +924,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		});
 		if (!confirmation.confirmed) {
 			return false;
+		}
+
+		await this._refreshPinnedSessions();
+		if (selected.some(candidate => getWorktreeCleanupSessions(candidate).some(session => this._isSessionPinned(session)))) {
+			throw new Error(localize('worktreeCleanup.pinned', "A selected session is pinned in a VS Code profile. Unpin it before cleaning up its worktree."));
 		}
 
 		const selectedIds = new Set(selected.map(getWorktreeCleanupId));

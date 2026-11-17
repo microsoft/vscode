@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { localize } from '../../../../nls.js';
-import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { SessionWorktreeCleanupEditorFocusedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { localize } from '../../../../../nls.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { SessionWorktreeCleanupEditorFocusedContext } from '../../common/contextkeys.js';
 
 /**
  * Editor-scoped accessibility help for the Worktree Cleanup editor. It replaces the
@@ -38,7 +38,7 @@ export class SessionWorktreeCleanupAccessibilityHelp implements IAccessibleViewI
 			localize('sessionWorktreeCleanupHelp.batchLifecycle', "Confirmed cleanup continues when this editor closes. Reopening reconnects to queued and pending requests and retains scheduling errors for otherwise eligible worktrees. Closing does not cancel accepted host removals. Pending work cannot be submitted twice, and one scheduling failure does not stop the rest of the batch. The batch summary reports only pending work and confirmed removals, independently of filters. Rows update in place as cleanup progresses. Confirmed removals remain visible with zero disk usage, no checkbox or cleanup action, and usable session links until this editor closes."),
 			localize('sessionWorktreeCleanupHelp.failedCleanup', "Refresh inventory to check current host state. To retry a scheduling failure, select its worktree and activate Clean Up Worktrees. Failed host removals remain hidden. A failed or unavailable existence check is not confirmed removal."),
 			localize('sessionWorktreeCleanupHelp.collapsedSettings', "Automatic Cleanup is collapsed above the inventory. Focus its gear-labeled heading and press Enter or Space to expand it. In short windows, the controls and settings scroll separately above the inventory, without scrolling the inventory inside either area. Changes are saved immediately. Checkboxes enable automatic completion or deletion of merged pull request sessions; adjacent inputs set retention days. Another checkbox controls storage cleanup suggestions."),
-			localize('sessionWorktreeCleanupHelp.reopen', "Return to this editor any time by running Open Worktree Cleanup from the Command Palette or the Sessions More Actions menu."),
+			localize('sessionWorktreeCleanupHelp.reopen', "In either the editor window or the Agents Window, return here by running Open Worktree Cleanup from the Command Palette or the Sessions More Actions menu. In the editor window, it is also in the Chat view's More Actions menu, even when the Sessions list is hidden. Cleanup includes known sessions outside the current workspace, even when the Sessions list is filtered to that workspace."),
 			localize('sessionWorktreeCleanupHelp.close', "Use {0} to close the Worktree Cleanup modal. Focus returns to the previous editor or control.", '<keybinding:workbench.action.closeModalEditor>'),
 		];
 		return new AccessibleContentProvider(
