@@ -586,6 +586,13 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	 * Whether the editor should be serialized and stored for subsequent sessions.
 	 */
 	readonly isTransient?: boolean;
+
+	/**
+	 * Whether the editor offers a list of the changed files alongside the diffs.
+	 * Defaults to `true`. Set to `false` for editors whose host shows the
+	 * changed files in another way.
+	 */
+	readonly showFileList?: boolean;
 }
 
 export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {
