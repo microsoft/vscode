@@ -41,7 +41,7 @@ import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolba
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
@@ -62,15 +62,16 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 
@@ -78,13 +79,14 @@ import { AbstractCustomView, ICustomViewService } from '../../../../../workbench
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { Action2, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
 import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, AutomationsHasOthersContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -94,7 +96,7 @@ import { INewSessionComposerService } from '../../../../../workbench/contrib/ses
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
+import { getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -271,10 +273,21 @@ export class AutomationsCardsWidget extends Disposable {
 
 		logAutomationViewShown(this.telemetryService);
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
+		const visibleContent = derived(this, reader => {
+			configurationChanged.read(reader);
+			return getAutomationsViewContent(
+				this.automationService.automations.read(reader),
+				this.automationService.runs.read(reader),
+				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+			);
+		});
 		const visibleAutomations = derived(this, reader => {
 			configurationChanged.read(reader);
 			const sendLaterEnabled = configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true;
-			return getVisibleAutomations(this.automationService.automations.read(reader), sendLaterEnabled);
+			return getVisibleAutomations(getAutomationsViewContent(
+				this.automationService.automations.read(reader), [],
+				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+			).automations, sendLaterEnabled);
 		});
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
@@ -290,7 +303,7 @@ export class AutomationsCardsWidget extends Disposable {
 			const state = this.automationService.historyState?.read(reader);
 			const catalogueState = this.automationService.catalogueState.read(reader);
 			const hasAutomations = visibleAutomations.read(reader).length > 0;
-			const hasRuns = this.automationService.runs.read(reader).length > 0;
+			const hasRuns = visibleContent.read(reader).runs.length > 0;
 			const message = state === 'error'
 				? hasRuns
 					? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
@@ -321,7 +334,7 @@ export class AutomationsCardsWidget extends Disposable {
 			this.automationService.availableProviders.read(reader);
 			this.automationService.catalogueState.read(reader);
 			this.automationService.automations.read(reader);
-			const allRuns = this.automationService.runs.read(reader);
+			const allRuns = visibleContent.read(reader).runs;
 			const sessionsByResource = new Map(this.sessionsManagementService.getSessions().map(session => [
 				this.uriIdentityService.extUri.getComparisonKey(session.resource),
 				session,
@@ -2429,6 +2442,7 @@ class AutomationHistorySection extends Disposable {
 			await markAllAutomationRunsRead(
 				this.automationService, this.sessionsManagementService, this.uriIdentityService,
 				this.chatModels.get(), this.logService, this.dialogService,
+				this.configurationService,
 			);
 		} finally {
 			this.isMarkingAllRead.set(false, undefined);
@@ -2447,9 +2461,13 @@ async function markAllAutomationRunsRead(
 	chatModels: Iterable<IChatModel>,
 	logService: ILogService,
 	dialogService: IDialogService,
+	configurationService: IConfigurationService,
 ): Promise<void> {
 	try {
-		const runs = automationService.runs.get();
+		const { runs } = getAutomationsViewContent(
+			automationService.automations.get(), automationService.runs.get(),
+			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+		);
 		const models = [...chatModels];
 		const sessionsByResource = new Map(sessionsManagementService.getSessions().map(session => [
 			uriIdentityService.extUri.getComparisonKey(session.resource), session,
@@ -2847,8 +2865,16 @@ export class AutomationsCustomViewContribution extends Disposable {
 		}));
 
 		const hasItemsContext = AutomationsHasItemsContext.bindTo(contextKeyService);
+		const hasOthersContext = AutomationsHasOthersContext.bindTo(contextKeyService);
+		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		this._register(autorun(reader => {
-			hasItemsContext.set(automationService.automations.read(reader).length > 0);
+			configurationChanged.read(reader);
+			const automations = automationService.automations.read(reader);
+			hasOthersContext.set(automations.some(automation => automation.ownership === 'repository' && automation.isCreatedByCurrentUser !== true));
+			hasItemsContext.set(getAutomationsViewContent(
+				automations, [],
+				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+			).automations.length > 0);
 		}));
 
 		this._register(customViewService.registerCustomView({
@@ -2873,7 +2899,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false, undefined, CREATE_AUTOMATION_ONBOARDING_TARGET_ID);
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false, CREATE_AUTOMATION_ONBOARDING_TARGET_ID);
 		}));
 		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
@@ -2882,13 +2908,15 @@ export class AutomationsCustomViewContribution extends Disposable {
 			const importAutomation = toAction({ id: 'sessions.automations.import', label: localize('importAutomationMenu', "Import Automation..."), run: () => commandService.executeCommand('sessions.automations.import') });
 			return instantiationService.createInstance(AutomationHeaderSplitButtonActionViewItem, action, options, [importAutomation]);
 		}));
-		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessions.automations.refresh', (action, options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, AgentsWindowMenus.AutomationsMoreActions, (action, options, instantiationService) => {
+			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
-			const refreshing = derived(reader => automationService.isRefreshing?.read(reader)
-				|| automationService.catalogueState.read(reader) === 'loading');
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true, refreshing);
+			return instantiationService.createInstance(SubmenuEntryActionViewItem, action, {
+				...options,
+				classNames: [...ThemeIcon.asClassNameArray(Codicon.more), 'automations-more-actions'],
+				menuClassName: 'automations-more-actions-menu',
+			});
 		}));
 	}
 }
@@ -2996,17 +3024,15 @@ function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchive
 class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 
 	private button: Button | undefined;
-	private refreshRequested = false;
-	private actionRunning = false;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>, private readonly onboardingTargetId?: string) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly onboardingTargetId?: string) {
 		super(context, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		this.element = container;
 		container.classList.add('chat-pill-item');
-		const button = this.button = this._register(new Button(container, { secondary: this.secondary, supportIcons: !!this.refreshing, ariaLabel: this._action.label, title: this._action.label, ...defaultButtonStyles }));
+		const button = this.button = this._register(new Button(container, { secondary: this.secondary, ariaLabel: this._action.label, title: this._action.label, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
 		for (const type of [DOM.EventType.KEY_DOWN, DOM.EventType.KEY_UP]) {
 			this._register(DOM.addDisposableListener(button.element, type, event => {
@@ -3020,26 +3046,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 			if (!button.enabled) {
 				return;
 			}
-			if (this.refreshing) {
-				this.refreshRequested = true;
-				this.updateLabel();
-				this.updateEnabled();
-				if (this.refreshing.get()) {
-					return;
-				}
-			}
-			this.actionRunning = true;
-			this.updateLabel();
-			try {
-				await this.actionRunner.run(this._action, this._context);
-			} finally {
-				this.actionRunning = false;
-				if (!this.refreshing?.get()) {
-					this.refreshRequested = false;
-				}
-				this.updateLabel();
-				this.updateEnabled();
-			}
+			await this.actionRunner.run(this._action, this._context);
 		}));
 		if (this.onboardingTargetId) {
 			this._register(markOnboardingTarget(button.element, this.onboardingTargetId, {
@@ -3048,16 +3055,6 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 		}
 		this.updateLabel();
 		this.updateEnabled();
-		const refreshing = this.refreshing;
-		if (refreshing) {
-			this._register(autorun(reader => {
-				if (!refreshing.read(reader) && !this.actionRunning) {
-					this.refreshRequested = false;
-				}
-				this.updateLabel();
-				this.updateEnabled();
-			}));
-		}
 	}
 
 	// Focus must restore the tab stop that `blur` removed, otherwise arrow
@@ -3069,19 +3066,13 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	protected override updateEnabled(): void {
 		if (this.button) {
 			const tabIndex = this.button.element.tabIndex;
-			this.button.enabled = this._action.enabled && !this.refreshRequested;
+			this.button.enabled = this._action.enabled;
 			this.button.element.tabIndex = tabIndex;
 		}
 	}
 
 	protected override updateLabel(): void {
 		if (!this.button) { return; }
-		if (this.refreshing) {
-			const busy = this.refreshRequested;
-			this.button.element.setAttribute('aria-busy', String(busy));
-			this.button.label = `$(${busy ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.refresh.id})`;
-			return;
-		}
 		DOM.reset(this.button.element, this._action.label);
 	}
 }
@@ -3162,14 +3153,16 @@ class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 	}
 }
 
-async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService, options?: IAutomationRefreshOptions): Promise<void> {
+async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService, options?: IAutomationRefreshOptions): Promise<boolean> {
 	try {
 		await automationService.refresh?.(options);
+		return true;
 	} catch (error) {
 		if (!isCancellationError(error)) {
 			logService.error('[Automations] Failed to refresh', error);
 			notificationService?.error(localize('automationsRefreshFailed', "Could not refresh automations: {0}", getErrorMessage(error)));
 		}
+		return false;
 	}
 }
 
@@ -3190,6 +3183,40 @@ registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 		await markAllAutomationRunsRead(
 			accessor.get(IAutomationService), accessor.get(ISessionsManagementService), accessor.get(IUriIdentityService),
 			accessor.get(IChatService).chatModels.get(), accessor.get(ILogService), accessor.get(IDialogService),
+			accessor.get(IConfigurationService),
+		);
+	}
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
+	submenu: AgentsWindowMenus.AutomationsMoreActions,
+	title: localize('automationsViewOptions', "View options"),
+	icon: Codicon.more,
+	group: 'navigation',
+	order: 4,
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true)),
+});
+
+registerAction2(class ToggleOtherSharedAutomationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.toggleShowSharedByOthers',
+			title: localize2('showOtherSharedAutomations', "Show automations created by others"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING}`, true),
+			menu: {
+				id: AgentsWindowMenus.AutomationsMoreActions, group: '1_state', order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true), AutomationsHasOthersContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(
+			SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING,
+			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) !== true,
+			ConfigurationTarget.USER,
 		);
 	}
 });
@@ -3198,15 +3225,30 @@ registerAction2(class RefreshAutomationsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.refresh',
-			title: localize2('refreshAutomations', "Refresh"),
+			title: localize2('refreshAutomations', "Refresh cloud automations"),
 			icon: Codicon.refresh,
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 3, when: ChatAutomationsEnabledContext }],
+			menu: [{
+				id: AgentsWindowMenus.AutomationsMoreActions, group: 'navigation', order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true)),
+			}],
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		await refreshAutomations(accessor.get(IAutomationService), accessor.get(ILogService), accessor.get(INotificationService));
+		const automationService = accessor.get(IAutomationService);
+		const logService = accessor.get(ILogService);
+		const notificationService = accessor.get(INotificationService);
+		const title = localize('refreshingCloudAutomations', "Refreshing cloud automations...");
+		status(title);
+		const refreshed = await accessor.get(IProgressService).withProgress({
+			location: ProgressLocation.Notification,
+			title,
+			delay: 500,
+		}, () => refreshAutomations(automationService, logService, notificationService));
+		if (refreshed) {
+			status(localize('cloudAutomationsRefreshed', "Cloud automations refreshed."));
+		}
 	}
 });
 
