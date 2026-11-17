@@ -11933,25 +11933,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('nested chats default to their own Session Changes while the main chat keeps Branch Changes', () => {
+		test('nested chats default to their own Session Changes in the main chat\'s folder and to Branch Changes elsewhere', () => {
 			const activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
 			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 			const rawId = 'nested-default-changeset';
 			const repo = URI.file('/repo');
-			const session = setupMultiChatSession(provider, rawId, [repo]);
+			const worktree = URI.file('/repo.worktrees/peer');
+			const session = setupMultiChatSession(provider, rawId, [repo, worktree]);
 			const backend = AgentSession.uri('copilotcli', rawId).toString();
 			const main = buildDefaultChatUri(backend);
 			const peer = buildChatUri(backend, 'peer');
+			const sameFolderPeer = buildChatUri(backend, 'same-folder-peer');
 			const entry = (owner: string, changeKind: string, path: string) => ({ label: changeKind, changeKind, uriTemplate: `${owner}/changeset/${path}` });
 			const chatState = (resource: string, changesets: ChatState['changesets']): ChatState => ({
 				resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [], changesets,
 			});
-			agentHost.setSessionState(rawId, 'copilotcli', {
-				...makeState([makeChatSummary(main, 'Main'), makeChatSummary(peer, 'Peer')], { defaultChat: main, workingDirectories: [repo.toString()] }),
+			const setSessionState = (peerWorkingDirectories: readonly string[] | undefined) => agentHost.setSessionState(rawId, 'copilotcli', {
+				...makeState([
+					makeChatSummary(main, 'Main'),
+					makeChatSummary(peer, 'Peer', ProtocolSessionStatus.Idle, peerWorkingDirectories),
+					makeChatSummary(sameFolderPeer, 'Same Folder Peer', ProtocolSessionStatus.Idle, [repo.toString()]),
+				], { defaultChat: main, workingDirectories: [repo.toString(), worktree.toString()] }),
 				changesets: [entry(backend, 'session', 'session')],
 			});
+			setSessionState(undefined);
 			agentHost.setChatState(main, chatState(main, [entry(main, 'branch', 'branch'), entry(main, 'turn', 'turn/{turnId}')]));
-			agentHost.setChatState(peer, chatState(peer, [entry(peer, 'branch', 'branch'), entry(peer, 'session', 'session'), entry(peer, 'turn', 'turn/{turnId}')]));
+			for (const chat of [peer, sameFolderPeer]) {
+				agentHost.setChatState(chat, chatState(chat, [entry(chat, 'branch', 'branch'), entry(chat, 'session', 'session'), entry(chat, 'turn', 'turn/{turnId}')]));
+			}
 			activeSession.set(new class extends mock<ITestSessionWithChat>() {
 				override readonly resource = session.resource;
 			}(), undefined);
@@ -11959,8 +11968,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			disposables.add(autorun(reader => {
 				defaults = session.chats.read(reader).map(chat => chat.changesets.read(reader)?.find(changeset => changeset.isDefault.read(reader))?.id);
 			}));
+			const inSessionFolder = defaults;
 
-			assert.deepStrictEqual(defaults, [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID]);
+			setSessionState([worktree.toString()]);
+
+			assert.deepStrictEqual({ inSessionFolder, inOwnWorktree: defaults }, {
+				inSessionFolder: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+				inOwnWorktree: [BRANCH_CHANGES_CHANGESET_ID, BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+			});
 		});
 
 		test('reads background shells from each chat\'s state while the session is active', () => {
