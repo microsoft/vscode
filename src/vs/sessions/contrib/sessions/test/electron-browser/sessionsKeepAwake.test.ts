@@ -12,7 +12,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IPowerService, PowerSaveBlockerType } from '../../../../../workbench/services/power/common/powerService.js';
-import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsKeepAwake } from '../../electron-browser/sessionsKeepAwake.js';
 
@@ -54,13 +54,23 @@ class TestPowerService extends mock<IPowerService>() {
 	}
 }
 
-function createSession(environment: string, initialStatus: SessionStatus) {
+function createChat(initialStatus: SessionStatus) {
+	const status = observableValue<SessionStatus>('chatStatus', initialStatus);
+	const chat = new class extends mock<IChat>() {
+		override readonly status = status;
+	};
+	return { chat, status };
+}
+
+function createSession(environment: string, initialStatus: SessionStatus, initialChats: readonly IChat[] = []) {
 	const status = observableValue<SessionStatus>('status', initialStatus);
+	const chats = observableValue<readonly IChat[]>('chats', initialChats);
 	const session = new class extends mock<ISession>() {
 		override readonly environment = environment;
 		override readonly status = status;
+		override readonly chats = chats;
 	};
-	return { session, status };
+	return { session, status, chats };
 }
 
 suite('SessionsKeepAwake', () => {
@@ -76,8 +86,8 @@ suite('SessionsKeepAwake', () => {
 	test('holds only while an agent on this computer works and releases after a delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { management, power } = setup();
 		const local = createSession('local', SessionStatus.Completed);
-		management.add(createSession('cloud', SessionStatus.InProgress).session);
-		management.add(createSession('remote-host', SessionStatus.InProgress).session);
+		management.add(createSession('cloud', SessionStatus.InProgress, [createChat(SessionStatus.InProgress).chat]).session);
+		management.add(createSession('remote-host', SessionStatus.InProgress, [createChat(SessionStatus.InProgress).chat]).session);
 		management.add(local.session);
 		await timeout(0);
 		const whileOnlyElsewhere = [...power.calls];
@@ -108,6 +118,51 @@ suite('SessionsKeepAwake', () => {
 		await timeout(SessionsKeepAwake.RELEASE_DELAY);
 
 		assert.deepStrictEqual(power.calls, ['start prevent-app-suspension 1']);
+	}));
+
+	test('keeps holding while a local chat works even when the session needs input', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { management, power } = setup();
+		const waiting = createChat(SessionStatus.NeedsInput);
+		const running = createChat(SessionStatus.InProgress);
+		management.add(createSession('local', SessionStatus.NeedsInput, [waiting.chat, running.chat]).session);
+		await timeout(SessionsKeepAwake.RELEASE_DELAY);
+		const whileRunning = [...power.calls];
+
+		running.status.set(SessionStatus.NeedsInput, undefined);
+		await timeout(SessionsKeepAwake.RELEASE_DELAY);
+		const whileWaiting = [...power.calls];
+
+		running.status.set(SessionStatus.InProgress, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileRunning, whileWaiting, resumed: power.calls }, {
+			whileRunning: ['start prevent-app-suspension 1'],
+			whileWaiting: ['start prevent-app-suspension 1', 'stop 1'],
+			resumed: ['start prevent-app-suspension 1', 'stop 1', 'start prevent-app-suspension 2'],
+		});
+	}));
+
+	test('tracks chats added to and removed from a waiting local session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { management, power } = setup();
+		const waiting = createChat(SessionStatus.NeedsInput);
+		const running = createChat(SessionStatus.InProgress);
+		const local = createSession('local', SessionStatus.NeedsInput, [waiting.chat]);
+		management.add(local.session);
+		await timeout(0);
+		const whileWaiting = [...power.calls];
+
+		local.chats.set([waiting.chat, running.chat], undefined);
+		await timeout(0);
+		const whileRunning = [...power.calls];
+
+		local.chats.set([waiting.chat], undefined);
+		await timeout(SessionsKeepAwake.RELEASE_DELAY);
+
+		assert.deepStrictEqual({ whileWaiting, whileRunning, removed: power.calls }, {
+			whileWaiting: [],
+			whileRunning: ['start prevent-app-suspension 1'],
+			removed: ['start prevent-app-suspension 1', 'stop 1'],
+		});
 	}));
 
 	test('stops a blocker that starts after the hold was released', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

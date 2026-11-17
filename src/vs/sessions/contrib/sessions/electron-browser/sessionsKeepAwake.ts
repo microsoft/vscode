@@ -14,11 +14,15 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 
 /**
  * Returns whether an agent on this computer is working. Sessions in the cloud or on a
- * remote agent host keep running when this computer sleeps, and sessions waiting for
+ * remote agent host keep running when this computer sleeps, and chats waiting for
  * input have nothing to do until the user answers.
  */
 export function isLocalSessionWorking(sessions: readonly ISession[], reader: IReader | undefined): boolean {
-	return sessions.some(session => session.environment === 'local' && session.status.read(reader) === SessionStatus.InProgress);
+	return sessions.some(session => session.environment === 'local' && (
+		session.status.read(reader) === SessionStatus.InProgress
+		// A waiting chat can take precedence over a running chat in the session's aggregate status.
+		|| session.chats.read(reader).some(chat => chat.status.read(reader) === SessionStatus.InProgress)
+	));
 }
 
 /**
