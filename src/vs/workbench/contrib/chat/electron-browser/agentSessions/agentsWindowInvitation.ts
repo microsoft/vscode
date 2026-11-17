@@ -251,7 +251,7 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 				logSettingExperimentTrigger(this.telemetryService, ChatConfiguration.AgentsWindowBannerEnabled);
 				logExperimentTrigger(this.telemetryService, getAgentsWindowInvitationTreatment(scenario, 'enabled'));
 			}
-			if (!candidate && (this.developerMode || this.treatments.get(getAgentsWindowInvitationTreatment(scenario, 'enabled')) !== false)) {
+			if (!candidate && (this.developerMode || (this.treatments.get(getAgentsWindowInvitationTreatment(scenario, 'enabled')) ?? scenario.enabled) === true)) {
 				candidate = scenario;
 			}
 		}

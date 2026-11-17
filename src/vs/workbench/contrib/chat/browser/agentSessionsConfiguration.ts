@@ -22,7 +22,7 @@ const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessio
 export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.AgentsWindowBannerEnabled]: {
 		type: 'boolean',
-		default: false,
+		default: true,
 		scope: ConfigurationScope.APPLICATION,
 		description: nls.localize('chat.agentsWindowBanner.enabled', "Show occasional invitations to continue or manage running Agent Host chats in the Agents Window. Invitations are hidden for users who have created at least three sessions in the Agents Window and created their latest session within the past 30 days."),
 		tags: ['experimental'],

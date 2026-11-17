@@ -54,7 +54,7 @@ import { AgentHostEditorActivity, IAgentHostEditorActivityService } from '../../
 suite('AgentsWindowInvitation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options: { enabled?: boolean; developerMode?: boolean; autoShow?: boolean; claimDelay?: Promise<void>; isSessionsWindow?: boolean } = {}) {
+	function createHarness(options: { enabled?: boolean; developerMode?: boolean; autoShow?: boolean; claimDelay?: Promise<void>; isSessionsWindow?: boolean; enableContinueScenario?: boolean } = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const storage = store.add(new InMemoryStorageService());
 		const coordinator = store.add(new AgentsWindowInvitationState(Date.now, storage));
@@ -74,7 +74,8 @@ suite('AgentsWindowInvitation', () => {
 			[ChatConfiguration.AgentsWindowBannerDeveloperMode]: options.developerMode ?? false,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const treatments = new Map<string, string | number | boolean>();
+		// Most tests use the continue scenario, which needs no parallel activity but only shows when a treatment enables it.
+		const treatments = new Map<string, string | number | boolean>(options.enableContinueScenario === false ? [] : [['chatAgentsWindowBanner.continueInAgentsWindow.enabled', true]]);
 		const models = observableValue<Iterable<IChatModel>>(store, []);
 		const widgets: IChatWidget[] = [];
 		const events: { name: string | undefined; data: object | undefined }[] = [];
@@ -679,6 +680,20 @@ suite('AgentsWindowInvitation', () => {
 		}, {
 			title: 'Continue in the Agents Window', hidden: undefined, restored: title,
 			scenario: 'continueInAgentsWindow', history, shown: [{ scenario: 'continueInAgentsWindow', action: 'shown' }],
+		});
+	}));
+
+	test('shows only the parallel-work scenarios without treatments', () => runWithFakedTimers({ startTime: 100_000 }, async () => {
+		const h = createHarness({ enableContinueScenario: false });
+		const chat = h.addChat('/current');
+		h.focus(chat.widget);
+		chat.send(Date.now() - 30_000);
+		await timeout(0);
+		const alone = h.scenario;
+		h.otherSession(1);
+		await timeout(0);
+		assert.deepStrictEqual({ alone, scenario: h.scenario, title: h.notification?.message, action: h.notification?.actions[0].label }, {
+			alone: undefined, scenario: 'parallelWorkSameWindow', title: 'Manage all your sessions in the Agents Window', action: 'Manage in Agents Window',
 		});
 	}));
 
