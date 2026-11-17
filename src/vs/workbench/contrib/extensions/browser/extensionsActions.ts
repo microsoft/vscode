@@ -35,7 +35,7 @@ import { IJSONEditingService } from '../../../services/configuration/common/json
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuId, IMenuService, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -51,7 +51,7 @@ import { IDialogService, IPromptButton } from '../../../../platform/dialogs/comm
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IActionViewItemOptions, ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
-import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -1313,6 +1313,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['isApplicationScopedExtension', extension.local && extension.local.isApplicationScoped]);
 			cksOverlay.push(['isWorkspaceScopedExtension', extension.isWorkspaceScoped]);
 			cksOverlay.push(['isGalleryExtension', !!extension.identifier.uuid]);
+			cksOverlay.push(['extensionHasGalleryLink', !!extension.url]);
 			if (extension.local) {
 				cksOverlay.push(['extensionSource', extension.local.source]);
 			}
@@ -1483,15 +1484,37 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 
 export class ExtensionEditorManageExtensionAction extends DropDownExtensionAction {
 
+	private static readonly Class = `${ExtensionAction.ICON_ACTION_CLASS} manage ${ThemeIcon.asClassName(manageExtensionIcon)}`;
+	private static readonly HideClass = `${this.Class} hide`;
+
+	private updateRequest = 0;
+
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
 		instantiationService: IInstantiationService
 	) {
-		super('extensionEditor.manageExtension', '', `${ExtensionAction.ICON_ACTION_CLASS} manage ${ThemeIcon.asClassName(manageExtensionIcon)}`, true, instantiationService);
+		super('extensionEditor.manageExtension', '', ExtensionEditorManageExtensionAction.Class, true, instantiationService);
 		this.tooltip = localize('manage', "Manage");
+		this._register(MenuRegistry.onDidChangeMenu(e => {
+			if (e.has(MenuId.ExtensionContext)) {
+				this.update();
+			}
+		}));
 	}
 
-	update(): void { }
+	/**
+	 * Hides the action while it has no actions to show for the extension, such as in windows that register none.
+	 */
+	update(): void {
+		const request = ++this.updateRequest;
+		getContextMenuActionsGroups(this.extension, this.contextKeyService, this.instantiationService).then(actionsGroups => {
+			if (request === this.updateRequest) {
+				const hasActions = actionsGroups.some(([, actions]) => actions.length > 0);
+				this.enabled = hasActions;
+				this.class = hasActions ? ExtensionEditorManageExtensionAction.Class : ExtensionEditorManageExtensionAction.HideClass;
+			}
+		}, onUnexpectedError);
+	}
 
 	override async run(): Promise<any> {
 		const actionGroups: IAction[][] = [];
