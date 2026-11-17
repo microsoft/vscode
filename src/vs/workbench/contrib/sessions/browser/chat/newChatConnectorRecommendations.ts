@@ -13,9 +13,14 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { IChatTip, IChatTipProvider, IChatTipService } from '../../../chat/browser/chatTipService.js';
+import { ICustomizationMarketplaceInstallService } from '../../../chat/common/customizationMarketplaceInstallService.js';
 import { findMatchingConnectorRecommendationIds } from '../../../chat/common/connectorRecommendations.js';
+import { getConnectorMcpServerNames, getMatchingInstalledMcpPlugins, getMatchingInstalledMcpServers } from '../../../chat/common/connectorUpgrade.js';
+import { IAgentPluginService } from '../../../chat/common/plugins/agentPluginService.js';
+import { IMcpWorkbenchService } from '../../../mcp/common/mcpTypes.js';
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../common/chatConstants.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -25,6 +30,7 @@ interface IConnectorRecommendation {
 	readonly name: string;
 	readonly description: string;
 	readonly icon: URI;
+	readonly mcpServerNames: readonly string[];
 }
 
 export class NewChatConnectorRecommendations extends Disposable implements IChatTipProvider {
@@ -55,6 +61,9 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 		@IChatTipService chatTipService: IChatTipService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ICustomizationMarketplaceInstallService private readonly customizationMarketplaceInstallService: ICustomizationMarketplaceInstallService,
 	) {
 		super();
 		if (isConfigurationValueFromDefault(this.configurationService, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING)) {
@@ -62,13 +71,33 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 		}
 
 		for (const [id, recommendation] of Object.entries(productService.connectorRecommendations ?? {})) {
-			this._recommendations.set(id, { id, name: recommendation.name, description: recommendation.description, icon: URI.parse(recommendation.iconUrl) });
+			this._recommendations.set(id, {
+				id,
+				name: recommendation.name,
+				description: recommendation.description,
+				icon: URI.parse(recommendation.iconUrl),
+				mcpServerNames: getConnectorMcpServerNames(id, recommendation.name, recommendation.mcpServerNames),
+			});
 			this._recommendationUrls.set(id, recommendation.urls ?? []);
 		}
 
 		this._register(chatTipService.registerTipProvider(this));
 		this._register(this.options.onDidChangeInputValue(() => this.update()));
 		this._register(this.layoutService.onDidLayoutMainContainer(() => this.update()));
+		this._register(this.mcpWorkbenchService.onChange(() => this.update()));
+		this._register(this.mcpWorkbenchService.onReset(() => this.update()));
+		this._register(this.customizationMarketplaceInstallService.onDidChange(() => this.update()));
+		this._register(autorun(reader => {
+			for (const plugin of this.agentPluginService.plugins.read(reader)) {
+				plugin.mcpServerDefinitions.read(reader);
+			}
+			this.update();
+		}));
+		void this.mcpWorkbenchService.whenInitialLocalMcpServersLoaded.then(() => {
+			if (!this._store.isDisposed) {
+				this.update();
+			}
+		});
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
 				|| event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)
@@ -122,8 +151,10 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this._recommendationUrls)
 			: new Set<string>();
 		const recommendationId = this.getRecommendationId(matching);
-		const tip = recommendationId ? this.createTip(this._recommendations.get(recommendationId)!) : undefined;
-		const tipStateKey = `${tip?.id ?? ''}\0${this._availableRecommendationIds.join('\0')}`;
+		const recommendation = recommendationId ? this._recommendations.get(recommendationId) : undefined;
+		const isUpgrade = recommendation ? this.isUpgrade(recommendation) : false;
+		const tip = recommendation ? this.createTip(recommendation, isUpgrade) : undefined;
+		const tipStateKey = `${tip?.id ?? ''}\0${isUpgrade}\0${this._availableRecommendationIds.join('\0')}`;
 		if (tipStateKey === this._tipStateKey) {
 			return;
 		}
@@ -133,7 +164,12 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 	}
 
 	private getRecommendationId(matching: ReadonlySet<string>): string | undefined {
-		const available = [...this._recommendations.keys()].filter(id => matching.has(id) && !this._dismissed.has(id));
+		const available = [...this._recommendations.keys()].filter(id =>
+			matching.has(id)
+			&& !this._dismissed.has(id)
+			&& !this.isConnectorInstalled(this._recommendations.get(id)!)
+			&& !this.hasMatchingMcpPlugin(this._recommendations.get(id)!)
+		);
 		this._availableRecommendationIds = available;
 		const matchKey = [...matching].sort().join('\0');
 		if (matchKey !== this._matchKey) {
@@ -150,22 +186,54 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 		return this._recommendationId;
 	}
 
-	private createTip(recommendation: IConnectorRecommendation): IChatTip {
+	private isUpgrade(recommendation: IConnectorRecommendation): boolean {
+		return getMatchingInstalledMcpServers(this.mcpWorkbenchService.local, recommendation.mcpServerNames).length > 0;
+	}
+
+	private hasMatchingMcpPlugin(recommendation: IConnectorRecommendation): boolean {
+		return getMatchingInstalledMcpPlugins(this.agentPluginService.plugins.get(), recommendation.mcpServerNames).length > 0;
+	}
+
+	private isConnectorInstalled(recommendation: IConnectorRecommendation): boolean {
+		return this.customizationMarketplaceInstallService.installations.get().installations.some(installation =>
+			installation.state.kind === 'installed'
+			&& installation.state.target.kind === 'copilotConnector'
+			&& (
+				installation.state.target.name === recommendation.id
+				|| installation.resource.displayName === recommendation.name
+			)
+		);
+	}
+
+	private createTip(recommendation: IConnectorRecommendation, isUpgrade = this.isUpgrade(recommendation)): IChatTip {
 		const commandArgs = encodeURIComponent(JSON.stringify([{
-			section: AICustomizationManagementSection.McpServers,
-			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
 			connectorName: recommendation.id,
 			connectorDisplayName: recommendation.name,
+			...(isUpgrade
+				? { connectorId: recommendation.id, mcpServerNames: recommendation.mcpServerNames }
+				: {
+					section: AICustomizationManagementSection.McpServers,
+					sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+				}),
 		}]));
+		const command = isUpgrade ? AICustomizationManagementCommands.UpgradeToConnector : AICustomizationManagementCommands.OpenMarketplace;
 		const content = new MarkdownString('', {
-			isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenMarketplace] },
+			isTrusted: { enabledCommands: [command] },
 		});
 		content.appendMarkdown(localize('newSession.connectorRecommendations.tipPrefix', "**Tip:** "));
-		content.appendLink(`command:${AICustomizationManagementCommands.OpenMarketplace}?${commandArgs}`, recommendation.description);
+		if (isUpgrade) {
+			content.appendText(localize('newSession.connectorRecommendations.upgradeDescription', "Get managed {0} authentication across Copilot surfaces. ", recommendation.name));
+		}
+		content.appendLink(
+			`command:${command}?${commandArgs}`,
+			isUpgrade
+				? localize('newSession.connectorRecommendations.upgrade', "Upgrade to the {0} Connector.", recommendation.name)
+				: recommendation.description
+		);
 		return {
 			id: `${NewChatConnectorRecommendations._tipIdPrefix}${recommendation.id}`,
 			content,
-			enabledCommands: [AICustomizationManagementCommands.OpenMarketplace],
+			enabledCommands: [command],
 			icon: recommendation.icon,
 		};
 	}

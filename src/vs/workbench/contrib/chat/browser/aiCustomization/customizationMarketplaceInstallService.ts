@@ -891,7 +891,21 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 					await this.addRecord(record);
 					return;
 				}
-				await this.runConnectorOperation(resource.sourceId, operationToken => this.copilotConnectorsService.connect(connector.name, operationToken), token);
+				try {
+					await this.runConnectorOperation(resource.sourceId, operationToken => this.copilotConnectorsService.connect(connector.name, operationToken), token);
+				} catch (error) {
+					let isConnected = false;
+					try {
+						const connectors = await this.copilotConnectorsService.refresh(token);
+						isConnected = connectors.some(candidate => candidate.name === connector.name && candidate.connectionStatus === 'connected');
+					} catch {
+						// Preserve the original connection error when reconciliation is unavailable.
+					}
+					if (!isConnected) {
+						throw error;
+					}
+					this.logService.warn(`[CustomizationMarketplace] Copilot connector '${connector.name}' connected after its connection operation reported an error`, error);
+				}
 				const account = this.copilotConnectorsService.account;
 				if (!account) {
 					throw new Error(localize('customizationMarketplace.connectorAccountUnavailable', "The GitHub account used to connect this resource is no longer available."));

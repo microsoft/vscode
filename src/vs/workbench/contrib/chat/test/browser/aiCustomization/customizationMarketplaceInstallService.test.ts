@@ -35,7 +35,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
-import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, CopilotConnectorsError, ICopilotConnector, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
@@ -315,6 +315,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 				}] : [];
 			}
 			override readonly connectedMcpServers = [];
+			override async refresh(): Promise<readonly ICopilotConnector[]> {
+				return this.connectors;
+			}
 			override async connect(name: string, token: CancellationToken): Promise<void> {
 				this.connectCalls.push(name);
 				if (this.onConnect) {
@@ -1995,6 +1998,46 @@ suite('CustomizationMarketplaceInstallService', () => {
 					installation: { kind: 'copilotConnector', name: 'mail' },
 				}],
 				installationRecordCount: 0,
+			});
+		});
+
+		test('records a connector when a failed connection operation is already connected', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			fixture.connectorsService.onConnect = async name => {
+				fixture.connectedConnectors.add(name);
+				fixture.connectorChanges.fire();
+				throw new Error('Connection operation was cancelled');
+			};
+
+			await fixture.service.install(candidate);
+
+			assert.deepStrictEqual({
+				connects: fixture.connectorsService.connectCalls,
+				state: fixture.service.getInstallState(candidate),
+				recorded: recordedResources(fixture.service).map(resource => resource.identifier),
+			}, {
+				connects: ['mail'],
+				state: { kind: 'installed', target: connectorInstallationTarget },
+				recorded: ['mail'],
+			});
+		});
+
+		test('preserves a connection error when the connector is not connected', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			fixture.connectorsService.onConnect = async () => { throw new Error('Connection failed'); };
+
+			await assert.rejects(fixture.service.install(candidate), /Connection failed/);
+
+			assert.deepStrictEqual({
+				connects: fixture.connectorsService.connectCalls,
+				state: fixture.service.getInstallState(candidate),
+				recorded: recordedResources(fixture.service),
+			}, {
+				connects: ['mail'],
+				state: { kind: 'available' },
+				recorded: [],
 			});
 		});
 
