@@ -415,8 +415,8 @@ suite('ServerAgentHostManager', () => {
 			await manager.ensureStarted();
 		}
 		assert.deepStrictEqual(starter.managementChannel.calls.filter(call => call.command === 'configureMissionControl').map(call => call.arg), [
-			[{ ...githubEnvironment, roots: [project, drive], projects: [project], defaultDirectory: project }],
-			[{ ...githubEnvironment, roots: [drive], projects: [drive], defaultDirectory: drive }],
+			[{ ...githubEnvironment, roots: [project, drive], projects: [project], defaultDirectory: project, useLocalCredentials: true }],
+			[{ ...githubEnvironment, roots: [drive], projects: [drive], defaultDirectory: drive, useLocalCredentials: true }],
 		]);
 	});
 
