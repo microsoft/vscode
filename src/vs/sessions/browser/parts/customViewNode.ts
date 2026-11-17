@@ -138,6 +138,7 @@ export class CustomViewNode extends Disposable {
 			const accessory = this._view.titleAccessory.read(reader);
 			titleAccessoryEl.replaceChildren(...(accessory ? [accessory] : []));
 			titleAccessoryEl.classList.toggle('hidden', !accessory);
+			titleRow.classList.toggle('has-title-accessory', !!accessory);
 		}));
 
 		this._register(toDisposable(() => this.element.remove()));
