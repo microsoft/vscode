@@ -287,6 +287,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
 		private readonly _getOrganizationControl: (item: IInstalledPluginItem, reader: IReader) => ICustomizationOrganizationControl | undefined,
 		private readonly _isTeamProvided: (item: IInstalledPluginItem, reader: IReader) => boolean,
+		private readonly _isEnabled: (item: IInstalledPluginItem, reader: IReader) => boolean,
 		private readonly _showSyncToggle = true,
 	) { }
 
@@ -327,10 +328,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		// inline status badge ("Enabled"/"Disabled") is intentionally omitted —
 		// items are already grouped under "Enabled Locally" / "Disabled Locally"
 		// section headers, and the row's aria-label conveys state to screen readers.
-		templateData.disposables.add(autorun(reader => {
-			const enabled = isContributionEnabled(element.item.plugin.enablement.read(reader));
-			templateData.container.classList.toggle('disabled', !enabled);
-		}));
+		templateData.disposables.add(autorun(reader => templateData.container.classList.toggle('disabled', !this._isEnabled(element.item, reader))));
 
 		const syncProvider = this._showSyncToggle ? this._harnessService.getActiveDescriptor().syncProvider : undefined;
 		if (syncProvider) {
@@ -1119,7 +1117,7 @@ export class PluginListWidget extends Disposable {
 			(entry, container, disposables) => this.renderPluginTreeGroupActions(entry, container, disposables),
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), (item, reader) => this.getInstalledPluginOrganizationControl(item, reader), (item, reader) => this.isInstalledPluginTeamProvided(item, reader), false);
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), (item, reader) => this.getInstalledPluginOrganizationControl(item, reader), (item, reader) => this.isInstalledPluginTeamProvided(item, reader), (item, reader) => this.isInstalledPluginEnabled(item, reader), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), this.hoverService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 
@@ -1415,7 +1413,7 @@ export class PluginListWidget extends Disposable {
 			const details = [element.item.location, getInstalledPluginMetadata(element.item)].filter(detail => !!detail);
 			const withDetails = details.reduce((label, detail) => localize('pluginInstalledItemAriaLabelWithDetail', "{0}. {1}", label, detail), name);
 			return derived(this, reader => {
-				const label = isContributionEnabled(element.item.plugin.enablement.read(reader))
+				const label = this.isInstalledPluginEnabled(element.item, reader)
 					? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
 					: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails);
 				return withTeamProvidedPluginAriaLabel(
@@ -2618,6 +2616,15 @@ export class PluginListWidget extends Disposable {
 		const sessionItem = this.getSessionPluginItem(item, reader);
 		const team = item.plugin.teamProvided?.read(reader) || sessionItem?.teamProvided;
 		return isTeamProvidedVisible(team, this.getInstalledPluginOrganizationControl(item, reader) !== undefined);
+	}
+
+	/**
+	 * Whether an installed plugin is active, which decides whether its row is shown as disabled. For a plugin the
+	 * runtime installed, its session plugin reports the activation that applies to the chat: a GitHub Team
+	 * assignment or a workspace setting can turn on a plugin that the user has not enabled globally.
+	 */
+	private isInstalledPluginEnabled(item: IInstalledPluginItem, reader?: IReader): boolean {
+		return this.getSessionPluginItem(item, reader)?.enabled ?? isContributionEnabled(item.plugin.enablement.read(reader));
 	}
 
 	private getInstalledPluginActions(item: IInstalledPluginItem, disposables: DisposableStore): IAction[] {

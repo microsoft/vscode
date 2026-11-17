@@ -239,6 +239,38 @@ suite('pluginListWidget', () => {
 		});
 	});
 
+	test('a runtime-installed plugin is shown as enabled when its session plugin is active, whatever its global setting', () => {
+		const createItem = (name: string, globalState: ContributionEnablementState, runtimeInstalled = true): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(globalState);
+				override readonly copilotCliInstallation = runtimeInstalled ? { name, marketplace: 'team' } : undefined;
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const createSessionPlugin = (name: string, enabled: boolean | undefined): ICustomizationItem => ({
+			uri: URI.file(`/plugins/${name}`), type: 'plugin', name, source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, enabled,
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: enabled ?? false, scope: 'global', run: () => { } }],
+		});
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			sessionPluginItems: observableValue<readonly ICustomizationItem[]>('sessionPluginItems', [
+				createSessionPlugin('team-assigned', true), createSessionPlugin('workspace-disabled', false), createSessionPlugin('pending', undefined), createSessionPlugin('local', true),
+			]),
+		});
+		const DisabledProfile = ContributionEnablementState.DisabledProfile;
+		const EnabledProfile = ContributionEnablementState.EnabledProfile;
+		assert.deepStrictEqual({
+			// A GitHub Team assignment turns the plugin on for the session without changing the user's global setting.
+			teamAssigned: widget.isInstalledPluginEnabled(createItem('team-assigned', DisabledProfile)),
+			workspaceDisabled: widget.isInstalledPluginEnabled(createItem('workspace-disabled', EnabledProfile)),
+			// Until the session reports its activation, and for plugins without a session plugin, the global setting applies.
+			pending: widget.isInstalledPluginEnabled(createItem('pending', DisabledProfile)),
+			withoutSessionPlugin: widget.isInstalledPluginEnabled(createItem('unpaired', DisabledProfile)),
+			local: widget.isInstalledPluginEnabled(createItem('local', DisabledProfile, false)),
+		}, { teamAssigned: true, workspaceDisabled: false, pending: false, withoutSessionPlugin: false, local: false });
+	});
+
 	test('This Workspace badge opens the existing scope action without changing scope until confirmed', async () => {
 		let menu: IContextMenuDelegate | undefined;
 		let calls = 0;
