@@ -24,7 +24,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocation, IFolderLocationGroup, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -35,7 +35,6 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
-import { getWorktreesLabel } from '../../../services/workspaces/common/folderLocationSections.js';
 
 const FOLDER_LOCATION_INTRODUCTION_ID = 'workbench.folderLocation.introduction';
 const FOLDER_LOCATION_INTRODUCTION_TARGET_ID = 'workbench.folderLocation.statusEntry';
@@ -54,11 +53,22 @@ interface ILocationEntry {
 	readonly icon: ThemeIcon;
 }
 
-/** The action widget item data: the widget focuses by `id` and starts on the `checked` item. */
+/** The action widget item data: the widget starts on the `checked` item. */
 interface IActionWidgetLocation extends ILocationEntry {
 	readonly id: string;
 	readonly checked: boolean;
+	/** The label of the group whose row this is, the location it selects being what its submenu picks. */
+	readonly groupLabel?: string;
 }
+
+/** The locations of one provider, under its label where it has one ({@link IFolderLocationGroup}). */
+interface ILocationGroup {
+	readonly label: string | undefined;
+	readonly entries: readonly ILocationEntry[];
+}
+
+/** The id prefix of the row of a group of locations. */
+const GROUP_ID_PREFIX = 'group:';
 
 interface ILocationQuickPickItem extends IQuickPickItem {
 	readonly uri: URI;
@@ -317,18 +327,22 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const currentLocation = folderLocationService.getLocation(folder);
 		// The folder itself: its name, as the window names it
 		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), icon: Codicon.folder };
-		// Seed the current location so that accepting before the lookup resolves keeps it
-		const currentSeed: ILocationEntry | undefined = currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.gitBranchCheckout } : undefined;
-		const seedEntries = currentSeed ? [primaryEntry, currentSeed] : [primaryEntry];
-		const toEntries = (locations: readonly IFolderLocation[]) => [primaryEntry, ...locations.map((location): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.gitBranchCheckout }))];
+		const toEntry = (location: IFolderLocation): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.gitBranchCheckout });
+		// Seed the current location, in the group of its provider, so that accepting before the lookup resolves keeps it
+		const seedGroups: ILocationGroup[] = currentLocation ? [{ label: currentLocation.group, entries: [{ ...toEntry(currentLocation), uri: folder.uri }] }] : [];
+		const toGroups = (groups: readonly IFolderLocationGroup[]): ILocationGroup[] => groups.map(group => ({ label: group.label, entries: group.locations.map(toEntry) }));
+		// The quick pick lists the folder and its locations as one list
+		const toEntries = (groups: readonly ILocationGroup[]) => [primaryEntry, ...groups.flatMap(group => group.entries)];
+		// What a location that is the current one says it is, also to screen readers
+		const describe = (entry: ILocationEntry, current: boolean) => current ? (entry.description ? localize('currentLocationWithDescription', "{0} (Current)", entry.description) : localize('currentLocation', "Current")) : entry.description;
 
 		const store = new DisposableStore();
 		const cts = store.add(new CancellationTokenSource());
 		// Show the picker right away: resolving the locations can take a while
-		const loadLocations = (onResolved: (entries: ILocationEntry[]) => void, onDone: () => void) => {
-			folderLocationService.getLocations(primary, cts.token).then(locations => {
+		const loadLocations = (onResolved: (groups: ILocationGroup[]) => void, onDone: () => void) => {
+			folderLocationService.getLocationGroups(primary, cts.token).then(groups => {
 				if (!cts.token.isCancellationRequested) {
-					onResolved(toEntries(locations));
+					onResolved(toGroups(groups));
 				}
 			}, error => {
 				if (!cts.token.isCancellationRequested && !isCancellationError(error)) {
@@ -344,47 +358,53 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		let picked: ILocationEntry | undefined;
 		if (anchor) {
 			const actionWidgetService = accessor.get(IActionWidgetService);
-			// Two rows: the folder, and its worktrees in a submenu, whose choice the row then selects
-			const worktreesId = 'worktrees';
-			const toActionItems = (entries: readonly ILocationEntry[]): IActionListItem<IActionWidgetLocation>[] => {
-				const primaryChecked = isCurrentUri(primaryEntry.uri);
-				const worktrees = entries.filter(entry => entry !== primaryEntry);
-				const worktreesChecked = worktrees.some(entry => isCurrentUri(entry.uri));
-				const worktreesItem: { -readonly [K in keyof IActionWidgetLocation]: IActionWidgetLocation[K] } = { ...(worktrees.find(entry => isCurrentUri(entry.uri)) ?? primaryEntry), description: undefined, id: worktreesId, checked: worktreesChecked };
-				const items: IActionListItem<IActionWidgetLocation>[] = [{
+			const toLocationItem = (entry: ILocationEntry): IActionListItem<IActionWidgetLocation> => {
+				const checked = isCurrentUri(entry.uri);
+				return {
 					kind: ActionListItemKind.Action,
-					item: { ...primaryEntry, id: uriIdentityService.extUri.getComparisonKey(primaryEntry.uri), checked: primaryChecked },
-					label: primaryEntry.label,
-					labelIcon: primaryEntry.icon,
-					group: { title: '', icon: primaryChecked ? Codicon.check : Codicon.blank }
-				}];
-				if (worktrees.length) {
-					items.push({
+					item: { ...entry, id: uriIdentityService.extUri.getComparisonKey(entry.uri), checked },
+					label: entry.label,
+					labelIcon: entry.icon,
+					group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
+				};
+			};
+			// The locations of each provider, in a submenu under its label, or as rows of their own without one, then the folder.
+			// Only the current location is checked: in its submenu, not the row of its group.
+			const toActionItems = (groups: readonly ILocationGroup[]): IActionListItem<IActionWidgetLocation>[] => [
+				...groups.flatMap((group): IActionListItem<IActionWidgetLocation>[] => {
+					if (!group.label) {
+						return group.entries.map(toLocationItem);
+					}
+					const shown = group.entries.find(entry => isCurrentUri(entry.uri)) ?? group.entries[0];
+					// The row selects what its submenu picks
+					const groupItem: { -readonly [K in keyof IActionWidgetLocation]: IActionWidgetLocation[K] } = { ...shown, description: undefined, id: `${GROUP_ID_PREFIX}${group.label}`, checked: false, groupLabel: group.label };
+					return [{
 						kind: ActionListItemKind.Action,
-						item: worktreesItem,
-						label: getWorktreesLabel(),
-						labelIcon: Codicon.gitBranchCheckout,
-						group: { title: '', icon: worktreesChecked ? Codicon.check : Codicon.blank },
-						submenuActions: worktrees.map(entry => toAction({
+						item: groupItem,
+						label: group.label,
+						labelIcon: shown.icon,
+						group: { title: '', icon: Codicon.blank },
+						submenuActions: group.entries.map(entry => toAction({
 							id: uriIdentityService.extUri.getComparisonKey(entry.uri),
 							label: entry.label,
-							tooltip: entry.description,
+							tooltip: describe(entry, isCurrentUri(entry.uri)),
 							checked: isCurrentUri(entry.uri),
 							run: () => {
-								worktreesItem.uri = entry.uri;
-								worktreesItem.label = entry.label;
+								groupItem.uri = entry.uri;
+								groupItem.label = entry.label;
 							}
 						})),
 						openSubmenuOnClick: true
-					});
-				}
-				return items;
-			};
+					}];
+				}),
+				toLocationItem(primaryEntry),
+			];
 			picked = await new Promise<ILocationEntry | undefined>(resolve => {
+				// It starts on the checked row, else the first, with no submenu open
 				actionWidgetService.show<IActionWidgetLocation>(
 					'folderLocationPicker',
 					false,
-					toActionItems(seedEntries),
+					toActionItems(seedGroups),
 					{
 						onSelect: entry => {
 							// Resolve first: hiding runs onHide synchronously, which would report a cancellation
@@ -407,9 +427,11 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 							if (!entry) {
 								return '';
 							}
-							// The row of the worktrees is named after them, not after the one it selects
-							const label = entry.id === worktreesId ? getWorktreesLabel() : entry.label;
-							const text = entry.description && entry.id !== worktreesId ? localize('folderLocationItemAria', "{0}, {1}", label, entry.description) : label;
+							// The row of a group is named after it, not after the location it selects
+							if (entry.groupLabel) {
+								return entry.groupLabel;
+							}
+							const text = entry.description ? localize('folderLocationItemAria', "{0}, {1}", entry.label, entry.description) : entry.label;
 							return entry.checked ? localize('folderLocationCurrentItemAria', "{0}, Current", text) : text;
 						},
 						getWidgetAriaLabel: () => localize('folderLocationPickerAria', "Folder Location")
@@ -417,10 +439,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 					// The status bar sits at the bottom, so size the list for the space above it. The label keeps its width, the description gives way
 					{ preferredAnchorPosition: AnchorPosition.ABOVE, inlineDescription: true }
 				);
-				// The current entry: the folder, or the row of its worktrees
-				actionWidgetService.focusItemById(currentSeed ? worktreesId : uriIdentityService.extUri.getComparisonKey(primaryEntry.uri));
-				// An open Worktrees submenu shows the resolved worktrees too
-				loadLocations(entries => actionWidgetService.updateItems(toActionItems(entries), undefined, { preserveHover: true }), () => { });
+				// An open submenu shows the resolved locations too
+				loadLocations(groups => actionWidgetService.updateItems(toActionItems(groups), undefined, { preserveHover: true }), () => { });
 			}).finally(() => {
 				cts.cancel();
 				store.dispose();
@@ -431,12 +451,12 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 				uri: entry.uri,
 				label: entry.label,
 				iconClass: ThemeIcon.asClassName(entry.icon),
-				description: isCurrentUri(entry.uri) ? (entry.description ? localize('currentLocationWithDescription', "{0} (Current)", entry.description) : localize('currentLocation', "Current")) : entry.description
+				description: describe(entry, isCurrentUri(entry.uri))
 			});
 			const quickPick = store.add(quickInputService.createQuickPick<ILocationQuickPickItem>({ useSeparators: false }));
 			quickPick.placeholder = localize('switchFolderLocationPlaceholder', "Select a Location for the Folder");
 			quickPick.matchOnDescription = true;
-			const seedItems = seedEntries.map(toItem);
+			const seedItems = toEntries(seedGroups).map(toItem);
 			quickPick.items = seedItems;
 			quickPick.activeItems = [seedItems[seedItems.length - 1]];
 			quickPick.busy = true;
@@ -444,8 +464,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 				store.add(quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0])));
 				store.add(quickPick.onDidHide(() => resolve(undefined)));
 				quickPick.show();
-				loadLocations(entries => {
-					const items = entries.map(toItem);
+				loadLocations(groups => {
+					const items = toEntries(groups).map(toItem);
 					quickPick.items = items;
 					const currentItem = items.find(item => isCurrentUri(item.uri));
 					if (currentItem) {
