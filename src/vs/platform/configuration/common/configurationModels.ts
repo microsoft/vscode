@@ -314,6 +314,14 @@ export interface ConfigurationParseOptions {
 	exclude?: string[];
 }
 
+/**
+ * Settings hidden with `included: false` still declare a scope. Application-scoped ones
+ * are not dropped as unregistered, so the default profile's value applies to other profiles.
+ */
+function isApplicationScoped(excludedPropertySchema: IRegisteredConfigurationPropertySchema | undefined): boolean {
+	return excludedPropertySchema?.scope === ConfigurationScope.APPLICATION || excludedPropertySchema?.scope === ConfigurationScope.APPLICATION_MACHINE;
+}
+
 export class ConfigurationModelParser {
 
 	private _raw: IStringDictionary<unknown> | null = null;
@@ -533,7 +541,7 @@ export class ConfigurationModelParser {
 			return false;
 		}
 
-		if (options.skipUnregistered && !propertySchema) {
+		if (options.skipUnregistered && !propertySchema && !isApplicationScoped(excludedPropertySchema)) {
 			return false;
 		}
 

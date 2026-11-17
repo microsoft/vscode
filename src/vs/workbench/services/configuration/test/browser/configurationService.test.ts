@@ -2923,6 +2923,17 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 					'type': 'string',
 					'default': 'isSet',
 				},
+				'configurationService.profiles.excludedApplicationSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.APPLICATION,
+					included: false,
+				},
+				'configurationService.profiles.excludedSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					included: false,
+				},
 			}
 		});
 	});
@@ -3071,6 +3082,15 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.nonregistered": "defaultProfile" }'));
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.profiles.nonregistered'), undefined);
+	}));
+
+	test('application setting excluded from the registry is read from default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.excludedApplicationSetting": "defaultProfile", "configurationService.profiles.excludedSetting": "defaultProfile" }'));
+		await testObject.reloadConfiguration();
+		assert.deepStrictEqual({
+			application: testObject.getValue('configurationService.profiles.excludedApplicationSetting'),
+			window: testObject.getValue('configurationService.profiles.excludedSetting'),
+		}, { application: 'defaultProfile', window: undefined });
 	}));
 
 	test('initialize with custom all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
