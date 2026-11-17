@@ -9496,7 +9496,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	/** Whether the list includes the session before its source filters apply. */
 	isSessionListed(session: ISession, reader?: IReader): boolean {
-		return this._sessionsListModelService.isSessionListed(session, reader, this.filters.isShowAutomationRuns(reader));
+		return this._sessionsListModelService.isSessionListed(session, reader);
 	}
 
 	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {
