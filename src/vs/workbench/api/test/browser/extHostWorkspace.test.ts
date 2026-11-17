@@ -365,6 +365,38 @@ suite('ExtHostWorkspace', function () {
 		assert.strictEqual(events.length, 0);
 	});
 
+	test('Workspace folder locations of Windows drive and UNC primaries are seeded first, carried over a switch and fire no spurious event', function () {
+		const file = (authority: string, path: string) => URI.from({ scheme: 'file', authority, path });
+		const worktree = file('', '/C:/work/wt1');
+		const cases = [
+			{ primary: file('', '/C:/work/repo/'), label: 'repo' },
+			{ primary: file('server', '/share/'), label: 'share' },
+			{ primary: file('server', '/'), label: 'server' },
+			{ primary: file('', '/C:/'), label: 'C:' }
+		];
+		const actual: { seeded: string[][]; events: number; afterSwitch: string[][] }[] = [];
+		for (const { primary, label } of cases) {
+			const view = (ws: ExtHostWorkspace) => ws.getWorkspaceFolders()![0].locations.map(l => [l.uri.toString(), l.label]);
+			const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(worktree, 0, 'wt1'), primary }] }, new NullLogService());
+			const events: number[] = [];
+			store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
+			const seeded = view(ws);
+
+			const locations = [{ uri: primary, label, isPrimary: true }, { uri: worktree, label: 'wt1', isPrimary: false }];
+			ws.$acceptWorkspaceFolderLocations([{ folder: worktree, locations }]);
+			const resolved = view(ws);
+			events.length = 0;
+			ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(primary, 0, label), primary }] });
+			const afterSwitch = view(ws);
+			ws.$acceptWorkspaceFolderLocations([{ folder: primary, locations }]);
+
+			assert.deepStrictEqual({ seeded, resolved: resolved.map(l => l[1]) }, { seeded: [[primary.toString(), label]], resolved: [label, 'wt1'] });
+			actual.push({ seeded, events: events.length, afterSwitch });
+		}
+
+		assert.deepStrictEqual(actual.map(a => ({ events: a.events, carried: a.afterSwitch.map(l => l[1]) })), cases.map(c => ({ events: 0, carried: [c.label, 'wt1'] })));
+	});
+
 	test('A location switch is reported as removed and added and does not change the locations', function () {
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(URI.parse('foo:main'), 0, 'repo'), primary: URI.parse('foo:main') }] }, new NullLogService());
 		const locations = [
