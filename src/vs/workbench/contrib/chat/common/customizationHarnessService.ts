@@ -339,6 +339,7 @@ export interface ICustomizationItem {
 	 * Relevant for prompt / skill and custom agents
 	 */
 	readonly userInvocable?: boolean;
+	readonly argumentHint?: string;
 	/** Optional inline/context-menu actions specific to this item. */
 	readonly actions?: readonly ICustomizationItemAction[];
 }
@@ -803,6 +804,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 					type: item.type as PromptsType.prompt | PromptsType.skill,
 					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri, label: item.pluginLabel }, item.name) : item.name,
 					description: item.description,
+					argumentHint: item.argumentHint,
 					userInvocable: item.userInvocable ?? true,
 					storage: narrowStorage,
 					sessionTypes: [sessionType],
@@ -871,6 +873,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 			return {
 				...command,
 				userInvocable: parsedPromptFile.header?.userInvocable ?? command.userInvocable,
+				argumentHint: parsedPromptFile.header?.argumentHint ?? command.argumentHint,
 				parsedPromptFile,
 			};
 		}
