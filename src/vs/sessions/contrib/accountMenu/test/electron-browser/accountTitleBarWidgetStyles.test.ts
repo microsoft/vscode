@@ -77,8 +77,12 @@ suite('Account Title Bar Widget Styles - signed-out sign-in rows', () => {
 			const hit = mainWindow.document.elementFromPoint(iconRect.left + iconRect.width / 2, iconRect.top + iconRect.height / 2);
 			label.focus();
 			const style = mainWindow.getComputedStyle(label);
+			const textRange = mainWindow.document.createRange();
+			textRange.selectNodeContents(label);
+			const textRect = textRange.getBoundingClientRect();
 			return {
 				spansRow: Math.round(labelRect.left) === Math.round(sectionRect.left) && Math.round(labelRect.right) === Math.round(sectionRect.right),
+				textCenteredOnIcon: Math.abs((textRect.top + textRect.bottom) / 2 - (iconRect.top + iconRect.bottom) / 2) <= 1,
 				iconAreaHitsAction: hit === label,
 				iconPaintsAboveRow: mainWindow.getComputedStyle(icon).zIndex,
 				focused: {
@@ -99,6 +103,7 @@ suite('Account Title Bar Widget Styles - signed-out sign-in rows', () => {
 		}, {
 			enabled: {
 				spansRow: true,
+				textCenteredOnIcon: true,
 				iconAreaHitsAction: true,
 				iconPaintsAboveRow: '1',
 				focused: {

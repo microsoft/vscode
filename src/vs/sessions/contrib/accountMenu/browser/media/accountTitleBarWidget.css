@@ -348,7 +348,7 @@
 	width: 100%;
 	box-sizing: border-box;
 	min-height: 32px;
-	padding-block: 3px;
+	padding-block: 6px;
 	padding-inline: calc(16px + 22px + 8px) 16px;
 	justify-content: flex-start;
 	border-radius: 0;
