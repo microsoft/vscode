@@ -7,6 +7,7 @@ import './media/chatWidget.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action, toAction } from '../../../../../base/common/actions.js';
 import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -48,7 +49,7 @@ import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, I
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
 import { INewSessionWorktreeSendChoiceProvider, INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
-import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { markOnboardingTarget, resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -1773,8 +1774,52 @@ export class NewChatWidget extends Disposable {
 			if (!provider) {
 				return;
 			}
-			reader.store.add(markOnboardingTarget(element, provider.targetId, { scope: () => this._getWorktreeSendChoiceScope(provider, element) }));
+			reader.store.add(this._anchorWorktreeSendChoice(provider, element));
 		});
+	}
+
+	/**
+	 * Marks `element` for `provider`'s callout (see {@link _markWorktreeSendChoiceTarget}). The callout keeps the control it
+	 * shows on: only while `element` is that control does the question end through it, unanswered, once the composer shows
+	 * another draft, or once `element` goes with no other control of the draft left to show on. A control the callout does
+	 * not show on, such as one in another window, never ends it.
+	 */
+	private _anchorWorktreeSendChoice(provider: INewSessionWorktreeSendChoiceProvider, element: HTMLElement): IDisposable {
+		const store = new DisposableStore();
+		// The draft asked about while the callout shows on `element`
+		let anchoredFor: URI | undefined;
+		store.add(provider.onDidShowSendChoice(draft => {
+			// Where it shows is the target that resolves now in the window that onboarding presents in
+			anchoredFor = resolveOnboardingTarget(mainWindow, provider.targetId)?.element === element ? draft : undefined;
+		}));
+		store.add(autorun(reader => {
+			const shown = this._session.read(reader)?.resource;
+			const pending = provider.pendingSendChoice.read(reader);
+			const asked = anchoredFor;
+			if (!asked) {
+				return;
+			}
+			if (!pending || !isEqual(asked, pending)) {
+				// Answered or ended meanwhile
+				anchoredFor = undefined;
+			} else if (!shown || !isEqual(shown, asked)) {
+				anchoredFor = undefined;
+				provider.cancelSendChoice(asked);
+			}
+		}));
+		store.add(toDisposable(() => {
+			const asked = anchoredFor;
+			if (asked) {
+				// Once its marker is gone too, and a control of the draft rendered in its place meanwhile marked itself
+				queueMicrotask(() => {
+					if (!resolveOnboardingTarget(mainWindow, provider.targetId)) {
+						provider.cancelSendChoice(asked);
+					}
+				});
+			}
+		}));
+		store.add(markOnboardingTarget(element, provider.targetId, { scope: () => this._getWorktreeSendChoiceScope(provider, element) }));
+		return store;
 	}
 
 	/**

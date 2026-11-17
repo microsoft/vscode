@@ -8590,7 +8590,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const notificationService = { warn: (message: string) => notifications.push(`warning: ${message}`), error: (message: string) => notifications.push(`error: ${message}`) };
 			const answer = new DeferredPromise<'worktree' | 'folder' | undefined>();
 			const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
-			store.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: constObservable(undefined), isRecentChatInFolder: () => true, requestSendChoice: () => answer.p }));
+			store.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: constObservable(undefined), onDidShowSendChoice: Event.None, cancelSendChoice: () => { }, isRecentChatInFolder: () => true, requestSendChoice: () => answer.p }));
 			const widgetStore = { isDisposed: false };
 			const widget = {
 				worktreeSendChoiceService,

@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, EventType } from '../../../../../base
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, retry, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, isCancellationError } from '../../../../../base/common/errors.js';
 import { createErrorWithActions, isErrorWithActions } from '../../../../../base/common/errorMessage.js';
@@ -32,14 +32,28 @@ import { SessionsManagementService } from '../../../../../workbench/contrib/sess
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
 import { NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
-import { NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
+import { INewSessionWorktreeSendChoiceProvider, NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
+import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
+import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { onboardingPresentationRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingPresentation.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
+import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
+import { DialogService } from '../../../../../workbench/services/dialogs/common/dialogService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { NewWorktreeChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
 import { IChatSubmitRequest } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { IUsersClient, User } from '../../../../../platform/github/common/core/users.js';
@@ -616,6 +630,70 @@ function createHarness(
 		_recreateOnProviderChange: (folderUri, userPick, created) => recreateOnProviderChange.call(harness, folderUri, userPick, created),
 	};
 	return harness;
+}
+
+/**
+ * A provider of the worktree send choice that asks in a spotlight callout on the New Worktree control of the draft, through
+ * the onboarding service, as a feature of the window does; Use New Worktree answers `worktree`.
+ */
+class CalloutSendChoiceProvider extends Disposable implements INewSessionWorktreeSendChoiceProvider {
+	private static readonly _SCENARIO_ID = 'test.newSession.worktreeSendChoice';
+	readonly targetId = 'test.newSession.worktreeSendChoice.control';
+	private readonly _pendingSendChoice = observableValue<URI | undefined>(this, undefined);
+	readonly pendingSendChoice: IObservable<URI | undefined> = this._pendingSendChoice;
+	private readonly _onDidShowSendChoice = this._register(new Emitter<URI>());
+	readonly onDidShowSendChoice = this._onDidShowSendChoice.event;
+	private _asking: { readonly draft: URI; readonly cancellation: CancellationTokenSource; useWorktree: boolean } | undefined;
+
+	constructor(private readonly _onboardingService: IOnboardingScenarioService) {
+		super();
+		this._register(onboardingScenarioRegistry.register({
+			id: CalloutSendChoiceProvider._SCENARIO_ID,
+			trigger: { kind: 'command', commandId: CalloutSendChoiceProvider._SCENARIO_ID },
+			repeatable: true,
+			presentation: {
+				kind: SPOTLIGHT_PRESENTATION_KIND,
+				payload: {
+					steps: [{
+						id: 'worktree',
+						targetId: this.targetId,
+						title: 'Work in Parallel',
+						description: 'Start this chat in a new worktree.',
+						primaryAction: { label: 'Use New Worktree', run: () => { if (this._asking) { this._asking.useWorktree = true; } }, advance: true },
+						endTourLabel: 'Continue in Folder',
+						placement: 'above',
+						missingTarget: { kind: 'abort' },
+						onDidShow: () => { if (this._asking) { this._onDidShowSendChoice.fire(this._asking.draft); } },
+					}],
+				} satisfies ISpotlightPayload,
+			},
+		}));
+	}
+
+	isRecentChatInFolder(): boolean {
+		return true;
+	}
+
+	cancelSendChoice(draft: URI): void {
+		if (this._asking && extUri.isEqual(this._asking.draft, draft)) {
+			this._asking.cancellation.cancel();
+		}
+	}
+
+	async requestSendChoice(draft: URI): Promise<'worktree' | 'folder' | undefined> {
+		const asking = this._asking = { draft, cancellation: new CancellationTokenSource(), useWorktree: false };
+		this._pendingSendChoice.set(draft, undefined);
+		try {
+			const outcome = await this._onboardingService.runScenario(CalloutSendChoiceProvider._SCENARIO_ID, asking.cancellation.token);
+			return asking.cancellation.token.isCancellationRequested ? undefined
+				: outcome === OnboardingOutcome.Completed && asking.useWorktree ? 'worktree'
+					: outcome === OnboardingOutcome.Skipped ? 'folder' : undefined;
+		} finally {
+			asking.cancellation.dispose();
+			this._asking = undefined;
+			this._pendingSendChoice.set(undefined, undefined);
+		}
+	}
 }
 
 suite('NewChatWidget', () => {
@@ -5354,6 +5432,8 @@ suite('NewChatWidget', () => {
 							},
 							targetId: 'test.worktreeSendChoice',
 							pendingSendChoice: constObservable(undefined),
+							onDidShowSendChoice: Event.None,
+							cancelSendChoice: () => { },
 							requestSendChoice: askedDraft => {
 								calls.push(`ask ${recentIn}${extUri.isEqual(askedDraft, draft) ? ' for its draft' : ''}`);
 								return answer.p.then(choice => {
@@ -5429,7 +5509,7 @@ suite('NewChatWidget', () => {
 					const pending = observableValue<URI | undefined>('pendingSendChoice', undefined);
 					const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 					const registration = store.add(new DisposableStore());
-					registration.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: pending, isRecentChatInFolder: () => true, requestSendChoice: async () => undefined }));
+					registration.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: pending, onDidShowSendChoice: Event.None, cancelSendChoice: () => { }, isRecentChatInFolder: () => true, requestSendChoice: async () => undefined }));
 					const container = append(mainWindow.document.body, $('div'));
 					store.add(toDisposable(() => container.remove()));
 					const [checkbox, picker] = ['checkbox', 'picker'].map(name => {
@@ -5438,7 +5518,7 @@ suite('NewChatWidget', () => {
 						return element;
 					});
 					let current: HTMLElement | undefined = checkbox;
-					const harness = { worktreeSendChoiceService, _session: constObservable(upcastPartial<ISession>({ resource: draft })), _getWorktreeSendChoiceControl: () => current, _getWorktreeSendChoiceScope: Reflect.get(NewChatWidget.prototype, '_getWorktreeSendChoiceScope') };
+					const harness = { worktreeSendChoiceService, _session: constObservable(upcastPartial<ISession>({ resource: draft })), _getWorktreeSendChoiceControl: () => current, _getWorktreeSendChoiceScope: Reflect.get(NewChatWidget.prototype, '_getWorktreeSendChoiceScope'), _anchorWorktreeSendChoice: Reflect.get(NewChatWidget.prototype, '_anchorWorktreeSendChoice') };
 					store.add(mark.call(harness, checkbox));
 					store.add(mark.call(harness, picker));
 					const target = () => findOnboardingTarget(mainWindow, 'test.worktreeSendChoice')?.className;
@@ -5455,6 +5535,109 @@ suite('NewChatWidget', () => {
 					const noProvider = target();
 
 					assert.deepStrictEqual({ notAsking, asking, inPicker, anotherDraft, noProvider }, { notAsking: undefined, asking: 'checkbox', inPicker: 'picker', anotherDraft: undefined, noProvider: undefined });
+				});
+
+				test('ends the question about its draft unanswered only through the control its callout shows on: as that composer shows another draft, or as the control goes with no other control of the draft to show on; other controls do not end it', async () => {
+					const mark = Reflect.get(NewChatWidget.prototype, '_markWorktreeSendChoiceTarget') as (this: object, element: HTMLElement) => IDisposable;
+					const other = URI.parse('agent-host-copilotcli:/untitled-other');
+					const results: Record<string, unknown> = {};
+					for (const how of ['retargetAnchor', 'disposeAnchorAlone', 'disposeAnchorWithOther', 'replaceAnchor', 'retargetOther', 'disposeOther', 'retargetAuxiliary', 'disposeAuxiliary'] as const) {
+						const store = disposables.add(new DisposableStore());
+						// The onboarding service and its spotlight callout, as the workbench has them
+						const configuration = new TestConfigurationService();
+						const contextKeyService = store.add(new ContextKeyService(configuration));
+						const onboarding = store.add(new OnboardingScenarioService(
+							store.add(new InMemoryStorageService()), contextKeyService, configuration, store.add(new TestLifecycleService()),
+							new NullWorkbenchAssignmentService(), NullTelemetryService,
+							store.add(new DialogService(upcastPartial<IWorkbenchEnvironmentService>({}), new NullLogService())),
+						));
+						const layout = new class extends TestLayoutService {
+							override getContainer() { return mainWindow.document.body; }
+						}();
+						store.add(onboardingPresentationRegistry.register(store.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService))));
+						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
+						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+						store.add(worktreeSendChoiceService.registerProvider(provider));
+
+						// Composers of the draft, each with its New Worktree control, one below the other
+						const controls: { readonly name: string; readonly element: HTMLElement; readonly composer: { readonly session: ISettableObservable<ISession | undefined>; control: HTMLElement | undefined }; marker: IDisposable }[] = [];
+						const addControl = (name: string, top: number, composer = { session: observableValue<ISession | undefined>('session', upcastPartial<ISession>({ resource: draft })), control: undefined as HTMLElement | undefined }, document = mainWindow.document) => {
+							const element = append(document.body, document.createElement('div'));
+							element.textContent = name;
+							Object.assign(element.style, { position: 'absolute', left: '100px', top: `${top}px`, width: '120px', height: '20px' });
+							store.add(toDisposable(() => element.remove()));
+							composer.control = element;
+							const harness = {
+								worktreeSendChoiceService,
+								_session: composer.session,
+								_getWorktreeSendChoiceControl: () => composer.control,
+								_getWorktreeSendChoiceScope: Reflect.get(NewChatWidget.prototype, '_getWorktreeSendChoiceScope'),
+								_anchorWorktreeSendChoice: Reflect.get(NewChatWidget.prototype, '_anchorWorktreeSendChoice'),
+							};
+							const control = { name, element, composer, marker: store.add(mark.call(harness, element)) };
+							controls.push(control);
+							return control;
+						};
+						const first = addControl('first', 200);
+						// Or, as in an auxiliary window, a composer of the draft in another document, which the callout never shows on
+						const auxiliary = how.endsWith('Auxiliary') ? append(mainWindow.document.body, $('iframe')) as HTMLIFrameElement : undefined;
+						if (auxiliary) {
+							Object.assign(auxiliary.style, { position: 'absolute', left: '400px', top: '0px', width: '300px', height: '800px' });
+							store.add(toDisposable(() => auxiliary.remove()));
+						}
+						const second = how === 'disposeAnchorAlone' || how === 'replaceAnchor' ? undefined : addControl('second', auxiliary ? 600 : 300, undefined, auxiliary?.contentDocument ?? undefined);
+						const callout = () => mainWindow.document.querySelector<HTMLElement>('.spotlight-callout');
+						// The control the shown callout highlights, as its hole covers it
+						const anchor = () => {
+							const hole = mainWindow.document.querySelector<HTMLElement>('.spotlight-hole');
+							if (!callout() || !hole || hole.parentElement?.style.display === 'none') {
+								return undefined;
+							}
+							const rect = hole.getBoundingClientRect();
+							const y = rect.top + rect.height / 2;
+							return controls.find(control => control.element.isConnected && control.element.ownerDocument === mainWindow.document && (({ top, bottom }) => y >= top && y <= bottom)(control.element.getBoundingClientRect()))?.name;
+						};
+
+						const asking = provider.requestSendChoice(draft);
+						await retry(async () => assert.ok(anchor()), 20, 50);
+						const before = anchor();
+						const target = (how === 'retargetOther' || how === 'disposeOther' || how.endsWith('Auxiliary')) && second ? second : first;
+						if (how.startsWith('retarget')) {
+							// Its composer shows another draft, as the user picks another workspace
+							target.composer.session.set(upcastPartial<ISession>({ resource: other }), undefined);
+						} else {
+							target.marker.dispose();
+							target.element.remove();
+							if (how === 'replaceAnchor') {
+								// Its composer renders its control again, elsewhere
+								addControl('replacement', 250, target.composer);
+							}
+						}
+						await timeout(0);
+						const expected = how === 'replaceAnchor' ? 'replacement' : how === 'disposeAnchorWithOther' ? 'second' : undefined;
+						if (expected) {
+							// The callout shows again on it, once it finds its control gone
+							await retry(async () => assert.strictEqual(anchor(), expected), 20, 50);
+						}
+						const live = { asking: extUri.isEqual(provider.pendingSendChoice.get(), draft), anchor: anchor() };
+						// A callout that still shows is answered
+						Array.from(callout()?.querySelectorAll<HTMLElement>('.monaco-button') ?? []).find(button => button.textContent === 'Use New Worktree')?.click();
+						results[how] = { before, live, answer: await asking, callout: !!callout() };
+						store.dispose();
+					}
+
+					const ended = { before: 'first', live: { asking: false, anchor: undefined }, answer: undefined, callout: false };
+					const keptOn = (anchor: string) => ({ before: 'first', live: { asking: true, anchor }, answer: 'worktree', callout: false });
+					assert.deepStrictEqual(results, {
+						retargetAnchor: ended,
+						disposeAnchorAlone: ended,
+						disposeAnchorWithOther: keptOn('second'),
+						replaceAnchor: keptOn('replacement'),
+						retargetOther: keptOn('first'),
+						disposeOther: keptOn('first'),
+						retargetAuxiliary: keptOn('first'),
+						disposeAuxiliary: keptOn('first'),
+					});
 				});
 
 				test('a provider that fails to tell of recent chats never costs the request', async () => {
@@ -5604,7 +5787,7 @@ suite('NewChatWidget', () => {
 							const newWorktree = instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true));
 							const warnings: string[] = [];
 							const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
-							store.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: constObservable(undefined), isRecentChatInFolder: () => true, requestSendChoice: async () => 'worktree' }));
+							store.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: constObservable(undefined), onDidShowSendChoice: Event.None, cancelSendChoice: () => { }, isRecentChatInFolder: () => true, requestSendChoice: async () => 'worktree' }));
 							const handling = handle.call({
 								worktreeSendChoiceService,
 								_session: current,
