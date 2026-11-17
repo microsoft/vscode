@@ -36,7 +36,7 @@ import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { EditorPool } from '../chatContentCodePools.js';
-import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { focusChatInput, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
@@ -519,7 +519,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					...(selectedOption ? { selectedButton: selectedOption.id, selectedButtonKind: selectedOption.kind } : {}),
 				});
 				if (!isTouchClick) {
-					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+					focusChatInput(this.context, this.chatWidgetService);
 				}
 			}
 		}));

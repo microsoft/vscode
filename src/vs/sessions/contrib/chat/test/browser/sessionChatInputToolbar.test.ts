@@ -2295,7 +2295,7 @@ suite('SessionChatInputToolbar', () => {
 
 				assert.deepStrictEqual({
 					dropdownLabels,
-					ownMenu: ownMenu.slice(0, 4).map(action => action.label),
+					ownMenu: ownMenu.map(action => action.label),
 					before,
 					filtered,
 					afterCompletion,
@@ -2305,7 +2305,7 @@ suite('SessionChatInputToolbar', () => {
 					emptyAfterRestore: toolbar.element.classList.contains('empty'),
 				}, {
 					dropdownLabels: ['Subagents: In Progress', 'Waiting', 'Running', '', 'Subagents: Completed', 'Failed', 'Finished'],
-					ownMenu: ['Hide Subagents', '', 'Subagent Options', ''],
+					ownMenu: ['Subagent Options', '', 'Hide "Subagents" Pill', 'Show Pills'],
 					before: [{ label: 'Show All', checked: true }, { label: 'Show In Progress', checked: false }],
 					filtered: [...(withChanges ? ['1 File'] : []), '2 Subagents'],
 					afterCompletion: { labels: withChanges ? ['1 File'] : [], visible: true, empty: !withChanges },
@@ -2457,10 +2457,10 @@ suite('SessionChatInputToolbar', () => {
 			ids: ['reference-a', 'reference-b', refs[2].uri.toString()],
 			removable: [true, true, false, true],
 			removeLabels: [
-				['Remove Pull Request Artifact from Session', 'Remove Artifact'],
-				['Remove Pull Request Artifact from Session', 'Remove Artifact'],
+				['Remove "#1" Artifact', 'Remove Artifact'],
+				['Remove "#1" Artifact', 'Remove Artifact'],
 				undefined,
-				['Remove Issue Artifact from Session', 'Remove Artifact'],
+				['Remove "#3" Artifact', 'Remove Artifact'],
 			],
 			toolbarLabels: [
 				['Open Pull Request Changes', 'Open Changes'],
@@ -2733,7 +2733,7 @@ suite('SessionChatInputToolbar', () => {
 				}, isArtifact ? {
 					initial: { label: `Open ${isPullRequest ? 'Pull Request #42' : 'Issue #337297'}: Recorded title`, genericPills: 0 },
 					opened: [isPullRequest ? { pullRequest: { ...ref, createdByThisSession: true } } : { issue: ref }],
-					removeLabel: `Remove ${isPullRequest ? 'Pull Request' : 'Issue'} Artifact from Session`,
+					removeLabel: 'Remove "Recorded title" Artifact',
 					removed: [{ owningSession: true, id: 'recorded' }],
 					modelRequests: [`microsoft/vscode/${isPullRequest ? 'pull/42' : 'issues/337297'}`],
 					unrelatedArtifactModelRequests: 0,
@@ -2742,7 +2742,7 @@ suite('SessionChatInputToolbar', () => {
 					// A reference never reaches the dedicated pill, so no live GitHub model is requested for it.
 					initial: { label: 'Show 1 reference', genericPills: 0 },
 					opened: [],
-					removeLabel: 'Remove Reference Recorded title from Session',
+					removeLabel: 'Remove "Recorded title" Reference',
 					removed: [{ owningSession: true, id: 'recorded' }],
 					modelRequests: [],
 					unrelatedArtifactModelRequests: 0,
@@ -3238,8 +3238,8 @@ suite('SessionChatInputToolbar', () => {
 				{ label: 'Report', icon: 'graph', fileIcon: false },
 			],
 			controls: [
-				{ label: 'Experiment 7', ariaLabel: 'Show artifact details: Experiment 7 is running, https://experiments.test/7', actions: ['Open Recorded experiment', 'Copy Website URL', 'Pin Experiment 7', 'Remove Artifact Recorded experiment from Session'] },
-				{ label: 'Plain', ariaLabel: 'Open Plain, https://example.test/plain', actions: ['Copy Website URL', 'Pin Plain', 'Remove Artifact Plain from Session'] },
+				{ label: 'Experiment 7', ariaLabel: 'Show artifact details: Experiment 7 is running, https://experiments.test/7', actions: ['Open Recorded experiment', 'Copy Website URL', 'Pin Experiment 7', 'Remove "Recorded experiment" Artifact'] },
+				{ label: 'Plain', ariaLabel: 'Open Plain, https://example.test/plain', actions: ['Copy Website URL', 'Pin Plain', 'Remove "Plain" Artifact'] },
 			],
 			opened: ['https://experiments.test/7'],
 			details: true,

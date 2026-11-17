@@ -13,9 +13,18 @@ import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, Requ
 import type { Host } from '../../common/host';
 import { PrepareNesRenameResult } from '../../common/nesRenameValidator';
 import { CodeSnippet, ContextKind, type ContextItem, type FullContextItem, type PriorityTag, type Range, type RenameGroup, type RenameKind, type Trait } from '../../common/protocol';
-import { NullCancellationToken } from '../../common/typescripts';
 import { NodeHost } from '../host';
 import { LanguageServices } from './languageServices';
+
+export class NullCancellationToken implements tt.CancellationToken {
+	public isCancellationRequested(): boolean {
+		return false;
+	}
+
+	public throwIfCancellationRequested(): void {
+		// noop
+	}
+}
 
 export class SingleLanguageServiceSession extends ComputeContextSession {
 
