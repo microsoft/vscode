@@ -18,14 +18,17 @@
 	opacity: 0.85;
 }
 
+/* Status colors stay at full opacity: dimming them like the default summary costs too much text contrast. */
 .agent-host-mode-permission-summary.warning,
 .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions.warning .description {
-	color: var(--vscode-problemsWarningIcon-foreground);
+	color: var(--vscode-chat-permissionPickerWarningForeground);
+	opacity: 1;
 }
 
 .agent-host-mode-permission-summary.info,
 .action-widget .monaco-list .monaco-list-row.agent-host-mode-permissions.info .description {
 	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 1;
 }
 
 .hc-black .agent-host-mode-permission-summary,

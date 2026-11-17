@@ -131,15 +131,15 @@
  * Toggled in `AgentHostChatInputPicker._renderTrigger`.
  */
 .agent-host-chat-input-picker-slot .action-label.warning {
-	color: var(--vscode-problemsWarningIcon-foreground);
+	color: var(--vscode-chat-permissionPickerWarningForeground);
 }
 
 .agent-host-chat-input-picker-slot .action-label.warning .codicon {
-	color: var(--vscode-problemsWarningIcon-foreground) !important;
+	color: var(--vscode-chat-permissionPickerWarningForeground) !important;
 }
 
 .agent-host-chat-input-picker-slot .action-label.warning:hover {
-	color: var(--vscode-problemsWarningIcon-foreground);
+	color: var(--vscode-chat-permissionPickerWarningForeground);
 }
 
 .agent-host-chat-input-picker-slot .action-label.info {
