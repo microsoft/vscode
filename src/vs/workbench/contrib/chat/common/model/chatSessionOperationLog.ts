@@ -174,6 +174,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	modelTotals: Adapt.v(m => m.response?.usage?.modelTotals, objectsEqual),
 	sessionCopilotCredits: Adapt.v(m => m.response?.usage?.sessionCopilotCredits),
 	sessionCopilotCreditsStatus: Adapt.v(m => m.response?.usage?.sessionCopilotCreditsStatus),
+	firstTokenTimestamp: Adapt.v(m => m.response?.firstTokenTimestamp),
 	elapsedMs: Adapt.v(m => m.response?.elapsedMs ?? (m.response?.completedAt ? Math.max(0, m.response.completedAt - m.response.confirmationAdjustedTimestamp.get()) : undefined)),
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),

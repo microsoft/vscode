@@ -562,6 +562,20 @@
 	text-overflow: ellipsis;
 }
 
+.interactive-item-container .chat-response-stats {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.interactive-item-container.interactive-response:not(.chat-response-loading).show-response-stats .chat-footer-toolbar,
+.interactive-item-container.interactive-response:not(.chat-response-loading).show-response-stats .chat-footer-toolbar .chat-footer-details {
+	opacity: 1;
+}
+
+.interactive-item-container.hide-response-stats .chat-footer-toolbar .chat-footer-details {
+	display: none !important;
+}
+
 .interactive-item-container.interactive-response .chat-footer-toolbar .chat-footer-details.hidden {
 	display: none;
 }
