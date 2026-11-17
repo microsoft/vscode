@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -22,6 +23,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -45,6 +47,12 @@ import { getAutomationsSampleData } from '../../browser/views/automationsLayoutS
 import { describeAutomationSchedule, describeCronExpression, formatAutomationTime } from '../../browser/views/automationsLayoutSchedule.js';
 import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { IEditorPaneRegistry } from '../../../../../workbench/browser/editor.js';
+import { EditorExtensions } from '../../../../../workbench/common/editor.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { AutomationsManagementEditorInput, openAutomations } from '../../browser/views/automationsManagementEditor.js';
 
 function schedule(interval: IAutomationSchedule['interval'], scheduleHour = 9, scheduleMinute = 0, scheduleDay = 0, cronExpression?: string): IAutomationSchedule {
 	return { interval, scheduleHour, scheduleMinute, scheduleDay, ...(cronExpression ? { cronExpression } : {}) };
@@ -371,6 +379,24 @@ suite('Automations layout composer requests', () => {
 
 suite('Automations layout details panel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a package without the modal editor keeps the baseline page for a synced modal setting', async () => {
+		store.add(AutomationsManagementEditorInput.getOrCreate());
+		const registry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
+		const descriptor = sinon.stub(registry, 'getEditorPane').returns(undefined);
+		let opened = 0;
+		let shown: string | undefined;
+		try {
+			await openAutomations(
+				new TestConfigurationService({ chat: { automations: { layout: 'modal' } } }),
+				upcastPartial<IEditorService>({ openEditor: async () => { opened++; return undefined; } }),
+				upcastPartial<ICustomViewService>({ showCustomView: id => { shown = id; } }),
+			);
+			assert.deepStrictEqual({ opened, shown }, { opened: 0, shown: AUTOMATIONS_CUSTOM_VIEW_ID });
+		} finally {
+			descriptor.restore();
+		}
+	});
 
 	function createWidget(
 		contextMenuVisible = false,

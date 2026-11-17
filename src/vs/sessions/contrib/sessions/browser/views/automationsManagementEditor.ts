@@ -11,10 +11,12 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IModalEditorOptions, IModalEditorOptionsProvider } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../../workbench/browser/parts/editor/editorPane.js';
-import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
+import { IEditorPaneRegistry } from '../../../../../workbench/browser/editor.js';
+import { EditorExtensions, EditorInputCapabilities, IUntypedEditorInput } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { CHAT_AUTOMATIONS_LAYOUT_SETTING, toAutomationsLayout } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID, AUTOMATIONS_MANAGEMENT_EDITOR_INPUT_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
@@ -112,8 +114,12 @@ export class AutomationsManagementEditor extends EditorPane {
 /** Opens Automations where the `chat.automations.layout` setting puts them: the modal, or the page. */
 export async function openAutomations(configurationService: IConfigurationService, editorService: IEditorService, customViewService: ICustomViewService): Promise<void> {
 	if (toAutomationsLayout(configurationService.getValue(CHAT_AUTOMATIONS_LAYOUT_SETTING)) === 'modal') {
-		await editorService.openEditor(AutomationsManagementEditorInput.getOrCreate(), { pinned: true });
-		return;
+		const input = AutomationsManagementEditorInput.getOrCreate();
+		// The isolated mobile entry keeps the baseline page and does not register this editor.
+		if (Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).getEditorPane(input)) {
+			await editorService.openEditor(input, { pinned: true });
+			return;
+		}
 	}
 	customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 }
