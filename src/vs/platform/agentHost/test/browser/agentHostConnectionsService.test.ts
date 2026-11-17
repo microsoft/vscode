@@ -253,7 +253,7 @@ suite('AgentHostConnectionsService', () => {
 		}, { resolved: ['remote', backend.toString()], after: undefined, canonical: canonical.toString() });
 	});
 
-	test('forgets removed backend identities and aliases only on their owning connection', async () => {
+	test('forgets removed backend identities only on their owning connection after alias release', async () => {
 		const remoteNotifications = store.add(new Emitter<INotification>());
 		const remote = upcastPartial<IAgentConnection>({ onDidNotification: remoteNotifications.event });
 		const { service, notifications } = createService([info('remote', 'Remote')], new Map([['remote', remote]]));
@@ -284,9 +284,63 @@ suite('AgentHostConnectionsService', () => {
 			localAdvertised: service.resolveSessionResourceIdentity(local)?.backendSessionIsAdvertised,
 			changes,
 		}, {
-			afterRemote: { remote: undefined, alias: undefined, remoteAdvertised: undefined, local: local.toString(), changes: 1 },
-			local: undefined, localAdvertised: undefined, changes: 2,
+			afterRemote: { remote: undefined, alias: undefined, remoteAdvertised: undefined, local: local.toString(), changes: 2 },
+			local: undefined, localAdvertised: undefined, changes: 3,
 		});
+	});
+
+	for (const republished of [false, true]) {
+		test(`keeps owner-held aliases routable after backend removal (republished: ${republished})`, async () => {
+			const { service, notifications } = createService([], new Map());
+			const backend = URI.parse('host-session://owner/session?revision=one');
+			const canonical = service.registerSessionResource(backend, undefined, 'copilot');
+			const alias = URI.parse('cloud-sandbox-task:/task');
+			const registration = store.add(service.registerSessionResourceAlias(alias, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+			notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			const afterRemoval = {
+				frontend: service.findSessionResource(backend),
+				backend: service.resolveSessionResourceIdentity(alias)?.backendSession,
+				canonicalAdvertised: service.resolveSessionResourceIdentity(canonical)?.backendSessionIsAdvertised,
+			};
+			if (republished) {
+				notifications.fire({ type: 'root/sessionAdded', channel: 'ahp-root://', summary: upcastPartial<SessionSummary>({ resource: backend.toString(), provider: 'copilot' }) });
+			}
+			const afterPublication = {
+				frontend: service.findSessionResource(backend),
+				backend: service.resolveSessionResourceIdentity(alias)?.backendSession,
+			};
+			registration.dispose();
+			assert.deepStrictEqual({
+				afterRemoval,
+				afterPublication,
+				afterRelease: service.findSessionResource(backend),
+				alias: service.resolveSessionResourceIdentity(alias),
+			}, {
+				afterRemoval: { frontend: alias, backend, canonicalAdvertised: undefined },
+				afterPublication: { frontend: alias, backend },
+				afterRelease: republished ? canonical : undefined,
+				alias: undefined,
+			});
+		});
+	}
+
+	test('releases multiple owner-held aliases without restoring an unpublished canonical identity', async () => {
+		const { service, notifications } = createService([], new Map());
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const first = URI.parse('cloud-sandbox-task:/first');
+		const second = URI.parse('cloud-sandbox-task:/second');
+		const firstRegistration = store.add(service.registerSessionResourceAlias(first, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+		const secondRegistration = store.add(service.registerSessionResourceAlias(second, backend, AMBIENT_AGENT_HOST_AUTHORITY, 'copilot'));
+		notifications.fire({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+		await Promise.resolve();
+		firstRegistration.dispose();
+		secondRegistration.dispose();
+		assert.deepStrictEqual({
+			frontend: service.findSessionResource(backend),
+			first: service.resolveSessionResourceIdentity(first),
+			second: service.resolveSessionResourceIdentity(second),
+		}, { frontend: undefined, first: undefined, second: undefined });
 	});
 
 	test('repeated draft creation and backend removal does not retain identity mappings', async () => {

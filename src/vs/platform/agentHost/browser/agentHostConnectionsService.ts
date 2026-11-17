@@ -37,7 +37,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	private readonly _onDidChangeSessionResolution = this._register(new Emitter<void>());
 	readonly onDidChangeSessionResolution: Event<void> = this._onDidChangeSessionResolution.event;
 	private readonly _sessionResolutionPolicies = new Map<string, IAgentHostSessionResolutionPolicy>();
-	private readonly _backendSessions = new ResourceMap<{ readonly backend: URI; readonly authority: string; readonly provider: string }>();
+	private readonly _backendSessions = new ResourceMap<{ readonly backend: URI; readonly authority: string; readonly provider: string; readonly isAlias?: true }>();
 	private readonly _frontendByBackend = new Map<string, URI>();
 	private readonly _pendingSessionRemovals = new Set<string>();
 	private _resolutionBatchDepth = 0;
@@ -231,12 +231,12 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 
 	registerSessionResourceAlias(resource: URI, backendSession: URI, authority: string, provider: string): IDisposable {
 		const alias = resource.with({ fragment: '' });
-		const entry = { backend: backendSession, authority, provider };
+		const entry = { backend: backendSession, authority, provider, isAlias: true as const };
 		const previous = this._backendSessions.get(alias);
 		if (previous) {
 			throw new Error(`Catalog resource already has an execution: ${alias.toString()}`);
 		}
-		const canonical = this.registerSessionResource(backendSession, authority, provider);
+		this.registerSessionResource(backendSession, authority, provider);
 		this._backendSessions.set(alias, entry);
 		const key = this._backendIdentityKey(backendSession, authority);
 		const original = this._frontendByBackend.get(key);
@@ -249,7 +249,13 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 					if (original && this._backendSessions.has(original)) {
 						this._frontendByBackend.set(key, original);
 					} else {
-						this._frontendByBackend.set(key, canonical);
+						this._frontendByBackend.delete(key);
+						for (const [resource, remaining] of this._backendSessions) {
+							if (remaining.authority === authority && isEqual(remaining.backend, backendSession)) {
+								this._frontendByBackend.set(key, resource);
+								break;
+							}
+						}
 					}
 				}
 				this._fireSessionResolutionChanged();
@@ -269,15 +275,26 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		this._pendingSessionRemovals.add(key);
 		// Notification consumers still need the advertised identity to project their removal deltas.
 		queueMicrotask(() => {
-			if (!this._pendingSessionRemovals.delete(key) || this._store.isDisposed || !this._frontendByBackend.delete(key)) {
+			if (!this._pendingSessionRemovals.delete(key) || this._store.isDisposed) {
 				return;
 			}
+			let hasAlias = false;
+			let changed = false;
 			for (const [resource, entry] of this._backendSessions) {
 				if (entry.authority === authority && isEqual(entry.backend, backendSession)) {
-					this._backendSessions.delete(resource);
+					if (entry.isAlias) {
+						hasAlias = true;
+					} else {
+						changed = this._backendSessions.delete(resource) || changed;
+					}
 				}
 			}
-			this._fireSessionResolutionChanged();
+			if (!hasAlias) {
+				changed = this._frontendByBackend.delete(key) || changed;
+			}
+			if (changed) {
+				this._fireSessionResolutionChanged();
+			}
 		});
 	}
 
