@@ -434,6 +434,30 @@
 	align-self: stretch;
 }
 
+.monaco-workbench .custom-view-header-actions .action-label.automations-more-actions {
+	box-sizing: border-box;
+	width: auto;
+	height: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-button-secondaryForeground);
+	background-color: var(--vscode-button-secondaryBackground);
+}
+
+.monaco-workbench .custom-view-header-actions .action-label.automations-more-actions:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.monaco-workbench .custom-view-header-actions .monaco-action-bar:not(.vertical) .action-item .action-label.automations-more-actions:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-more-actions-menu .monaco-menu .monaco-action-bar.vertical .keybinding[hidden] {
+	display: none;
+}
+
 /* Loading and error states */
 .automations-cards-state {
 	display: flex;

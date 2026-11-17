@@ -137,6 +137,8 @@ export interface IAutomationDescriptor {
 	readonly targetDisplay?: { readonly label: string; readonly icon: ThemeIcon };
 	readonly externalResource?: URI;
 	readonly ownership?: 'user' | 'repository';
+	/** Whether the provider identifies the signed-in user as this automation's creator. */
+	readonly isCreatedByCurrentUser?: boolean;
 
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;

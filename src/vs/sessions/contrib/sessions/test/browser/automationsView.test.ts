@@ -7,6 +7,7 @@ import assert from 'assert';
 import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { stub, useFakeTimers } from 'sinon';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Menu, unthemedMenuStyles } from '../../../../../base/browser/ui/menu/menu.js';
 import { Action } from '../../../../../base/common/actions.js';
 import '../../../../../base/browser/ui/codicons/codicon/codicon-modifiers.css';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -21,6 +22,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -56,7 +58,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
@@ -71,7 +73,7 @@ import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemServi
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
@@ -87,7 +89,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
@@ -127,6 +129,7 @@ function automation(overrides: Partial<IAutomationDescriptor> = {}): IAutomation
 		schedule: hourly(),
 		target: workspaceTarget(),
 		enabled: true,
+		isCreatedByCurrentUser: true,
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
 		...overrides,
@@ -913,30 +916,6 @@ suite('AutomationsCardsWidget', () => {
 		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, missionControlEnvironmentService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
 	}
 
-	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
-		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
-			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
-		const item = disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!);
-		const container = document.createElement('div');
-		document.body.append(container);
-		disposables.add(toDisposable(() => container.remove()));
-		item.render(container);
-		return container.querySelector<HTMLElement>('.monaco-button')!;
-	}
-
-	function renderRefreshToolbar({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>) {
-		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
-			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
-		const container = document.createElement('div');
-		document.body.append(container);
-		disposables.add(toDisposable(() => container.remove()));
-		const toolbar = disposables.add(new ActionBar(container, {
-			actionViewItemProvider: (action, options) => actionFactories.get(action.id)?.(action, options, instantiationService, 1),
-		}));
-		toolbar.push([action, disposables.add(new Action('other', 'Other'))]);
-		return { toolbar, button: container.querySelector<HTMLElement>('.monaco-button')! };
-	}
-
 	test('pending scheduled chats move out of Automations only while Send Later is enabled', async () => {
 		const { widget, automationService, configurationService } = setup();
 		const schedule: IAutomationSchedule = { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -1301,27 +1280,29 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('entry and manual refresh reload catalogues, but restoring focus does not', async () => {
-		const { widget, automationService, refreshErrors, instantiationService, contextKeyService } = setup();
+		const { widget, automationService, refreshErrors, instantiationService, contextKeyService, configurationService } = setup();
+		await configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		widget.focus();
 		await timeout(0);
 		automationService.refreshFailure = new Error('Offline');
 		widget.focus();
 		const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
-		const menuActions = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+		const menuActions = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.AutomationsMoreActions, contextKeyService)
 			.flatMap(([, actions]) => actions).map(action => action.id);
 		assert.deepStrictEqual({
 			calls: automationService.refreshCalls, errors: refreshErrors,
-			headerRefresh: menuActions.includes('sessions.automations.refresh'),
+			menuRefresh: menuActions.includes('sessions.automations.refresh'),
 			inlineRefresh: !!widget.element.querySelector('.automations-refresh-toolbar'),
-		}, { calls: 2, errors: ['Could not refresh automations: Offline'], headerRefresh: true, inlineRefresh: false });
+		}, { calls: 2, errors: ['Could not refresh automations: Offline'], menuRefresh: true, inlineRefresh: false });
 	});
 
-	test('refresh action is only visible and enabled while automations are enabled', () => {
-		const { instantiationService, contextKeyService } = setup();
+	test('refresh action is only visible and enabled while automations are enabled', async () => {
+		const { instantiationService, contextKeyService, configurationService } = setup();
+		await configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		const enabled = ChatAutomationsEnabledContext.bindTo(contextKeyService);
 		enabled.set(true);
-		const hasRefresh = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+		const hasRefresh = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.AutomationsMoreActions, contextKeyService)
 			.flatMap(([, actions]) => actions).some(action => action.id === 'sessions.automations.refresh' && action.enabled);
 		const initiallyVisible = hasRefresh();
 		enabled.set(false);
@@ -1377,8 +1358,8 @@ suite('AutomationsCardsWidget', () => {
 			spotlightButtons: [loadingTarget, emptyTarget, headerTarget.element].map(onboardingButtonLabels),
 			activations, labels: [agentButton.textContent, manualButton.textContent], dropdown: dropdown.map(action => action.label), executed,
 		}, {
-			empty: ['sessionsView.newAutomation', 'sessions.automations.refresh'],
-			populated: ['sessions.automations.createWithAgent', 'sessionsView.newAutomation', 'sessions.automations.refresh'],
+			empty: ['sessionsView.newAutomation'],
+			populated: ['sessions.automations.createWithAgent', 'sessionsView.newAutomation'],
 			spotlightButtons: [
 				['Create with Agent'],
 				['Create with Agent'],
@@ -1609,153 +1590,26 @@ suite('AutomationsCardsWidget', () => {
 		widget.dispose();
 	});
 
-	test('refresh icon stays idle during background refresh until clicked without blocking cards', async () => {
-		const context = setup();
-		const { automationService, automationDialogService, widget, commandService } = context;
-		automationService.setCatalogueState('ready');
-		automationService.setAutomations([automation()]);
-		const button = renderRefreshButton(context);
-		const state = () => ({
-			label: button.getAttribute('aria-label'),
-			text: button.textContent,
-			spinning: !!button.querySelector('.codicon-loading.codicon-modifier-spin'),
-			busy: button.getAttribute('aria-busy'),
-			disabled: button.getAttribute('aria-disabled'),
-		});
-		const idle = state();
-		automationService.isRefreshing.set(true, undefined);
-		const definitions = state();
-		button.click();
-		const clickedDuringRefresh = state();
-		button.click();
-		widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!.click();
-		await timeout(0);
-		automationService.historyState.set('loading', undefined);
-		const history = state();
-		automationService.historyState.set('ready', undefined);
-		automationService.isRefreshing.set(false, undefined);
-		automationService.historyState.set('error', undefined);
-		assert.deepStrictEqual({ idle, definitions, clickedDuringRefresh, history, failed: state(), edits: automationDialogService.showCalls, commands: commandService.calls }, {
-			idle: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
-			definitions: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
-			clickedDuringRefresh: { label: 'Refresh', text: '', spinning: true, busy: 'true', disabled: 'true' },
-			history: { label: 'Refresh', text: '', spinning: true, busy: 'true', disabled: 'true' },
-			failed: { label: 'Refresh', text: '', spinning: false, busy: 'false', disabled: 'false' },
-			edits: 1,
-			commands: [],
-		});
-		automationService.historyState.set('loading', undefined);
-		assert.strictEqual(button.getAttribute('aria-disabled'), 'false', 'a later background refresh does not disable the button');
-	});
-
-	for (const background of ['idle', 'catalogue', 'history'] as const) {
-		for (const activation of ['click', 'Enter', 'Space'] as const) {
-			test(`refresh toolbar: ${activation} during ${background} preserves request and focus state`, async () => {
-				const context = setup();
-				const { automationService, commandService, instantiationService } = context;
-				await timeout(0);
-				automationService.setCatalogueState('ready');
-				automationService.isRefreshing.set(background === 'catalogue', undefined);
-				automationService.historyState.set(background === 'history' ? 'loading' : 'ready', undefined);
-				const pending = new DeferredPromise<void>();
-				automationService.pendingRefresh = pending.p;
-				const execute = stub(commandService, 'executeCommand').callsFake(async commandId => {
-					const command = CommandsRegistry.getCommand(commandId)!;
-					await instantiationService.invokeFunction(accessor => command.handler(accessor));
-					return undefined;
-				});
-				disposables.add(toDisposable(() => execute.restore()));
-				const { toolbar, button } = renderRefreshToolbar(context);
-				const readState = () => ({
-					calls: execute.callCount,
-					disabled: button.getAttribute('aria-disabled'),
-					busy: button.getAttribute('aria-busy'),
-					spinning: !!button.querySelector('.codicon-loading.codicon-modifier-spin'),
-					tabIndex: button.tabIndex,
-				});
-				const trigger = (kind: typeof activation) => {
-					if (kind === 'click') {
-						button.click();
-					} else {
-						const key = kind === 'Enter' ? 'Enter' : ' ';
-						const keyCode = kind === 'Enter' ? 13 : 32;
-						dispatchKeydown(button, { key, keyCode });
-						button.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true }));
-					}
-				};
-				const before = readState();
-				toolbar.focus(0);
-				trigger(activation);
-				trigger('click');
-				trigger('Enter');
-				trigger('Space');
-				const requested = readState();
-				toolbar.focus(1);
-				automationService.historyState.set('loading', undefined);
-				const unfocused = readState();
-				automationService.historyState.set('ready', undefined);
-				automationService.isRefreshing.set(false, undefined);
-				await pending.complete();
-				await timeout(0);
-				const completed = readState();
-				automationService.historyState.set('loading', undefined);
-				const nextHistory = readState();
-				automationService.historyState.set('ready', undefined);
-				const calls = background === 'catalogue' ? 0 : 1;
-				assert.deepStrictEqual({ before, requested, unfocused, completed, nextHistory }, {
-					before: { calls: 0, disabled: 'false', busy: 'false', spinning: false, tabIndex: 0 },
-					requested: { calls, disabled: 'true', busy: 'true', spinning: true, tabIndex: 0 },
-					unfocused: { calls, disabled: 'true', busy: 'true', spinning: true, tabIndex: -1 },
-					completed: { calls, disabled: 'false', busy: 'false', spinning: false, tabIndex: -1 },
-					nextHistory: { calls, disabled: 'false', busy: 'false', spinning: false, tabIndex: -1 },
-				});
-			});
-		}
-	}
-
 	for (const fails of [false, true]) {
-		test(`clicking idle refresh disables and animates until the request ${fails ? 'fails' : 'finishes'}`, async () => {
-			const context = setup();
-			const { automationService, commandService, instantiationService, refreshErrors } = context;
+		test(`refresh menu action reports when the request ${fails ? 'fails' : 'finishes'}`, async () => {
+			const { automationService, commandService, instantiationService, contextKeyService, refreshErrors, configurationService } = setup();
+			await configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			await timeout(0);
 			automationService.setCatalogueState('ready');
-			const pending = new DeferredPromise<void>();
-			automationService.pendingRefresh = pending.p;
 			const execute = stub(commandService, 'executeCommand').callsFake(async commandId => {
 				const command = CommandsRegistry.getCommand(commandId)!;
 				await instantiationService.invokeFunction(accessor => command.handler(accessor));
 				return undefined;
 			});
 			disposables.add(toDisposable(() => execute.restore()));
-			const button = renderRefreshButton(context);
-			button.click();
-			button.click();
-			const icon = button.querySelector<HTMLElement>('.codicon-loading.codicon-modifier-spin')!;
-			const animation = icon.getAnimations()[0];
-			assert.ok(animation, 'refresh must have an actual CSS animation, not only a modifier class');
-			animation.pause();
-			animation.currentTime = 0;
-			const initialTransform = getWindow(icon).getComputedStyle(icon).transform;
-			animation.currentTime = 750;
-			assert.deepStrictEqual({
-				disabled: button.getAttribute('aria-disabled'),
-				animation: getWindow(icon).getComputedStyle(icon).animationName,
-				busy: button.getAttribute('aria-busy'),
-				rotates: getWindow(icon).getComputedStyle(icon).transform !== initialTransform,
-				calls: execute.callCount,
-			}, { disabled: 'true', animation: 'codicon-spin', busy: 'true', rotates: true, calls: 1 });
-			automationService.isRefreshing.set(true, undefined);
-			automationService.isRefreshing.set(false, undefined);
-			assert.strictEqual(button.getAttribute('aria-disabled'), 'true', 'keep waiting for the clicked request');
 			automationService.refreshFailure = fails ? new Error('Offline') : undefined;
-			await pending.complete();
-			await timeout(0);
+			const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.AutomationsMoreActions, contextKeyService)
+				.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
+			await action.run();
 			assert.deepStrictEqual({
-				disabled: button.getAttribute('aria-disabled'),
-				animations: button.querySelector('.codicon-refresh')!.getAnimations().length,
-				busy: button.getAttribute('aria-busy'),
+				calls: execute.callCount,
 				errors: refreshErrors,
-			}, { disabled: 'false', animations: 0, busy: 'false', errors: fails ? ['Could not refresh automations: Offline'] : [] });
+			}, { calls: 1, errors: fails ? ['Could not refresh automations: Offline'] : [] });
 		});
 	}
 
@@ -1984,6 +1838,177 @@ suite('AutomationsCardsWidget', () => {
 			label: widget.element.querySelector('.automations-card-schedule')?.textContent,
 			accessible: buildAutomationsAccessibleContent([item], [], 'ready', []).includes('Cron: */15 * * * *'),
 		}, { label: 'Cron: */15 * * * *', accessible: true });
+	});
+
+	test('shared creator preference filters cards, history and accessible content without changing the catalogue', async () => {
+		const { widget, automationService, configurationService, instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
+		const accessibleProvider = disposables.add(instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor))!);
+		const items = [
+			automation({ id: 'local', name: 'Local', isCreatedByCurrentUser: undefined }),
+			automation({ id: 'personal', name: 'Personal', ownership: 'user', isCreatedByCurrentUser: undefined }),
+			automation({ id: 'mine', name: 'Mine', ownership: 'repository' }),
+			automation({ id: 'other', name: 'Other', ownership: 'repository', isCreatedByCurrentUser: false }),
+			automation({ id: 'unknown', name: 'Unknown', ownership: 'repository', isCreatedByCurrentUser: undefined, enabled: false }),
+		];
+		automationService.setAutomations(items);
+		automationService.setRuns(items.map(item => run({
+			id: `${item.id}-run`, automationId: item.id, sessionResource: undefined,
+			externalResource: URI.parse(`https://github.com/owner/repo/tasks/${item.id}`),
+		})));
+		automationService.setCatalogueState('ready');
+		const snapshot = () => {
+			const content = accessibleProvider.provideContent();
+			return {
+				cards: Array.from(widget.element.querySelectorAll('.automations-card-name-text'), element => element.textContent).sort(),
+				history: Array.from(widget.element.querySelectorAll('.automations-temporary-run .session-title'), element => element.textContent).sort(),
+				accessible: items.filter(item => content.includes(item.name)).map(item => item.name).sort(),
+			};
+		};
+		const before = snapshot();
+		const setPreference = async (value: boolean) => {
+			await configurationService.setUserConfiguration(SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING,
+				affectedKeys: new Set([SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING]),
+				change: { keys: [SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		await setPreference(true);
+		const optedIn = snapshot();
+		await setPreference(false);
+		const own = ['Local', 'Mine', 'Personal'];
+		const all = ['Local', 'Mine', 'Other', 'Personal', 'Unknown'];
+		assert.deepStrictEqual({ before, optedIn, after: snapshot(), stored: automationService.automations.get().length }, {
+			before: { cards: own, history: own, accessible: own },
+			optedIn: { cards: all, history: all, accessible: all },
+			after: { cards: own, history: own, accessible: own },
+			stored: 5,
+		});
+	});
+
+	test('hidden shared automations leave the empty state and no-runs message consistent', () => {
+		const { widget, automationService, contextKeyService } = setup();
+		automationService.setAutomations([automation({ ownership: 'repository', isCreatedByCurrentUser: false })]);
+		automationService.setRuns([run({ externalResource: URI.parse('https://github.com/owner/repo/tasks/other') })]);
+		automationService.setCatalogueState('ready');
+		const empty = () => ({
+			hasItems: contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key),
+			cards: widget.element.querySelectorAll('.automations-card-wrapper').length,
+			history: widget.element.querySelector<HTMLElement>('.automations-history')?.style.display,
+			message: widget.element.querySelector('.automations-history-state')?.textContent,
+		});
+		const onlyHidden = empty();
+		automationService.setAutomations([automation({ ownership: 'repository', isCreatedByCurrentUser: false }), automation({ id: 'mine' })]);
+		assert.deepStrictEqual({ onlyHidden, withOwn: empty() }, {
+			onlyHidden: { hasItems: false, cards: 0, history: 'none', message: '' },
+			withOwn: { hasItems: true, cards: 1, history: 'none', message: 'No runs yet. Wait for the automation\'s next trigger, or run it now when available.' },
+		});
+	});
+
+	test('more actions collapses empty shortcut columns without hiding assigned shortcuts', async () => {
+		const { actionFactories, contextKeyService, contextMenuService, instantiationService, configurationService } = setup();
+		await configurationService.setUserConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const action = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions).find(action => action instanceof SubmenuItemAction)!;
+		const container = document.createElement('div');
+		document.body.append(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const item = disposables.add(actionFactories.get(AgentsWindowMenus.AutomationsMoreActions.id)!(action, {}, instantiationService, 1)!);
+		item.render(container);
+		dispatchKeydown(container.querySelector<HTMLElement>('[role="button"]')!, { key: 'Enter', keyCode: 13 });
+		const delegate = contextMenuService.delegate!;
+		const menuContainer = document.createElement('div');
+		menuContainer.className = delegate.getMenuClassName!();
+		container.append(menuContainer);
+		const keybinding = upcastPartial<ResolvedKeybinding>({ getLabel: () => 'Ctrl+R' });
+		disposables.add(new Menu(menuContainer, [
+			disposables.add(new Action('withoutShortcut', 'No shortcut')),
+			disposables.add(new Action('withShortcut', 'With shortcut')),
+		], { getKeyBinding: action => action.id === 'withShortcut' ? keybinding : undefined }, unthemedMenuStyles));
+		assert.deepStrictEqual(Array.from(menuContainer.querySelectorAll<HTMLElement>('.keybinding'), element => ({
+			text: element.textContent,
+			displayed: getWindow(element).getComputedStyle(element).display !== 'none',
+		})), [
+			{ text: '', displayed: false },
+			{ text: 'Ctrl+R', displayed: true },
+		]);
+	});
+
+	test('more actions follows cloud enablement and unfiltered creator attribution', async () => {
+		const { automationService, configurationService, contextKeyService, instantiationService } = setup();
+		const setConfiguration = async (key: string, value: boolean) => {
+			await configurationService.setUserConfiguration(key, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: setting => setting === key, affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER,
+			});
+		};
+		const writes: { key: string; value: unknown; target: ConfigurationTarget | undefined }[] = [];
+		const update = stub(configurationService, 'updateValue').callsFake(async (key, value, target?: ConfigurationTarget) => {
+			writes.push({ key, value, target });
+			await setConfiguration(key, value === true);
+		});
+		disposables.add(toDisposable(() => update.restore()));
+		const header = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService).flatMap(([, actions]) => actions);
+		const moreActions = () => header().find(action => action instanceof SubmenuItemAction && action.item.submenu === AgentsWindowMenus.AutomationsMoreActions);
+		const menu = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.AutomationsMoreActions, contextKeyService).flatMap(([, actions]) => actions);
+		const withoutCloud = menu().map(action => action.id);
+		const hiddenWithoutCloud = !moreActions();
+		await setConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const settings = moreActions();
+		assert.ok(settings instanceof SubmenuItemAction);
+		const menuIsLast = header().at(-1)?.id === settings.id;
+		const refreshInHeader = header().some(action => action.id === 'sessions.automations.refresh');
+		const discovered = () => menu().map(action => action.id);
+		const catalogueStates = [discovered()];
+		automationService.setAutomations([automation(), automation({ id: 'personal', ownership: 'user', isCreatedByCurrentUser: false })]);
+		catalogueStates.push(discovered());
+		automationService.setAutomations([automation({ ownership: 'repository', isCreatedByCurrentUser: true })]);
+		catalogueStates.push(discovered());
+		automationService.setAutomations([automation({ ownership: 'repository', isCreatedByCurrentUser: false })]);
+		const withCloud = menu().map(action => action.id);
+		const checked = () => menu().find(action => action.id === 'sessions.automations.toggleShowOthers')!.checked;
+		const before = checked();
+		const command = CommandsRegistry.getCommand('sessions.automations.toggleShowOthers')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const afterOn = checked();
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const afterOff = checked();
+		automationService.setAutomations([automation({ ownership: 'repository', isCreatedByCurrentUser: undefined })]);
+		catalogueStates.push(discovered());
+		await setConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+		const disabledCloud = { hidden: !moreActions(), actions: discovered() };
+		await setConfiguration(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		catalogueStates.push(discovered());
+		automationService.setAutomations([]);
+		catalogueStates.push(discovered());
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		assert.deepStrictEqual({
+			withoutCloud, hiddenWithoutCloud, withCloud, catalogueStates, disabledCloud, menuIsLast, refreshInHeader, label: settings.label,
+			states: [before, afterOn, afterOff], hiddenWithAI: !moreActions(), writes,
+		}, {
+			withoutCloud: [], hiddenWithoutCloud: true,
+			withCloud: ['sessions.automations.refresh', 'sessions.automations.toggleShowOthers'],
+			catalogueStates: [
+				['sessions.automations.refresh'],
+				['sessions.automations.refresh'],
+				['sessions.automations.refresh'],
+				['sessions.automations.refresh', 'sessions.automations.toggleShowOthers'],
+				['sessions.automations.refresh', 'sessions.automations.toggleShowOthers'],
+				['sessions.automations.refresh'],
+			],
+			disabledCloud: { hidden: true, actions: [] },
+			menuIsLast: true, refreshInHeader: false, label: 'More Actions',
+			states: [false, true, false], hiddenWithAI: true,
+			writes: [
+				{ key: SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, value: true, target: ConfigurationTarget.USER },
+				{ key: SESSIONS_AUTOMATIONS_SHOW_OTHERS_SETTING, value: false, target: ConfigurationTarget.USER },
+			],
+		});
 	});
 
 	test('renders collapsible ownership sections with repository guidance and removes empty groups', () => {
@@ -5356,6 +5381,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(ILogService, logService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const command = CommandsRegistry.getCommand('sessions.automations.markAllRead')!;
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		await instantiationService.invokeFunction(accessor => command.handler(accessor));
@@ -5368,6 +5394,25 @@ suite('AutomationsCardsWidget', () => {
 			loggedErrors: [[failure]],
 			dialogErrors: 1,
 		});
+	});
+
+	test('mark all as read leaves hidden shared automation sessions unread', async () => {
+		const { automationService, sessionsManagementService, instantiationService } = setup();
+		automationService.setAutomations([
+			automation(),
+			automation({ id: 'other', ownership: 'repository', isCreatedByCurrentUser: false }),
+		]);
+		automationService.setRuns([
+			run(),
+			run({ id: 'other-run', automationId: 'other', sessionResource: SECOND_SESSION_RESOURCE }),
+		]);
+		const command = CommandsRegistry.getCommand('sessions.automations.markAllRead')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		assert.deepStrictEqual({
+			ownRead: sessionsManagementService.isRead.get(),
+			otherRead: sessionsManagementService.secondIsRead.get(),
+			marked: sessionsManagementService.markAllReadSessionCount,
+		}, { ownRead: true, otherRead: false, marked: 1 });
 	});
 
 	test('mark all as read coalesces history rendering', async () => {

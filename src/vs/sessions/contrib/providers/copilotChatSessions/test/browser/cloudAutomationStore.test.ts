@@ -1535,6 +1535,37 @@ suite('CloudAutomationStore', () => {
 		await provider.updateAutomation(automation.id, { name: 'Updated' });
 	});
 
+	test('creator attribution is case insensitive, independent of permissions, and follows account changes', async () => {
+		const { provider, api, accounts, changed, set } = setup();
+		api.definitions = [
+			{ ...definition, id: 'mine', ownership: 'repository', created_by: { login: 'UsEr' } },
+			{ ...definition, id: 'other', owner_type: 'repository', created_by: { login: 'teammate' } },
+			{ ...definition, id: 'unknown', ownership: 'repository', created_by: { login: '' } },
+		];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const snapshot = () => provider.automations.get().map(automation => ({
+			createdByCurrentUser: automation.isCreatedByCurrentUser,
+			canUpdate: provider.canUpdateAutomation(automation.id),
+		}));
+		const before = snapshot();
+		accounts.currentDefaultAccount = { ...account, accountName: 'teammate', sessionId: 'two' };
+		changed.fire(accounts.currentDefaultAccount);
+		await provider.refresh();
+		assert.deepStrictEqual({ before, after: snapshot() }, {
+			before: [
+				{ createdByCurrentUser: true, canUpdate: true },
+				{ createdByCurrentUser: false, canUpdate: true },
+				{ createdByCurrentUser: false, canUpdate: true },
+			],
+			after: [
+				{ createdByCurrentUser: false, canUpdate: true },
+				{ createdByCurrentUser: true, canUpdate: true },
+				{ createdByCurrentUser: false, canUpdate: true },
+			],
+		});
+	});
+
 	test('catalogue lookups reuse descriptors and update after publication', async () => {
 		const { provider, api, set } = setup();
 		let idReads = 0;

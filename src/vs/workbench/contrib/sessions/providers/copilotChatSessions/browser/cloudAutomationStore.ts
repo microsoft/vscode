@@ -521,6 +521,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			name: definition.name, prompt: definition.prompt, schedule,
 			cloudTrigger: { triggers: definition.triggers ?? {}, requireActorWritePermission: definition.require_actor_write_permission },
 			ownership,
+			isCreatedByCurrentUser: !!definition.created_by.login
+				&& definition.created_by.login.toLowerCase() === this.defaultAccountService.currentDefaultAccount?.accountName.toLowerCase(),
 			targetDisplay: { label: `${repository.owner}/${repository.repo}`, icon: Codicon.cloud },
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.repo}/agents/automations/${definition.id}` }),
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }) },
