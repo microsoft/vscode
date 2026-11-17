@@ -368,10 +368,10 @@ export class BrowserViewInspector extends Disposable {
 
 		if (activeSelection) {
 			activeSelection.options = updatedOptions;
+			// Publish the new options before awaiting so the renderer's next click sees them.
+			this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
 			try {
-				if (await this._startInspection(activeSelection, updatedOptions)) {
-					this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
-				}
+				await this._startInspection(activeSelection, updatedOptions);
 			} catch {
 				if (this._activeSelection.value === activeSelection && activeSelection.options === updatedOptions) {
 					this._activeSelection.clear();

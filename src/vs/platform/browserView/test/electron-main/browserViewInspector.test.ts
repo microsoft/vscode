@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { CDPEvent, CDPTargetInfo, ICDPConnection } from '../../common/cdp/types.js';
 import type { BrowserView } from '../../electron-main/browserView.js';
 import type { BrowserViewDebugger } from '../../electron-main/browserViewDebugger.js';
+import { BrowserElementSelectionMode } from '../../common/browserView.js';
 import { BrowserViewInspector } from '../../electron-main/browserViewInspector.js';
 
 class TestSession extends Disposable implements ICDPConnection {
@@ -254,6 +255,17 @@ suite('BrowserViewInspector', () => {
 			await inspector.toggleElementSelection(false);
 			await settle(ready, main);
 			assert.deepStrictEqual([activeWhilePending, inspector.isElementSelectionActive], [true, false]);
+		});
+
+		test('publishes a mode switch while attaching', async () => {
+			const { inspector, main, ready } = await startPending();
+			const states: string[] = [];
+			const listener = inspector.onDidChangeElementSelectionState(e => states.push(`${e.active}:${e.options.mode}`));
+			void inspector.toggleElementSelection(true, { mode: BrowserElementSelectionMode.Comment });
+			const published = [...states];
+			await settle(ready, main);
+			listener.dispose();
+			assert.deepStrictEqual({ published, final: states }, { published: [`true:${BrowserElementSelectionMode.Comment}`], final: [`true:${BrowserElementSelectionMode.Comment}`] });
 		});
 
 		test('prunes frames removed before the attach begins', async () => {
