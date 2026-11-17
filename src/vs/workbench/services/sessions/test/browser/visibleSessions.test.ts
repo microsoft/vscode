@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { VisibleSessions } from '../../browser/visibleSessions.js';
+import { IVisibleChatCloseOptions, VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../browser/sessionGridPane.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
@@ -91,7 +91,7 @@ function slotOf(disposables: Pick<DisposableStore, 'add'>, session: ISession, se
 		visibleChatTabs: pane.tabs.visibleChatTabs,
 		shouldShowChatTabs: pane.tabs.shouldShowChatTabs,
 		openChat: (chat: IChat) => model.openChat(session, chat),
-		closeChat: (chat: IChat) => model.closeChat(session, chat),
+		closeChat: (chat: IChat, options?: IVisibleChatCloseOptions) => model.closeChat(session, chat, options),
 		setActiveChat: (chat: IChat) => model.setActiveChat(session, chat),
 	};
 }
@@ -434,6 +434,24 @@ suite('VisibleSessions', () => {
 					sameSession: true,
 				},
 				afterAttach: [{ id: slotId, kind: SessionGridPaneKind.Slot, session: 'parent', chat: '/chat', sticky: true, tabs: ['/chat', '/child'], showsTabs: true }],
+			});
+		});
+
+		test('the main chat shows again in the slot when the only chat that stood in for it moves to a pane of its own', () => {
+			const model = createModel();
+			const { session, child } = parentWithChild();
+			model.restoreGrid([{ session, sticky: false }], 0);
+			const [slotId] = model.getGridSlots().map(slot => slot.id);
+			model.setActiveChat(session, child);
+			model.closeChat(session, stubChat, { allowMainChat: true });
+			const whileHidden = describe(model.panes.get()[0]);
+
+			model.moveChatToGrid(session, child, slotId, Direction.Right);
+			const [slot] = model.panes.get();
+
+			assert.deepStrictEqual({ whileHidden, afterMove: describe(slot) }, {
+				whileHidden: { id: slotId, kind: SessionGridPaneKind.Slot, session: 'parent', chat: '/child', sticky: false, tabs: ['/child'], showsTabs: false },
+				afterMove: { id: slotId, kind: SessionGridPaneKind.Slot, session: 'parent', chat: '/chat', sticky: false, tabs: ['/chat'], showsTabs: true },
 			});
 		});
 
@@ -1499,7 +1517,7 @@ suite('VisibleSessions - slot open/close chats', () => {
 		});
 	});
 
-	test('the main chat cannot be closed', () => {
+	test('the main chat does not close unless asked to', () => {
 		const [main, b] = [makeChat('main'), makeChat('b')];
 		const { visible, ids } = createSession([main, b]);
 
@@ -1509,6 +1527,110 @@ suite('VisibleSessions - slot open/close chats', () => {
 			open: ['main', 'b'],
 			closed: [],
 			active: 'main',
+		});
+	});
+
+	test('the main chat closes when asked to, and the chat shown falls back to a tab that stays', () => {
+		const [main, b, c] = [makeChat('main'), makeChat('b'), makeChat('c')];
+		const { visible, ids } = createSession([main, b, c]);
+
+		visible.closeChat(main, { allowMainChat: true });
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['b', 'c'],
+			closed: ['main'],
+			active: 'c',
+		});
+	});
+
+	test('closing the main chat while another chat is shown keeps that chat shown, and the lone tab left hides the strip', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.setActiveChat(b);
+
+		visible.closeChat(main, { allowMainChat: true });
+
+		assert.deepStrictEqual({ ...snapshot(visible, ids), showsTabs: visible.shouldShowChatTabs.get() }, {
+			open: ['b'],
+			closed: ['main'],
+			active: 'b',
+			showsTabs: false,
+		});
+	});
+
+	test('the main chat stays open when no other chat would show as a tab', () => {
+		const main = makeChat('main');
+		const closed = makeChat('closed');
+		const subagent = { ...makeChat('subagent'), origin: { kind: ChatOriginKind.Tool } };
+		const internal = makeChatWith('internal', ChatInteractivity.Hidden);
+		const { visible, ids } = createSession([main, closed, subagent, internal]);
+		visible.closeChat(closed);
+
+		visible.closeChat(main, { allowMainChat: true });
+
+		assert.deepStrictEqual({ tabs: ids(visible.visibleChatTabs.get()), closed: ids(visible.closedChats.get()) }, {
+			tabs: ['main'],
+			closed: ['closed'],
+		});
+	});
+
+	test('a closed main chat shows again when it is opened, without becoming the chat shown', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.setActiveChat(b);
+		visible.closeChat(main, { allowMainChat: true });
+		const closed = snapshot(visible, ids);
+
+		visible.openChat(main);
+
+		assert.deepStrictEqual({ closed, opened: { ...snapshot(visible, ids), lastClosed: visible.lastClosedChat } }, {
+			closed: { open: ['b'], closed: ['main'], active: 'b' },
+			opened: { open: ['main', 'b'], closed: [], active: 'b', lastClosed: undefined },
+		});
+	});
+
+	test('a closed main chat shows again when it becomes the chat shown', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.setActiveChat(b);
+		visible.closeChat(main, { allowMainChat: true });
+		const closed = snapshot(visible, ids);
+
+		visible.setActiveChat(main);
+
+		assert.deepStrictEqual({ closed, shown: snapshot(visible, ids) }, {
+			closed: { open: ['b'], closed: ['main'], active: 'b' },
+			shown: { open: ['main', 'b'], closed: [], active: 'main' },
+		});
+	});
+
+	test('closing the last other chat falls back to the main chat, which shows again', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, ids } = createSession([main, b]);
+		visible.setActiveChat(b);
+		visible.closeChat(main, { allowMainChat: true });
+		const closed = snapshot(visible, ids);
+
+		visible.closeChat(b);
+
+		assert.deepStrictEqual({ closed, fallenBack: { ...snapshot(visible, ids), lastClosed: visible.lastClosedChat?.title.get() } }, {
+			closed: { open: ['b'], closed: ['main'], active: 'b' },
+			fallenBack: { open: ['main'], closed: ['b'], active: 'main', lastClosed: 'b' },
+		});
+	});
+
+	test('the main chat shows again when the chats that stood in for it are deleted', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		const { visible, chatsObs, ids } = createSession([main, b]);
+		visible.setActiveChat(b);
+		visible.closeChat(main, { allowMainChat: true });
+		const closed = snapshot(visible, ids);
+
+		chatsObs.set([main], undefined);
+
+		assert.deepStrictEqual({ closed, deleted: snapshot(visible, ids) }, {
+			closed: { open: ['b'], closed: ['main'], active: 'b' },
+			deleted: { open: ['main'], closed: [], active: 'main' },
 		});
 	});
 
@@ -1564,10 +1686,21 @@ suite('VisibleSessions - slot open/close chats', () => {
 		});
 	});
 
-	test('a seeded main chat is never hidden even if persisted as closed', () => {
+	test('a seeded main chat stays hidden while another chat is the restored active chat', () => {
 		const [main, b] = [makeChat('main'), makeChat('b')];
-		// The main chat can never be closed, so a corrupt/legacy closed set that
-		// contains the main chat URI must not hide it from the tab strip.
+		const { visible, ids } = createSession([main, b], [main.resource.toString()], b);
+
+		assert.deepStrictEqual(snapshot(visible, ids), {
+			open: ['b'],
+			closed: ['main'],
+			active: 'b',
+		});
+	});
+
+	test('a seeded main chat that is the restored active chat stays open', () => {
+		const [main, b] = [makeChat('main'), makeChat('b')];
+		// The chat shown is never hidden, so the session cannot open without a chat
+		// when the persisted closed set holds every chat.
 		const { visible, ids } = createSession([main, b], [main.resource.toString(), b.resource.toString()]);
 
 		assert.deepStrictEqual(snapshot(visible, ids), {

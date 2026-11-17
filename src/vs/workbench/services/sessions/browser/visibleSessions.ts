@@ -15,6 +15,15 @@ import { ISessionGridSlot } from './sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from './sessionGridPane.js';
 import { ISessionPaneTabs } from '../common/sessionPane.js';
 
+/** Options for closing a chat in the tab strip of a visible session. */
+export interface IVisibleChatCloseOptions {
+	/**
+	 * Allow closing the main chat, which stands for the session itself and otherwise never closes. It stays
+	 * when no other chat would show as a tab, and shows again once it is the chat shown.
+	 */
+	readonly allowMainChat?: boolean;
+}
+
 /**
  * The state of a pane for one incarnation of the session it shows: the chat it shows and its tab strip. Replacing the
  * session, such as a draft graduating, gives the pane a new state, seeded from the persisted state of the session.
@@ -73,10 +82,8 @@ class SessionSlotState extends Disposable implements IPaneState {
 		this.activeChat = this._activeChat;
 
 		// Seed the closed set from persisted state, but never hide the chat that
-		// is being restored as active, nor the main chat (which can never be
-		// closed and must always remain in the tab strip).
+		// is being restored as active.
 		const seed = new Set(initialClosedChatUris);
-		seed.delete(_session.mainChat.get().resource.toString());
 		const activeUri = initialChat?.resource.toString();
 		if (activeUri) {
 			seed.delete(activeUri);
@@ -135,7 +142,7 @@ class SessionSlotState extends Disposable implements IPaneState {
 		subtransaction(transaction, tx => {
 			this._detachedChats.set(resources, tx);
 			if (resources.has(this._activeChat.get().resource.toString())) {
-				this._activeChat.set(this._defaultActiveChat(this._closedChatUris.get(), this._shownRelatedChatUris.get()), tx);
+				this._selectChat(this._defaultActiveChat(this._closedChatUris.get(), this._shownRelatedChatUris.get()), tx);
 			}
 		});
 	}
@@ -144,7 +151,7 @@ class SessionSlotState extends Disposable implements IPaneState {
 		subtransaction(transaction, tx => {
 			this._windowChats.set(resources, tx);
 			if (resources.has(this._activeChat.get().resource.toString())) {
-				this._activeChat.set(this._defaultActiveChat(this._closedChatUris.get(), this._shownRelatedChatUris.get()), tx);
+				this._selectChat(this._defaultActiveChat(this._closedChatUris.get(), this._shownRelatedChatUris.get()), tx);
 			}
 		});
 	}
@@ -162,7 +169,33 @@ class SessionSlotState extends Disposable implements IPaneState {
 		if (this._fallenBack && chat.resource.toString() !== this._fallenBack.to.toString()) {
 			this._fallenBack = undefined;
 		}
+		subtransaction(tx, setTx => this._selectChat(chat, setTx));
+	}
+
+	/**
+	 * Makes `chat` the active chat. The main chat stands for the session itself, so it shows as a tab
+	 * again once it is the chat shown, also when closing the last other chat falls back to it.
+	 */
+	private _selectChat(chat: IChat, tx: ITransaction): void {
+		const chatUri = chat.resource.toString();
+		if (chatUri === this._session.mainChat.get().resource.toString()) {
+			this._unhide(chatUri, tx);
+		}
 		this._activeChat.set(chat, tx);
+	}
+
+	private _unhide(chatUri: string, tx: ITransaction | undefined): void {
+		const closed = this._closedChatUris.get();
+		if (!closed.has(chatUri)) {
+			return;
+		}
+		const next = new Set(closed);
+		next.delete(chatUri);
+		this._closedChatUris.set(next, tx);
+		const idx = this._closedChatOrder.findLastIndex(c => c.resource.toString() === chatUri);
+		if (idx !== -1) {
+			this._closedChatOrder.splice(idx, 1);
+		}
 	}
 
 	/** Shows `to` because the session stopped listing the active chat `from`, which may have moved to another session. */
@@ -179,11 +212,15 @@ class SessionSlotState extends Disposable implements IPaneState {
 		return this._fallenBack?.from;
 	}
 
-	closeChat(chat: IChat): void {
+	closeChat(chat: IChat, options?: IVisibleChatCloseOptions): void {
 		const chatUri = chat.resource.toString();
-		// The main chat represents the session itself and is never closed.
+		// The main chat represents the session itself: it only closes when asked to, and never
+		// when no other chat would show as a tab, which would leave the session empty.
 		if (chatUri === this._session.mainChat.get().resource.toString()) {
-			return;
+			const closedWithMain = new Set(this._closedChatUris.get()).add(chatUri);
+			if (!options?.allowMainChat || this._tabChats(closedWithMain, this._shownRelatedChatUris.get()).length === 0) {
+				return;
+			}
 		}
 		// Closing a subagent (tool-origin) tab just hides it again; it stays
 		// reachable from its chat-transcript pill and is not added to the
@@ -231,17 +268,20 @@ class SessionSlotState extends Disposable implements IPaneState {
 			this._shownRelatedChatUris.set(next, undefined);
 			return;
 		}
-		const closed = this._closedChatUris.get();
-		if (!closed.has(chat.resource.toString())) {
-			return;
-		}
-		const next = new Set(closed);
-		next.delete(chat.resource.toString());
-		this._closedChatUris.set(next, undefined);
-		const idx = this._closedChatOrder.findLastIndex(c => c.resource.toString() === chat.resource.toString());
-		if (idx !== -1) {
-			this._closedChatOrder.splice(idx, 1);
-		}
+		this._unhide(chat.resource.toString(), undefined);
+	}
+
+	/**
+	 * The chats that show as tabs given the closed and shown-subagent sets: not shown in a pane or
+	 * window of their own, not hidden, not closed, and a subagent (tool-origin) chat only once shown.
+	 */
+	private _tabChats(closed: ReadonlySet<string>, shownRelatedChats: ReadonlySet<string>): IChat[] {
+		return this._session.chats.get().filter(c =>
+			!this._detachedChats.get().has(c.resource.toString()) &&
+			!this._windowChats.get().has(c.resource.toString()) &&
+			c.interactivity.get() !== ChatInteractivity.Hidden &&
+			!closed.has(c.resource.toString()) &&
+			(c.origin?.kind !== ChatOriginKind.Tool || shownRelatedChats.has(c.resource.toString())));
 	}
 
 	/**
@@ -250,12 +290,7 @@ class SessionSlotState extends Disposable implements IPaneState {
 	 * subagent sets, or the main chat.
 	 */
 	private _defaultActiveChat(closed: ReadonlySet<string>, shownRelatedChats: ReadonlySet<string>): IChat {
-		const candidates = this._session.chats.get().filter(c =>
-			!this._detachedChats.get().has(c.resource.toString()) &&
-			!this._windowChats.get().has(c.resource.toString()) &&
-			c.interactivity.get() !== ChatInteractivity.Hidden &&
-			!closed.has(c.resource.toString()) &&
-			(c.origin?.kind !== ChatOriginKind.Tool || shownRelatedChats.has(c.resource.toString())));
+		const candidates = this._tabChats(closed, shownRelatedChats);
 		return candidates[candidates.length - 1] ?? this._session.mainChat.get();
 	}
 
@@ -1075,9 +1110,9 @@ export class VisibleSessions extends Disposable {
 	 * Close (hide from the tab strip) the given chat in the session's slot state.
 	 * No-op if the session is not currently tracked in the visibility model.
 	 */
-	closeChat(session: ISession, chat: IChat): void {
+	closeChat(session: ISession, chat: IChat, options?: IVisibleChatCloseOptions): void {
 		this.attachChat(session, chat.resource);
-		this._wrappers.get(session.sessionId)?.closeChat(chat);
+		this._wrappers.get(session.sessionId)?.closeChat(chat, options);
 	}
 
 	/**

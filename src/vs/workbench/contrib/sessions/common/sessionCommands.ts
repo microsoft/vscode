@@ -62,6 +62,8 @@ export {
 
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
+/** Closes the other chat tabs of a tab's strip. Registered in `sessionsActions.ts`. */
+export const CLOSE_OTHER_CHATS_COMMAND_ID = 'sessions.chatCompositeBar.closeOtherChats';
 export const CLOSE_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.close';
 export const TOGGLE_PIN_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.togglePin';
 export const TOGGLE_PIN_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.togglePinChat';
