@@ -109,7 +109,7 @@ export function getSessionInboxDescription(state: SessionInboxState | undefined)
 	}
 }
 
-/** Returns the unambiguous, provider-advertised PR merge operation; never a local branch merge. */
+/** Returns an available, provider-advertised PR merge operation for a single PR; never a local branch merge. */
 export function getInboxPullRequestMergeOperation(session: ISession, reader?: IReader): { readonly changeset: ISessionChangeset; readonly operation: ISessionChangesetOperation } | undefined {
 	const pullRequests = new Set(getSessionGitHubReferences(session, reader).pullRequests.map(ref => ref.uri.toString()));
 	for (const folder of session.workspace.read(reader)?.folders ?? []) {
@@ -127,15 +127,15 @@ export function getInboxPullRequestMergeOperation(session: ISession, reader?: IR
 		}
 		for (const operation of changeset.operations.read(reader)) {
 			if (operation.id !== AgentHostPullRequestOperationId.Merge
-				|| !operation.scopes.includes(SessionChangesetOperationScope.Changeset)
-				|| operation.status === SessionChangesetOperationStatus.Disabled
-				|| operation.status === SessionChangesetOperationStatus.Running) {
+				|| !operation.scopes.includes(SessionChangesetOperationScope.Changeset)) {
 				continue;
 			}
-			if (candidate) {
+			if (operation.status === SessionChangesetOperationStatus.Running) {
 				return undefined;
 			}
-			candidate = { changeset, operation };
+			if (!candidate && operation.status !== SessionChangesetOperationStatus.Disabled) {
+				candidate = { changeset, operation };
+			}
 		}
 	}
 	return candidate;
