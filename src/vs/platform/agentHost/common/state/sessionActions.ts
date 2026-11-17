@@ -13,6 +13,8 @@
 
 // ---- Re-exports from protocol -----------------------------------------------
 
+export type { CanvasesAction, ClientCanvasesAction } from './protocol/action-origin.generated.js';
+
 export {
 	ActionType,
 	type ActionEnvelope,
@@ -42,6 +44,11 @@ export {
 	type ChatTurnCompleteAction,
 	type ChatTurnStartedAction,
 	type CanvasStateChangedAction,
+	type ChatCanvasesUriChangedAction,
+	type CanvasesRegistryRequestedAction,
+	type CanvasesRegistryChangedAction,
+	type CanvasesCanvasSetAction,
+	type CanvasesCanvasRemovedAction,
 	type ChatUsageAction,
 	type SessionServerToolsChangedAction,
 	type SessionActiveClientSetAction,

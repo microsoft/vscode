@@ -35,6 +35,7 @@ export interface ICanvasDefinition {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	readonly inputSchema?: unknown;
 	/** The canvas's icon as its host sends it, a PNG data URI; read it with {@link getCanvasIconUri}. */
 	readonly icon?: string;
 	readonly requiresInput: boolean;
@@ -48,11 +49,16 @@ export function getCanvasIconUri(icon: string | undefined): URI | undefined {
 /** `undefined` is unsettled; an array, including an empty one, is authoritative. */
 export type CanvasDefinitionSnapshot = readonly ICanvasDefinition[] | undefined;
 
+export interface ICanvasListOptions {
+	/** Explicit user intent to retry a failed registry load; automatic refreshes must omit this. */
+	readonly retry?: boolean;
+}
+
 /** Lists and opens registered canvas types for one canvas context. */
 export interface ICanvasDefinitionProvider {
 	readonly onDidChangeDefinitions: Event<void>;
 	/** Returns `undefined` while unsettled, then fires {@link onDidChangeDefinitions} when an authoritative snapshot is available. */
-	listCanvases(): Promise<CanvasDefinitionSnapshot>;
+	listCanvases(options?: ICanvasListOptions): Promise<CanvasDefinitionSnapshot>;
 	openCanvas(canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 }
 
@@ -385,13 +391,7 @@ function getCanvasDefinitionInstanceIndex(canvas: ICanvas): number | undefined {
 
 /** Returns whether a registered extension canvas can be opened without another input flow. */
 export function isOpenableExtensionCanvasDefinition(canvas: ICanvasDefinition): boolean {
-	return !canvas.requiresInput && (
-		canvas.extensionSource !== 'unknown'
-		|| canvas.extensionId.startsWith('user:')
-		|| canvas.extensionId.startsWith('project:')
-		|| canvas.extensionId.startsWith('session:')
-		|| canvas.extensionId.startsWith('plugin:')
-	);
+	return !canvas.requiresInput;
 }
 
 /** Orders registered canvas types by extension and display name. */

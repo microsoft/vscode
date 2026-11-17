@@ -599,6 +599,7 @@ export interface ChatChangesetsChangedAction {
  *
  * Replaces {@link ChatState.canvases | `state.canvases`} entirely. Set to
  * `undefined` to clear the collection.
+ * @deprecated Prefer `ChatCanvasesUriChangedAction` and collection actions.
  *
  * @category Chat Actions
  * @version 1
@@ -607,6 +608,19 @@ export interface ChatCanvasesChangedAction {
 	type: ActionType.ChatCanvasesChanged;
 	/** New canvas channel references, or `undefined` to clear the collection. */
 	canvases: CanvasReference[] | undefined;
+}
+
+/**
+ * Replaces or clears the chat's advertised canvas collection URI.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @stability 1.0
+ */
+export interface ChatCanvasesUriChangedAction {
+	type: ActionType.ChatCanvasesUriChanged;
+	/** Owning collection URI, or `undefined` to clear the pointer. */
+	canvasesUri: URI | undefined;
 }
 
 /**
@@ -1017,6 +1031,7 @@ export type ChatAction =
 	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
 	| ChatCanvasesChangedAction
+	| ChatCanvasesUriChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
 	| ChatUsageAction

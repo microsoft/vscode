@@ -50,7 +50,8 @@ suite('SessionCanvasRegistryService', () => {
 		const sessionResource = URI.parse('agent-host-session:/session');
 		const chatResource = URI.parse('agent-host-chat:/session/main');
 		const canvases = observableValue<readonly ISessionCanvas[] | undefined>('canvases', []);
-		const chat = upcastPartial<IChat>({ resource: chatResource, canvases });
+		const canvasDefinitions = observableValue<readonly ISessionCanvasDefinition[] | undefined>('canvasDefinitions', definitions);
+		const chat = upcastPartial<IChat>({ resource: chatResource, canvases, canvasDefinitions });
 		const activeChat = observableValue<IChat>('activeChat', chat);
 		const capabilities = observableValue<ISessionCapabilities>('capabilities', { supportsCanvases: true, supportsMultipleChats: true });
 		const session = upcastPartial<ITestSessionWithChat>({
@@ -113,6 +114,7 @@ suite('SessionCanvasRegistryService', () => {
 			activeSession,
 			capabilities,
 			canvases,
+			canvasDefinitions,
 			enabled,
 			canvasService,
 			contextService,
@@ -478,7 +480,7 @@ suite('SessionCanvasRegistryService', () => {
 		harness.setDefinitions([second]);
 
 		const registryList = Event.toPromise(Event.once(harness.onDidListCanvases));
-		harness.canvases.set([], undefined);
+		harness.canvasDefinitions.set([], undefined);
 		const registryChat = await registryList;
 		await waitForState(harness.registryService.availableCanvases, canvases => canvases.some(canvas => canvas.canvasId === 'second'));
 
@@ -552,7 +554,7 @@ suite('SessionCanvasRegistryService', () => {
 			},
 		];
 		const harness = createHarness(definitions);
-		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 2);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 3);
 		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
 		const submenus = MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
@@ -562,7 +564,9 @@ suite('SessionCanvasRegistryService', () => {
 			.filter(item => item.command.id.startsWith(`${OPEN_SESSION_CANVAS_COMMAND_ID}.`))
 			.sort((firstItem, secondItem) => (firstItem.order ?? 0) - (secondItem.order ?? 0));
 
-		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
+		const userItem = items.find(item => (typeof item.command.title === 'string' ? item.command.title : item.command.title.value) === 'Counter (User Counter)');
+		assert.ok(userItem);
+		await CommandsRegistry.getCommand(userItem.command.id)!.handler(upcastPartial<ServicesAccessor>({}));
 		registration.dispose();
 
 		assert.deepStrictEqual({
@@ -577,8 +581,8 @@ suite('SessionCanvasRegistryService', () => {
 			})),
 		}, {
 			submenuTitles: ['Canvas'],
-			titles: ['Counter (Project Counter)', 'Counter (User Counter)'],
-			groups: ['2_available', '2_available'],
+			titles: ['Browser', 'Counter (Project Counter)', 'Counter (User Counter)'],
+			groups: ['2_available', '2_available', '2_available'],
 			opened: [{
 				chat: 'agent-host-chat:/session/main',
 				extensionId: 'user:counter',
@@ -724,10 +728,10 @@ suite('SessionCanvasRegistryService', () => {
 		// Chat updates keep signalling refreshes while a listing request is still pending.
 		harness.holdListing();
 		const pendingList = Event.toPromise(Event.once(harness.onDidListCanvases));
-		harness.canvases.set([], undefined);
+		harness.canvasDefinitions.set([], undefined);
 		await pendingList;
-		harness.canvases.set([], undefined);
-		harness.canvases.set([], undefined);
+		harness.canvasDefinitions.set([], undefined);
+		harness.canvasDefinitions.set([], undefined);
 		const whileRefreshing = {
 			commandIds: getCommandIds(),
 			available: harness.registryService.availableCanvases.get().map(canvas => canvas.canvasId),
@@ -779,7 +783,7 @@ suite('SessionCanvasRegistryService', () => {
 
 		harness.setDefinitions(undefined);
 		const unsettledList = Event.toPromise(Event.once(harness.onDidListCanvases));
-		harness.canvases.set([], undefined);
+		harness.canvasDefinitions.set([], undefined);
 		await unsettledList;
 		await timeout(0);
 		const whileUnsettled = {
@@ -789,7 +793,7 @@ suite('SessionCanvasRegistryService', () => {
 
 		harness.setDefinitions([]);
 		const stableList = Event.toPromise(Event.once(harness.onDidListCanvases));
-		harness.canvases.set([], undefined);
+		harness.canvasDefinitions.set([], undefined);
 		await stableList;
 		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 0);
 		const afterStableEmpty = getCommandIds();

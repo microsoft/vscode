@@ -18,6 +18,7 @@ export class AgentHostSubscriptionService extends Disposable implements IAgentHo
 	private readonly _chatOwners = new Map<string, string>();
 	/** Subscribed resources addressing each chat: the chat itself and its chat-scoped canvases. */
 	private readonly _resourcesByChat = new Map<string, Set<string>>();
+	private readonly _resourceChats = new ResourceMap<string>();
 
 	constructor(
 		@IAgentHostChatOwnershipService chatOwnership: IAgentHostChatOwnershipService,
@@ -63,6 +64,7 @@ export class AgentHostSubscriptionService extends Disposable implements IAgentHo
 		}
 		this._subscribers.delete(resource);
 		const chat = this._chatOf(resource);
+		this._resourceChats.delete(resource);
 		const resources = chat === undefined ? undefined : this._resourcesByChat.get(chat);
 		if (chat !== undefined && resources) {
 			resources.delete(resource.toString());
@@ -74,9 +76,30 @@ export class AgentHostSubscriptionService extends Disposable implements IAgentHo
 		return true;
 	}
 
-	setSubscriptionOwner(resource: URI, session: string): void {
-		const chat = this._chatOf(resource);
-		if (chat !== undefined && this._subscribers.has(resource)) {
+	setSubscriptionOwner(resource: URI, session: string, advertisedChat?: string): void {
+		if (!this._subscribers.has(resource)) {
+			return;
+		}
+		const previousChat = this._chatOf(resource);
+		if (advertisedChat !== undefined) {
+			this._resourceChats.set(resource, advertisedChat);
+		}
+		const chat = advertisedChat ?? this._chatOf(resource);
+		if (previousChat !== undefined && previousChat !== chat) {
+			const previousResources = this._resourcesByChat.get(previousChat);
+			previousResources?.delete(resource.toString());
+			if (previousResources?.size === 0) {
+				this._resourcesByChat.delete(previousChat);
+				this._chatOwners.delete(previousChat);
+			}
+		}
+		if (chat !== undefined) {
+			let resources = this._resourcesByChat.get(chat);
+			if (!resources) {
+				resources = new Set();
+				this._resourcesByChat.set(chat, resources);
+			}
+			resources.add(resource.toString());
 			this._chatOwners.set(chat, session);
 		}
 	}
@@ -88,7 +111,7 @@ export class AgentHostSubscriptionService extends Disposable implements IAgentHo
 	}
 
 	resolveSubscribedSession(resource: URI): URI | undefined {
-		return resolveAgentHostSession(resource, chat => this._chatOwners.get(chat));
+		return resolveAgentHostSession(resource, chat => this._chatOwners.get(chat), canvas => this._resourceChats.get(URI.parse(canvas)));
 	}
 
 	private _chatOf(resource: URI): string | undefined {
@@ -98,7 +121,7 @@ export class AgentHostSubscriptionService extends Disposable implements IAgentHo
 			// Session- and folder-owned changesets carry their session; a chat-owned one belongs to its chat.
 			return changeset.sessionUri === undefined ? changeset.ownerUri : undefined;
 		}
-		return resourceChat(resource);
+		return this._resourceChats.get(resource) ?? resourceChat(resource);
 	}
 
 	hasSubscribers(resource: URI): boolean {

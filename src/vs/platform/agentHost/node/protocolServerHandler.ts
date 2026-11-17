@@ -161,6 +161,7 @@ export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsRe
 	if (!provider) {
 		throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
 	}
+
 	return {
 		resource: s.session.toString(),
 		provider,
@@ -312,7 +313,7 @@ function isDispatchActionParams(value: unknown): value is DispatchActionParams {
 
 function isHandledClientAction(action: DispatchActionParams['action']): action is Parameters<IAgentService['dispatchAction']>[1] {
 	return IS_CLIENT_DISPATCHABLE[action.type] === true
-		&& (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged);
+		&& (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.CanvasesRegistryRequested || action.type === ActionType.RootConfigChanged);
 }
 
 /**
@@ -475,6 +476,8 @@ function projectCopilotAutomation(automation: AutomationEntry, vscode: boolean):
 
 /** The first protocol version whose clients may be told about `multipleChatProviders`. */
 const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
+/** The first protocol version whose clients may use the Canvas registry actions. */
+const CANVAS_REGISTRY_PROTOCOL_VERSION = '1.1.0';
 
 /**
  * Represents a connected protocol client with its subscription state.
@@ -2711,6 +2714,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			await this._agentService.createTerminal(params, client.telemetryContext.clientType);
 			return null;
 		},
+		openCanvas: async (client, params) => {
+			const collection = this._stateManager.getCanvasCollection(params.canvases);
+			if (!collection || !this._isChannelVisible(client, collection.chat)) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Canvas collection is not visible to this client.');
+			}
+			await this._agentService.openCanvas(params, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
+			return null;
+		},
+		disposeCanvas: async (client, params) => {
+			const chat = this._stateManager.getCanvas(params.channel)?.chat ?? this._agentService.getCanvasChat?.(params.channel);
+			if (chat && !this._isChannelVisible(client, chat)) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Canvas is not visible to this client.');
+			}
+			await this._agentService.disposeCanvas(URI.parse(params.channel, true), params.channel);
+			return null;
+		},
 		disposeTerminal: async (_client, params) => {
 			await this._agentService.disposeTerminal(URI.parse(params.channel));
 			return null;
@@ -2728,8 +2747,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!result.snapshot) {
 				return result;
 			}
-			// Refresh before the ordinary response discards the window's queued actions.
-			const snapshot = client.channels.getStateSnapshot(result.snapshot.resource) ?? this._projectRelayRootSnapshot(client, result.snapshot);
+			// Admission may publish state while the new subscription is still inactive.
+			const snapshot = client.channels.getStateSnapshot(result.snapshot.resource)
+				?? this._projectRelayRootSnapshot(client, this._agentService.getSnapshot(result.snapshot.resource) ?? result.snapshot);
 			return { ...result, snapshot: snapshot as SubscribeResult['snapshot'] };
 		},
 	};
@@ -2987,8 +3007,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			rejection = readOnlyConnectionMessage;
 		} else if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 			rejection = `Server-only action: ${action.type}`;
+		} else if (!isActionKnownToVersion(action, client.protocolVersion)) {
+			rejection = `Action is unavailable in protocol version ${client.protocolVersion}: ${action.type}`;
 		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 			rejection = `Unsupported action: ${action.type}`;
+		} else if (action.type === ActionType.CanvasesRegistryRequested && !this._isChannelVisible(client, params.channel)) {
+			rejection = 'Canvas collection is not visible to this client.';
 		}
 		if (!rejection && client.transport.relayClientId !== undefined && this._config.relayResourceRoots && action.type === ActionType.SessionWorkingDirectorySet) {
 			try {
@@ -3283,7 +3307,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
 		snapshot = this._projectModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
 		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
-			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, this._projectScopedModels(client, snapshot.state.agents)) } };
+			snapshot = {
+				...snapshot,
+				state: {
+					...snapshot.state,
+					agents: this._projectCanvasCapabilities(client, this._projectModelConfigAliases(client, this._projectScopedModels(client, snapshot.state.agents))),
+				}
+			};
 		}
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
@@ -3497,6 +3527,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _projectAgentModels(agents: RootState['agents']): RootState['agents'] {
 		const providers = this._config.advertisedModelProviders;
 		return providers ? agents.map(agent => providers.includes(agent.provider) ? agent : { ...agent, models: [] }) : agents;
+	}
+
+	private _projectCanvasCapabilities(client: IConnectedClient, agents: RootState['agents']): RootState['agents'] {
+		if (compareProtocolVersions(client.protocolVersion, CANVAS_REGISTRY_PROTOCOL_VERSION) >= 0) {
+			return agents;
+		}
+		return agents.map(agent => {
+			if (agent.capabilities?.canvases === undefined) {
+				return agent;
+			}
+			const { canvases: _canvases, ...capabilities } = agent.capabilities;
+			if (Object.keys(capabilities).length > 0) {
+				return { ...agent, capabilities };
+			}
+			const { capabilities: _capabilities, ...withoutCapabilities } = agent;
+			return withoutCapabilities;
+		});
 	}
 
 	private _projectModelConfigAliases(client: IConnectedClient, agents: RootState['agents']): RootState['agents'] {
@@ -4617,6 +4664,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
+		const canvasChat = this._stateManager.getCanvasCollection(channel)?.chat ?? this._stateManager.getCanvas(channel)?.chat;
+		if (canvasChat !== undefined) {
+			return this._isChannelVisible(client, canvasChat);
+		}
 		const owner = isAhpChatChannel(channel) ? this._chatOwnership.getChatOwner(channel) : undefined;
 		if (client.legacyChatUris && isAhpChatChannel(channel) && (!isShapedChatUri(channel) || (owner !== undefined && !this._isChatShownToLegacyClient(channel, owner)))) {
 			return false;
@@ -4646,6 +4697,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
 		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
+		if (envelope.action.type === ActionType.RootAgentsChanged) {
+			envelope = { ...envelope, action: { ...envelope.action, agents: this._projectCanvasCapabilities(client, envelope.action.agents) } };
+		}
 		if (envelope.action.type === ActionType.AutomationSet) {
 			envelope = { ...envelope, action: { ...envelope.action, automation: projectCopilotAutomation(envelope.action.automation, vscode) } };
 		}
@@ -4667,6 +4721,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (envelope.action.type === ActionType.ChatMoved && !isActionKnownToVersion(envelope.action, client.protocolVersion)) {
 			// Older clients learn a moved chat's owner from the sessions' chat lists only.
 			return undefined;
+		}
+		if ((envelope.action.type === ActionType.ChatCanvasesUriChanged || envelope.action.type === ActionType.CanvasesRegistryRequested
+			|| envelope.action.type === ActionType.CanvasesRegistryChanged || envelope.action.type === ActionType.CanvasesCanvasSet
+			|| envelope.action.type === ActionType.CanvasesCanvasRemoved)
+			&& !isActionKnownToVersion(envelope.action, client.protocolVersion)) {
+			return envelope.origin?.clientId === client.clientId ? envelope : undefined;
 		}
 		if (!client.legacyChatUris) {
 			return envelope;

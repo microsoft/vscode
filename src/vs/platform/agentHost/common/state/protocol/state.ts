@@ -11,6 +11,7 @@ export * from './channels-root/state.js';
 export * from './channels-session/state.js';
 export * from './channels-chat/state.js';
 export * from './channels-canvas/state.js';
+export * from './channels-canvases/state.js';
 export * from './channels-terminal/state.js';
 export * from './channels-changeset/state.js';
 export * from './channels-annotations/state.js';

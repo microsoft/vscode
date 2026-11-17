@@ -14,6 +14,7 @@ import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementM
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
 import { agentEntitlementHintMeta } from '../../common/meta/agentEntitlementHintMeta.js';
+import { CanvasRegistryStatus } from '../../common/state/protocol/channels-canvases/state.js';
 import { spy, stub, useFakeTimers } from 'sinon';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -1604,6 +1605,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			clientToolsRequireRestart: () => false,
 			canvasRuntimeEnabled: false,
 			extensionLaunchDirectories: [],
+			publishCanvasStateAfterRegistration: () => { },
 			setExtensionLaunchAdmission: (admission: IDisposable) => { extensionLaunchAdmission = admission; },
 			dispose: () => {
 				extensionLaunchAdmission?.dispose();
@@ -9808,7 +9810,6 @@ suite('CopilotAgent', () => {
 				extensionSource: 'project',
 				displayName: 'Previous',
 				description: 'Previous canvas.',
-				requiresInput: false,
 				actionCount: 0,
 			}];
 			let earlyInventory: readonly string[] = [];
@@ -9843,7 +9844,7 @@ suite('CopilotAgent', () => {
 					cached: cached.map(canvas => canvas.canvasId),
 					notifications: memberships.length,
 					preservesMembership: memberships.every(membership => membership?.length === 1 && membership[0].resource === memberships[0]?.[0].resource),
-				}, { earlyInventory: ['previous'], cached: ['preview'], notifications: 3, preservesMembership: true });
+				}, { earlyInventory: ['previous'], cached: ['preview'], notifications: 2, preservesMembership: true });
 			} finally {
 				listener.dispose();
 				await disposeAgent(agent);
@@ -12614,7 +12615,7 @@ suite('CopilotAgent', () => {
 				};
 			}
 
-			test('canvas list and open resume a cold exact chat without sending a message, while close only reaches a live chat', async () => {
+			test('canvas listing is passive while explicit materialization resumes a cold exact chat without sending a message', async () => {
 				const fixture = await createFixture(false, true);
 				let restored: CopilotAgent | undefined;
 				try {
@@ -12641,7 +12642,7 @@ suite('CopilotAgent', () => {
 						/outside session/,
 					);
 
-					const canvasChannels: URI[] = [];
+					const canvasChannels: string[] = [];
 					disposables.add(restored.onDidChatProgress(signal => {
 						if (signal.kind === 'canvas') {
 							canvasChannels.push(signal.resource);
@@ -12649,6 +12650,9 @@ suite('CopilotAgent', () => {
 					}));
 					await restored.closeSessionCanvas(session, { resource: URI.parse('ahp-canvas:/cold') }, chats[2], context);
 					const resumedByColdClose = fixture.resumed.filter(resume => resume.id === 'cold-sdk').length;
+					const coldCanvases = await restored.listSessionCanvases(session, chats[2], context);
+					const resumedByColdListing = fixture.resumed.filter(resume => resume.id === 'cold-sdk').length;
+					await restored.materializeSessionCanvases(session, chats[2], context);
 					const canvases = await restored.listSessionCanvases(session, chats[2], context);
 					await restored.openSessionCanvas(session, {
 						canvasId: 'preview',
@@ -12661,9 +12665,11 @@ suite('CopilotAgent', () => {
 					} as SessionEventPayload<'session.canvas.opened'>);
 					const [channel] = canvasChannels;
 					assert.ok(channel);
-					await restored.closeSessionCanvas(session, { resource: channel }, chats[2], context);
+					await restored.closeSessionCanvas(session, { resource: URI.parse(channel), resourceId: channel }, chats[2], context);
 
 					assert.deepStrictEqual({
+						coldCanvases,
+						resumedByColdListing,
 						canvases,
 						resumedByColdClose,
 						resumed: fixture.resumed.filter(resume => resume.id === 'cold-sdk'),
@@ -12671,6 +12677,8 @@ suite('CopilotAgent', () => {
 						closeCalls: sdkSessions[2].canvasCloseCalls,
 						sends: fixture.sends(),
 					}, {
+						coldCanvases: undefined,
+						resumedByColdListing: 0,
 						canvases: [{
 							canvasId: 'preview',
 							extensionId: 'project:preview',
@@ -12678,7 +12686,6 @@ suite('CopilotAgent', () => {
 							extensionName: 'Preview extension',
 							displayName: 'Preview',
 							description: 'Preview generated content.',
-							requiresInput: false,
 							actionCount: 0,
 						}],
 						resumedByColdClose: 0,
@@ -17586,7 +17593,7 @@ suite('CopilotAgent', () => {
 				const workingDirectory = URI.file('/workspace');
 				const handoff: ICopilotCanvasHandoff = {
 					projections: [{
-						resource: URI.parse(`ahp-canvas:/${sessionId}/preview`),
+						resource: `ahp-canvas:/${sessionId}-preview`,
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 				};
@@ -20951,6 +20958,7 @@ suite('CopilotAgent', () => {
 				mcpServerOwners: () => undefined,
 				listInstalledPlugins: async () => [],
 				mcpServerStates: observableValue('test', []),
+				publishCanvasStateAfterRegistration(): void { },
 				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { remaps.push(mapping); },
@@ -23643,6 +23651,7 @@ suite('CopilotAgent', () => {
 					mcpServerOwners: () => undefined,
 					listInstalledPlugins: async () => [],
 					mcpServerStates: observableValue('test', []),
+					publishCanvasStateAfterRegistration(): void { },
 					setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 					async initializeSession(): Promise<void> {
 						if (shouldFail) {
@@ -24042,15 +24051,16 @@ suite('CopilotAgent', () => {
 			});
 			const chat = defaultChatUri(result.session);
 
+			const canvases = await agent.listSessionCanvases(result.session, chat, exactChatContext(result.session, chat, result.session));
 			await assert.rejects(
-				agent.listSessionCanvases(result.session, chat, exactChatContext(result.session, chat, result.session)),
+				agent.materializeSessionCanvases(result.session, chat, exactChatContext(result.session, chat, result.session)),
 				/requires an initialized Copilot chat/,
 			);
 
-			assert.strictEqual(clientCreateCalls, 0);
+			assert.deepStrictEqual({ canvases, clientCreateCalls }, { canvases: undefined, clientCreateCalls: 0 });
 		});
 
-		test('canvas inventory resumes an addressed peer while the parent session remains provisional', async () => {
+		test('canvas inventory is passive and explicit materialization resumes an addressed peer while its parent remains provisional', async () => {
 			const root = await fs.mkdtemp(`${os.tmpdir()}/agent-provisional-peer-canvas-`);
 			const workingDirectory = URI.file(root);
 			const sessionDataService = disposables.add(new TestSessionDataService());
@@ -24095,13 +24105,20 @@ suite('CopilotAgent', () => {
 			await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
 			await agent.materializeChat(peer, exactChatContext(session, peer), JSON.stringify({ sdkSessionId: sdk.sessionId }));
 
+			const coldCanvases = await agent.listSessionCanvases(session, peer, exactChatContext(session, peer));
+			const resumedByColdListing = [...resumed];
+			await agent.materializeSessionCanvases(session, peer, exactChatContext(session, peer));
 			const canvases = await agent.listSessionCanvases(session, peer, exactChatContext(session, peer));
 
 			assert.deepStrictEqual({
+				coldCanvases,
+				resumedByColdListing,
 				canvases,
 				resumed,
 				clientCreateCalls,
 			}, {
+				coldCanvases: undefined,
+				resumedByColdListing: [],
 				canvases: [{
 					canvasId: 'preview',
 					extensionId: 'project:preview',
@@ -24109,7 +24126,6 @@ suite('CopilotAgent', () => {
 					extensionName: 'Preview extension',
 					displayName: 'Preview',
 					description: 'Preview generated content.',
-					requiresInput: false,
 					actionCount: 0,
 				}],
 				resumed: ['peer-sdk-id'],
@@ -26722,6 +26738,7 @@ suite('CopilotAgent', () => {
 				onDidChangeRuntimePlugins: Event.None,
 				onDidReloadRuntimeContributions: Event.None,
 				mcpServerStates: observableValue('test', []),
+				publishCanvasStateAfterRegistration(): void { },
 				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { rec.initialized = true; },
 				async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> { rec.remapCalls.push(mapping); },
@@ -28839,6 +28856,7 @@ suite('CopilotAgent', () => {
 					onDidChangeRuntimePlugins: Event.None,
 					onDidReloadRuntimeContributions: Event.None,
 					mcpServerStates: observableValue('test', []),
+					publishCanvasStateAfterRegistration(): void { },
 					setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 					async initializeSession(): Promise<void> { },
 					async remapTurnIds(): Promise<void> { },
@@ -29271,7 +29289,7 @@ suite('CopilotAgent', () => {
 				hasRunningDetachedShells: async () => false,
 				takeCanvasProjection: () => ({
 					projections: [{
-						resource,
+						resource: resource.toString(),
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 					pendingCloseInstanceIds: new Set<string>(),
@@ -29326,7 +29344,7 @@ suite('CopilotAgent', () => {
 				hasRunningDetachedShells: async () => false,
 				takeCanvasProjection: () => ({
 					projections: [{
-						resource: URI.parse('ahp-canvas:/retained'),
+						resource: 'ahp-canvas:/retained',
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 					pendingCloseInstanceIds: new Set<string>(),
@@ -29384,7 +29402,7 @@ suite('CopilotAgent', () => {
 					hasRunningDetachedShells: async () => false,
 					takeCanvasProjection: () => ({
 						projections: [{
-							resource,
+							resource: resource.toString(),
 							canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 						}],
 						pendingCloseInstanceIds: new Set<string>(),
@@ -29458,7 +29476,7 @@ suite('CopilotAgent', () => {
 				hasRunningDetachedShells: async () => false,
 				takeCanvasProjection: () => ({
 					projections: [{
-						resource: URI.parse('ahp-canvas:/retained'),
+						resource: 'ahp-canvas:/retained',
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 					pendingCloseInstanceIds: new Set<string>(),
@@ -29518,7 +29536,7 @@ suite('CopilotAgent', () => {
 				hasRunningDetachedShells: async () => false,
 				takeCanvasProjection: () => ({
 					projections: [{
-						resource,
+						resource: resource.toString(),
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 					pendingCloseInstanceIds: new Set<string>(),
@@ -29564,7 +29582,7 @@ suite('CopilotAgent', () => {
 				hasRunningDetachedShells: async () => false,
 				takeCanvasProjection: () => ({
 					projections: [{
-						resource,
+						resource: resource.toString(),
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 					pendingCloseInstanceIds: new Set<string>(),
@@ -29607,10 +29625,10 @@ suite('CopilotAgent', () => {
 				hasRunningDetachedShells: async () => false,
 				takeCanvasProjection: () => ({
 					projections: [{
-						resource,
+						resource: resource.toString(),
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}, {
-						resource: survivor,
+						resource: survivor.toString(),
 						canvas: { instanceId: 'survivor', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 					pendingCloseInstanceIds: new Set<string>(),
@@ -29675,7 +29693,7 @@ suite('CopilotAgent', () => {
 				hasRunningDetachedShells: async () => false,
 				takeCanvasProjection: () => ({
 					projections: [{
-						resource: URI.parse('ahp-canvas:/retained'),
+						resource: 'ahp-canvas:/retained',
 						canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 					}],
 					pendingCloseInstanceIds: new Set<string>(),
@@ -31219,9 +31237,15 @@ suite('CopilotAgent', () => {
 
 		const canvasHandoff: ICopilotCanvasHandoff = {
 			projections: [{
-				resource: URI.parse('ahp-canvas:/config-refresh/preview'),
+				resource: 'ahp-canvas:/config-refresh-preview',
 				canvas: { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' },
 			}],
+			canvasRegistry: {
+				extensions: [{
+					id: 'project:preview',
+					canvases: [{ id: 'preview', label: 'Preview', description: 'Preview canvas.' }],
+				}],
+			},
 		};
 
 		function startCanvasRefresh(options?: { readonly useRealResumePath?: boolean }) {
@@ -31230,9 +31254,12 @@ suite('CopilotAgent', () => {
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const chat = defaultChatUri(session);
 			const membership: { resource: string; action: unknown }[] = [];
+			const registry: { chat: string; registry: unknown }[] = [];
 			disposables.add(agent.onDidChatProgress(signal => {
 				if (signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged) {
 					membership.push({ resource: signal.resource.toString(), action: signal.action });
+				} else if (signal.kind === 'canvas_registry') {
+					registry.push({ chat: signal.chat.toString(), registry: signal.registry });
 				}
 			}));
 			setDefaultSessionStub(agent, sessionId, { ...refreshSessionStub([]), requiresRestartAfterWorkingDirectoryChange: true, takeCanvasProjection: () => canvasHandoff });
@@ -31243,7 +31270,7 @@ suite('CopilotAgent', () => {
 				_resumeSession: (id: string) => Promise<CopilotAgentSession>;
 				_canvasHandoffs: { get(chat: URI): ICopilotCanvasHandoff | undefined; readonly size: number };
 			};
-			return { agent, sessionId, session, chat, membership, internals };
+			return { agent, sessionId, session, chat, membership, registry, internals };
 		}
 
 		test('hands open canvases to the session that replaces the runtime', async () => {
@@ -31283,7 +31310,6 @@ suite('CopilotAgent', () => {
 					extensionSource: 'project',
 					displayName: 'Replacement',
 					description: 'Replacement canvas.',
-					requiresInput: false,
 					actionCount: 0,
 				};
 				const replacement = {
@@ -31323,7 +31349,7 @@ suite('CopilotAgent', () => {
 		});
 
 		test('closes handed-over canvases when the replacement runtime cannot start', async () => {
-			const { agent, sessionId, session, chat, membership, internals } = startCanvasRefresh();
+			const { agent, sessionId, session, chat, membership, registry, internals } = startCanvasRefresh();
 			internals._resumeSession = async () => {
 				chatBackings(agent).set(chat.toString(), { sdkSessionId: sessionId });
 				throw new Error('resume failed');
@@ -31332,9 +31358,10 @@ suite('CopilotAgent', () => {
 			afterTest(() => disposeAgent(agent));
 			await assert.rejects(() => agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(session, chat, session)), /resume failed/);
 
-			assert.deepStrictEqual({ pendingHandoffs: internals._canvasHandoffs.size, membership }, {
+			assert.deepStrictEqual({ pendingHandoffs: internals._canvasHandoffs.size, membership, registry }, {
 				pendingHandoffs: 0,
 				membership: [{ resource: chat.toString(), action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }],
+				registry: [{ chat: chat.toString(), registry: { status: CanvasRegistryStatus.Uninitialized } }],
 			});
 		});
 

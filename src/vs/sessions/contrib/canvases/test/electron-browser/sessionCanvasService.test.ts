@@ -36,7 +36,7 @@ import { IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } f
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
-import { CanvasInput, canPresentCanvasInGroup, ICanvasContext, ICanvasModelResolution } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canPresentCanvasInGroup, ICanvasContext, type ICanvasListOptions, ICanvasModelResolution } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -48,7 +48,7 @@ import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../.
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
+import { getCanvasReferenceKey, ICanvas, type ICanvasOpenOptions, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
 
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -96,7 +96,8 @@ suite('SessionCanvasService', () => {
 			source: URI.parse('https://example.test/preview'),
 		};
 		const canvases = observableValue<readonly ISessionCanvas[] | undefined>('canvases', initialCanvases ?? [canvas]);
-		const chat = upcastPartial<IChat>({ resource: chatResource, canvases });
+		const canvasDefinitions = observableValue<readonly ISessionCanvasDefinition[] | undefined>('canvasDefinitions', undefined);
+		const chat = upcastPartial<IChat>({ resource: chatResource, canvases, canvasDefinitions });
 		const activeChat = observableValue<IChat>('activeChat', chat);
 		const chats = observableValue<readonly IChat[]>('chats', [chat]);
 		const capabilities = observableValue<ISessionCapabilities>('capabilities', { supportsCanvases: true, supportsMultipleChats: false });
@@ -122,12 +123,17 @@ suite('SessionCanvasService', () => {
 			description: 'Interactive preview.',
 			requiresInput: false,
 		};
-		const definitionOpens: { canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>; instanceId: string }[] = [];
+		const definitionOpens: { canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>; instanceId: string; options?: ICanvasOpenOptions }[] = [];
+		canvasDefinitions.set([definition], undefined);
+		const definitionListOptions: (ICanvasListOptions | undefined)[] = [];
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionChanges.event,
 			onDidDeleteChat: chatDeleted.event,
-			listCanvases: async () => [definition],
-			openCanvas: async (_session, _chat, canvas, instanceId) => { definitionOpens.push({ canvas, instanceId }); },
+			listCanvases: async (_session, _chat, options) => {
+				definitionListOptions.push(options);
+				return [definition];
+			},
+			openCanvas: async (_session, _chat, canvas, instanceId, options) => { definitionOpens.push({ canvas, instanceId, ...(options ? { options } : {}) }); },
 		});
 		const opened: CanvasInput[] = [];
 		const openOptions: unknown[] = [];
@@ -217,7 +223,7 @@ suite('SessionCanvasService', () => {
 			activeCustomView.set(reference ? upcastPartial<ICustomViewDescriptor>({ id: PINNED_CANVAS_PAGE_ID }) : undefined, tx);
 			pinnedCanvases.show(reference);
 		});
-		return { activeChat, activeCustomView, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setAcquireNetworkHandler, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
+		return { activeChat, activeCustomView, activeSession, canvas, canvasDefinitions, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionListOptions, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, pinnedCanvases, session, sessionChanges, get closeCount() { return closeCount; }, setAcquireNetworkHandler, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler, showPinnedCanvasPage };
 	}
 
 	function owner(session: ITestSessionWithChat, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -271,21 +277,23 @@ suite('SessionCanvasService', () => {
 		assert.ok(context.definitionProvider);
 		let changeCount = 0;
 		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
-		const definitions = await context.definitionProvider.listCanvases();
+		const definitions = await context.definitionProvider.listCanvases({ retry: true });
 		assert.ok(definitions);
-		await context.definitionProvider.openCanvas(definitions[0], 'preview-instance');
+		await context.definitionProvider.openCanvas(definitions[0], 'preview-instance', { retryDeniedConsent: true });
 		const beforeChange = changeCount;
-		harness.canvases.set([], undefined);
+		harness.canvasDefinitions.set([], undefined);
 
 		assert.deepStrictEqual({
 			frontendSessionResource: harness.contextService.getFrontendSessionResource(context.owner)?.toString(),
 			definitions,
 			definitionOpens: harness.definitionOpens,
+			definitionListOptions: harness.definitionListOptions,
 			definitionsChanged: changeCount > beforeChange,
 		}, {
 			frontendSessionResource: harness.session.resource.toString(),
 			definitions: [harness.definition],
-			definitionOpens: [{ canvas: harness.definition, instanceId: 'preview-instance' }],
+			definitionOpens: [{ canvas: harness.definition, instanceId: 'preview-instance', options: { retryDeniedConsent: true } }],
+			definitionListOptions: [{ retry: true }],
 			definitionsChanged: true,
 		});
 	});

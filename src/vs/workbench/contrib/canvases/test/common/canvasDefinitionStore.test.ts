@@ -73,9 +73,9 @@ suite('CanvasDefinitionStore', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ listed, whileRefreshing, afterFailure: harness.canvasIds(), errors: harness.errors }, {
-			listed: ['alpha', 'zeta'],
-			whileRefreshing: ['alpha', 'zeta'],
-			afterFailure: ['alpha', 'zeta'],
+			listed: ['browser', 'alpha', 'zeta'],
+			whileRefreshing: ['browser', 'alpha', 'zeta'],
+			afterFailure: ['browser', 'alpha', 'zeta'],
 			errors: ['[Test] Failed to list registered canvases'],
 		});
 	});

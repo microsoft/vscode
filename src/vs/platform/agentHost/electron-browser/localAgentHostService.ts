@@ -39,7 +39,7 @@ import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.j
 import { reviveConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
-import type { AgentCanvasOpenAnswer, AgentCanvasOpenResult, AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
+import type { AgentCanvasDefinitionSnapshot, AgentCanvasOpenAnswer, AgentCanvasOpenResult, AgentProvider, AgentSandboxCertificateOperation, IAgentCanvasCloseRequest, IAgentCanvasOpenRequest, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -51,9 +51,6 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
-	type AgentCanvasDefinitionSnapshot,
-	type IAgentCanvasCloseRequest,
-	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
 	IAgentCreateChatWorkspace,
 	IAgentCreateSessionConfig,
@@ -88,6 +85,7 @@ import {
 	type IAgentHostDebugLogsChunk,
 	type IAgentImportSessionOptions,
 } from '../common/agentService.js';
+import type { OpenCanvasParams } from '../common/state/protocol/channels-canvas/commands.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -458,7 +456,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: Parameters<AgentHostProtocolClient['dispatch']>[1]): void {
 		this._requireClient().dispatch(channel, action);
 	}
 
@@ -590,6 +588,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
 		return this._requireClient().moveChat(chat, destination);
+	}
+
+	openCanvas(params: OpenCanvasParams): Promise<void> {
+		return this._requireClient().openCanvas(params);
+	}
+
+	disposeCanvas(canvas: URI): Promise<void> {
+		return this._requireClient().disposeCanvas(canvas);
 	}
 
 	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {

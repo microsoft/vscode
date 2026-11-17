@@ -103,6 +103,21 @@ export interface AgentInfo {
  */
 export interface AgentCapabilities {
 	/**
+	 * Experimental Canvas API.
+	 *
+	 * The agent can materialize an advertised chat-scoped collection's registry
+	 * through `canvases/registryRequested` and manage instances with `openCanvas`
+	 * and `disposeCanvas`. Live instances are published through the collection and
+	 * their `ahp-canvas:` state channels.
+	 *
+	 * Clients MUST treat absence as unsupported and SHOULD tolerate additive
+	 * registry metadata while the Canvas channel remains experimental. This
+	 * capability does not gate observing unsolicited server-published collections
+	 * or Canvas instances.
+	 * @stability 1.0
+	 */
+	canvases?: CanvasesCapability;
+	/**
 	 * The agent can host more than one concurrent chat per session. When absent,
 	 * clients MUST NOT call `createChat` to open chats beyond the default one the
 	 * session starts with. An empty object `{}` advertises multi-chat without
@@ -123,6 +138,15 @@ export interface AgentCapabilities {
 	 */
 	multipleWorkingDirectories?: MultipleWorkingDirectoriesCapability;
 }
+
+/**
+ * Presence capability for the experimental Canvas registry and lifecycle
+ * commands.
+ *
+ * @category Root State
+ * @stability 1.0
+ */
+export interface CanvasesCapability { }
 
 /**
  * Options for the {@link AgentCapabilities.multipleChats} capability.
