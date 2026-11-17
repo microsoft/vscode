@@ -5,6 +5,8 @@
 
 import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Tool, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { CopilotMcpServerLogs, mcpDiagnosticEntryToLogRecord } from '../../node/copilot/copilotMcpServerLogs.js';
+import type { IOtlpLogRecord } from '../../common/otlp/otlpLogEmitter.js';
 import { homedir } from 'os';
 import { hasKey } from '../../../../base/common/types.js';
 import { isDeepStrictEqual } from 'util';
@@ -124,6 +126,92 @@ class CapturingLogService extends NullLogService {
 		this.warnings.push({ message, args });
 	}
 }
+
+suite('Copilot MCP server diagnostics', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	type Diagnostics = CopilotSession['rpc']['diagnostics'];
+	type Page = Awaited<ReturnType<Diagnostics['read']>>;
+	const base: Page['entries'][number] = {
+		timestamp: '1970-01-01T00:00:01.234Z', level: 'info', source: 'mcp', message: 'Connected',
+		details: { kind: 'lifecycle', serverName: 'server', connectionId: 'connection' },
+	};
+
+	test('formats lifecycle, frames, stderr, HTTP, subagent and truncation records', () => {
+		const entries: Page['entries'] = [
+			base,
+			{ ...base, level: 'debug', details: { ...base.details, kind: 'protocol', direction: 'client-to-server', data: '{"id":1}' } },
+			{ ...base, level: 'debug', details: { ...base.details, kind: 'protocol', direction: 'server-to-client', data: '{"result":true}' } },
+			{ ...base, level: 'warning', message: 'Server warning', details: { ...base.details, kind: 'stderr' } },
+			{ ...base, level: 'trace', agentId: 'worker', message: 'POST', truncated: true, originalBytes: 500, details: { ...base.details, kind: 'http', data: '{"status":200}' } },
+		];
+		assert.deepStrictEqual(entries.map(mcpDiagnosticEntryToLogRecord), [
+			{ timeUnixNano: '1234000000', severityNumber: 9, severityText: 'info', body: 'Connected' },
+			{ timeUnixNano: '1234000000', severityNumber: 5, severityText: 'debug', body: '[client -> server] {"id":1}' },
+			{ timeUnixNano: '1234000000', severityNumber: 5, severityText: 'debug', body: '[server -> client] {"result":true}' },
+			{ timeUnixNano: '1234000000', severityNumber: 13, severityText: 'warn', body: '[stderr] Server warning' },
+			{ timeUnixNano: '1234000000', severityNumber: 1, severityText: 'trace', body: '[subagent worker] [http] POST {"status":200} (truncated from 500 bytes)' },
+		]);
+	});
+
+	test('combines subscriber thresholds and disables capture after the last reader is disposed', async () => {
+		const configured: string[] = [];
+		const readStarted = new DeferredPromise<void>();
+		const pendingRead = new DeferredPromise<Page>();
+		const session = upcastPartial<CopilotSession>({
+			rpc: upcastPartial<CopilotSession['rpc']>({
+				diagnostics: {
+					configure: async params => { configured.push(params.sources.mcp!.level); return { sources: params.sources }; },
+					read: async () => { void readStarted.complete(); return pendingRead.p; },
+				}
+			})
+		});
+		const logs = store.add(new CopilotMcpServerLogs(() => session, new NullLogService()));
+		const debug = store.add(logs.subscribe('server', 'debug', () => assert.fail('Disposed reader received records')));
+		await readStarted.p;
+		const error = store.add(logs.subscribe('server', 'error', () => assert.fail('Disposed reader received records')));
+		await logs.refresh();
+		debug.dispose();
+		await logs.refresh();
+		error.dispose();
+		await logs.refresh();
+		await pendingRead.complete({ entries: [base], cursor: 'next', cursorStatus: 'ok', hasMore: false });
+		assert.deepStrictEqual(configured, ['debug', 'error', 'off']);
+	});
+
+	test('replays retained pages independently, filters server/severity, and reports cursor loss', async () => {
+		const pendingRead = new DeferredPromise<Page>();
+		const requests: Parameters<Diagnostics['read']>[0][] = [];
+		const session = upcastPartial<CopilotSession>({
+			rpc: upcastPartial<CopilotSession['rpc']>({
+				diagnostics: {
+					configure: async params => ({ sources: params.sources }),
+					read: async params => {
+						requests.push(params);
+						return params.cursor ? pendingRead.p : {
+							entries: [base, { ...base, level: 'error', message: 'Failure' }, { ...base, details: { ...base.details, serverName: 'other' } }],
+							cursor: 'next', cursorStatus: 'expired', droppedCount: 2, hasMore: false,
+						};
+					},
+				}
+			})
+		});
+		const logs = store.add(new CopilotMcpServerLogs(() => session, new NullLogService()));
+		const first = new DeferredPromise<readonly IOtlpLogRecord[]>();
+		const second = new DeferredPromise<readonly IOtlpLogRecord[]>();
+		store.add(logs.subscribe('server', 'info', records => { void first.complete(records); }));
+		store.add(logs.subscribe('server', 'error', records => { void second.complete(records); }));
+		const results = await Promise.all([first.p, second.p]);
+		assert.deepStrictEqual({
+			bodies: results.map(records => records.map(record => record.body)),
+			initialCursors: requests.filter(request => request.cursor === undefined).map(request => ({ cursor: request.cursor, max: request.max, waitMs: request.waitMs })),
+		}, {
+			bodies: [['MCP diagnostic entries were dropped (2 entries).', 'Connected', 'Failure'], ['MCP diagnostic entries were dropped (2 entries).', 'Failure']],
+			initialCursors: [{ cursor: undefined, max: 500, waitMs: 30000 }, { cursor: undefined, max: 500, waitMs: 30000 }],
+		});
+		logs.dispose();
+		await pendingRead.complete({ entries: [], cursor: 'next', cursorStatus: 'ok', hasMore: false });
+	});
+});
 
 suite('CopilotSessionLauncher customization policy session', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
