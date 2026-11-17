@@ -97,7 +97,7 @@ Structured chapter content declares `version: 1`, its topic `id`, and `status: "
 }
 ```
 
-Omit `paragraph` to read the whole section. Use `list: true` for a section containing a Markdown bullet list. Heading references must be unambiguous; paragraph indices are zero-based and must be updated when the referenced section is reorganized. Refer to an existing product or instruction document instead when it already owns the desired text.
+Omit `paragraph` to read the whole section. Use `list: true` for a section containing a Markdown bullet list. Heading references must be unambiguous; paragraph indices are zero-based and must be updated when the referenced section is reorganized. Refer to an existing product or instruction document instead when it already owns the desired text. Elevation's `markdownSource` identifies the base document for relative links in its bound prose and must also appear in its page's `sources`.
 
 [Motion's page](pages/motion.json) demonstrates the richer composition format: it references heading slugs from the product specification and binds them to guidance, paired timing, presets, and examples. Its adapter normalizes authored sections for the shared article frame. Composition must follow the design guidance, not force new concepts into the existing duration, easing, or property galleries. Keep supported block types explicit rather than allowing arbitrary scripts in content.
 

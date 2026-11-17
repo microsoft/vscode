@@ -5,6 +5,9 @@
 	"content": "content/foundations/elevation.json",
 	"sources": [
 		{
+			"file": "src/vs/platform/theme/common/elevation.md"
+		},
+		{
 			"file": ".github/skills/design-philosophy/SKILL.md"
 		},
 		{
@@ -14,15 +17,27 @@
 	"sections": [
 		{
 			"id": "elevation-tiers",
-			"title": "Surface tiers"
+			"title": "Surface relationships"
+		},
+		{
+			"id": "elevation-anatomy",
+			"title": "Depth cues"
+		},
+		{
+			"id": "elevation-scenarios",
+			"title": "Product scenarios"
 		},
 		{
 			"id": "elevation-shadows",
-			"title": "Shadows"
+			"title": "Shadow scale"
+		},
+		{
+			"id": "elevation-role",
+			"title": "Implementation"
 		},
 		{
 			"id": "elevation-guidance",
-			"title": "High contrast"
+			"title": "Themes and accessibility"
 		}
 	]
 }

@@ -2,73 +2,78 @@
 	"version": 1,
 	"id": "elevation",
 	"status": "book-authored",
-	"intro": {
-		"$text": {
-			"file": "src/vs/platform/theme/common/elevation.md",
-			"heading": "Introduction"
-		}
-	},
+	"markdownSource": "src/vs/platform/theme/common/elevation.md",
+	"intro": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Introduction" } },
 	"sections": {
 		"tiers": {
-			"title": "Surface hierarchy",
-			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/elevation.md",
-					"heading": "Surface hierarchy",
-					"paragraph": 0
-				}
-			},
+			"title": "Choose the surface relationship",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Surface hierarchy" } },
+			"paragraphs": []
+		},
+		"anatomy": {
+			"title": "What makes elevation",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "What makes elevation" } },
+			"paragraphs": []
+		},
+		"scenarios": {
+			"title": "Apply elevation to real tasks",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Product scenarios", "paragraph": 0 } },
 			"paragraphs": []
 		},
 		"shadows": {
-			"title": "Shadow scale",
-			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/elevation.md",
-					"heading": "Shadow scale",
-					"paragraph": 0
-				}
-			},
-			"paragraphs": []
-		},
-		"guidance": {
-			"title": "High contrast",
-			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/elevation.md",
-					"heading": "High contrast",
-					"paragraph": 0
-				}
-			},
-			"paragraphs": []
+			"title": "Use the existing shadow scale",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Shadow scale", "paragraph": 0 } },
+			"paragraphs": [
+				{ "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Shadow scale", "paragraph": 1 } }
+			]
 		},
 		"role": {
-			"title": "Elevation by role",
-			"description": {
-				"$text": {
-					"file": "src/vs/platform/theme/common/elevation.md",
-					"heading": "Elevation by role",
-					"paragraph": 0
-				}
-			},
+			"title": "Compose a reusable surface",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Elevation by role" } },
+			"paragraphs": [
+				{ "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Implementation" } }
+			]
+		},
+		"guidance": {
+			"title": "Preserve hierarchy in every theme",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "High contrast" } },
 			"paragraphs": []
 		}
 	},
-	"roles": [
-		[
-			"Control",
-			"cornerRadius.small",
-			"Buttons, inputs, and interactive rows"
-		],
-		[
-			"Inner",
-			"cornerRadius.medium",
-			"Containers within a surface"
-		],
-		[
-			"Outer",
-			"cornerRadius.large",
-			"Floating menus, hovers, and dialogs"
-		]
+	"scenarios": [
+		{
+			"id": "navigation",
+			"title": "Navigate without losing the editor",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Navigate without losing the editor" } },
+			"caption": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Navigation relationship" } },
+			"labels": ["Explorer", "Editor", "Terminal"]
+		},
+		{
+			"id": "inspection",
+			"title": "Inspect a symbol in place",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Inspect a symbol in place" } },
+			"caption": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Inspection relationship" } },
+			"labels": ["Editor", "Symbol", "Hover"]
+		},
+		{
+			"id": "picker",
+			"title": "Jump to another file or command",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Jump to another file or command" } },
+			"caption": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Picker relationship" } },
+			"labels": ["Workspace", "Command Palette", "Editor stays in place"]
+		},
+		{
+			"id": "decision",
+			"title": "Resolve a decision before continuing",
+			"description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Resolve a decision before continuing" } },
+			"caption": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Decision relationship" } },
+			"labels": ["Unsaved editor", "Save changes dialog", "Underlying task unavailable"]
+		}
+	],
+	"shadowRoles": [
+		{ "id": "sm", "description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Small shadow" } } },
+		{ "id": "md", "description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Medium shadow" } } },
+		{ "id": "lg", "description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Large shadow" } } },
+		{ "id": "xl", "description": { "$text": { "file": "src/vs/platform/theme/common/elevation.md", "heading": "Extra-large shadow" } } }
 	]
 }

@@ -113,7 +113,7 @@
 				"source-defined": "Named elevation shadow CSS variables are defined in workbench CSS; they are not registered size tokens."
 			},
 			"Shadow-tier usage guidance": {
-				"not-defined-in-covered-sources": "The covered theming guidance does not define a universal shadow-to-surface mapping. Preserve consumer-specific settings and high-contrast behavior."
+				"source-defined": "The elevation guide documents surface relationships, the existing shadow ramp, component-owned geometry, and theme and preference behavior. Guidance is not a claim of universal product adoption."
 			},
 			"Product usage": {
 				"present": "The notification example is one observed consumer, not a universal mapping.",
