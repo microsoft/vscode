@@ -42,7 +42,7 @@ import { getMissionControlEnvironmentName, MissionControlHost } from './missionC
 import { MissionControlClientRegistration } from './missionControl/missionControlClientRegistration.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
-import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
+import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
 import { AgentHostManagementService } from './agentHostManagementService.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
@@ -628,7 +628,6 @@ async function startLocalAgentHostEndpoint(
 	try {
 		const endpointMetadata = createLocalAgentHostEndpointMetadata(userDataPath);
 		metadata = endpointMetadata;
-		await prepareLocalAgentHostEndpointMetadataDirectory(userDataPath);
 		if (!isWindows) {
 			await prepareLocalAgentHostEndpointSocketDirectory(userDataPath);
 		}
