@@ -54,7 +54,7 @@ export class MockChatWidgetService implements IChatWidgetService {
 	}
 
 	getAllWidgets(): ReadonlyArray<IChatWidget> {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	openSession(sessionResource: URI): Promise<IChatWidget | undefined> {

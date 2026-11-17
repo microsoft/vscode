@@ -2502,6 +2502,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					listShadow: this.styles.listShadow,
 				},
 				currentChatMode: () => this.input.currentModeKind,
+				getWidget: () => this,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions) } : undefined,
 				viewModel: this.viewModel,
 				editorOptions: this.editorOptions,
