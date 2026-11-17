@@ -10,6 +10,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, ITransaction, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -34,6 +35,7 @@ import { IChat, ISession, isSessionCreated } from '../../../../services/sessions
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
+import { fromStoredChatDraft, toStoredChatDraft } from '../../common/newChatDraftState.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { getChatWindowMainPartOptions } from '../../../chatWindow/browser/chatWindow.js';
 import { enforceChatPartOptions } from '../../../chatWindow/browser/chatWindowService.js';
@@ -224,6 +226,8 @@ class AgentsChatPartChat extends SessionChatEditorEntry {
 interface IStoredChatPartEditors {
 	readonly chats: readonly string[];
 	readonly active: number;
+	/** In Single, what its composers kept as they closed or parked their input, the latest last. */
+	readonly kept?: readonly IChatDraft[];
 }
 
 export class AgentsChatPartService extends Disposable implements IAgentsChatPartService {
@@ -543,6 +547,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 	private async _restoreChats(): Promise<void> {
 		const stored = this._readStored();
+		// What its composers kept, for its next ones, also as it shows no chats
+		if (this._isSingle()) {
+			this._keptComposerInputs.splice(0, this._keptComposerInputs.length, ...stored?.kept ?? []);
+		}
 		const claimed: URI[] = [];
 		const chats: AgentsChatPartChat[] = [];
 		for (const value of stored?.chats ?? []) {
@@ -900,8 +908,18 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			return undefined;
 		}
 		try {
-			const value = JSON.parse(raw) as Partial<IStoredChatPartEditors>;
-			return Array.isArray(value.chats) && value.chats.every(chat => typeof chat === 'string') ? { chats: value.chats, active: typeof value.active === 'number' ? value.active : 0 } : undefined;
+			const value = parse(raw) as Partial<Record<keyof IStoredChatPartEditors, unknown>>;
+			if (!Array.isArray(value.chats) || !value.chats.every(chat => typeof chat === 'string')) {
+				return undefined;
+			}
+			const kept = Array.isArray(value.kept) ? value.kept.flatMap(draft => {
+				try {
+					return [fromStoredChatDraft(draft)];
+				} catch {
+					return [];
+				}
+			}) : [];
+			return { chats: value.chats, active: typeof value.active === 'number' ? value.active : 0, kept };
 		} catch {
 			return undefined;
 		}
@@ -914,15 +932,17 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 		// In Single, most recent first, to show again in that order as it closes them
 		const inputs = this._part.groups.flatMap(group => this._isSingle() ? group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE) : group.editors).filter(input => this._chats.has(input));
-		if (!inputs.length) {
+		const kept = this._isSingle() ? this._keptComposerInputs : [];
+		if (!inputs.length && !kept.length) {
 			this._storageService.remove(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			return;
 		}
-		const value: IStoredChatPartEditors = {
+		const value = {
 			chats: inputs.map(input => this._chats.get(input)!.chat.get().toString()),
 			active: Math.max(0, inputs.indexOf(this._activeInput.get() ?? inputs[0])),
+			...(kept.length ? { kept: kept.map(toStoredChatDraft) } : {}),
 		};
-		this._storageService.store(CHAT_PART_EDITORS_STORAGE_KEY, JSON.stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._storageService.store(CHAT_PART_EDITORS_STORAGE_KEY, stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private async _waitForSession(resource: URI): Promise<ISession | undefined> {

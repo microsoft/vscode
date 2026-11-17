@@ -27,6 +27,7 @@ import { IEditorService, IVisibleEditorsChangeEvent, PreferredGroup } from '../.
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
@@ -335,6 +336,12 @@ suite('AgentsChatPartService', () => {
 				return raw ? (parse(raw) as { readonly input?: unknown }[]).map(composer => fromStoredChatDraft(composer.input).inputText) : [];
 			},
 			lifecycle: instantiationService.get(ILifecycleService) as TestLifecycleService,
+			/** What was typed and attached in the chat part's composers, as they store them. */
+			composerDrafts: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly input?: unknown }[]).map(composer => fromStoredChatDraft(composer.input)).map(draft => ({ input: draft.inputText, attachments: draft.attachments.map(attachment => attachment.name) })) : [];
+			},
 			/** What the chat part's composers aim at, and what was typed in them, as they store them. */
 			composerStates: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
@@ -983,6 +990,67 @@ suite('AgentsChatPartService', () => {
 		await service.openComposer(undefined, { newComposer: true });
 
 		assert.deepStrictEqual({ layout: layout(), reused: part.activeGroup.activeEditor === first }, { layout: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true }, reused: true });
+	});
+
+	test('in Single, a new session reuses its unsent composer while a parked draft waits; the parked draft comes back with the next new composer, once that one sent its session, or after the text of that one as it closes', async () => {
+		const parkedD = stringify({ chats: [], active: 0, kept: [toStoredChatDraft({ inputText: 'D', attachments: [] })] });
+		const run = async (leave: 'sent' | 'closed') => {
+			const composerE = createChatWindowComposerResource();
+			const newSession = observableValue<ISession | undefined>('newSession', undefined);
+			const fixture = createService({
+				chatTabs: SessionsChatTabsMode.Single, visible: true, newSession,
+				stored: stringify({ ...parse(parkedD), chats: [composerE.toString()] }),
+				storedComposers: stringify([{ resource: composerE, input: toStoredChatDraft({ inputText: 'E', attachments: [] }) }]),
+			});
+			await fixture.service.restore();
+			// New Chat, as the user asks for it
+			await fixture.service.openComposer(undefined, { newComposer: true });
+			const reused = { tabs: fixture.layout().groups[0].tabs, drafts: fixture.composerDrafts().map(draft => draft.input) };
+			if (leave === 'sent') {
+				newSession.set(upcastPartial<ISession>({ resource: URI.parse('test:/sentE'), status: constObservable(SessionStatus.Completed), mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('test:/sentE') })) }), undefined);
+			} else {
+				await fixture.part.activeGroup.closeEditor(fixture.part.activeGroup.activeEditor!);
+			}
+			const next: string[] = [];
+			for (let i = 0; i < 2; i++) {
+				await fixture.service.openComposer(undefined, { newComposer: true });
+				next.push(fixture.composerDrafts().at(-1)!.input);
+				if (leave === 'closed') {
+					// It leaves keeping nothing, as closing all chats does
+					await fixture.service.closeAllChats();
+				} else {
+					newSession.set(upcastPartial<ISession>({ resource: URI.parse(`test:/sent${i}`), status: constObservable(SessionStatus.Completed), mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse(`test:/sent${i}`) })) }), undefined);
+				}
+			}
+			return { reused, next };
+		};
+
+		assert.deepStrictEqual({ sent: await run('sent'), closed: await run('closed') }, {
+			sent: { reused: { tabs: ['composer'], drafts: ['E'] }, next: ['D', ''] },
+			closed: { reused: { tabs: ['composer'], drafts: ['E'] }, next: ['E', 'D'] },
+		});
+	});
+
+	test('in Single, a parked draft is stored with the chat part and restored once after a reload, with its attachments', async () => {
+		const composer = createChatWindowComposerResource();
+		const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file-a', name: 'a.ts', kind: 'file', value: URI.file('/a.ts') });
+		const first = createService({
+			chatTabs: SessionsChatTabsMode.Single, visible: true,
+			stored: JSON.stringify({ chats: [composer.toString()], active: 0 }),
+			storedComposers: stringify([{ resource: composer, input: toStoredChatDraft({ inputText: 'D', attachments: [attachment] }) }]),
+		});
+		await first.service.restore();
+		first.service.parkComposerInput();
+		await first.service.closeAllChats();
+
+		const second = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, stored: first.save() });
+		await second.service.restore();
+		await second.service.openComposer(undefined, { newComposer: true });
+		const restored = second.composerDrafts();
+		await second.service.closeAllChats();
+		await second.service.openComposer(undefined, { newComposer: true });
+
+		assert.deepStrictEqual({ restored, again: second.composerDrafts() }, { restored: [{ input: 'D', attachments: ['a.ts'] }], again: [{ input: '', attachments: [] }] });
 	});
 
 	test('in Single, its composer parks what was typed in it for a newer draft to take the composer; each new composer then takes the latest kept one, so none is lost', async () => {
