@@ -46,8 +46,8 @@ export const ChatAgentHostNewWorktreeSelected = new RawContextKey<boolean>('chat
 export function markWorktreeSendChoiceTarget(element: HTMLElement, sendChoice: IAgentHostWorktreeSendChoiceService, sessionResource: () => URI | undefined, onDidChangeSessionResource: Event<unknown>): IDisposable {
 	const store = new DisposableStore();
 	// The callout keeps the element it shows on. While this control is that element, the question ends unanswered once it shows
-	// another chat or goes, rather than staying on the other chat's control or on a detached one. Other controls of the same chat
-	// never end it.
+	// another chat, rather than staying on the other chat's control. Once it goes, the callout shows again on another control of
+	// the same chat, such as where its toolbar renders it again, else the question ends. Other controls never end it.
 	let anchoredFor: URI | undefined;
 	store.add(sendChoice.onDidShowSendChoice(resource => {
 		// As the callout shows, it anchors on the target that resolves now
@@ -68,8 +68,15 @@ export function markWorktreeSendChoiceTarget(element: HTMLElement, sendChoice: I
 		}
 	}));
 	store.add(toDisposable(() => {
-		if (anchoredFor) {
-			sendChoice.cancelSendChoice(anchoredFor);
+		const resource = anchoredFor;
+		if (resource) {
+			const targetWindow = getWindow(element);
+			// Once its marker is gone too, and a replacement rendered in the meantime marks itself
+			queueMicrotask(() => {
+				if (!resolveOnboardingTarget(targetWindow, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID)) {
+					sendChoice.cancelSendChoice(resource);
+				}
+			});
 		}
 	}));
 	// A callout run has no scope: it matches only the control of the chat it asks about, and every other control is out of scope
