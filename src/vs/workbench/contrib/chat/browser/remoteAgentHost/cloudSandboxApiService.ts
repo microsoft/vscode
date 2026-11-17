@@ -48,6 +48,7 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../
 import { SessionModelInfo } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory, TaskEventReplayError, parseTaskEventsResponse, replayTaskAhpEvents } from '../../../../../platform/agentHost/common/taskEventReplay.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { ApiRequestOptions, ApiResponse } from '../../../../../platform/github/common/client/request.js';
@@ -160,6 +161,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		@ICloudSandboxTelemetryService private readonly _telemetry: ICloudSandboxTelemetryService,
 		@IWorkbenchGitHubService private readonly _githubService: IWorkbenchGitHubService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._identityTokenProvider = this._register(new CloudSandboxIdentityTokenProvider(
@@ -1158,6 +1160,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	private async _requestTaskCreation(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void, reservation?: { readonly taskId?: string }): Promise<ApiResponse<GetTaskResponse> & { readonly accountKey: string }> {
+		await raceCancellationError(this._defaultAccountService.getDefaultAccount(), token);
+		this._assertCloudSessionsEnabled();
 		const repository = parseNwo(request.repoNwo);
 		if (request.repoNwo !== undefined && !repository) {
 			throw new CloudSandboxRequestError(undefined, localize('cloudSandbox.invalidRepository', "The sandbox repository must be specified as owner/name."), undefined, { code: 'invalid_request' });
@@ -1186,6 +1190,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				async (client, cancellationToken, options, authentication) => {
 					const currentAccountKey = this._accountKeyForSession(authentication);
 					accountKey = currentAccountKey;
+					this._assertCloudSessionsEnabled();
 					onRequest?.();
 					CancellationToken.throwIfCanceled(cancellationToken);
 					submitted = true;
@@ -1222,6 +1227,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				this._logService.warn(`${LOG_PREFIX} Task creation failed without reporting a task id; the service may have accepted the operation and its outcome must be reconciled.`);
 			}
 			throw error;
+		}
+	}
+
+	private _assertCloudSessionsEnabled(): void {
+		if (this._defaultAccountService.currentDefaultAccount?.entitlementsData?.cloud_sessions_enabled === false) {
+			throw new CloudSandboxRequestError(undefined, localize('cloudSessions.unavailable', "Cloud session creation is not available for your account."), undefined, { code: 'feature_disabled' });
 		}
 	}
 
