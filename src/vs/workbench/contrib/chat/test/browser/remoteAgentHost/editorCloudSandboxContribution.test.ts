@@ -67,6 +67,7 @@ import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessi
 import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { LocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
 import { CloudSandboxSessionFeed } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
@@ -4024,10 +4025,11 @@ suite('Editor cloud sandbox discovery', () => {
 		const h = createHarness(store);
 		await h.refresh();
 		const storage = store.add(new InMemoryStorageService());
+		const localChatAvailability = store.add(new LocalChatAvailabilityService());
 		// No sessions, so no worktrees to filter by
 		const emptyAgentSessions = upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ sessions: [], onDidChangeSessions: Event.None }) });
-		const cloud = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Cloud] }, h.chatSessionsService, storage, emptyAgentSessions, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
-		const local = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Local] }, h.chatSessionsService, storage, emptyAgentSessions, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
+		const cloud = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Cloud] }, h.chatSessionsService, storage, emptyAgentSessions, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase }), localChatAvailability));
+		const local = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Local] }, h.chatSessionsService, storage, emptyAgentSessions, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase }), localChatAvailability));
 		const session = upcastPartial<IAgentSession>({ providerType: sessionType, status: ChatSessionStatus.NeedsInput });
 		assert.deepStrictEqual({ cloud: cloud.exclude(session), local: local.exclude(session), resource: h.items()[0].resource.toString() }, { cloud: false, local: true, resource: resource.toString() });
 	});
