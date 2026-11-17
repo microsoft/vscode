@@ -48,7 +48,7 @@ import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../chat/common/sessionChatPills.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, isWorkspacelessQuickChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getNestedChatDefaultChangesetId, IChat, ISession, isWorkspacelessQuickChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../common/sessionsTelemetry.js';
@@ -303,7 +303,7 @@ export function computeSessionInputPillStats(session: ISession | undefined, chat
 		return EMPTY_DIFF_STATS;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader), session)) : undefined;
+	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(session, chat, workspace, reader)) : undefined;
 	if (stats) {
 		return stats;
 	}
@@ -324,7 +324,7 @@ export function readLoadedSessionInputPillStats(session: ISession | undefined, c
 		return undefined;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readLoadedChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader), session)) : undefined;
+	const stats = chat && workspace ? readLoadedChatChangesStats(chat, reader, getChangesPillChangesetId(session, chat, workspace, reader)) : undefined;
 	// Providers that only summarize the session report its main chat's file list empty until it resolves.
 	if (stats?.files === 0 && chat && !chat.changesSummary && !isNestedChat(session, chat, reader) && (session?.changesSummary?.read(reader)?.files ?? 0) > 0) {
 		return undefined;
@@ -342,9 +342,16 @@ function isCloudSandboxSession(session: ISession | undefined): boolean {
 	return session?.environment === 'cloud' && isAgentHostProviderId(session.providerId);
 }
 
-/** Cloud sandboxes and nested chats show Session Changes; other main chats keep their workspace-based selection. */
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: ISession | undefined): string {
-	return !isNested && !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
+/**
+ * Nested chats use {@link getNestedChatDefaultChangesetId}, so the pill opens the same changeset the Changes view
+ * defaults to, even before the chat's changesets load. Cloud sandboxes show Session Changes; other main chats keep
+ * their workspace-based selection.
+ */
+function getChangesPillChangesetId(session: ISession | undefined, chat: IChat | undefined, workspace: ISessionWorkspace | undefined, reader: IReader | undefined): string {
+	if (isNestedChat(session, chat, reader)) {
+		return getNestedChatDefaultChangesetId(workspace, session?.mainChat.read(reader)?.workspace?.read(reader));
+	}
+	return !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
 }
@@ -759,10 +766,14 @@ export class SessionChatInputToolbar extends Disposable {
 		const integratedSources = this._register(instantiationService.createInstance(ArtifactIntegrationPillSources, integratedItems, pinScope, detailsHost)).sources;
 		const changesLabel = derived(this, reader => {
 			const session = this._session.read(reader);
-			if (isNestedChat(session, this._chat.read(reader), reader) || isCloudSandboxSession(session)) {
+			const chat = this._chat.read(reader);
+			const isNested = isNestedChat(session, chat, reader);
+			const chatWorkspace = chat?.workspace?.read(reader);
+			if (isCloudSandboxSession(session) || (isNested && getChangesPillChangesetId(session, chat, chatWorkspace, reader) === SESSION_CHANGES_CHANGESET_ID)) {
 				return localize('sessionChatPills.sessionChanges', "Session Changes");
 			}
-			const workspace = session?.workspace.read(reader);
+			// A nested chat showing Branch Changes works on a branch of its own.
+			const workspace = isNested ? chatWorkspace : session?.workspace.read(reader);
 			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
 			return branch
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
@@ -788,7 +799,7 @@ export class SessionChatInputToolbar extends Disposable {
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
+							id: getChangesPillChangesetId(session, chat, workspace, undefined),
 						},
 						chatResource: target !== 'main' ? chat?.resource : undefined,
 					}, target !== 'main' ? target.mainPart.activeGroup : undefined);

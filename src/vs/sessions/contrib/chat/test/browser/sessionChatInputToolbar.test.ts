@@ -1039,11 +1039,10 @@ suite('SessionChatInputToolbar', () => {
 		});
 	}
 
-	test('labels and opens Session Changes from a nested chat pill while the main chat keeps Branch Changes', () => {
+	test('nested chat pills open Session Changes in the main chat\'s folder and Branch Changes elsewhere', () => {
 		const { instantiationService } = createServices();
 		const root = URI.file('/repo');
-		const worktree = URI.file('/worktrees/repo');
-		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+		const createWorkspace = (worktree: URI, branchName: string) => constObservable(upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root,
 				name: 'repo',
@@ -1053,14 +1052,16 @@ suite('SessionChatInputToolbar', () => {
 					uri: root,
 					workTreeUri: worktree,
 					baseBranchName: 'main',
-					branchName: 'feature',
+					branchName,
 					gitHubInfo: constObservable(undefined),
 				},
 			}],
 		}));
-		const createChat = (resource: string) => upcastPartial<IChat>({
+		const workspace = createWorkspace(URI.file('/worktrees/repo'), 'feature');
+		// No changesets have loaded, so the pill must not depend on the chats' default changesets.
+		const createChat = (resource: string, chatWorkspace = workspace) => upcastPartial<IChat>({
 			resource: URI.parse(resource),
-			workspace,
+			workspace: chatWorkspace,
 			changesets: constObservable([]),
 			changes: constObservable([{
 				modifiedUri: URI.file('/chat-change.ts'),
@@ -1070,12 +1071,13 @@ suite('SessionChatInputToolbar', () => {
 		});
 		const mainChat = createChat('chat:main');
 		const nestedChat = createChat('chat:nested');
+		const ownBranchChat = createChat('chat:own-branch', createWorkspace(URI.file('/worktrees/peer'), 'peer'));
 		const session = upcastPartial<ITestSessionWithChat>({
 			loading: constObservable(false),
 			sessionId: 'provider:session',
 			capabilities: constObservable({ supportsMultipleChats: true }),
 			resource: URI.parse('session:1'),
-			chats: constObservable([mainChat, nestedChat]),
+			chats: constObservable([mainChat, nestedChat, ownBranchChat]),
 			mainChat: constObservable(mainChat),
 			workspace,
 		});
@@ -1107,14 +1109,15 @@ suite('SessionChatInputToolbar', () => {
 		};
 
 		assert.deepStrictEqual({
-			labels: { main: clickPill(mainChat), nested: clickPill(nestedChat) },
+			labels: { main: clickPill(mainChat), nested: clickPill(nestedChat), ownBranch: clickPill(ownBranchChat) },
 			opened,
 		}, {
 			labels: {
 				main: 'All Changes (feature): 1 File, +10, -4',
 				nested: 'Session Changes: 1 File, +10, -4',
+				ownBranch: 'All Changes (peer): 1 File, +10, -4',
 			},
-			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID, BRANCH_CHANGES_CHANGESET_ID],
 		});
 	});
 
