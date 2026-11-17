@@ -243,13 +243,14 @@ suite('Agents Window workspace handoff telemetry', () => {
 			_workspaceHandoff: { selectWorkspace: async (intent: IAgentsWindowWorkspaceHandoff) => { folders.push(intent.remote); } },
 			openExistingSession: async (resource: URI, _token: CancellationToken, remoteAuthority?: string) => {
 				sessions.push({ resource: resource.toString(), remoteAuthority });
-				return remoteAuthority?.startsWith('ssh-remote+') ? 'unsupported' as const : undefined;
+				return remoteAuthority?.startsWith('ssh-remote+') ? 'unsupported' as const : remoteAuthority ? resource.with({ scheme: 'remote-session' }) : undefined;
 			},
 		};
 		const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
 			this: typeof harness, workspace: URI | undefined, session: URI | undefined, isDefault: boolean, token: CancellationToken, telemetry: undefined,
 			draft: undefined, noWorkspace: boolean, showNewSession: boolean, revealRemoteAuthority: string | undefined
-		) => Promise<void>;
+		) => Promise<URI | undefined>;
+		const opened: (string | undefined)[] = [];
 		const tunnelFolder = URI.from({ scheme: Schemas.vscodeRemote, authority: 'tunnel+box', path: '/project' });
 		const sshFolder = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/project' });
 		for (const [workspace, session, remoteAuthority] of [
@@ -259,9 +260,9 @@ suite('Agents Window workspace handoff telemetry', () => {
 			[sshFolder, 'agent-host-copilotcli:/session', 'ssh-remote+host'],
 			[undefined, 'agent-host-copilotcli:/session', 'ssh-remote+host'],
 		] as const) {
-			await handleOpenIntent.call(harness, workspace, URI.parse(session), false, CancellationToken.None, undefined, undefined, false, false, remoteAuthority);
+			opened.push((await handleOpenIntent.call(harness, workspace, URI.parse(session), false, CancellationToken.None, undefined, undefined, false, false, remoteAuthority))?.toString());
 		}
-		assert.deepStrictEqual({ sessions, folders }, {
+		assert.deepStrictEqual({ sessions, folders, opened }, {
 			sessions: [
 				{ resource: 'agent-host-copilotcli:/session', remoteAuthority: 'tunnel+box' },
 				{ resource: 'agent-host-copilotcli:/session', remoteAuthority: undefined },
@@ -270,6 +271,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 				{ resource: 'agent-host-copilotcli:/session', remoteAuthority: 'ssh-remote+host' },
 			],
 			folders: [{ kind: 'ssh', folder: { remoteAuthority: 'ssh-remote+host', path: '/project' } }],
+			opened: ['remote-session:/session', undefined, undefined, undefined, undefined],
 		});
 	});
 
@@ -291,9 +293,9 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const resolved: string[] = [];
 		const opened: string[] = [];
 		const notifications: string[] = [];
-		const results: ('unsupported' | undefined)[] = [];
+		const results: (string | undefined)[] = [];
 		const harness = {
-			resolveAndOpenRemoteSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenRemoteSession') as (resource: URI, remoteAuthority: string, token: CancellationToken) => Promise<'unsupported' | undefined>,
+			resolveAndOpenRemoteSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenRemoteSession') as (resource: URI, remoteAuthority: string, token: CancellationToken) => Promise<URI | 'unsupported' | undefined>,
 			remoteWorkspaceHandoffService: { resolveHost: async (remoteAuthority: string) => { resolved.push(remoteAuthority); return hosts[remoteAuthority]; } },
 			notificationService: { warn: (message: string) => { notifications.push(message); } },
 			logService: new NullLogService(),
@@ -316,7 +318,8 @@ suite('Agents Window workspace handoff telemetry', () => {
 			['dev-container+2f736f75726365', 'agent-host-copilotcli:/known#chat'],
 			['codespaces+host', 'agent-host-copilotcli:/known#chat'],
 		]) {
-			results.push(await harness.resolveAndOpenRemoteSession(URI.parse(resource), remoteAuthority, CancellationToken.None));
+			const result = await harness.resolveAndOpenRemoteSession(URI.parse(resource), remoteAuthority, CancellationToken.None);
+			results.push(URI.isUri(result) ? result.toString() : result);
 		}
 		assert.deepStrictEqual({ resolved, opened, notifications, results }, {
 			resolved: ['tunnel+box', 'tunnel+box', 'tunnel+box', 'tunnel+editor', 'tunnel+offline', 'tunnel+unknown', 'ssh-remote+host', 'ssh-remote+editor', 'wsl+Ubuntu'],
@@ -327,7 +330,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 				'The session of your remote window could not be opened in the Agents Window. Tunnel \'unknown\' was not found for the signed-in accounts.',
 				'The session of your remote window can\'t be opened in the Agents Window, because the Agents Window is connected to a different agent host on the remote machine than your remote window.',
 			],
-			results: [undefined, undefined, undefined, 'unsupported', undefined, undefined, undefined, 'unsupported', undefined, 'unsupported', 'unsupported'],
+			results: [known.toString(), `${sessionType}:/known#focused`, undefined, 'unsupported', undefined, undefined, ssh.toString(), 'unsupported', wsl.toString(), 'unsupported', 'unsupported'],
 		});
 	});
 
