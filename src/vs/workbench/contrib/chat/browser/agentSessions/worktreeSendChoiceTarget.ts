@@ -7,7 +7,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, runOnChange } from '../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { markOnboardingTarget, resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 
@@ -37,7 +37,8 @@ export interface IWorktreeSendChoiceAsker {
  */
 export function markWorktreeSendChoiceTarget(element: HTMLElement, asker: IWorktreeSendChoiceAsker, resource: IObservable<URI | undefined>, isOffered?: () => boolean): IDisposable {
 	const store = new DisposableStore();
-	const isEqual = (a: URI | undefined, b: URI | undefined) => !!a && !!b && extUriBiasedIgnorePathCase.isEqual(a, b);
+	// Chat identities, not file system paths: exactly the same resource
+	const isSame = (a: URI | undefined, b: URI | undefined) => !!a && !!b && isEqual(a, b);
 
 	// The chat asked about while the callout shows on `element`
 	let anchoredFor: URI | undefined;
@@ -49,12 +50,12 @@ export function markWorktreeSendChoiceTarget(element: HTMLElement, asker: IWorkt
 	store.add(autorun(reader => {
 		// Answered or ended meanwhile
 		const pending = asker.pendingSendChoice.read(reader);
-		if (anchoredFor && !isEqual(anchoredFor, pending)) {
+		if (anchoredFor && !isSame(anchoredFor, pending)) {
 			anchoredFor = undefined;
 		}
 	}));
 	store.add(runOnChange(resource, shown => {
-		if (anchoredFor && !isEqual(anchoredFor, shown)) {
+		if (anchoredFor && !isSame(anchoredFor, shown)) {
 			const asked = anchoredFor;
 			anchoredFor = undefined;
 			asker.cancelSendChoice(asked);
@@ -75,7 +76,7 @@ export function markWorktreeSendChoiceTarget(element: HTMLElement, asker: IWorkt
 	store.add(markOnboardingTarget(element, asker.targetId, {
 		scope: () => {
 			const shown = resource.get();
-			return isEqual(shown, asker.pendingSendChoice.get()) && (isOffered?.() ?? true) ? undefined : (shown?.toString() ?? '');
+			return isSame(shown, asker.pendingSendChoice.get()) && (isOffered?.() ?? true) ? undefined : (shown?.toString() ?? '');
 		},
 	}));
 	return store;

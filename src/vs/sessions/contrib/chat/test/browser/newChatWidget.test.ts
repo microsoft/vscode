@@ -5638,6 +5638,37 @@ suite('NewChatWidget', () => {
 					});
 				});
 
+				test('tells drafts apart by their exact resource, also where only the case of their path differs: a control of the other draft is not the target, and the anchor that shows it ends the question', () => {
+					const mark = Reflect.get(NewChatWidget.prototype, '_markWorktreeSendChoiceTarget') as (this: object, element: HTMLElement) => IDisposable;
+					const store = disposables.add(new DisposableStore());
+					const upperCase = URI.parse('agent-host-copilotcli:/untitled-DRAFT');
+					const pending = observableValue<URI | undefined>('pendingSendChoice', draft);
+					const onDidShow = store.add(new Emitter<URI>());
+					const cancelled: string[] = [];
+					const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+					store.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: pending, onDidShowSendChoice: onDidShow.event, cancelSendChoice: asked => cancelled.push(asked.path), isRecentChatInFolder: () => true, requestSendChoice: async () => undefined }));
+					const container = append(mainWindow.document.body, $('div'));
+					store.add(toDisposable(() => container.remove()));
+					const composer = (name: string, resource: URI) => {
+						const element = append(container, $(`div.${name}`));
+						element.style.width = element.style.height = '10px';
+						const session = observableValue<ISession | undefined>('session', upcastPartial<ISession>({ resource }));
+						store.add(mark.call({ worktreeSendChoiceService, _session: session, _getWorktreeSendChoiceControl: () => element }, element));
+						return session;
+					};
+					// First, where it would be found first were it in scope
+					composer('other', upperCase);
+					const asked = composer('asked', draft);
+					const target = () => findOnboardingTarget(mainWindow, 'test.worktreeSendChoice')?.className;
+
+					const shownOn = target();
+					onDidShow.fire(draft);
+					// The anchor's composer shows the draft whose path differs only in case
+					asked.set(upcastPartial<ISession>({ resource: upperCase }), undefined);
+
+					assert.deepStrictEqual({ shownOn, cancelled }, { shownOn: 'asked', cancelled: ['/untitled-draft'] });
+				});
+
 				test('a provider that fails to tell of recent chats never costs the request', async () => {
 					const failing = harness({ recent: new Error('recent failed') });
 					const errors: unknown[] = [];
