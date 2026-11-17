@@ -4068,7 +4068,8 @@ suite('SessionsManagementService', () => {
 				override readonly supportsQuickChats = true;
 				override createQuickChat(): ISession { return quickChat; }
 			}(quickChat);
-			const { view, sessionsPartService } = createSessionsManagementService(quickChat, disposables, provider);
+			const { view, sessionsPartService, customViewService } = createSessionsManagementService(quickChat, disposables, provider);
+			showTestCustomView(customViewService, disposables);
 			const navigation = view.navigationRequest.get();
 			sessionsPartService.focusedSessions.length = 0;
 
@@ -4077,10 +4078,12 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({
 				activeSession: activeSessionOf(view)?.sessionId,
 				preservedNavigation: view.navigationRequest.get() === navigation,
+				activeCustomView: customViewService.activeCustomView.get()?.id,
 				focused: sessionsPartService.focusedSessions,
 			}, {
 				activeSession: 'quick-chat',
 				preservedNavigation: preserveNavigation,
+				activeCustomView: preserveNavigation ? 'test.customView' : undefined,
 				focused: preserveFocus ? [] : ['quick-chat'],
 			});
 		});

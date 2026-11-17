@@ -30,8 +30,7 @@ import { NEW_SESSION_ACTION_ID } from '../../common/chatConstants.js';
 import { INewSessionComposerService } from '../newSessionComposerService.js';
 import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ISessionCategoriesService } from '../../common/sessionCategory.js';
 
 /** The folder, provider and agent a new session inherits ({@link getInheritedNewSessionTarget}). */
@@ -111,8 +110,8 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const category = !options ? accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionKind : undefined;
-		const sessionCategoriesService = category ? accessor.get(ISessionCategoriesService) : undefined;
+		const sessionCategoriesService = !options && accessor.get(IWorkbenchEnvironmentService).isSessionsWindow ? accessor.get(ISessionCategoriesService) : undefined;
+		const category = sessionCategoriesService?.selectedCategory.get();
 		if (category === 'chat') {
 			if (!sessionsManagementService.isQuickChatTargetAvailable()) {
 				throw new Error(localize('sessions.newSession.quickChatUnavailable', "Workspace-less chat is unavailable. Enable an agent that supports sessions without a project."));
@@ -152,7 +151,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			if (options.agentHostProvider && !availableTarget) {
 				throw new Error(localize('sessions.newSession.agentUnavailable', "The requested Agent Host provider '{0}' is unavailable.", options.agentHostProvider));
 			}
-			const session = sessionsService.openQuickChat(category ? { ...availableTarget, category } : availableTarget, true);
+			const session = sessionsService.openQuickChat(category ? { ...availableTarget, category } : availableTarget, !category);
 			if (category && session) {
 				sessionCategoriesService!.setCategory(session.sessionId, category);
 			}

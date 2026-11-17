@@ -13,6 +13,7 @@ import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../platf
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext, SideBarVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
@@ -32,22 +33,27 @@ import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions
 import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
 import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
-import { ISessionCategoriesService, SessionCategory } from '../../../../../workbench/contrib/sessions/common/sessionCategory.js';
+import { ISessionCategoriesService, SessionCategoriesService } from '../../../../../workbench/contrib/sessions/common/sessionCategory.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.parse(`${SessionType.AgentHostCopilot}:/new-session`);
 
-	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; chatCategory?: boolean } = {}) {
+	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; chatCategory?: boolean; storage?: IStorageService; isSessionsWindow?: boolean } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IViewsService, { getViewWithId: <T>() => (options.chatCategory ? upcastPartial<SessionsView>({ sessionKind: 'chat' }) : null) as T | null });
+		instantiationService.stub(IViewsService, { getViewWithId: () => null });
+		const environment = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: options.isSessionsWindow ?? true });
+		instantiationService.stub(IWorkbenchEnvironmentService, environment);
+		const categories = store.add(new SessionCategoriesService(options.storage ?? store.add(new InMemoryStorageService()), environment));
+		if (options.chatCategory) {
+			categories.selectCategory('chat');
+		}
+		instantiationService.stub(ISessionCategoriesService, categories);
 		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
-		const assigned: [string, SessionCategory][] = [];
-		instantiationService.stub(ISessionCategoriesService, { setCategory: (id, category) => { assigned.push([id, category]); } });
 		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		let navigations = 0;
 		instantiationService.stub(INewSessionComposerService, {
@@ -78,7 +84,7 @@ suite('NewChatInSessionsWindowAction', () => {
 		assert.ok(command);
 		return {
 			opened,
-			assigned,
+			categories,
 			get navigations() { return navigations; },
 			run: (args?: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
 		};
@@ -139,11 +145,41 @@ suite('NewChatInSessionsWindowAction', () => {
 
 	test('New Session in Chat assigns the category and defaults the workspace picker to Chat', async () => {
 		const fixture = createCommand({ chatCategory: true });
-		assert.deepStrictEqual({ result: await fixture.run(), opened: fixture.opened, assigned: fixture.assigned }, {
+		assert.deepStrictEqual({ result: await fixture.run(), opened: fixture.opened, category: fixture.categories.getCategory('new-session') }, {
 			result: resource,
-			opened: [{ target: { category: 'chat' }, preserveNavigation: true }],
-			assigned: [['new-session', 'chat']],
+			opened: [{ target: { category: 'chat' }, preserveNavigation: false }],
+			category: 'chat',
 		});
+	});
+
+	test('restores Chat for New Session before the Sessions view is instantiated', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const previous = createCommand({ chatCategory: true, storage });
+		previous.categories.dispose();
+		const restored = createCommand({ storage });
+		const editor = createCommand({ storage, isSessionsWindow: false });
+		assert.deepStrictEqual({
+			result: await restored.run(),
+			opened: restored.opened,
+			category: restored.categories.getCategory('new-session'),
+			editorResult: await editor.run(),
+			editorOpened: editor.opened,
+		}, {
+			result: resource,
+			opened: [{ target: { category: 'chat' }, preserveNavigation: false }],
+			category: 'chat',
+			editorResult: resource,
+			editorOpened: [{ target: { toSide: undefined, folderUri: undefined }, preserveNavigation: undefined }],
+		});
+		const unavailable = createCommand({ storage, available: false });
+		await assert.rejects(async () => unavailable.run(), /Workspace-less chat is unavailable/);
+		assert.deepStrictEqual(unavailable.opened, []);
+	});
+
+	test('explicit workspace-less options preserve navigation when Chat is selected', async () => {
+		const fixture = createCommand({ chatCategory: true });
+		await fixture.run({ noWorkspace: true });
+		assert.deepStrictEqual(fixture.opened, [{ target: undefined, preserveNavigation: true }]);
 	});
 
 	test('Chat defaults report unsupported or failed workspace-less creation', async () => {
@@ -153,7 +189,7 @@ suite('NewChatInSessionsWindowAction', () => {
 
 	test('uses the provider creation target instead of the active backend workspace', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IViewsService, { getViewWithId: () => null });
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const backendResource = URI.parse('remote-provider:/existing');
 		const backendFolder = URI.parse('vscode-agent-host://sandbox/repo');
