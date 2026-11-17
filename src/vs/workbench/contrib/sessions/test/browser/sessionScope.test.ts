@@ -8,7 +8,8 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { SessionsListingScopeFilter } from '../../browser/sessionScope.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { buildTestSession, buildTestWorkspace } from '../common/testSessionBuilder.js';
@@ -29,7 +30,7 @@ suite('SessionsListingScopeFilter', () => {
 		const sessions = [here, elsewhere, hydrating];
 		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
 		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, changes.event));
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders }, () => sessions, changes.event));
 		const ids = (list: readonly ISession[]) => list.map(session => session.sessionId).sort().join(',');
 		const events: string[] = [];
 		disposables.add(filter.onDidChangeSessions(e => events.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
@@ -68,7 +69,7 @@ suite('SessionsListingScopeFilter', () => {
 		const sessions: ISession[] = [here, other];
 		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
 		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, changes.event));
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders }, () => sessions, changes.event));
 		const events: { readonly added: readonly ISession[]; readonly removed: readonly ISession[]; readonly changed: readonly ISession[] }[] = [];
 		disposables.add(filter.onDidChangeSessions(e => events.push(e)));
 
@@ -99,7 +100,7 @@ suite('SessionsListingScopeFilter', () => {
 		const sessions: ISession[] = [hidden];
 		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
 		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, changes.event));
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders }, () => sessions, changes.event));
 		const listed = () => filter.getSessions().map(session => session === hidden ? 'hidden (stale)' : session === draft ? 'draft' : session.sessionId === 'hidden' ? 'hidden (replacement)' : session.sessionId);
 
 		// A replacement under the same ID that works in the scope, reported as a change only
@@ -126,7 +127,7 @@ suite('SessionsListingScopeFilter', () => {
 		const elsewhere = createSession('elsewhere', 'other');
 		const sessions = [here, elsewhere];
 		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, Event.None));
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders }, () => sessions, Event.None));
 		const ids = (list: readonly ISession[]) => list.map(session => session.sessionId).sort().join(',');
 		const events: string[] = [];
 		disposables.add(filter.onDidChangeSessions(e => events.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
@@ -149,7 +150,7 @@ suite('SessionsListingScopeFilter', () => {
 		hydrating.workspace.set(undefined, undefined);
 		const sessions = [quickChat, hydrating];
 		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable([URI.file('/home/user/projects/repo')]), repositories: constObservable([]) }, () => sessions, changes.event));
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable([URI.file('/home/user/projects/repo')]) }, () => sessions, changes.event));
 		const ids = (list: readonly ISession[]) => list.map(session => session.sessionId).sort().join(',');
 		const events: string[] = [];
 		disposables.add(filter.onDidChangeSessions(e => events.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
@@ -176,7 +177,7 @@ suite('SessionsListingScopeFilter', () => {
 		const elsewhere = createSession('elsewhere', 'other');
 		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
 		let reads = 0;
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable([URI.file('/home/user/projects/repo')]), repositories: constObservable([]) }, () => { reads++; return [here, elsewhere]; }, changes.event));
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable([URI.file('/home/user/projects/repo')]) }, () => { reads++; return [here, elsewhere]; }, changes.event));
 		const events: string[] = [];
 		disposables.add(filter.onDidChangeSessions(e => events.push(`added=${e.added.length} removed=${e.removed.length} changed=${e.changed.map(session => session.sessionId).join(',')}`)));
 		const initialReads = reads;
@@ -202,7 +203,7 @@ suite('SessionsListingScopeFilter', () => {
 		};
 		const sessions = [onGitHub('main', '/Microsoft/VSCode/HEAD'), onGitHub('branch', '/microsoft/vscode/feature%2Fx'), onGitHub('other', '/microsoft/vscode-tools/HEAD'), createSession('local', 'repo')];
 		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/elsewhere')]);
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]), gitHubRepositories: constObservable(['microsoft/vscode']) }, () => sessions, Event.None));
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders, gitHubRepositories: constObservable(['microsoft/vscode']) }, () => sessions, Event.None));
 		const listed = () => filter.getSessions().map(session => session.sessionId).sort();
 		const scoped = listed();
 		folders.set([], undefined);
@@ -210,6 +211,34 @@ suite('SessionsListingScopeFilter', () => {
 		assert.deepStrictEqual({ scoped, emptyWindow: listed() }, {
 			scoped: ['branch', 'main'],
 			emptyWindow: ['branch', 'local', 'main', 'other'],
+		});
+	});
+
+	test('lists a session that works in a folder of the scope, or whose root or repository is one, not by a project only inside one, by the path of a worktree alone, by a repository it shares with a listed session, nor by a worktree of its repository', () => {
+		const folderOf = (path: string, root: string, repository?: string, workTree?: string) => ({ root: URI.file(root), workingDirectory: URI.file(path), name: path, description: undefined, gitRepository: repository ? upcastPartial<ISessionGitRepository>({ uri: URI.file(repository), workTreeUri: workTree ? URI.file(workTree) : undefined }) : undefined });
+		const sessionOf = (id: string, folder: ReturnType<typeof folderOf>): ISession => ({ ...buildTestSession({ id, title: id }).session, workspace: constObservable<ISessionWorkspace | undefined>({ ...buildTestWorkspace(id), folders: [folder] }) });
+		const sessions = [
+			sessionOf('inRepository', folderOf('/work/repo', '/work/repo', '/work/repo')),
+			sessionOf('inSubfolder', folderOf('/work/repo/src/app', '/work/repo/src/app', '/elsewhere/shared')),
+			sessionOf('worktreeByRoot', folderOf('/work/repo.worktrees/feature', '/work/repo')),
+			sessionOf('worktreeByRepository', folderOf('/work/repo.worktrees/fix', '/work/repo.worktrees/fix', '/work/repo')),
+			// A project inside a folder of the scope, such as a package of a monorepo, is not one of the scope
+			sessionOf('nestedProject', folderOf('/work/trees/pkg-x', '/work/repo/pkg', '/work/repo/pkg')),
+			sessionOf('worktreePathOnly', folderOf('/work/repo.worktrees/draft', '/work/repo.worktrees/draft')),
+			sessionOf('sharesRepository', folderOf('/elsewhere/clone', '/elsewhere/clone', '/elsewhere/shared')),
+			sessionOf('worktreeOfScopeOnly', folderOf('/elsewhere/other', '/elsewhere/other', '/elsewhere/other', '/work/repo/src/tree')),
+			sessionOf('elsewhere', folderOf('/elsewhere/repo', '/elsewhere/repo')),
+		];
+		const folders = observableValue<readonly URI[]>('folders', [URI.file('/work/repo')]);
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders }, () => sessions, Event.None));
+		const listed = () => filter.getSessions().map(session => session.sessionId).sort();
+		const repositoryWindow = listed();
+		// A window of a subfolder of the repository lists what works in that subfolder only
+		folders.set([URI.file('/work/repo/src')], undefined);
+
+		assert.deepStrictEqual({ repositoryWindow, subfolderWindow: listed() }, {
+			repositoryWindow: ['inRepository', 'inSubfolder', 'worktreeByRepository', 'worktreeByRoot'],
+			subfolderWindow: ['inSubfolder'],
 		});
 	});
 });

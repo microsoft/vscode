@@ -28,6 +28,7 @@ suite('Session path display', () => {
 			fullPath,
 			label: `${index === 3 ? 'Session "Fix login"' : 'This session'} / files/report.txt`,
 			session: index === 3 ? other : current,
+			...(index === 3 ? { sessionTitle: 'Fix login' } : {}),
 			isCurrentSession: index !== 3,
 			relativePath: 'files/report.txt',
 		})));
@@ -65,11 +66,16 @@ suite('Session path display', () => {
 		const resource = URI.file(path);
 		const moved = [{ root: roots[1].root, session: other, title: 'Destination' }];
 		assert.deepStrictEqual([
-			getSessionPathDisplay(path, resource, current, roots, extUri).label,
-			getSessionPathDisplay(path, resource, current, moved, extUri).label,
-			getSessionPathDisplay(path, resource, other, moved, extUri).label,
-			getSessionPathDisplay(path, resource, current, [{ ...moved[0], title: 'Renamed' }], extUri).label,
-		], ['This session / file', 'Session "Destination" / file', 'This session / file', 'Session "Renamed" / file']);
+			getSessionPathDisplay(path, resource, current, roots, extUri),
+			getSessionPathDisplay(path, resource, current, moved, extUri),
+			getSessionPathDisplay(path, resource, other, moved, extUri),
+			getSessionPathDisplay(path, resource, current, [{ ...moved[0], title: 'Renamed' }], extUri),
+		].map(({ label, sessionTitle }) => ({ label, sessionTitle })), [
+			{ label: 'This session / file', sessionTitle: undefined },
+			{ label: 'Session "Destination" / file', sessionTitle: 'Destination' },
+			{ label: 'This session / file', sessionTitle: undefined },
+			{ label: 'Session "Renamed" / file', sessionTitle: 'Renamed' },
+		]);
 	});
 
 	test('uses explicit path-case semantics and preserves Windows spelling', () => {
@@ -118,7 +124,46 @@ suite('Session path display', () => {
 		const title = '`[Review](command:run)` <script> & "quotes"\nnext';
 		const path = `${home.path}/other/<file>.txt`;
 		assert.deepStrictEqual(getSessionPathDisplay(path, URI.file(path), current, [{ ...roots[3], title }], extUri), {
-			label: `Session "${title}" / <file>.txt`, fullPath: path, session: other, isCurrentSession: false, relativePath: '<file>.txt',
+			label: `Session "${title}" / <file>.txt`, fullPath: path, session: other, sessionTitle: title, isCurrentSession: false, relativePath: '<file>.txt',
 		});
+	});
+
+	test('distinguishes the requesting conversation, parent, child, sibling and unrelated child', () => {
+		const parent = URI.parse('ahp-chat:/parent');
+		const child = URI.parse('ahp-chat:/child');
+		const sibling = URI.parse('ahp-chat:/sibling');
+		const unrelated = URI.parse('ahp-chat:/unrelated');
+		const family: readonly ISessionPathRoot[] = [
+			{ root: URI.joinPath(home, 'parent'), session: parent, title: 'Fix login' },
+			{ root: URI.joinPath(home, 'child'), session: child, title: 'Investigate tests', parentSession: parent, parentTitle: 'Fix login' },
+			{ root: URI.joinPath(home, 'sibling'), session: sibling, title: 'Review code', parentSession: parent, parentTitle: 'Fix login' },
+		];
+		const cases = [
+			{ requester: child, target: 'child' },
+			{ requester: child, target: 'parent' },
+			{ requester: parent, target: 'child' },
+			{ requester: sibling, target: 'child' },
+			{ requester: unrelated, target: 'child' },
+			{ requester: unrelated, target: 'parent' },
+		];
+		assert.deepStrictEqual(cases.map(({ requester, target }) => {
+			const path = URI.joinPath(home, target, 'notes.txt');
+			const { label, relationship, parentSessionTitle } = getSessionPathDisplay(path.path, path, requester, family, extUri);
+			return { label, relationship, parentSessionTitle };
+		}), [
+			{ label: 'This session / notes.txt', relationship: undefined, parentSessionTitle: undefined },
+			{ label: 'Parent session "Fix login" / notes.txt', relationship: 'parent', parentSessionTitle: undefined },
+			{ label: 'Child session "Investigate tests" / notes.txt', relationship: 'child', parentSessionTitle: undefined },
+			{ label: 'Child session "Investigate tests" of session "Fix login" / notes.txt', relationship: 'child', parentSessionTitle: 'Fix login' },
+			{ label: 'Child session "Investigate tests" of session "Fix login" / notes.txt', relationship: 'child', parentSessionTitle: 'Fix login' },
+			{ label: 'Session "Fix login" / notes.txt', relationship: undefined, parentSessionTitle: undefined },
+		]);
+	});
+
+	test('preserves the path when an unrelated child has no known parent title', () => {
+		const path = URI.joinPath(home, 'child', 'notes.txt');
+		assert.deepStrictEqual(getSessionPathDisplay(path.path, path, current, [
+			{ root: URI.joinPath(home, 'child'), session: other, title: 'Child', parentSession: URI.parse('ahp-chat:/unknown') },
+		], extUri), { label: path.path, fullPath: path.path });
 	});
 });

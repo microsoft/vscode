@@ -15435,7 +15435,7 @@ suite('CopilotAgentSession', () => {
 				grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
 				rootLookups: getSessionPathRoots.callCount,
 			}, {
-				message: 'Allow read access to `files/notes.txt` in this session\'s storage.',
+				message: 'Allow reading `files/notes.txt` from this session.',
 				grant,
 				rootLookups: 0,
 			});
@@ -15462,9 +15462,9 @@ suite('CopilotAgentSession', () => {
 				copilotHome: home.fsPath, sessionUri: source, owner, getSessionPathRoots,
 			});
 			const cases = [
-				{ path: currentRoot.fsPath, owner: source, message: 'Allow read access to this session\'s storage.', rootLookups: 0 },
-				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow read access to `notes.txt` in this session\'s storage.', rootLookups: 0 },
-				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow read access to `Session "Other" / notes.txt` and retry inside the sandbox.', rootLookups: 1 },
+				{ path: currentRoot.fsPath, owner: source, message: 'Allow reading files from this session.', rootLookups: 0 },
+				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow reading `notes.txt` from this session.', rootLookups: 0 },
+				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow reading `notes.txt` from session "Other" and retry inside the sandbox.', rootLookups: 1 },
 				{ path: conflictingRoot.fsPath, owner: destination, message: `Allow read access to \`${conflictingRoot.fsPath}\` and retry inside the sandbox.`, rootLookups: 2 },
 			];
 			const snapshots = [];
@@ -15490,25 +15490,22 @@ suite('CopilotAgentSession', () => {
 			})));
 		});
 
-		test('sandbox session path labels follow peer ownership and requester moves without changing grants', async () => {
+		test('sandbox session path labels preserve peer identity across requester moves without changing grants', async () => {
 			const source = URI.parse('copilot:/source');
 			const destination = URI.parse('copilot:/destination');
 			const owner = disposables.add(new TestChatOwnerRef(source));
 			const home = URI.file('/custom-copilot-home');
 			const peerRoot = URI.joinPath(home, 'session-state', 'peer-sdk');
-			let peerOwner = source;
-			let peerTitle = 'Source';
+			const peer = URI.parse(buildChatUri(source, 'peer'));
+			let peerTitle = 'Peer';
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				copilotHome: home.fsPath, sessionUri: source, owner,
-				getSessionPathRoots: () => [{ root: peerRoot, session: peerOwner, title: peerTitle }],
+				getSessionPathRoots: () => [{ root: peerRoot, session: peer, title: peerTitle }],
 			});
 			const snapshots = [];
-			for (const stage of ['peer', 'target-moved', 'renamed', 'requester-moved'] as const) {
-				if (stage === 'target-moved') {
-					peerOwner = destination;
-					peerTitle = 'Destination';
-				} else if (stage === 'renamed') {
-					peerTitle = 'Renamed destination';
+			for (const stage of ['peer', 'renamed', 'requester-moved'] as const) {
+				if (stage === 'renamed') {
+					peerTitle = 'Renamed peer';
 				} else if (stage === 'requester-moved') {
 					owner.set(destination);
 				}
@@ -15526,8 +15523,8 @@ suite('CopilotAgentSession', () => {
 				session.respondToPermissionRequest(stage, false);
 				await pending;
 			}
-			assert.deepStrictEqual(snapshots, ['This session', 'Session "Destination"', 'Session "Renamed destination"', 'This session'].map(label => ({
-				message: label === 'This session' ? 'Allow read access to `notes.txt` in this session\'s storage.' : `Allow read access to \`${label} / notes.txt\` and retry inside the sandbox.`,
+			assert.deepStrictEqual(snapshots, ['Peer', 'Renamed peer', 'Renamed peer'].map(title => ({
+				message: `Allow reading \`notes.txt\` from session "${title}" and retry inside the sandbox.`,
 				grant: { path: URI.joinPath(peerRoot, 'notes.txt').fsPath, access: 'read' },
 			})));
 		});
@@ -31138,7 +31135,7 @@ Use the attached image as context.
 			assert.strictEqual(result.resultType, 'failure');
 		});
 
-		test('client tool handler waits for completion without emitting tool_ready', async () => {
+		test('client tool handler releases a held tool_ready when the runtime authorized it without a permission request', async () => {
 
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
 
@@ -31156,14 +31153,22 @@ Use the attached image as context.
 			if (isAction(startSignal!, ActionType.ChatToolCallStart)) {
 				assert.deepStrictEqual((startSignal.action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
 			}
+			// Held for the permission flow until the handler runs.
+			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
 
-			// SDK invokes the handler — it creates a deferred and waits,
-			// but does NOT fire tool_ready (that comes from the permission flow).
+			// The runtime approved the call without a permission request (e.g. a standing
+			// approval) and invokes the handler, which must release the held ready so the
+			// client runs the tool instead of every side waiting until the runtime times out.
 			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
 
-			// No pending_confirmation or tool_ready should have been emitted by the handler
-			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
+			assert.deepStrictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).map(s => {
+				if (s.kind === 'pending_confirmation') {
+					return { kind: s.kind };
+				}
+				const action = (s as { action: ChatToolCallReadyAction }).action;
+				return { type: action.type, toolCallId: action.toolCallId, confirmed: action.confirmed, contributor: action.contributor };
+			}), [{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-client-1', confirmed: ToolCallConfirmationReason.NotNeeded, contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' } }]);
 
 			// Complete the tool call
 			session.handleClientToolCallComplete('tc-client-1', {
@@ -31175,6 +31180,29 @@ Use the attached image as context.
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'result text');
+		});
+
+		test('client tool handler that runs before the tool start releases tool_ready once the start arrives', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client') });
+
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-early-handler', {});
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-early-handler',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			assert.deepStrictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).map(s => {
+				if (s.kind === 'pending_confirmation') {
+					return { kind: s.kind };
+				}
+				const action = (s as { action: ChatToolCallReadyAction }).action;
+				return { type: action.type, toolCallId: action.toolCallId, confirmed: action.confirmed };
+			}), [{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-early-handler', confirmed: ToolCallConfirmationReason.NotNeeded }]);
+
+			session.handleClientToolCallComplete('tc-early-handler', { success: true, pastTenseMessage: 'did it', content: [] });
+			assert.strictEqual((await handlerPromise).resultType, 'success');
 		});
 
 		test('client tool auto-readies when SDK allow-all mode is on', async () => {

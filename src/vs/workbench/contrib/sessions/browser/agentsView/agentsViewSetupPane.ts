@@ -3,5 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccount } from './vscode/agentAuthenticationAccount.js';
-export type { IAgentAuthenticationAccount } from './vscode/agentAuthenticationAccount.js';
+import { ViewPane } from '../../../../browser/parts/views/viewPane.js';
+
+/** The Agents view while chat needs signing in or setting up: its welcome content shows how to. */
+export class AgentsViewSetupPane extends ViewPane {
+
+	override shouldShowWelcome(): boolean {
+		return true;
+	}
+}

@@ -97,7 +97,6 @@ import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../..
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { CopilotAccountService, ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
 import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
@@ -1744,6 +1743,19 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService, authenticationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
 }
 
+/**
+ * Waits until the in-memory file system provider has reported every write made so far. It reports writes a few
+ * milliseconds later in one batch, so a test that writes plugin files and then creates the agent can have that
+ * report reach the agent's plugin watchers, which invalidate and republish customizations mid-test.
+ */
+async function settleFileEvents(fileService: FileService, scheme: string = Schemas.file): Promise<void> {
+	const provider = fileService.getProvider(scheme);
+	if (provider instanceof InMemoryFileSystemProvider && provider['_bufferedChanges'].length > 0) {
+		// The file service forwards the provider event to its listeners before ours runs.
+		await Event.toPromise(provider.onDidChangeFile);
+	}
+}
+
 function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: Parameters<typeof createTestAgentContext>[1]): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
@@ -3280,6 +3292,7 @@ suite('CopilotAgent', () => {
 			{ name: 'native', marketplace: 'marketplace', enabled: false, rootPath: native.fsPath },
 			{ name: 'empty', marketplace: 'marketplace', enabled: false, rootPath: empty.fsPath },
 		];
+		await settleFileEvents(fileService);
 		const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
 			fileService, copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()),
 			rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
@@ -3376,6 +3389,7 @@ suite('CopilotAgent', () => {
 		client.pluginInstallations = [{ name: 'native', marketplace: 'test', enabled: true, rootPath: native.fsPath }];
 		const logService = new NullLogService();
 		const warnings = spy(logService, 'warn');
+		await settleFileEvents(fileService);
 		const { agent } = createTestAgentContext(disposables, {
 			fileService, copilotClient: client, pluginManager: new PluginManager(), logService,
 			rootConfig: {
@@ -3580,6 +3594,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			client.pluginInstallations = roots.map((root, index) => ({ name: index ? 'second' : 'first', marketplace: 'test', rootPath: root.fsPath, enabled: index > 0 || liveSource }));
 			const workspace = URI.file('/workspace');
+			await settleFileEvents(fileService);
 			const agent = createTestAgent(disposables, {
 				fileService, copilotClient: client,
 				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
@@ -4085,8 +4100,12 @@ suite('CopilotAgent', () => {
 			});
 		}
 		const chats = ['peer', 'descendant'].map(id => URI.parse(buildChatUri(source, id)));
+		const requester = URI.parse(buildChatUri(source, 'requester'));
 		for (const chat of chats) {
-			stateManager.addChat(source.toString(), chat.toString(), chat.toString());
+			stateManager.addChat(source.toString(), chat.toString(), chat.toString(), {
+				title: chat === chats[0] ? 'Peer' : 'Descendant',
+				origin: { kind: ChatOriginKind.Tool, chat: (chat === chats[0] ? requester : chats[0]).toString(), toolCallId: 'spawn' },
+			});
 			await agent.materializeChat(chat, {
 				sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
 				owner: createChatOwnerRef(stateManager, chat, source), resource: chat,
@@ -4096,8 +4115,14 @@ suite('CopilotAgent', () => {
 			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
 			owner: fixedChatOwnerRef(source), resource: source,
 		}, JSON.stringify({ sdkSessionId: 'default-sdk' }));
-		const requester = URI.parse(buildChatUri(source, 'requester'));
-		stateManager.addChat(source.toString(), requester.toString(), requester.toString());
+		stateManager.addChat(source.toString(), requester.toString(), requester.toString(), {
+			title: 'Requester',
+			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(source), toolCallId: 'spawn-requester' },
+		});
+		await agent.materializeChat(requester, {
+			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
+			owner: createChatOwnerRef(stateManager, requester, source), resource: requester,
+		}, JSON.stringify({ sdkSessionId: 'test-session-1' }));
 		const mockSession = new MockCopilotSession();
 		const created = createAgentSessionThroughAgent(agent, instantiationService, {
 			owner: createChatOwnerRef(stateManager, requester, source), chatChannelUri: requester, mockSession,
@@ -4143,6 +4168,7 @@ suite('CopilotAgent', () => {
 		await request('peer-sdk');
 		await request('descendant-sdk');
 		stateManager.dispatchServerAction(destination.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+		stateManager.dispatchServerAction(destination.toString(), { type: ActionType.SessionChatUpdated, chat: chats[0].toString(), changes: { title: 'Renamed peer' } });
 		await request('peer-sdk');
 		stateManager.transferChats(source.toString(), destination.toString(), [requester.toString()], undefined);
 		await request('peer-sdk');
@@ -4158,8 +4184,8 @@ suite('CopilotAgent', () => {
 			messages: snapshots,
 			storage: chats.map(chat => stateManager.getChatStorageResource(chat.toString())),
 		}, {
-			messages: ['This session', 'This session', 'This session', 'This session', 'Session "Destination"', 'Session "Destination"', 'Session "Renamed"', 'This session', 'Session "Source"', 'Session "Promoted"', 'Session "Promoted"']
-				.map(label => label === 'This session' ? 'Allow read access to `notes.txt` in this session\'s storage.' : `Allow read access to \`${label} / notes.txt\` and retry inside the sandbox.`),
+			messages: ['This session', 'parent session "Source"', 'child session "Peer"', 'child session "Descendant" of session "Peer"', 'child session "Peer"', 'child session "Descendant" of session "Peer"', 'child session "Renamed peer"', 'child session "Renamed peer"', 'parent session "Source"', 'child session "Renamed peer"', 'child session "Descendant" of session "Renamed peer"']
+				.map(label => label === 'This session' ? 'Allow reading `notes.txt` from this session.' : `Allow reading \`notes.txt\` from ${label} and retry inside the sandbox.`),
 			storage: chats.map(chat => chat.toString()),
 		});
 	});
@@ -4566,6 +4592,7 @@ suite('CopilotAgent', () => {
 						name: 'native', description: 'Native skill', path: skill.fsPath, source: 'plugin', pluginId: 'opaque-plugin', enabled: true, userInvocable: true,
 					}] : []
 				});
+				await settleFileEvents(fileService);
 				const { agent } = createTestAgentContext(disposables, { fileService, copilotClient: client, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
 				afterTest(() => disposeAgent(agent));
 				await agent.authenticate('https://api.github.com', 'token');
@@ -4671,6 +4698,7 @@ suite('CopilotAgent', () => {
 				client.discoverSkills = async () => ({
 					skills: installed ? [{ name: 'session-timeline', description: 'Timeline', path: skill.fsPath, source: 'plugin', pluginId: 'opaque-plugin', enabled: true, userInvocable: true }] : [],
 				});
+				await settleFileEvents(fileService);
 				const { agent } = createTestAgentContext(disposables, { copilotClient: client, fileService });
 				const names = (customizations: readonly Customization[]) => customizations
 					.filter(customization => customization.type === CustomizationType.Plugin)
@@ -5950,7 +5978,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(await acquisition, { kind: 'unavailable' });
 			await authenticationService.authenticate({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+				accountId: 'selected',
 			}, [agent]);
 			assert.deepStrictEqual(await provider({ kind: 'identity', clientId: copilotEntraClientId, accountId: 'selected', reason: 'renewal' }, { isCancellationRequested: false, onCancellationRequested: Event.None }), { kind: 'identity', accountId: 'selected' });
 			const resourcesDuringAuthority = {
@@ -5965,7 +5993,7 @@ suite('CopilotAgent', () => {
 			const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
 			const deliver = () => authenticationService.authenticate({
 				resource, scopes: request.scopes, token: 'synthetic-resource', expiresIn: 3600,
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+				accountId: 'selected',
 			}, [agent]);
 
 			const settled: string[] = [];
@@ -6073,7 +6101,7 @@ suite('CopilotAgent', () => {
 			if (hasMicrosoft) {
 				await authenticationService.authenticate({
 					resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
-					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected-microsoft' }),
+					accountId: 'selected-microsoft',
 				}, [agent]);
 			}
 			const microsoftRequest = {
@@ -6084,7 +6112,7 @@ suite('CopilotAgent', () => {
 			if (hasMicrosoft) {
 				await authenticationService.authenticate({
 					resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: microsoftRequest.scopes, token: 'microsoft-resource',
-					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected-microsoft' }),
+					accountId: 'selected-microsoft',
 				}, [agent]);
 			}
 			const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, {
@@ -6108,7 +6136,7 @@ suite('CopilotAgent', () => {
 				identity: await tokenProvider(identityRequest, cancellation),
 				microsoft: await tokenProvider(microsoftRequest, cancellation),
 				ordinaryGithub: authenticationService.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }),
-				microsoftAccount: authenticationService.getAuthAccount({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
+				microsoftAccount: authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: ['User.Read'] })?.accountId,
 			}, {
 				optional: true,
 				github: hasGitHub ? 'scoped-github' : undefined,
@@ -7360,6 +7388,7 @@ suite('CopilotAgent', () => {
 		const seedHook = (name: string, file = 'hook.json') => fileService.writeFile(URI.joinPath(folder(name), '.github', 'hooks', file), VSBuffer.fromString('{}'));
 		const [a, b, c] = [folder('wsA'), folder('wsB'), folder('wsC')];
 
+		await settleFileEvents(fileService);
 		const { agent } = createTestAgentContext(disposables, { fileService });
 		afterTest(() => disposeAgent(agent));
 		await seedHook('wsB');
@@ -8531,7 +8560,7 @@ suite('CopilotAgent', () => {
 			afterTest(() => disposeAgent(agent));
 			await authenticationService.authenticate({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+				accountId: 'selected',
 			}, [agent]);
 			const session = AgentSession.uri('copilotcli', 'microsoft-scoped-credentials');
 			const chat = defaultChatUri(session);
@@ -21816,6 +21845,7 @@ suite('CopilotAgent', () => {
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
 			const pluginManager = new BlockingPluginManager();
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), pluginManager, fileService });
 			const sync = new DeferredPromise<void>();
 			try {
@@ -22401,6 +22431,7 @@ suite('CopilotAgent', () => {
 					effectiveSource: { kind: 'plugin', id: 'source-server', editability: 'read-only', plugin: { id: 'source-plugin', name: 'Azure exp' }, file: { uri: URI.joinPath(sourcePlugin, '.mcp.json').toString() } },
 				}]
 			});
+			await settleFileEvents(fileService);
 			const { agent, stateManager } = createTestAgentContext(disposables, {
 				sessionDataService,
 				copilotClient: client,
@@ -22546,6 +22577,7 @@ suite('CopilotAgent', () => {
 			client.discoverAgents = async () => ({
 				agents: [{ id: 'native:host-agent', name: 'host-agent', displayName: 'host-agent', description: 'host', path: agentFile.fsPath, source: 'plugin' }],
 			});
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, {
 				copilotClient: client,
 				fileService,
@@ -22588,6 +22620,7 @@ suite('CopilotAgent', () => {
 			const workspace = URI.file('/workspace');
 			const source = URI.joinPath(workspace, '.mcp.json');
 			await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"automation":{"command":"node"},"explorer":{"command":"node"}}}'));
+			await settleFileEvents(fileService);
 			const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
 				fileService,
 				sessionDataService: disposables.add(new TestSessionDataService()),
@@ -22763,6 +22796,7 @@ suite('CopilotAgent', () => {
 					{ id: customizationId(agentsMdFile.toString()), label: 'AGENTS.md', sourcePath: agentsMdFile.fsPath, content: 'agents md body', type: 'repo', location: 'repository', projectPath: workspace.fsPath },
 				],
 			});
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService, userHome });
 
 			afterTest(() => disposeAgent(agent));
@@ -22908,6 +22942,7 @@ suite('CopilotAgent', () => {
 					? [{ id: customizationId(agentFile.toString()), name: 'helper', displayName: 'helper', description: '', path: agentFile.fsPath }]
 					: [],
 			});
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService, userHome });
 
 			afterTest(() => disposeAgent(agent));
@@ -22959,6 +22994,7 @@ suite('CopilotAgent', () => {
 			client.discoverAgents = async () => ({
 				agents: [{ id: customizationId(agentFile.toString()), name: 'helper', displayName: 'helper', description: '', path: agentFile.fsPath }],
 			});
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService, userHome });
 
 			const actions: (SessionAction | ChatAction)[] = [];
@@ -23044,6 +23080,7 @@ suite('CopilotAgent', () => {
 			client.discoverInstructions = async () => ({
 				sources: discoveredInstructionFiles.map(file => ({ id: customizationId(file.toString()), label: basename(file.path), sourcePath: file.fsPath, content: '', type: 'vscode', location: 'repository', projectPath: workspace.fsPath })),
 			});
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService, userHome });
 
 			const actions: (SessionAction | ChatAction)[] = [];
@@ -27911,7 +27948,7 @@ suite('CopilotAgent', () => {
 			afterTest(() => disposeAgent(agent));
 			const discovery = await authenticationService.authenticate({
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'selected-microsoft',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'selected' }),
+				accountId: 'selected',
 			}, [agent]);
 			const failed = status();
 			await (agent as unknown as { _refreshModels(): Promise<void> })._refreshModels();
@@ -32103,6 +32140,7 @@ suite('CopilotAgent', () => {
 				throw new Error('createSession should not be called');
 			};
 
+			await settleFileEvents(fileService);
 			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, fileService });
 			const internals = agent as unknown as AgentInternals;
 			afterTest(() => disposeAgent(agent));
@@ -32317,6 +32355,7 @@ suite('CopilotAgent', () => {
 			client.resumeSession = async (_id, config) => { resumes.push(config); return new MockCopilotSession() as unknown as CopilotSession; };
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const options = { copilotClient: client, fileService, sessionDataService, pluginManager: new PluginManager() };
+			await settleFileEvents(fileService);
 			const first = createTestAgentContext(disposables, options).agent;
 			const session = AgentSession.uri('copilotcli', 'legacy-flat-bundle');
 			const chat = defaultChatUri(session);
@@ -32385,6 +32424,7 @@ suite('CopilotAgent', () => {
 				launches.push(config);
 				return sdkSession as unknown as CopilotSession;
 			};
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, {
 				copilotClient: client, fileService, pluginManager: new PluginManager(),
 				sessionDataService: disposables.add(new TestSessionDataService()),
@@ -32438,6 +32478,7 @@ suite('CopilotAgent', () => {
 				launches.push(config);
 				return sdkSession as unknown as CopilotSession;
 			};
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, {
 				copilotClient: client, fileService,
 				sessionDataService: disposables.add(new TestSessionDataService()),
@@ -32501,6 +32542,7 @@ suite('CopilotAgent', () => {
 				launchConfigs.push(config);
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), pluginManager: new PluginManager(), fileService });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -32709,6 +32751,7 @@ suite('CopilotAgent', () => {
 			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
 
 			const sessionDataService = disposables.add(new TestSessionDataService());
+			await settleFileEvents(fileService);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService, userHome: URI.file('/mock-home') });
 
 			let launchAgentName: string | undefined;
