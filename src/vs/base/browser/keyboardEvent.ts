@@ -135,14 +135,16 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 	public readonly altGraphKey: boolean;
 	public readonly keyCode: KeyCode;
 	public readonly code: string;
+	public readonly timestamp: number;
 
 	private _asKeybinding: number;
 	private _asKeyCodeChord: KeyCodeChord;
 
-	constructor(source: KeyboardEvent) {
+	constructor(source: KeyboardEvent, timestamp?: number) {
 		const e = source;
 
 		this.browserEvent = e;
+		this.timestamp = timestamp ?? (e.view?.performance.timeOrigin ?? performance.timeOrigin) + e.timeStamp;
 		this.target = <HTMLElement>e.target;
 
 		this.ctrlKey = e.ctrlKey;

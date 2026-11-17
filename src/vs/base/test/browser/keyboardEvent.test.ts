@@ -19,6 +19,17 @@ suite('StandardKeyboardEvent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('preserves capture time for native and bridged events', () => {
+		const source = new KeyboardEvent('keyup', { key: 'Shift' });
+		assert.deepStrictEqual({
+			native: new StandardKeyboardEvent(source).timestamp,
+			bridged: new StandardKeyboardEvent(source, 1234).timestamp,
+		}, {
+			native: performance.timeOrigin + source.timeStamp,
+			bridged: 1234,
+		});
+	});
+
 	test('reports the pressed key when no composition is in progress', () => {
 		const event = keydown({ keyCode: 13, isComposing: false });
 		assert.deepStrictEqual(

@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -58,10 +59,11 @@ export class ElectronWebviewElement extends WebviewElement {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, notificationService, environmentService,
-			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService, remoteAgentService);
+			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService, remoteAgentService, keybindingService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 

@@ -6,6 +6,7 @@
 import { isFirefox } from '../../../../base/browser/browser.js';
 import { addDisposableListener, EventType, getWindow, getWindowById } from '../../../../base/browser/dom.js';
 import { parentOriginHash } from '../../../../base/browser/iframe.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
@@ -27,6 +28,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -39,7 +41,7 @@ import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js
 import { WebviewThemeDataProvider } from './themeing.js';
 import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
-import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
+import { FromWebviewMessage, KeyEvent, KeybindingDispatchResult, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
 
 interface WebviewContent {
 	readonly html: string;
@@ -182,6 +184,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -264,6 +267,39 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 		this._register(this.on('did-keydown', (data) => {
 			this.handleKeyEvent('keydown', data);
+		}));
+		this._register(this.on('dispatch-key-event', data => {
+			try {
+				if (!this.shouldForwardKeyEvent(data.event) || !this.element) {
+					throw new Error('Cannot dispatch a key event from an inactive or unauthenticated webview');
+				}
+				if (!this.isActiveElement()) {
+					this._logService.trace('Cancelled webview keybinding dispatch after focus changed');
+					this._send('did-dispatch-key-event', { id: data.id, result: { handled: false, cancelled: true } });
+					return;
+				}
+				if (!Array.isArray(data.localCommands) || !data.localCommands.every(id => typeof id === 'string')) {
+					throw new Error('Invalid webview keyboard command list');
+				}
+				if (data.type !== 'keydown' && data.type !== 'keyup') {
+					throw new Error('Invalid webview keyboard event type');
+				}
+				const event = new StandardKeyboardEvent(new KeyboardEvent(data.type, {
+					...data.event, modifierAltGraph: data.event.altGraphKey,
+				}), data.event.timestamp);
+				let command: KeybindingDispatchResult['command'];
+				const handled = this._keybindingService.dispatchEvent(event, this.element, (id, args) => {
+					if (!data.localCommands.includes(id)) {
+						return false;
+					}
+					command = { id, args };
+					return true;
+				}, data.type);
+				this._send('did-dispatch-key-event', { id: data.id, result: { handled, command } });
+			} catch (error) {
+				this._logService.error('Webview keyboard dispatch failed', error);
+				this._send('did-dispatch-key-event', { id: data.id, error: error instanceof Error ? error.message : String(error) });
+			}
 		}));
 
 		this._register(this.on('did-keyup', (data) => {
