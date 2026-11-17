@@ -217,6 +217,7 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"debug.breakpointsView.presentation": "tree",
+	"sessions.list.indentItems": true,
 	"chat.agentSkillsLocations": {
 		".github/skills/.local": true,
 		".agents/skills/.local": true,
