@@ -28,6 +28,8 @@ import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../w
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { defaultNewSessionPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/defaultNewSessionPresentation.js';
+import { mobileNewSessionPresentation } from '../../../mobile/browser/mobileNewSessionPresentation.js';
 import { worktreeSuggestionInputPresentation } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionInputPresentation.js';
 import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -522,7 +524,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 	}
 
 	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT): void {
-		instantiationService.stub(IChatViewFactory, { newSessionInput: worktreeSuggestionInputPresentation });
+		instantiationService.stub(IChatViewFactory, { newSessionInput: worktreeSuggestionInputPresentation, newSessionPresentation: defaultNewSessionPresentation });
 		instantiationService.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IEnvironmentService, { isBuilt: false });
@@ -548,6 +550,27 @@ suite('SessionsChatAccessibilityHelp', () => {
 			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 		});
 		assert.deepStrictEqual(help.map(content => content.includes('may suggest New Worktree')), [false, true]);
+	});
+
+	test('documents the selected welcome presentation without desktop tray instructions on mobile', () => {
+		const help = [defaultNewSessionPresentation, mobileNewSessionPresentation].map(newSessionPresentation => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IChatViewFactory, { newSessionPresentation });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
+			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+		});
+		assert.deepStrictEqual(help.map(content => ({
+			collapse: content.includes('Collapse to Icon'),
+			configurationSheet: content.includes('configuration control beside it'),
+		})), [{ collapse: true, configurationSheet: false }, { collapse: false, configurationSheet: true }]);
 	});
 
 	for (const { name, built, extensionDevelopment, hostsEnabled, aiDisabled, hidden, enabled } of [
