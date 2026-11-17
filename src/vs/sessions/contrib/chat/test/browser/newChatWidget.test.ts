@@ -1462,8 +1462,10 @@ suite('NewChatWidget', () => {
 					Object.assign(harness.sessionsProvidersService.getProvider(LOCAL_AGENT_HOST_PROVIDER_ID)!, { isDevContainerRequested: () => true });
 				}
 				harness._pickedEnvironment.set(environment, undefined);
-				// The main composer waits for the agent the user picked; a hosted composer, for the one its host requests.
-				Object.assign(harness._newChatInput, { sessionTypePicker: { getUserPickedSessionType: (): IPreferredSessionType | undefined => hosted ? { sessionTypeId: 'codex' } : requested ? { providerId: 'agenthost-env', sessionTypeId: requested } : { providerId: 'other', sessionTypeId: 'codex' } } });
+				// The main composer waits for the agent the user picked; a hosted composer, for the one its host requests. The
+				// picker returns only a pick for the composer's current provider.
+				const userPick: IPreferredSessionType = hosted ? { sessionTypeId: 'codex' } : requested ? { providerId: 'agenthost-env', sessionTypeId: requested } : { providerId: 'agenthost-wsl', sessionTypeId: 'codex' };
+				Object.assign(harness._newChatInput, { sessionTypePicker: { getUserPickedSessionType: (): IPreferredSessionType | undefined => !userPick.providerId || harness._pickedEnvironment.get()?.providerIds.includes(userPick.providerId) ? userPick : undefined } });
 				if (hosted) {
 					harness._draftHost = { requestedTarget: target, setRequestedTarget: next => target.set(next, undefined) };
 				}
