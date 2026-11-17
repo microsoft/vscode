@@ -22,6 +22,7 @@ import { CustomizationMarketplaceSources } from '../../../../../../platform/cust
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IMcpGalleryService, McpGalleryResolveStatus } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import type { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
@@ -40,6 +41,14 @@ const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/
 const mcpRegistryServerNamePattern = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\/[A-Za-z0-9._-]+$/;
 /** How long to wait before asking the registry again about a server it could not answer for. */
 const registryNameRetryDelay = 5 * 60 * 1000;
+/**
+ * Shows a command and its arguments on one line. A part that is empty or contains whitespace or a
+ * quote is quoted, so where one argument ends and the next begins can always be told.
+ */
+function formatCommandLine(parts: readonly string[]): string {
+	return parts.map(part => /^[^\s"]+$/.test(part) ? part : JSON.stringify(part)).join(' ');
+}
+
 type AppliedPluginIdentity = Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>;
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -50,10 +59,11 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private readonly pendingCatalogAssociations: { readonly identity: AppliedPluginIdentity; readonly directSourceId: string; readonly resource: ICustomizationMarketplaceResource }[] = [];
 	private readonly catalogAuthenticationRequired = new Set<string>();
 	/**
-	 * What the MCP registry calls configured servers whose configuration key is a registry server
-	 * name. An entry without a name records that the registry has none, or when to ask it again.
+	 * What the current MCP registry calls configured servers whose configuration key is a registry
+	 * server name. An entry without a name records that the registry has none, or when to ask it
+	 * again. Replaced when the registry changes, so answers from the previous one are not used.
 	 */
-	private readonly registryNames = new Map<string, { readonly displayName?: string; readonly retryAt?: number }>();
+	private registryNames = new Map<string, { readonly displayName?: string; readonly retryAt?: number }>();
 	readonly onDidChange: Event<void>;
 	readonly onDidChangeMarketplaces: Event<void>;
 
@@ -70,8 +80,14 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
+		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
 		super();
+		// Fires only when the registry's address or version changes.
+		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => {
+			this.registryNames = new Map();
+			this._onDidChange.fire();
+		}));
 		this.onDidChange = Event.any(
 			this._onDidChange.event,
 			this.agentHostCustomizationService.onDidChangeCustomizations,
@@ -567,7 +583,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					choiceId: review.operationId,
 					transport: review.command !== undefined ? 'stdio' : 'http',
 					...(review.command !== undefined
-						? { command: [review.command, ...(review.args ?? [])].join(' '), ...(review.env ? { env: review.env } : {}) }
+						? { command: formatCommandLine([review.command, ...(review.args ?? [])]), ...(review.env ? { env: review.env } : {}) }
 						: { endpointSummary: review.endpoint }),
 					configurationFields: review.configurationFields,
 					values: [],
@@ -744,13 +760,14 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	 * answer: a name that is found refreshes it.
 	 */
 	private async resolveRegistryNames(installations: readonly IAgentCustomizationInstallation[]): Promise<void> {
+		const registryNames = this.registryNames;
 		const now = Date.now();
 		const names = [...new Set(installations.flatMap(installation => {
 			// Only a key shaped like a registry server name is sent to the registry.
 			if (installation.kind !== 'mcp' || installation.catalogue || !mcpRegistryServerNamePattern.test(installation.serverName)) {
 				return [];
 			}
-			const known = this.registryNames.get(installation.serverName);
+			const known = registryNames.get(installation.serverName);
 			return known && (known.retryAt === undefined || known.retryAt > now) ? [] : [installation.serverName];
 		}))];
 		if (!names.length) {
@@ -759,7 +776,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		const retry = { retryAt: now + registryNameRetryDelay };
 		for (const name of names) {
 			// Claimed, so inventory read in the meantime does not ask again.
-			this.registryNames.set(name, retry);
+			registryNames.set(name, retry);
 		}
 		let found = false;
 		try {
@@ -767,16 +784,17 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			for (const name of names) {
 				const result = resolved.get(name);
 				if (result?.status === McpGalleryResolveStatus.Found) {
-					this.registryNames.set(name, { displayName: result.server.displayName });
+					registryNames.set(name, { displayName: result.server.displayName });
 					found = true;
 				} else if (result?.status === McpGalleryResolveStatus.NotFound) {
-					this.registryNames.set(name, {});
+					registryNames.set(name, {});
 				}
 			}
 		} catch (error) {
 			this.logService.trace('[AgentHostCustomizationMarketplace] Unable to look up MCP registry names', error);
 		}
-		if (found && !this._store.isDisposed) {
+		// An answer from a registry that was replaced in the meantime says nothing about the current one.
+		if (found && registryNames === this.registryNames && !this._store.isDisposed) {
 			this._onDidChange.fire();
 		}
 	}

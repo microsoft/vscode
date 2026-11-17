@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationChoice, IAgentCustomizationInstallationConfigurationRequest } from '../../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationChoice, IAgentCustomizationInstallationConfigurationRequest, IAgentCustomizationInstallationValuePrompt } from '../../../../../../../platform/agentHost/common/agent.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { McpServerInstallForm } from '../../../../browser/agentSessions/agentHost/mcpServerInstallForm.js';
@@ -66,11 +66,11 @@ suite('McpServerInstallForm', () => {
 	}
 
 	test('submits the answers of every kind of field in plan order', () => {
-		const { submitted, type, choose, click, install } = createForm([local]);
+		const { submitted, type, choose, install } = createForm([local]);
 		type('TOKEN', 's3cret');
 		choose('LOG_LEVEL', 'debug');
 		type('--include, optional', 'src\ntest');
-		click('--verbose');
+		choose('--verbose, optional', 'true');
 		type('directory', '/work');
 		install();
 		assert.deepStrictEqual(submitted, [{
@@ -86,6 +86,41 @@ suite('McpServerInstallForm', () => {
 			],
 			secrets: [{ placeholder: '${secret:a}', value: 's3cret' }],
 		}]);
+	});
+
+	test('an optional flag without a default can be left unset, turned on or turned off', () => {
+		const flag = (key: string): IAgentCustomizationInstallationValuePrompt => ({ key, category: 'header', valueType: 'boolean', required: false, isRepeated: false });
+		const { submitted, choose, install } = createForm([{ ...remote, values: [flag('X-Unset'), flag('X-On'), flag('X-Off')] }]);
+		choose('X-On, optional', 'true');
+		choose('X-Off, optional', 'false');
+		install();
+		assert.deepStrictEqual(submitted, [{
+			choiceId: 'remote:0',
+			inputs: [{ key: 'X-On', category: 'header', value: 'true' }, { key: 'X-Off', category: 'header', value: 'false' }],
+			secrets: [],
+		}]);
+	});
+
+	test('describes every kind of control by its error and hints', () => {
+		const { form, install } = createForm([{
+			...local,
+			values: [
+				{ key: 'directory', category: 'package-argument', valueType: 'path', required: true, isRepeated: false, description: 'Root folder' },
+				{ key: '--include', category: 'package-argument', valueType: 'string', required: false, isRepeated: true },
+				{ key: '--headless', category: 'package-argument', valueType: 'boolean', required: true, isRepeated: false, description: 'Run without a window' },
+				{ key: 'LOG_LEVEL', category: 'environment-variable', valueType: 'enum', required: true, isRepeated: false, enumValues: ['info', 'debug'], description: 'How much to log' },
+			],
+			secrets: [],
+		}]);
+		install();
+		const describedBy = (label: string) => (form.element.querySelector(`[aria-label="${label}"]`)?.getAttribute('aria-describedby') ?? '').split(' ')
+			.map(id => form.element.querySelector(`[id="${id}"]`)?.textContent).filter(text => !!text);
+		assert.deepStrictEqual(['directory', '--include, optional', '--headless', 'LOG_LEVEL'].map(describedBy), [
+			['A value is required.', 'Root folder'],
+			['Enter one value per line.'],
+			['Run without a window'],
+			['A value is required.', 'How much to log'],
+		]);
 	});
 
 	test('shows every problem at once and submits nothing until they are fixed', () => {

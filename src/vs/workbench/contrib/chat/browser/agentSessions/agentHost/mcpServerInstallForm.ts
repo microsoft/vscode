@@ -18,6 +18,7 @@ import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentCustomizationInstallationValueCategory, IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationChoice, IAgentCustomizationInstallationConfigurationRequest, IAgentCustomizationInstallationSecretPrompt, IAgentCustomizationInstallationValuePrompt } from '../../../../../../platform/agentHost/common/agent.js';
 import { configuredNumberPattern, configuredVariableReferencePattern, maxConfiguredValueBytes } from '../../../../../../platform/agentHost/common/customizationInstallationValues.js';
@@ -347,8 +348,9 @@ export class McpServerInstallForm extends Disposable {
 				},
 			});
 		}
-		if (value.valueType === 'boolean') {
-			return this.createCheckboxField(parent, value, { ...label, optional: false });
+		// On or off is enough unless leaving the value out is a third answer, which the choices below offer.
+		if (value.valueType === 'boolean' && !label.optional) {
+			return this.createCheckboxField(parent, value, label);
 		}
 		if (allowed) {
 			const unset = value.defaultValue !== undefined
@@ -395,7 +397,7 @@ export class McpServerInstallForm extends Disposable {
 		if (options.multiline) {
 			this.multilineInputs.push(input);
 		}
-		const setError = this.appendMessages(field, options.hints);
+		const setError = this.appendMessages(field, input.inputElement, options.hints);
 		return {
 			validate: () => input.validate() === undefined,
 			focus: () => input.focus(),
@@ -415,8 +417,10 @@ export class McpServerInstallForm extends Disposable {
 			defaultSelectBoxStyles,
 			{ useCustomDrawn: !hasNativeContextMenu(this.configurationService), ariaLabel: this.getAriaLabel(label) },
 		));
-		select.render(DOM.append(field, $('.mcp-install-form-select')));
-		const setError = this.appendMessages(field, [value.description]);
+		const container = DOM.append(field, $('.mcp-install-form-select'));
+		select.render(container);
+		// A select box renders its `<select>`, which is what takes focus, as the only child of the empty container.
+		const setError = this.appendMessages(field, container.firstElementChild, [value.description]);
 		const validate = () => {
 			const error = selected === 0 ? validateConfiguredValue(value, '', omittable) : undefined;
 			setError(error);
@@ -442,7 +446,7 @@ export class McpServerInstallForm extends Disposable {
 		this._register(DOM.addDisposableListener(labelElement, DOM.EventType.CLICK, () => {
 			checkbox.checked = !checkbox.checked;
 		}));
-		this.appendMessages(field, [value.description]);
+		this.appendMessages(field, checkbox.domNode, [value.description]);
 		return {
 			validate: () => true,
 			focus: () => checkbox.focus(),
@@ -467,14 +471,23 @@ export class McpServerInstallForm extends Disposable {
 		return label.optional ? localize('mcpInstallForm.optionalAriaLabel', "{0}, optional", name) : name;
 	}
 
-	/** Adds a field's error line and its hints, and returns how to show or clear the error. */
-	private appendMessages(field: HTMLElement, hints: readonly (string | undefined)[]): (error: string | undefined) => void {
+	/**
+	 * Adds a field's error line and its hints, and returns how to show or clear the error. They
+	 * describe {@link control}, so they are read out when it takes focus: the error first.
+	 */
+	private appendMessages(field: HTMLElement, control: Element | null, hints: readonly (string | undefined)[]): (error: string | undefined) => void {
 		const errorElement = DOM.append(field, $('.mcp-config-form-error', { 'aria-live': 'polite' }));
+		const messages = [errorElement];
 		for (const hint of hints) {
 			if (hint) {
-				DOM.append(field, $('.mcp-config-form-hint', undefined, hint));
+				messages.push(DOM.append(field, $('.mcp-config-form-hint', undefined, hint)));
 			}
 		}
+		const idPrefix = `mcp-install-form-${generateUuid()}`;
+		for (const [index, message] of messages.entries()) {
+			message.id = `${idPrefix}-${index}`;
+		}
+		control?.setAttribute('aria-describedby', messages.map(message => message.id).join(' '));
 		const setError = (error: string | undefined) => {
 			errorElement.textContent = error ?? '';
 			errorElement.style.display = error ? '' : 'none';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { disposableTimeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -19,6 +19,7 @@ import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../plat
 import { CustomizationMarketplaceSources } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IGalleryMcpServer, IMcpGalleryService, McpGalleryResolveStatus } from '../../../../../../../platform/mcp/common/mcpManagement.js';
 import { type IMcpServerConfiguration, McpServerType } from '../../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationMarketplaceInstallProvider.js';
@@ -36,6 +37,8 @@ interface ITestProviderOptions {
 	readonly requestTrust?: () => Promise<boolean | undefined>;
 	/** Answers MCP registry lookups; by default the registry cannot be reached. */
 	readonly resolveRegistryServers?: IMcpGalleryService['resolveMcpServersFromGallery'];
+	/** Fires when the MCP registry is replaced by another. */
+	readonly onDidChangeRegistry?: Event<IMcpGalleryManifest | null>;
 }
 
 /** Creates a provider with optional configuration and workspace trust fakes. */
@@ -70,6 +73,9 @@ function createTestProvider(
 		}(),
 		new class extends mock<IMcpGalleryService>() {
 			override async resolveMcpServersFromGallery(infos: { name: string; id?: string }[]) { return options.resolveRegistryServers?.(infos) ?? new Map(); }
+		}(),
+		new class extends mock<IMcpGalleryManifestService>() {
+			override readonly onDidChangeMcpGalleryManifest = options.onDidChangeRegistry ?? Event.None;
 		}(),
 	);
 }
@@ -1151,7 +1157,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						serverName: 'owner/demo',
 						target: 'owner/demo',
 						command: 'uvx',
-						args: ['markitdown-mcp'],
+						args: ['markitdown-mcp', '--label', 'safe --allow-write'],
 						env: { MODE: 'stdio' },
 						configurationFields: [],
 					});
@@ -1207,7 +1213,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			reviewed: [{
 				kind: 'configuration', operationId: 'operation', hostGeneration: 'generation', ownershipToken: 'token',
 				displayName: 'Demo MCP', serverName: 'owner/demo', target: 'owner/demo',
-				choices: [{ command: 'uvx markitdown-mcp', env: { MODE: 'stdio' }, values: [], secrets: [] }],
+				// An argument with a space is quoted, so it cannot be read as two.
+				choices: [{ command: 'uvx markitdown-mcp --label "safe --allow-write"', env: { MODE: 'stdio' }, values: [], secrets: [] }],
 			}],
 			// A review is applied without answers.
 			applied: [{ hostGeneration: 'generation', ownershipToken: 'token', operationId: 'operation' }],
@@ -1329,6 +1336,67 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			beforeLookup: ['io.example/demo', 'io.example/unlisted', 'io.example/unreachable', 'my-server', 'Receipt MCP'],
 			afterLookup: ['Demo MCP', 'io.example/unlisted', 'io.example/unreachable', 'my-server', 'Receipt MCP'],
 			lookups: [['io.example/demo', 'io.example/unlisted', 'io.example/unreachable']],
+		});
+	});
+
+	test('looks MCP server names up again when the MCP registry changes and ignores answers from the previous one', async () => {
+		const session = URI.parse('agent-host-copilotcli:/frontend-session');
+		const registryChanged = store.add(new Emitter<IMcpGalleryManifest | null>());
+		const lookups: DeferredPromise<string>[] = [];
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async listCustomizationInstallations(): Promise<readonly IAgentCustomizationInstallation[]> {
+					return [{ installationId: 'mcp-config:io.example/demo', kind: 'mcp', mediaType: 'application/mcp-server+json', serverName: 'io.example/demo', state: 'installed' }];
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/backend-session') };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return []; }
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+			{
+				onDidChangeRegistry: registryChanged.event,
+				resolveRegistryServers: async () => {
+					const lookup = new DeferredPromise<string>();
+					lookups.push(lookup);
+					const displayName = await lookup.p;
+					return new Map([['io.example/demo', { status: McpGalleryResolveStatus.Found, server: new class extends mock<IGalleryMcpServer>() { override readonly displayName = displayName; }() }]]);
+				},
+			},
+		));
+		const names = async () => (await provider.getInstallations(session, CancellationToken.None)).map(installation => installation.resource.displayName);
+		let refreshes = 0;
+		store.add(provider.onDidChange(() => refreshes++));
+
+		// The first lookup is still unanswered when the registry is replaced.
+		await names();
+		registryChanged.fire(null);
+		const afterChange = await names();
+		await lookups[0].complete('Previous Registry MCP');
+		await timeout(0);
+		const afterPreviousAnswer = await names();
+		const named = Event.toPromise(provider.onDidChange);
+		await lookups[1].complete('Demo MCP');
+		await named;
+
+		assert.deepStrictEqual({ afterChange, afterPreviousAnswer, afterCurrentAnswer: await names(), lookups: lookups.length, refreshes }, {
+			afterChange: ['io.example/demo'],
+			afterPreviousAnswer: ['io.example/demo'],
+			afterCurrentAnswer: ['Demo MCP'],
+			lookups: 2,
+			// Once for the new registry and once for its answer.
+			refreshes: 2,
 		});
 	});
 
