@@ -399,14 +399,14 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
  * how elements are checked for equality by returning an alternate value for each.
  */
 export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknown = value => value): T[] {
-	const seen = new Set<any>();
+	const seen: unknown[] = [];
 
 	return array.filter(element => {
 		const key = keyFn(element);
-		if (seen.has(key)) {
+		if (seen.includes(key)) {
 			return false;
 		}
-		seen.add(key);
+		seen.push(key);
 		return true;
 	});
 }
