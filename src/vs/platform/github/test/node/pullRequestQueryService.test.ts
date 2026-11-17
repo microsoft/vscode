@@ -21,6 +21,7 @@ import { ProgrammableGitHubServer, gitHubGraphQLResponse, gitHubGraphQLStep, git
 const availableCapabilities: GitHubHostCapabilities = {
 	graphql: true,
 	mergeQueue: true,
+	mergeQueueRemovals: true,
 	reviewThreads: true,
 	checkContextRequiredness: true,
 };
@@ -826,6 +827,114 @@ suite('PullRequestQueryService', () => {
 		});
 	});
 
+	test('reads the merge queue entry of a queued pull request, whose mergeability GitHub does not compute', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: ['AgentHostPullRequestMergeability', 'mergeQueueEntry { id state position estimatedTimeToMerge }'],
+				response: gitHubGraphQLResponse({
+					repository: {
+						mergeCommitAllowed: true,
+						squashMergeAllowed: true,
+						rebaseMergeAllowed: true,
+						viewerPermission: 'WRITE',
+						mergeQueue: { id: 'MQ1' },
+						pullRequest: {
+							headRefOid: 'head-1',
+							baseRefOid: 'base',
+							mergeable: 'UNKNOWN',
+							mergeStateStatus: 'UNKNOWN',
+							reviewDecision: 'APPROVED',
+							viewerCanUpdateBranch: true,
+							viewerCanEnableAutoMerge: false,
+							autoMergeRequest: null,
+							mergeQueueEntry: { id: 'MQE1', state: 'AWAITING_CHECKS', position: 3, estimatedTimeToMerge: 899 },
+						},
+					},
+				}),
+			}));
+			const { query, ref, credential } = setup(server);
+			const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, CancellationToken.None);
+
+			assert.deepStrictEqual(result.fragment === 'mergeability' ? { value: result.value, complete: result.complete } : undefined, {
+				value: {
+					headSha: 'head-1',
+					baseSha: 'base',
+					mergeable: 'UNKNOWN',
+					mergeStateStatus: 'UNKNOWN',
+					reviewDecision: 'APPROVED',
+					viewerCanUpdate: true,
+					viewerCanMerge: true,
+					viewerCanEnableAutoMerge: false,
+					allowedMergeMethods: ['MERGE', 'SQUASH', 'REBASE'],
+					autoMergeEnabled: false,
+					mergeQueueEntryId: 'MQE1',
+					mergeQueueEntryState: 'AWAITING_CHECKS',
+					mergeQueuePosition: 3,
+					mergeQueueEstimatedTimeToMerge: 899,
+					mergeQueueRequired: true,
+					queueRequirementKnown: true,
+				},
+				complete: false,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('reads why a pull request left its merge queue and the checks that failed on its merge group, once per merge group', async () => {
+		const mergeability = (nodes: readonly unknown[]) => gitHubGraphQLStep({
+			queryIncludes: ['AgentHostPullRequestMergeability', 'REMOVED_FROM_MERGE_QUEUE_EVENT'],
+			response: gitHubGraphQLResponse({
+				repository: {
+					mergeCommitAllowed: false, squashMergeAllowed: true, rebaseMergeAllowed: false, viewerPermission: 'WRITE', mergeQueue: { id: 'MQ1' },
+					pullRequest: {
+						headRefOid: 'head-1', baseRefOid: 'base', mergeable: 'MERGEABLE', mergeStateStatus: 'BLOCKED', reviewDecision: 'APPROVED',
+						viewerCanUpdateBranch: true, viewerCanEnableAutoMerge: true, autoMergeRequest: null, mergeQueueEntry: null,
+						timelineItems: { nodes },
+					},
+				},
+			}),
+		});
+		const removed = (reason: string, beforeCommit: string | null, actor = 'github-merge-queue') =>
+			({ __typename: 'RemovedFromMergeQueueEvent', id: `RFMQE_${reason}`, createdAt: '2026-11-17T07:09:23Z', reason, actor: { login: actor }, beforeCommit: beforeCommit ? { oid: beforeCommit } : null });
+		await withServer(async server => {
+			server.enqueue(
+				mergeability([removed('failed_checks', 'group-1')]),
+				gitHubRestStep({
+					method: 'GET', path: '/repos/octo/repo/commits/group-1/check-runs', query: { filter: 'latest', per_page: 100 },
+					response: gitHubJsonResponse({
+						check_runs: [
+							{ id: 1, name: 'Linux / Unit', status: 'completed', conclusion: 'success' },
+							{ id: 2, name: 'Windows / Electron-Unit', status: 'completed', conclusion: 'failure', details_url: 'https://github.com/octo/repo/actions/runs/9/job/2' },
+						],
+					}),
+				}),
+				gitHubRestStep({ method: 'GET', path: '/repos/octo/repo/commits/group-1/status', query: { per_page: 100 }, response: gitHubJsonResponse({ statuses: [] }) }),
+				// The failed checks of a merge group are read once.
+				mergeability([removed('failed_checks', 'group-1')]),
+				mergeability([removed('manual', 'group-2', 'octocat')]),
+				mergeability([removed('merge_conflict', null)]),
+				mergeability([removed('merged', 'group-3')]),
+				mergeability([{ __typename: 'PullRequestCommit' }]),
+			);
+			const { query, ref, credential } = setup(server);
+			const removals = [];
+			for (let index = 0; index < 6; index++) {
+				const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, CancellationToken.None);
+				removals.push(result.fragment === 'mergeability' ? result.value.mergeQueueRemoval : undefined);
+			}
+			const failedChecks = [{ id: '2', type: 'checkRun', name: 'Windows / Electron-Unit', status: 'COMPLETED', conclusion: 'FAILURE', detailsUrl: 'https://github.com/octo/repo/actions/runs/9/job/2' }];
+			assert.deepStrictEqual(removals, [
+				{ id: 'RFMQE_failed_checks', reason: 'failed_checks', removedAt: '2026-11-17T07:09:23Z', mergeGroupSha: 'group-1', failedChecks },
+				{ id: 'RFMQE_failed_checks', reason: 'failed_checks', removedAt: '2026-11-17T07:09:23Z', mergeGroupSha: 'group-1', failedChecks },
+				{ id: 'RFMQE_manual', reason: 'manual', removedAt: '2026-11-17T07:09:23Z', removedBy: 'octocat', mergeGroupSha: 'group-2' },
+				{ id: 'RFMQE_merge_conflict', reason: 'merge_conflict', removedAt: '2026-11-17T07:09:23Z' },
+				undefined,
+				undefined,
+			]);
+			server.assertSatisfied();
+		});
+	});
+
 	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
 		test(`surfaces GraphQL ${type} without accepting partial checks`, async () => {
 			await withServer(async server => {
@@ -849,6 +958,7 @@ suite('PullRequestQueryService', () => {
 			const unavailable: GitHubHostCapabilities = {
 				graphql: false,
 				mergeQueue: false,
+				mergeQueueRemovals: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			};

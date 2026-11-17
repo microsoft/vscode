@@ -16,6 +16,8 @@ import {
 	PullRequestFragment,
 	PullRequestInlineComment,
 	PullRequestMergeability,
+	PullRequestMergeQueueEntryState,
+	PullRequestMergeQueueRemoval,
 	PullRequestRef,
 	PullRequestReview,
 	PullRequestReviewThread,
@@ -25,7 +27,7 @@ import { arrayProperty, asObject, booleanProperty, idProperty, nextLink, normali
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
-import { WorkflowJob, annotateRequiredCheckDependencies, getRequiredPullRequestCheckNames, getUnfinishedRequiredPullRequestCheckNames, parseWorkflowJobs } from './pullRequestRequiredChecks.js';
+import { WorkflowJob, annotateRequiredCheckDependencies, getPullRequestCheckState, getRequiredPullRequestCheckNames, getUnfinishedRequiredPullRequestCheckNames, parseWorkflowJobs } from './pullRequestRequiredChecks.js';
 import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 
 /** How long an idle check suite of an app other than GitHub Actions is awaited before it is considered not to report. */
@@ -131,7 +133,7 @@ const expectedCheckSuitesQuery = `query AgentHostPullRequestExpectedCheckSuites(
 	rateLimit { limit remaining used resetAt }
 }`;
 
-const mergeabilityQuery = (includeMergeQueue: boolean) => `query AgentHostPullRequestMergeability($owner: String!, $repo: String!, $number: Int!${includeMergeQueue ? ', $baseBranch: String!' : ''}) {
+const mergeabilityQuery = (includeMergeQueue: boolean, includeRemovals: boolean) => `query AgentHostPullRequestMergeability($owner: String!, $repo: String!, $number: Int!${includeMergeQueue ? ', $baseBranch: String!' : ''}) {
 	repository(owner: $owner, name: $repo) {
 		id nameWithOwner mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed viewerPermission
 		${includeMergeQueue ? 'mergeQueue(branch: $baseBranch) { id }' : ''}
@@ -139,11 +141,20 @@ const mergeabilityQuery = (includeMergeQueue: boolean) => `query AgentHostPullRe
 			id headRefOid baseRefOid mergeable mergeStateStatus reviewDecision
 			viewerCanUpdateBranch viewerCanEnableAutoMerge
 			autoMergeRequest { enabledAt }
-			mergeQueueEntry { id }
+			mergeQueueEntry { id${includeMergeQueue ? ' state position estimatedTimeToMerge' : ''} }
+			${includeRemovals ? mergeQueueRemovalSelection : ''}
 		}
 	}
 	rateLimit { limit remaining used resetAt }
 }`;
+
+/**
+ * The last merge queue event or push of a pull request. A removal applies to the current head only when nothing was
+ * pushed after it. A push of a commit authored before the removal sorts before it, so such a removal can appear current.
+ */
+const mergeQueueRemovalSelection = `timelineItems(last: 1, itemTypes: [ADDED_TO_MERGE_QUEUE_EVENT, REMOVED_FROM_MERGE_QUEUE_EVENT, PULL_REQUEST_COMMIT, HEAD_REF_FORCE_PUSHED_EVENT]) {
+				nodes { __typename ... on RemovedFromMergeQueueEvent { id createdAt reason actor { login } beforeCommit { oid } } }
+			}`;
 
 /** Reads workflow files at a commit, each named by a `<commit>:<path>` expression in `$fileN`. */
 const workflowFilesQuery = (count: number) => `query AgentHostPullRequestWorkflowFiles($owner: String!, $repo: String!${Array.from({ length: count }, (_, index) => `, $file${index}: String!`).join('')}) {
@@ -159,6 +170,9 @@ const requiredContextsLifetime = 5 * 60 * 1000;
 /** How many parsed workflow files are kept; a workflow at a commit never changes. */
 const maximumCachedWorkflows = 50;
 
+/** How many merge group commits' failed checks are kept; checks of a merge group that left the queue do not run again. */
+const maximumCachedMergeGroups = 50;
+
 export class PullRequestQueryService implements IPullRequestQuery {
 
 	private readonly _planner = new PullRequestRequestPlanner();
@@ -171,6 +185,9 @@ export class PullRequestQueryService implements IPullRequestQuery {
 
 	/** The jobs of each workflow file, keyed by `host/owner/repo@commit:path`, or `undefined` when unreadable. */
 	private readonly _workflowJobs = new Map<string, ReadonlyMap<string, WorkflowJob> | undefined>();
+
+	/** The failed checks of each merge group commit, keyed by `host/owner/repo@commit`. */
+	private readonly _mergeGroupFailures = new Map<string, readonly PullRequestCheck[]>();
 
 	constructor(
 		private readonly _transport: IGitHubTransport,
@@ -265,7 +282,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 						headSha: core.headSha,
 					};
 				}
-				const mergeability = await this._fetchMergeability(ref, core, credential, cancellationToken, plan.priority, capabilities.mergeQueue);
+				const mergeability = await this._fetchMergeability(ref, core, credential, cancellationToken, plan.priority, capabilities.mergeQueue, capabilities.mergeQueueRemovals);
 				return {
 					fragment,
 					value: mergeability,
@@ -746,12 +763,13 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 		mergeQueueSupported: boolean,
+		mergeQueueRemovalsSupported: boolean,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.graphql<unknown>(
 			credential.account,
 			credential.token,
 			this._endpoint.getGraphQlUri(),
-			mergeabilityQuery(mergeQueueSupported),
+			mergeabilityQuery(mergeQueueSupported, mergeQueueSupported && mergeQueueRemovalsSupported),
 			mergeQueueSupported
 				? { owner: ref.owner, repo: ref.repo, number: ref.number, baseBranch: core.baseRef }
 				: { owner: ref.owner, repo: ref.repo, number: ref.number },
@@ -774,6 +792,10 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		}
 		const mergeQueueEntry = optionalObjectProperty(pullRequest, 'mergeQueueEntry');
 		const mergeQueue = optionalObjectProperty(repository, 'mergeQueue');
+		const removal = mergeQueueEntry ? undefined : toMergeQueueRemoval(pullRequest);
+		const failedChecks = removal?.reason === 'failed_checks' && removal.mergeGroupSha
+			? await this._fetchMergeGroupFailures(ref, removal.mergeGroupSha, credential, cancellationToken, priority)
+			: undefined;
 		return {
 			headSha: requiredString(pullRequest, 'headRefOid'),
 			baseSha: requiredString(pullRequest, 'baseRefOid'),
@@ -786,9 +808,54 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			allowedMergeMethods,
 			autoMergeEnabled: optionalObjectProperty(pullRequest, 'autoMergeRequest') !== undefined,
 			mergeQueueEntryId: mergeQueueEntry ? stringProperty(mergeQueueEntry, 'id') : undefined,
+			...mergeQueueEntry ? toMergeQueueEntryDetails(mergeQueueEntry) : {},
+			...removal ? { mergeQueueRemoval: { ...removal, ...failedChecks ? { failedChecks } : {} } } : {},
 			mergeQueueRequired: mergeQueueSupported && mergeQueue !== undefined,
 			queueRequirementKnown: true,
 		};
+	}
+
+	/**
+	 * The checks that failed on a merge group commit, including those that run only in the merge queue. A failure to read
+	 * them leaves them unknown rather than failing the pull request's mergeability.
+	 */
+	private async _fetchMergeGroupFailures(
+		ref: PullRequestRef,
+		sha: string,
+		credential: GitHubCredential,
+		cancellationToken: CancellationToken,
+		priority: import('./types.js').RequestPriority,
+	): Promise<readonly PullRequestCheck[] | undefined> {
+		const key = `${ref.host}/${ref.owner}/${ref.repo}@${sha}`.toLowerCase();
+		const cached = this._mergeGroupFailures.get(key);
+		if (cached) {
+			return cached;
+		}
+		try {
+			const checks: PullRequestCheck[] = [];
+			let url: string | undefined = this._restUrl(ref, `commits/${encodeURIComponent(sha)}/check-runs?filter=latest&per_page=100`);
+			for (let page = 0; url && page < maximumPaginationPages; page++) {
+				const response = await this._transport.rest<unknown>(credential.account, credential.token, { caller: 'github.pullRequestQuery', method: 'GET', url, etag: true, priority }, cancellationToken);
+				checks.push(...arrayProperty(asObject(response.data, 'GitHub check-runs response was malformed'), 'check_runs').map(toRestCheckRun));
+				url = nextLink(response.link);
+			}
+			const statuses = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.pullRequestQuery', method: 'GET', url: this._restUrl(ref, `commits/${encodeURIComponent(sha)}/status?per_page=100`), etag: true, priority,
+			}, cancellationToken);
+			checks.push(...arrayProperty(asObject(statuses.data, 'GitHub status response was malformed'), 'statuses').map(toRestStatus));
+			const failed = checks.filter(check => getPullRequestCheckState(check) === 'failed');
+			this._mergeGroupFailures.set(key, failed);
+			if (this._mergeGroupFailures.size > maximumCachedMergeGroups) {
+				this._mergeGroupFailures.delete(this._mergeGroupFailures.keys().next().value!);
+			}
+			return failed;
+		} catch (error) {
+			if (cancellationToken.isCancellationRequested || !(error instanceof GitHubRequestError)) {
+				throw error;
+			}
+			this._logService?.warn(`[PullRequestQueryService] Could not read the checks of merge group ${sha} of ${ref.owner}/${ref.repo}#${ref.number} (${error.kind}): ${error.message}`);
+			return undefined;
+		}
 	}
 
 	private async _fetchMergeabilityFallback(
@@ -830,6 +897,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 const restCapabilities: GitHubHostCapabilities = {
 	graphql: false,
 	mergeQueue: false,
+	mergeQueueRemovals: false,
 	reviewThreads: false,
 	checkContextRequiredness: false,
 };
@@ -1129,4 +1197,41 @@ function firstObject(values: readonly unknown[], message: string): object {
 function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[], fallback: T): T {
 	const property = stringProperty(value, key);
 	return property && allowed.includes(property as T) ? property as T : fallback;
+}
+
+const mergeQueueEntryStates: readonly PullRequestMergeQueueEntryState[] = ['QUEUED', 'AWAITING_CHECKS', 'MERGEABLE', 'UNMERGEABLE', 'LOCKED'];
+
+/**
+ * The pull request's last removal from its merge queue without merging, when its timeline shows nothing after it. A
+ * merge also removes the pull request from the queue, with the reason `merged`. A malformed event is left out.
+ */
+function toMergeQueueRemoval(pullRequest: object): Omit<PullRequestMergeQueueRemoval, 'failedChecks'> | undefined {
+	const timeline = optionalObjectProperty(pullRequest, 'timelineItems');
+	const last = timeline ? arrayProperty(timeline, 'nodes').at(-1) : undefined;
+	if (typeof last !== 'object' || last === null || stringProperty(last, '__typename') !== 'RemovedFromMergeQueueEvent') {
+		return undefined;
+	}
+	const id = stringProperty(last, 'id');
+	const removedAt = stringProperty(last, 'createdAt');
+	const reason = stringProperty(last, 'reason')?.toLowerCase();
+	if (!id || !removedAt || !reason || reason === 'merged') {
+		return undefined;
+	}
+	const actor = optionalObjectProperty(last, 'actor');
+	const removedBy = reason === 'manual' && actor ? stringProperty(actor, 'login') : undefined;
+	const beforeCommit = optionalObjectProperty(last, 'beforeCommit');
+	const mergeGroupSha = beforeCommit ? stringProperty(beforeCommit, 'oid') : undefined;
+	return { id, reason, removedAt, ...removedBy ? { removedBy } : {}, ...mergeGroupSha ? { mergeGroupSha } : {} };
+}
+
+/** The optional details of a merge queue entry; a value the host omits or does not recognize is left out. */
+function toMergeQueueEntryDetails(entry: object): Pick<PullRequestMergeability, 'mergeQueueEntryState' | 'mergeQueuePosition' | 'mergeQueueEstimatedTimeToMerge'> {
+	const state = stringProperty(entry, 'state');
+	const position = numberProperty(entry, 'position');
+	const estimatedTimeToMerge = numberProperty(entry, 'estimatedTimeToMerge');
+	return {
+		...state && mergeQueueEntryStates.includes(state as PullRequestMergeQueueEntryState) ? { mergeQueueEntryState: state as PullRequestMergeQueueEntryState } : {},
+		...position !== undefined && Number.isSafeInteger(position) && position > 0 ? { mergeQueuePosition: position } : {},
+		...estimatedTimeToMerge !== undefined && estimatedTimeToMerge >= 0 ? { mergeQueueEstimatedTimeToMerge: estimatedTimeToMerge } : {},
+	};
 }
