@@ -7,10 +7,38 @@ import assert from 'assert';
 import { isEqual, isEqualOrParent } from '../../../../base/common/extpath.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../base/test/common/utils.js';
+import { decodeIPCFileData, encodeIPCFileData } from '../../common/diskFileSystemProviderClient.js';
 import { FileChangesEvent, FileChangeType, IFileChange, isParent } from '../../common/files.js';
 
 suite('Files', () => {
+
+	test('IPC file data uses strings only for ordinary UTF-8', () => {
+		const utf8 = VSBuffer.fromString('Hello 🌍').buffer;
+		const binaryWithNull = Uint8Array.from([65, 0, 66]);
+		const legacyEncoding = Uint8Array.from([0x80, 0x41]);
+
+		const encodedUtf8 = encodeIPCFileData(utf8);
+		const encodedBinary = encodeIPCFileData(binaryWithNull);
+		const encodedLegacy = encodeIPCFileData(legacyEncoding);
+
+		assert.deepStrictEqual({
+			utf8: encodedUtf8,
+			utf8RoundTrip: [...decodeIPCFileData(encodedUtf8)],
+			binaryUsesUint8Array: encodedBinary instanceof Uint8Array,
+			binaryRoundTrip: [...decodeIPCFileData(encodedBinary)],
+			legacyUsesUint8Array: encodedLegacy instanceof Uint8Array,
+			legacyRoundTrip: [...decodeIPCFileData(encodedLegacy)]
+		}, {
+			utf8: 'Hello 🌍',
+			utf8RoundTrip: [...utf8],
+			binaryUsesUint8Array: true,
+			binaryRoundTrip: [65, 0, 66],
+			legacyUsesUint8Array: true,
+			legacyRoundTrip: [0x80, 0x41]
+		});
+	});
 
 	test('FileChangesEvent - basics', function () {
 		const changes = [

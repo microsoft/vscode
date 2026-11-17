@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../common/buffer.js';
 import { Event } from '../../../common/event.js';
-import { IMessagePassingProtocol } from './ipc.js';
+import { IStructuredCloneMessage, IStructuredCloneMessagePassingProtocol } from './ipc.js';
 
 export interface Sender {
 	send(channel: string, msg: unknown): void;
@@ -16,13 +15,15 @@ export interface Sender {
  * for the implementation of the `IMessagePassingProtocol`. That style of API requires a channel
  * name for sending data.
  */
-export class Protocol implements IMessagePassingProtocol {
+export class Protocol implements IStructuredCloneMessagePassingProtocol {
 
-	constructor(private sender: Sender, readonly onMessage: Event<VSBuffer>) { }
+	readonly type = 'structuredClone';
 
-	send(message: VSBuffer): void {
+	constructor(private sender: Sender, readonly onMessage: Event<IStructuredCloneMessage>) { }
+
+	send(message: IStructuredCloneMessage): void {
 		try {
-			this.sender.send('vscode:message', message.buffer);
+			this.sender.send('vscode:message', message);
 		} catch (e) {
 			// systems are going down
 		}
