@@ -87,7 +87,7 @@ export function getSessionInboxDescription(state: SessionInboxState | undefined)
 	}
 }
 
-/** Returns the unambiguous, provider-advertised PR merge operation; never a local branch merge. */
+/** Returns an available, provider-advertised PR merge operation for a single PR; never a local branch merge. */
 export function getInboxPullRequestMergeOperation(session: ISession, reader?: IReader): { readonly changeset: ISessionChangeset; readonly operation: ISessionChangesetOperation } | undefined {
 	const pullRequests = new Set(getSessionGitHubReferences(session, reader).pullRequests.map(ref => ref.uri.toString()));
 	for (const folder of session.workspace.read(reader)?.folders ?? []) {
@@ -98,7 +98,6 @@ export function getInboxPullRequestMergeOperation(session: ISession, reader?: IR
 	if (pullRequests.size !== 1) {
 		return undefined;
 	}
-	let candidate: { readonly changeset: ISessionChangeset; readonly operation: ISessionChangesetOperation } | undefined;
 	for (const changeset of session.mainChat.read(reader).changesets.read(reader) ?? []) {
 		if (!changeset.isEnabled.read(reader)) {
 			continue;
@@ -110,11 +109,8 @@ export function getInboxPullRequestMergeOperation(session: ISession, reader?: IR
 				|| operation.status === SessionChangesetOperationStatus.Running) {
 				continue;
 			}
-			if (candidate) {
-				return undefined;
-			}
-			candidate = { changeset, operation };
+			return { changeset, operation };
 		}
 	}
-	return candidate;
+	return undefined;
 }
