@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../../base/common/resources.js';
+import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { getComparisonKey, IExtUri } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
+import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, getWorktreeSessionToOpen, ISessionWorktreeFolder, IWorktreeFilterSession, WorktreeLastSessions } from '../../../chat/common/sessionWorktreeFolders.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 
 export type SessionFilter =
-	| { readonly kind: 'harness' | 'environment'; readonly id: string }
+	| { readonly kind: 'harness' | 'environment' | 'worktree'; readonly id: string }
 	| { readonly kind: 'application'; readonly environment: string; readonly id: string };
 
 export interface ISessionFilterOption {
@@ -82,6 +85,30 @@ export function sessionFilterKey(filter: SessionFilter): string {
 	return JSON.stringify(filter.kind === 'application' ? [filter.kind, filter.environment, filter.id] : [filter.kind, filter.id]);
 }
 
+/**
+ * Where `session` works, for the Worktrees filter: the worktree of its first folder, else that folder's working directory,
+ * of the folder's repository. Quick chats and sessions without a folder have none, and no Worktrees filter hides them.
+ */
+export function getSessionWorktreeFilterFolder(session: Pick<ISession, 'workspace' | 'isQuickChat'>, reader?: IReader): ISessionWorktreeFolder | undefined {
+	if (session.isQuickChat?.read(reader)) {
+		return undefined;
+	}
+	const folder = session.workspace.read(reader)?.folders[0];
+	return folder && getSessionWorktreeFolder(folder.gitRepository?.workTreeUri ?? folder.workingDirectory, folder.gitRepository?.uri);
+}
+
+/**
+ * Whether a window's Sessions list lists quick chats, which have no workspace: always in the Agents window, and in an editor
+ * window only while it has no folder, following its folders as they are added and removed.
+ */
+export function listsQuickChatsIn(isSessionsWindow: boolean, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
+	const foldersChanged = observableSignalFromEvent('workspaceFolders', workspaceContextService.onDidChangeWorkspaceFolders);
+	return derived(reader => {
+		foldersChanged.read(reader);
+		return isSessionsWindow || workspaceContextService.getWorkspace().folders.length === 0;
+	});
+}
+
 /** Orders environments as the Environment filter lists them: this computer, the cloud, then remote hosts by name. */
 export function compareSessionEnvironments(a: ISessionEnvironment, b: ISessionEnvironment): number {
 	const rank = (id: string) => id === 'local' ? 0 : id === 'cloud' ? 1 : 2;
@@ -129,7 +156,7 @@ export function getSessionFilterEnvironments(providers: readonly ISessionsProvid
  * The filter options for the given sessions. Only sessions the list includes, as
  * decided by `isSessionListed`, contribute their creating applications.
  */
-export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader): ISessionFilterOption[] {
+export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, extUri: IExtUri, reader?: IReader): ISessionFilterOption[] {
 	const options: ISessionFilterOption[] = [
 		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
 		{ filter: { kind: 'harness', id: 'claude' }, label: localize('harness.claude', "Claude"), group: '1_harnesses' },
@@ -163,16 +190,95 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 			});
 		}
 	}
+	// The worktrees that listed sessions not archived work in, with their repository's own folder
+	for (const option of getListedWorktreeOptions(sessions, isSessionListed, extUri, reader)) {
+		options.push({ filter: { kind: 'worktree', id: option.key }, label: option.label, group: option.isRepository ? '4_worktrees_1_repository' : '4_worktrees_2_worktrees' });
+	}
 	return options;
+}
+
+/** `session` as the Worktrees filter picks one to open as the user picks its folder. */
+export function getWorktreeFilterSession(session: ISession, extUri: IExtUri): IWorktreeFilterSession {
+	const worktree = getSessionWorktreeFilterFolder(session);
+	return {
+		id: session.sessionId,
+		worktree: worktree && getWorktreeFilterKey(worktree.folder, extUri),
+		isArchived: session.isArchived.get(),
+		time: (session.updatedAt.get() ?? session.createdAt).getTime(),
+	};
+}
+
+/** The Worktrees filter's options: the folders that listed sessions not archived work in. */
+function getListedWorktreeOptions(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, extUri: IExtUri, reader?: IReader) {
+	return getWorktreeFilterOptions(sessions.filter(session => isSessionListed(session, reader) && !session.isArchived.read(reader)).map(session => getSessionWorktreeFilterFolder(session, reader)), extUri);
+}
+
+/** The keys of the folders the Worktrees filter offers for `sessions`: of those the list includes, not archived. */
+export function getWorktreeFilterKeys(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, extUri: IExtUri, reader?: IReader): ReadonlySet<string> {
+	return new Set(getListedWorktreeOptions(sessions, isSessionListed, extUri, reader).map(option => option.key));
+}
+
+/**
+ * Opens a session of the worktree folder the user picks in the Worktrees filter, unless the shown session works in it already:
+ * the one of it shown last, else its most recent session that is not archived. As a click in the list, it first asks
+ * `canOpen`, such as whether its folder is trusted, and opens nothing where refused, or where a later pick or another change
+ * of the filters came meanwhile.
+ */
+export class SessionsWorktreeOpener extends Disposable {
+
+	private readonly _lastSessions = new WorktreeLastSessions();
+	/** Increases with each pick and each change of the filters: an open asked for before does not apply. */
+	private _generation = 0;
+
+	constructor(
+		private readonly _shown: IObservable<ISession | undefined>,
+		private readonly _sessions: () => readonly ISession[],
+		private readonly _canOpen: (session: ISession) => Promise<boolean>,
+		private readonly _open: (session: ISession) => void,
+		onDidChangeFilters: Event<void>,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+	) {
+		super();
+		this._register(onDidChangeFilters(() => this._generation++));
+		this._register(autorun(reader => {
+			// Also as the shown session's workspace becomes known or changes, which it can after it shows
+			const shown = this._shown.read(reader);
+			const folder = shown && getSessionWorktreeFilterFolder(shown, reader);
+			if (shown && folder) {
+				this._lastSessions.remember(getWorktreeFilterKey(folder.folder, this._uriIdentityService.extUri), shown.sessionId);
+			}
+		}));
+	}
+
+	async open(worktree: string): Promise<void> {
+		const generation = ++this._generation;
+		const shown = this._shown.get();
+		const sessions = this._sessions();
+		const extUri = this._uriIdentityService.extUri;
+		const pick = getWorktreeSessionToOpen(worktree, shown && getWorktreeFilterSession(shown, extUri), sessions.map(session => getWorktreeFilterSession(session, extUri)), this._lastSessions.get(worktree));
+		const session = pick && sessions.find(candidate => candidate.sessionId === pick.id);
+		if (!session || !await this._canOpen(session) || generation !== this._generation || this._store.isDisposed) {
+			return;
+		}
+		// Asked for that session only: where it no longer is one of the folder's to open, such as archived, removed or moved
+		// meanwhile, it opens nothing rather than another that was not asked for
+		const current = this._sessions().find(candidate => candidate.sessionId === session.sessionId);
+		const now = current && getWorktreeFilterSession(current, extUri);
+		if (now && now.worktree === worktree && !now.isArchived) {
+			this._open(current);
+		}
+	}
 }
 
 export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private static readonly INBOX_SCOPE_STORAGE_KEY = 'sessionsListControl.inboxScope';
+	private static readonly WORKTREE_STORAGE_KEY = 'sessionsListControl.worktree';
 	private static readonly SHOW_AUTOMATION_RUNS_KEY = 'showAutomationRuns';
 	private static readonly SCHEDULED_ONLY_KEY = 'scheduledOnly';
 	private readonly excluded: Map<string, boolean>;
 	private _inboxScope: IInboxScope = {};
+	private _worktree: string | undefined;
 	get inboxScope(): IInboxScope { return this._inboxScope; }
 	get hasInboxScope(): boolean { return this._inboxScope.workspace !== undefined || this._inboxScope.environment !== undefined; }
 	get hasInboxWorkspaceScope(): boolean { return !!this._inboxScope.workspace && this._inboxScope.workspace !== 'none'; }
@@ -183,6 +289,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService logService: ILogService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.excluded = new Map();
@@ -194,11 +301,13 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 					Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && typeof entry[1] === 'boolean')) {
 					throw new Error('Invalid session filter preferences.');
 				}
-				this.excluded = new Map(entries);
+				// Earlier builds stored hidden worktree folders here: those show all folders again
+				this.excluded = new Map(entries.filter(([key]) => !key.startsWith('["worktree",')));
 			} catch (error) {
 				logService.warn('Unable to restore session filter preferences.', error);
 			}
 		}
+		this._worktree = storageService.get(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE) || undefined;
 		const scope = storageService.get(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
 		if (scope !== undefined) {
 			try {
@@ -231,6 +340,21 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 			this.changeSignal.read(reader);
 		}
 		return this.excluded.get(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY) ?? false;
+	}
+
+	/**
+	 * The worktree folder, by its Worktrees filter key, whose sessions alone show: the selected one where `available`, the
+	 * keys of the folders the Worktrees filter offers, has it, else none, so that the list never stays empty for a folder
+	 * the filter no longer offers. All folders show where `undefined`.
+	 */
+	getSelectedWorktree(available: ReadonlySet<string>): string | undefined {
+		return this._worktree !== undefined && available.has(this._worktree) ? this._worktree : undefined;
+	}
+
+	/** Shows the sessions of the worktree folder `worktree` alone, or of all folders where `undefined`. */
+	setSelectedWorktree(worktree: string | undefined): void {
+		this._worktree = worktree;
+		this.save();
 	}
 
 	setShowAutomationRuns(show: boolean): void {
@@ -275,9 +399,16 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		return true;
 	}
 
-	matches(session: Pick<ISession, 'harness' | 'environment' | 'application'>, inbox = false): boolean {
+	/**
+	 * Whether the list shows `session`. `availableWorktrees` are the keys of the folders the Worktrees filter offers
+	 * ({@link getWorktreeFilterKeys}): the selected one applies only where it is one of them.
+	 */
+	matches(session: Pick<ISession, 'harness' | 'environment' | 'application'> & Partial<Pick<ISession, 'workspace' | 'isQuickChat'>>, inbox = false, availableWorktrees: ReadonlySet<string> = new Set()): boolean {
 		const application = session.application.get();
+		const selectedWorktree = this.getSelectedWorktree(availableWorktrees);
+		const worktree = selectedWorktree !== undefined && session.workspace && getSessionWorktreeFilterFolder({ workspace: session.workspace, isQuickChat: session.isQuickChat });
 		return !this.isExcluded({ kind: 'harness', id: session.harness })
+			&& (!worktree || getWorktreeFilterKey(worktree.folder, this.uriIdentityService.extUri) === selectedWorktree)
 			&& (inbox || !this.isExcluded({ kind: 'environment', id: session.environment }))
 			&& (application.id === UNKNOWN_SESSION_APPLICATION_ID
 				|| !this.isExcluded({ kind: 'application', environment: session.environment, id: application.id }));
@@ -286,8 +417,10 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	capture(): () => void {
 		const excluded = [...this.excluded];
 		const inboxScope = this._inboxScope;
+		const worktree = this._worktree;
 		return () => {
 			this._inboxScope = inboxScope;
+			this._worktree = worktree;
 			this.excluded.clear();
 			for (const [key, value] of excluded) {
 				this.excluded.set(key, value);
@@ -299,6 +432,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	reset(): void {
 		this.excluded.clear();
 		this._inboxScope = {};
+		this._worktree = undefined;
 		this.save();
 	}
 
@@ -307,6 +441,11 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 			this.storageService.store(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, JSON.stringify(this._inboxScope), StorageScope.PROFILE, StorageTarget.MACHINE);
 		} else {
 			this.storageService.remove(SessionsListFilters.INBOX_SCOPE_STORAGE_KEY, StorageScope.PROFILE);
+		}
+		if (this._worktree === undefined) {
+			this.storageService.remove(SessionsListFilters.WORKTREE_STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsListFilters.WORKTREE_STORAGE_KEY, this._worktree, StorageScope.PROFILE, StorageTarget.USER);
 		}
 		if (this.excluded.size === 0) {
 			this.storageService.remove(SessionsListFilters.STORAGE_KEY, StorageScope.PROFILE);

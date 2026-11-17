@@ -26,6 +26,15 @@ suite('Chat Accessibility Help', () => {
 		].map(help => help.includes('<keybinding:editor.changePasteType>')), [true, true, true, false, false, true]);
 	});
 
+	test('documents the New Worktree checkbox that stands in for the Folder picker while the folder has no worktrees, and when the Folder picker appears', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+		].map(help => help.includes('New Worktree checkbox instead of the Folder picker')
+			&& help.includes('Space to check or uncheck it')
+			&& help.includes('Once the folder has worktrees, the Folder picker appears')), [true, true]);
+	});
+
 	test('documents showing files above the chat input only while chat resources are enabled', () => {
 		const help = (chatResourcesEnabled: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, chatResourcesEnabled);
 		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('Show Above Chat Input')), [false, true]);

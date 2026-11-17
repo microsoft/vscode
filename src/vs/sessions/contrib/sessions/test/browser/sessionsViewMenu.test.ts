@@ -8,12 +8,16 @@ import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { $, getActiveElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { retry, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -47,7 +51,7 @@ import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/com
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
@@ -55,7 +59,7 @@ import { getSessionArchiveOnboardingTargetId, SessionItemCanAcknowledgeContext, 
 import { getInboxPullRequestMergeOperation, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getSessionFilterEnvironments, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { getSessionFilterEnvironments, getSessionFilterOptions, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
@@ -72,6 +76,7 @@ suite('Sessions - View Menu', () => {
 		environments: readonly ISessionEnvironment[] = [],
 		wording = ChatSessionArchiveActionWording.MarkAsDone,
 		providers?: readonly ISessionsProvider[],
+		windowOptions?: { readonly sessionsWindow?: boolean },
 	) {
 		const configurationService = new class extends TestConfigurationService {
 			override async updateValue(key: string, value: unknown): Promise<void> {
@@ -95,7 +100,10 @@ suite('Sessions - View Menu', () => {
 		const grouping = SessionsViewGroupingContext.bindTo(contextKeyService);
 		const capped = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
 		const compact = SessionsViewCompactContext.bindTo(contextKeyService);
-		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService())));
+		const uriIdentityService = upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase });
+		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService()), uriIdentityService));
+		const viewInstantiationService = store.add(new TestInstantiationService());
+		viewInstantiationService.stub(IUriIdentityService, uriIdentityService);
 		const sessionsChanged = store.add(new Emitter<void>());
 		const providersChanged = store.add(new Emitter<void>());
 		let excludeArchived = true;
@@ -120,10 +128,26 @@ suite('Sessions - View Menu', () => {
 			},
 		});
 		const notices: ISessionsListNotice[] = [];
+		// The session the window shows, and the sessions opened as from the list
+		const shown = observableValue<ISession | undefined>('shown', undefined);
+		const opened: string[] = [];
+		// Whether a session may open, such as whether its folder is trusted, as the list asks before it opens one
+		let canOpenSession: (session: ISession) => Promise<boolean> = async () => true;
+		if (windowOptions?.sessionsWindow) {
+			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		}
 		const host = {
+			_mainWindowHost: { session: shown },
+			sessionsService: {
+				canOpenSession: (session: ISession) => canOpenSession(session),
+				openSession: async (resource: URI) => { opened.push(sessions.find(session => session.resource.toString() === resource.toString())?.sessionId ?? resource.toString()); },
+			},
+			_handleSessionOpened: () => { },
 			get grouping() { return contextKeyService.getContextKeyValue<string>(SessionsViewGroupingContext.key); },
 			scopedContextKeyService: contextKeyService,
 			configurationService,
+			instantiationService: viewInstantiationService,
+			uriIdentityService,
 			workspaceGroupCappedContextKey: capped,
 			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
@@ -172,7 +196,8 @@ suite('Sessions - View Menu', () => {
 			await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		};
 		return {
-			snapshot, sorting, grouping, capped, compact, contextKeyService, configurationService, filters, run, sessionsControl, notices,
+			snapshot, sorting, grouping, capped, compact, contextKeyService, configurationService, filters, run, sessionsControl, notices, shown, opened,
+			setCanOpenSession: (value: (session: ISession) => Promise<boolean>) => { canOpenSession = value; },
 			/** Chooses Show: All, as its action does. */
 			showAll: () => {
 				sessionsControl.setWorkspaceGroupCapped(false);
@@ -361,7 +386,7 @@ suite('Sessions - View Menu', () => {
 			const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
 			harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 			const storage = store.add(new InMemoryStorageService());
-			let filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+			let filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService()), upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 			const registration = observableValue<LocalAgentHostRegistration | undefined>('registration', undefined);
 			const localSession = buildTestSession({ id: 'local', title: 'Local', workspace: 'app' }).session;
 			const registrationSession = buildTestSession({ id: 'registration', title: 'Registration', workspace: 'app', environment: 'github' }).session;
@@ -374,7 +399,7 @@ suite('Sessions - View Menu', () => {
 			if (restored) {
 				filters.setInboxEnvironment({ id: 'github', label: 'My Computer (GitHub)' });
 				filters.setInboxWorkspace({ environment: 'github', resource: 'file:///app', label: 'app' });
-				filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+				filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService()), upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 				registration.set('githubEnvironment', undefined);
 			}
 			const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
@@ -399,7 +424,7 @@ suite('Sessions - View Menu', () => {
 				workspace: scope.element.querySelector('.workspace-picker .action-label')?.textContent,
 				rows,
 				localMatches: filters.matchesInboxScope(localSession),
-				persisted: store.add(new SessionsListFilters(storage, store.add(new NullLogService()))).inboxScope,
+				persisted: store.add(new SessionsListFilters(storage, store.add(new NullLogService()), upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase }))).inboxScope,
 			};
 			filters.setInboxEnvironment({ id: 'missing', label: 'Other Computer' });
 			assert.deepStrictEqual({ normalized, unavailable: { scope: filters.inboxScope, label: trigger.textContent } }, {
@@ -1272,6 +1297,129 @@ suite('Sessions - View Menu', () => {
 			},
 			ungrouped: { title: 'Created Externally', checked: ['Last 30 Days'] },
 		});
+	});
+
+	test('picking a worktree folder opens the session of it shown last, else its most recent one, and nothing for All Worktrees, a shown session of it, or a stored folder that applies again', async () => {
+		const inFolder = (id: string, path: string, minutesAgo: number): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id, minutesAgo }).session, workspace: constObservable(workspace) };
+		};
+		const main = inFolder('main', '/work/vscode', 1);
+		const older = inFolder('older', '/work/vscode.worktrees/first', 30);
+		const newer = inFolder('newer', '/work/vscode.worktrees/first', 20);
+		const second = inFolder('second', '/work/vscode.worktrees/second', 10);
+		const menu = createMenu([main]);
+		menu.shown.set(main, undefined);
+		// Stored before, its sessions not there yet, as at startup: applying again opens nothing
+		const first = getSessionFilterOptions([older], [], () => true, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree')!.filter.id;
+		menu.filters.setSelectedWorktree(first);
+		menu.setSessions([main, older, newer, second]);
+		const late = [...menu.opened];
+		const pick = async (label: string) => {
+			const item = MenuRegistry.getMenuItems(Menus.SessionsViewWorktree).filter(isIMenuItem).find(candidate => (typeof candidate.command.title === 'string' ? candidate.command.title : candidate.command.title.value) === label)!;
+			await menu.run(item.command.id);
+			// It opens once allowed to, which it asks first
+			await timeout(0);
+		};
+		await pick('All Worktrees');
+		const all = [...menu.opened];
+		await pick('first');
+		const mostRecent = [...menu.opened];
+		menu.shown.set(older, undefined);
+		menu.shown.set(second, undefined);
+		await pick('first');
+		const remembered = menu.opened.slice(mostRecent.length);
+		menu.shown.set(newer, undefined);
+		await pick('first');
+
+		assert.deepStrictEqual({ late, all, mostRecent, remembered, alreadyShown: menu.opened.slice(mostRecent.length + remembered.length) }, {
+			late: [],
+			all: [],
+			mostRecent: ['newer'],
+			remembered: ['older'],
+			alreadyShown: [],
+		});
+	});
+
+	test('picking a worktree folder opens its session only once allowed to, as a click in the list does, and not where a later change came meanwhile', async () => {
+		const inFolder = (id: string, path: string, minutesAgo: number): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id, minutesAgo }).session, workspace: constObservable(workspace) };
+		};
+		const main = inFolder('main', '/work/vscode', 1);
+		const first = inFolder('first', '/work/vscode.worktrees/first', 20);
+		const menu = createMenu([main, first]);
+		menu.shown.set(main, undefined);
+		const pick = async (label: string) => {
+			const item = MenuRegistry.getMenuItems(Menus.SessionsViewWorktree).filter(isIMenuItem).find(candidate => (typeof candidate.command.title === 'string' ? candidate.command.title : candidate.command.title.value) === label)!;
+			await menu.run(item.command.id);
+			await timeout(0);
+		};
+		const asked: string[] = [];
+		menu.setCanOpenSession(async session => { asked.push(session.sessionId); return false; });
+		await pick('first');
+		const refused = { asked: [...asked], opened: [...menu.opened], shown: menu.shown.get()?.sessionId };
+		// Allowed only after the user changed the filters again
+		const allowed = new DeferredPromise<boolean>();
+		menu.setCanOpenSession(() => allowed.p);
+		const picking = pick('first');
+		await timeout(0);
+		await pick('All Worktrees');
+		allowed.complete(true);
+		await picking;
+		await timeout(0);
+		const superseded = [...menu.opened];
+		menu.setCanOpenSession(async () => true);
+		await pick('vscode');
+		await pick('first');
+		const opened = [...menu.opened];
+		// A failure to ask is reported, rather than swallowed or opening anyway
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			menu.setCanOpenSession(async () => { throw new Error('trust failed'); });
+			await pick('vscode');
+			await pick('first');
+			await timeout(0);
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({ refused, superseded, opened, failed: { opened: menu.opened.length - opened.length, errors: errors.map(error => (error as Error).message) } }, {
+			refused: { asked: ['first'], opened: [], shown: 'main' },
+			superseded: [],
+			opened: ['first'],
+			failed: { opened: 0, errors: ['trust failed'] },
+		});
+	});
+
+	test('offers no Worktrees filter in the Agents window, where a folder selected in an editor window selects nothing', () => {
+		const inFolder = (id: string, path: string): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
+		};
+		const sessions = [inFolder('main', '/work/vscode'), inFolder('first', '/work/vscode.worktrees/first')];
+		// A folder selected in an editor window, whose profile the Agents window shares
+		const menu = createMenu(sessions, [], undefined, undefined, { sessionsWindow: true });
+		menu.filters.setSelectedWorktree(getSessionFilterOptions(sessions, [], () => true, extUriBiasedIgnorePathCase).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
+
+		assert.deepStrictEqual({
+			submenu: menu.snapshot(Menus.SessionsViewFilter).some(item => item.submenu === Menus.SessionsViewWorktree.id),
+			entries: MenuRegistry.getMenuItems(Menus.SessionsViewWorktree).filter(isIMenuItem).length,
+		}, { submenu: false, entries: 0 });
 	});
 
 	test('keeps submenu titles unchanged while checked items track the selected choices', () => {

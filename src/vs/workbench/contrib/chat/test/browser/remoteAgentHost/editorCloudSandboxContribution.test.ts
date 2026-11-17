@@ -15,6 +15,7 @@ import { isWeb } from '../../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { AgentSession, IAgentConnection, IAgentHostService, IAgentResolveSessionConfigParams, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -63,6 +64,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/ag
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SELECT_REPOSITORY_COMMAND_ID, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
 import { CloudSandboxSessionFeed } from '../../../browser/remoteAgentHost/cloudSandboxSessionFeed.js';
@@ -3858,8 +3860,10 @@ suite('Editor cloud sandbox discovery', () => {
 		const h = createHarness(store);
 		await h.refresh();
 		const storage = store.add(new InMemoryStorageService());
-		const cloud = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Cloud] }, h.chatSessionsService, storage));
-		const local = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Local] }, h.chatSessionsService, storage));
+		// No sessions, so no worktrees to filter by
+		const emptyAgentSessions = upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ sessions: [], onDidChangeSessions: Event.None }) });
+		const cloud = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Cloud] }, h.chatSessionsService, storage, emptyAgentSessions, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
+		const local = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Local] }, h.chatSessionsService, storage, emptyAgentSessions, upcastPartial<IUriIdentityService>({ extUri: extUriBiasedIgnorePathCase })));
 		const session = upcastPartial<IAgentSession>({ providerType: sessionType, status: ChatSessionStatus.NeedsInput });
 		assert.deepStrictEqual({ cloud: cloud.exclude(session), local: local.exclude(session), resource: h.items()[0].resource.toString() }, { cloud: false, local: true, resource: resource.toString() });
 	});

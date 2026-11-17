@@ -13,7 +13,7 @@ import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.j
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
@@ -76,6 +76,7 @@ import { IChatViewHostNewChatOptions, IChatViewHostService, IChatViewHostShownSe
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
+import { AgentSessionsWorktreeOpener } from '../../agentSessions/agentSessionsWorktreeOpener.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -954,9 +955,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			telemetrySource: 'agentSessionsToolbar'
 		}));
 
-		// Sessions Filter
+		// Sessions Filter, which opens a session of the worktree folder the user picks
+		const worktreeOpener = this._register(this.instantiationService.createInstance(AgentSessionsWorktreeOpener));
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
+			onDidPickWorktree: worktree => worktreeOpener.open(worktree).catch(onUnexpectedError),
 			groupResults: () => this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? AgentSessionsGrouping.Capped : AgentSessionsGrouping.Date
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
