@@ -345,19 +345,21 @@ suite('Comment thread floating widget', () => {
 			return model;
 		}
 
-		test('can be as wide as the editor, and is shown as wide as its content fills, unless something is being written', () => {
+		test('can be as wide as the editor, and is shown as wide as its content fills but not too narrow, unless something is being written', () => {
 			const model = createModel();
 			assert.deepStrictEqual({
 				narrowContent: model.getWidthRange({ minimum: 100, natural: 180 }),
 				wideContent: model.getWidthRange({ minimum: 300, natural: 700 }),
 				defaultForNarrowContent: model.getDefaultWidth({ minimum: 100, natural: 180 }, 400, false),
+				defaultForNarrowContentInNarrowEditor: model.getDefaultWidth({ minimum: 100, natural: 180 }, 280, false),
 				defaultForWideContent: model.getDefaultWidth({ minimum: 300, natural: 700 }, 400, false),
 				defaultWhileEditing: model.getDefaultWidth({ minimum: 100, natural: 180 }, 400, true),
 				defaultWiderThanEditor: model.getDefaultWidth({ minimum: 300, natural: 1400 }, 1200, false),
 			}, {
 				narrowContent: { min: 240, max: 1000 },
 				wideContent: { min: 300, max: 1000 },
-				defaultForNarrowContent: 240,
+				defaultForNarrowContent: 320,
+				defaultForNarrowContentInNarrowEditor: 280,
 				defaultForWideContent: 400,
 				defaultWhileEditing: 400,
 				defaultWiderThanEditor: 1000,
