@@ -83,6 +83,18 @@ export interface ISessionTypePickerDelegate {
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
+/**
+ * Reveals the chat of a window that shows chat outside the Chat view, such as the Agents window, which shows the chat of
+ * its active session; see {@link IChatWidgetService.registerWidgetRevealer}.
+ */
+export interface IChatWidgetRevealer {
+	/**
+	 * Reveals the widget that commands that do not name one, such as Open Chat, act on, focusing its input unless
+	 * `preserveFocus` is true. `undefined` when the window has none, to reveal the last focused widget or the Chat view.
+	 */
+	revealWidget(preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
+}
+
 export interface IChatWidgetService {
 
 	readonly _serviceBrand: undefined;
@@ -123,9 +135,15 @@ export interface IChatWidgetService {
 	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean>;
 
 	/**
-	 * Reveals the last active widget, or creates a new chat if necessary.
+	 * Reveals the widget of a registered {@link IChatWidgetRevealer}, else the last active widget, or creates a new chat if
+	 * necessary.
 	 */
 	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
+	/**
+	 * Makes {@link revealWidget} reveal the widget that `revealer` reveals, before the last active widget or the Chat view.
+	 */
+	registerWidgetRevealer(revealer: IChatWidgetRevealer): IDisposable;
 
 	/**
 	 * Shows the host of the Chat view's chats ({@link IChatViewHostService}): the Chat view, or what replaces it. Resolves to the
