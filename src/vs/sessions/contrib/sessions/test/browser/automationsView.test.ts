@@ -970,10 +970,10 @@ suite('AutomationsCardsWidget', () => {
 		const items = [
 			automation({ id: 'local-disabled', name: 'Local disabled', enabled: false }),
 			automation({ id: 'shared-disabled', name: 'Shared disabled', ownership: 'repository', enabled: false }),
-			automation({ id: 'cloud-disabled', name: 'Cloud disabled', ownership: 'user', providerId: 'cloud', enabled: false }),
+			automation({ id: 'cloud-disabled', name: 'Cloud disabled', ownership: 'user', target: { ...workspaceTarget(), providerId: 'cloud' }, enabled: false }),
 			automation({ id: 'local', name: 'Local enabled' }),
 			automation({ id: 'shared', name: 'Shared enabled', ownership: 'repository' }),
-			automation({ id: 'cloud', name: 'Cloud enabled', ownership: 'user', providerId: 'cloud' }),
+			automation({ id: 'cloud', name: 'Cloud enabled', ownership: 'user', target: { ...workspaceTarget(), providerId: 'cloud' } }),
 		];
 		automationService.setAutomations(items);
 		automationService.setRuns([run({ status: 'running' })]);
