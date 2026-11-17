@@ -397,13 +397,19 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			metadata: part.metadata,
 		};
 		if (previous?.type === 'reasoning' && previous.id === reasoning.id) {
+			const metadata = previous.metadata || reasoning.metadata ? { ...previous.metadata, ...reasoning.metadata } : undefined;
+			// A later part of the same item can carry only a marker such as `{ toolId }`. Encode the
+			// merged metadata, so what an earlier part recorded is not replaced by this part's encoding.
+			const mergedEncryptedContent = reasoning.encryptedContent !== undefined && !reasoning.encryptedContent.startsWith(REASONING_METADATA_PREFIX)
+				? reasoning.encryptedContent
+				: this._encodeReasoningMetadata(metadata) ?? previous.encryptedContent;
 			output[output.length - 1] = {
 				...previous,
 				summary: startsNewSummaryPart || Array.isArray(part.value)
 					? [...previous.summary, ...reasoning.summary]
 					: this._mergeReasoningSummary(previous.summary, part.value),
-				encryptedContent: reasoning.encryptedContent ?? previous.encryptedContent,
-				metadata: previous.metadata || reasoning.metadata ? { ...previous.metadata, ...reasoning.metadata } : undefined,
+				encryptedContent: mergedEncryptedContent,
+				metadata,
 			};
 		} else {
 			output.push(reasoning);
@@ -422,11 +428,16 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (encryptedContent) {
 			return encryptedContent;
 		}
-		const continuationMetadata = {
-			...(this._stringMetadata(metadata, 'signature') ? { signature: this._stringMetadata(metadata, 'signature') } : {}),
-			...(this._stringMetadata(metadata, '_completeThinking') ? { _completeThinking: this._stringMetadata(metadata, '_completeThinking') } : {}),
-			...(this._stringMetadata(metadata, 'redactedData') ? { redactedData: this._stringMetadata(metadata, 'redactedData') } : {}),
-		};
+		const continuationMetadata: Record<string, unknown> = {};
+		// Keep every key the provider put on its thinking part, not only the Anthropic continuation
+		// fields, so the provider gets its own metadata back on the next turn. The Responses
+		// reasoning item only carries `encrypted_content`, so this string is the one place it survives.
+		// `vscode_*` keys are VS Code's own markers and never go back to the provider.
+		for (const [key, value] of Object.entries(metadata ?? {})) {
+			if (value !== undefined && !key.startsWith('vscode_')) {
+				continuationMetadata[key] = value;
+			}
+		}
 		return Object.keys(continuationMetadata).length > 0
 			? `${REASONING_METADATA_PREFIX}${JSON.stringify(continuationMetadata)}`
 			: undefined;

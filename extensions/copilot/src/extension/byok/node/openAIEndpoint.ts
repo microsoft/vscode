@@ -13,6 +13,7 @@ import { ChatEndpoint, normalizeKimiToolCallIds } from '../../../platform/endpoi
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
+import { reasoningSourceFieldFromMetadata } from '../../../platform/thinking/common/thinking';
 import { RawMessageConversionCallback } from '../../../platform/networking/common/openai';
 import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -164,8 +165,15 @@ export class OpenAIEndpoint extends ChatEndpoint {
 					out.cot_summary = text;
 				}
 				if (supportsThinking) {
-					out.reasoning_content = text;
-					out.reasoning = text;
+					// Send the reasoning back under the one key the server used for it. Servers that treat
+					// `reasoning` as an alias of `reasoning_content` reject a message that has both. When the
+					// key is unknown, use `reasoning_content`, the name most servers use.
+					const sourceField = reasoningSourceFieldFromMetadata(data.metadata);
+					if (sourceField === 'reasoning') {
+						out.reasoning = text;
+					} else {
+						out.reasoning_content = text;
+					}
 				}
 			}
 		};
