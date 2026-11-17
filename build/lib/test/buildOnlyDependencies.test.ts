@@ -79,6 +79,23 @@ function stepLists(file: string): Record<string, unknown>[][] {
 	return lists;
 }
 
+/** A path that a command names relative to the sources directory, as Azure Pipelines (`$(Build.SourcesDirectory)`) or scripts (`$BUILD_SOURCESDIRECTORY`) name it. */
+const sourcesDirectoryPrefix = String.raw`(\$\(Build\.SourcesDirectory\)\/|\$(?:env:)?BUILD_SOURCESDIRECTORY\/)?`;
+
+/**
+ * The folders in which a step installs dependencies with pnpm, one per installation: the folder that the command
+ * changes to (`cd build && pnpm install`, `pnpm -C build install`), or the step's working directory.
+ */
+function installDirectories(step: Record<string, unknown>): string[] {
+	const directory = workingDirectoryOf(step);
+	const changesTo = new RegExp(String.raw`\bcd\s+["']?${sourcesDirectoryPrefix}([\w./-]+)["']?\s*(?:&&|;)[^\n]*?\bpnpm\s+(?:install|i)\b`);
+	const runsIn = new RegExp(String.raw`\bpnpm\s+(?:-C|--dir)\s+["']?${sourcesDirectoryPrefix}([\w./-]+)["']?\s+(?:install|i)\b`);
+	return scriptOf(step).split('\n').filter(line => /\bpnpm\s+(?:(?:-C|--dir)\s+\S+\s+)?(?:install|i)\b/.test(line)).map(line => {
+		const [, sourcesDirectory, folder] = changesTo.exec(line) ?? runsIn.exec(line) ?? [];
+		return folder ? path.resolve(sourcesDirectory ? repositoryRoot : directory, folder) : directory;
+	});
+}
+
 /** Code that a build-only job passes to `node -e` or `node -p`, and the folder that its relative imports resolve in. */
 interface IInlineScript {
 	readonly code: string;
@@ -96,8 +113,8 @@ function buildOnlyScripts(): { files: Map<string, string>; inline: IInlineScript
 	for (const file of listPipelineFiles(pipelinesFolder)) {
 		const pipeline = path.relative(repositoryRoot, file).replaceAll('\\', '/');
 		for (const steps of stepLists(file)) {
-			const installs = steps.filter(step => /\bpnpm (?:install|i)\b/.test(scriptOf(step)));
-			if (!installs.length || !installs.every(step => workingDirectoryOf(step) === path.join(repositoryRoot, 'build'))) {
+			const installs = steps.flatMap(installDirectories);
+			if (!installs.length || !installs.every(directory => directory === path.join(repositoryRoot, 'build'))) {
 				continue;
 			}
 			for (const step of steps) {
@@ -198,7 +215,7 @@ suite('scripts of build-only product build jobs', () => {
 
 	test('are found in the pipelines that install only build dependencies, their step templates and child processes', () => {
 		const { files, inline } = buildOnlyScripts();
-		for (const script of ['build/darwin/create-universal-app.ts', 'build/darwin/verify-macho.ts', 'build/azure-pipelines/common/publish.ts', 'build/azure-pipelines/common/runWithTimeout.ts', 'build/azure-pipelines/common/installPnpm.ts']) {
+		for (const script of ['build/darwin/create-universal-app.ts', 'build/darwin/verify-macho.ts', 'build/azure-pipelines/common/publish.ts', 'build/azure-pipelines/common/runWithTimeout.ts', 'build/azure-pipelines/common/installPnpm.ts', 'build/azure-pipelines/publish-types/check-version.ts', 'build/azure-pipelines/publish-types/update-types.ts']) {
 			assert.ok(files.has(script), `${script} isn't found in a build-only job`);
 		}
 		assert.ok(inline.some(({ code, directory }) => code.includes('install-sysroot.ts') && existsSync(path.resolve(directory, '../build/linux/debian/install-sysroot.ts'))), 'the inline sysroot script of cli/cli-compile.yml isn\'t found in a build-only job');
@@ -212,6 +229,17 @@ suite('scripts of build-only product build jobs', () => {
 		const { files, inline } = buildOnlyScripts();
 		assert.deepStrictEqual(undeclaredBuildImports(files.keys(), declared, inline), [],
 			'A script that a build-only job runs imports a package that build/package.json doesn\'t declare. Add it to build/package.json; the root node_modules isn\'t installed in that job.');
+	});
+
+	test('finds the folder of each installation of a step', () => {
+		const build = path.join(repositoryRoot, 'build');
+		assert.deepStrictEqual([
+			{ script: '(cd build && pnpm install --frozen-lockfile)\nnode build/a.ts' },
+			{ script: 'pnpm -C build install' },
+			{ bash: 'cd $BUILD_SOURCESDIRECTORY/build; pnpm i' },
+			{ script: 'pnpm install', workingDirectory: '$(Build.SourcesDirectory)/build' },
+			{ script: 'pnpm install' },
+		].flatMap(installDirectories), [build, build, build, build, repositoryRoot]);
 	});
 
 	test('reports an import that only the root declares', () => {
