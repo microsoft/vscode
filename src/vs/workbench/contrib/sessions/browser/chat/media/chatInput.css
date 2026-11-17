@@ -84,14 +84,14 @@
 	overflow: hidden;
 }
 
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
+.new-chat-widget-content .sessions-chat-config-toolbar.new-chat-session-controls {
 	flex: 0 0 auto;
 	width: max-content;
 }
 
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-toolbar,
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar,
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar .actions-container {
+.new-chat-widget-content .sessions-chat-config-toolbar.new-chat-session-controls .monaco-toolbar,
+.new-chat-widget-content .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar,
+.new-chat-widget-content .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar .actions-container {
 	overflow: visible;
 }
 

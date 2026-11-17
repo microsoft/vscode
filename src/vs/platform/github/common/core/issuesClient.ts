@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mergeArrayPages } from '../client/pagination.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { mergeArrayPages } from '../client/pagination.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { numberSegment, pathSegment, repositoryPath, withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
@@ -18,7 +19,7 @@ const maximumIssueBatchSize = 50;
 export class IssuesClient implements IIssuesClient {
 	constructor(private readonly _client: CoreClient) { }
 
-	async get(repository: RepositoryRef, issueNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
+	async get(repository: RepositoryRef, issueNumber: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'GET',
@@ -26,10 +27,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseIssue);
+		}, cancellationToken, parseIssue);
 	}
 
-	async list(repository: RepositoryRef, signal: AbortSignal, options?: ListIssuesOptions): Promise<readonly Issue[]> {
+	async list(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListIssuesOptions): Promise<readonly Issue[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'issues',
@@ -38,11 +39,11 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseIssues, mergeArrayPages);
+		}, cancellationToken, parseIssues, mergeArrayPages);
 	}
 
-	async getClosingPullRequestCounts(repository: RepositoryRef, issueNumbers: readonly number[], signal: AbortSignal, options?: ApiRequestOptions): Promise<Readonly<Record<number, number | null>> | null> {
-		signal.throwIfAborted();
+	async getClosingPullRequestCounts(repository: RepositoryRef, issueNumbers: readonly number[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Readonly<Record<number, number | null>> | null> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const numbers = [...new Set(parse.arrayOf(parse.range(1, 2_147_483_647))(issueNumbers))];
 		const counts: Record<number, number | null> = {};
 		for (let offset = 0; offset < numbers.length; offset += maximumIssueBatchSize) {
@@ -57,7 +58,7 @@ export class IssuesClient implements IIssuesClient {
 					repository(owner: $owner, name: $repo) { ${selections} }
 				}`,
 				repository,
-				signal,
+				cancellationToken,
 				data => parseClosingPullRequestCountsQuery(data).repository,
 				options
 			);
@@ -73,7 +74,7 @@ export class IssuesClient implements IIssuesClient {
 		return counts;
 	}
 
-	async create(repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
+	async create(repository: RepositoryRef, request: CreateIssueRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'POST',
@@ -82,10 +83,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parseIssue);
+		}, cancellationToken, parseIssue);
 	}
 
-	async update(repository: RepositoryRef, issueNumber: number, request: UpdateIssueRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
+	async update(repository: RepositoryRef, issueNumber: number, request: UpdateIssueRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'PATCH',
@@ -94,10 +95,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseIssue);
+		}, cancellationToken, parseIssue);
 	}
 
-	async listComments(repository: RepositoryRef, issueNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly IssueComment[]> {
+	async listComments(repository: RepositoryRef, issueNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly IssueComment[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'issues',
@@ -106,10 +107,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseComments, mergeArrayPages);
+		}, cancellationToken, parseComments, mergeArrayPages);
 	}
 
-	async getComment(repository: RepositoryRef, commentId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<IssueComment> {
+	async getComment(repository: RepositoryRef, commentId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<IssueComment> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'GET',
@@ -117,10 +118,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options
-		}, signal, parseComment);
+		}, cancellationToken, parseComment);
 	}
 
-	async createComment(repository: RepositoryRef, issueNumber: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<IssueComment> {
+	async createComment(repository: RepositoryRef, issueNumber: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<IssueComment> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'POST',
@@ -129,10 +130,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parseComment);
+		}, cancellationToken, parseComment);
 	}
 
-	async updateComment(repository: RepositoryRef, commentId: number, body: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<IssueComment> {
+	async updateComment(repository: RepositoryRef, commentId: number, body: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<IssueComment> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'PATCH',
@@ -141,10 +142,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseComment);
+		}, cancellationToken, parseComment);
 	}
 
-	async deleteComment(repository: RepositoryRef, commentId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	async deleteComment(repository: RepositoryRef, commentId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'DELETE',
@@ -153,10 +154,10 @@ export class IssuesClient implements IIssuesClient {
 			expectedStatus: 204,
 			responseBody: 'none',
 			options
-		}, signal);
+		}, cancellationToken);
 	}
 
-	async listTimeline(repository: RepositoryRef, issueNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TimelineEvent[]> {
+	async listTimeline(repository: RepositoryRef, issueNumber: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly TimelineEvent[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'issues',
@@ -165,10 +166,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseTimeline, mergeArrayPages);
+		}, cancellationToken, parseTimeline, mergeArrayPages);
 	}
 
-	async listLabels(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Label[]> {
+	async listLabels(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Label[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'issues',
@@ -177,10 +178,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseLabels, mergeArrayPages);
+		}, cancellationToken, parseLabels, mergeArrayPages);
 	}
 
-	async createLabel(repository: RepositoryRef, request: CreateLabelRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Label> {
+	async createLabel(repository: RepositoryRef, request: CreateLabelRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Label> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'POST',
@@ -189,10 +190,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parseLabel);
+		}, cancellationToken, parseLabel);
 	}
 
-	async setLabels(repository: RepositoryRef, issueNumber: number, labels: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Label[]> {
+	async setLabels(repository: RepositoryRef, issueNumber: number, labels: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly Label[]> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'PUT',
@@ -201,10 +202,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseLabels);
+		}, cancellationToken, parseLabels);
 	}
 
-	async removeLabel(repository: RepositoryRef, issueNumber: number, name: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Label[]> {
+	async removeLabel(repository: RepositoryRef, issueNumber: number, name: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly Label[]> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'DELETE',
@@ -212,10 +213,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseLabels);
+		}, cancellationToken, parseLabels);
 	}
 
-	async listMilestones(repository: RepositoryRef, signal: AbortSignal, options?: ListMilestonesOptions): Promise<readonly Milestone[]> {
+	async listMilestones(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListMilestonesOptions): Promise<readonly Milestone[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'issues',
@@ -224,10 +225,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseMilestones, mergeArrayPages);
+		}, cancellationToken, parseMilestones, mergeArrayPages);
 	}
 
-	async createMilestone(repository: RepositoryRef, request: CreateMilestoneRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Milestone> {
+	async createMilestone(repository: RepositoryRef, request: CreateMilestoneRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Milestone> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'POST',
@@ -236,10 +237,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parseMilestone);
+		}, cancellationToken, parseMilestone);
 	}
 
-	async listAssignees(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Account[]> {
+	async listAssignees(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Account[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'issues',
@@ -248,10 +249,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseAssignees, mergeArrayPages);
+		}, cancellationToken, parseAssignees, mergeArrayPages);
 	}
 
-	async addAssignees(repository: RepositoryRef, issueNumber: number, assignees: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
+	async addAssignees(repository: RepositoryRef, issueNumber: number, assignees: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'POST',
@@ -260,10 +261,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 201,
 			options
-		}, signal, parseIssue);
+		}, cancellationToken, parseIssue);
 	}
 
-	async removeAssignees(repository: RepositoryRef, issueNumber: number, assignees: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
+	async removeAssignees(repository: RepositoryRef, issueNumber: number, assignees: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'DELETE',
@@ -272,10 +273,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: 200,
 			options
-		}, signal, parseIssue);
+		}, cancellationToken, parseIssue);
 	}
 
-	async listReactions(repository: RepositoryRef, target: ReactionTarget, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Reaction[]> {
+	async listReactions(repository: RepositoryRef, target: ReactionTarget, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Reaction[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
 			domain: 'issues',
@@ -284,10 +285,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'optional',
 			expectedStatus: 200,
 			options: requestOptions
-		}, signal, parseReactions, mergeArrayPages);
+		}, cancellationToken, parseReactions, mergeArrayPages);
 	}
 
-	async createReaction(repository: RepositoryRef, target: ReactionTarget, content: ReactionContent, signal: AbortSignal, options?: ApiRequestOptions): Promise<Reaction> {
+	async createReaction(repository: RepositoryRef, target: ReactionTarget, content: ReactionContent, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Reaction> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'POST',
@@ -296,10 +297,10 @@ export class IssuesClient implements IIssuesClient {
 			authentication: 'required',
 			expectedStatus: [200, 201],
 			options
-		}, signal, parseReaction);
+		}, cancellationToken, parseReaction);
 	}
 
-	async deleteReaction(repository: RepositoryRef, target: ReactionTarget, reactionId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
+	async deleteReaction(repository: RepositoryRef, target: ReactionTarget, reactionId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
 			domain: 'issues',
 			method: 'DELETE',
@@ -308,7 +309,7 @@ export class IssuesClient implements IIssuesClient {
 			expectedStatus: 204,
 			responseBody: 'none',
 			options
-		}, signal);
+		}, cancellationToken);
 	}
 }
 

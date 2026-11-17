@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiRequestOptions } from '../client/request.js';
 
 /** A gist file and its inline content. */
@@ -39,8 +40,8 @@ export interface CreateGistRequest {
 /** Operations for retrieving and creating gists. */
 export interface IGistsClient {
 	/** GET /gists/{gist_id}: read a gist without requiring sign-in. */
-	get(gistId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Gist>;
+	get(gistId: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Gist>;
 
 	/** POST /gists: create a gist using a user credential with gist write permission. */
-	create(request: CreateGistRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Gist>;
+	create(request: CreateGistRequest, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Gist>;
 }

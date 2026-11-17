@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
@@ -15,9 +16,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IGitHubAccountClient } from '../../common/account/account.js';
 import { AccountClient } from '../../common/account/accountClient.js';
-import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../common/client/request.js';
 import { PaginationLimitError } from '../../common/client/pagination.js';
-import { parse, SchemaError } from '../../common/client/schema.js';
+import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../common/client/request.js';
+import { SchemaError, parse } from '../../common/client/schema.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
@@ -26,7 +27,8 @@ import { ClientTokenResponse } from '../../common/missionControl/environments.js
 import { ApiRequestError, MissionControlClient, MutationUncertainError, paginated } from '../../common/missionControl/missionControlClient.js';
 import { Task } from '../../common/missionControl/tasks.js';
 
-const signal = () => new AbortController().signal;
+
+const cancellationToken = () => CancellationToken.None;
 const repository = { owner: 'owner', repo: 'repo' };
 const apiBaseUri = 'https://api.githubcopilot.com';
 const collection = '/agents/repos/owner/repo/automations';
@@ -90,7 +92,8 @@ function clientOptions(): GitHubClientOptions {
 
 interface TestRequest {
 	readonly url: URL;
-	readonly init: RequestInit;
+	readonly init: NonNullable<Parameters<import('../../common/types.js').RequestFetch>[1]>;
+	readonly cancellationToken: CancellationToken;
 	readonly at: number;
 }
 
@@ -105,8 +108,8 @@ suite('Mission Control client', () => {
 		const requests: TestRequest[] = [];
 		const identities: TestRequest[] = [];
 		const service = store.add(new GitHubService({
-			fetch: async (input, init = {}) => {
-				const request = { url: new URL(String(input)), init, at: Date.now() };
+			fetch: async (input, init = {}, cancellationToken) => {
+				const request = { url: new URL(String(input)), init, cancellationToken, at: Date.now() };
 				if (request.url.pathname.endsWith('/user')) {
 					identities.push(request);
 					return Response.json({ id: new Headers(init.headers).get('Authorization') === 'Bearer token-second' ? 202 : 101 });
@@ -129,7 +132,7 @@ suite('Mission Control client', () => {
 		const body = '{"tasks":[]}';
 		const metadata = { nextLink: `${apiBaseUri}/agents/tasks?page=2`, serverDate, retryAfterSeconds: 5 };
 		const provider: IApiRequestProvider = {
-			request: async <T>(request: ApiRequest, _signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
+			request: async <T>(request: ApiRequest, _signal: CancellationToken, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
 				requests.push(request);
 				return { data: parser?.(body), status: request.responseBody === 'none' ? 204 : 200, metadata };
 			},
@@ -140,7 +143,7 @@ suite('Mission Control client', () => {
 				method: 'GET', path: '/tasks', expectedStatus: responseBody === 'none' ? 204 : 200,
 				responseBody, policy: { retry: false }, options: { caller: 'test.shared-contract' },
 			};
-			const response = await client.request(request, signal(), response => response);
+			const response = await client.request(request, cancellationToken(), response => response);
 			assert.deepStrictEqual({ response, request: requests.at(-1) }, {
 				response: {
 					data: responseBody === 'none' ? undefined : responseBody === 'text' ? body : { tasks: [] },
@@ -178,15 +181,15 @@ suite('Mission Control client', () => {
 		const create = { name: automation.name, description: automation.description, prompt };
 		const update = { tools: [], triggers: {}, model: '' };
 		const results = [
-			await client.automations.list(repository, signal(), { query: { page: 1, per_page: 10, disabled: false } }),
-			await client.automations.get(repository, automation.id, signal()),
-			await client.automations.create(repository, create, signal()),
-			await client.automations.update(repository, automation.id, update, signal()),
-			await client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal()),
-			await client.automations.listRuns(automation.id, signal()),
-			await client.automations.delete(repository, automation.id, signal()),
-			await client.automations.listTools(signal()),
-			await client.automations.listTriggers(signal()),
+			await client.automations.list(repository, cancellationToken(), { query: { page: 1, per_page: 10, disabled: false } }),
+			await client.automations.get(repository, automation.id, cancellationToken()),
+			await client.automations.create(repository, create, cancellationToken()),
+			await client.automations.update(repository, automation.id, update, cancellationToken()),
+			await client.automations.dispatch(repository, automation.id, { event: 'manual' }, cancellationToken()),
+			await client.automations.listRuns(automation.id, cancellationToken()),
+			await client.automations.delete(repository, automation.id, cancellationToken()),
+			await client.automations.listTools(cancellationToken()),
+			await client.automations.listTriggers(cancellationToken()),
 		];
 		assert.deepStrictEqual({
 			results,
@@ -230,7 +233,7 @@ suite('Mission Control client', () => {
 		store.add(toDisposable(() => sandbox.restore()));
 		assert.ok(providers.missionControl);
 		const request = sandbox.spy(providers.missionControl, 'request');
-		await client.automations.list(repository, signal(), { ...options, query: { page: 2, disabled: false } });
+		await client.automations.list(repository, cancellationToken(), { ...options, query: { page: 2, disabled: false } });
 		const { path, options: requestOptions } = request.firstCall.args[0];
 		assert.deepStrictEqual({ path, options: requestOptions }, {
 			path: '/repos/owner/repo/automations/v2?page=2&disabled=false', options,
@@ -250,8 +253,8 @@ suite('Mission Control client', () => {
 		assert.ok(providers.missionControl);
 		const request = sandbox.spy(providers.missionControl, 'request');
 		const values = [
-			await client.automations.getConfiguration(repository, signal(), options),
-			await client.automations.getConfiguration(repository, signal(), options),
+			await client.automations.getConfiguration(repository, cancellationToken(), options),
+			await client.automations.getConfiguration(repository, cancellationToken(), options),
 		];
 		assert.deepStrictEqual({
 			values,
@@ -271,22 +274,21 @@ suite('Mission Control client', () => {
 
 	test('configuration reads encode repository identifiers and validate them before credential lookup', async () => {
 		const { client, requests, identities } = setup(() => Response.json(automationConfiguration));
-		const configuration = await client.automations.getConfiguration({ owner: 'owner name', repo: 'repo/#?' }, signal());
+		const configuration = await client.automations.getConfiguration({ owner: 'owner name', repo: 'repo/#?' }, cancellationToken());
 		assert.deepStrictEqual({ configuration, paths: requests.map(request => request.url.pathname) }, {
 			configuration: automationConfiguration,
 			paths: ['/agents/repos/owner%20name/repo%2F%23%3F/automations/configuration'],
 		});
 		const before = { identities: identities.length, requests: requests.length };
 		for (const repository of [{ owner: '', repo: 'repo' }, { owner: 'owner', repo: '..' }]) {
-			await assert.rejects(async () => client.automations.getConfiguration(repository, signal()), { kind: 'validation' });
+			await assert.rejects(async () => client.automations.getConfiguration(repository, cancellationToken()), { kind: 'validation' });
 		}
 		assert.deepStrictEqual({ identities: identities.length, requests: requests.length }, before);
 	});
 
 	test('configuration reads reject cancellation before credential lookup', async () => {
 		const { client, requests, identities } = setup(() => Response.json(automationConfiguration));
-		const reason = new Error('cancelled configuration read');
-		await assert.rejects(client.automations.getConfiguration(repository, AbortSignal.abort(reason)), error => error === reason);
+		await assert.rejects(client.automations.getConfiguration(repository, CancellationToken.Cancelled), isCancellationError);
 		assert.deepStrictEqual({ identities: identities.length, requests: requests.length }, { identities: 0, requests: 0 });
 	});
 
@@ -294,7 +296,7 @@ suite('Mission Control client', () => {
 		for (const key of Object.keys(automationConfiguration)) {
 			for (const invalid of [undefined, null, 'false', 0]) {
 				const { client } = setup(() => Response.json({ ...automationConfiguration, [key]: invalid }));
-				await assert.rejects(client.automations.getConfiguration(repository, signal()), SchemaError);
+				await assert.rejects(client.automations.getConfiguration(repository, cancellationToken()), SchemaError);
 			}
 		}
 	});
@@ -304,7 +306,7 @@ suite('Mission Control client', () => {
 			const { client } = setup(() => Response.json({
 				message: 'Configuration unavailable', documentation_url: 'https://docs.github.com',
 			}, { status, headers: { 'Retry-After': '30' } }));
-			await assert.rejects(client.automations.getConfiguration(repository, signal()), error =>
+			await assert.rejects(client.automations.getConfiguration(repository, cancellationToken()), error =>
 				error instanceof ApiRequestError && error.statusCode === status && error.outcome === undefined);
 		});
 	}
@@ -331,10 +333,10 @@ suite('Mission Control client', () => {
 			});
 		});
 		const results = [
-			await client.automations.list(repository, signal(), { maxPages: 2 }),
-			await client.tasks.list(signal(), { maxPages: 2 }),
-			await client.automations.listRuns(automation.id, signal(), { maxPages: 2 }),
-			await client.tasks.getEvents(task.id, signal(), { maxPages: 2 }),
+			await client.automations.list(repository, cancellationToken(), { maxPages: 2 }),
+			await client.tasks.list(cancellationToken(), { maxPages: 2 }),
+			await client.automations.listRuns(automation.id, cancellationToken(), { maxPages: 2 }),
+			await client.tasks.getEvents(task.id, cancellationToken(), { maxPages: 2 }),
 		];
 		assert.deepStrictEqual({ results, requests: requests.map(request => request.url.pathname + request.url.search) }, {
 			results: [
@@ -367,7 +369,7 @@ suite('Mission Control client', () => {
 		const observed: { serverDate: string | undefined; retryAfterSeconds: number | undefined }[] = [];
 		const result = await client.requestPages({
 			method: 'GET', path: '/tasks', expectedStatus: 200, options: { maxPages: 2 },
-		}, signal(), response => {
+		}, cancellationToken(), response => {
 			observed.push({ serverDate: response.metadata?.serverDate, retryAfterSeconds: response.metadata?.retryAfterSeconds });
 			return paginated(response, parse.strings(response.data));
 		}, pages => ({ ...pages[pages.length - 1], data: pages.flatMap(page => page.data) }));
@@ -388,18 +390,18 @@ suite('Mission Control client', () => {
 				headers: { link: `<${apiBaseUri}/agents/tasks?page=${page + 1}>; rel="next"`, date: serverDate },
 			});
 		});
-		await assert.rejects(client.tasks.list(signal(), { maxPages: 1 }), PaginationLimitError);
-		assert.deepStrictEqual(await client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), {
+		await assert.rejects(client.tasks.list(cancellationToken(), { maxPages: 1 }), PaginationLimitError);
+		assert.deepStrictEqual(await client.tasks.list(cancellationToken(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), {
 			data: { tasks: [task], total_active_count: 3 },
 			nextLink: `${apiBaseUri}/agents/tasks?page=2`, serverDate,
 		});
-		const result = await client.tasks.list(signal(), { maxPages: 2, pageLimitBehavior: 'returnPartial' });
+		const result = await client.tasks.list(cancellationToken(), { maxPages: 2, pageLimitBehavior: 'returnPartial' });
 		assert.deepStrictEqual(result, {
 			data: { tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 3 },
 			nextLink: `${apiBaseUri}/agents/tasks?page=3`, serverDate,
 		});
 		for (failure of ['http', 'schema'] as const) {
-			await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }),
+			await assert.rejects(client.tasks.list(cancellationToken(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }),
 				failure === 'http' ? { kind: 'authorization' } : SchemaError);
 		}
 	});
@@ -415,7 +417,7 @@ suite('Mission Control client', () => {
 			'<https://api.github.com/agents/tasks?page=2#fragment>; rel="next"',
 		]) {
 			const { client, requests } = setup(() => Response.json({ tasks: [task] }, { headers: { link } }));
-			await assert.rejects(client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
+			await assert.rejects(client.tasks.list(cancellationToken(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
 			assert.strictEqual(requests.length, 1);
 		}
 	});
@@ -423,13 +425,13 @@ suite('Mission Control client', () => {
 	test('task lists reject page and cursor together before resolving credentials', async () => {
 		const { client, requests, identities } = setup(() => Response.json({ tasks: [] }));
 		for (const maxPages of [undefined, 3]) {
-			await assert.rejects(client.tasks.list(signal(), {
+			await assert.rejects(client.tasks.list(cancellationToken(), {
 				// @ts-expect-error Runtime callers must also be rejected when both pagination modes are supplied.
 				query: { page: 1, cursor: 'next' }, maxPages,
 			}), { kind: 'validation' });
 		}
 		const rejectedRequests = { requests: requests.length, identities: identities.length };
-		await client.tasks.list(signal(), { query: { cursor: 'next', per_page: 100 } });
+		await client.tasks.list(cancellationToken(), { query: { cursor: 'next', per_page: 100 } });
 		assert.deepStrictEqual({
 			rejectedRequests,
 			pagination: requests.map(({ url }) => ({ page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor') })),
@@ -443,8 +445,8 @@ suite('Mission Control client', () => {
 		const provisioning = { ...task, compute: { provider: '' }, current_environment: { id: 'environment', kind: 'managed-sandbox' } };
 		const unbound = { ...task, id: 'unbound', compute: null };
 		const { client } = setup(({ url }) => Response.json(url.pathname === '/agents/tasks' ? { tasks: [unbound, provisioning] } : provisioning));
-		const listed = await client.tasks.list(signal());
-		const detail = await client.tasks.get(task.id, signal());
+		const listed = await client.tasks.list(cancellationToken());
+		const detail = await client.tasks.get(task.id, cancellationToken());
 		assert.deepStrictEqual({ tasks: listed.data.tasks, detail }, { tasks: [unbound, provisioning], detail: provisioning });
 	});
 
@@ -453,10 +455,10 @@ suite('Mission Control client', () => {
 		const returned = [{ ...task, id: ids[0], compute: null }, { ...task, id: ids[49] }];
 		const { client, requests, identities } = setup(() => Response.json({ tasks: returned }));
 		for (const invalid of [[], [...ids, 'extra']]) {
-			await assert.rejects(client.tasks.getBatch(invalid, signal()), { kind: 'validation' });
+			await assert.rejects(client.tasks.getBatch(invalid, cancellationToken()), { kind: 'validation' });
 		}
 		const rejectedRequests = { requests: requests.length, identities: identities.length };
-		const tasks = await client.tasks.getBatch(ids, signal());
+		const tasks = await client.tasks.getBatch(ids, cancellationToken());
 		assert.deepStrictEqual({
 			rejectedRequests, tasks,
 			requests: requests.map(({ url, init }) => ({
@@ -471,7 +473,7 @@ suite('Mission Control client', () => {
 	test('task batches reject malformed and unrequested rows instead of treating them as omissions', async () => {
 		for (const returned of [{ id: task.id }, { ...task, id: 'unrequested' }]) {
 			const { client } = setup(() => Response.json({ tasks: [returned] }));
-			await assert.rejects(client.tasks.getBatch([task.id], signal()), SchemaError);
+			await assert.rejects(client.tasks.getBatch([task.id], cancellationToken()), SchemaError);
 		}
 	});
 
@@ -486,7 +488,7 @@ suite('Mission Control client', () => {
 			const link = links[page++];
 			return Response.json({ tasks: [] }, { headers: link ? { link: `<${link}>; rel="next"` } : {} });
 		});
-		await client.tasks.list(signal(), {
+		await client.tasks.list(cancellationToken(), {
 			query: {
 				page: 1, per_page: 100, with_repo: false, is_archived: true, since: date,
 				sort: 'updated_at', direction: 'desc', include_environment_kinds: 'managed-sandbox',
@@ -533,7 +535,7 @@ suite('Mission Control client', () => {
 				endpoint: { apiBaseUri: 'https://API.GITHUBCOPILOT.COM:443/agents/', integrationId: 'test-integration' },
 			},
 		});
-		const result = await client.tasks.list(signal(), {
+		const result = await client.tasks.list(cancellationToken(), {
 			query: { page: 1, per_page: 100, with_repo: false, is_archived: true, since: date, include_counts: false },
 			maxPages: 3, pageLimitBehavior: 'returnPartial',
 		});
@@ -563,8 +565,8 @@ suite('Mission Control client', () => {
 			? Response.json({ tasks: [] }, { headers: { 'retry-after': '120' } })
 			: Response.json({ id: 'env', name: 'Environment', kind: 'managed-sandbox', status: 'online' }));
 		try {
-			const page = await client.tasks.list(signal());
-			await client.environments.get('env', signal());
+			const page = await client.tasks.list(cancellationToken());
+			await client.environments.get('env', cancellationToken());
 			assert.deepStrictEqual({ retryAfterSeconds: page.retryAfterSeconds, attempts: requests.map(request => request.at - Date.parse(date)) }, {
 				retryAfterSeconds: 120, attempts: [0, 0],
 			});
@@ -589,30 +591,29 @@ suite('Mission Control client', () => {
 		}, { title: 'No fields', description: '', fields: [] }];
 		const { client } = setup(request => Response.json(request.url.pathname.endsWith('/tools') ? tools : triggers));
 		assert.deepStrictEqual(await Promise.all([
-			client.automations.listTools(signal()), client.automations.listTriggers(signal()),
+			client.automations.listTools(cancellationToken()), client.automations.listTriggers(cancellationToken()),
 		]), [tools, triggers]);
 	});
 
 	for (const wrapped of [false, true]) {
 		test(`trigger catalog accepts ${wrapped ? 'wrapped' : 'array'} responses`, async () => {
 			const { client } = setup(() => Response.json(wrapped ? { triggers: triggerDefinitions } : triggerDefinitions));
-			assert.deepStrictEqual(await client.automations.listTriggers(signal()), triggerDefinitions);
+			assert.deepStrictEqual(await client.automations.listTriggers(cancellationToken()), triggerDefinitions);
 		});
 	}
 
 	for (const method of ['listTools', 'listTriggers'] as const) {
 		test(`${method} returns an empty catalog without pagination or additional requests`, async () => {
 			const { client, requests } = setup(() => Response.json([], { headers: { link: '<https://example.test/next>; rel="next"' } }));
-			const result = await client.automations[method](signal());
+			const result = await client.automations[method](cancellationToken());
 			assert.deepStrictEqual({ result, requests: requests.length }, { result: [], requests: 1 });
 		});
 
 		test(`${method} requires an uncancelled signal before acquiring credentials`, async () => {
 			const { client, identities, requests } = setup(() => Response.json([]));
-			const controller = new AbortController();
-			const reason = new Error('cancelled discovery');
-			controller.abort(reason);
-			await assert.rejects(client.automations[method](controller.signal), error => error === reason);
+			const controller = store.add(new CancellationTokenSource());
+			controller.cancel();
+			await assert.rejects(client.automations[method](controller.token), isCancellationError);
 			assert.deepStrictEqual({ identities: identities.length, requests: requests.length }, { identities: 0, requests: 0 });
 		});
 	}
@@ -633,26 +634,26 @@ suite('Mission Control client', () => {
 	] as const) {
 		test(`${invalid.method} rejects ${invalid.name}`, async () => {
 			const { client } = setup(() => Response.json(invalid.data));
-			await assert.rejects(client.automations[invalid.method](signal()), SchemaError);
+			await assert.rejects(client.automations[invalid.method](cancellationToken()), SchemaError);
 		});
 	}
 
 	test('rejects run history belonging to a different automation', async () => {
 		const { client } = setup(() => Response.json({ tasks: [{ ...task, automation_id: 'other' }] }));
-		await assert.rejects(client.automations.listRuns(automation.id, signal()), /did not belong/);
+		await assert.rejects(client.automations.listRuns(automation.id, cancellationToken()), /did not belong/);
 	});
 
 	for (const operation of [
-		{ name: 'list', status: 201, run: (client: IGitHubAccountClient) => client.automations.list(repository, signal()) },
-		{ name: 'get', status: 201, run: (client: IGitHubAccountClient) => client.automations.get(repository, automation.id, signal()) },
-		{ name: 'getConfiguration', status: 201, run: (client: IGitHubAccountClient) => client.automations.getConfiguration(repository, signal()) },
-		{ name: 'create', status: 200, run: (client: IGitHubAccountClient) => client.automations.create(repository, automation, signal()) },
-		{ name: 'update', status: 201, run: (client: IGitHubAccountClient) => client.automations.update(repository, automation.id, { name: 'Updated' }, signal()) },
-		{ name: 'delete', status: 200, run: (client: IGitHubAccountClient) => client.automations.delete(repository, automation.id, signal()) },
-		{ name: 'dispatch', status: 200, run: (client: IGitHubAccountClient) => client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal()) },
-		{ name: 'listRuns', status: 201, run: (client: IGitHubAccountClient) => client.automations.listRuns(automation.id, signal()) },
-		{ name: 'listTools', status: 201, run: (client: IGitHubAccountClient) => client.automations.listTools(signal()) },
-		{ name: 'listTriggers', status: 201, run: (client: IGitHubAccountClient) => client.automations.listTriggers(signal()) },
+		{ name: 'list', status: 201, run: (client: IGitHubAccountClient) => client.automations.list(repository, cancellationToken()) },
+		{ name: 'get', status: 201, run: (client: IGitHubAccountClient) => client.automations.get(repository, automation.id, cancellationToken()) },
+		{ name: 'getConfiguration', status: 201, run: (client: IGitHubAccountClient) => client.automations.getConfiguration(repository, cancellationToken()) },
+		{ name: 'create', status: 200, run: (client: IGitHubAccountClient) => client.automations.create(repository, automation, cancellationToken()) },
+		{ name: 'update', status: 201, run: (client: IGitHubAccountClient) => client.automations.update(repository, automation.id, { name: 'Updated' }, cancellationToken()) },
+		{ name: 'delete', status: 200, run: (client: IGitHubAccountClient) => client.automations.delete(repository, automation.id, cancellationToken()) },
+		{ name: 'dispatch', status: 200, run: (client: IGitHubAccountClient) => client.automations.dispatch(repository, automation.id, { event: 'manual' }, cancellationToken()) },
+		{ name: 'listRuns', status: 201, run: (client: IGitHubAccountClient) => client.automations.listRuns(automation.id, cancellationToken()) },
+		{ name: 'listTools', status: 201, run: (client: IGitHubAccountClient) => client.automations.listTools(cancellationToken()) },
+		{ name: 'listTriggers', status: 201, run: (client: IGitHubAccountClient) => client.automations.listTriggers(cancellationToken()) },
 	]) {
 		test(`${operation.name} rejects an undocumented HTTP ${operation.status} success`, async () => {
 			const { client, requests } = setup(() => Response.json(automation, { status: operation.status }));
@@ -675,7 +676,7 @@ suite('Mission Control client', () => {
 		}, {
 			status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'retry-after': '2' },
 		}));
-		await assert.rejects(client.automations.update(repository, automation.id, { name: 'New name' }, signal()), error => {
+		await assert.rejects(client.automations.update(repository, automation.id, { name: 'New name' }, cancellationToken()), error => {
 			assert.ok(error instanceof ApiRequestError);
 			assert.deepStrictEqual({
 				status: error.statusCode, response: error.response, requestId: error.requestId,
@@ -688,8 +689,8 @@ suite('Mission Control client', () => {
 
 	test('missing configuration disables only Mission Control operations', async () => {
 		const { client, identities, requests } = setup(() => Response.json([]), { ...clientOptions(), missionControl: undefined });
-		await assert.rejects(client.automations.list(repository, signal()), /No approved Mission Control API endpoint/);
-		const emails = await client.users.listEmails(signal());
+		await assert.rejects(client.automations.list(repository, cancellationToken()), /No approved Mission Control API endpoint/);
+		const emails = await client.users.listEmails(cancellationToken());
 		assert.deepStrictEqual({ emails, requests: requests.length, identities: identities.length }, {
 			emails: [], requests: 1, identities: 1,
 		});
@@ -702,18 +703,17 @@ suite('Mission Control client', () => {
 			void started.complete();
 			return response.p;
 		});
-		const controller = new AbortController();
-		const reason = new Error('caller cancelled');
-		const first = client.automations.list(repository, controller.signal);
-		const rejected = assert.rejects(first, error => error === reason);
-		const second = client.automations.list(repository, signal());
+		const controller = store.add(new CancellationTokenSource());
+		const first = client.automations.list(repository, controller.token);
+		const rejected = assert.rejects(first, isCancellationError);
+		const second = client.automations.list(repository, cancellationToken());
 		await started.p;
 		await timeout(0);
-		controller.abort(reason);
+		controller.cancel();
 		await rejected;
 		await response.complete(Response.json(emptyPage));
 		const page = await second;
-		assert.deepStrictEqual({ data: page.data, attempts: requests.length, aborted: requests[0].init.signal?.aborted }, {
+		assert.deepStrictEqual({ data: page.data, attempts: requests.length, aborted: requests[0].cancellationToken?.isCancellationRequested }, {
 			data: emptyPage, attempts: 1, aborted: false,
 		});
 	});
@@ -724,9 +724,9 @@ suite('Mission Control client', () => {
 		const { client, requests } = setup(() => ++calls === 1
 			? Response.json(emptyPage, { headers: { etag: '"one"', link: `<${nextLink}>; rel="next"` } })
 			: new Response(null, { status: 304, headers: { etag: 'W/"two"', date: serverDate } }));
-		await client.automations.list(repository, signal());
-		const second = await client.automations.list(repository, signal());
-		const third = await client.automations.list(repository, signal());
+		await client.automations.list(repository, cancellationToken());
+		const second = await client.automations.list(repository, cancellationToken());
+		const third = await client.automations.list(repository, cancellationToken());
 		assert.deepStrictEqual({
 			second, third, validators: requests.map(request => new Headers(request.init.headers).get('If-None-Match')),
 		}, {
@@ -740,8 +740,8 @@ suite('Mission Control client', () => {
 		const { client } = setup(() => ++calls === 1
 			? Response.json(emptyPage, { status: 202, headers: { etag: '"pending"' } })
 			: new Response(null, { status: 304 }));
-		await assert.rejects(client.automations.list(repository, signal()), { kind: 'malformedResponse' });
-		await assert.rejects(client.automations.list(repository, signal()), { kind: 'malformedResponse' });
+		await assert.rejects(client.automations.list(repository, cancellationToken()), { kind: 'malformedResponse' });
+		await assert.rejects(client.automations.list(repository, cancellationToken()), { kind: 'malformedResponse' });
 	});
 
 	test('a server no-store directive removes an existing validator and prevents caching', async () => {
@@ -749,9 +749,9 @@ suite('Mission Control client', () => {
 		const { client, requests } = setup(() => Response.json(emptyPage, {
 			headers: ++calls === 1 ? { etag: '"one"' } : { etag: '"two"', 'cache-control': 'no-store' },
 		}));
-		await client.automations.list(repository, signal());
-		await client.automations.list(repository, signal());
-		await client.automations.list(repository, signal());
+		await client.automations.list(repository, cancellationToken());
+		await client.automations.list(repository, cancellationToken());
+		await client.automations.list(repository, cancellationToken());
 		assert.deepStrictEqual(requests.map(request => new Headers(request.init.headers).get('If-None-Match')), [null, '"one"', null]);
 	});
 
@@ -771,7 +771,7 @@ suite('Mission Control client', () => {
 				return Response.json(emptyPage);
 			});
 			try {
-				const page = await client.automations.list(repository, signal());
+				const page = await client.automations.list(repository, cancellationToken());
 				const delay = requests[1].at - requests[0].at;
 				assert.deepStrictEqual({ data: page.data, attempts: requests.length, delayed: delay >= 1000 && delay < 1250 }, {
 					data: emptyPage, attempts: 2, delayed: true,
@@ -799,9 +799,9 @@ suite('Mission Control client', () => {
 				})
 				: Response.json({ tasks: [] }));
 			try {
-				await assert.rejects(client.automations.list(repository, signal()), { statusCode: refusal.status });
+				await assert.rejects(client.automations.list(repository, cancellationToken()), { statusCode: refusal.status });
 				const afterFailure = requests.length;
-				await client.tasks.list(signal());
+				await client.tasks.list(cancellationToken());
 				assert.deepStrictEqual({ afterFailure, attempts: requests.length, delay: requests[1].at - requests[0].at }, {
 					afterFailure: 1, attempts: 2, delay: refusal.delay,
 				});
@@ -818,8 +818,8 @@ suite('Mission Control client', () => {
 			})
 			: Response.json(emptyPage));
 		try {
-			const waking = await client.environments.connect('environment-1', signal());
-			await client.automations.list(repository, signal());
+			const waking = await client.environments.connect('environment-1', cancellationToken());
+			await client.automations.list(repository, cancellationToken());
 			assert.deepStrictEqual({ waking, delay: requests[1].at - requests[0].at }, {
 				waking: { status: 202, data: { environment_status: 'waking' }, retryAfterSeconds: 1 }, delay: 0,
 			});
@@ -838,14 +838,14 @@ suite('Mission Control client', () => {
 			return Response.json(request.url.host === 'api.github.com' ? [] : emptyPage);
 		});
 		try {
-			await assert.rejects(client.automations.list(repository, signal()), { kind: 'rateLimit' });
-			await client.users.listEmails(signal());
+			await assert.rejects(client.automations.list(repository, cancellationToken()), { kind: 'rateLimit' });
+			await client.users.listEmails(cancellationToken());
 			const options = clientOptions();
 			const other = acquire({ ...options, authorization: { ...options.authorization, sessionId: 'second' } }).client;
-			await other.automations.list(repository, signal());
+			await other.automations.list(repository, cancellationToken());
 			client.dispose();
 			const reacquired = acquire().client;
-			await reacquired.automations.list(repository, signal());
+			await reacquired.automations.list(repository, cancellationToken());
 			assert.deepStrictEqual(requests.map(request => request.at - Date.parse(date)), [0, 0, 0, 2000]);
 		} finally {
 			service.dispose();
@@ -856,9 +856,9 @@ suite('Mission Control client', () => {
 		const { client, requests } = setup(request => Response.json(request.url.pathname.endsWith('/connect')
 			? connection
 			: [{ id: 'environment-1', name: 'Cloud', kind: 'managed-sandbox', status: 'online' }], { headers: { etag: '"credential"' } }));
-		const connections = await Promise.all([client.environments.connect('environment-1', signal()), client.environments.connect('environment-1', signal())]);
-		await Promise.all([client.environments.list(signal()), client.environments.list(signal())]);
-		await client.environments.list(signal());
+		const connections = await Promise.all([client.environments.connect('environment-1', cancellationToken()), client.environments.connect('environment-1', cancellationToken())]);
+		await Promise.all([client.environments.list(cancellationToken()), client.environments.list(cancellationToken())]);
+		await client.environments.list(cancellationToken());
 		assert.deepStrictEqual({
 			connections, attempts: requests.length, validators: requests.map(request => new Headers(request.init.headers).get('If-None-Match')),
 		}, { connections: [{ status: 200, data: connection }, { status: 200, data: connection }], attempts: 5, validators: Array(5).fill(null) });
@@ -871,7 +871,7 @@ suite('Mission Control client', () => {
 			...options,
 			missionControl: { endpoint: { ...options.missionControl!.endpoint, identityApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
 		});
-		const credentials = await Promise.all([client.environments.mintIdentityToken(signal()), client.environments.mintIdentityToken(signal())]);
+		const credentials = await Promise.all([client.environments.mintIdentityToken(cancellationToken()), client.environments.mintIdentityToken(cancellationToken())]);
 		assert.deepStrictEqual({
 			credentials,
 			requests: requests.map(request => ({
@@ -890,7 +890,7 @@ suite('Mission Control client', () => {
 
 	test('does not guess an identity endpoint when its gateway is not configured', async () => {
 		const { client, requests } = setup(() => Response.json({ token: 'must-not-be-requested' }));
-		await assert.rejects(client.environments.mintIdentityToken(signal()), { kind: 'validation' });
+		await assert.rejects(client.environments.mintIdentityToken(cancellationToken()), { kind: 'validation' });
 		assert.deepStrictEqual(requests, []);
 	});
 
@@ -909,8 +909,8 @@ suite('Mission Control client', () => {
 			...options,
 			missionControl: { endpoint: { ...options.missionControl!.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
 		});
-		const connections = await Promise.all([client.tasks.connectFeed(signal()), client.tasks.connectFeed(signal())]);
-		await client.tasks.list(signal());
+		const connections = await Promise.all([client.tasks.connectFeed(cancellationToken()), client.tasks.connectFeed(cancellationToken())]);
+		await client.tasks.list(cancellationToken());
 		assert.deepStrictEqual({
 			connections,
 			requests: requests.map(request => ({
@@ -930,7 +930,7 @@ suite('Mission Control client', () => {
 
 	test('does not guess a feed endpoint when its gateway is not configured', async () => {
 		const { client, requests } = setup(() => Response.json({}));
-		await assert.rejects(client.tasks.connectFeed(signal()), { kind: 'validation' });
+		await assert.rejects(client.tasks.connectFeed(cancellationToken()), { kind: 'validation' });
 		assert.deepStrictEqual(requests, []);
 	});
 
@@ -943,7 +943,7 @@ suite('Mission Control client', () => {
 				...options,
 				missionControl: { endpoint: { ...options.missionControl!.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
 			});
-			await assert.rejects(client.tasks.connectFeed(signal()), error => {
+			await assert.rejects(client.tasks.connectFeed(cancellationToken()), error => {
 				assert.ok(error instanceof ApiRequestError);
 				assert.deepStrictEqual({
 					status: error.statusCode, retry: error.retryAfterSeconds, attempts: requests.length,
@@ -959,7 +959,7 @@ suite('Mission Control client', () => {
 		const { client } = setup(() => Response.json({ message: secret, documentation_url: secret, access_token: secret }, {
 			status: 403, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF' },
 		}));
-		await assert.rejects(client.environments.connect('environment-1', signal()), error => {
+		await assert.rejects(client.environments.connect('environment-1', cancellationToken()), error => {
 			assert.ok(error instanceof ApiRequestError);
 			assert.deepStrictEqual({
 				kind: error.kind, details: error.response, body: error.responseBody, requestId: error.requestId,
@@ -978,7 +978,7 @@ suite('Mission Control client', () => {
 			const { client, requests } = setup(() => Response.json({ ...errorBody, message: 'private credential', access_token: 'private credential' }, {
 				status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF' },
 			}));
-			await assert.rejects(client.environments.connect('environment-1', signal()), error => {
+			await assert.rejects(client.environments.connect('environment-1', cancellationToken()), error => {
 				assert.ok(error instanceof ApiRequestError);
 				assert.deepStrictEqual({
 					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
@@ -996,9 +996,9 @@ suite('Mission Control client', () => {
 		const { client, requests } = setup(request => request.url.pathname.endsWith('/tasks')
 			? Response.json({ error_code: 'not_implemented' }, { status: 501, headers: { 'retry-after': '300' } })
 			: Response.json(emptyPage));
-		await assert.rejects(client.tasks.list(signal()), { code: 'not_implemented', statusCode: 501 });
+		await assert.rejects(client.tasks.list(cancellationToken()), { code: 'not_implemented', statusCode: 501 });
 		assert.strictEqual(requests.length, 1);
-		await client.automations.list(repository, signal());
+		await client.automations.list(repository, cancellationToken());
 	});
 
 	for (const replacement of ['replacement', 'token-selected', 'token-second', undefined]) {
@@ -1011,9 +1011,9 @@ suite('Mission Control client', () => {
 					: Response.json({ tasks: [] });
 			}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
 			if (replacement === 'replacement') {
-				await client.tasks.list(signal());
+				await client.tasks.list(cancellationToken());
 			} else {
-				await assert.rejects(client.tasks.list(signal()), { statusCode: 401, code: 'unauthenticated' });
+				await assert.rejects(client.tasks.list(cancellationToken()), { statusCode: 401, code: 'unauthenticated' });
 			}
 			assert.strictEqual(requests.length, replacement === 'replacement' ? 2 : 1);
 		});
@@ -1028,7 +1028,7 @@ suite('Mission Control client', () => {
 			onDidChange: Event.None,
 			getToken: () => token,
 		});
-		await assert.rejects(client.tasks.list(signal()), { statusCode: 401, code: 'unauthenticated' });
+		await assert.rejects(client.tasks.list(cancellationToken()), { statusCode: 401, code: 'unauthenticated' });
 		assert.strictEqual(requests.length, 2);
 	});
 
@@ -1036,9 +1036,9 @@ suite('Mission Control client', () => {
 		const { client, requests } = setup(request => request.url.pathname === '/agents/tasks' && request.init.method === 'POST'
 			? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'sandbox' }, { status: 429, headers: { 'retry-after': '2' } })
 			: Response.json({ tasks: [] }));
-		await assert.rejects(client.tasks.create({ prompt: 'test', environment_id: 'github-sandbox' }, signal()), { code: 'rate_limit_exceeded' });
-		await client.tasks.list(signal());
-		await assert.rejects(client.tasks.create({ prompt: 'test', environment_id: 'github-sandbox' }, signal()), { code: 'rate_limit_exceeded' });
+		await assert.rejects(client.tasks.create({ prompt: 'test', environment_id: 'github-sandbox' }, cancellationToken()), { code: 'rate_limit_exceeded' });
+		await client.tasks.list(cancellationToken());
+		await assert.rejects(client.tasks.create({ prompt: 'test', environment_id: 'github-sandbox' }, cancellationToken()), { code: 'rate_limit_exceeded' });
 		assert.deepStrictEqual(requests.map(request => request.at - requests[0].at), [0, 0, 2000]);
 	}));
 
@@ -1049,9 +1049,9 @@ suite('Mission Control client', () => {
 				? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' }, { status: 403, headers: { 'retry-after': '2' } })
 				: Response.json(connection)
 			: Response.json({ tasks: [] }));
-		await assert.rejects(client.environments.connect('environment-1', signal()), { kind: 'rateLimit', code: 'rate_limit_exceeded' });
-		await client.tasks.list(signal());
-		await client.environments.connect('environment-1', signal());
+		await assert.rejects(client.environments.connect('environment-1', cancellationToken()), { kind: 'rateLimit', code: 'rate_limit_exceeded' });
+		await client.tasks.list(cancellationToken());
+		await client.environments.connect('environment-1', cancellationToken());
 		assert.deepStrictEqual(requests.map(request => request.at - requests[0].at), [0, 0, 2000]);
 	}));
 
@@ -1061,14 +1061,14 @@ suite('Mission Control client', () => {
 			token = 'replacement';
 			return Response.json({ error_code: 'unauthenticated' }, { status: 401 });
 		}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
-		await assert.rejects(client.tasks.create({ prompt: 'test' }, signal()), { statusCode: 401, code: 'unauthenticated' });
+		await assert.rejects(client.tasks.create({ prompt: 'test' }, cancellationToken()), { statusCode: 401, code: 'unauthenticated' });
 		assert.strictEqual(requests.length, 1);
 	});
 
 	test('reconnect validates the client identity and keeps credential requests uncacheable', async () => {
 		const { client, requests } = setup(() => Response.json(connection, { headers: { etag: '"credential"' } }));
-		const result = await client.environments.reconnect('environment-1', connection.client_id, signal());
-		await assert.rejects(client.environments.reconnect('environment-1', 'different-client', signal()), { outcome: 'indeterminate' });
+		const result = await client.environments.reconnect('environment-1', connection.client_id, cancellationToken());
+		await assert.rejects(client.environments.reconnect('environment-1', 'different-client', cancellationToken()), { outcome: 'indeterminate' });
 		assert.deepStrictEqual({
 			result, routes: requests.map(request => request.url.pathname + request.url.search),
 			validators: requests.map(request => new Headers(request.init.headers).get('If-None-Match')),
@@ -1091,11 +1091,11 @@ suite('Mission Control client', () => {
 					}
 					return Response.json({}, { status: 503 });
 				});
-				const pending = operation === 'create' ? client.automations.create(repository, automation, signal())
-					: operation === 'dispatch' ? client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal())
-						: operation === 'connect' ? client.environments.connect('environment-1', signal())
-							: operation === 'events' ? client.tasks.getEvents(task.id, signal())
-								: client.tasks.getAhpEvents(task.id, signal());
+				const pending = operation === 'create' ? client.automations.create(repository, automation, cancellationToken())
+					: operation === 'dispatch' ? client.automations.dispatch(repository, automation.id, { event: 'manual' }, cancellationToken())
+						: operation === 'connect' ? client.environments.connect('environment-1', cancellationToken())
+							: operation === 'events' ? client.tasks.getEvents(task.id, cancellationToken())
+								: client.tasks.getAhpEvents(task.id, cancellationToken());
 				await assert.rejects(pending, operation === 'events' || operation === 'ahpEvents'
 					? { kind: failure === 'server' ? 'server' : 'network' }
 					: { kind: failure === 'server' ? 'server' : 'network', outcome: 'indeterminate' });
@@ -1106,7 +1106,7 @@ suite('Mission Control client', () => {
 
 	test('dispatched mutations with an invalid response remain indeterminate', async () => {
 		const { client } = setup(() => Response.json({}, { status: 201 }));
-		await assert.rejects(client.automations.create(repository, automation, signal()), { outcome: 'indeterminate' });
+		await assert.rejects(client.automations.create(repository, automation, cancellationToken()), { outcome: 'indeterminate' });
 	});
 
 	test('cancelling a queued mutation does not claim it was dispatched', async () => {
@@ -1117,14 +1117,13 @@ suite('Mission Control client', () => {
 			await response.p;
 			return Response.json(emptyPage);
 		});
-		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, repo: `repo-${index}` }, signal()));
+		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, repo: `repo-${index}` }, cancellationToken()));
 		await started.p;
 		await timeout(0);
-		const controller = new AbortController();
-		const reason = new Error('cancel queued write');
-		const rejected = assert.rejects(client.automations.create(repository, automation, controller.signal), error => error === reason);
+		const controller = store.add(new CancellationTokenSource());
+		const rejected = assert.rejects(client.automations.create(repository, automation, controller.token), isCancellationError);
 		await timeout(0);
-		controller.abort(reason);
+		controller.cancel();
 		await rejected;
 		await response.complete();
 		await Promise.all(reads);
@@ -1146,14 +1145,14 @@ suite('Mission Control client', () => {
 			}
 			return Response.json(emptyPage, { headers: { etag: `"${token}"` } });
 		}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
-		await client.automations.list(repository, signal());
-		const rejected = assert.rejects(client.automations.list(repository, signal()), { kind: 'unknown', message: 'GitHub credential generation was superseded' });
+		await client.automations.list(repository, cancellationToken());
+		const rejected = assert.rejects(client.automations.list(repository, cancellationToken()), { kind: 'unknown', message: 'GitHub credential generation was superseded' });
 		await started.p;
 		token = 'replacement';
-		await client.tasks.list(signal());
+		await client.tasks.list(cancellationToken());
 		await rejected;
 		await lateResponse.complete(Response.json(emptyPage, { headers: { etag: '"obsolete"' } }));
-		await client.automations.list(repository, signal());
+		await client.automations.list(repository, cancellationToken());
 		assert.deepStrictEqual(requests.map(({ init }) => {
 			const headers = new Headers(init.headers);
 			return [headers.get('Authorization'), headers.get('If-None-Match')];
@@ -1170,18 +1169,18 @@ suite('Mission Control client', () => {
 			void started.complete();
 			return response.p;
 		});
-		const rejected = assert.rejects(client.automations.list(repository, signal()));
+		const rejected = assert.rejects(client.automations.list(repository, cancellationToken()));
 		await started.p;
 		client.dispose();
 		await rejected;
 		await response.complete(Response.json(emptyPage));
-		await assert.rejects(client.automations.list(repository, signal()), isCancellationError);
-		assert.deepStrictEqual({ attempts: requests.length, aborted: requests[0].init.signal?.aborted }, { attempts: 1, aborted: true });
+		await assert.rejects(client.automations.list(repository, cancellationToken()), isCancellationError);
+		assert.deepStrictEqual({ attempts: requests.length, aborted: requests[0].cancellationToken?.isCancellationRequested }, { attempts: 1, aborted: true });
 	});
 
 	test('does not follow a redirect for a credential-minting GET', async () => {
 		const { client, requests } = setup(() => new Response(null, { status: 307, headers: { location: '/agents/other' } }));
-		await assert.rejects(client.environments.connect('environment-1', signal()), { statusCode: 307 });
+		await assert.rejects(client.environments.connect('environment-1', cancellationToken()), { statusCode: 307 });
 		assert.strictEqual(requests.length, 1);
 	});
 
@@ -1190,8 +1189,8 @@ suite('Mission Control client', () => {
 		const { client, requests } = setup(request => request.url.pathname.endsWith('/steer')
 			? new Response(new ReadableStream<Uint8Array>({ cancel: () => { cancelled = true; } }), { status: 202 })
 			: Response.json({ events: [], total: 0 }));
-		await client.tasks.abort(task.id, signal());
-		const [events, ahpEvents] = await Promise.all([client.tasks.getEvents(task.id, signal()), client.tasks.getAhpEvents(task.id, signal())]);
+		await client.tasks.abort(task.id, cancellationToken());
+		const [events, ahpEvents] = await Promise.all([client.tasks.getEvents(task.id, cancellationToken()), client.tasks.getAhpEvents(task.id, cancellationToken())]);
 		assert.deepStrictEqual({
 			cancelled, events: [events.data, ahpEvents],
 			requests: requests.map(({ init }) => [init.method, init.body, new Headers(init.headers).get('Accept')]),
@@ -1206,7 +1205,7 @@ suite('Mission Control client', () => {
 
 	test('rejects a task response with a different ID', async () => {
 		const { client } = setup(() => Response.json({ ...task, id: 'other-task' }));
-		await assert.rejects(client.tasks.get(task.id, signal()), new SchemaError('Task response did not match the requested task'));
+		await assert.rejects(client.tasks.get(task.id, cancellationToken()), new SchemaError('Task response did not match the requested task'));
 	});
 
 	test('preserves independent task and session client attribution in lists and details', async () => {
@@ -1218,8 +1217,8 @@ suite('Mission Control client', () => {
 		const sessions = [{ id: 'session-1', state: 'idle', created_at: date, clients: clients.map(client => ({ ...client, creator: false })) }];
 		const response = { ...task, clients, sessions };
 		const { client } = setup(request => Response.json(request.url.pathname === '/agents/tasks' ? { tasks: [response] } : response));
-		const listed = await client.tasks.list(signal());
-		const detail = await client.tasks.get(task.id, signal());
+		const listed = await client.tasks.list(cancellationToken());
+		const detail = await client.tasks.get(task.id, cancellationToken());
 		assert.deepStrictEqual({ listed: listed.data.tasks[0].clients, task: detail.clients, sessions: detail.sessions }, {
 			listed: clients, task: clients, sessions,
 		});
@@ -1231,7 +1230,7 @@ suite('Mission Control client', () => {
 			[{ integration_id: 'vscode-chat', slug: '', creator: true }],
 		]) {
 			const { client } = setup(() => Response.json({ ...task, clients }));
-			await assert.rejects(client.tasks.get(task.id, signal()), SchemaError);
+			await assert.rejects(client.tasks.get(task.id, cancellationToken()), SchemaError);
 		}
 	});
 
@@ -1240,7 +1239,7 @@ suite('Mission Control client', () => {
 			const response = identity === 'task' ? { ...task, id: ' ' }
 				: { ...task, sessions: [{ id: '\t\n', state: 'idle', created_at: date }] };
 			const { client } = setup(() => Response.json(response, { status: 201 }));
-			await assert.rejects(client.tasks.create({ prompt: 'Work' }, signal()), MutationUncertainError);
+			await assert.rejects(client.tasks.create({ prompt: 'Work' }, cancellationToken()), MutationUncertainError);
 		});
 	}
 
@@ -1253,8 +1252,8 @@ suite('Mission Control client', () => {
 			}, { status: reserve ? 201 : 200, headers: { 'x-github-request-id': requestId } });
 		});
 		const results = [
-			await client.tasks.create({ prompt: '', repositories: [repository], reserve: true }, signal()),
-			await client.tasks.create({ prompt: 'Work', repositories: [repository], reserved_task_id: task.id }, signal()),
+			await client.tasks.create({ prompt: '', repositories: [repository], reserve: true }, cancellationToken()),
+			await client.tasks.create({ prompt: 'Work', repositories: [repository], reserved_task_id: task.id }, cancellationToken()),
 		];
 		assert.deepStrictEqual({
 			receipts: results.map(result => ({ status: result.status, data: result.data, requestId: result.metadata?.requestId })),
@@ -1284,8 +1283,8 @@ suite('Mission Control client', () => {
 		const { client, requests } = setup(({ url }) => Response.json(url.pathname.endsWith('/swe/models') ? catalog : { tasks: [] }), {
 			...options, missionControl: { endpoint: { ...options.missionControl!.endpoint, apiVersion: '2022-11-28' } },
 		});
-		const result = await client.missionControlModels.list(signal());
-		await client.tasks.list(signal());
+		const result = await client.missionControlModels.list(cancellationToken());
+		await client.tasks.list(cancellationToken());
 		assert.deepStrictEqual({
 			catalog: result,
 			requests: requests.map(request => ({ path: request.url.pathname, version: new Headers(request.init.headers).get('X-GitHub-Api-Version') })),
@@ -1302,12 +1301,12 @@ suite('Mission Control client', () => {
 		const { client, requests } = setup(request => request.init.method === 'DELETE' ? new Response(null, { status: 204 })
 			: Response.json(task, { status: request.init.method === 'POST' && request.url.pathname === '/agents/tasks' ? 201 : 200 }));
 		const results = [
-			(await client.tasks.create({ prompt: 'Do the task' }, signal())).data,
-			await client.tasks.get(task.id, signal()),
-			await client.tasks.update(task.id, { name: 'Renamed' }, signal()),
-			await client.tasks.setArchived(task.id, true, signal()),
-			await client.tasks.setArchived(task.id, false, signal()),
-			await client.tasks.delete(task.id, signal()),
+			(await client.tasks.create({ prompt: 'Do the task' }, cancellationToken())).data,
+			await client.tasks.get(task.id, cancellationToken()),
+			await client.tasks.update(task.id, { name: 'Renamed' }, cancellationToken()),
+			await client.tasks.setArchived(task.id, true, cancellationToken()),
+			await client.tasks.setArchived(task.id, false, cancellationToken()),
+			await client.tasks.delete(task.id, cancellationToken()),
 		];
 		assert.deepStrictEqual({ results, routes: requests.map(request => request.url.pathname) }, {
 			results: [task, task, task, task, task, undefined],
@@ -1325,12 +1324,12 @@ suite('Mission Control client', () => {
 		const { client } = setup(({ init }) => Response.json(new Headers(init.headers).get('Accept') === 'application/vnd.github.ahp+json'
 			? { events: frames, total }
 			: { events: rawEvents, total: 2 }));
-		const history = await client.tasks.getAhpEvents(task.id, signal());
+		const history = await client.tasks.getAhpEvents(task.id, cancellationToken());
 		for (const inconsistentTotal of [0, 2]) {
 			total = inconsistentTotal;
-			await assert.rejects(client.tasks.getAhpEvents(task.id, signal()), SchemaError);
+			await assert.rejects(client.tasks.getAhpEvents(task.id, cancellationToken()), SchemaError);
 		}
-		const page = await client.tasks.getEvents(task.id, signal());
+		const page = await client.tasks.getEvents(task.id, cancellationToken());
 		assert.deepStrictEqual({ history, page: page.data }, {
 			history: { events: frames, total: 1 }, page: { events: rawEvents, total: 2 },
 		});
@@ -1344,13 +1343,13 @@ suite('Mission Control client', () => {
 			return Response.json({}, { headers: { etag: '"one"' } });
 		}));
 		const request: GitHubRestRequest = { method: 'GET', url: `${apiBaseUri}/agents/tasks`, rateLimitResource: 'agents' };
-		await transport.rest(account, 'token', request, signal());
-		await transport.rest(account, 'token', { ...request, apiVersion: null }, signal());
-		await transport.rest(account, 'token', { ...request, apiVersion: null, integrationId: 'integration' }, signal());
+		await transport.rest(account, 'token', request, cancellationToken());
+		await transport.rest(account, 'token', { ...request, apiVersion: null }, cancellationToken());
+		await transport.rest(account, 'token', { ...request, apiVersion: null, integrationId: 'integration' }, cancellationToken());
 		await Promise.all([
-			transport.rest(account, 'token', { ...request, retry: false }, signal()),
-			transport.rest(account, 'token', request, signal()),
-			transport.rest(account, 'token', { ...request, followRedirects: false }, signal()),
+			transport.rest(account, 'token', { ...request, retry: false }, cancellationToken()),
+			transport.rest(account, 'token', request, cancellationToken()),
+			transport.rest(account, 'token', { ...request, followRedirects: false }, cancellationToken()),
 		]);
 		assert.deepStrictEqual(requests.map(headers => [headers.get('X-GitHub-Api-Version'), headers.get('Copilot-Integration-Id'), headers.get('If-None-Match')]), [
 			['2022-11-28', null, null], [null, null, null], [null, 'integration', null],

@@ -20,18 +20,20 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileSystemWatcher } from '../../../../../../platform/files/common/files.js';
 import { GitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { RequestFetch } from '../../../../../../platform/github/common/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMeteredConnectionService } from '../../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { TestMeteredConnectionService } from '../../../../../../platform/meteredConnection/test/common/testMeteredConnectionService.js';
 import { COPILOT_STRICT_MARKETPLACES_KEY, IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -40,10 +42,8 @@ import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPlug
 import { IAgentPluginEnablementService } from '../../../common/plugins/agentPluginService.js';
 import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getGitHubRepositorySourceUri, getGitHubRepositoryUri, getMarketplacePluginRepositoryUri, getMarketplacePluginSourceUri, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
-import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 import { StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
-import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
-import { TestMeteredConnectionService } from '../../../../../../platform/meteredConnection/test/common/testMeteredConnectionService.js';
+import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 class TestManagedSettingsService extends Disposable implements IManagedSettingsService {
 	declare readonly _serviceBrand: undefined;
@@ -83,8 +83,8 @@ function stubMarketplaceServices(instantiationService: TestInstantiationService,
 function stubGitHubService(instantiationService: TestInstantiationService, store: Pick<DisposableStore, 'add'>, fetch: RequestFetch): GitHubService {
 	const service = store.add(new GitHubService({ fetch }, new NullLogService(), NullTelemetryService));
 	instantiationService.stub(IWorkbenchGitHubService, {
-		acquireAnonymousApiClient: async signal => {
-			signal.throwIfAborted();
+		acquireAnonymousApiClient: async cancellationToken => {
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return service.acquireAnonymousClient();
 		},
 	});
@@ -776,15 +776,15 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		}));
 
 		test(`cancels ${phase} reads and releases the client without cloning`, async () => {
-			const started = new DeferredPromise<AbortSignal>();
+			const started = new DeferredPromise<CancellationToken>();
 			const response = new DeferredPromise<Response>();
-			const { service, gitHubService, ensureRepository } = createService(async (input, init) => {
+			const { service, gitHubService, ensureRepository } = createService(async (input, init, fetchToken) => {
 				if (phase === 'definition' && String(input).includes('/commits/')) {
 					return new Response(commit);
 				}
-				const signal = init?.signal;
-				assert.ok(signal);
-				void started.complete(signal);
+				const cancellationToken = fetchToken;
+				assert.ok(cancellationToken);
+				void started.complete(cancellationToken);
 				return response.p;
 			});
 			const acquisitions = sinon.spy(gitHubService, 'acquireAnonymousClient');
@@ -793,13 +793,13 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 			const pending = service.fetchMarketplacePlugins(cts.token, undefined, {
 				onMarketplaceError: (_reference, error) => errors.push(error),
 			});
-			const signal = await started.p;
+			const cancellationToken = await started.p;
 			const dispose = sinon.spy(acquisitions.firstCall.returnValue, 'dispose');
 			cts.cancel();
 			await response.complete(new Response(phase === 'ref' ? commit : '{"plugins":[]}'));
 			assert.deepStrictEqual({
 				plugins: await pending,
-				aborted: signal.aborted,
+				aborted: cancellationToken.isCancellationRequested,
 				disposals: dispose.callCount,
 				clones: ensureRepository.callCount,
 				errors,
