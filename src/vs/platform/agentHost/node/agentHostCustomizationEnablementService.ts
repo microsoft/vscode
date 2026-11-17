@@ -257,8 +257,9 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		if (this._worktree.isWorkingDirectoryPending(AgentSession.id(session))) {
 			return { kind: 'pending' };
 		}
-		const directory = summary ? getEffectiveWorkingDirectories(this._sessionState, session)?.[0]
-			: parseSessionWorkingDirectories(stored?.values.get(SESSION_WORKING_DIRECTORIES_KEY))?.[0];
+		const directories = summary ? getEffectiveWorkingDirectories(this._sessionState, session)
+			: storedDefaultChat?.[1].workingDirectories ?? parseSessionWorkingDirectories(stored?.values.get(SESSION_WORKING_DIRECTORIES_KEY));
+		const directory = directories?.[0];
 		if (directory === undefined) {
 			return { kind: 'pending' };
 		}

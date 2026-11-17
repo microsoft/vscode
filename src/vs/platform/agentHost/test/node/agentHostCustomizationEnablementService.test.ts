@@ -1063,6 +1063,39 @@ suite('AgentHostCustomizationEnablementService', () => {
 		});
 	});
 
+	for (const empty of [false, true]) {
+		test(`preserves ${empty ? 'empty' : 'different'} default-chat directories across host state restoration`, async () => {
+			service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
+			const restoredDirectories = ['file:///other', workspace.toString()];
+			const defaultChatWorkingDirectories = empty ? [] : [workspace.toString()];
+			const store = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionData));
+			await store.write(URI.parse(session), sessionStatePatch({
+				values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(restoredDirectories) },
+				chats: [{
+					chat: buildDefaultChatUri(session), isDefault: true,
+					fields: { workingDirectories: defaultChatWorkingDirectories, launchWorkingDirectories: ['file:///other'] },
+				}],
+			}), SessionStateMirrorFlush.Immediate);
+			const restoring = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), store));
+			await restoring.initializeSession(session);
+			state.deleteSession(session);
+
+			const beforeRegistration = serializableResolution(restoring.resolve(session, plugin));
+			state.restoreSession(makeSummary(session, restoredDirectories), [], () => session, { defaultChatWorkingDirectories });
+			const afterRegistration = serializableResolution(restoring.resolve(session, plugin));
+			const expected = empty ? { kind: 'pending', reason: 'workingDirectory' } : {
+				kind: 'resolved', enabled: false,
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+			};
+
+			assert.deepStrictEqual({ beforeRegistration, afterRegistration }, {
+				beforeRegistration: expected,
+				afterRegistration: expected,
+			});
+		});
+	}
+
 	test('an unmarked session whose default chat is in a recorded scratch folder is workspace-less', () => {
 		state.deleteSession(session);
 		state.createSession(makeSummary(session, [workspace.toString()]));
