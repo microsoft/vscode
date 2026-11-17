@@ -1505,9 +1505,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return this.showModel(CancellationToken.None, ref);
 	}
 
-	/** Why a new chat of the view cannot fall back to a local chat, if it cannot. */
-	private getLocalChatFallbackRefusal(): string | undefined {
-		return getLocalChatFallbackRefusal(this.configurationService, this.workspaceContextService.getWorkspace(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService), this.localChatAvailabilityService.hidden.get());
+	/** Why a new chat of the view cannot fall back to a local chat, if it cannot: as no agent is available, or as it failed to start. */
+	private getLocalChatFallbackRefusal(reason: 'unavailable' | 'failed'): string | undefined {
+		return getLocalChatFallbackRefusal(this.configurationService, this.workspaceContextService.getWorkspace(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService), this.localChatAvailabilityService.hidden.get(), reason);
 	}
 
 	/**
@@ -1523,9 +1523,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return { modelRef: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#acquireDefaultNewSession', sessionTypeSelectionReason: localFallbackSelectionReason ?? defaultTypeAndReason.selectionReason }) };
 		}
 		const resource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
+		// Whether no agent of the session type is available, rather than one failing to start
+		let unavailable = false;
 		try {
 			const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession', defaultTypeAndReason.selectionReason);
-			const refusal = modelRef ? undefined : this.getLocalChatFallbackRefusal();
+			unavailable = !modelRef;
+			const refusal = modelRef ? undefined : this.getLocalChatFallbackRefusal('unavailable');
 			if (refusal) {
 				throw new Error(refusal);
 			}
@@ -1540,7 +1543,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (isCancellationError(error)) {
 				throw error;
 			}
-			const refusal = this.getLocalChatFallbackRefusal();
+			const refusal = this.getLocalChatFallbackRefusal(unavailable ? 'unavailable' : 'failed');
 			if (refusal) {
 				this.notificationService.error(refusal);
 				throw error;

@@ -1093,9 +1093,9 @@ suite('ChatViewPane managed permission rules', () => {
 				});
 				const pending = pane.acquireDefaultNewSession(CancellationToken.None);
 				const rejected = await pending.then(() => false, () => true);
-				assert.deepStrictEqual({ rejected, selected, localStarts, explained: errors.some(error => error.includes('No agent is available')) }, localHidden
-					? { rejected: true, selected: [SessionType.AgentHostCopilot], localStarts: 0, explained: true }
-					: { rejected: false, selected: [], localStarts: 1, explained: false });
+				assert.deepStrictEqual({ rejected, selected, localStarts, errors }, localHidden
+					? { rejected: true, selected: [SessionType.AgentHostCopilot], localStarts: 0, errors: [result === 'missing' ? 'No agent is available to start a chat yet. Try again once an agent is available.' : 'The chat could not start. Try again or choose another available agent.'] }
+					: { rejected: false, selected: [], localStarts: 1, errors: [] });
 			});
 		}
 	}

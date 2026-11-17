@@ -27,9 +27,14 @@ export function managedPolicyRequiresAgentHostMessage(): string {
 	return localize('chat.managedPolicy.requireAgentHost', "Your organization requires the new Copilot experience. Move to Copilot to keep your conversation. If Copilot cannot start, try again or contact your administrator. Your original conversation is still available.");
 }
 
-/** Why a new chat does not start as a local chat while a feature hides local chats ({@link ILocalChatAvailabilityService}). */
-export function localChatHiddenMessage(): string {
-	return localize('chat.localChatHidden.unavailable', "No agent is available to start a chat yet. Try again once an agent is available.");
+/**
+ * Why a new chat does not start as a local chat while a feature hides local chats ({@link ILocalChatAvailabilityService}):
+ * no agent is available yet (`unavailable`), or its session type failed to start (`failed`).
+ */
+export function localChatHiddenMessage(reason: 'unavailable' | 'failed'): string {
+	return reason === 'unavailable'
+		? localize('chat.localChatHidden.unavailable', "No agent is available to start a chat yet. Try again once an agent is available.")
+		: localize('chat.localChatHidden.failed', "The chat could not start. Try again or choose another available agent.");
 }
 
 /**
@@ -37,12 +42,12 @@ export function localChatHiddenMessage(): string {
  * requires the new Copilot experience, or a feature that hides local chats, outside the exceptions of
  * {@link isEditorLocalAgentEnabled}. Undefined where it can.
  */
-export function getLocalChatFallbackRefusal(configurationService: IConfigurationService, workspace: IWorkspace, managedPolicyRequiresAgentHost: boolean, localChatHidden: boolean): string | undefined {
+export function getLocalChatFallbackRefusal(configurationService: IConfigurationService, workspace: IWorkspace, managedPolicyRequiresAgentHost: boolean, localChatHidden: boolean, reason: 'unavailable' | 'failed' = 'failed'): string | undefined {
 	if (managedPolicyRequiresAgentHost) {
 		return managedPolicyRequiresAgentHostMessage();
 	}
 	if (localChatHidden && !isLocalChatExemptFromHiding(configurationService, workspace)) {
-		return localChatHiddenMessage();
+		return localChatHiddenMessage(reason);
 	}
 	return undefined;
 }

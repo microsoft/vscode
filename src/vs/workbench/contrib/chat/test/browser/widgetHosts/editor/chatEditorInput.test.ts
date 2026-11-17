@@ -719,7 +719,7 @@ suite('ChatEditorInput', () => {
 			));
 
 			if (localHidden) {
-				await assert.rejects(input.resolve(), /No agent is available to start a chat yet/);
+				await assert.rejects(input.resolve(), /The chat could not start\. Try again or choose another available agent\./);
 				assert.strictEqual(startCall, undefined);
 				return;
 			}
