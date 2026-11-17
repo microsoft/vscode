@@ -13,6 +13,7 @@ import { sealAgentHostCredential } from '../../common/agentHostCredentialSealing
 import type { AuthenticateParams } from '../../common/agent.js';
 import type { IHostEncryptionKey } from '../../common/cloudSandboxAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { CategorizedConnectionError } from '../../common/connectionTelemetry.js';
 
 type KeyUse = 'auth-token' | 'mcp-auth-token';
 type KeyAlgorithm = 'x25519-sealedbox' | 'hpke-x25519-hkdf-sha256-aes256gcm';
@@ -177,6 +178,13 @@ function parseMissionControlExpiration(expiration: string): number {
 	return expiresAt;
 }
 
+/** Keeps the HTTP status for local diagnostics; JSON-RPC responses serialize only code, message, and data. */
+class GitHubIdentityError extends ProtocolError {
+	constructor(code: number, message: string, readonly status: number) {
+		super(code, message);
+	}
+}
+
 export async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOrigin: string, credential: string): Promise<{ owner: string; expiresAt?: number }> {
 	if (!/^[\x21-\x7e]+$/.test(credential)) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid GitHub credential encoding');
@@ -189,14 +197,14 @@ export async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOr
 	if (!response.ok) {
 		const denied = response.status === 401 || (response.status === 403
 			&& !response.headers.has('Retry-After') && response.headers.get('X-RateLimit-Remaining') !== '0');
-		throw new ProtocolError(denied ? JsonRpcErrorCodes.InvalidParams : JsonRpcErrorCodes.InternalError, `GitHub identity validation failed (${response.status})`);
+		throw new GitHubIdentityError(denied ? JsonRpcErrorCodes.InvalidParams : JsonRpcErrorCodes.InternalError, `GitHub identity validation failed (${response.status})`, response.status);
 	}
 	let user: unknown;
 	try {
 		user = await response.json();
 	} catch (error) {
 		if (error instanceof SyntaxError) {
-			throw new Error('GitHub identity validation returned invalid JSON');
+			throw new CategorizedConnectionError('AgentHostInvalidResponse', 'GitHub identity validation returned invalid JSON', { cause: error });
 		}
 		throw error;
 	}

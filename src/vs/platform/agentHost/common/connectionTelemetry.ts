@@ -6,7 +6,29 @@
 import type { IConnectionDiagnosticError } from './connectionDiagnostics.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from './state/protocol/errors.js';
 
-type ConnectionTelemetryErrorCategory = 'authentication' | 'authorization' | 'notFound' | 'offline' | 'timeout' | 'cancelled' | 'connectionClosed' | 'dns' | 'tls' | 'network' | 'throttled' | 'httpClient' | 'httpServer' | 'protocol' | 'unknown';
+type ConnectionTelemetryErrorCategory = 'authentication' | 'authorization' | 'notFound' | 'offline' | 'timeout' | 'cancelled' | 'connectionClosed' | 'dns' | 'tls' | 'network' | 'throttled' | 'httpClient' | 'httpServer' | 'protocol'
+	| 'invalidConfiguration' | 'conflict' | 'fileSystem' | 'invalidResponse' | 'unavailable' | 'unknown';
+
+const categorizedConnectionErrorCodes = {
+	AgentHostInvalidConfiguration: 'invalidConfiguration',
+	AgentHostConflict: 'conflict',
+	AgentHostFileSystem: 'fileSystem',
+	AgentHostInvalidResponse: 'invalidResponse',
+	AgentHostUnavailable: 'unavailable',
+	MissionControlOwnerMismatch: 'conflict',
+} as const satisfies Record<string, ConnectionTelemetryErrorCategory>;
+
+export type CategorizedConnectionErrorCode = keyof typeof categorizedConnectionErrorCodes;
+
+/**
+ * A failure whose structured `code` maps to a telemetry category. The code survives
+ * diagnostics and IPC, unlike class names (minified) and messages (never reported).
+ */
+export class CategorizedConnectionError extends Error {
+	constructor(readonly code: CategorizedConnectionErrorCode, message: string, options?: ErrorOptions) {
+		super(message, options);
+	}
+}
 
 export interface IConnectionTelemetryError {
 	readonly errorCategory?: ConnectionTelemetryErrorCategory;
@@ -24,7 +46,8 @@ const knownProtocolCodes = [...Object.values(JsonRpcErrorCodes), ...Object.value
 const knownProtocolCodeSet = new Set<unknown>(knownProtocolCodes);
 const connectionTelemetryErrorCategories: Record<ConnectionTelemetryErrorCategory, true> = {
 	authentication: true, authorization: true, notFound: true, offline: true, timeout: true, cancelled: true, connectionClosed: true, dns: true,
-	tls: true, network: true, throttled: true, httpClient: true, httpServer: true, protocol: true, unknown: true,
+	tls: true, network: true, throttled: true, httpClient: true, httpServer: true, protocol: true,
+	invalidConfiguration: true, conflict: true, fileSystem: true, invalidResponse: true, unavailable: true, unknown: true,
 };
 
 function isConnectionTelemetryErrorCategory(value: unknown): value is ConnectionTelemetryErrorCategory {
@@ -59,7 +82,9 @@ export function getConnectionTelemetryError(error: IConnectionDiagnosticError | 
 		errorCode ??= code;
 		statusCode ??= status;
 		let category: ConnectionTelemetryErrorCategory | undefined;
-		if (code === AhpErrorCodes.AuthRequired || status === 401) {
+		if (current.code !== undefined && Object.hasOwn(categorizedConnectionErrorCodes, current.code)) {
+			category = categorizedConnectionErrorCodes[current.code as CategorizedConnectionErrorCode];
+		} else if (code === AhpErrorCodes.AuthRequired || status === 401) {
 			category = 'authentication';
 		} else if (code === AhpErrorCodes.PermissionDenied || status === 403) {
 			category = 'authorization';
