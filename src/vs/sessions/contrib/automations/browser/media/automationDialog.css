@@ -1337,3 +1337,48 @@
 .hc-light .automation-target-toolbar .automation-form-branch-slot:focus-visible {
 	outline-color: var(--vscode-contrastActiveBorder);
 }
+/* Inline: the form inside a surface that is already modal (the Automations modal), not a dialog on top. */
+.automation-dialog.automation-dialog-inline {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.automation-dialog-inline > .automation-dialog-inline-body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.automation-dialog-inline .automation-titlebar {
+	padding: 0 0 var(--vscode-spacing-size80) 0;
+}
+
+.automation-dialog-inline .automation-form-pane {
+	padding: 4px 0 6px;
+}
+
+.automation-dialog-inline > .automation-dialog-footer-row {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	padding: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size160);
+}
+
+.automation-dialog-inline > .automation-dialog-footer-row > .automation-dialog-footer-actions {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.automation-dialog-inline > .automation-dialog-footer-row > .automation-dialog-footer-actions > .monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+	padding: 4px 14px;
+}

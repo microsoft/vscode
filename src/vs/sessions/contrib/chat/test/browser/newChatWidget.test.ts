@@ -25,7 +25,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, INewSessionDraftSlot, INewSessionRequestEndedEvent, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { INewSessionBackgroundSend, INewSessionComposerCustomization, INewSessionDraftHost, INewSessionTarget } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
@@ -345,6 +345,7 @@ interface ISessionOptionsPersistenceHarness {
 
 interface ISendHarness {
 	readonly configurationService?: IConfigurationService;
+	readonly _newSessionCustomization?: INewSessionComposerCustomization;
 	readonly viewsService?: Pick<IViewsService, 'getViewWithId'>;
 	readonly _backgroundSend?: boolean;
 	readonly _draftHost?: INewSessionDraftHost;
@@ -4375,6 +4376,46 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
+	test('lets its host prepare each request before it is sent', async () => {
+		const folder = URI.file('/primary');
+		const skill = toFileVariableEntry(URI.file('/skills/automate/SKILL.md'));
+		const attachment = toFileVariableEntry(URI.file('/explicit-file'));
+		let sentOptions: ISendRequestOptions | undefined;
+		let preparedWith: { readonly query: string; readonly attachments: readonly string[] } | undefined;
+		const result = await send.call({
+			notificationService: { error: () => { } },
+			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+			_session: constObservable(upcastPartial<ISession>({})),
+			_feedbackItems: constObservable([]),
+			_workspacePicker: { selectedFolderUri: folder, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } },
+			_isQuickChatComposer: constObservable(false),
+			_comparisonSelection: { enabled: constObservable(false) },
+			agentFeedbackService: { removeFeedback: () => { } },
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			sessionsManagementService: { onDidSendRequest: Event.None, sendNewChatRequest: async (_session, options) => { sentOptions = options; } },
+			logService: { error: () => { } },
+			_getWorkspaceRoots: () => [folder],
+			_newSessionCustomization: {
+				prepareRequest: async request => {
+					preparedWith = { query: request.query, attachments: request.attachedContext.map(entry => entry.id) };
+					return { query: `/automate ${request.query}`, attachedContext: [...request.attachedContext, skill] };
+				},
+			},
+		}, 'Every Friday at 4 PM, draft release notes', [attachment]);
+
+		assert.deepStrictEqual({
+			result,
+			preparedWith,
+			query: sentOptions?.query,
+			attachments: sentOptions?.attachedContext?.map(entry => entry.id),
+		}, {
+			result: true,
+			preparedWith: { query: 'Every Friday at 4 PM, draft release notes', attachments: [attachment.id] },
+			query: '/automate Every Friday at 4 PM, draft release notes',
+			attachments: [attachment.id, skill.id],
+		});
+	});
 	test('forwards every composer context pill to the first chat request', async () => {
 		const primaryFolder = URI.file('/primary');
 		const attachedFolder = URI.file('/additional');

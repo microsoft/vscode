@@ -1,0 +1,1379 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The experimental Automations layouts: `modal` (a sidebar and a pane) and `chatInput` (a chat input over tabs). */
+
+.automations-layout {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	box-sizing: border-box;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.automations-layout code {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label1);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background-color: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-textPreformat-foreground);
+}
+
+/* Modal: sidebar and pane */
+
+.automations-layout-modal {
+	background-color: var(--vscode-editor-background);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-layout-split {
+	flex: 1;
+	min-height: 0;
+}
+
+.automations-layout-pane-split {
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+
+.automations-layout-sidebar {
+	height: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120) var(--vscode-spacing-size40) var(--vscode-spacing-size40);
+	overflow: hidden;
+	background-color: var(--vscode-sideBar-background);
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, transparent);
+}
+
+.automations-layout-modal .automations-layout-nav {
+	display: flex;
+	flex-direction: column;
+}
+
+.automations-layout-modal .automations-layout-nav-item {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: 24px;
+	padding: 0 var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-layout-modal .automations-layout-nav-item.separator-before {
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.automations-layout-modal .automations-layout-nav-item.separator-before::before {
+	content: '';
+	position: absolute;
+	top: calc(-1 * var(--vscode-spacing-size80));
+	left: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+	height: var(--vscode-strokeThickness);
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+	pointer-events: none;
+}
+
+.automations-layout-pane {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
+	box-sizing: border-box;
+}
+
+.automations-layout-modal .automations-layout-pane {
+	height: 100%;
+	padding: 0;
+}
+
+.automations-layout-context-bar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
+	min-height: 42px;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, transparent);
+}
+
+.automations-layout-context-button.monaco-button {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	width: auto;
+	min-width: 0;
+	max-width: 100%;
+	height: 24px;
+	padding: 0 var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-layout-context-button.monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.automations-layout-context-button.monaco-button.active {
+	border-color: var(--vscode-inputOption-activeBorder);
+}
+
+.automations-layout-context-button .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.automations-layout-context-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-pane-header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-size120);
+}
+
+.automations-layout-pane-title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.automations-layout-pane-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-pane-description {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+}
+
+/* Navigation items in both layouts */
+
+.automations-layout-nav-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-layout-nav-item.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+}
+
+.automations-layout-nav-item:focus {
+	outline: none;
+}
+
+.automations-layout-nav-item:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-layout-nav-label {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-nav-warning.codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.automations-layout-nav-count {
+	flex-shrink: 0;
+	min-width: 12px;
+	text-align: right;
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-nav-count.unread {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Chat input layout: composer, tabs and pane on the page header's edges */
+
+.automations-layout-chat-input {
+	/* The custom view pads its content by 10px; this makes the gap below the page header 24px. It also reaches 8px past
+	 * the column on both sides, for the rows' hover backgrounds, while its content keeps the header's edges. */
+	padding: calc(var(--vscode-spacing-size240) - 10px) var(--vscode-spacing-size80) 0;
+	margin: 0 calc(-1 * var(--vscode-spacing-size80));
+	overflow: hidden;
+}
+
+.automations-layout-composer {
+	flex-shrink: 0;
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+/* The New Session composer, flush with the content column, without the page's welcome, padding or tips. */
+.automations-layout-composer .new-chat-widget-container {
+	justify-content: flex-start;
+	padding: 0;
+	overflow: visible;
+}
+
+/* Spans the content column, where the New Session page caps its composer at 800px. */
+.automations-layout-composer :is(.new-chat-widget-content, .new-session-workspace-picker-container, .new-session-feedback-banners, .new-chat-input-container, .new-chat-bottom-container) {
+	max-width: none;
+}
+
+.automations-layout-composer .new-chat-widget-content .new-session-workspace-picker-container {
+	margin-top: 0;
+}
+
+.automations-layout-composer .new-session-below-input-surfaces {
+	display: none;
+}
+
+/* The New Session page offsets its centered composer by half its attachments; this one is top-aligned. */
+.automations-layout-composer .new-chat-widget-content {
+	top: 0 !important;
+}
+.automations-layout-tabs-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	flex-shrink: 0;
+}
+
+.automations-layout-chat-input .automations-layout-nav {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.automations-layout-chat-input .automations-layout-nav-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	height: 26px;
+	padding: 0 var(--vscode-spacing-size100);
+	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-large);
+	cursor: pointer;
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+}
+
+.automations-layout-chat-input .automations-layout-nav-item.separator-before {
+	margin-left: var(--vscode-spacing-size80);
+}
+
+.automations-layout-chat-input .automations-layout-nav-label {
+	flex: none;
+}
+
+.automations-layout-chat-input .automations-layout-nav-count {
+	min-width: 0;
+	text-align: left;
+}
+
+.automations-layout-tabs-tools {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	flex: 1;
+	justify-content: flex-end;
+	min-width: 0;
+}
+
+.automations-layout-tabs-row.narrow .automations-layout-tabs-tools {
+	flex-basis: 100%;
+	justify-content: flex-start;
+}
+
+.automations-layout-chat-input .automations-layout-pane {
+	flex: 1;
+	padding-top: var(--vscode-spacing-size80);
+}
+
+/* Toolbar: search, filter and create */
+
+.automations-layout-toolbar {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	flex-shrink: 0;
+	min-width: 0;
+}
+
+.automations-layout-modal .automations-layout-toolbar {
+	flex: 1;
+	justify-content: flex-end;
+	margin-left: auto;
+}
+
+.automations-layout-modal .automations-layout-search {
+	flex: 0 1 210px;
+}
+
+.automations-layout-modal .automations-layout-create-buttons {
+	margin-left: 0;
+}
+
+.automations-layout-pane.compact-header .automations-layout-pane-title-row {
+	flex-wrap: wrap;
+}
+
+.automations-layout-pane.compact-header .automations-layout-toolbar {
+	flex-basis: 100%;
+	margin-left: 0;
+}
+
+.automations-layout-pane.compact-header .automations-layout-search {
+	flex: 1;
+	max-width: none;
+}
+
+.automations-layout-chat-input .automations-layout-toolbar {
+	flex: 0 1 280px;
+}
+
+.automations-layout-search {
+	flex: 1;
+	min-width: 120px;
+	max-width: 420px;
+}
+
+.automations-layout-search .monaco-inputbox {
+	box-sizing: border-box;
+	height: 26px;
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.automations-layout-modal .automations-layout-search .monaco-inputbox,
+.automations-layout-modal .automations-layout-search .monaco-inputbox > .ibwrapper > .input {
+	height: 24px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.automations-layout-search .monaco-inputbox > .ibwrapper {
+	height: 100%;
+}
+
+.automations-layout-search .monaco-inputbox > .ibwrapper > .input {
+	box-sizing: border-box;
+	height: 100%;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.automations-layout-create-buttons {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size80);
+	margin-left: auto;
+}
+
+.automations-layout-create-buttons .monaco-button,
+.automations-layout-mark-all.monaco-button {
+	box-sizing: border-box;
+	width: auto;
+	height: 26px;
+	padding: 0 var(--vscode-spacing-size120);
+	white-space: nowrap;
+}
+
+.automations-layout-modal .automations-layout-create-buttons .monaco-button,
+.automations-layout-modal .automations-layout-mark-all.monaco-button {
+	height: 24px;
+	padding: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-layout-use-button.monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+	white-space: nowrap;
+}
+
+.automations-layout-icon-button.monaco-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: transparent;
+	color: var(--vscode-icon-foreground);
+}
+
+.automations-layout-icon-button.monaco-button:hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.automations-layout-icon-button.monaco-button.disabled {
+	opacity: 0.4;
+}
+
+.automations-layout-filter-button.monaco-button {
+	width: 26px;
+	height: 26px;
+	flex-shrink: 0;
+}
+
+.automations-layout-filter-button.monaco-button.active {
+	color: var(--vscode-textLink-foreground);
+}
+
+.automations-layout-sample-label {
+	flex-shrink: 0;
+	padding: 0 var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+}
+
+.automations-layout-sample-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.automations-layout-result-count {
+	flex-shrink: 0;
+	margin-bottom: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-modal .automations-layout-result-count {
+	margin-inline: var(--vscode-spacing-size120);
+}
+
+.automations-layout-scroll {
+	flex: 1;
+	min-height: 0;
+	/* Its rows pad their text by 8px; reaching 8px past the column puts that text on the column's edge. */
+	margin: 0 calc(-1 * var(--vscode-spacing-size80));
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.automations-layout-modal .automations-layout-scroll {
+	margin: 0 var(--vscode-spacing-size120);
+}
+
+.automations-layout :is(.automations-layout-scroll, .automations-layout-details-body) {
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.automations-layout :is(.automations-layout-scroll, .automations-layout-details-body)::-webkit-scrollbar {
+	width: var(--vscode-spacing-size100);
+	height: var(--vscode-spacing-size100);
+}
+
+.automations-layout :is(.automations-layout-scroll, .automations-layout-details-body)::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.automations-layout :is(.automations-layout-scroll, .automations-layout-details-body)::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.automations-layout :is(.automations-layout-scroll, .automations-layout-details-body)::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.automations-layout :is(.automations-layout-scroll, .automations-layout-details-body)::-webkit-scrollbar-thumb:active {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.automations-layout-content {
+	padding-bottom: var(--vscode-spacing-size240);
+}
+
+.automations-layout-quiet {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	margin: var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Automation table */
+
+.automations-layout-columns,
+.automations-layout-row {
+	display: grid;
+	grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) minmax(0, 1.5fr) minmax(0, 1.2fr) 52px 36px;
+	align-items: center;
+	column-gap: var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size80);
+}
+
+.automations-layout-columns {
+	position: relative;
+	height: 22px;
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-modal .automations-layout-columns {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	height: 24px;
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-layout-modal .automations-layout-column {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	min-width: 0;
+	border-right: var(--vscode-strokeThickness) solid var(--vscode-tree-tableColumnsBorder);
+}
+
+.automations-layout-modal .automations-layout-column-switch {
+	justify-content: flex-end;
+	border-right: none;
+}
+
+.automations-layout-modal .automations-layout-column-actions {
+	border-right: none;
+}
+
+.automations-layout-columns::after,
+.automations-layout-section + .automations-layout-section::before {
+	content: '';
+	position: absolute;
+	left: var(--vscode-spacing-size80);
+	right: var(--vscode-spacing-size80);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	pointer-events: none;
+}
+
+.automations-layout-columns::after {
+	bottom: 0;
+}
+
+.automations-layout-section + .automations-layout-section::before {
+	top: 0;
+}
+
+.automations-layout-column:last-child {
+	text-align: right;
+}
+
+.automations-layout-caption {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size80) 0;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-caption .codicon,
+.automations-layout-section-info.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.automations-layout-section + .automations-layout-section {
+	position: relative;
+	margin-top: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size40);
+}
+
+.automations-layout-section-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	width: 100%;
+	height: 26px;
+	margin-top: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size40);
+	box-sizing: border-box;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: none;
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-align: left;
+	cursor: pointer;
+}
+
+.automations-layout-section-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-layout-section-header .codicon {
+	color: var(--vscode-icon-foreground);
+}
+
+.automations-layout-section-title {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-section-count {
+	font-weight: var(--vscode-fontWeight-regular);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-row {
+	min-height: 26px;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+.automations-layout-modal .automations-layout-row {
+	min-height: 24px;
+	border-radius: 0;
+}
+
+.automations-layout-modal .automations-layout-row:nth-child(odd):not(:hover):not(.details-open):not(.menu-open) {
+	background-color: var(--vscode-tree-tableOddRowsBackground);
+}
+
+.automations-layout-modal .automations-layout-section-header {
+	height: 24px;
+	margin-top: 0;
+	border-radius: 0;
+}
+
+.automations-layout-row:hover,
+.automations-layout-row.menu-open {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-layout-row:focus,
+.automations-layout-run-row:focus,
+.automations-layout-example-row:focus,
+.automations-layout-section-header:focus,
+.automations-layout-link:focus {
+	outline: none;
+}
+
+.automations-layout-row:focus-visible,
+.automations-layout-run-row:focus-visible,
+.automations-layout-example-row:focus-visible,
+.automations-layout-section-header:focus-visible,
+.automations-layout-link:focus-visible,
+.automations-layout-icon-button.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-layout-meta {
+	display: contents;
+}
+
+.automations-layout-cell {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	line-height: 18px;
+}
+
+.automations-layout-name {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automations-layout-name > .codicon {
+	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.automations-layout-name-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-schedule,
+.automations-layout-place,
+.automations-layout-last-run {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-row.disabled .automations-layout-name {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-last-run {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.automations-layout-last-run > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-last-run .codicon,
+.automations-layout-run-icon.codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.automations-layout .codicon.state-completed {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.automations-layout .codicon.state-failed {
+	color: var(--vscode-testing-iconFailed);
+}
+
+.automations-layout .codicon.state-needsInput {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.automations-layout-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--vscode-spacing-size20);
+	visibility: hidden;
+	overflow: visible;
+}
+
+.automations-layout-row:hover .automations-layout-actions,
+.automations-layout-row:focus-within .automations-layout-actions,
+.automations-layout-row.menu-open .automations-layout-actions,
+.automations-layout-row.restoring-focus .automations-layout-actions {
+	visibility: visible;
+}
+
+.automations-layout-icon-placeholder {
+	width: 22px;
+}
+
+.automations-layout-switch {
+	display: flex;
+	justify-content: flex-end;
+	overflow: visible;
+}
+
+/* Keep the modal's table compact beside details; the chat-input variant uses two-line rows. */
+
+.automations-layout-chat-input.narrow .automations-layout-columns {
+	display: none;
+}
+
+.automations-layout-chat-input.narrow .automations-layout-row {
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	grid-template-areas: 'name actions switch' 'meta meta meta';
+	row-gap: 0;
+	padding-top: var(--vscode-spacing-size40);
+	padding-bottom: var(--vscode-spacing-size40);
+}
+
+.automations-layout-chat-input.narrow .automations-layout-name {
+	grid-area: name;
+}
+
+.automations-layout-chat-input.narrow .automations-layout-actions {
+	grid-area: actions;
+}
+
+.automations-layout-chat-input.narrow .automations-layout-switch {
+	grid-area: switch;
+}
+
+.automations-layout-chat-input.narrow .automations-layout-meta {
+	grid-area: meta;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-layout-chat-input.narrow .automations-layout-meta > .automations-layout-cell {
+	flex: 0 1 auto;
+}
+
+.automations-layout-modal.narrow .automations-layout-columns,
+.automations-layout-modal.narrow .automations-layout-row {
+	grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) 48px 32px;
+	column-gap: var(--vscode-spacing-size80);
+}
+
+.automations-layout-modal.narrow :is(.automations-layout-column-schedule, .automations-layout-column-place, .automations-layout-schedule, .automations-layout-place) {
+	display: none;
+}
+
+/* Runs */
+
+.automations-layout-modal .automations-layout-mark-all.monaco-button {
+	margin-left: auto;
+}
+
+.automations-layout-day {
+	margin: var(--vscode-spacing-size120) var(--vscode-spacing-size80) var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-run-row {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1fr) 8px;
+	align-items: center;
+	column-gap: var(--vscode-spacing-size80);
+	min-height: 26px;
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+.automations-layout-run-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-layout-run-title,
+.automations-layout-run-automation,
+.automations-layout-run-time {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-run-automation,
+.automations-layout-run-time {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-run-time {
+	text-align: right;
+}
+
+.automations-layout-run-row.unread .automations-layout-run-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-layout-run-unread {
+	width: 8px;
+	height: 8px;
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.automations-layout-run-row.unread .automations-layout-run-unread {
+	background-color: var(--vscode-activityBarBadge-background);
+}
+
+/* Examples */
+
+.automations-layout-example-row {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1.2fr) auto;
+	align-items: center;
+	column-gap: var(--vscode-spacing-size120);
+	min-height: 30px;
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+}
+
+.automations-layout-example-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-layout-example-name,
+.automations-layout-example-schedule,
+.automations-layout-example-source {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-example-schedule,
+.automations-layout-example-source {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout.narrow .automations-layout-example-row {
+	grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.automations-layout.narrow .automations-layout-example-schedule,
+.automations-layout.narrow .automations-layout-example-source {
+	display: none;
+}
+
+/* Empty state */
+
+.automations-layout-empty {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size160) 0;
+}
+
+.automations-layout-empty-title {
+	margin: 0 var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-layout-empty-subtitle {
+	margin: 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-link {
+	align-self: flex-start;
+	margin: 0 var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: none;
+	color: var(--vscode-textLink-foreground);
+	font-family: inherit;
+	font-size: inherit;
+	cursor: pointer;
+}
+
+.automations-layout-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+/* Hovers */
+
+.automations-layout-row-hover {
+	max-width: 420px;
+}
+
+.automations-layout-row-hover p {
+	margin: 0;
+	white-space: pre-wrap;
+}
+
+.automations-layout-row-hover-cron {
+	margin-top: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Create manually in the modal: the form replaces the pane's content instead of opening a second modal. */
+.automations-layout-pane.creating > :not(.automations-layout-inline-create) {
+	display: none !important;
+}
+
+.automations-layout-inline-create {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+}
+
+/* Details share the available space with the list. */
+
+.automations-layout-row.details-open {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
+}
+
+.automations-layout-row.details-open:focus {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.automations-layout-row.details-open:focus :is(.automations-layout-cell, .automations-layout-name > .codicon) {
+	color: inherit;
+}
+
+.automations-layout-details-host {
+	height: 100%;
+	overflow: hidden;
+}
+
+.automations-layout-details {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+}
+
+.automations-layout-chat-input .automations-layout-details {
+	background-color: var(--session-view-background, var(--vscode-sideBar-background));
+}
+
+.automations-layout-pane-split.details-only .automations-layout-details {
+	border-left: none;
+}
+
+.hc-black .automations-layout-details,
+.hc-light .automations-layout-details {
+	border-left-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .automations-layout-row.details-open,
+.hc-light .automations-layout-row.details-open,
+.hc-black .automations-layout-nav-item.selected,
+.hc-light .automations-layout-nav-item.selected {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+/* Focus lands on the panel only so that it's announced; its controls show their own focus. Outranks the workbench's
+ * outline for every focused `[tabindex="-1"]`. */
+.monaco-workbench .automations-layout-details[tabindex="-1"]:focus {
+	outline: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.monaco-enable-motion .automations-layout-pane-split.details-transition > .monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view {
+		transition: width 150ms ease-out, left 150ms ease-out;
+	}
+
+	.monaco-enable-motion .automations-layout-pane-split.details-transition .automations-layout-details {
+		animation: automations-layout-details-enter 150ms ease-out;
+	}
+}
+
+@keyframes automations-layout-details-enter {
+	from {
+		opacity: 0;
+		transform: translateX(var(--vscode-spacing-size160));
+	}
+}
+
+.automations-layout-details-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	flex-shrink: 0;
+	height: 32px;
+	padding: 0 var(--vscode-spacing-size120);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, transparent);
+}
+
+.automations-layout-details-header > .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-icon-foreground);
+}
+
+.automations-layout-details-title {
+	flex: 0 1 auto;
+	min-width: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 18px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-details-source {
+	flex: 1 2 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.automations-layout-details-header .automations-layout-details-close {
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.automations-layout-details-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	flex: 1;
+	min-height: 0;
+	padding: var(--vscode-spacing-size160);
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+.automations-layout-details-prompt {
+	margin: 0;
+	line-height: 20px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-facts {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	column-gap: var(--vscode-spacing-size160);
+	row-gap: var(--vscode-spacing-size40);
+	margin: 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+}
+
+.automations-layout-details-facts dt {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-facts dd {
+	min-width: 0;
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automations-layout-details-actions .monaco-button {
+	box-sizing: border-box;
+	width: auto;
+	height: 26px;
+	padding: 0 var(--vscode-spacing-size120);
+	white-space: nowrap;
+}
+
+.automations-layout-details-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size160);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+}
+
+.automations-layout-details-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	margin: 0;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-count {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.automations-layout-details-state {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	line-height: 20px;
+}
+
+.automations-layout-details-state .codicon,
+.automations-layout-details-preview .codicon {
+	flex-shrink: 0;
+}
+
+/* Under the state's text, past its icon. */
+.automations-layout-details-outcome {
+	margin: 0;
+	padding-left: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-quiet {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-result {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.automations-layout-details-result p {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-result .automations-layout-details-preview-label {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-layout-details-result-changes,
+.automations-layout-details-result-source {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-preview {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.automations-layout-details-preview .codicon {
+	color: var(--vscode-icon-foreground);
+}
+
+.automations-layout-details-preview-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automations-layout-details-preview-more {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Runs: rows pad their text by 8px, and reach 8px past the column so that text sits on its edge. */
+.automations-layout-details-runs {
+	display: flex;
+	flex-direction: column;
+	margin: 0 calc(-1 * var(--vscode-spacing-size80));
+}
+
+.automations-layout-details-run {
+	display: grid;
+	grid-template-columns: var(--vscode-codiconFontSize) minmax(0, 1fr) var(--vscode-codiconFontSize);
+	align-items: start;
+	column-gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.automations-layout-details-result.can-open,
+.automations-layout-details-run.can-open {
+	cursor: pointer;
+}
+
+.automations-layout-details-result.can-open:hover,
+.automations-layout-details-run.can-open:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-layout-details-result:focus,
+.automations-layout-details-run:focus {
+	outline: none;
+}
+
+.automations-layout-details-result:focus-visible,
+.automations-layout-details-run:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automations-layout-details-run-icon.codicon,
+.automations-layout-details-run-opens {
+	margin-top: var(--vscode-spacing-size20);
+}
+
+.automations-layout-details-run-opens {
+	display: flex;
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-run-main {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+}
+
+.automations-layout-details-run-heading {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	line-height: 20px;
+}
+
+.automations-layout-details-run-state {
+	flex-shrink: 0;
+}
+
+.automations-layout-details-run-time {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-layout-details-run-description,
+.automations-layout-details-run-note {
+	margin: 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+}
+
+.automations-layout-details-run-description {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.automations-layout-details-run .automations-layout-details-preview {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+}

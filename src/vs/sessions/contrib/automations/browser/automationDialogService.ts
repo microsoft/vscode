@@ -6,14 +6,14 @@
 import './media/automationDialog.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Button, ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
-import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { Dialog, IDialogOptions } from '../../../../base/browser/ui/dialog/dialog.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
@@ -71,6 +71,15 @@ const automationDialogAllowableCommands = new Set([
 	'workbench.action.closeQuickOpen',
 ]);
 
+/** Shows the form inside a surface that is already modal, such as the Automations modal, instead of a second dialog on top. */
+export interface IInlineAutomationDialogOptions {
+	readonly inline?: {
+		readonly container: HTMLElement;
+		/** Closes the form without saving, for example when the surface navigates away. */
+		readonly token: CancellationToken;
+	};
+}
+
 /**
  * Owns the Automations create/edit dialog in the sessions layer, where the
  * session-type provider it needs already lives. The workbench list widget
@@ -98,7 +107,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 	) { }
 
-	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
+	async showAutomationDialog(options: IShowAutomationDialogOptions & IInlineAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
 		const initialDefinition = options.existing ?? options.initialValues;
 		if (initialDefinition?.schedule.interval === 'once') {
@@ -405,6 +414,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 				}
 				saveInProgress = false;
 				commitInProgress = false;
+				if (options.inline?.token.isCancellationRequested) {
+					closeDialog(undefined);
+				}
 				if (!shouldClose && !completion.isSettled) {
 					dialogElement?.classList.remove('committing');
 					closeToolbar?.removeAttribute('inert');
@@ -425,10 +437,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 		};
 
 		const activeContainer = this.layoutService.activeContainer;
-		const dialog = disposables.add(new Dialog(
-			activeContainer,
-			title,
-			[],
+		const inline = options.inline;
+		const dialogOptions = (
 			createWorkbenchDialogOptions({
 				type: 'none',
 				extraClasses: ['automation-dialog'],
@@ -562,14 +572,23 @@ export class AutomationDialogService implements IAutomationDialogService {
 					revalidate();
 				},
 			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands,
-				(commandId, event) => shouldPassThroughAutomationDialogCommand(commandId, event.target)),
-		));
+				(commandId, event) => shouldPassThroughAutomationDialogCommand(commandId, event.target))
+		);
+		const dialog = disposables.add(inline
+			? new InlineAutomationDialog(inline.container, title, dialogOptions, () => closeDialog(undefined))
+			: new Dialog(activeContainer, title, [], dialogOptions));
 
-		activeContainer.classList.add('automation-dialog-open');
-		disposables.add(toDisposable(() => activeContainer.classList.remove('automation-dialog-open')));
+		if (inline) {
+			disposables.add(inline.token.onCancellationRequested(() => closeDialog(undefined)));
+		} else {
+			activeContainer.classList.add('automation-dialog-open');
+			disposables.add(toDisposable(() => activeContainer.classList.remove('automation-dialog-open')));
+		}
 
 		try {
-			void dialog.show().then(() => closeDialog(undefined));
+			if (dialog instanceof Dialog) {
+				void dialog.show().then(() => closeDialog(undefined));
+			}
 			// eslint-disable-next-line eslint-js/no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
 			closeToolbar = dialogElement?.querySelector<HTMLElement>('.dialog-toolbar') ?? undefined;
 			focusFirst();
@@ -577,6 +596,29 @@ export class AutomationDialogService implements IAutomationDialogService {
 		} finally {
 			disposables.dispose();
 		}
+	}
+}
+
+/**
+ * The dialog's body and footer rendered into a surface that is already modal. It keeps
+ * the dialog's call order (footer, then body) and closes on Escape like the dialog.
+ */
+class InlineAutomationDialog extends Disposable {
+
+	constructor(host: HTMLElement, title: string, options: IDialogOptions, close: () => void) {
+		super();
+		const element = DOM.append(host, $('.automation-dialog.automation-dialog-inline', { role: 'region', 'aria-label': title }));
+		this._register(toDisposable(() => element.remove()));
+		const body = DOM.append(element, $('.automation-dialog-inline-body'));
+		const footer = DOM.append(DOM.append(element, $('.automation-dialog-inline-footer')), $('div'));
+		options.renderFooter?.(footer);
+		options.renderBody?.(body);
+		this._register(DOM.addDisposableListener(element, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if (event.key === 'Escape' && !event.defaultPrevented) {
+				DOM.EventHelper.stop(event, true);
+				close();
+			}
+		}));
 	}
 }
 

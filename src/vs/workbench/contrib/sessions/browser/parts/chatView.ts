@@ -92,6 +92,24 @@ export interface IChatViewOptions {
 	 * host's slot, so they never replace or take the main window composer's draft, and the grid is never changed.
 	 */
 	readonly newSessionDraft?: INewSessionDraftHost;
+	/** Customizes a new-session composer that a view hosts for a purpose of its own, such as describing an automation. */
+	readonly newSessionCustomization?: INewSessionComposerCustomization;
+}
+
+/** A new-session request before it is sent ({@link INewSessionComposerCustomization.prepareRequest}). */
+export interface INewSessionRequestDraft {
+	readonly query: string;
+	readonly attachedContext: readonly IChatRequestVariableEntry[];
+}
+
+/** How a host customizes the new-session composer it shows ({@link IChatViewOptions.newSessionCustomization}). */
+export interface INewSessionComposerCustomization {
+	/** Shown in the empty input instead of the new-session placeholder. */
+	readonly placeholder?: string;
+	/** Shows only the composer and its pickers: no welcome message, and no tips or suggestions below the input. */
+	readonly composerOnly?: boolean;
+	/** Adjusts each request before it is sent, such as to send it to a skill. The input keeps the prompt as typed. */
+	prepareRequest?(request: INewSessionRequestDraft): Promise<INewSessionRequestDraft>;
 }
 
 export interface INewSessionViewOptions extends IChatViewOptions {

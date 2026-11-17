@@ -13,7 +13,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
@@ -75,7 +75,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionTypeAuth
 import { IAutomationSessionConfiguration, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { AutomationDialogService } from '../../browser/automationDialogService.js';
+import { AutomationDialogService, IInlineAutomationDialogOptions } from '../../browser/automationDialogService.js';
 import { AutomationCustomizationSelection, AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, buildAutomationDisableConditions, canSelectAutomationWorkspace, getAutomationDialogProviders, getAutomationDurationEndDate, getAutomationEndDateError, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
@@ -110,7 +110,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual(actual, { session: true, chat: true });
 	});
 
-	function openDialog(options: IShowAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions']) {
+	function openDialog(options: IShowAutomationDialogOptions & IInlineAutomationDialogOptions = {}, cloudConfigurationOrChoices?: IAutomationProviderConfiguration | IAutomationService['getCustomizationChoices'], sessionOverrides?: Partial<ISessionsManagementService>, repository?: IGitRepository, cloudCreatable = true, cloudEnabledAtOpen = true, canUpdate = true, inputEditorOptions?: IChatInputPartOptions['inputEditorOptions']) {
 		const cloudConfiguration = typeof cloudConfigurationOrChoices === 'function' ? undefined : cloudConfigurationOrChoices;
 		const getCustomizationChoices = typeof cloudConfigurationOrChoices === 'function' ? cloudConfigurationOrChoices : undefined;
 		const configurationService = new TestConfigurationService();
@@ -253,7 +253,7 @@ suite('Automation dialog creation', () => {
 		});
 		disposables.add(toDisposable(() => createChild.restore()));
 		const result = instantiationService.createInstance(AutomationDialogService).showAutomationDialog(options);
-		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
+		const container = options.inline?.container ?? instantiationService.get(IWorkbenchLayoutService).activeContainer;
 		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
 		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
 		const cancelButton = buttons.find(button => button.textContent === 'Cancel')
@@ -1120,6 +1120,41 @@ suite('Automation dialog creation', () => {
 			assert.deepStrictEqual({ ownership: result.value.ownership, present: Object.hasOwn(result.value, 'ownership') }, { ownership: repository ? 'repository' : undefined, present: repository });
 		}
 	});
+
+	for (const fails of [false, true]) {
+		test(`closing the inline host settles its dialog after an in-flight commit ${fails ? 'fails' : 'succeeds'}`, async () => {
+			const host = DOM.append(document.body, DOM.$('div'));
+			disposables.add(toDisposable(() => host.remove()));
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const started = new DeferredPromise<void>();
+			const committing = new DeferredPromise<void>();
+			const dialog = openDialog({
+				inline: { container: host, token: cancellation.token },
+				commit: async () => {
+					void started.complete();
+					await committing.p;
+					if (fails) {
+						throw new Error('Persistence failed');
+					}
+				},
+			});
+			dialog.setPrompt('Review changes');
+			await timeout(0);
+			let settled = false;
+			void dialog.result.then(() => { settled = true; });
+			dialog.saveButton.click();
+			await started.p;
+			cancellation.cancel();
+			host.remove();
+			assert.strictEqual(settled, false, 'Closing the host must not cancel an in-flight commit');
+			await committing.complete();
+			await timeout(0);
+			const actual = { settled, removed: !host.querySelector('.automation-dialog') };
+			dialog.cancelButton.click();
+			await dialog.result;
+			assert.deepStrictEqual(actual, { settled: true, removed: true });
+		});
+	}
 
 	test('Repository ownership rejection preserves the dialog and draft while resetting Owner to Only me', async () => {
 		const reason = 'Repository owned automations are only supported for private repositories.';
