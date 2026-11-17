@@ -8,7 +8,6 @@ import { raceCancellationError, RunOnceScheduler } from '../../../../base/common
 import { cancelOnDispose, CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-// eslint-disable-next-line local/code-translation-remind -- Experimental entry is excluded from production translation resources.
 import { localize } from '../../../../nls.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';

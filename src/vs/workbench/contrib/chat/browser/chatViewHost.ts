@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { SessionTypeSelectionReason } from '../common/constants.js';
 import { IChatWidget } from './chat.js';
+import { IChatViewSessionsListProvider } from './widgetHosts/viewPane/chatViewSessionsList.js';
 
 export const IChatViewHostService = createDecorator<IChatViewHostService>('chatViewHostService');
 
@@ -66,6 +68,11 @@ export interface IChatViewNewChatTarget {
 	readonly modeId?: string;
 	/** Whether the session of the new chat runs in a Dev Container. */
 	readonly requireDevContainer?: boolean;
+	/**
+	 * Where the session of the new chat works: in a new worktree of {@link folder} (`worktree`). Unset, it works in
+	 * {@link folder}.
+	 */
+	readonly placement?: 'worktree';
 }
 
 /** How {@link IChatViewHost.newChat} starts a new chat. */
@@ -76,6 +83,8 @@ export interface IChatViewHostNewChatOptions {
 	 * Chat view that shows a chat: a new session that a sessions list starts, rather than New Chat of a chat widget.
 	 */
 	readonly ownChat?: boolean;
+	/** Cancelled once a later request supersedes the New Chat, such as an open: the host then starts no new chat. */
+	readonly token?: CancellationToken;
 }
 
 /** How {@link IChatViewHost.startSession} starts a session that its caller may send a first request to. */
@@ -86,6 +95,8 @@ export interface IChatViewHostSessionStartOptions {
 	readonly importingConversation: boolean;
 	/** Called once the host shows, before the session loads. */
 	readonly beforeOpen?: () => void;
+	/** What a new-session composer that the host shows for the start aims at, such as a new worktree of a folder. */
+	readonly target?: IChatViewNewChatTarget;
 }
 
 /** A session that {@link IChatViewHost.startSession} started; disposing it ends the start without completing it. */
@@ -138,9 +149,20 @@ export interface IChatViewHost {
 	readonly shownSession?: IObservable<IChatViewHostShownSession | undefined>;
 }
 
+/** What a feature contributes to the Chat view while it is registered ({@link IChatViewHostService.register}). */
+export interface IChatViewContribution {
+	/** A host that replaces the Chat view as where its chats show. */
+	readonly host?: IChatViewHost;
+	/** A sessions list that the Chat view shows in place of its own. */
+	readonly sessionsList?: IChatViewSessionsListProvider;
+	/** Whether the Chat view shows only its sessions while a host replaces it ({@link IChatViewHostService.sessionsOnly}). */
+	readonly sessionsOnly?: boolean;
+}
+
 /**
- * The host of the Chat view's chats. Everything that would show the Chat view goes through it. By default the host is the
- * Chat view; a host registered with {@link registerHost} replaces it while registered.
+ * The host of the Chat view's chats, and what the Chat view shows. Everything that would show the Chat view goes through it.
+ * By default the host is the Chat view, with its own sessions list; a feature changes that while its contribution is
+ * registered with {@link register}.
  */
 export interface IChatViewHostService extends IChatViewHost {
 	readonly _serviceBrand: undefined;
@@ -164,9 +186,18 @@ export interface IChatViewHostService extends IChatViewHost {
 	 */
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
+	/** The sessions list that the Chat view shows in place of its own: of the contribution registered last that gives one. */
+	readonly sessionsList: IObservable<IChatViewSessionsListProvider | undefined>;
 	/**
-	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in
-	 * use; disposing it gives the use back to the one before.
+	 * Whether the Chat view shows only its sessions, without its chat: while a contribution asks for it
+	 * ({@link IChatViewContribution.sessionsOnly}), a host replaces the Chat view, and the Chat view does not host the chat
+	 * shown last.
 	 */
-	registerHost(host: IChatViewHost): IDisposable;
+	readonly sessionsOnly: IObservable<boolean>;
+
+	/**
+	 * Registers what a feature contributes to the Chat view until the returned disposable is disposed. Of each part, the
+	 * contribution registered last that gives it is the one in use; disposing it gives the use back to the one before.
+	 */
+	register(contribution: IChatViewContribution): IDisposable;
 }

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { Action } from '../../../../../../../base/common/actions.js';
@@ -66,18 +67,19 @@ import { IChatToolInvocation } from '../../../../common/chatService/chatService.
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import '../../../../../../browser/media/style.css';
 import '../../../../browser/widget/media/chat.css';
 import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFileChange.js';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const busy of [false, true]) {
-		test(`send dropdown shares the queue control and routes actions with busy=${busy}`, async () => {
+	for (const { busy, extra, hasText = true } of [{ busy: false, extra: false }, { busy: true, extra: false }, { busy: false, extra: true }, { busy: false, extra: false, hasText: false }]) {
+		test(`send dropdown shares the queue control and routes actions with busy=${busy}, extra=${extra}, hasText=${hasText}`, async () => {
 			const instantiationService = workbenchInstantiationService(undefined, store);
 			const config = new TestConfigurationService({ [ChatConfiguration.RequestQueueingDefaultAction]: 'queue' });
 			const contextKeyService = store.add(new ContextKeyService(config));
-			ChatContextKeys.inputHasText.bindTo(contextKeyService).set(true);
+			ChatContextKeys.inputHasText.bindTo(contextKeyService).set(hasText);
 			instantiationService.stub(IConfigurationService, config);
 			instantiationService.stub(IContextKeyService, contextKeyService);
 			instantiationService.stub(IChatWidgetService, { lastFocusedWidget: undefined });
@@ -108,14 +110,18 @@ suite('ChatInputPart', () => {
 					};
 				},
 			});
-			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock } }));
-			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUp }, undefined, { shouldForwardArgs: true }, undefined, undefined);
+			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock, precondition: ChatContextKeys.inputHasText } }));
+			if (extra) {
+				store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.other', title: 'Other' } }));
+			}
+			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUpCompact, precondition: ChatContextKeys.inputHasText }, undefined, { shouldForwardArgs: true }, undefined, undefined);
 			const queue = store.add(new Action('test.queue', 'Queue'));
 			const item = store.add(instantiationService.createInstance(ChatQueuePickerActionItem, busy ? queue : send, busy ? {} : { primaryAction: instantiationService.createInstance(MenuEntryActionViewItem, send, {}) }));
 			const context = { widget: upcastPartial<IChatWidget>({}) };
 			item.setActionContext(context);
-			const root = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+			const root = dom.append(mainWindow.document.body, dom.$('.monaco-workbench.interactive-session'));
 			store.add(toDisposable(() => root.remove()));
+			root.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			const toolbars = dom.append(root, dom.$('.chat-input-toolbars'));
 			const toolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
 			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
@@ -123,6 +129,8 @@ suite('ChatInputPart', () => {
 			item.render(container);
 			item.focus();
 			const primary = container.querySelector<HTMLElement>('.action-container .action-label')!;
+			const primaryStyle = mainWindow.getComputedStyle(primary);
+			const primaryIcon = { fontSize: primaryStyle.fontSize, fontWeight: primaryStyle.fontWeight };
 			primary.click();
 			primary.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
 			const dropdown = container.querySelector<HTMLElement>('.dropdown-action-container .action-label')!;
@@ -130,24 +138,37 @@ suite('ChatInputPart', () => {
 			dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
 			const primaryFocused = mainWindow.document.activeElement === primary;
 			dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			if (!hasText) {
+				dropdown.click();
+				dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			}
 			selectLast?.();
 			await timeout(0);
 			assert.deepStrictEqual({
 				sharedControl: container.classList.contains('monaco-dropdown-with-default'),
 				circularSend: !!container.querySelector('.chat-submit-button'),
 				nestedButtons: container.querySelectorAll('[role="button"] [role="button"]').length,
-				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon,
+				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon, primaryIcon,
+				primaryOpacity: primaryStyle.opacity,
+				dropdownOpacity: mainWindow.getComputedStyle(dropdown).opacity,
+				dropdownPointerEvents: mainWindow.getComputedStyle(dropdown).pointerEvents,
+				dropdownDisabled: dropdown.getAttribute('aria-disabled') === 'true',
 			}, {
 				sharedControl: true, circularSend: false, nestedButtons: 0,
 				dropdownFocused: true, primaryFocused: true,
-				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : ['Send Later...'],
-				sendLaterIcon: { id: Codicon.clock.id, hidden: false },
-				calls: [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }],
+				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : extra ? ['Other', 'Send Later...'] : [],
+				sendLaterIcon: busy || extra ? { id: Codicon.clock.id, hidden: false } : undefined,
+				primaryIcon: { fontSize: busy ? '16px' : '12px', fontWeight: '400' },
+				calls: hasText ? [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }] : [],
+				primaryOpacity: hasText ? '1' : '0.4',
+				dropdownOpacity: hasText ? '1' : '0.4',
+				dropdownPointerEvents: hasText ? 'auto' : 'none',
+				dropdownDisabled: !hasText,
 			});
 			if (busy) {
 				ChatContextKeys.inputHasText.bindTo(contextKeyService).set(false);
 				dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-				assert.deepStrictEqual(enabled, [true, false, false, true]);
+				assert.deepStrictEqual(enabled, [true, false, false, false]);
 			}
 		});
 	}
@@ -729,7 +750,7 @@ suite('ChatInputPart', () => {
 		}, { input: false, hostSubmit: true });
 	});
 
-	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow, sessionWorkingSet = false) {
+	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow, sessionWorkingSet?: boolean) {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -933,6 +954,17 @@ suite('ChatInputPart', () => {
 			}, { supported: false, visible: false, workingSet: false, keptChangesCreated: false });
 		});
 	}
+
+	test('its sessionWorkingSet option decides whether it shows the working set, also against where it renders the working set and whether it is a sessions window\'s chat; unset, as it renders it outside one', () => {
+		const supported = (isSessionsWindow: boolean, sessionWorkingSet: boolean | undefined) => createWorkingSetInput(isSessionsWindow, undefined, false, sessionWorkingSet).inputPart.supportsSessionWorkingSet;
+
+		assert.deepStrictEqual({
+			declined: supported(false, false),
+			asked: supported(true, true),
+			editorWindowDefault: supported(false, undefined),
+			sessionsWindowChatDefault: supported(true, undefined),
+		}, { declined: false, asked: true, editorWindowDefault: true, sessionsWindowChatDefault: false });
+	});
 
 	test('shows the working set of a session\'s chat that asks for it outside the Agents window, and never in it', async () => {
 		const shown = async (inAgentsWindow: boolean) => {

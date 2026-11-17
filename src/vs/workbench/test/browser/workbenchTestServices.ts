@@ -147,6 +147,7 @@ import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITer
 import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
 import { ChatSideChatService, IChatSideChatService } from '../../contrib/chat/common/chatSideChatService.js';
 import { IChatThinkingTitleService } from '../../contrib/chat/common/chatThinkingTitleService.js';
+import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../contrib/chat/common/localChatAvailability.js';
 import { ChatRequestOriginService, IChatRequestOriginService } from '../../contrib/chat/common/chatRequestOrigin.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
@@ -396,6 +397,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 	instantiationService.stub(IChatSideChatService, disposables.add(new ChatSideChatService()));
+	instantiationService.stub(ILocalChatAvailabilityService, disposables.add(new LocalChatAvailabilityService()));
 	instantiationService.stub(IChatThinkingTitleService, { getCachedTitle: () => undefined, generateTitle: async () => undefined });
 	instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
 	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
@@ -667,6 +669,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	readonly onDidChangePanelPosition: Event<string> = Event.None;
 	readonly onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	readonly onDidChangePartVisibility: Event<IPartVisibilityChangeEvent> = Event.None;
+	readonly onDidChangeChatPartVisibility: Event<boolean> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
 	onDidLayoutContainer = Event.None;
@@ -705,6 +708,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
 	isPanelMaximized(): boolean { return false; }
+	hasChatPart(): boolean { return false; }
+	isEditorHiddenByChat(): boolean { return false; }
+	setEditorHiddenByChat(_hidden: boolean): void { }
 	toggleMaximizedAuxiliaryBar(): void { }
 	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
 	isAuxiliaryBarMaximized(): boolean { return false; }

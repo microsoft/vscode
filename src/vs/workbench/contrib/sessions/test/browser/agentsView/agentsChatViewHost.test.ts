@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -59,7 +60,7 @@ suite('AgentsChatViewHost', () => {
 		const host = new AgentsChatViewHost(
 			constObservable(options.ownsNewChat ?? true),
 			chatPart,
-			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getAllSessionTypes: () => [], getAllProviderSessionTypes: () => [], getSessions: () => [], getAllSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
+			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getAllSessionTypes: () => [], getAllProviderSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
 			upcastPartial<IChatWidgetService>({ getAllWidgets: () => options.widgets ?? [] }),
 			upcastPartial<IWorkbenchLayoutService>({ isVisible: () => false }),
 			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }),
@@ -79,7 +80,7 @@ suite('AgentsChatViewHost', () => {
 				},
 				...options.chatService,
 			}),
-			upcastPartial<INotificationService>({ info: message => { calls.push(`info ${message}`); return undefined!; } }),
+			upcastPartial<INotificationService>({ info: message => { calls.push(`info ${message}`); return undefined!; }, error: message => { calls.push(`error ${message}`); return undefined!; } }),
 			upcastPartial<IAgentsChatPartFrame>({ content, contentCreated: derived(reader => !!content.read(reader)) }),
 		);
 		return { host, calls, composerWidget };
@@ -323,6 +324,40 @@ suite('AgentsChatViewHost', () => {
 			available: true, availableCalls: ['openComposer sessionType=undefined newComposer=true'],
 			unavailable: false, unavailableCalls: [],
 			notOwned: false, notOwnedCalls: [],
+		});
+	});
+
+	test('New Chat aims its composer at a new worktree of a folder, and refuses one without a folder', async () => {
+		const folder = URI.file('/repo');
+		const targets: (INewSessionTarget | undefined)[] = [];
+		const { host } = createHost({ chatPart: { openComposer: async target => { targets.push(target); } } });
+
+		const results = [
+			await host.newChat({ folder, placement: 'worktree' }),
+			await host.newChat({ placement: 'worktree' }),
+		];
+
+		assert.deepStrictEqual({ results, targets: targets.map(target => ({ folder: target?.folderUri?.path, placement: target?.placement })) }, {
+			results: [true, false],
+			targets: [{ folder: '/repo', placement: 'worktree' }],
+		});
+	});
+
+	test('a session started for a new worktree that did not run shows a composer aimed at that worktree; one it cannot have starts nothing', async () => {
+		const untitled = URI.parse('agent-host-copilot:/untitled-1');
+		const folder = URI.file('/repo');
+		const targets: (INewSessionTarget | undefined)[] = [];
+		const { host, calls } = createHost({ chatPart: { openComposer: async target => { targets.push(target); } } });
+
+		const start = await host.startSession(untitled, { local: false, importingConversation: false, target: { folder, placement: 'worktree' } });
+		await start.complete(untitled, false);
+		start.dispose();
+		const refused = await host.startSession(untitled, { local: false, importingConversation: false, target: { placement: 'worktree' } }).then(() => false, error => isCancellationError(error));
+
+		assert.deepStrictEqual({ refused, targets: targets.map(target => ({ folder: target?.folderUri?.path, placement: target?.placement })), errors: calls.filter(call => call.startsWith('error')).length }, {
+			refused: true,
+			targets: [{ folder: '/repo', placement: 'worktree' }],
+			errors: 1,
 		});
 	});
 

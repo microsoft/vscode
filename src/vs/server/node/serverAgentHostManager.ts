@@ -6,6 +6,7 @@
 import { realpath } from 'fs/promises';
 import { raceTimeout } from '../../base/common/async.js';
 import { Event } from '../../base/common/event.js';
+import { isWindows } from '../../base/common/platform.js';
 import { isObject, isStringArray } from '../../base/common/types.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
@@ -93,14 +94,16 @@ export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IServerGit
 	if (optionalRoots?.some(root => !roots.includes(root) || projects?.includes(root) || root === defaultDirectory)) {
 		throw new Error('Invalid optional GitHub environment roots');
 	}
+	// Node realpath rejects the extended-prefix drive roots produced by Rust canonicalize.
+	const normalizeDriveRoot = (path: string) => isWindows && /^\\\\\?\\[a-zA-Z]:\\$/.test(path) ? path.slice(4) : path;
 	return {
 		baseUrl: options.baseUrl,
 		accountId: options.accountId,
 		credential: options.credential,
-		roots,
-		...(optionalRoots !== undefined ? { optionalRoots } : {}),
-		...(projects !== undefined ? { projects } : {}),
-		...(defaultDirectory !== undefined ? { defaultDirectory } : {}),
+		roots: roots.map(normalizeDriveRoot),
+		...(optionalRoots !== undefined ? { optionalRoots: optionalRoots.map(normalizeDriveRoot) } : {}),
+		...(projects !== undefined ? { projects: projects.map(normalizeDriveRoot) } : {}),
+		...(defaultDirectory !== undefined ? { defaultDirectory: normalizeDriveRoot(defaultDirectory) } : {}),
 		name,
 		live: true,
 	};

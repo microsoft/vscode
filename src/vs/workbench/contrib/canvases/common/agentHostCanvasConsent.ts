@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toAction } from '../../../../base/common/actions.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
-import { AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentExtensionConsentRequest } from '../../../../platform/agentHost/common/agent.js';
+import { AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenFailure, type AgentCanvasOpenResult, type IAgentExtensionConsentRequest } from '../../../../platform/agentHost/common/agent.js';
 import { IDialogService, type IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
+
+/** How long an open the user asked for may take before it shows progress, so that opening a running canvas shows none. */
+const CANVAS_OPEN_PROGRESS_DELAY_MS = 500;
 
 /** A canvas did not open because the user did not allow its extension to load. */
 export class CanvasExtensionConsentDeniedError extends Error {
@@ -20,9 +25,23 @@ export class CanvasExtensionConsentDeniedError extends Error {
 	}
 }
 
+/** A canvas did not open for a reason its host reported. */
+export class CanvasOpenFailedError extends Error {
+	constructor(readonly failure: AgentCanvasOpenFailure) {
+		super(getFailureMessage(failure));
+		this.name = 'CanvasOpenFailedError';
+	}
+
+	/** Whether opening the canvas again can succeed. */
+	get retryable(): boolean {
+		return this.failure === 'reloaded';
+	}
+}
+
 /**
  * Opens an agent host canvas, asking the user in a modal dialog whenever the canvas's extension needs consent to load.
- * Throws {@link CanvasExtensionConsentDeniedError} when the user does not allow it.
+ * Throws {@link CanvasExtensionConsentDeniedError} when the user does not allow it, and {@link CanvasOpenFailedError}
+ * when the host reports why the canvas did not open.
  */
 export async function openCanvasWithExtensionConsent(dialogService: IDialogService, open: (answer?: AgentCanvasOpenAnswer) => Promise<AgentCanvasOpenResult>, options?: ICanvasOpenOptions): Promise<void> {
 	let result = await open(options?.retryDeniedConsent ? { kind: 'retry' } : undefined);
@@ -33,32 +52,67 @@ export async function openCanvasWithExtensionConsent(dialogService: IDialogServi
 	if (result.kind === 'consentDenied') {
 		throw new CanvasExtensionConsentDeniedError(result.consent, result.retryable);
 	}
+	if (result.kind === 'failed') {
+		throw new CanvasOpenFailedError(result.failure);
+	}
 }
 
-/** Reports a canvas that did not open because its extension was declined, offering to ask again. */
-export function notifyCanvasExtensionConsentDenied(notificationService: INotificationService, error: CanvasExtensionConsentDeniedError, retry: () => Promise<void>): void {
-	notifyWithRetry(notificationService, Severity.Warning, error.message, retry);
+/**
+ * Opens a canvas the user asked for through `open`, showing progress while it takes long, as it does when its extension
+ * starts on first use, and reports a failure with the way to recover from it.
+ */
+export async function openCanvasForUser(progressService: IProgressService, notificationService: INotificationService, label: string, open: (options?: ICanvasOpenOptions) => Promise<void>): Promise<void> {
+	const openWithProgress = (options?: ICanvasOpenOptions) => progressService.withProgress({
+		location: ProgressLocation.Notification,
+		title: localize('canvasOpen.progress', "Opening canvas {0}...", label),
+		delay: CANVAS_OPEN_PROGRESS_DELAY_MS,
+	}, () => open(options));
+	try {
+		await openWithProgress();
+	} catch (error) {
+		notifyCanvasOpenFailure(notificationService, error, label, openWithProgress);
+	}
 }
 
-function notifyWithRetry(notificationService: INotificationService, severity: Severity, message: string, retry: () => Promise<void>): void {
+/**
+ * Reports a canvas the user asked for that did not open, offering to try again when that can help. A canvas closed while
+ * it opened, or an open the user cancelled, is not reported. Each attempt is reported in turn, so that trying again asks
+ * again for consent whenever the latest attempt was declined.
+ */
+export function notifyCanvasOpenFailure(notificationService: INotificationService, error: unknown, label: string, open: (options?: ICanvasOpenOptions) => Promise<void>): void {
+	if (isCancellationError(error)) {
+		return;
+	}
+	if (error instanceof CanvasExtensionConsentDeniedError) {
+		notifyWithRetry(notificationService, Severity.Warning, error.message, label, open, { retryDeniedConsent: true });
+	} else if (error instanceof CanvasOpenFailedError) {
+		if (error.retryable) {
+			notifyWithRetry(notificationService, Severity.Warning, getFailureMessage(error.failure, label), label, open, undefined);
+		} else if (error.failure !== 'dismissed') {
+			notificationService.notify({ severity: error.failure === 'unavailable' ? Severity.Warning : Severity.Error, message: getFailureMessage(error.failure, label) });
+		}
+	} else {
+		notificationService.error(localize('canvasOpen.failed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
+	}
+}
+
+/** Reports a canvas, named `label`, that did not open, keeping a way to try again with `options` until it opens. */
+function notifyWithRetry(notificationService: INotificationService, severity: Severity, message: string, label: string, open: (options?: ICanvasOpenOptions) => Promise<void>, options: ICanvasOpenOptions | undefined): void {
 	notificationService.notify({
 		severity,
 		message,
-		// The declined extension's canvases leave the canvas menus until a retry succeeds, so keep the way to ask again in view.
+		// A declined extension's canvases leave the canvas menus until a retry succeeds, so keep the way to try again in view.
 		sticky: true,
 		actions: {
 			primary: [toAction({
 				id: 'canvas.retryExtensionConsent',
 				label: localize('canvasExtensionConsent.tryAgain', "Try Again"),
-				run: () => retry().catch(retryError => {
-					if (isCancellationError(retryError)) {
-						return;
-					}
-					// A failed retry, for example while the chat is busy, keeps the way to ask again.
-					if (retryError instanceof CanvasExtensionConsentDeniedError) {
-						notifyWithRetry(notificationService, Severity.Warning, retryError.message, retry);
+				run: () => open(options).catch(retryError => {
+					if (isCancellationError(retryError) || retryError instanceof CanvasExtensionConsentDeniedError || retryError instanceof CanvasOpenFailedError) {
+						notifyCanvasOpenFailure(notificationService, retryError, label, open);
 					} else {
-						notifyWithRetry(notificationService, Severity.Error, getErrorMessage(retryError), retry);
+						// A retry that failed otherwise, for example while the chat is busy, keeps the way to try again.
+						notifyWithRetry(notificationService, Severity.Error, getErrorMessage(retryError), label, open, options);
 					}
 				}),
 			})],
@@ -101,4 +155,29 @@ function getDeniedMessage(consent: IAgentExtensionConsentRequest, retryable: boo
 	return retryable
 		? localize('canvasExtensionConsent.capabilities.denied', "The canvas did not open because extension '{0}' was not allowed to load with the permissions it requested.", consent.displayName)
 		: localize('canvasExtensionConsent.capabilities.never', "The canvas did not open because you chose to never allow extension '{0}' to load with the permissions it requested. To be asked again, remove it from Extension Permission Approvals in the host settings, then select Try Again.", consent.displayName);
+}
+
+/** Why a canvas did not open, naming it when `label` is known. */
+function getFailureMessage(failure: AgentCanvasOpenFailure, label?: string): string {
+	switch (failure) {
+		case 'dismissed':
+			// Never reported: the canvas was closed on purpose.
+			return localize('canvasOpen.dismissed', "The canvas was closed while it opened.");
+		case 'reloaded':
+			return label
+				? localize('canvasOpen.reloaded.named', "Canvas {0} did not open because its extensions were reloaded while its extension started.", label)
+				: localize('canvasOpen.reloaded', "The canvas did not open because its extensions were reloaded while its extension started.");
+		case 'mismatchedDeclaration':
+			return label
+				? localize('canvasOpen.mismatchedDeclaration.named', "Canvas {0} was withdrawn because its extension registered it differently from its extension.json declaration. The extension must register exactly what it declares.", label)
+				: localize('canvasOpen.mismatchedDeclaration', "The canvas was withdrawn because its extension registered it differently from its extension.json declaration. The extension must register exactly what it declares.");
+		case 'startFailed':
+			return label
+				? localize('canvasOpen.startFailed.named', "Canvas {0} did not open because its extension did not start. Check the extension for errors.", label)
+				: localize('canvasOpen.startFailed', "The canvas did not open because its extension did not start. Check the extension for errors.");
+		case 'unavailable':
+			return label
+				? localize('canvasOpen.unavailable.named', "Canvas {0} is no longer available. Its extension may have been disabled, removed, or failed to start.", label)
+				: localize('canvasOpen.unavailable', "The canvas is no longer available. Its extension may have been disabled, removed, or failed to start.");
+	}
 }

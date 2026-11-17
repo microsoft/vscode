@@ -59,7 +59,7 @@ import { IChatSessionsService, localChatSessionType } from '../../../chat/common
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
-import { AbstractChatView, ChatViewKind, IChatViewBackgroundReplica, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewBackgroundReplica, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission, INewSessionViewOptions } from '../parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../common/contextkeys.js';
 import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
@@ -148,7 +148,7 @@ export async function getChatRequestOutcome(result: ChatSendResult): Promise<ICh
  * shown before a session has been created. This is the default view that
  * the `SessionsPart` grid is seeded with.
  */
-export interface INewChatViewOptions extends IChatViewOptions {
+export interface INewChatViewOptions extends INewSessionViewOptions {
 	readonly initialAttachments?: readonly IChatRequestVariableEntry[];
 }
 
@@ -536,7 +536,7 @@ export class ChatView extends AbstractChatView {
 				inputPlaceholder: options.input?.placeholder,
 				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
-				sessionWorkingSet: options.input?.workingSet === true,
+				sessionWorkingSet: options.input?.workingSet,
 				validateInput: query => {
 					if (this.scheduledChatsService.enabled.get() && query !== this._widget.getInput()) {
 						throw new Error(localize('chat.inputChangedBeforeSend', "The input changed while preparing this request. Review it before sending again."));
@@ -703,12 +703,10 @@ export class ChatView extends AbstractChatView {
 		}));
 
 		// Floating status pills above the input.
-		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session));
-		if (options.input?.workingSet) {
-			const workingSet = this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, 'auto'));
-			this._chatPills.setChangesHidden(workingSet.changesPillHidden);
-			this._chatPills.setChangesContextMenuActions(workingSet.getChangesPillContextMenuActions);
-		}
+		// Beside an input that shows the session's changes as its working set, the Changes pill hides while it shows them
+		const workingSet = options.input?.workingSet ? this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, { workingSetOnly: true })) : undefined;
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session,
+			workingSet && { hidden: workingSet.changesPillHidden, contextMenuActions: workingSet.getChangesPillContextMenuActions }));
 		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));
 		this._register(this._widget.inputEditor.onKeyDown(event => {
 			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {
@@ -1716,10 +1714,10 @@ export function findInitialTranscriptContextEntry(requests: readonly { readonly 
 }
 
 /** Shared chat-view construction; each entry selects its presentation options. */
-export class ChatViewFactory implements IChatViewFactory {
+export abstract class ChatViewFactory implements IChatViewFactory {
 
 	declare readonly _serviceBrand: undefined;
-	protected readonly viewOptions: IChatViewOptions = {};
+	protected abstract readonly viewOptions: INewSessionViewOptions;
 
 	get inputEditorOptions(): IChatViewOptions['inputEditorOptions'] {
 		return this.viewOptions.inputEditorOptions;
@@ -1727,6 +1725,10 @@ export class ChatViewFactory implements IChatViewFactory {
 
 	get newSessionInput(): IChatViewOptions['newSessionInput'] {
 		return this.viewOptions.newSessionInput;
+	}
+
+	get newSessionPresentation(): INewSessionViewOptions['newSessionPresentation'] {
+		return this.viewOptions.newSessionPresentation;
 	}
 
 	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService: IInstantiationService): AbstractChatView {

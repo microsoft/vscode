@@ -877,7 +877,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// A single tab shows the active editor's title only, which an editor can provide where the part asks for it
-		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs || event.oldPartOptions.singleTabTitleProvidedByEditor !== event.newPartOptions.singleTabTitleProvidedByEditor) {
+		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
 			this.updateTitleProvidedByEditor();
 		}
 
@@ -992,15 +992,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	/**
 	 * A group whose active editor's pane renders its own title does not show its
 	 * title area while it holds only that editor, or, where its part asks for it
-	 * (`IEditorPartOptions.singleTabTitleProvidedByEditor`), while it shows the
+	 * as it is created (`ICreateEditorPartOptions.singleTabTitleProvidedByEditor`), while it shows the
 	 * title of its active editor only, as with a single tab. Otherwise, it shows
 	 * as usual, and the editor does not show its own title.
 	 */
 	private updateTitleProvidedByEditor(): void {
 		const activeEditorPane = this.editorPane.activeEditorPane;
 		const paneProvidesTitle = activeEditorPane instanceof EditorPane && activeEditorPane.input === this.activeEditor && activeEditorPane.providesTitle;
-		const partOptions = this.groupsView.partOptions;
-		const titleProvidedByEditor = paneProvidesTitle && (this.count === 1 || (partOptions.showTabs === 'single' && !!partOptions.singleTabTitleProvidedByEditor));
+		const titleProvidedByEditor = paneProvidesTitle && (this.count === 1 || (this.groupsView.partOptions.showTabs === 'single' && !!this.groupsView.singleTabTitleProvidedByEditor));
 		if (paneProvidesTitle) {
 			activeEditorPane.setProvidedTitleVisible(titleProvidedByEditor);
 		}

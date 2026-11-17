@@ -7,7 +7,7 @@ import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { parse } from '../../../../../base/common/marshalling.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -15,7 +15,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -33,11 +32,11 @@ import { IChatModel, IChatModelInputState } from '../../../chat/common/model/cha
 import { MockChatModel } from '../../../chat/test/common/model/mockChatModel.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../chat/common/automations/automation.js';
-import { AutomationMutationGuard, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../chat/common/automations/automationService.js';
+import { AutomationMutationGuard, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../chat/common/automations/automationsEnabled.js';
 import { IScheduledChatRequestOptions, ScheduledChatsService } from '../../browser/scheduledChatsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { ISessionDraftsService } from '../../browser/sessionDraftsService.js';
+import { IScheduledSessionDraft, ISessionDraftsService } from '../../browser/sessionDraftsService.js';
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { ISavedSessionDraftTarget } from '../../common/savedSessionDrafts.js';
 import { ChatInputCanScheduleContext } from '../../common/contextkeys.js';
@@ -66,6 +65,10 @@ suite('Scheduled chat handoffs', () => {
 		});
 		const calls: string[] = [];
 		const openedDrafts: Parameters<ISessionDraftsService['open']>[] = [];
+		let preview: IObservable<IChatScheduledRequest | undefined> | undefined;
+		let scheduledDraft: IScheduledSessionDraft | undefined;
+		const previewInputs: IChatDraft[] = [];
+		const previewTargets: ISavedSessionDraftTarget[] = [];
 		const loadedChats: URI[] = [];
 		const openedChats: URI[] = [];
 		const recoveredInputs: Parameters<IChatModel['inputModel']['setState']>[0][] = [];
@@ -77,6 +80,10 @@ suite('Scheduled chat handoffs', () => {
 		let occupied = false;
 		let picks = 0;
 		let customTime = false;
+		let sendNow = false;
+		let runResult: IAutomationRunRequestResult = { kind: 'accepted' };
+		let configuration: Awaited<ReturnType<ISessionsManagementService['getAutomationSessionConfiguration']>> = { sessionTemplate: { modelId: 'chosen-model', config: { permission: 'default' } } };
+		const dispatched: IAutomationDescriptor[] = [];
 		const pickerAnchors: Pick<IPickOptions<IQuickPickItem>, 'anchor' | 'anchorPosition'>[] = [];
 		const automations = observableValue<readonly IAutomationDescriptor[]>('automations', []);
 		const runs = observableValue<readonly IAutomationRun[]>('runs', []);
@@ -121,6 +128,7 @@ suite('Scheduled chat handoffs', () => {
 					...expected, enabled: patch.enabled ?? expected.enabled,
 					name: patch.name ?? expected.name, prompt: patch.prompt ?? expected.prompt,
 					request: patch.request ?? expected.request, schedule: patch.schedule ?? expected.schedule,
+					target: patch.target ?? expected.target, sessionTemplate: patch.sessionTemplate ?? expected.sessionTemplate,
 				};
 				automations.set([updated], undefined);
 				return { kind: 'updated' as const, automation: updated };
@@ -132,9 +140,22 @@ suite('Scheduled chat handoffs', () => {
 				}
 				automations.set([], undefined);
 			}
+			override async runAutomation(id: string) {
+				const automation = this.getAutomation(id);
+				assert.ok(automation);
+				calls.push('run');
+				dispatched.push(automation);
+				return runResult;
+			}
 		};
 		const drafts = new class extends mock<ISessionDraftsService>() {
 			override readonly enabled = constObservable(savedDrafts);
+			override async preview(input: IChatDraft, target: ISavedSessionDraftTarget, scheduled: IScheduledSessionDraft) {
+				previewInputs.push(input);
+				previewTargets.push(target);
+				preview = scheduled.request;
+				scheduledDraft = scheduled;
+			}
 			override save(input: IChatDraft, target: ISavedSessionDraftTarget) {
 				calls.push('save');
 				return { id: 'recovery', revision: 'revision', input, target, createdAt: 0, updatedAt: 0 };
@@ -159,7 +180,7 @@ suite('Scheduled chat handoffs', () => {
 				pickerAnchors.push({ anchor: options?.anchor, anchorPosition: options?.anchorPosition });
 				await pickerWait;
 				const choices = (await items).filter((item): item is T => item.type !== 'separator');
-				const item = customTime ? choices.at(-1) : choices[0];
+				const item = sendNow ? choices.find(item => item.label === 'Send Now') : customTime ? choices.at(-1) : choices.find(item => item.label === 'In 5 Minutes');
 				return options?.canPickMany ? item && [item] : item;
 			}
 			override createQuickWidget(): IQuickWidget {
@@ -186,14 +207,12 @@ suite('Scheduled chat handoffs', () => {
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = sessionsChanged.event;
 				override getSession(resource: URI) { return sessions.get(resource.toString()); }
-				override async getAutomationSessionConfiguration() { return { sessionTemplate: { modelId: 'chosen-model', config: { permission: 'default' } } }; }
+				override async getAutomationSessionConfiguration() { return configuration; }
 			}, drafts,
 			new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = {};
 				override readonly onDidChangeSentiment = Event.None;
-			}, quickInput, new class extends TestDialogService {
-				override async confirm(): Promise<never> { throw new Error('Scheduling must not open a confirmation dialog'); }
-			}(), storage,
+			}, quickInput, storage,
 			new class extends mock<ITextModelService>() { }, new class extends mock<IFileService>() { },
 			new class extends mock<IWorkingCopyService>() { override isDirty() { return false; } },
 			new class extends mock<IChatService>() {
@@ -230,8 +249,19 @@ suite('Scheduled chat handoffs', () => {
 				}
 			}));
 		return {
-			service, storage, config, calls, openedDrafts, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors,
+			service, storage, config, calls, openedDrafts, previewInputs, previewTargets, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors, dispatched,
+			get preview(): IObservable<IChatScheduledRequest | undefined> {
+				assert.ok(preview);
+				return preview;
+			},
+			get scheduledDraft(): IScheduledSessionDraft {
+				assert.ok(scheduledDraft);
+				return scheduledDraft;
+			},
 			set customTime(value: boolean) { customTime = value; },
+			set sendNow(value: boolean) { sendNow = value; },
+			set runResult(value: IAutomationRunRequestResult) { runResult = value; },
+			set configuration(value: typeof configuration) { configuration = value; },
 			get picks() { return picks; },
 			set failCreate(value: boolean) { failCreate = value; },
 			set failDelete(value: boolean) { failDelete = value; },
@@ -677,7 +707,7 @@ suite('Scheduled chat handoffs', () => {
 			if (complete) {
 				fixture.automations.set(fixture.automations.get().map(automation => ({ ...automation, oneTimeDispatchedAt: '2026-01-01T00:00:00.000Z' })), undefined);
 			} else {
-				await fixture.service.items.get()[0].open();
+				await fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run();
 			}
 			const handoffs = parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs;
 			const receipts = parse(fixture.storage.get('sessions.scheduledChatReceipts', StorageScope.PROFILE)!).receipts;
@@ -771,31 +801,158 @@ suite('Scheduled chat handoffs', () => {
 	});
 
 	for (const savedDrafts of [true, false]) {
-		test(`opening a scheduled draft cancels and restores it with saved drafts ${savedDrafts ? 'enabled' : 'disabled'}`, async () => {
+		test(`opening a scheduled draft uses the New Session area and preserves its schedule with saved drafts ${savedDrafts ? 'enabled' : 'disabled'}`, async () => {
 			const fixture = create(true, savedDrafts);
 			await fixture.service.schedule(input, target, session, 'composition');
-			const creationId = fixture.automations.get()[0].creationId;
+			const original = fixture.automations.get()[0];
+			fixture.occupied = true;
+			await fixture.service.items.get()[0].open();
 			await fixture.service.items.get()[0].open();
 			assert.deepStrictEqual({
-				calls: fixture.calls, remaining: fixture.service.items.get(), openedDrafts: fixture.openedDrafts,
+				calls: fixture.calls, remaining: fixture.service.items.get().map(item => item.id), openedDrafts: fixture.openedDrafts,
+				unchanged: fixture.automations.get()[0] === original,
+				inputs: fixture.previewInputs,
+				text: fixture.preview.get()?.text,
 			}, {
-				calls: savedDrafts ? ['disable', 'save', 'delete', 'open'] : ['disable', 'recover', 'delete'],
-				remaining: [], openedDrafts: savedDrafts ? [[creationId, { removeFromDrafts: true }]] : [],
+				calls: [], remaining: [original.id], openedDrafts: [], unchanged: true,
+				inputs: [{ ...input, references: undefined }, { ...input, references: undefined }], text: input.inputText,
 			});
 		});
 	}
+
+	test('scheduled previews without a local handoff retain descriptor configuration and isolation when saved unchanged', async () => {
+		for (const isolationMode of ['worktree', 'workspace', undefined, 'quickChat']) {
+			const fixture = create();
+			const sessionTemplate = { modelId: 'saved-model', config: { permission: 'saved-permission' } };
+			fixture.configuration = { sessionTemplate };
+			const workspace = isolationMode !== 'quickChat';
+			const scheduledTarget: ISavedSessionDraftTarget = {
+				...target,
+				...(workspace ? { folderUri: URI.file('/workspace') } : {}),
+				configuration: { sessionTemplate, ...(workspace ? { isolationMode, branch: isolationMode === 'worktree' ? 'saved-branch' : undefined } : {}) },
+			};
+			await fixture.service.schedule(input, scheduledTarget, session, 'composition');
+			const original = fixture.automations.get()[0];
+			fixture.storage.remove('sessions.scheduledChatHandoffs', StorageScope.PROFILE);
+			await fixture.service.items.get()[0].open();
+			const restored = fixture.previewTargets[0];
+			assert.deepStrictEqual(restored, scheduledTarget);
+			fixture.configuration = restored.configuration;
+			await fixture.scheduledDraft.save(fixture.previewInputs[0], restored, session);
+			const saved = fixture.automations.get()[0];
+			assert.deepStrictEqual({ target: saved.target, sessionTemplate: saved.sessionTemplate }, {
+				target: original.target, sessionTemplate: original.sessionTemplate,
+			});
+		}
+	});
+
+	test('an open scheduled draft follows rescheduling and dispatch without changing the automation', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		const preview = fixture.preview;
+		const original = fixture.automations.get()[0];
+		const updated = { ...original, prompt: 'Updated', request: { ...original.request!, text: 'Updated' }, schedule: { ...original.schedule, runAt: '2099-01-15T10:00:00Z' } };
+		fixture.automations.set([updated], undefined);
+		const beforeDispatch = { text: preview.get()?.text, description: preview.get()?.description };
+		fixture.automations.set([{ ...updated, oneTimeDispatchedAt: new Date().toISOString() }], undefined);
+		assert.deepStrictEqual({ beforeDispatch, afterDispatch: preview.get(), calls: fixture.calls }, {
+			beforeDispatch: { text: 'Updated', description: `Scheduled for ${new Date(updated.schedule.runAt).toLocaleString(undefined, { timeZoneName: 'short' })}` },
+			afterDispatch: undefined, calls: [],
+		});
+	});
+
+	test('saving from New Session updates the request and target while retaining its schedule', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		const runAt = fixture.automations.get()[0].schedule.runAt;
+		const changedTarget = { ...target, folderUri: URI.file('/different-workspace') };
+		await fixture.scheduledDraft.save({ ...input, inputText: 'Edited in New Session' }, changedTarget, session);
+		const saved = fixture.automations.get()[0];
+		fixture.conflict = true;
+		await assert.rejects(() => fixture.scheduledDraft.save({ ...input, inputText: 'Conflicting edit' }, changedTarget, session), /changed or has started/);
+		assert.deepStrictEqual({
+			text: saved.request?.text, runAt: saved.schedule.runAt, enabled: saved.enabled,
+			target: saved.target.kind === 'workspace' ? saved.target.folderUri.toString() : undefined,
+			template: saved.sessionTemplate, unchangedAfterConflict: fixture.automations.get()[0] === saved,
+		}, {
+			text: 'Edited in New Session', runAt, enabled: true, target: changedTarget.folderUri.toString(),
+			template: { modelId: 'chosen-model', config: { permission: 'default' } }, unchangedAfterConflict: true,
+		});
+	});
+
+	test('Send Now from the New Session picker dispatches the edited request using the original automation', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		const original = fixture.automations.get()[0];
+		const anchor = $('div');
+		const edited: IChatDraft = {
+			inputText: 'Send the edited request',
+			attachments: [{ kind: 'file', id: 'notes', name: 'notes.txt', value: URI.file('/workspace/notes.txt') }],
+		};
+		const changedTarget = { ...target, folderUri: URI.file('/different-workspace') };
+		fixture.configuration = { sessionTemplate: { modelId: 'updated-model', config: { permission: 'autopilot' } } };
+		fixture.sendNow = true;
+		await fixture.scheduledDraft.reschedule(anchor, async () => {
+			await fixture.scheduledDraft.save(edited, changedTarget, session);
+			await fixture.scheduledDraft.sendNow();
+		});
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			requestsCreated: fixture.requests.length,
+			dispatched: fixture.dispatched.map(automation => ({
+				id: automation.id, runAt: automation.schedule.runAt, text: automation.request?.text,
+				attachments: automation.request?.attachments,
+				target: automation.target.kind === 'workspace' ? automation.target.folderUri.toString() : undefined,
+				template: automation.sessionTemplate,
+			})),
+			anchored: fixture.pickerAnchors.at(-1)?.anchor === anchor,
+		}, {
+			calls: ['update', 'run'], requestsCreated: 1,
+			dispatched: [{
+				id: original.id, runAt: original.schedule.runAt, text: edited.inputText,
+				attachments: [{ type: 'resource', label: 'notes.txt', uri: 'file:///workspace/notes.txt', displayKind: 'document' }],
+				target: changedTarget.folderUri.toString(),
+				template: { modelId: 'updated-model', config: { permission: 'autopilot' } },
+			}],
+			anchored: true,
+		});
+	});
+
+	test('Send Now propagates a host failure before a new session starts', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		fixture.runResult = {
+			kind: 'dispatched',
+			run: upcastPartial<IAutomationRun>({ status: 'failed', errorMessage: 'Session creation failed' }),
+			whenCompleted: Promise.resolve(),
+		};
+		await assert.rejects(() => fixture.scheduledDraft.sendNow(), /Session creation failed/);
+	});
+
+	test('Send Now respects feature disablement after opening a draft', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		await fixture.config.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, false);
+		await assert.rejects(() => fixture.scheduledDraft.sendNow(), /disabled/);
+		assert.deepStrictEqual(fixture.dispatched, []);
+	});
 
 	test('with saved drafts disabled an occupied composer leaves cancelled content recoverable', async () => {
 		const fixture = create(true, false);
 		await fixture.service.schedule(input, target, session, 'composition');
 		fixture.occupied = true;
-		await assert.rejects(async () => fixture.service.items.get()[0].open(), /Composer occupied/);
+		await assert.rejects(async () => fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run(), /Composer occupied/);
 		assert.deepStrictEqual({
 			calls: fixture.calls, enabled: fixture.automations.get()[0].enabled,
 			retained: !!fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE),
 		}, { calls: ['disable', 'recover'], enabled: false, retained: true });
 		fixture.occupied = false;
-		await fixture.service.items.get()[0].open();
+		await fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run();
 		assert.deepStrictEqual({ calls: fixture.calls, remaining: fixture.service.items.get() }, {
 			calls: ['disable', 'recover', 'recover', 'delete'], remaining: [],
 		});

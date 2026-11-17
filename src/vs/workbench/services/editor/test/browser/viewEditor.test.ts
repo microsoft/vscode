@@ -28,7 +28,7 @@ import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorI
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IStatusbarService } from '../../../statusbar/browser/statusbar.js';
 import { EditorService } from '../../browser/editorService.js';
-import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IContentPart, ICreateEditorPartOptions, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../common/editorService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -135,7 +135,7 @@ suite('View Editors', () => {
 		return disposables.add(new ViewEditorInput(viewType, path ? URI.file(path) : undefined));
 	}
 
-	async function createServices(menuService?: IMenuService) {
+	async function createServices(menuService?: IMenuService, partOptions?: Pick<ICreateEditorPartOptions, 'singleTabTitleProvidedByEditor'>) {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		if (menuService) {
 			instantiationService.stub(IMenuService, menuService);
@@ -149,7 +149,7 @@ suite('View Editors', () => {
 		instantiationService.stub(IEditorService, editorService);
 
 		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
-		const part = parts.createEditorPart({ container });
+		const part = parts.createEditorPart({ container, ...partOptions });
 		part.layout(800, 600, 0, 0);
 		disposables.add({ dispose: () => { part.close(); container.remove(); } });
 
@@ -244,16 +244,17 @@ suite('View Editors', () => {
 		});
 	});
 
-	test('with a single tab, a group of a part that asks for it shows the title of its active view that provides it instead of its own title area, also beside other editors; not while another editor is active, nor in a part that does not ask, such as the main editor area; tabs bring its title area back, as they change', async () => {
-		const { parts, part } = await createServices();
+	test('with a single tab, a group of a part created asking for it shows the title of its active view that provides it instead of its own title area, also beside other editors; not while another editor is active, nor in a part that does not ask, such as the main editor area; tabs bring its title area back, as they change', async () => {
+		const { parts, part } = await createServices(undefined, { singleTabTitleProvidedByEditor: true });
 		const group = groupViewOf(parts, part.activeGroup);
 		const options = disposables.add(new DisposableStore());
-		const setShowTabs = (showTabs: 'single' | 'multiple', singleTabTitleProvidedByEditor = true) => {
+		const setShowTabs = (showTabs: 'single' | 'multiple') => {
 			options.clear();
-			options.add(part.enforcePartOptions({ showTabs, singleTabTitleProvidedByEditor }));
+			options.add(part.enforcePartOptions({ showTabs }));
 		};
+		const groupTitleShown = (view: IEditorGroupView) => view.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !view.element.classList.contains('title-provided-by-editor');
 		const state = () => ({
-			groupTitle: group.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !group.element.classList.contains('title-provided-by-editor'),
+			groupTitle: groupTitleShown(group),
 			viewTitle: views[0].providedTitleVisible,
 		});
 
@@ -269,9 +270,18 @@ suite('View Editors', () => {
 		const tabs = state();
 		setShowTabs('single');
 		const singleTabAgain = state();
-		setShowTabs('single', false);
+		// A part created without asking for it, with a single tab too
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		const other = parts.createEditorPart({ container, partOptions: { showTabs: 'single' } });
+		other.layout(800, 600, 0, 0);
+		disposables.add({ dispose: () => { other.close(); container.remove(); } });
+		const otherTitled = createViewInput('test.titled', '/chat/c');
+		await other.activeGroup.openEditor(otherTitled, { pinned: true });
+		await other.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/beside2.txt'), TEST_EDITOR_INPUT_ID)), { pinned: true });
+		await other.activeGroup.openEditor(otherTitled);
+		const notAsked = { groupTitle: groupTitleShown(groupViewOf(parts, other.activeGroup)), viewTitle: views.at(-1)!.providedTitleVisible };
 
-		assert.deepStrictEqual({ fileActive, singleTab, tabs, singleTabAgain, notAsked: state() }, {
+		assert.deepStrictEqual({ fileActive, singleTab, tabs, singleTabAgain, notAsked }, {
 			fileActive: true,
 			singleTab: { groupTitle: false, viewTitle: true },
 			tabs: { groupTitle: true, viewTitle: false },

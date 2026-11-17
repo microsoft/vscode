@@ -26,7 +26,8 @@ suite('New tab button entries', () => {
 
 	/** Runs an entry as the new tab button of the second group does. */
 	async function run(action: Action2, markdownEditorAvailable = false) {
-		const groups = [{ id: 1 }, { id: 2 }] as IEditorGroup[];
+		// The button's group has three tabs, so the new tab opens at index 3, after the last one.
+		const groups = [{ id: 1, count: 1 }, { id: 2, count: 3 }] as IEditorGroup[];
 		let activeGroup = groups[0];
 		const opened: { editor: unknown; group: number | undefined }[] = [];
 		const created: INewUntitledTextEditorOptions[] = [];
@@ -69,9 +70,9 @@ suite('New tab button entries', () => {
 		});
 	});
 
-	test('New Untitled Text File opens in the group of the button, with its origin', async () => {
+	test('New Untitled Text File opens after the last tab in the group of the button, with its origin', async () => {
 		assert.deepStrictEqual(await run(new NewUntitledFileFromNewTabButtonAction()), {
-			opened: [{ editor: { resource: undefined, untitledOrigin: 'newTabButton', options: { pinned: true, override: 'default' } }, group: 2 }],
+			opened: [{ editor: { resource: undefined, untitledOrigin: 'newTabButton', options: { pinned: true, index: 3, override: 'default' } }, group: 2 }],
 			created: [],
 			activeGroup: 2,
 		});
@@ -79,7 +80,7 @@ suite('New tab button entries', () => {
 
 	test('New Markdown Document opens in the Markdown Editor when available, otherwise in the text editor', async () => {
 		const expected = (override: string) => ({
-			opened: [{ editor: { resource: untitledResource, options: { pinned: true, override } }, group: 2 }],
+			opened: [{ editor: { resource: untitledResource, options: { pinned: true, index: 3, override } }, group: 2 }],
 			created: [{ languageId: 'markdown', origin: 'newTabButton' }],
 			activeGroup: 2,
 		});

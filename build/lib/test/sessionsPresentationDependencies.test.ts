@@ -9,8 +9,8 @@ import path from 'path';
 import { suite, test } from 'node:test';
 import ts from 'typescript';
 import { getResourcePaths } from '../../next/resources.ts';
-import { collectSourceDependencies, repositoryRoot } from './sourceDependencies.ts';
 
+const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const hostPickerRoot = 'src/vs/sessions/contrib/providers/remoteAgentHost/browser/';
 const sharedHostPickerRoot = 'src/vs/workbench/contrib/sessions/providers/remoteAgentHost/browser/';
 const originalPicker = [
@@ -28,6 +28,7 @@ const experimentalPicker = [
 	'media/hostPlaceChip.css',
 	'media/mobileHostPickerSheet.css',
 ].map(file => hostPickerRoot + file);
+const dependenciesByFile = new Map<string, readonly string[]>();
 const composerRoot = 'src/vs/sessions/contrib/providers/agentHost/browser/mobile/';
 const originalConfigurationPresenter = 'src/vs/workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts';
 const mobileConfigurationPresenter = composerRoot + 'mobileChatPhoneInputPresenter.ts';
@@ -40,6 +41,17 @@ const defaultListPresentation = 'src/vs/workbench/contrib/sessions/browser/defau
 const mobilePresentationRoot = 'src/vs/sessions/contrib/mobile/browser/';
 const defaultSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/sessionsServices.registration.ts';
 const coreSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/sessionsCoreServices.registration.ts';
+const defaultNewSessionPresentation = [
+	'src/vs/workbench/contrib/sessions/browser/chat/defaultNewSessionPresentation.ts',
+	'src/vs/workbench/contrib/sessions/browser/chat/sessionOptionsRow.ts',
+	'src/vs/workbench/contrib/sessions/browser/chat/iconOnlySessionPickers.ts',
+	'src/vs/workbench/contrib/sessions/browser/chat/media/defaultNewSessionPresentation.css',
+	'src/vs/sessions/browser/parts/mobile/defaultNewSessionPresentation.css',
+];
+const mobileNewSessionPresentation = [
+	'src/vs/sessions/contrib/mobile/browser/mobileNewSessionPresentation.ts',
+	'src/vs/sessions/contrib/mobile/browser/media/mobileNewSessionPresentation.css',
+];
 const chatBackgroundPresentation = [
 	'src/vs/sessions/contrib/chat/browser/chatBackground.contribution.ts',
 	'src/vs/sessions/contrib/chat/browser/getThemeColorsTool.ts',
@@ -69,6 +81,12 @@ suite('Sessions presentation entry isolation', () => {
 				.filter(file => dependencies.has(file)), [configurationPresenter]);
 		});
 
+		test(`${entry} reaches only its own new-session presentation and styles`, () => {
+			const dependencies = collectSourceDependencies(entry);
+			assert.deepStrictEqual([...defaultNewSessionPresentation, ...mobileNewSessionPresentation].filter(file => dependencies.has(file)),
+				entry.includes('.mobile.') ? mobileNewSessionPresentation : defaultNewSessionPresentation);
+		});
+
 		test(`${entry} registers only its own session repository picker implementation`, () => {
 			const mobile = entry.includes('.mobile.');
 			const dependencies = collectSourceDependencies(entry);
@@ -89,6 +107,15 @@ suite('Sessions presentation entry isolation', () => {
 				'src/vs/workbench/contrib/sessions/browser/sessionComparisonService.ts',
 			];
 			assert.deepStrictEqual(services.filter(file => dependencies.has(file)), services);
+		});
+
+		test(`${entry} registers the workspace-folder location service required by extension-host customers`, () => {
+			const module = 'src/vs/workbench/services/workspaces/common/workspaceFolderLocationService.ts';
+			const dependencies = collectSourceDependencies(entry);
+			const registrations = dependencies.has(module) ? getSingletonRegistrations(module) : [];
+			assert.deepStrictEqual(registrations.filter(([id]) => id === 'IWorkspaceFolderLocationService'), [
+				['IWorkspaceFolderLocationService', 'WorkspaceFolderLocationService'],
+			]);
 		});
 
 		test(`${entry} registers shared session and host services without relying on implementation side effects`, () => {
@@ -328,4 +355,37 @@ function isMobileEntryFile(file: string): boolean {
 			hostPickerRoot + 'mobileAgentHostFilterService.ts',
 			hostPickerRoot + 'mobileTunnelConnection.ts',
 		].includes(file);
+}
+
+/** Includes type imports conservatively: neither source graph may depend on the other presentation. */
+function collectSourceDependencies(entry: string): Set<string> {
+	const visited = new Set<string>();
+	const pending = [entry];
+	while (pending.length > 0) {
+		const file = pending.pop()!;
+		if (visited.has(file)) {
+			continue;
+		}
+		visited.add(file);
+		if (!file.endsWith('.ts') && !file.endsWith('.js')) {
+			continue;
+		}
+		let dependencies = dependenciesByFile.get(file);
+		if (!dependencies) {
+			const source = fs.readFileSync(path.join(repositoryRoot, file), 'utf8');
+			dependencies = ts.preProcessFile(source, true).importedFiles
+				.map(reference => reference.fileName)
+				.filter(specifier => specifier.startsWith('.'))
+				.map(specifier => {
+					const resolved = path.resolve(repositoryRoot, path.dirname(file), specifier);
+					const candidates = [resolved.replace(/\.js$/, '.ts'), resolved.replace(/\.js$/, '.tsx'), resolved.replace(/\.js$/, '.d.ts'), resolved];
+					const dependency = candidates.find(candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
+					assert.ok(dependency, `Cannot resolve ${specifier} from ${file}`);
+					return path.relative(repositoryRoot, dependency).replaceAll('\\', '/');
+				});
+			dependenciesByFile.set(file, dependencies);
+		}
+		pending.push(...dependencies);
+	}
+	return visited;
 }

@@ -25,7 +25,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../.
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, BrowserDimOverlaySettingId, getLocalFileBrowserViewSession, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
@@ -51,7 +51,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
-import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
+import { IEditorOptions, ViewColumn } from '../../../../../platform/editor/common/editor.js';
 import { IExternalUriOpenContext } from '../../../../../platform/opener/common/opener.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
@@ -411,7 +411,8 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, await browserViewService.getPreferredGroup());
+		const session = getLocalFileBrowserViewSession(fileUri, browserViewService.resolveNetwork({ type: 'user' }));
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString(), session } } }, await browserViewService.getPreferredGroup());
 	}
 }
 
@@ -580,9 +581,15 @@ registerAction2(class OpenIntegratedBrowserFromNewTabButtonAction extends NewTab
 		});
 	}
 
-	// Opens where the browser opens new tabs, by default in the (now active) group of the button.
-	protected override openTab(accessor: ServicesAccessor): Promise<unknown> {
-		return accessor.get(ICommandService).executeCommand(BrowserViewCommandId.Open);
+	protected override async openTab(accessor: ServicesAccessor, group: IEditorGroup, options: IEditorOptions): Promise<unknown> {
+		const editorService = accessor.get(IEditorService);
+		logBrowserOpen(accessor.get(ITelemetryService), 'newTabButton');
+
+		const editorPane = await editorService.openEditor({ resource: BrowserViewUri.forId(generateUuid()), options }, group);
+		if (editorPane instanceof BrowserEditor) {
+			editorPane.getContribution(BrowserNavigationFeatures)?.openUrlPicker();
+		}
+		return editorPane;
 	}
 });
 registerAction2(OpenFileInIntegratedBrowserAction);

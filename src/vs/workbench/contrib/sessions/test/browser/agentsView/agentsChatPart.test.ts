@@ -19,7 +19,7 @@ import { parse } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { EditorInputWithOptions, IEditorPane } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
-import { IContentPart, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, ICreateEditorPartOptions, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
@@ -32,7 +32,7 @@ import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
-import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
 import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
@@ -107,6 +107,8 @@ class FakeGroup {
 class FakePart {
 	readonly groups: FakeGroup[] = [];
 	activeGroup: FakeGroup;
+	/** The options the chat part created it with. */
+	createOptions: ICreateEditorPartOptions | undefined;
 	/** The options that the chat part enforces on it. */
 	options: unknown;
 	readonly element = document.createElement('div');
@@ -206,7 +208,7 @@ suite('AgentsChatPartService', () => {
 		// The frame has the chat part once it is created, as the real frame does
 		const content = observableValue<IAgentsChatPartService | undefined>('content', undefined);
 		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }), content, contentCreated: derived(reader => !!content.read(reader)), didCreateContent: created => content.set(created, undefined) }));
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: () => part as unknown as IContentPart, mainPart: undefined }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: createOptions => { part.createOptions = createOptions; return part as unknown as IContentPart; }, mainPart: undefined }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
 			openEditor: (async (editor: EditorInput, editorOptions: IEditorOptions | undefined, group: FakeGroup) => {
 				group.open(editor, editorOptions?.inactive);
@@ -272,7 +274,9 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ getStatusIcon: () => Codicon.circle }));
 		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({ setDraftSlotGroup: () => toDisposable(() => { }), getGroupOfSession: () => undefined }));
 
-		const host = new EditorWindowMainSessionHost(contextKeyService);
+		const shownChatService = new EditorWindowShownChatService();
+		instantiationService.stub(IEditorWindowShownChatService, shownChatService);
+		const host = new EditorWindowMainSessionHost(contextKeyService, shownChatService);
 		instantiationService.stub(ISessionHost, host);
 		// Delayed, as the editor window registers it: created as something first uses it, such as an open
 		const scoped = options?.delayed ? store.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartService, new SyncDescriptor(AgentsChatPartService, [], true)]), false, instantiationService, true)) : undefined;
@@ -493,7 +497,7 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({}));
 		const hosts = store.add(instantiationService.createInstance(ChatViewHostService));
 		// As the editor window registers its host, before the chat part exists
-		store.add(hosts.registerHost(scoped!.createInstance(AgentsChatViewHost, constObservable(true))));
+		store.add(hosts.register({ host: scoped!.createInstance(AgentsChatViewHost, constObservable(true)) }));
 		const reports: string[] = [];
 		store.add(autorun(reader => {
 			const value = hosts.shownSession.read(reader);
@@ -736,6 +740,31 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ reentered, showing: service.isShowing(built.mainChat.chat.resource), disposed: input.isDisposed() }, { reentered: 0, showing: false, disposed: true });
 	});
 
+	test('closing a tab disposes its chat, and the composer it owns, as the tab disposes, without disposing the tab again from within its dispose', async () => {
+		const { service, part, state } = createService();
+		await service.openComposer(undefined);
+		const input = part.activeGroup.activeEditor!;
+		let depth = 0;
+		let reentered = 0;
+		const dispose = input.dispose.bind(input);
+		input.dispose = () => {
+			reentered += depth;
+			depth++;
+			try {
+				dispose();
+			} finally {
+				depth--;
+			}
+		};
+
+		const closing = part.activeGroup.closeEditor(input);
+		// In the same tick as its tab: nothing of it is left to dispose later
+		const asItsTabDisposes = { liveSlots: state().liveSlots, reentered, disposed: input.isDisposed() };
+		await closing;
+
+		assert.deepStrictEqual(asItsTabDisposes, { liveSlots: 0, reentered: 0, disposed: true });
+	});
+
 	test('closing the last chat closes the chat part, which closing a chat it does not show leaves as it is', async () => {
 		const { service, layout } = createService();
 		await service.openChat(session, chatA);
@@ -960,9 +989,10 @@ suite('AgentsChatPartService', () => {
 		setSetting('workbench.editor.showTabs', 'multiple');
 		shown.singleWithEditorTabsMultiple = showTabs();
 
-		assert.deepStrictEqual({ shown, options: part.options }, {
+		assert.deepStrictEqual({ shown, options: part.options, singleTabTitleProvidedByEditor: part.createOptions?.singleTabTitleProvidedByEditor }, {
 			shown: { default: 'single', multiple: 'multiple', multipleWithEditorTabsNone: 'multiple', single: 'single', singleWithEditorTabsMultiple: 'single' },
-			options: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', singleTabTitleProvidedByEditor: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+			options: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+			singleTabTitleProvidedByEditor: true,
 		});
 	});
 });

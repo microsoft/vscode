@@ -26,6 +26,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../commo
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import type { INewSessionInputPresentation } from '../newSessionInputPresentation.js';
+import type { INewSessionPresentation } from '../newSessionPresentation.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -60,9 +61,9 @@ export interface IChatViewBackground {
  */
 export interface IChatViewOptions {
 	readonly newSessionInput?: INewSessionInputPresentation;
+	readonly newSessionPresentation?: INewSessionPresentation;
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
-	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
 	readonly background?: IChatViewBackground;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
@@ -91,6 +92,10 @@ export interface IChatViewOptions {
 	 * host's slot, so they never replace or take the main window composer's draft, and the grid is never changed.
 	 */
 	readonly newSessionDraft?: INewSessionDraftHost;
+}
+
+export interface INewSessionViewOptions extends IChatViewOptions {
+	readonly newSessionPresentation: INewSessionPresentation;
 }
 
 /**
@@ -136,7 +141,7 @@ export interface INewSessionDraftHost {
 
 /** What a hosted composer creates its drafts for ({@link INewSessionDraftHost.requestedTarget}). */
 export interface INewSessionTarget {
-	/** The folder of the drafts; none for a workspace-less quick chat. */
+	/** The folder of the drafts; none for a workspace-less quick chat, which only the Agents window has: an editor window's drafts work in its folder. */
 	readonly folderUri?: URI;
 	readonly providerId?: string;
 	readonly sessionTypeId?: string;
@@ -152,6 +157,11 @@ export interface INewSessionTarget {
 	 * picked; a draft that cannot is not created elsewhere.
 	 */
 	readonly requireDevContainer?: boolean;
+	/**
+	 * Whether the first draft of {@link folderUri} works in a new worktree of it (`worktree`), as the user chose New
+	 * Worktree for it. A draft whose agent cannot is reported, not created in the folder silently.
+	 */
+	readonly placement?: 'worktree';
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */
