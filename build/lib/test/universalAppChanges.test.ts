@@ -37,6 +37,8 @@ suite('universal app changes', () => {
 			'extensions/copilot/.esbuild.mts',
 			'extensions/git/.vscodeignore',
 			'extensions/esbuild-extension-common.mts',
+			// imported by an extension's esbuild script
+			'extensions/markdown-language-features/scripts/markdownEditorPackage.mts',
 			'build/package.json',
 			'build/pnpm-lock.yaml',
 			'build/.npmrc',

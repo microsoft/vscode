@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 // Decides whether a CI build checks the macOS universal app (see product-build-darwin-universal-ci.yml),
@@ -28,11 +28,19 @@ const affectingFiles = [
 
 /**
  * The build scripts that package the client (build/gulpfile.vscode.ts) and merge the clients
- * (create-universal-app.ts), and the files that they import, transitively, relative to the repository.
+ * (create-universal-app.ts), the esbuild scripts that bundle the built-in extensions (build/lib/extensions.ts loads them by file name),
+ * and the files that they import, transitively, relative to the repository.
  */
 export function packagingFiles(root: string): Set<string> {
 	const files = new Set<string>();
 	const pending = ['build/gulpfile.vscode.ts', 'build/darwin/create-universal-app.ts'];
+	for (const extension of readdirSync(path.join(root, 'extensions'), { withFileTypes: true }).filter(entry => entry.isDirectory())) {
+		for (const file of readdirSync(path.join(root, 'extensions', extension.name))) {
+			if (/^\.?esbuild[\w.]*\.mts$/.test(file)) {
+				pending.push(`extensions/${extension.name}/${file}`);
+			}
+		}
+	}
 	const relativeImport = /(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s+)['"](\.{1,2}\/[^'"]+)['"]/gm;
 	while (pending.length) {
 		const file = pending.pop()!;
