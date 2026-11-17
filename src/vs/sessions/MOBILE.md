@@ -22,6 +22,8 @@ For starting browser sessions, each entry registers its `ISessionRepositoryPicke
 
 `IChatViewFactory` supplies composer options, including editor metrics and new-session chrome. These options are forwarded to new-session, nested-chat, running-chat, and edited-request inputs; mode/model presentation does not control font sizing or clipboard access. Clipboard attachments are registered through the existing chat context-item mechanism by each entry. The experimental mobile entry reads the clipboard only after selection.
 
+New-session and nested-chat views require an entry-selected `INewSessionPresentation`. It owns welcome composition, picker placement, styles, and matching accessibility help; shared widgets retain workspace selection, drafts, provider configuration, and sending. The regular presentation owns the collapsible options tray and its preferences. Mobile selects compact choices without constructing or importing that tray.
+
 Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
 
 The view factory also owns optional chat-background presentation for the session grid and transcript. Shared chat views receive a background adapter through their options rather than importing a renderer or configuration service. The regular entry supplies the background feature; the isolated mobile entry omits its presentation, registrations, and media. Both entries share built-in skill definitions and discovery; packaging a skill does not register the tools it uses.

@@ -205,28 +205,6 @@
 	--session-view-content-horizontal-padding: var(--vscode-spacing-size160);
 }
 
-.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-container > .new-chat-widget-content {
-	box-sizing: border-box;
-	padding-inline: var(--vscode-spacing-size80);
-}
-
-/* An explicitly enabled greeting replaces the legacy hero instead of overlapping it. */
-.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-content.welcome-phrases-visible .new-session-workspace-picker-container::before {
-	content: none;
-}
-
-.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-content.welcome-phrases-visible .new-session-welcome-message {
-	top: auto;
-	margin-top: auto;
-	margin-bottom: var(--vscode-spacing-size160);
-}
-
-.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-content.welcome-phrases-visible .new-session-workspace-picker-container {
-	max-height: max-content;
-	margin-top: 0;
-	margin-bottom: auto;
-}
-
 /* The composer's color has one owner: `agentsChatInput.background`, which the
  * shared sessions styles apply to both the input container and the editor's
  * own background layer (the latter must stay solid for selection corners).
@@ -291,7 +269,8 @@
 }
 
 /* The invisible part of the 44px target. */
-.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .action-item > .action-label.codicon::after {
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .action-item > .action-label.codicon::after,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config > .action-label::after {
 	content: '';
 	position: absolute;
 	inset: calc(-1 * var(--vscode-spacing-size40));
@@ -310,8 +289,34 @@
 }
 
 /* The picker chip: a 36px pill in the same tint, label plus chevron. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .chat-input-toolbar .action-item.menu-entry.toolbar-shrinkable-item {
+	flex-shrink: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .chat-input-toolbar .action-item.chat-input-picker-item {
+	flex: 0 1 auto;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config {
+	overflow: visible;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-shared-chat-input-session-controls:has(> .has-no-actions) {
+	display: none;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config .action-label .chat-input-picker-label {
+	flex-shrink: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .chat-input-picker-item > .action-label.chat-phone-input-chip,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-shared-chat-input .sessions-chat-picker-slot-mobile-config > .action-label,
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-config-toolbar .monaco-action-bar .action-item > .action-label:not(.separator) {
+	position: relative;
 	box-sizing: border-box;
 	height: var(--mobile-control);
 	min-height: var(--mobile-control);
@@ -398,6 +403,7 @@
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-new-session-place-row .action-item.sessions-new-session-place {
 	position: relative;
 	cursor: pointer;
+	overflow: visible;
 }
 
 .monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-new-session-place-row .action-item.sessions-new-session-place::after {

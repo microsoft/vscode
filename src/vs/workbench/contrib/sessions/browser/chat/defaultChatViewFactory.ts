@@ -8,20 +8,22 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionsChatBackgroundReplica } from '../chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../chatBackgroundService.js';
-import { IChatViewOptions } from '../parts/chatView.js';
+import { INewSessionViewOptions } from '../parts/chatView.js';
 import { SESSIONS_CHAT_SURFACE_CLASS, SessionsChatSurface } from '../sessionsChatSurface.js';
 import { ChatViewFactory } from './chatView.js';
 import { worktreeSuggestionInputPresentation } from '../worktreeSuggestion/worktreeSuggestionInputPresentation.js';
+import { defaultNewSessionPresentation } from './defaultNewSessionPresentation.js';
 
 export class DefaultChatViewFactory extends ChatViewFactory {
 
-	protected override readonly viewOptions: IChatViewOptions;
+	protected override readonly viewOptions: INewSessionViewOptions;
 
 	constructor(
 		@ISessionsChatBackgroundService backgroundService: ISessionsChatBackgroundService,
 	) {
 		super();
 		this.viewOptions = {
+			newSessionPresentation: defaultNewSessionPresentation,
 			newSessionInput: worktreeSuggestionInputPresentation,
 			background: {
 				onDidChange: backgroundService.onDidChangeBackground,

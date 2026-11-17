@@ -46,8 +46,6 @@ import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
-import { getStoredSessionOptionsExpanded, SessionOptionsRow, storeSessionOptionsExpanded } from './sessionOptionsRow.js';
-import { IconOnlySessionPickers } from './iconOnlySessionPickers.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
 import { INewChatComposerInputOptions, NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
@@ -55,7 +53,8 @@ import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, 
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { IChatViewOptions, INewSessionDraftHost, INewSessionTarget } from '../parts/chatView.js';
+import { IChatViewOptions, INewSessionDraftHost, INewSessionTarget, INewSessionViewOptions } from '../parts/chatView.js';
+import { INewSessionPresentationController } from '../newSessionPresentation.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerFocusOptions, ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
@@ -88,7 +87,7 @@ import { writeNewChatDraftState } from '../../common/newChatDraftState.js';
 import { Menus } from '../menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/chatConstants.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/chatConstants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../../common/welcomePhrases.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../common/sessionComparison.js';
@@ -223,8 +222,7 @@ export class NewChatWidget extends Disposable {
 	private _workspacePickerRow: HTMLElement | undefined;
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
-	private readonly _sessionOptionsExpanded = observableValue(this, true);
-	private readonly _iconOnlyPickers: IconOnlySessionPickers;
+	private _presentation: INewSessionPresentationController | undefined;
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
 	private _welcomeMessageTitle: HTMLElement | undefined;
 	private _welcomePetPlatform: HTMLElement | undefined;
@@ -240,8 +238,6 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	private readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
-	private readonly _screenReaderOptimized: IObservable<boolean>;
-	private readonly _collapsedSessionOptionsShowIcons: IObservable<boolean>;
 	private readonly _showWelcomePhrases: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
@@ -263,7 +259,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	constructor(
-		private readonly options: IChatViewOptions & {
+		private readonly options: INewSessionViewOptions & {
 			readonly inputVisible?: IObservable<boolean>;
 			readonly petHostPreferred?: IObservable<boolean>;
 			readonly initialAttachments?: readonly IChatRequestVariableEntry[];
@@ -312,8 +308,6 @@ export class NewChatWidget extends Disposable {
 		// A send outlives the composer, which is then no longer the latest place of any send.
 		this._register(toDisposable(() => this._lastBackgroundSendOptions = undefined));
 
-		this._restoreSessionOptionsExpanded();
-
 		// The session of the pane that hosts the composer, which shows its draft.
 		this._paneSession = options.session ?? constObservable(undefined);
 		this._session = this._detached ? this._draftSlot.newSession : this._paneSession;
@@ -341,17 +335,6 @@ export class NewChatWidget extends Disposable {
 				event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)),
 			() => isSessionEnvironmentPickerEnabled(this.configurationService),
 		);
-		this._screenReaderOptimized = observableFromEvent(
-			this,
-			this.accessibilityService.onDidChangeScreenReaderOptimized,
-			() => this.accessibilityService.isScreenReaderOptimized(),
-		);
-		this._collapsedSessionOptionsShowIcons = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING)),
-			() => this.configurationService.getValue<boolean>(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
-		);
-		this._iconOnlyPickers = this._register(this.instantiationService.createInstance(IconOnlySessionPickers, element => this._newChatInput.getRepositoryControlId(element)));
 		this._showWelcomePhrases = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_PHRASES_SETTING)),
@@ -893,6 +876,8 @@ export class NewChatWidget extends Disposable {
 		this._register(toDisposable(() => composerFocus.reset()));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = this._inputContentElement = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		this._presentation = this._register(this.options.newSessionPresentation.create(false, this.instantiationService));
+		this._presentation.render(chatWidgetContainer, chatWidgetContent);
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
 		this._welcomeMessageTitle = welcomeMessageTitle;
@@ -1002,7 +987,6 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => {
 			const isQuickChat = this._isQuickChatComposer.read(reader);
 			const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.read(reader);
-			chatWidgetContent.classList.add('experimental-new-session-composer');
 			this._newChatInput.placeRepositoryControls(
 				!isQuickChat || isWorkspacePickerQuickChat
 					? this._workspaceRepositoryControlsHost
@@ -1045,7 +1029,7 @@ export class NewChatWidget extends Disposable {
 				getInputValue: () => this._newChatInput.getInputValue(),
 				onDidChangeInput: this._newChatInput.onDidChangeInput,
 				focusInput: () => this.focusInput(),
-				revealIsolationPicker: () => this._sessionOptionsExpanded.set(true, undefined),
+				revealIsolationPicker: () => this._presentation?.revealOptions?.(),
 				openIsolationPicker: () => this.focusWorktreePicker({ focusValue: 'worktree' }),
 				banners,
 			}, this.instantiationService));
@@ -2350,29 +2334,19 @@ export class NewChatWidget extends Disposable {
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		], undefined, this._newChatInput.pickerHoverDelegate);
-		store.add(this._renderPlaceRow(container, row));
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
 				logSettingExperimentTrigger(this.telemetryService, WORKSPACE_OPT_OUT_SETTING);
 			}
 		}));
-		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
-			user: 'NewChatWidget.sessionOptions',
+		const presentation = store.add(this._presentation!.renderWorkspaceOptions(container, row, {
 			hoverDelegate: this._newChatInput.pickerHoverDelegate,
-			screenReaderOptimized: this._screenReaderOptimized,
-			expanded: this._sessionOptionsExpanded,
-			collapsedShowIcons: this._collapsedSessionOptionsShowIcons,
-			setExpanded: expanded => this._setSessionOptionsExpandedFromUser(expanded),
-			// The icons-vs-hidden setting only changes what a collapsed tray shows, so log the
-			// experiment trigger when the composer actually reaches that collapsed state — before
-			// the setting is read, so both arms count and users who never collapse don't dilute it.
-			onDidCollapse: () => logSettingExperimentTrigger(this.telemetryService, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
+			getRepositoryControlId: element => this._newChatInput.getRepositoryControlId(element),
 			onDidChangeLayout: () => this._onDidChangeChatPetPlatform.fire(),
-			iconOnlyPickers: this._iconOnlyPickers,
 		}));
-		const sessionOptions = sessionOptionsRow.details;
+		const sessionOptions = presentation.sessionTypePickerHost;
 		const environmentPicker = store.add(new MutableDisposable<ReturnType<SessionEnvironmentPicker['render']>>());
-		const repositoryControlsHost = sessionOptionsRow.repositoryControlsHost;
+		const repositoryControlsHost = presentation.repositoryControlsHost;
 		this._workspacePickerRow = row;
 		this._workspaceRepositoryControlsHost = repositoryControlsHost;
 		this._workspaceSessionOptionsHost = sessionOptions;
@@ -2392,13 +2366,13 @@ export class NewChatWidget extends Disposable {
 			} else {
 				environmentPicker.clear();
 			}
-			sessionOptionsRow.layout();
+			presentation.layout?.();
 		}));
 		store.add(autorun(reader => {
 			const isVisible = this._environmentPicker.isVisible.read(reader);
 			this._newChatInput.pickerVisibility.setVisible('environment', isVisible);
 		}));
-		sessionOptionsRow.layout();
+		presentation.layout?.();
 		this._newChatInput.pickerVisibility.setVisible('workspace', true);
 		store.add(toDisposable(() => {
 			if (this._workspacePickerRow === row) {
@@ -2575,10 +2549,6 @@ export class NewChatWidget extends Disposable {
 			&& supportsWorktreeIsolation;
 	}
 
-	private _renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable {
-		return this.options.renderNewSessionHeader?.(container, chipRow) ?? Disposable.None;
-	}
-
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
@@ -2601,49 +2571,32 @@ export class NewChatWidget extends Disposable {
 	}
 
 	focusEnvironmentPicker(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._environmentPicker.showPicker();
 	}
 
 	focusHarnessPicker(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._newChatInput.sessionTypePicker.showPicker();
 	}
 
 	focusBranchPicker(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._newChatInput.pickerVisibility.focusPicker('branch');
 	}
 
 	focusWorktreePicker(options?: ISessionPickerFocusOptions): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._newChatInput.pickerVisibility.focusPicker('worktree', options);
 	}
 
 	focusSyncAction(): void {
-		this._sessionOptionsExpanded.set(true, undefined);
+		this._presentation?.revealOptions?.();
 		this._newChatInput.pickerVisibility.focusPicker('sync');
 	}
 
 	openModelComparison(): void {
 		this._newChatInput.modelPicker?.openComparison?.();
-	}
-
-	/** Restores an explicit user choice, or uses the experiment-controlled initial state. */
-	private _restoreSessionOptionsExpanded(): void {
-		const storedExpanded = getStoredSessionOptionsExpanded(this.storageService);
-		let initialExpanded = storedExpanded ?? true;
-		const hasCreatedSession = this._usage.createdSessionCount > 0;
-		if (storedExpanded === undefined && !hasCreatedSession) {
-			logSettingExperimentTrigger(this.telemetryService, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
-			initialExpanded = this.configurationService.getValue<boolean>(NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING) ?? true;
-		}
-		this._sessionOptionsExpanded.set(initialExpanded, undefined);
-	}
-
-	private _setSessionOptionsExpandedFromUser(expanded: boolean): void {
-		this._sessionOptionsExpanded.set(expanded, undefined);
-		storeSessionOptionsExpanded(this.storageService, expanded);
 	}
 
 	private _renderEmptyState(container: HTMLElement): IDisposable {
