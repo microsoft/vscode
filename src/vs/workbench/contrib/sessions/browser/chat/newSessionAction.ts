@@ -13,6 +13,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext, EditorAreaFocusContext } from '../../../../common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
+import { IAgentHostActiveClientService } from '../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { INewSessionInAgentsWindowOptions } from '../../../chat/common/chatSessionsService.js';
 import { Menus } from '../menus.js';
 import { resolveDevContainerSourceWorkspace } from '../openInVSCodeUtils.js';
@@ -109,6 +110,12 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;
+		const activeClientService = options?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
+		const setSessionTools = (sessionResource: URI | undefined): void => {
+			if (sessionResource && activeClientService && options?.sessionToolIds?.length) {
+				activeClientService.setSessionTools(sessionResource, options.sessionToolIds);
+			}
+		};
 		// New sessions open in the main window, from the session it shows.
 		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
 		const activeSession = mainWindowHost.session.get();
@@ -145,6 +152,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			if (options.agentHostProvider && !session) {
 				throw new Error(localize('sessions.newSession.creationFailed', "Could not create a session for Agent Host provider '{0}'.", options.agentHostProvider));
 			}
+			setSessionTools(session?.resource);
 			sendPrompt();
 			return session?.resource;
 		}
@@ -157,15 +165,22 @@ export class NewChatInSessionsWindowAction extends Action2 {
 				recentWorkspacesService.clearCheckedWorkspace();
 			}
 			sessionsService.unsetNewSession();
-			await sessionsService.openNewSession();
+			const result = await sessionsService.openNewSession();
 			partService.getSessionView(mainWindowHost.session.get()?.sessionId)?.focusWorkspacePicker();
+			const resource = result?.session?.resource ?? mainWindowHost.session.get()?.resource;
+			setSessionTools(resource);
 			sendPrompt();
-			return;
+			return resource;
 		}
 		const { session } = await sessionsService.openNewSession({
 			toSide: options?.toSide,
 			...getInheritedNewSessionTarget(sessionsManagementService, accessor.get(ISessionsProvidersService), isQuickChat ? undefined : activeSession),
+			...(options?.agentHostProvider ? {
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				sessionTypeId: options.agentHostProvider,
+			} : {}),
 		});
+		setSessionTools(session?.resource);
 		sendPrompt();
 		return session?.resource;
 	}

@@ -94,7 +94,7 @@ import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { isAgentHostTarget, isRemoteAgentHostTarget, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/chatSessionsService.js';
+import { INewSessionInAgentsWindowOptions, isAgentHostTarget, isRemoteAgentHostTarget, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/chatSessionsService.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -1912,10 +1912,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 				},
 			);
 			try {
-				migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, {
-					prompt,
-					sessionToolIds: [CustomizationMigrationResultToolId],
-				});
+				if (this.workspaceService.isSessionsWindow) {
+					const provider = isRemoteAgentHostSessionType(harness.id) ? undefined : parseAgentHostHarness(harness.id);
+					migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(
+						NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID,
+						{
+							prompt,
+							sessionToolIds: [CustomizationMigrationResultToolId],
+							...(provider ? { agentHostProvider: provider } : {}),
+						} satisfies INewSessionInAgentsWindowOptions,
+					);
+				} else {
+					migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, {
+						prompt,
+						sessionToolIds: [CustomizationMigrationResultToolId],
+					});
+				}
 			} catch (error) {
 				resultRegistration.dispose();
 				await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'unknown' });

@@ -21,6 +21,8 @@ import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/
 import { SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { ISessionsPartService, ISessionView } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
@@ -185,5 +187,52 @@ suite('NewChatInSessionsWindowAction', () => {
 	test('surfaces failure to create an explicitly targeted session', async () => {
 		const fixture = createCommand({ creationFailed: true });
 		await assert.rejects(async () => fixture.run({ noWorkspace: true, agentHostProvider: 'copilotcli' }), /Could not create a session/);
+	});
+
+	test('sets session tools on the created session before sending the prompt', async () => {
+		const configuredTools: { session: URI; toolIds: readonly string[] }[] = [];
+		const sentQueries: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		const sessionResource = URI.parse(`${SessionType.AgentHostCopilot}:/migration-session`);
+		instantiationService.stub(INewSessionComposerService, { notifyUserNavigation() { } });
+		instantiationService.stub(ISessionsManagementService, {
+			isQuickChatTargetAvailable: () => true,
+		});
+		instantiationService.stub(IAgentHostActiveClientService, {
+			setSessionTools: (session, toolIds) => {
+				configuredTools.push({ session, toolIds });
+			},
+		});
+		instantiationService.stub(ISessionsPartService, {
+			getSessionView: () => upcastPartial<ISessionView>({
+				sendQuery: (query: string) => {
+					// Verify tools were set before sendQuery runs
+					assert.strictEqual(configuredTools.length, 1);
+					sentQueries.push(query);
+				},
+				prefillInput: () => { },
+			}),
+		});
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession: constObservable(undefined),
+			openQuickChat: () => upcastPartial<NonNullable<ReturnType<ISessionsService['openQuickChat']>>>({ resource: sessionResource }),
+		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
+		if (!CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID)) {
+			store.add(registerAction2(NewChatInSessionsWindowAction));
+		}
+		const command = CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID);
+		assert.ok(command);
+
+		const result = await instantiationService.invokeFunction(command.handler, {
+			noWorkspace: true,
+			agentHostProvider: 'copilotcli',
+			prompt: 'Migrate now',
+			sessionToolIds: ['vscode_reportCustomizationMigration'],
+		});
+
+		assert.strictEqual(result, sessionResource);
+		assert.deepStrictEqual(configuredTools, [{ session: sessionResource, toolIds: ['vscode_reportCustomizationMigration'] }]);
+		assert.deepStrictEqual(sentQueries, ['Migrate now']);
 	});
 });
