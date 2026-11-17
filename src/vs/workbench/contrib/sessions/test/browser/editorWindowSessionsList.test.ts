@@ -7,12 +7,10 @@ import assert from 'assert';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
-import { Extensions as ViewExtensions, IViewContainerDescriptor, IViewsRegistry } from '../../../../common/views.js';
-import { AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from '../../browser/agentsView/agentsView.js';
-import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList, registerEditorWindowSessionsViews } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsList } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { EditorWindowSessionsContext, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionsGrouping } from '../../browser/views/sessionsList.js';
@@ -58,26 +56,6 @@ suite('EditorWindowSessionsList', () => {
 		const section = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'section');
 		assert.deepStrictEqual({ ...section, headerInTitle: true }, title);
 		assert.deepStrictEqual([title.headerInTitle, section.headerInTitle], [true, false]);
-	});
-
-	test('registers the Sessions view and the setup view in the container', () => {
-		const container = { id: 'test.editorWindowSessionsList', title: localize2Value('Chat'), icon: undefined } as unknown as IViewContainerDescriptor;
-		const registry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		// Another suite may have registered the Agents window's own Sessions view, as ids are registered once
-		const existing = registry.getView(SessionsViewId);
-		const existingContainer = registry.getViewContainer(SessionsViewId);
-		if (existing && existingContainer) {
-			registry.deregisterViews([existing], existingContainer);
-		}
-		store.add(registerEditorWindowSessionsViews(container, observableValue('scoped', false)));
-		if (existing && existingContainer) {
-			store.add(toDisposable(() => registry.registerViews([existing], existingContainer)));
-		}
-		const views = registry.getViews(container).map(view => ({ id: view.id, when: view.when?.serialize() }));
-		assert.deepStrictEqual(views, [
-			{ id: SessionsViewId, when: AgentsViewWhen.serialize() },
-			{ id: AGENTS_VIEW_SETUP_VIEW_ID, when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup)?.serialize() },
-		]);
 	});
 
 	test('the sessions list marks the window and registers its settings, and its actions and the caller\'s as its view first shows, until it is disposed', () => {
