@@ -5,15 +5,17 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { createGitHubClientMetadata, GitHubRequestMetadata } from '../../common/githubRequestMetadata.js';
+import { GitHubRequestMetadata, createGitHubClientMetadata } from '../../common/githubRequestMetadata.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientMetadata, IGitHubEndpointProvider } from '../../common/githubTypes.js';
 import { AccountHandle } from '../../common/types.js';
 import { FakeScheduler } from './fakeScheduler.js';
+
 
 const client: GitHubClientMetadata = {
 	application: 'vscode-insiders/1.141.0',
@@ -128,10 +130,10 @@ suite('GitHub request metadata', () => {
 					}
 					return new Response('{"data":{"value":1}}');
 				}, scheduler, false, undefined, { requestMetadata: new GitHubRequestMetadata(client, endpoint) }));
-				const signal = new AbortController().signal;
+				const cancellationToken = CancellationToken.None;
 				const pending = kind === 'rest'
-					? transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/o/r`, caller: 'github.query' }, signal)
-					: transport.graphql(account, 'token', `${apiBaseUri}/graphql`, 'query { viewer { id } }', {}, signal, 'interactive', { caller: 'github.query' });
+					? transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/o/r`, caller: 'github.query' }, cancellationToken)
+					: transport.graphql(account, 'token', `${apiBaseUri}/graphql`, 'query { viewer { id } }', {}, cancellationToken, 'interactive', { caller: 'github.query' });
 				await started.p;
 				await Promise.resolve();
 				await Promise.resolve();
@@ -154,8 +156,8 @@ suite('GitHub request metadata', () => {
 				return response.p;
 			}, undefined, false, undefined, { requestMetadata: new GitHubRequestMetadata(client, endpoint) }));
 			const read = (caller: string) => kind === 'rest'
-				? transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/o/r`, caller }, new AbortController().signal)
-				: transport.graphql(account, 'token', `${apiBaseUri}/graphql`, 'query { viewer { id } }', {}, new AbortController().signal, 'interactive', { caller });
+				? transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/o/r`, caller }, CancellationToken.None)
+				: transport.graphql(account, 'token', `${apiBaseUri}/graphql`, 'query { viewer { id } }', {}, CancellationToken.None, 'interactive', { caller });
 			const first = read('github.query');
 			const second = read('github.pullRequestQuery');
 			await response.complete(new Response('{"data":{"value":1}}'));
@@ -172,11 +174,11 @@ suite('GitHub request metadata', () => {
 			attempts.push(init);
 			return new Response('{}', { status: 503 });
 		}, scheduler, false, undefined, { requestMetadata: new GitHubRequestMetadata(client, endpoint) }));
-		const signal = new AbortController().signal;
+		const cancellationToken = CancellationToken.None;
 		const url = `${apiBaseUri}/repos/o/r`;
-		await assert.rejects(transport.rest(account, 'token', { method: 'POST', url, body: {}, caller: 'github.mutations' }, signal), { kind: 'server' });
-		await assert.rejects(transport.graphql(account, 'token', `${apiBaseUri}/graphql`, '# comment\nmutation Update { updatePullRequest { id } }', {}, signal, 'mutation', { caller: 'github.mutations' }), { kind: 'server' });
-		await assert.rejects(transport.download(account, 'token', { url, timeout: 1_000, maximumBytes: 100, caller: 'github.mutations' }, signal), { kind: 'server' });
+		await assert.rejects(transport.rest(account, 'token', { method: 'POST', url, body: {}, caller: 'github.mutations' }, cancellationToken), { kind: 'server' });
+		await assert.rejects(transport.graphql(account, 'token', `${apiBaseUri}/graphql`, '# comment\nmutation Update { updatePullRequest { id } }', {}, cancellationToken, 'mutation', { caller: 'github.mutations' }), { kind: 'server' });
+		await assert.rejects(transport.download(account, 'token', { url, timeout: 1_000, maximumBytes: 100, caller: 'github.mutations' }, cancellationToken), { kind: 'server' });
 		scheduler.advanceBy(1_000);
 		const mutationHeaders = { ...initialHeaders, 'x-client-feature': 'github.mutations' };
 		assert.deepStrictEqual({
@@ -200,7 +202,7 @@ suite('GitHub request metadata', () => {
 				? new Response(null, { status: 304 })
 				: new Response('{}', { headers: { ETag: '"version-1"' } });
 		}, undefined, false, undefined, { requestMetadata: new GitHubRequestMetadata(client, endpoint) }));
-		const read = (url: string) => transport.rest(account, 'token', { method: 'GET', url, caller: 'github.query' }, new AbortController().signal);
+		const read = (url: string) => transport.rest(account, 'token', { method: 'GET', url, caller: 'github.query' }, CancellationToken.None);
 		await read(`${apiBaseUri}/repos/o/r`);
 		await read(`${apiBaseUri}/repos/o/r`);
 		await read(`${apiBaseUri}/repos/o/r?page=2`);
@@ -225,7 +227,7 @@ suite('GitHub request metadata', () => {
 		}, undefined, false, undefined, { requestMetadata: new GitHubRequestMetadata(client, endpoint) }));
 		await transport.download(account, 'token', {
 			url: `${apiBaseUri}/download`, timeout: 1_000, maximumBytes: 100, caller: 'github.query',
-		}, new AbortController().signal);
+		}, CancellationToken.None);
 		assert.deepStrictEqual(attempts.map(attempt => ({
 			metadata: metadataHeaders(attempt.headers),
 			authorized: new Headers(attempt.headers).has('Authorization'),

@@ -2015,6 +2015,7 @@ export default [
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~', // the sessions providers of editor windows (see IEditorWindowSessionsRuntime)
 						'vs/workbench/contrib/terminal/terminal.all.js',
 						'vs/sessions/sessions.core.main.js',
 					]

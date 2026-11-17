@@ -284,6 +284,7 @@ export interface IChatScheduledRequest {
 	readonly id: string;
 	readonly text: string;
 	readonly description: string;
+	readonly runAt?: string;
 	readonly attachments: readonly string[];
 	readonly actions: readonly IAction[];
 	readonly editAction?: IAction;

@@ -30,6 +30,9 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
+	private readonly _onDidChangeLocations = this._register(new Emitter<void>());
+	readonly onDidChangeLocations = this._onDidChangeLocations.event;
+
 	private readonly locations = new ResourceMap<IResolvedFolderLocation>();
 
 	private readonly _onDidChangeLocation = this._register(new Emitter<IFolderLocationChangeEvent>());
@@ -91,14 +94,16 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		if (!location) {
 			return undefined;
 		}
-		return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
+		return location.label;
 	}
 
 	registerProvider(provider: IWorkspaceFolderLocationProvider, options?: { readonly builtIn?: boolean }): IDisposable {
 		const entry: IRegisteredProvider = { provider, builtIn: !!options?.builtIn };
 		this.providers.push(entry);
+		const listener = provider.onDidChangeLocations?.(() => this._onDidChangeLocations.fire());
 		this._onDidChangeProviders.fire();
 		return toDisposable(() => {
+			listener?.dispose();
 			const index = this.providers.indexOf(entry);
 			if (index !== -1) {
 				this.providers.splice(index, 1);

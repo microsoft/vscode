@@ -432,5 +432,6 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 		this.pendingRequest = undefined;
 		this.onTimeoutData = undefined;
 		this.runnableResultManager.clear();
+		this._onDidChangeActivation.fire();
 	}
 }

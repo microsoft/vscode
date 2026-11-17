@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { IDevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
-import { DevContainerAgentHostService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/devContainerAgentHostService.js';
+import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostService } from './devContainerAgentHostService.js';
 
+// Of the Agents window and of editor windows, whose sessions providers create Dev Container sessions
 registerSingleton(IDevContainerAgentHostService, DevContainerAgentHostService, InstantiationType.Delayed);

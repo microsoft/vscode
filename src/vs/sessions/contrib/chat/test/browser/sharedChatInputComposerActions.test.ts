@@ -64,8 +64,10 @@ suite('Send Later input actions', () => {
 			aiHidden: matches({ [ChatContextKeys.enabled.key]: false }),
 			editor: matches({ [IsSessionsWindowContext.key]: false }),
 			unsupported: matches({ [ChatInputCanScheduleContext.key]: false }),
+			editingInline: matches({ [ChatContextKeys.currentlyEditing.key]: true }),
+			editingInput: matches({ [ChatContextKeys.currentlyEditingInput.key]: true }),
 			toolbar: MenuRegistry.getMenuItems(Menus.NewSessionChatInputToolbar).some(item => isIMenuItem(item) && item.command.id === 'sessions.sendLater'),
-		}, { enabled: true, off: false, aiHidden: false, editor: false, unsupported: false, toolbar: false });
+		}, { enabled: true, off: false, aiHidden: false, editor: false, unsupported: false, editingInline: false, editingInput: false, toolbar: false });
 	});
 
 	test('routes new-session and existing-chat dropdown actions to the originating input, not another focused chat', async () => {
