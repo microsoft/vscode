@@ -31,7 +31,7 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPartActions.js';
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
-import { registerEditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
+import { EditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
 import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
 import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -119,7 +119,7 @@ class ChatViewSessionsListFeature extends Disposable {
 		// The sessions providers, held while the Chat view, which lists their sessions, shows
 		this._register(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
 		// The settings and the actions of the shared sessions list, once the Chat view first shows it
-		this._register(registerEditorWindowSessionsList(instantiationService, () => registerAgentsViewNewSessionActions(), ChatViewId));
+		this._register(instantiationService.createInstance(EditorWindowSessionsList, () => registerAgentsViewNewSessionActions(), ChatViewId));
 
 		// The sessions list of the Chat view, whose sessions open where the window presents them. While a host replaces the Chat
 		// view, such as the chat part, its chats show there: the Chat view shows only the sessions, unless it hosts the chat
