@@ -89,6 +89,12 @@ export interface IWorkspaceFolderLocationService {
 	isAtAlternateLocation(folder: IWorkspaceFolder): boolean;
 
 	/**
+	 * The primary location of `folder`: the workspace's own location when the
+	 * folder is opened at an alternate location, otherwise the folder's location.
+	 */
+	getPrimaryLocation(folder: IWorkspaceFolder): URI;
+
+	/**
 	 * Whether the location of `folder` can be set with `IWorkspaceEditingService.setFolderLocation`.
 	 * This is the case for the folder of a local single-folder workspace.
 	 */
@@ -130,6 +136,13 @@ export interface IWorkspaceFolderLocationService {
 	 * The alternate locations of all providers for the folder at `primary`, without duplicates.
 	 */
 	getLocations(primary: URI, token: CancellationToken): Promise<IFolderLocation[]>;
+
+	/**
+	 * The known locations of `folder`, primary first, then its alternates
+	 * (only discovered where the folder can be switched between locations).
+	 * Which one the folder is currently at does not affect the result.
+	 */
+	getFolderLocations(folder: IWorkspaceFolder, token: CancellationToken): Promise<IFolderLocation[]>;
 
 	/**
 	 * Resolves `location` through the providers, or returns `undefined` if no provider knows it.

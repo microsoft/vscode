@@ -23,7 +23,7 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions, QueryBuilder } from
 import { IEditorService, ISaveEditorsResult } from '../../services/editor/common/editorService.js';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from '../../services/search/common/search.js';
 import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
-import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, IWorkspaceFolderLocationDto, MainContext, MainThreadWorkspaceShape, ResourceTrustRequestOptionsDto } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape, ResourceTrustRequestOptionsDto } from '../common/extHost.protocol.js';
 import { IEditSessionIdentityService } from '../../../platform/workspace/common/editSessions.js';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../common/editor.js';
 import { coalesce } from '../../../base/common/arrays.js';
@@ -31,8 +31,6 @@ import { ICanonicalUriService } from '../../../platform/workspace/common/canonic
 import { revive } from '../../../base/common/marshalling.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
 import { IWorkspaceFolderLocationService } from '../../../platform/workspace/common/folderLocations.js';
-import { basename } from '../../../base/common/resources.js';
-import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace extends Disposable implements MainThreadWorkspaceShape {
@@ -61,7 +59,6 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -82,6 +79,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			});
 		}
 		this._register(this._folderLocationService.onDidChangeProviders(() => this._updateFolderLocations()));
+		this._register(this._folderLocationService.onDidChangeLocations(() => this._updateFolderLocations()));
 		this._register(this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this));
 		this._register(this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this));
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this));
@@ -167,18 +165,17 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			return;
 		}
 		const workspace = this._contextService.getWorkspace();
-		const singleFolder = this.isSingleFolder(workspace);
 		const current = new Set<string>();
 		for (const folder of workspace.folders) {
-			const primary = this.getPrimaryLocation(workspace, folder.uri);
 			const key = folder.uri.toString();
 			current.add(key);
 			const cts = new CancellationTokenSource();
 			this._locationResolves.get(key)?.dispose(true);
 			this._locationResolves.set(key, cts);
-			this._resolveFolderLocations(primary, singleFolder, cts.token).then(locations => {
+			this._folderLocationService.getFolderLocations(folder, cts.token).then(result => {
 				// the resolver may ignore the token, so check that this resolve is still the current one
 				if (!cts.token.isCancellationRequested && this._locationResolves.get(key) === cts) {
+					const locations = result.map((l, i) => ({ uri: l.uri, label: l.label, description: l.description, isPrimary: i === 0 }));
 					this._proxy.$acceptWorkspaceFolderLocations([{ folder: folder.uri, locations }]);
 				}
 			}, error => {
@@ -195,27 +192,6 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		}
 	}
 
-	private async _resolveFolderLocations(primary: URI, resolveAlternates: boolean, token: CancellationToken): Promise<IWorkspaceFolderLocationDto[]> {
-		const extUri = this._uriIdentityService.extUri;
-		const alternates = resolveAlternates ? await this._folderLocationService.getLocations(primary, token) : [];
-		const locations: IWorkspaceFolderLocationDto[] = [{ uri: primary, label: basename(primary), isPrimary: true }];
-		for (const alternate of alternates) {
-			if (!extUri.isEqual(alternate.uri, primary)) {
-				locations.push({ uri: alternate.uri, label: alternate.label, description: alternate.description, isPrimary: false });
-			}
-		}
-		return locations;
-	}
-
-	private isSingleFolder(workspace: IWorkspace): boolean {
-		return !workspace.configuration && !!workspace.uri && workspace.folders.length === 1;
-	}
-
-	/** At an alternate location the folder URI is the location, the identity of the workspace is the primary. */
-	private getPrimaryLocation(workspace: IWorkspace, folderUri: URI): URI {
-		return this.isSingleFolder(workspace) ? workspace.uri! : folderUri;
-	}
-
 	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {
 		if (!this._contextService.hasWorkspaceData()) {
 			return null;
@@ -223,7 +199,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		return {
 			configuration: workspace.configuration || undefined,
 			isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
-			folders: workspace.folders.map(folder => ({ uri: folder.uri, name: folder.name, index: folder.index, primary: this.getPrimaryLocation(workspace, folder.uri) })),
+			folders: workspace.folders.map(folder => ({ uri: folder.uri, name: folder.name, index: folder.index, primary: this._folderLocationService.getPrimaryLocation(folder) })),
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace),
 			transient: workspace.transient,

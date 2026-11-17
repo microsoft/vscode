@@ -94,13 +94,21 @@ function defaultLocations(uri: URI, name: string, primary?: URI): readonly vscod
 	return [{ uri: primary, label: basenameOrAuthority(primary), isPrimary: true }];
 }
 
+/** Reads a folder's current locations without triggering the lazy resolution. */
+const internalLocationReaders = new WeakMap<object, () => readonly vscode.WorkspaceFolderLocation[]>();
+
+function readLocationsInternal(folder: vscode.WorkspaceFolder): readonly vscode.WorkspaceFolderLocation[] {
+	return internalLocationReaders.get(folder)?.() ?? folder.locations;
+}
+
 /**
  * Creates a workspace folder whose `locations` is a non-enumerable accessor, so that
  * enumerating or serializing a folder does not trigger the lazy resolution of its locations.
  */
-function createWorkspaceFolder(uri: URI, name: string, index: number, primary: URI | undefined, requestLocations: () => void): MutableWorkspaceFolder {
-	let locations = defaultLocations(uri, name, primary);
+function createWorkspaceFolder(uri: URI, name: string, index: number, primary: URI | undefined, requestLocations: () => void, initialLocations?: readonly vscode.WorkspaceFolderLocation[]): MutableWorkspaceFolder {
+	let locations = initialLocations ?? defaultLocations(uri, name, primary);
 	const base: Omit<MutableWorkspaceFolder, 'locations'> = { uri, name, index };
+	internalLocationReaders.set(base, () => locations);
 	const folder = Object.defineProperty(base, 'locations', {
 		enumerable: false,
 		configurable: true,
@@ -156,7 +164,14 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 					newWorkspaceFolders.push(existingFolder);
 				} else {
-					newWorkspaceFolders.push(createWorkspaceFolder(folderUri, folderData.name, index, folderData.primary ? URI.revive(folderData.primary) : undefined, requestLocations));
+					const primary = folderData.primary ? URI.revive(folderData.primary) : undefined;
+					// A location switch creates a new folder for the same primary: keep the known locations
+					const previousFolders = (previousUnconfirmedWorkspace || previousConfirmedWorkspace).workspaceFolders;
+					const carried = primary && previousFolders.find(prev => {
+						const known = readLocationsInternal(prev);
+						return known.length > 0 && known[0].uri.toString() === primary.toString();
+					});
+					newWorkspaceFolders.push(createWorkspaceFolder(folderUri, folderData.name, index, primary, requestLocations, carried ? readLocationsInternal(carried) : undefined));
 				}
 			});
 		} else {
@@ -552,7 +567,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				continue;
 			}
 			const revived = locations.map(l => ({ uri: URI.revive(l.uri), label: l.label, description: l.description, isPrimary: l.isPrimary }));
-			if (!equalLocations(existing.locations, revived)) {
+			if (!equalLocations(readLocationsInternal(existing), revived)) {
 				existing.locations = Object.freeze(revived);
 				changed.push(existing);
 			}

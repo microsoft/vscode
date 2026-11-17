@@ -34,8 +34,11 @@ suite('MainThreadWorkspace', () => {
 		configService.setUserConfiguration('search', {});
 		instantiationService.stub(IWorkspaceFolderLocationService, {
 			onDidChangeLocation: Event.None,
+			onDidChangeLocations: Event.None,
 			onDidChangeProviders: Event.None,
-			getLocations: async () => []
+			getLocations: async () => [],
+			getPrimaryLocation: folder => folder.uri,
+			getFolderLocations: async folder => [{ uri: folder.uri, label: folder.name }]
 		});
 	});
 
@@ -178,14 +181,17 @@ suite('MainThreadWorkspace', () => {
 			return { uri, label: uri.path };
 		}
 
-		function setup2(context?: Partial<IWorkspaceContextService>, requested = true) {
+		async function setup2(context?: Partial<IWorkspaceContextService>, requested = true) {
 			const changes = disposables.add(new Emitter<IFolderLocationChangeEvent>());
 			const requests: DeferredPromise<IFolderLocation[]>[] = [];
 			instantiationService.stub(IWorkspaceFolderLocationService, {
-				onDidChangeLocation: changes.event,
+				onDidChangeLocation: Event.None,
+				onDidChangeLocations: Event.map(changes.event, () => undefined),
 				onDidChangeProviders: Event.None,
+				getLocations: async () => [],
+				getPrimaryLocation: f => f.uri,
 				// ignores the cancellation token on purpose
-				getLocations: () => {
+				getFolderLocations: () => {
 					const request = new DeferredPromise<IFolderLocation[]>();
 					requests.push(request);
 					return request.p;
@@ -210,6 +216,8 @@ suite('MainThreadWorkspace', () => {
 				$acceptWorkspaceFolderLocations: (data: IWorkspaceFolderLocationsDto[]) => { pushed.push(data); }
 			})));
 			if (requested) {
+				// let the deferred workspace initialization settle before the extension host asks
+				await tick();
 				mtw.$getWorkspaceFolderLocations();
 			}
 			return { changes, requests, pushed, mtw };
@@ -218,7 +226,7 @@ suite('MainThreadWorkspace', () => {
 		const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
 		test('no locations are resolved until an extension host consumer asks', async () => {
-			const { changes, requests, mtw } = setup2(undefined, false);
+			const { changes, requests, mtw } = await setup2(undefined, false);
 			await tick();
 			changes.fire({} as IFolderLocationChangeEvent);
 			await tick();
@@ -229,8 +237,7 @@ suite('MainThreadWorkspace', () => {
 		});
 
 		test('a stale resolve does not overwrite a newer one', async () => {
-			const { changes, requests, pushed } = setup2();
-			await tick();
+			const { changes, requests, pushed } = await setup2();
 			changes.fire({} as IFolderLocationChangeEvent);
 			assert.strictEqual(requests.length, 2);
 
@@ -239,12 +246,11 @@ suite('MainThreadWorkspace', () => {
 			requests[0].complete([location(URI.file('/work/a'))]);
 			await tick();
 
-			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => l.uri.path)), [['/work/repo', '/work/b']]);
+			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => l.uri.path)), [['/work/b']]);
 		});
 
 		test('nothing is pushed after dispose', async () => {
-			const { requests, pushed, mtw } = setup2();
-			await tick();
+			const { requests, pushed, mtw } = await setup2();
 			mtw.dispose();
 			requests[0].complete([location(URI.file('/work/a'))]);
 			await tick();
@@ -254,17 +260,18 @@ suite('MainThreadWorkspace', () => {
 
 		test('a workspace completing after dispose starts no resolve', async () => {
 			const complete = new DeferredPromise<ReturnType<typeof testWorkspace>>();
-			const { requests, pushed, mtw } = setup2({
+			const { requests, pushed, mtw } = await setup2({
 				getWorkspace: () => testWorkspace(folder),
 				hasWorkspaceData: () => true,
 				getCompleteWorkspace: () => complete.p,
 				getWorkbenchState: () => WorkbenchState.FOLDER,
 				onDidChangeWorkspaceFolders: Event.None,
 				onDidChangeWorkbenchState: Event.None
-			});
+			}, false);
 			mtw.dispose();
 			complete.complete(testWorkspace(folder));
 			await tick();
+			mtw.$getWorkspaceFolderLocations();
 
 			assert.deepStrictEqual({ requests: requests.length, pushed }, { requests: 0, pushed: [] });
 		});
@@ -272,7 +279,7 @@ suite('MainThreadWorkspace', () => {
 		test('a removed and re-added folder does not accept old data', async () => {
 			const removed = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 			let current = testWorkspace(folder);
-			const { requests, pushed } = setup2({
+			const { requests, pushed } = await setup2({
 				getWorkspace: () => current,
 				hasWorkspaceData: () => true,
 				getCompleteWorkspace: () => Promise.resolve(current),
@@ -280,7 +287,6 @@ suite('MainThreadWorkspace', () => {
 				onDidChangeWorkspaceFolders: removed.event,
 				onDidChangeWorkbenchState: Event.None
 			});
-			await tick();
 			assert.strictEqual(requests.length, 1);
 
 			current = testWorkspace();
@@ -294,7 +300,25 @@ suite('MainThreadWorkspace', () => {
 			requests[0].complete([location(URI.file('/work/old'))]);
 			await tick();
 
-			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => l.uri.path)), [['/work/repo', '/work/new']]);
+			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => l.uri.path)), [['/work/new']]);
+		});
+
+		test('the pushed model comes from the location service', async () => {
+			const { requests, pushed } = await setup2();
+			requests[0].complete([{ uri: folder, label: 'repo', description: 'main' }, location(URI.file('/work/wt'))]);
+			await tick();
+			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => [l.uri.path, l.isPrimary])), [[['/work/repo', true], ['/work/wt', false]]]);
+		});
+
+		test('a service locations change resolves and pushes again', async () => {
+			const { requests, pushed, changes } = await setup2();
+			requests[0].complete([location(folder)]);
+			await tick();
+			changes.fire({} as IFolderLocationChangeEvent);
+			assert.strictEqual(requests.length, 2);
+			requests[1].complete([location(folder), location(URI.file('/work/wt'))]);
+			await tick();
+			assert.deepStrictEqual(pushed.map(p => p[0].locations.length), [1, 2]);
 		});
 	});
 });

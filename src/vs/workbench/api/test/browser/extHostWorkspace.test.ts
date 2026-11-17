@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { basename } from '../../../../base/common/path.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -295,32 +296,36 @@ suite('ExtHostWorkspace', function () {
 			return { ws, requests: () => requests };
 		}
 
-		test('nothing is requested until locations are read', function () {
+		test('nothing is requested until locations are read', async function () {
 			const { ws, requests } = create();
 			ws.getWorkspaceFolders();
+			await timeout(0);
 			assert.strictEqual(requests(), 0);
 		});
 
-		test('the first read requests once', function () {
+		test('the first read requests once', async function () {
 			const { ws, requests } = create();
 			const folder = ws.getWorkspaceFolders()![0];
 			assert.ok(folder.locations);
 			assert.ok(folder.locations);
+			await timeout(0);
 			assert.strictEqual(requests(), 1);
 		});
 
-		test('subscribing to the event requests', function () {
+		test('subscribing to the event requests', async function () {
 			const { ws, requests } = create();
 			ws.requestWorkspaceFolderLocations();
+			await timeout(0);
 			assert.strictEqual(requests(), 1);
 		});
 
-		test('enumerating or serializing a folder does not request', function () {
+		test('enumerating or serializing a folder does not request', async function () {
 			const { ws, requests } = create();
 			const folder = ws.getWorkspaceFolders()![0];
 			Object.keys(folder);
 			JSON.stringify(folder);
 			assert.ok({ ...folder });
+			await timeout(0);
 			assert.strictEqual(requests(), 0);
 		});
 	});
