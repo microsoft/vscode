@@ -609,6 +609,18 @@ export const UNCOMMITTED_CHANGES_CHANGESET_ID = 'uncommitted';
 export const SESSION_CHANGES_CHANGESET_ID = 'session';
 
 /**
+ * The default changeset of a nested chat. One working in its session's main chat's primary working directory
+ * shares that checkout, so it shows its own Session Changes; one working elsewhere (another worktree or
+ * repository) shows the Branch Changes of its own folder.
+ */
+export function getNestedChatDefaultChangesetId(chatWorkspace: ISessionWorkspace | undefined, mainChatWorkspace: ISessionWorkspace | undefined): typeof BRANCH_CHANGES_CHANGESET_ID | typeof SESSION_CHANGES_CHANGESET_ID {
+	const workingDirectory = chatWorkspace?.folders[0]?.workingDirectory;
+	return workingDirectory && !isEqual(workingDirectory, mainChatWorkspace?.folders[0]?.workingDirectory)
+		? BRANCH_CHANGES_CHANGESET_ID
+		: SESSION_CHANGES_CHANGESET_ID;
+}
+
+/**
  * Well-known id of the changeset that holds the diff made during the session's
  * **last turn** only (as opposed to the cumulative session diff). Consumers that
  * want to reflect just the most recent turn — e.g. the chat input status pills —
@@ -798,6 +810,8 @@ export interface ISessionCanvasDefinition {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** The canvas's icon as its host sends it, a PNG data URI. */
+	readonly icon?: string;
 	readonly requiresInput: boolean;
 }
 

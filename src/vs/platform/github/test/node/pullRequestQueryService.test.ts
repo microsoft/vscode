@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PullRequestCore, PullRequestRef, PullRequestSubscriptionOptions } from '../../common/githubPullRequestService.js';
-import { GitHubHostCapabilities } from '../../common/githubTypes.js';
 import { GitHubCredential } from '../../common/githubCredentialService.js';
 import { IGitHubCapabilities } from '../../common/githubHostCapabilitiesService.js';
+import { PullRequestCore, PullRequestRef, PullRequestSubscriptionOptions } from '../../common/githubPullRequestService.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
+import { GitHubHostCapabilities } from '../../common/githubTypes.js';
 import { PullRequestQueryService } from '../../common/pullRequestQueryService.js';
 import { classifyRequiredPullRequestChecks, getRequiredPullRequestChecksStatus } from '../../common/pullRequestRequiredChecks.js';
 import { nodeFetch } from './nodeFetch.js';
-import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
+import { ProgrammableGitHubServer, gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubRestStep } from './programmableGitHubServer.js';
+
 
 const availableCapabilities: GitHubHostCapabilities = {
 	graphql: true,
@@ -51,12 +53,12 @@ suite('PullRequestQueryService', () => {
 		readonly credential: GitHubCredential;
 	} {
 		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
-		const signal = new AbortController().signal;
+		const cancellationToken = CancellationToken.None;
 		const transport = disposables.add(new GitHubTransport(nodeFetch));
 		return {
 			query: new PullRequestQueryService(transport, new TestCapabilitiesService(capabilities), server.createEndpointService(), undefined, now === undefined ? undefined : { now: () => now }),
 			ref: { ...account, owner: 'octo', repo: 'repo', number: 7 },
-			credential: { account, token: 'token', generation: 1, signal },
+			credential: { account, token: 'token', generation: 1, cancellationToken },
 		};
 	}
 
@@ -86,7 +88,7 @@ suite('PullRequestQueryService', () => {
 				}),
 			);
 			const { query, ref, credential } = setup(server);
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 			const options: PullRequestSubscriptionOptions = {
 				priority: 'visible',
 				conversation: {
@@ -96,10 +98,10 @@ suite('PullRequestQueryService', () => {
 				},
 			};
 
-			const coreResult = await query.fetch('core', ref, undefined, options, credential, signal);
+			const coreResult = await query.fetch('core', ref, undefined, options, credential, cancellationToken);
 			const normalizedCore = coreResult.fragment === 'core' ? coreResult.value : undefined;
-			const comments = await query.fetch('topLevelComments', ref, normalizedCore, options, credential, signal);
-			const reviews = await query.fetch('submittedReviews', ref, normalizedCore, options, credential, signal);
+			const comments = await query.fetch('topLevelComments', ref, normalizedCore, options, credential, cancellationToken);
+			const reviews = await query.fetch('submittedReviews', ref, normalizedCore, options, credential, cancellationToken);
 
 			assert.deepStrictEqual({
 				core: coreResult,
@@ -192,7 +194,7 @@ suite('PullRequestQueryService', () => {
 				core('head-1'),
 				{ priority: 'visible', conversation: { reviewThreads: true, includeBodies: true } },
 				credential,
-				new AbortController().signal,
+				CancellationToken.None,
 			);
 
 			assert.deepStrictEqual(result, {
@@ -269,7 +271,7 @@ suite('PullRequestQueryService', () => {
 				core('head-1'),
 				{ priority: 'visible', conversation: { reviewThreads: true } },
 				credential,
-				new AbortController().signal,
+				CancellationToken.None,
 			), /old pull request head/);
 			server.assertSatisfied();
 		});
@@ -313,11 +315,11 @@ suite('PullRequestQueryService', () => {
 				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: expectedSuitesResponse }),
 			);
 			const { query, ref, credential } = setup(server);
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 			// The Agent Merge subscription shape, which always loads expected suites.
 			const options = { priority: 'interactive', checks: { required: true } } as const;
-			const first = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
-			const second = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, cancellationToken);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, cancellationToken);
 
 			const expected = {
 				fragment: 'checks',
@@ -367,10 +369,10 @@ suite('PullRequestQueryService', () => {
 				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: refusal }),
 			);
 			const { query, ref, credential } = setup(server);
-			const signal = new AbortController().signal;
+			const cancellationToken = CancellationToken.None;
 			const options = { priority: 'interactive', checks: { required: true } } as const;
-			const first = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
-			const second = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, cancellationToken);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, cancellationToken);
 
 			// Checks stay readable, and the missing suites are reported incomplete.
 			const expected = {
@@ -431,7 +433,7 @@ suite('PullRequestQueryService', () => {
 			);
 			const { query, ref, credential } = setup(server, availableCapabilities, Date.parse('2026-01-01T00:00:20Z'));
 
-			const result = await query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal);
+			const result = await query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, CancellationToken.None);
 
 			assert.deepStrictEqual(result, {
 				fragment: 'checks',
@@ -550,9 +552,9 @@ suite('PullRequestQueryService', () => {
 				}),
 			);
 			const { query, ref, credential } = setup(server);
-			const signal = new AbortController().signal;
-			const checks = await query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, signal);
-			const mergeability = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, signal);
+			const cancellationToken = CancellationToken.None;
+			const checks = await query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, cancellationToken);
+			const mergeability = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, cancellationToken);
 
 			assert.deepStrictEqual({
 				checks,
@@ -648,8 +650,8 @@ suite('PullRequestQueryService', () => {
 			);
 			const { query, ref, credential } = setup(server);
 			const options = { priority: 'background', checks: { required: true } } as const;
-			const first = await query.fetch('checks', ref, core('head-1'), options, credential, new AbortController().signal);
-			const second = await query.fetch('checks', ref, core('head-1'), options, credential, new AbortController().signal);
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, CancellationToken.None);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, CancellationToken.None);
 
 			const dependency = { required: false, detailsUrl: undefined, workflowName: 'Code OSS', workflowRunId: '100', workflowPath: '.github/workflows/pr.yml', requiredBy: ['PR Gate'] };
 			const value = first.fragment === 'checks' ? first.value : undefined;
@@ -695,7 +697,7 @@ suite('PullRequestQueryService', () => {
 				...requiredContextSteps(['PR Gate']),
 			);
 			const { query, ref, credential } = setup(server);
-			const result = await query.fetch('checks', ref, core('head-1'), { priority: 'background', checks: { required: true } }, credential, new AbortController().signal);
+			const result = await query.fetch('checks', ref, core('head-1'), { priority: 'background', checks: { required: true } }, credential, CancellationToken.None);
 
 			const value = result.fragment === 'checks' ? result.value : undefined;
 			assert.deepStrictEqual({
@@ -719,8 +721,8 @@ suite('PullRequestQueryService', () => {
 			server.enqueue(...steps('head-1', 'release', ['CI']), ...steps('head-2', 'Release', []));
 			const { query, ref, credential } = setup(server);
 			const options = { priority: 'background', checks: { required: true } } as const;
-			const lower = await query.fetch('checks', ref, { ...core('head-1'), baseRef: 'release' }, options, credential, new AbortController().signal);
-			const upper = await query.fetch('checks', ref, { ...core('head-2'), baseRef: 'Release' }, options, credential, new AbortController().signal);
+			const lower = await query.fetch('checks', ref, { ...core('head-1'), baseRef: 'release' }, options, credential, CancellationToken.None);
+			const upper = await query.fetch('checks', ref, { ...core('head-2'), baseRef: 'Release' }, options, credential, CancellationToken.None);
 
 			assert.deepStrictEqual({
 				lower: lower.fragment === 'checks' ? lower.value.requiredContexts : undefined,
@@ -760,7 +762,7 @@ suite('PullRequestQueryService', () => {
 					}),
 				}));
 				const { query, ref, credential } = setup(server);
-				const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, new AbortController().signal);
+				const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, CancellationToken.None);
 				assert.ok(result.fragment === 'mergeability', `expected a mergeability fragment for ${viewerPermission ?? 'null'}, got ${result.fragment}`);
 				canMerge[viewerPermission ?? 'null'] = result.value.viewerCanMerge;
 				server.assertSatisfied();
@@ -803,7 +805,7 @@ suite('PullRequestQueryService', () => {
 				}),
 			}));
 			const { query, ref, credential } = setup(server);
-			const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, new AbortController().signal);
+			const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, CancellationToken.None);
 
 			assert.deepStrictEqual(result.fragment === 'mergeability' ? result.value : undefined, {
 				headSha: 'head-1',
@@ -834,7 +836,7 @@ suite('PullRequestQueryService', () => {
 				const { query, ref, credential } = setup(server);
 
 				await assert.rejects(
-					() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal),
+					() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, CancellationToken.None),
 					{ name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors },
 				);
 				server.assertSatisfied();
@@ -871,7 +873,7 @@ suite('PullRequestQueryService', () => {
 				core('head-1'),
 				{ priority: 'background', checks: { required: true } },
 				fallback.credential,
-				new AbortController().signal,
+				CancellationToken.None,
 			);
 			assert.deepStrictEqual({
 				complete: result.complete,
@@ -898,7 +900,7 @@ suite('PullRequestQueryService', () => {
 			}));
 			const { query, ref, credential } = setup(server);
 			await assert.rejects(
-				() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal),
+				() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, CancellationToken.None),
 				error => error instanceof GitHubRequestError && error.message.includes('old pull request head'),
 			);
 			server.assertSatisfied();
@@ -924,7 +926,7 @@ suite('PullRequestQueryService', () => {
 			for (let index = 0; index < responses.length; index++) {
 				results.push(await query.fetch('mergeability', ref, core('head-1'), {
 					priority: 'interactive', mergeability: true,
-				}, credential, new AbortController().signal));
+				}, credential, CancellationToken.None));
 			}
 			assert.deepStrictEqual(results, ['MERGEABLE', 'CONFLICTING', 'UNKNOWN'].map((mergeable, index) => ({
 				fragment: 'mergeability',

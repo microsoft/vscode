@@ -6,16 +6,20 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { WorkspaceFolderRepositories } from '../../browser/workspaceFolderRepositories.js';
 import { parseGitHubRepositoryFromGitConfig } from '../../browser/gitHubRepositoryResolver.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { SessionsListingScopeFilter } from '../../browser/sessionScope.js';
+import { buildTestSession, buildTestWorkspace } from '../common/testSessionBuilder.js';
 
 suite('WorkspaceFolderRepositories', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -260,6 +264,45 @@ suite('WorkspaceFolderRepositories', () => {
 			beforeReplace: ['/work/a'],
 			whileBIsRead: [],
 			afterBIsRead: ['/work/b'],
+		});
+	});
+
+	test('keeps the sessions it lists as the window follows a session to another location of its folder, such as a worktree, and lists only the folders once the folder is saved as a workspace', async () => {
+		const repository = URI.file('/work/repo');
+		const worktree = URI.file('/work/trees/feature');
+		let state = WorkbenchState.FOLDER;
+		let folder = repository;
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeWorkbenchState = store.add(new Emitter<WorkbenchState>());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, createFileService({}).fileService);
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchState: onDidChangeWorkbenchState.event,
+			getWorkbenchState: () => state,
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: state === WorkbenchState.FOLDER ? repository : URI.file('/work/repo.code-workspace'), folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }),
+		}));
+		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
+		const sessionOf = (id: string, workingDirectory: string, root: string): ISession => ({ ...buildTestSession({ id, title: id }).session, workspace: constObservable<ISessionWorkspace | undefined>({ ...buildTestWorkspace(id), folders: [{ root: URI.file(root), workingDirectory: URI.file(workingDirectory), name: id, description: undefined, gitRepository: undefined }] }) });
+		const sessions = [sessionOf('main', '/work/repo', '/work/repo'), sessionOf('sibling', '/work/trees/other', '/work/repo'), sessionOf('followed', '/work/trees/feature', '/work/repo'), sessionOf('elsewhere', '/elsewhere', '/elsewhere')];
+		const filter = store.add(new SessionsListingScopeFilter(scope, () => sessions, Event.None));
+		const listed = () => filter.getSessions().map(session => session.sessionId).sort();
+		const change = () => onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		const atRepository = listed();
+		// The window follows the session into its worktree: the folder is there now, its own location stays the repository
+		folder = worktree;
+		change();
+		const atWorktree = listed();
+		// Saved as a workspace, such as by Save Workspace As, its folder and its name stay: only the workbench state changes,
+		// and a workspace has no own location of a folder, so its folders are the scope
+		state = WorkbenchState.WORKSPACE;
+		onDidChangeWorkbenchState.fire(state);
+
+		assert.deepStrictEqual({ atRepository, atWorktree, savedAsWorkspace: listed() }, {
+			atRepository: ['followed', 'main', 'sibling'],
+			atWorktree: ['followed', 'main', 'sibling'],
+			savedAsWorkspace: ['followed'],
 		});
 	});
 });

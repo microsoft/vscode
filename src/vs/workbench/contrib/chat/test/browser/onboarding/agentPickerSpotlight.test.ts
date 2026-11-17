@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { getWindow, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -44,6 +45,7 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatConfiguration } from '../../../common/constants.js';
+import { CustomAgentUsage } from '../../../common/customAgentUsage.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 
 suite('AgentPickerSpotlight', () => {
@@ -53,9 +55,14 @@ suite('AgentPickerSpotlight', () => {
 
 	const custom: IChatMode = { ...ChatMode.Agent, id: 'custom-agent', isBuiltin: false };
 
-	function createHarness(enabled = true, initialCustomModes: readonly IChatMode[] = [custom]) {
+	function createHarness(enabled = true, initialCustomModes: readonly IChatMode[] = [custom], lastUsed: number | null = Date.now()) {
 		const configuration = new TestConfigurationService({ [ChatConfiguration.AgentsPickerInAttachContextMenu]: enabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
+		const storage = store.add(new InMemoryStorageService());
+		const usage = new CustomAgentUsage(storage);
+		if (lastUsed !== null) {
+			usage.recordUse(lastUsed);
+		}
 		const root = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		store.add(toDisposable(() => root.remove()));
 		let button: HTMLElement;
@@ -105,7 +112,7 @@ suite('AgentPickerSpotlight', () => {
 			override readonly onDidChangeFocusedWidget = Event.None;
 			override getWidgetsByLocations() { return widgets; }
 		}();
-		const spotlight = store.add(new AgentPickerSpotlight(configuration, widgetService, TestProductService));
+		const spotlight = store.add(new AgentPickerSpotlight(configuration, widgetService, TestProductService, storage));
 		const scenario = onboardingScenarioRegistry.getScenario(AGENT_PICKER_SPOTLIGHT_ID) as IOnboardingScenario<ISpotlightPayload>;
 		const signal = scenario.trigger.kind === 'observable' ? scenario.trigger.signal : undefined;
 		const frame = () => new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(getWindow(button), resolve)));
@@ -120,7 +127,7 @@ suite('AgentPickerSpotlight', () => {
 		};
 		return {
 			configuration, button: button!, mode, scenario, signal, frame, setEnabled, spotlight, root, toolbar,
-			modes,
+			modes, usage,
 			setCustomModes: (value: readonly IChatMode[]) => { customModes = value; modesChanged.fire(); },
 			activations: () => activations,
 			setVisible: (value: boolean) => { visible = value; changed.fire(widget); },
@@ -133,6 +140,54 @@ suite('AgentPickerSpotlight', () => {
 			},
 		};
 	}
+
+	for (const { name, age, expected } of [
+		{ name: 'no previous use', age: undefined, expected: false },
+		{ name: 'older than seven days', age: 7 * 24 * 60 * 60 * 1000 + 1, expected: false },
+		{ name: 'exactly seven days ago', age: 7 * 24 * 60 * 60 * 1000, expected: false },
+		{ name: 'within seven days', age: 7 * 24 * 60 * 60 * 1000 - 1, expected: true },
+		{ name: 'future timestamp', age: -1, expected: false },
+	]) {
+		test(`gates on persisted custom agent use: ${name}`, async () => {
+			const now = Date.UTC(2026, 10, 16);
+			const clock = sinon.useFakeTimers({ now, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			try {
+				const { signal, frame } = createHarness(true, [custom], age === undefined ? null : now - age);
+				await frame();
+				assert.strictEqual(signal?.get(), expected);
+			} finally {
+				clock.restore();
+			}
+		});
+	}
+
+	test('follows shared usage changes and expires seven days after the latest use', async () => {
+		const now = Date.UTC(2026, 10, 16);
+		const recency = 7 * 24 * 60 * 60 * 1000;
+		const clock = sinon.useFakeTimers({ now, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+		try {
+			const { signal, frame, usage } = createHarness(true, [custom], now - recency - 1);
+			await frame();
+			const expired = signal?.get();
+			usage.recordUse(now - recency + 100);
+			await frame();
+			const recent = signal?.get();
+			clock.tick(99);
+			const beforeExpiry = signal?.get();
+			usage.recordUse();
+			clock.tick(1);
+			const renewed = signal?.get();
+			clock.tick(recency - 1);
+			const afterExpiry = signal?.get();
+			usage.recordUse();
+			await frame();
+			assert.deepStrictEqual({ expired, recent, beforeExpiry, renewed, afterExpiry, usedAgain: signal?.get() }, {
+				expired: false, recent: true, beforeExpiry: true, renewed: true, afterExpiry: false, usedAgain: true,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
 
 	test('requires a custom agent and follows discovery, removal, and session modes', async () => {
 		const { signal, frame, modes, setCustomModes } = createHarness(true, []);

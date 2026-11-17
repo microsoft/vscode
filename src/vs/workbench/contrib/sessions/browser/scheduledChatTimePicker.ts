@@ -188,7 +188,7 @@ class ScheduledChatCalendar extends Disposable {
 	}
 }
 
-export async function pickScheduledChatTime(quickInputService: IQuickInputService, anchor?: HTMLElement): Promise<Date | undefined> {
+export async function pickScheduledChatTime(quickInputService: IQuickInputService, anchor?: HTMLElement, onSendNow?: () => Promise<void>): Promise<Date | undefined> {
 	const now = new Date();
 	const formatTime = (date: Date) => date.toLocaleString(undefined, { timeZoneName: 'short' });
 	const choices = [
@@ -200,20 +200,27 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 		{ minutes: 24 * 60, label: localize('sendLater.oneDay', "In 24 Hours") },
 	].map(({ minutes, label }) => {
 		const date = new Date(now.getTime() + minutes * 60_000);
-		return { label, description: formatTime(date), date };
+		return { label, date };
 	});
 	const tomorrow = new Date(now);
 	tomorrow.setDate(tomorrow.getDate() + 1);
 	tomorrow.setHours(9, 0, 0, 0);
-	choices.push({ label: localize('sendLater.tomorrowMorning', "Tomorrow Morning"), description: formatTime(tomorrow), date: tomorrow });
-	const picked = await quickInputService.pick([
+	choices.push({ label: localize('sendLater.tomorrowMorning', "Tomorrow Morning"), date: tomorrow });
+	const sendNow = { label: localize('sendLater.sendNow', "Send Now"), date: undefined };
+	const picked = await quickInputService.pick<{ label: string; date: Date | undefined }>([
+		...(onSendNow ? [sendNow, { type: 'separator' as const }] : []),
 		...choices,
-		{ label: localize('sendLater.customTime', "Choose Date and Time..."), description: '', date: undefined },
+		{ label: localize('sendLater.customTime', "Choose Date and Time..."), date: undefined },
 	], {
-		title: localize('sendLater.title', "Send Later"),
-		placeHolder: localize('sendLater.pickTime', "Choose when to send. Times use this device's time zone."),
+		title: onSendNow ? localize('sendLater.whenToSend', "When to Send") : localize('sendLater.title', "Send Later"),
+		placeHolder: localize('sendLater.pickTime', "Choose when to send."),
+		activeItem: onSendNow ? choices[0] : undefined,
 		anchor, anchorPosition: anchor ? 'above' : undefined,
 	});
+	if (picked === sendNow && onSendNow) {
+		await onSendNow();
+		return undefined;
+	}
 	if (!picked || picked.date) {
 		return picked?.date;
 	}

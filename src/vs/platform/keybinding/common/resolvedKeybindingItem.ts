@@ -20,9 +20,8 @@ export class ResolvedKeybindingItem {
 	public readonly extensionId: string | null;
 	public readonly isBuiltinExtension: boolean;
 	/**
-	 * Whether this keybinding was declared as a system-wide (OS global) shortcut via
-	 * `keybindings.json`. Only ever `true` for user keybindings; defaults/extension keybindings
-	 * are always `false`.
+	 * Whether this keybinding was declared as a system-wide (OS global) shortcut.
+	 * Built-in defaults are context-gated; user keybindings ignore their `when` clause for the global trigger.
 	 */
 	public readonly systemWide: boolean;
 

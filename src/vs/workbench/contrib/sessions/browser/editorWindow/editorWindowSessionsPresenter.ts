@@ -6,13 +6,16 @@
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ACTION_ID_NEW_CHAT } from '../../../chat/browser/actions/chatActions.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { INewSessionTarget } from '../parts/chatView.js';
+import { IAgentsViewProvidersService } from '../agentsView/agentsViewProviders.js';
 
 /** A chat that a presenter shows, with its session. */
 export interface IEditorWindowPresentedChat {
@@ -92,20 +95,17 @@ class ChatViewSessionsPresenter implements IEditorWindowSessionsPresenter {
 
 	constructor(
 		private readonly _chatViewHostService: IChatViewHostService,
+		private readonly _commandService: ICommandService,
 	) { }
 
 	async openChat(session: ISession, chatResource: URI | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
 		await this._chatViewHostService.openSession(chatResource ?? session.mainChat.get().resource, { preserveFocus: options?.preserveFocus });
 	}
 
-	/**
-	 * A new chat in the Chat view, in place of the chat it shows, also one still loading: the next request does not go to that
-	 * chat. Not New Chat of the chat widget that has focus, which may be another. The composer that the Chat view then shows,
-	 * such as the one of its sessions list, is aimed at `target`.
-	 */
-	async openComposer(target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
-		const aimed = target && { folder: target.folderUri, providerId: target.providerId, sessionType: target.sessionTypeId, modelId: target.modelId, modeId: target.modeId, requireDevContainer: target.requireDevContainer };
-		await this._chatViewHostService.newChat(aimed, { ownChat: true, preserveFocus: options?.preserveFocus });
+	/** A new chat in the Chat view, as its New Chat starts one: the next request does not go to the chat it showed. */
+	async openComposer(_target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
+		await this._chatViewHostService.reveal(options?.preserveFocus);
+		await this._commandService.executeCommand(ACTION_ID_NEW_CHAT);
 	}
 
 	async closeChat(): Promise<void> { }
@@ -130,9 +130,18 @@ export class EditorWindowSessionsPresenterService extends Disposable implements 
 
 	constructor(
 		@IChatViewHostService chatViewHostService: IChatViewHostService,
+		@ICommandService commandService: ICommandService,
+		@IAgentsViewProvidersService providers: IAgentsViewProvidersService,
 	) {
 		super();
-		const chatView = new ChatViewSessionsPresenter(chatViewHostService);
+		// A composer the user left without typing anything goes as the providers go; one with input keeps them, as its draft is their session
+		this._register(providers.registerReleaseParticipant({
+			prepareRelease: async () => {
+				await this.closeIdleComposers();
+				return !this.hasComposer();
+			},
+		}));
+		const chatView = new ChatViewSessionsPresenter(chatViewHostService, commandService);
 		this.presenter = derived(this, reader => this._registered.read(reader).at(-1)?.presenter ?? chatView);
 	}
 

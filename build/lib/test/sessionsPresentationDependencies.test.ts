@@ -40,6 +40,17 @@ const defaultListPresentation = 'src/vs/workbench/contrib/sessions/browser/defau
 const mobilePresentationRoot = 'src/vs/sessions/contrib/mobile/browser/';
 const defaultSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/sessionsServices.registration.ts';
 const coreSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/sessionsCoreServices.registration.ts';
+const defaultNewSessionPresentation = [
+	'src/vs/workbench/contrib/sessions/browser/chat/defaultNewSessionPresentation.ts',
+	'src/vs/workbench/contrib/sessions/browser/chat/sessionOptionsRow.ts',
+	'src/vs/workbench/contrib/sessions/browser/chat/iconOnlySessionPickers.ts',
+	'src/vs/workbench/contrib/sessions/browser/chat/media/defaultNewSessionPresentation.css',
+	'src/vs/sessions/browser/parts/mobile/defaultNewSessionPresentation.css',
+];
+const mobileNewSessionPresentation = [
+	'src/vs/sessions/contrib/mobile/browser/mobileNewSessionPresentation.ts',
+	'src/vs/sessions/contrib/mobile/browser/media/mobileNewSessionPresentation.css',
+];
 const chatBackgroundPresentation = [
 	'src/vs/sessions/contrib/chat/browser/chatBackground.contribution.ts',
 	'src/vs/sessions/contrib/chat/browser/chatBackgroundTint.ts',
@@ -68,6 +79,12 @@ suite('Sessions presentation entry isolation', () => {
 				.filter(file => dependencies.has(file)), [configurationPresenter]);
 		});
 
+		test(`${entry} reaches only its own new-session presentation and styles`, () => {
+			const dependencies = collectSourceDependencies(entry);
+			assert.deepStrictEqual([...defaultNewSessionPresentation, ...mobileNewSessionPresentation].filter(file => dependencies.has(file)),
+				entry.includes('.mobile.') ? mobileNewSessionPresentation : defaultNewSessionPresentation);
+		});
+
 		test(`${entry} registers only its own session repository picker implementation`, () => {
 			const mobile = entry.includes('.mobile.');
 			const dependencies = collectSourceDependencies(entry);
@@ -88,6 +105,15 @@ suite('Sessions presentation entry isolation', () => {
 				'src/vs/workbench/contrib/sessions/browser/sessionComparisonService.ts',
 			];
 			assert.deepStrictEqual(services.filter(file => dependencies.has(file)), services);
+		});
+
+		test(`${entry} registers the workspace-folder location service required by extension-host customers`, () => {
+			const module = 'src/vs/workbench/services/workspaces/common/workspaceFolderLocationService.ts';
+			const dependencies = collectSourceDependencies(entry);
+			const registrations = dependencies.has(module) ? getSingletonRegistrations(module) : [];
+			assert.deepStrictEqual(registrations.filter(([id]) => id === 'IWorkspaceFolderLocationService'), [
+				['IWorkspaceFolderLocationService', 'WorkspaceFolderLocationService'],
+			]);
 		});
 
 		test(`${entry} registers shared session and host services without relying on implementation side effects`, () => {

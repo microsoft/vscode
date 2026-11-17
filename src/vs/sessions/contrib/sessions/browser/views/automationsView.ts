@@ -91,6 +91,7 @@ import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
@@ -115,7 +116,7 @@ function canArchiveAutomationSession(session: ISession, reader?: IReader): boole
 }
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
 export const DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY = 'sessions.automations.disabledExpanded';
-/** Onboarding spotlight targets, referenced by the Get Started checklist tours. */
+/** Onboarding spotlight targets shared by automatic introductions and checklist tours. */
 const AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID = 'sessions.automations.templates';
 const CREATE_AUTOMATION_ONBOARDING_TARGET_ID = 'sessions.automations.create';
 const CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID = 'sessions.automations.createWithAgent';
@@ -1072,24 +1073,24 @@ class AutomationCardsSection extends Disposable {
 		title.textContent = localize('noAutomationsYet', "No automations yet");
 		const desc = DOM.append(container, $('p.automations-cards-empty-description'));
 		desc.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
-		return this.renderCreateWithAgentButton(container, disposables, 'automations-cards-create-button', true);
+		return this.renderCreateWithAgentButton(container, disposables, 'automations-cards-create-button');
 	}
 
-	/** Renders Create with Agent, with Create Manually in its dropdown. */
-	private renderCreateWithAgentButton(container: HTMLElement, disposables: DisposableStore, buttonClassName: string, onboardingTarget: boolean): IButton {
+	private renderCreateWithAgentButton(container: HTMLElement, disposables: DisposableStore, buttonClassName: string): IButton {
 		const label = localize('createWithAgent', "Create with Agent");
-		const createButton = disposables.add(new ButtonWithDropdown(container, {
+		const createButton = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			title: label,
-			contextMenuProvider: this.contextMenuService,
-			actions: [toAction({ id: 'sessions.automations.createManually', label: localize('createManually', "Create Manually"), run: () => this.openCreateDialog() })],
-			addPrimaryActionToDropdown: false,
 		}));
 		createButton.label = label;
-		createButton.element.classList.add('automations-cards-create-dropdown');
-		createButton.primaryButton.element.classList.add(buttonClassName);
+		this.configureCreateWithAgentButton(createButton, disposables, buttonClassName, createButton.element);
+		return createButton;
+	}
+
+	private configureCreateWithAgentButton(button: IButton, disposables: DisposableStore, buttonClassName: string, onboardingElement: HTMLElement): void {
+		button.element.classList.add(buttonClassName);
 		const updateEnabled = () => {
-			createButton.primaryButton.enabled = this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+			button.enabled = this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
 		};
 		updateEnabled();
 		const enabledContextKeys = new Set([ChatContextKeys.enabled.key]);
@@ -1098,7 +1099,7 @@ class AutomationCardsSection extends Disposable {
 				updateEnabled();
 			}
 		}));
-		disposables.add(createButton.onDidClick(() => {
+		disposables.add(button.onDidClick(() => {
 			void this.commandService.executeCommand(CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID).catch(error => {
 				if (!isCancellationError(error)) {
 					this.logService.error('[Automations] Failed to open agent creation session', error);
@@ -1106,12 +1107,9 @@ class AutomationCardsSection extends Disposable {
 				}
 			});
 		}));
-		if (onboardingTarget) {
-			disposables.add(markOnboardingTarget(createButton.primaryButton.element, CREATE_AUTOMATION_ONBOARDING_TARGET_ID, {
-				onDidActivate: Event.map(createButton.onDidClick, () => undefined),
-			}));
-		}
-		return createButton;
+		disposables.add(markOnboardingTarget(onboardingElement, CREATE_AUTOMATION_ONBOARDING_TARGET_ID, {
+			onDidActivate: Event.map(button.onDidClick, () => undefined),
+		}));
 	}
 
 	private renderTemplates(templates: readonly IAutomationTemplate[]): void {
@@ -1347,7 +1345,7 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private renderStateCreateButton(container: HTMLElement): IButton {
-		return this.renderCreateWithAgentButton(container, this.stateDisposables, 'automations-cards-state-create-button', false);
+		return this.renderCreateWithAgentButton(container, this.stateDisposables, 'automations-cards-state-create-button');
 	}
 
 	private renderPartialState(catalogueState: AutomationCatalogueState, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
@@ -2865,14 +2863,14 @@ export class AutomationsCustomViewContribution extends Disposable {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			const createManually = toAction({ id: 'sessions.automations.createManually', label: localize('createManually', "Create Manually"), run: () => commandService.executeCommand('sessionsView.newAutomation') });
-			return instantiationService.createInstance(AutomationHeaderSplitButtonActionViewItem, action, options, [createManually], CREATE_AUTOMATION_ONBOARDING_TARGET_ID);
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, false, undefined, CREATE_AUTOMATION_ONBOARDING_TARGET_ID);
 		}));
-		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessions.automations.import', (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessionsView.newAutomation', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true);
+			const importAutomation = toAction({ id: 'sessions.automations.import', label: localize('importAutomationMenu', "Import Automation..."), run: () => commandService.executeCommand('sessions.automations.import') });
+			return instantiationService.createInstance(AutomationHeaderSplitButtonActionViewItem, action, options, [importAutomation]);
 		}));
 		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessions.automations.refresh', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
@@ -3078,7 +3076,6 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	}
 }
 
-/** Header Create with Agent split button, using the same {@link ButtonWithDropdown} as the empty state. */
 class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 
 	private button: ButtonWithDropdown | undefined;
@@ -3087,7 +3084,6 @@ class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		options: IActionViewItemOptions,
 		private readonly dropdownActions: readonly IAction[],
-		private readonly onboardingTargetId: string | undefined,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super(undefined, action, options);
@@ -3095,15 +3091,15 @@ class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-		const label = localize('createWithAgent', "Create with Agent");
 		const button = this.button = this._register(new ButtonWithDropdown(container, {
 			...defaultButtonStyles,
+			secondary: true,
 			title: this._action.label,
 			contextMenuProvider: this.contextMenuService,
 			actions: this.dropdownActions,
 			addPrimaryActionToDropdown: false,
 		}));
-		button.label = label;
+		button.label = this._action.label;
 		this._register(button.onDidClick(() => this.actionRunner.run(this._action, this._context)));
 		this._register(DOM.addDisposableListener(button.primaryButton.element, DOM.EventType.KEY_DOWN, event => {
 			if (new StandardKeyboardEvent(event).equals(KeyCode.RightArrow)) {
@@ -3117,11 +3113,6 @@ class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 				DOM.EventHelper.stop(event, true);
 			}
 		}));
-		if (this.onboardingTargetId) {
-			this._register(markOnboardingTarget(button.primaryButton.element, this.onboardingTargetId, {
-				onDidActivate: Event.map(button.onDidClick, () => undefined),
-			}));
-		}
 		this.updateEnabled();
 	}
 
@@ -3213,8 +3204,9 @@ registerAction2(class NewAutomationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.newAutomation',
-			title: localize2('newAutomation', "New Automation"),
+			title: localize2('createManually', "Create Manually"),
 			precondition: ChatAutomationsEnabledContext,
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -3247,7 +3239,7 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 	constructor() {
 		super({
 			id: CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID,
-			title: localize2('createAutomationWithAgent', "Create Automation with Agent"),
+			title: localize2('createWithAgent', "Create with Agent"),
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
 			// The empty state hosts this button until the first automation exists.
 			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
@@ -3256,15 +3248,25 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
+		const sessionsService = accessor.get(ISessionsService);
 		const mountedDraftHasInput = accessor.get(INewSessionComposerService).hasDraftInput;
 		const savedDraft = mountedDraftHasInput === undefined ? readNewChatDraftState(accessor.get(IStorageService)) : undefined;
-		if (mountedDraftHasInput ?? (!!savedDraft?.inputText || !!savedDraft?.attachments.length)) {
-			const { confirmed } = await dialogService.confirm({
+		const hasDraftInput = mountedDraftHasInput ?? (!!savedDraft?.inputText || !!savedDraft?.attachments.length);
+		if (hasDraftInput && !accessor.get(ISessionDraftsService).enabled.get()) {
+			const { result } = await dialogService.prompt<boolean>({
+				type: 'warning',
 				message: localize('replaceAutomationDraft', "Replace your existing draft?"),
-				detail: localize('replaceAutomationDraftDetail', "The draft's text will be replaced with /automate. Existing attachments will be kept."),
-				primaryButton: localize('replaceAutomationDraftButton', "Replace Draft"),
+				detail: localize('replaceAutomationDraftDetail', "This action will overwrite the existing new session draft, it will not be recoverable."),
+				buttons: [
+					{ label: localize('replaceAutomationDraftButton', "Replace Draft"), run: () => true },
+					{ label: localize('viewAutomationDraftButton', "View Draft"), run: () => false },
+				],
+				cancelButton: true,
 			});
-			if (!confirmed) {
+			if (result !== true) {
+				if (result === false) {
+					await sessionsService.openNewSession();
+				}
 				return;
 			}
 		}
@@ -3282,7 +3284,6 @@ registerAction2(class ImportAutomationAction extends Action2 {
 			id: 'sessions.automations.import',
 			title: localize2('importAutomation', "Import Automation"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
 		});
 	}
 
@@ -3530,7 +3531,7 @@ registerAction2(class DisableAutomationAction extends Action2 {
 	}
 });
 
-registerAction2(class RemoveAutomationLimitsAction extends Action2 {
+registerAction2(class RemoveAutomationEndDateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.removeLimits',

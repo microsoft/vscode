@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
@@ -13,7 +13,7 @@ import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.j
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
@@ -69,14 +69,12 @@ import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelc
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
-import { IChatViewSessionsComposer, IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListService } from './chatViewSessionsList.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
-import { IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
+import { IChatViewHostShownSession } from '../../chatViewHost.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
-import { AgentSessionsWorktreeOpener } from '../../agentSessions/agentSessionsWorktreeOpener.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -214,7 +212,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IHostService private readonly hostService: IHostService,
-		@IChatViewSessionsListService private readonly sessionsListService: IChatViewSessionsListService,
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
@@ -471,18 +468,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Chat Control
 		const chatWidget = this.createChatControl(parent);
-
-		// Composer of new chats of a provided sessions list, in place of the chat while it is a new chat
-		const composer = this.providedSessionsList?.createComposer?.(append(parent, $('.chat-view-composer-container')));
-		if (composer) {
-			this.providedComposer = this._register(composer);
-			this._register(Event.any(chatWidget.onDidChangeEmptyState, chatWidget.onDidChangeViewModel)(() => this.updateComposerVisibility()));
-			this._register(autorun(reader => {
-				composer.height.read(reader);
-				this.relayout();
-			}));
-			this.updateComposerVisibility();
-		}
 
 		// Controls Listeners
 		this.registerControlsListeners(sessionsControl, chatWidget, welcomeController);
@@ -887,73 +872,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsTitle: HTMLElement | undefined;
 	private sessionsNewButtonContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
-	private sessionsControl: IChatViewSessionsListControl | undefined;
-	/** The sessions list a provider gives in place of the Chat view's own, if any. */
-	private providedSessionsList: IChatViewSessionsList | undefined;
-	/** The composer of new chats of {@link providedSessionsList}, if any, and whether it shows in place of the chat. */
-	private providedComposer: IChatViewSessionsComposer | undefined;
-	private composerShown = false;
+	private sessionsControl: AgentSessionsControl | undefined;
 
-	/**
-	 * Shows the provided composer in place of the chat while the chat is a new chat (empty, without a title), unless the
-	 * Chat view shows only the sessions. As the chat it replaces had focus, such as New Chat clearing it, focus moves to the
-	 * composer; focus elsewhere, such as in the sessions, stays.
-	 */
-	private updateComposerVisibility(): void {
-		const shown = !!this.providedComposer && !this.providedSessionsList?.sessionsOnly.get() && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
-		if (shown !== this.composerShown) {
-			const chatHadFocus = shown && !!this._widget?.domNode && isAncestorOfActiveElement(this._widget.domNode);
-			this.composerShown = shown;
-			this.viewPaneContainer?.classList.toggle('shows-composer', shown);
-			this.relayout();
-			if (chatHadFocus) {
-				this.providedComposer?.focus();
-			}
-		}
-	}
-
-	/**
-	 * New Chat of the Chat view: the provided composer starts over, aimed at `target` when given, and takes New Chat while it
-	 * shows in place of the chat. Returns whether it took it; otherwise New Chat clears the chat, in whose place the composer
-	 * then shows. With `ownChat`, it always takes it: it starts a new chat in place of the one it shows, also one still loading.
-	 */
-	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
-		if (options?.ownChat) {
-			// A transition of the Chat view, as loading a chat is: it supersedes a load, restore or New Chat under way, and a
-			// later one supersedes it, which then neither shows its new chat nor aims the composer
-			this.loadSessionCts.value?.cancel();
-			this._applyModelCts.value?.cancel();
-			const transition = this.loadSessionCts.value = new CancellationTokenSource();
-			if (!this.composerShown) {
-				// Its own new chat, rather than the chat widget that New Chat acts on, such as one that has focus elsewhere
-				this.updateViewState();
-				await this.showModel(transition.token);
-				if (transition.token.isCancellationRequested) {
-					return true;
-				}
-				this.updateActions();
-			}
-		} else if (!this.providedComposer) {
-			return false;
-		} else if (!this.composerShown) {
-			this.providedComposer.newChat(target);
-			return false;
-		}
-		// A chat still loading or restoring, which cleared the chat and so shows the composer, no longer replaces it
-		this.loadSessionCts.value?.cancel();
-		this._applyModelCts.value?.cancel();
-		this.providedComposer?.newChat(target);
-		if (!options?.preserveFocus) {
-			if (this.providedComposer) {
-				this.providedComposer.focus();
-			} else {
-				this._widget?.focusInput();
-			}
-		}
-		return true;
-	}
-
-	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl instanceof AgentSessionsControl ? this.sessionsControl : undefined; }
+	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl; }
 	private sessionsListRevealCount = 0;
 
 	/** Shows the Sessions list for a navigation flow without replacing the current chat or saved layout. */
@@ -982,7 +903,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	/** Number of in-flight {@link loadSession} calls, during which the reported sessions layout is not settled. */
 	private _loadingSessionCount = 0;
 
-	private createSessionsControl(parent: HTMLElement): IChatViewSessionsListControl {
+	private createSessionsControl(parent: HTMLElement): AgentSessionsControl {
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
 		// Sessions Title
@@ -1001,11 +922,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			telemetrySource: 'agentSessionsToolbar'
 		}));
 
-		// Sessions Filter, which opens a session of the worktree folder the user picks
-		const worktreeOpener = this._register(this.instantiationService.createInstance(AgentSessionsWorktreeOpener));
+		// Sessions Filter
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-			onDidPickWorktree: worktree => worktreeOpener.open(worktree).catch(onUnexpectedError),
 			groupResults: () => this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? AgentSessionsGrouping.Capped : AgentSessionsGrouping.Date
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
@@ -1021,20 +940,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
-		const provided = this.providedSessionsList = this.sessionsListService.provider?.create(this.sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
-		if (provided) {
-			this._register(this.sessionsListService.setActiveList(provided));
-			// A list of its own header and actions, in place of those of the Chat view's list
-			setVisibility(!provided.hasHeader, sessionsTitleContainer);
-			setVisibility(false, newSessionButtonContainer);
-			this._register(autorun(reader => {
-				const sessionsOnly = provided.sessionsOnly.read(reader);
-				this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
-				this.updateComposerVisibility();
-				this.relayout();
-			}));
-		}
-		const sessionsControl: IChatViewSessionsListControl = this.sessionsControl = this._register(provided?.control ?? this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
+		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			initiallyVisible: false,
 			source: 'chatViewPane',
 			filter: sessionsFilter,
@@ -1112,9 +1018,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		let newSessionsContainerVisible: boolean;
-		if (this.providedSessionsList?.sessionsOnly.get()) {
-			newSessionsContainerVisible = !this.welcomeController?.isShowingWelcome.get(); // only the sessions show
-		} else if (this.sessionsListRevealCount > 0) {
+		if (this.sessionsListRevealCount > 0) {
 			newSessionsContainerVisible = true;
 		} else if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)) {
 			newSessionsContainerVisible = false; // disabled in settings
@@ -1323,7 +1227,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#endregion
 
-	private registerControlsListeners(sessionsControl: IChatViewSessionsListControl, chatWidget: ChatWidget, welcomeController: ChatViewWelcomeController): void {
+	private registerControlsListeners(sessionsControl: AgentSessionsControl, chatWidget: ChatWidget, welcomeController: ChatViewWelcomeController): void {
 
 		// Sessions control visibility is impacted by multiple things:
 		// - chat widget being in empty state or showing a chat
@@ -1908,15 +1812,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	focusInput(): void {
-		// Showing only the sessions, the Chat view has no input of its own: its sessions take focus
-		if (this.providedSessionsList?.sessionsOnly.get()) {
-			this.sessionsControl?.focus();
-			return;
-		}
-		if (this.composerShown && this.providedComposer) {
-			this.providedComposer.focus();
-			return;
-		}
 		this._widget.focusInput();
 	}
 
@@ -2001,11 +1896,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			layoutChatWidgetForInputHeight(this._widget, inputMaxHeight, remainingHeight - heightReduction, remainingWidth - widthReduction);
 		}
 
-		// Composer, in place of the chat
-		if (this.composerShown) {
-			this.providedComposer?.layout(remainingWidth - widthReduction, remainingHeight - heightReduction);
-		}
-
 		// Remember last dimensions per orientation
 		this.lastDimensionsPerOrientation.set(this.sessionsViewerOrientation, { height, width });
 	}
@@ -2020,8 +1910,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const oldSessionsViewerOrientation = this.sessionsViewerOrientation;
 		let newSessionsViewerOrientation: AgentSessionsViewerOrientation;
-		const sessionsOnly = !!this.providedSessionsList?.sessionsOnly.get();
-		switch (sessionsOnly ? 'stacked' : this.sessionsViewerOrientationConfiguration) {
+		switch (this.sessionsViewerOrientationConfiguration) {
 			// Stacked
 			case 'stacked':
 				newSessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
@@ -2082,7 +1971,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let availableSessionsHeight = height - sessionsTitleHeight;
 		let reservedChatWidgetHeight = 0;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			reservedChatWidgetHeight = sessionsOnly ? 0 : this.composerShown && this.providedComposer ? this.providedComposer.height.get() : Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
+			reservedChatWidgetHeight = Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
 			availableSessionsHeight -= reservedChatWidgetHeight;
 		} else {
 			availableSessionsHeight -= this.sessionsNewButtonContainer?.offsetHeight ?? 0;

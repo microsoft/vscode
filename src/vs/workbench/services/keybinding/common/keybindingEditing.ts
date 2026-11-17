@@ -18,7 +18,7 @@ import { ITextModelService, IResolvedTextEditorModel } from '../../../../editor/
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IUserFriendlyKeybinding } from '../../../../platform/keybinding/common/keybinding.js';
+import { IKeybindingService, IUserFriendlyKeybinding } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -33,6 +33,8 @@ export interface IKeybindingEditingService {
 	addKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void>;
 
 	editKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void>;
+
+	setSystemWide(keybindingItem: ResolvedKeybindingItem, systemWide: boolean): Promise<void>;
 
 	removeKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void>;
 
@@ -49,6 +51,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		this.queue = new Queue<void>();
@@ -60,6 +63,41 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	editKeybinding(keybindingItem: ResolvedKeybindingItem, key: string, when: string | undefined): Promise<void> {
 		return this.queue.queue(() => this.doEditKeybinding(keybindingItem, key, when, false)); // queue up writes to prevent race conditions
+	}
+
+	setSystemWide(keybindingItem: ResolvedKeybindingItem, systemWide: boolean): Promise<void> {
+		return this.queue.queue(() => this.doSetSystemWide(keybindingItem, systemWide));
+	}
+
+	private async doSetSystemWide(keybindingItem: ResolvedKeybindingItem, systemWide: boolean): Promise<void> {
+		const key = keybindingItem.resolvedKeybinding?.getUserSettingsLabel();
+		if (!key || !keybindingItem.command || (systemWide && !keybindingItem.resolvedKeybinding?.getElectronAccelerator())) {
+			throw new Error(localize('systemWideUnsupported', "System-wide shortcuts require a single supported key combination."));
+		}
+
+		const reference = await this.resolveAndValidate();
+		try {
+			const model = reference.object.textEditorModel;
+			const { tabSize, insertSpaces } = model.getOptions();
+			const eol = model.getEOL();
+			if (keybindingItem.isDefault) {
+				const entry = this.asObject(key, keybindingItem.command, keybindingItem.when?.serialize(), false, keybindingItem.commandArgs, systemWide);
+				this.applyEditsToBuffer(setProperty(model.getValue(), [-1], entry, { tabSize, insertSpaces, eol })[0], model);
+				this.removeDefaultKeybinding(keybindingItem, model);
+			} else {
+				const entries = this.parse(model).result;
+				const index = this.findUserKeybindingEntryIndex(keybindingItem, entries);
+				if (index === -1) {
+					throw new Error(localize('systemWideKeybindingChanged', "The keybinding has changed. Please try again with the updated keybinding."));
+				}
+				for (const edit of setProperty(model.getValue(), [index, 'systemWide'], systemWide || undefined, { tabSize, insertSpaces, eol })) {
+					this.applyEditsToBuffer(edit, model);
+				}
+			}
+			await this.save();
+		} finally {
+			reference.dispose();
+		}
 	}
 
 	resetKeybinding(keybindingItem: ResolvedKeybindingItem): Promise<void> {
@@ -174,21 +212,14 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private findUserKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number {
-		for (let index = 0; index < userKeybindingEntries.length; index++) {
-			const keybinding = userKeybindingEntries[index];
-			if (keybinding.command === keybindingItem.command) {
-				if (!keybinding.when && !keybindingItem.when) {
-					return index;
-				}
-				if (keybinding.when && keybindingItem.when) {
-					const contextKeyExpr = ContextKeyExpr.deserialize(keybinding.when);
-					if (contextKeyExpr && contextKeyExpr.serialize() === keybindingItem.when.serialize()) {
-						return index;
-					}
-				}
-			}
-		}
-		return -1;
+		const key = keybindingItem.resolvedKeybinding?.getUserSettingsLabel();
+		return userKeybindingEntries.findLastIndex(entry =>
+			entry.command === keybindingItem.command
+			&& ContextKeyExpr.deserialize(entry.when)?.serialize() === keybindingItem.when?.serialize()
+			&& objects.equals(entry.args ?? undefined, keybindingItem.commandArgs ?? undefined)
+			&& !!entry.systemWide === keybindingItem.systemWide
+			&& (!key || this.keybindingService.resolveUserBinding(entry.key).some(binding => binding.getUserSettingsLabel() === key))
+		);
 	}
 
 	private findUnassignedDefaultKeybindingEntryIndex(keybindingItem: ResolvedKeybindingItem, userKeybindingEntries: IUserFriendlyKeybinding[]): number[] {

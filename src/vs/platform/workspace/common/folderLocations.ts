@@ -49,6 +49,11 @@ export interface IWorkspaceFolderLocationProvider {
 	 * primary location is `primary`, as this provider knows it.
 	 */
 	resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IFolderLocation | undefined>;
+
+	/**
+	 * Fires when the locations this provider knows may have changed, for any folder: ask {@link provideLocations} again.
+	 */
+	readonly onDidChangeLocations?: Event<void>;
 }
 
 /**
@@ -104,6 +109,11 @@ export interface IWorkspaceFolderLocationService {
 	 * Fires when a provider is registered or unregistered.
 	 */
 	readonly onDidChangeProviders: Event<void>;
+
+	/**
+	 * Fires when the locations a registered provider knows may have changed, for any folder: ask {@link getLocations} again.
+	 */
+	readonly onDidChangeLocations: Event<void>;
 
 	/**
 	 * Records the location `folder` is at. Called by `IWorkspaceEditingService`

@@ -2264,17 +2264,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via notifications -------
 
-	test('lists only the sessions of its listing scope, hides one that leaves it without removing it, and still finds every session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('lists only the sessions of its listing scope, by their folder or project, hides one that leaves it without removing it, and still finds every session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		const folders = observableValue<readonly URI[]>('folders', [URI.parse('file:///work/repo')]);
-		provider.setListingScope({ folders, repositories: constObservable([]) });
+		provider.setListingScope({ folders });
 		await timeout(0);
 		const ids = (sessions: readonly ISession[]) => sessions.map(session => AgentSession.id(session.resource)).sort().join(',');
 		const changes: string[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
 
 		fireSessionAdded(agentHost, 'here', { workingDirectory: 'file:///work/repo' });
-		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x' });
+		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x', project: { uri: 'file:///work/repo', displayName: 'repo' } });
+		// Not by the path of a worktree alone: without its project, it is a folder of its own
+		fireSessionAdded(agentHost, 'unknownProject', { workingDirectory: 'file:///work/repo.worktrees/y' });
 		fireSessionAdded(agentHost, 'elsewhere', { workingDirectory: 'file:///other' });
 		await timeout(100);
 		const elsewhere = provider.getAllSessions().find(session => AgentSession.id(session.resource) === 'elsewhere');
@@ -2283,7 +2285,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const otherFolder = ids(provider.getSessions());
 
 		assert.deepStrictEqual({ scoped, otherFolder, changes }, {
-			scoped: { listed: 'here,worktree', all: 'elsewhere,here,worktree', found: true },
+			scoped: { listed: 'here,worktree', all: 'elsewhere,here,unknownProject,worktree', found: true },
 			otherFolder: 'elsewhere',
 			changes: [
 				'added=here,worktree removed= changed=',
@@ -2642,6 +2644,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionAdded(agentHost, 'late-creator', { provider: 'claude', title: 'Creator' });
 
 		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#ahp-chat%3A%2F%2Fdefault%2FY2xhdWRlOi9sYXRlLWNyZWF0b3I', 'agent-host-claude:/late-creator']);
+	}));
+
+	test('a creation reference to a session whose provider this client does not know has no creator, instead of failing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('created-elsewhere'));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.resource.path === '/created-elsewhere')!;
+
+		// Such as a session that a session of another client created
+		fireSessionMetaChanged(agentHost, 'created-elsewhere', withSessionCreationReference(undefined, {
+			session: 'ahp-session:/3938d3e8-ee14-4e4e-9b5c-863cea0f3413',
+			chat: 'ahp-chat:/3938d3e8-ee14-4e4e-9b5c-863cea0f3413',
+			turnId: 'turn-1',
+		}));
+
+		assert.deepStrictEqual({ createdBySession: session.createdBySession?.get(), sessions: provider.getSessions().length }, { createdBySession: undefined, sessions: 1 });
+	}));
+
+	test('a creation reference to a session of an unknown provider gets its creator once the host advertises that session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('created-before-creator'));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.resource.path === '/created-before-creator')!;
+		const observed: (string | undefined)[] = [];
+		disposables.add(autorun(reader => observed.push(session.createdBySession?.read(reader)?.session.toString())));
+
+		const creator = URI.parse('ahp-session:/opaque-creator');
+		fireSessionMetaChanged(agentHost, 'created-before-creator', withSessionCreationReference(undefined, { session: creator.toString(), turnId: 'turn-1' }));
+		// The host then advertises the creator, with its provider
+		fireSessionAdded(agentHost, 'opaque-creator', { resource: creator, provider: 'claude', title: 'Creator' });
+
+		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/opaque-creator']);
 	}));
 
 	test('remote creation provenance is not remapped onto the child host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -11897,25 +11933,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('nested chats default to their own Session Changes while the main chat keeps Branch Changes', () => {
+		test('nested chats default to their own Session Changes in the main chat\'s folder and to Branch Changes elsewhere', () => {
 			const activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
 			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 			const rawId = 'nested-default-changeset';
 			const repo = URI.file('/repo');
-			const session = setupMultiChatSession(provider, rawId, [repo]);
+			const worktree = URI.file('/repo.worktrees/peer');
+			const session = setupMultiChatSession(provider, rawId, [repo, worktree]);
 			const backend = AgentSession.uri('copilotcli', rawId).toString();
 			const main = buildDefaultChatUri(backend);
 			const peer = buildChatUri(backend, 'peer');
+			const sameFolderPeer = buildChatUri(backend, 'same-folder-peer');
 			const entry = (owner: string, changeKind: string, path: string) => ({ label: changeKind, changeKind, uriTemplate: `${owner}/changeset/${path}` });
 			const chatState = (resource: string, changesets: ChatState['changesets']): ChatState => ({
 				resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [], changesets,
 			});
-			agentHost.setSessionState(rawId, 'copilotcli', {
-				...makeState([makeChatSummary(main, 'Main'), makeChatSummary(peer, 'Peer')], { defaultChat: main, workingDirectories: [repo.toString()] }),
+			const setSessionState = (peerWorkingDirectories: readonly string[] | undefined) => agentHost.setSessionState(rawId, 'copilotcli', {
+				...makeState([
+					makeChatSummary(main, 'Main'),
+					makeChatSummary(peer, 'Peer', ProtocolSessionStatus.Idle, peerWorkingDirectories),
+					makeChatSummary(sameFolderPeer, 'Same Folder Peer', ProtocolSessionStatus.Idle, [repo.toString()]),
+				], { defaultChat: main, workingDirectories: [repo.toString(), worktree.toString()] }),
 				changesets: [entry(backend, 'session', 'session')],
 			});
+			setSessionState(undefined);
 			agentHost.setChatState(main, chatState(main, [entry(main, 'branch', 'branch'), entry(main, 'turn', 'turn/{turnId}')]));
-			agentHost.setChatState(peer, chatState(peer, [entry(peer, 'branch', 'branch'), entry(peer, 'session', 'session'), entry(peer, 'turn', 'turn/{turnId}')]));
+			for (const chat of [peer, sameFolderPeer]) {
+				agentHost.setChatState(chat, chatState(chat, [entry(chat, 'branch', 'branch'), entry(chat, 'session', 'session'), entry(chat, 'turn', 'turn/{turnId}')]));
+			}
 			activeSession.set(new class extends mock<ITestSessionWithChat>() {
 				override readonly resource = session.resource;
 			}(), undefined);
@@ -11923,8 +11968,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 			disposables.add(autorun(reader => {
 				defaults = session.chats.read(reader).map(chat => chat.changesets.read(reader)?.find(changeset => changeset.isDefault.read(reader))?.id);
 			}));
+			const inSessionFolder = defaults;
 
-			assert.deepStrictEqual(defaults, [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID]);
+			setSessionState([worktree.toString()]);
+
+			assert.deepStrictEqual({ inSessionFolder, inOwnWorktree: defaults }, {
+				inSessionFolder: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+				inOwnWorktree: [BRANCH_CHANGES_CHANGESET_ID, BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+			});
 		});
 
 		test('reads background shells from each chat\'s state while the session is active', () => {
@@ -16664,7 +16715,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const atReplacement: string[][] = [];
 		disposables.add(provider.onDidReplaceSession(({ from, to }) => atReplacement.push(provider.getSessions().map(listed => listed === to ? 'committed' : listed === from ? 'draft' : listed.sessionId))));
 		// Every folder: the scope lists every session, through its own listing
-		provider.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		provider.setListingScope({ folders: constObservable([]) });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		const chat = await provider.createNewChat(session.sessionId);
 		const ownRawId = AgentSession.id(chat.resource);
