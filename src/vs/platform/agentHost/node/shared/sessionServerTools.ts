@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Mutable } from '../../../../base/common/types.js';
+import { SequencerByKey } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -1606,6 +1607,8 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 	return { ...target, operation: 'cancel', messageId, expectedRevision };
 }
 
+const sendMessageSequencers = new WeakMap<ISessionServerToolAccessor, SequencerByKey<string>>();
+
 export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager): Promise<string> {
 	const credentials = currentChannel ? accessor.getCredentialSource(URI.parse(currentChannel)) : undefined;
 	const sessions = await accessor.listSessions();
@@ -1630,11 +1633,8 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		messageId,
 		revision,
 	} : undefined;
-	if (args.delivery !== 'steer' && !stateManager?.getChatState(chat.toString())) {
-		await accessor.restoreChat(session, chat, credentials);
-	}
-	const targetState = stateManager?.getChatState(chat.toString());
 	if (args.delivery === 'steer') {
+		const targetState = stateManager?.getChatState(chat.toString());
 		if (!stateManager || !targetState?.activeTurn) {
 			return JSON.stringify({
 				action: 'rejected',
@@ -1657,17 +1657,29 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 		}, credentials);
 		return JSON.stringify({ action: 'steered', messageId, revision, status: 'processing', openLink });
 	}
-	if (stateManager && targetState && (targetState.activeTurn || getPendingSteeringMessages(targetState).length > 0 || targetState.queuedMessages?.length)) {
-		stateManager.dispatchServerAction(chat.toString(), {
-			type: ActionType.ChatPendingMessageSet,
-			kind: PendingMessageKind.Queued,
-			id: messageId,
-			message: createAgentSessionMessage(args.message, delegation),
-		}, credentials);
-		return JSON.stringify({ action: 'queued', messageId, revision, status: 'pending', openLink });
+	let sequencer = sendMessageSequencers.get(accessor);
+	if (!sequencer) {
+		sequencer = new SequencerByKey<string>();
+		sendMessageSequencers.set(accessor, sequencer);
 	}
-	await accessor.startPrompt(session, chat, args.message, delegation, credentials);
-	return JSON.stringify({ action: 'started', messageId, revision, status: 'processing', openLink });
+	// Hydrated state must not let a later send bypass an earlier send still finishing its restore.
+	return sequencer.queue(chat.toString(), async () => {
+		if (!stateManager?.getChatState(chat.toString())) {
+			await accessor.restoreChat(session, chat, credentials);
+		}
+		const targetState = stateManager?.getChatState(chat.toString());
+		if (stateManager && targetState && (targetState.activeTurn || getPendingSteeringMessages(targetState).length > 0 || targetState.queuedMessages?.length)) {
+			stateManager.dispatchServerAction(chat.toString(), {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Queued,
+				id: messageId,
+				message: createAgentSessionMessage(args.message, delegation),
+			}, credentials);
+			return JSON.stringify({ action: 'queued', messageId, revision, status: 'pending', openLink });
+		}
+		await accessor.startPrompt(session, chat, args.message, delegation, credentials);
+		return JSON.stringify({ action: 'started', messageId, revision, status: 'processing', openLink });
+	});
 }
 
 function getRequiredPositiveInteger(value: unknown, field: string, toolName: string): number {

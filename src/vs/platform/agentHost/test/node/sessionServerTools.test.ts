@@ -2874,9 +2874,8 @@ suite('SessionServerTools', () => {
 		const accessor = createAccessor({
 			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
 			restoreChat: async () => {
-				if (++restoreCalls === 2) {
-					restoring.complete();
-				}
+				restoreCalls++;
+				restoring.complete();
 				await restored.p;
 			},
 			onPrompt: (_session, _chat, prompt) => {
@@ -2898,10 +2897,12 @@ suite('SessionServerTools', () => {
 		restored.complete();
 		const results = await Promise.all(sends);
 		assert.deepStrictEqual({
+			restoreCalls,
 			actions: results.map(result => JSON.parse(result).action),
 			prompts,
 			queued: stateManager.getChatState(targetChat)?.queuedMessages?.map(queued => queued.message.text),
 		}, {
+			restoreCalls: 1,
 			actions: ['started', 'queued'],
 			prompts: ['first'],
 			queued: ['second'],
