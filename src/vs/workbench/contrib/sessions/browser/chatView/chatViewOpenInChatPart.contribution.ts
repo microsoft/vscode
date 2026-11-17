@@ -48,15 +48,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
+type ChatDraftHandover = { readonly kind: 'draft'; readonly source: IChatWidget | undefined; readonly input: string; readonly attachments: readonly IChatRequestVariableEntry[] };
+
 /**
  * What moves to the other host as the chat part turns on or off: a session, a new chat with the input of the one it took
- * (`draft`), a new chat (`none`), or nothing (`stay`).
+ * (`draft`), or a new chat (`none`). A local chat of the Chat view (`local`) leaves it for a new chat of the chat part
+ * (`then`) only while local chats are hidden.
  */
 type ChatHandover =
 	| { readonly kind: 'session'; readonly resource: URI }
-	| { readonly kind: 'draft'; readonly source: IChatWidget | undefined; readonly input: string; readonly attachments: readonly IChatRequestVariableEntry[] }
+	| ChatDraftHandover
 	| { readonly kind: 'none' }
-	| { readonly kind: 'stay' };
+	| { readonly kind: 'local'; readonly then: ChatDraftHandover };
 
 /** The chat part docks beside the Chat view: the Agents viewlet docks it beside its own view, over this. */
 const CHAT_VIEW_ANCHOR_PRIORITY = 1;
@@ -79,7 +82,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IEditorWindowSessionsRuntime sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
-		@ILocalChatAvailabilityService localChatAvailabilityService: ILocalChatAvailabilityService,
+		@ILocalChatAvailabilityService private readonly _localChatAvailabilityService: ILocalChatAvailabilityService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -109,7 +112,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 				// part leaves to it, such as a local chat: the seam owns that rule.
 				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
 				// No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions
-				reader.store.add(localChatAvailabilityService.hide());
+				reader.store.add(this._localChatAvailabilityService.hide());
 			}
 		}));
 
@@ -128,9 +131,6 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 				return;
 			}
 			const taken = toChatPart ? this._takeFromChatView(chatViewShown) : this._takeFromChatPart();
-			if (taken.kind === 'stay') {
-				return;
-			}
 			// A later move supersedes this one
 			const cts = new CancellationTokenSource();
 			handover.value = toDisposable(() => cts.dispose(true));
@@ -144,15 +144,15 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	}
 
 	/**
-	 * What the Chat view shows, to show in the chat part: its session, or the input of its new chat; a local chat stays, as
-	 * the chat part shows only agent sessions.
+	 * What the Chat view shows, to show in the chat part: its session, or the input of its new chat. A local chat, which the
+	 * chat part does not show, gives way to a new chat of the chat part, which takes the input typed in it.
 	 */
 	private _takeFromChatView(resource: URI | undefined): ChatHandover {
 		if (!resource) {
 			return { kind: 'none' };
 		}
 		if (getChatSessionType(resource) === localChatSessionType) {
-			return { kind: 'stay' };
+			return { kind: 'local', then: this._takeDraft(this._chatWidgetService.getWidgetBySessionResource(resource)) };
 		}
 		return isUntitledChatSession(resource) ? this._takeDraft(this._chatWidgetService.getWidgetBySessionResource(resource)) : { kind: 'session', resource };
 	}
@@ -166,19 +166,27 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		return isSessionCreated(shown.session) ? { kind: 'session', resource: shown.chat.resource } : this._takeDraft(this._chatWidgetService.getWidgetBySessionResource(shown.chat.resource));
 	}
 
-	private _takeDraft(widget: IChatWidget | undefined): ChatHandover {
+	private _takeDraft(widget: IChatWidget | undefined): ChatDraftHandover {
 		return { kind: 'draft', source: widget, input: widget?.getInput() ?? '', attachments: [...widget?.attachmentModel.attachments ?? []] };
 	}
 
 	/**
 	 * Shows what `handover` took in the other host, once that host is in use: its session, unless it shows it already, which
 	 * a session taken from the chat part then leaves; else a new chat there, with the input it took, which leaves its source
-	 * only once the new chat holds it. Never in the host it took it from.
+	 * only once the new chat holds it. Never in the host it took it from. A local chat leaves the Chat view only while local
+	 * chats are hidden: the chat part's new chat then takes the Chat view, which shows only its sessions, and the local chat
+	 * stays in its history.
 	 */
 	private async _handOver(handover: ChatHandover, toChatPart: boolean, token: CancellationToken): Promise<void> {
 		await waitForState(this._chatViewHostService.replaced, replaced => replaced === toChatPart, undefined, token);
 		if (token.isCancellationRequested) {
 			return;
+		}
+		if (handover.kind === 'local') {
+			if (!this._localChatAvailabilityService.hidden.get()) {
+				return;
+			}
+			handover = handover.then;
 		}
 		if (handover.kind === 'session') {
 			// The seam shows what the host in use shows: the target's

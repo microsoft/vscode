@@ -6,9 +6,11 @@
 import assert from 'assert';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { runWhenWindowIdle } from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -17,7 +19,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -43,7 +45,7 @@ suite('FolderLocationStatusBarContribution', () => {
 	const alternate = URI.file('/work/project-alt');
 	const location: IResolvedFolderLocation = { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch, providerId: 'test', builtIn: true };
 
-	function createFixture(shown = { value: false }) {
+	function createFixture(shown = { value: false }, options: { alternates?: IFolderLocation[] } = {}) {
 		const entries: IStatusbarEntry[] = [];
 		const added: { alignment: unknown; priority: unknown }[] = [];
 		let visible = false;
@@ -56,9 +58,14 @@ suite('FolderLocationStatusBarContribution', () => {
 
 		let currentLocation: IResolvedFolderLocation | undefined;
 		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
+		const onDidChangeLocations = ds.add(new Emitter<void>());
+		const alternates: IFolderLocation[] = [...options.alternates ?? []];
 
 		const contribution = ds.add(new FolderLocationStatusBarContribution(
-			{ ...identityFake(() => workspace), getLocation: () => identityFake(() => workspace).isAtAlternateLocation() ? currentLocation : undefined, onDidChangeLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
+			{
+				...identityFake(() => workspace), getLocation: () => identityFake(() => workspace).isAtAlternateLocation() ? currentLocation : undefined, onDidChangeLocation: onDidChangeCurrentLocation.event,
+				canSetLocation: () => true, getLocations: async () => [...alternates], onDidChangeLocations: onDidChangeLocations.event, onDidChangeProviders: Event.None, onDidChangeCanSetLocation: Event.None
+			} as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
 			{ getFolderLocationLabel: () => currentLocation?.label } as unknown as ILabelService,
 			{
@@ -79,6 +86,10 @@ suite('FolderLocationStatusBarContribution', () => {
 			entryVisibilityChanged: () => onDidChangeEntryVisibility.fire({ id: 'status.workspace.folderLocation', visible: true }),
 			partVisibilityChanged: () => onDidChangePartVisibility.fire({ partId: Parts.STATUSBAR_PART, visible: true }),
 			isVisible: () => visible,
+			setAlternates(value: IFolderLocation[]) {
+				alternates.splice(0, alternates.length, ...value);
+				onDidChangeLocations.fire();
+			},
 			switchTo() {
 				currentLocation = location;
 				workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
@@ -109,6 +120,35 @@ suite('FolderLocationStatusBarContribution', () => {
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
+	});
+
+	test('at its own location, the folder shows while it has worktrees, looked up once the window is idle and again as they change', async () => {
+		const fixture = createFixture(undefined, { alternates: [location] });
+		const settle = async () => {
+			await new Promise<void>(resolve => runWhenWindowIdle(mainWindow, () => resolve()));
+			await timeout(0);
+		};
+		const state = () => fixture.isVisible() ? { text: fixture.entries.at(-1)!.text, kind: fixture.entries.at(-1)!.kind, ariaLabel: fixture.entries.at(-1)!.ariaLabel } : 'none';
+
+		const steps: unknown[] = [state()];
+		await settle();
+		steps.push(state());
+		fixture.setAlternates([]);
+		await timeout(0);
+		steps.push(state());
+		fixture.setAlternates([location]);
+		await timeout(0);
+		steps.push(state());
+		fixture.switchTo();
+		steps.push(state());
+
+		assert.deepStrictEqual(steps, [
+			'none',
+			{ text: '$(folder) project', kind: undefined, ariaLabel: 'Folder Location, project' },
+			'none',
+			{ text: '$(folder) project', kind: undefined, ariaLabel: 'Folder Location, project' },
+			{ text: '$(git-branch) Alternate', kind: 'prominent', ariaLabel: 'Folder Location, Alternate' },
+		]);
 	});
 
 	test('the introduction is a spotlight on the entry with only Got It', async () => {

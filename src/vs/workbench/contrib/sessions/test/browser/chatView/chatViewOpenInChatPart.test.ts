@@ -297,7 +297,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const agentSession = URI.parse('agent-host-copilot:/session-1');
 
 		/** The contribution over the real chat part service and Chat view host service, recording where chats are opened. */
-		function setupServices(options: { agentEnabled: boolean; setting?: boolean; orientation?: string; chatViewShows?: URI; chatViewHasView?: boolean }) {
+		function setupServices(options: { agentEnabled: boolean; setting?: boolean; orientation?: string; chatViewShows?: URI }) {
 			const calls: string[] = [];
 			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? true, [ChatConfiguration.ChatViewSessionsOrientation]: options.orientation ?? 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled });
 			const contextKeyService = store.add(new ContextKeyService(configurationService));
@@ -308,7 +308,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 			const shown = observableValue<{ readonly resource: URI; readonly reason: 'open' } | undefined>('shown', options.chatViewShows && { resource: options.chatViewShows, reason: 'open' as const });
 			const chatView = { loadSession: async (resource: URI) => { calls.push(`chat view loads ${resource.scheme}`); }, newChat: async () => { shown.set({ resource: LocalChatSessionUri.forSession('draft'), reason: 'open' }, undefined); return true; }, shownSession: shown, reportShown: () => { }, focusInput: () => { }, widget: undefined };
-			stub(IViewsService, { openView: (async () => chatView) as unknown as IViewsService['openView'], isViewVisible: () => false, onDidChangeViewVisibility: Event.None, getViewWithId: (() => options.chatViewShows || options.chatViewHasView ? chatView : null) as IViewsService['getViewWithId'] });
+			stub(IViewsService, { openView: (async () => chatView) as unknown as IViewsService['openView'], isViewVisible: () => false, onDidChangeViewVisibility: Event.None, getViewWithId: (() => options.chatViewShows ? chatView : null) as IViewsService['getViewWithId'] });
 			stub(IViewDescriptorService, { getViewLocationById: () => null, getViewContainerByViewId: () => null, onDidChangeContainer: Event.None });
 			stub(IWorkbenchLayoutService, { setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } });
 			stub(IProgressService, {});
@@ -323,7 +323,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const owner = { session: { resource: agentSession }, chat: { resource: agentSession } };
 			stub(IAgentsChatPartService, { openChat: async () => { calls.push('chat part opens'); }, openComposer: async () => { calls.push('chat part composer'); }, activeChat: constObservable(undefined), isShowing: () => false });
 			stub(ISessionsManagementService, { getSessionForChatResource: (resource: URI) => resource.scheme === agentSession.scheme ? owner as never : undefined, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }) });
-			stub(IChatWidgetService, { getAllWidgets: () => [upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: agentSession }) })] });
+			stub(IChatWidgetService, { getAllWidgets: () => [upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: agentSession }) })], getWidgetBySessionResource: () => undefined });
 			stub(IWorkspaceContextService, { getWorkspace: () => ({ folders: [] }) as never });
 			stub(IAgentsViewProvidersService, { acquire: () => toDisposable(() => { }) });
 			stub(IEditorWindowShownChatService, { shown: constObservable(undefined) });
@@ -394,30 +394,16 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			assert.deepStrictEqual({ steps, calls }, { steps: [true, false, true, true], calls: ['chat view loads vscode-chat-session', 'chat part opens', 'chat view loads vscode-chat-session', 'chat part composer'] });
 		});
 
-		test('turning the setting on keeps the local chat that the Chat view shows, until an agent chat opens', async () => {
+		test('turning the setting on closes the local chat that the Chat view shows: the Chat view shows only its sessions, and the chat part a new chat', async () => {
 			const localChat = LocalChatSessionUri.forSession('legacy');
-			const { hostService, setSetting } = setupServices({ agentEnabled: true, setting: false, chatViewShows: localChat });
+			const { hostService, calls, setSetting } = setupServices({ agentEnabled: true, setting: false, chatViewShows: localChat });
 
 			const steps = [hostService.sessionsOnly.get()];
 			await setSetting(true);
-			steps.push(hostService.sessionsOnly.get());
-			await hostService.openSession(agentSession);
-			steps.push(hostService.sessionsOnly.get());
-
-			assert.deepStrictEqual(steps, [false, false, true]);
-		});
-
-		test('turning the setting on keeps a local draft that the Chat view started, until an agent chat opens', async () => {
-			const { hostService, setSetting } = setupServices({ agentEnabled: true, setting: false, chatViewHasView: true });
-
-			await hostService.newChat(undefined, { ownChat: true });
-			const steps = [hostService.sessionsOnly.get()];
-			await setSetting(true);
-			steps.push(hostService.sessionsOnly.get());
-			await hostService.openSession(agentSession);
+			await timeout(0);
 			steps.push(hostService.sessionsOnly.get());
 
-			assert.deepStrictEqual(steps, [false, false, true]);
+			assert.deepStrictEqual({ steps, calls }, { steps: [false, true], calls: ['chat part composer'] });
 		});
 
 		test('a session that starts while the setting turns off does not reopen the chat part', async () => {
@@ -456,7 +442,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			});
 		});
 
-		test('with no chat shown, the other host shows a new chat; a local chat stays in the Chat view; a chat the target shows already is not opened again', async () => {
+		test('with no chat shown, the other host shows a new chat; a local chat gives way to a new chat of the chat part; a chat the target shows already is not opened again', async () => {
 			const none = setup();
 			await none.setSetting(true);
 			const local = setup({ chatViewShows: LocalChatSessionUri.forSession('local-a') });
@@ -468,8 +454,22 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 			assert.deepStrictEqual({ none: none.handovers, local: local.handovers, already: already.handovers }, {
 				none: ['part new chat'],
-				local: [],
+				local: ['part new chat'],
 				already: ['part closes /session-a'],
+			});
+		});
+
+		test('the input typed in a local chat moves to the new chat of the chat part as it turns on', async () => {
+			const localChat = LocalChatSessionUri.forSession('local-a');
+			const { setSetting, handovers, widgets, shown } = setup({ chatViewShows: localChat });
+			const source = new FakeChatWidget('hello', [attachment]);
+			widgets.set(localChat.toString(), source);
+			await setSetting(true);
+
+			assert.deepStrictEqual({ handovers, source: source.state, onPart: widgets.get(shown.part.get()!.toString())!.state }, {
+				handovers: ['part new chat'],
+				source: { input: '', attachments: [] },
+				onPart: { input: 'hello', attachments: ['file-a'] },
 			});
 		});
 

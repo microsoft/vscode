@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableResizeObserver, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { DisposableResizeObserver, runWhenWindowIdle, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IntervalTimer } from '../../../../base/common/async.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { observableValue } from '../../../../base/common/observable.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -68,8 +68,8 @@ export const RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID = 'workbench.action.re
 export const SWITCH_FOLDER_LOCATION_COMMAND_ID = 'workbench.action.switchFolderLocation';
 
 /**
- * Shows the location of the workspace folder in the status bar while
- * the folder is at an alternate location.
+ * Shows the location of the workspace folder in the status bar while the folder is at an alternate location, and the folder
+ * itself while it is at its own location and has alternate locations, such as worktrees, to switch to.
  */
 export class FolderLocationStatusBarContribution extends Disposable implements IWorkbenchContribution {
 
@@ -78,6 +78,9 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	private readonly entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly introductionReady = observableValue<boolean>(this, false);
 	private readonly introductionObservation = this._register(new MutableDisposable<DisposableStore>());
+	/** Whether the folder at `primary` has alternate locations, as last looked up. */
+	private alternates: { readonly primary: URI; readonly any: boolean } | undefined;
+	private readonly alternatesLookup = this._register(new MutableDisposable());
 
 	constructor(
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
@@ -92,8 +95,41 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this.registerIntroduction();
 
 		this._register(this.folderLocationService.onDidChangeLocation(() => this.update()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
+			this.update();
+			this.lookUpAlternates();
+		}));
+		this._register(this.folderLocationService.onDidChangeLocations(() => this.lookUpAlternates()));
+		this._register(this.folderLocationService.onDidChangeProviders(() => this.lookUpAlternates()));
+		this._register(this.folderLocationService.onDidChangeCanSetLocation(() => this.lookUpAlternates()));
 		this.update();
+		// Looking up the alternate locations can run Git: not while the window starts
+		this.alternatesLookup.value = runWhenWindowIdle(mainWindow, () => this.lookUpAlternates());
+	}
+
+	/** Looks up whether the folder has alternate locations, for the entry that shows while it is at its own location. */
+	private lookUpAlternates(): void {
+		const workspace = this.contextService.getWorkspace();
+		const folder = workspace.folders[0];
+		const primary = workspace.uri;
+		if (!folder || !primary || !this.folderLocationService.canSetLocation(folder)) {
+			this.alternatesLookup.clear();
+			this.alternates = undefined;
+			this.update();
+			return;
+		}
+		const cts = new CancellationTokenSource();
+		this.alternatesLookup.value = toDisposable(() => cts.dispose(true));
+		this.folderLocationService.getLocations(primary, cts.token).then(locations => {
+			if (!cts.token.isCancellationRequested) {
+				this.alternates = { primary, any: locations.length > 0 };
+				this.update();
+			}
+		}, error => {
+			if (!cts.token.isCancellationRequested && !isCancellationError(error)) {
+				onUnexpectedError(error);
+			}
+		});
 	}
 
 	/**
@@ -144,7 +180,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		const folder = workspace.folders[0];
 		const location = folder ? this.folderLocationService.getLocation(folder) : undefined;
 		const identity = workspace.uri;
-		if (!folder || !location || !identity) {
+		const atPrimaryWithAlternates = !location && !!identity && !!this.alternates?.any && isEqual(this.alternates.primary, identity);
+		if (!folder || !identity || (!location && !atPrimaryWithAlternates)) {
 			this.entry.clear();
 			this.introductionReady.set(false, undefined);
 			this.introductionObservation.clear();
@@ -152,22 +189,34 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		}
 
 		const primaryName = basename(identity);
-		const props = {
+		const command = { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: localize('folderLocation', "Folder Location"), arguments: [FOLDER_LOCATION_STATUS_ENTRY_ID] };
+		const props = location ? {
 			name: localize('folderLocation', "Folder Location"),
 			text: `$(${location.icon?.id ?? Codicon.gitBranchCheckout.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", this.labelService.getFolderLocationLabel(folder.uri)),
 			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", this.labelService.getFolderLocationLabel(folder.uri), primaryName),
-			command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: localize('folderLocation', "Folder Location"), arguments: [FOLDER_LOCATION_STATUS_ENTRY_ID] },
+			command,
 			kind: 'prominent' as const
+		} : {
+			// The folder itself, as the picker names it, to switch to one of its alternate locations
+			name: localize('folderLocation', "Folder Location"),
+			text: `$(${Codicon.folder.id}) ${primaryName}`,
+			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", primaryName),
+			tooltip: localize('folderLocationPrimaryTooltip', "{0} (Switch Folder Location)", primaryName),
+			command
 		};
 
 		if (this.entry.value) {
 			this.entry.value.update(props);
 		} else {
 			this.entry.value = this.statusbarService.addEntry(props, FOLDER_LOCATION_STATUS_ENTRY_ID, StatusbarAlignment.LEFT, FOLDER_LOCATION_STATUS_ENTRY_PRIORITY);
-			if (!this.onboardingService.hasBeenShown(FOLDER_LOCATION_INTRODUCTION_ID)) {
-				this.observeIntroductionTarget();
-			}
+		}
+		// The introduction is about the folder being at an alternate location
+		if (!location) {
+			this.introductionReady.set(false, undefined);
+			this.introductionObservation.clear();
+		} else if (!this.introductionObservation.value && !this.onboardingService.hasBeenShown(FOLDER_LOCATION_INTRODUCTION_ID)) {
+			this.observeIntroductionTarget();
 		}
 	}
 
