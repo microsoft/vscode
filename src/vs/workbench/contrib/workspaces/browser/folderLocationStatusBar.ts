@@ -9,6 +9,7 @@ import { isCancellationError, onUnexpectedError } from '../../../../base/common/
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IntervalTimer } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -34,6 +35,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
+import { getWorktreesLabel } from '../../../services/workspaces/common/folderLocationSections.js';
 
 const FOLDER_LOCATION_INTRODUCTION_ID = 'workbench.folderLocation.introduction';
 const FOLDER_LOCATION_INTRODUCTION_TARGET_ID = 'workbench.folderLocation.statusEntry';
@@ -262,7 +264,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 
 		const isCurrentUri = (uri: URI) => uriIdentityService.extUri.isEqual(uri, folder.uri);
 		const currentLocation = folderLocationService.getLocation(folder);
-		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), description: localize('primaryLocation', "Primary Location"), icon: Codicon.folder };
+		// The folder itself: its name, as the window names it
+		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), icon: Codicon.folder };
 		// Seed the current location so that accepting before the lookup resolves keeps it
 		const currentSeed: ILocationEntry | undefined = currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.gitBranchCheckout } : undefined;
 		const seedEntries = currentSeed ? [primaryEntry, currentSeed] : [primaryEntry];
@@ -290,17 +293,42 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		let picked: ILocationEntry | undefined;
 		if (anchor) {
 			const actionWidgetService = accessor.get(IActionWidgetService);
-			const toActionItems = (entries: readonly ILocationEntry[]): IActionListItem<IActionWidgetLocation>[] => entries.map(entry => {
-				const checked = isCurrentUri(entry.uri);
-				return {
+			// Two rows: the folder, and its worktrees in a submenu, whose choice the row then selects
+			const worktreesId = 'worktrees';
+			const toActionItems = (entries: readonly ILocationEntry[]): IActionListItem<IActionWidgetLocation>[] => {
+				const primaryChecked = isCurrentUri(primaryEntry.uri);
+				const worktrees = entries.filter(entry => entry !== primaryEntry);
+				const worktreesChecked = worktrees.some(entry => isCurrentUri(entry.uri));
+				const worktreesItem: { -readonly [K in keyof IActionWidgetLocation]: IActionWidgetLocation[K] } = { ...(worktrees.find(entry => isCurrentUri(entry.uri)) ?? primaryEntry), description: undefined, id: worktreesId, checked: worktreesChecked };
+				const items: IActionListItem<IActionWidgetLocation>[] = [{
 					kind: ActionListItemKind.Action,
-					item: { ...entry, id: uriIdentityService.extUri.getComparisonKey(entry.uri), checked },
-					label: entry.label,
-					description: entry.description,
-					labelIcon: entry.icon,
-					group: { title: '', icon: checked ? Codicon.check : Codicon.blank }
-				};
-			});
+					item: { ...primaryEntry, id: uriIdentityService.extUri.getComparisonKey(primaryEntry.uri), checked: primaryChecked },
+					label: primaryEntry.label,
+					labelIcon: primaryEntry.icon,
+					group: { title: '', icon: primaryChecked ? Codicon.check : Codicon.blank }
+				}];
+				if (worktrees.length) {
+					items.push({
+						kind: ActionListItemKind.Action,
+						item: worktreesItem,
+						label: getWorktreesLabel(),
+						labelIcon: Codicon.gitBranchCheckout,
+						group: { title: '', icon: worktreesChecked ? Codicon.check : Codicon.blank },
+						submenuActions: worktrees.map(entry => toAction({
+							id: uriIdentityService.extUri.getComparisonKey(entry.uri),
+							label: entry.label,
+							tooltip: entry.description,
+							checked: isCurrentUri(entry.uri),
+							run: () => {
+								worktreesItem.uri = entry.uri;
+								worktreesItem.label = entry.label;
+							}
+						})),
+						openSubmenuOnClick: true
+					});
+				}
+				return items;
+			};
 			picked = await new Promise<ILocationEntry | undefined>(resolve => {
 				actionWidgetService.show<IActionWidgetLocation>(
 					'folderLocationPicker',
@@ -328,7 +356,9 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 							if (!entry) {
 								return '';
 							}
-							const text = entry.description ? localize('folderLocationItemAria', "{0}, {1}", entry.label, entry.description) : entry.label;
+							// The row of the worktrees is named after them, not after the one it selects
+							const label = entry.id === worktreesId ? getWorktreesLabel() : entry.label;
+							const text = entry.description && entry.id !== worktreesId ? localize('folderLocationItemAria', "{0}, {1}", label, entry.description) : label;
 							return entry.checked ? localize('folderLocationCurrentItemAria', "{0}, Current", text) : text;
 						},
 						getWidgetAriaLabel: () => localize('folderLocationPickerAria', "Folder Location")
@@ -336,8 +366,8 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 					// The status bar sits at the bottom, so size the list for the space above it. The label keeps its width, the description gives way
 					{ preferredAnchorPosition: AnchorPosition.ABOVE, inlineDescription: true }
 				);
-				const focusId = uriIdentityService.extUri.getComparisonKey((currentSeed ?? primaryEntry).uri);
-				actionWidgetService.focusItemById(focusId);
+				// The current entry: the folder, or the row of its worktrees
+				actionWidgetService.focusItemById(currentSeed ? worktreesId : uriIdentityService.extUri.getComparisonKey(primaryEntry.uri));
 				loadLocations(entries => actionWidgetService.updateItems(toActionItems(entries)), () => { });
 			}).finally(() => {
 				cts.cancel();
