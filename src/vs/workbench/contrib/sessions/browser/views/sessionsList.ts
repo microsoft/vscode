@@ -4583,7 +4583,7 @@ interface ISessionsListControlBaseOptions {
 	readonly scoped?: IObservable<boolean>;
 	/**
 	 * Whether grouping by time lists the sessions without a workspace in the "Chats" section, flat, as the other groupings
-	 * do, rather than among the time sections; it does not by default.
+	 * do, rather than among the time sections; it does not by default, nor while the list is {@link scoped}.
 	 */
 	readonly quickChatsInTimeGrouping?: boolean;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
@@ -9575,8 +9575,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true;
 	}
 
+	/**
+	 * Whether grouping by time lists quick chats in the "Chats" section: not while the list is scoped, as in a window with folders,
+	 * which lists no quick chat and starts none.
+	 */
 	private get quickChatsInTimeGrouping(): boolean {
-		return !!this.options.quickChatsInTimeGrouping;
+		return !!this.options.quickChatsInTimeGrouping && !this.options.scoped?.get();
 	}
 
 	private isRenderedInExternalSection(session: ISession): boolean {

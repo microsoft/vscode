@@ -253,6 +253,31 @@ suite('Sessions - SessionsList', () => {
 		return { ...session, workspace: constObservable({ ...session.workspace.get()!, uri, folders: [{ root: uri, workingDirectory: uri, name: label, description: undefined, gitRepository: undefined }] }) };
 	}
 
+	test('a scoped list, of a window with folders, shows no Chats section under time grouping, also empty, while an unscoped list keeps it', () => {
+		const harness = createListHarness(disposables, [createFolderSession('folder', 'repo', 'file:///work/repo')]);
+		void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, true);
+		const provider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true });
+		harness.instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
+			override getProviders() { return [provider]; }
+			override getProvider() { return undefined; }
+		});
+		const sections = (scoped: boolean) => {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				scoped: scoped ? constObservable(true) : undefined,
+				quickChatsInTimeGrouping: true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			return list.getTreeSnapshot().some(node => node.type === 'section' && node.id === QUICK_CHATS_SECTION_ID);
+		};
+
+		assert.deepStrictEqual({ scoped: sections(true), unscoped: sections(false) }, { scoped: false, unscoped: true });
+	});
+
 	test('a scoped list says so when it shows no session, also when the filters hide its sessions', () => {
 		const harness = createListHarness(disposables, [createFolderSession('archived', 'vscode', 'file:///work/vscode', undefined, { isArchived: true })]);
 		const container = harness.createContainer(400, 1400);
