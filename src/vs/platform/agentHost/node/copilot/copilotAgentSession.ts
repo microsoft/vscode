@@ -13,7 +13,9 @@ import { McpSkillCacheWriter } from '../shared/mcpSkillCache.js';
 import { parseCopilotMcpSkillConsentRequest, type ICopilotMcpSkillConsentRequest } from './copilotMcpSkillConsent.js';
 import { createHash } from 'crypto';
 import { realpath as fsRealpath } from 'fs';
-import { cp, rm } from 'fs/promises';
+import { cp, mkdir, rm } from 'fs/promises';
+import { COPILOT_EXTENSION_DATA_DIRNAME } from '../../common/vscodeSandboxPaths.js';
+import { discoverCanvasExtensionIds, ensureCanvasExtensionDataDirectories, getCanvasExtensionDataRoots } from '../canvasExtensionSandboxPaths.js';
 import { promisify } from 'util';
 import { DeferredPromise, disposableTimeout, firstParallel, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -2264,6 +2266,7 @@ export class CopilotAgentSession extends Disposable {
 	private _appliedModelSelection: ModelSelection | undefined;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
+	private readonly _discoveredCanvasIds = new Set<string>();
 	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
 	private readonly _canvasCloses = new Map<string, Promise<void>>();
 	/** Closed events still expected, by instance ID, for closes applied when the runtime acknowledged them first. */
@@ -2537,6 +2540,8 @@ export class CopilotAgentSession extends Disposable {
 			},
 			shellManager: options.shellManager,
 			onDidChangeRuntimeConfig: () => this._recordRuntimeMutation('sandboxUpdate'),
+			getCanvasExtensionDataDirectories: () => this._getCanvasExtensionDataDirectories(),
+			prepareCanvasExtensionDataDirectories: () => this._prepareCanvasExtensionDataDirectories(),
 		}));
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
@@ -6124,6 +6129,17 @@ export class CopilotAgentSession extends Disposable {
 		};
 		this._canvasByInstanceId.set(canvas.instanceId, projection);
 		this._publishCanvasState(projection);
+		if (data.canvasId && !this._discoveredCanvasIds.has(data.canvasId)) {
+			this._discoveredCanvasIds.add(data.canvasId);
+			if (this._copilotHomeService?.home) {
+				const dir = URI.joinPath(this._copilotHomeService.home, COPILOT_EXTENSION_DATA_DIRNAME, data.canvasId);
+				void mkdir(dir.fsPath, { recursive: true }).then(() => {
+					if (!this._store.isDisposed) {
+						void this._sandbox.applyConfig(false).catch(() => undefined);
+					}
+				}).catch(() => undefined);
+			}
+		}
 		if (!existing) {
 			this._publishCanvases();
 		}
@@ -6139,6 +6155,41 @@ export class CopilotAgentSession extends Disposable {
 				void this._showCanvasIcon(projection);
 			}
 		}
+	}
+
+	private async _prepareCanvasExtensionDataDirectories(): Promise<void> {
+		if (!this._copilotHomeService?.home) {
+			return;
+		}
+		const discovered = await discoverCanvasExtensionIds(
+			this.extensionLaunchDirectories,
+			this._copilotHomeService.home,
+			this._appliedPluginDirectories,
+		);
+		for (const id of discovered) {
+			this._discoveredCanvasIds.add(id);
+		}
+		await ensureCanvasExtensionDataDirectories(this._getCanvasExtensionDataDirectories());
+	}
+
+	private _getCanvasExtensionDataDirectories(): readonly URI[] {
+		if (!this._copilotHomeService?.home) {
+			return [];
+		}
+		const canvasIds = new Set<string>(this._discoveredCanvasIds);
+		for (const projection of this._canvasByInstanceId.values()) {
+			if (projection.canvas.canvasId) {
+				canvasIds.add(projection.canvas.canvasId);
+			}
+		}
+		if (this._pendingCanvasHandoff?.projections) {
+			for (const projection of this._pendingCanvasHandoff.projections) {
+				if (projection.canvas.canvasId) {
+					canvasIds.add(projection.canvas.canvasId);
+				}
+			}
+		}
+		return getCanvasExtensionDataRoots(this._copilotHomeService.home, [...canvasIds]);
 	}
 
 	/**
@@ -14237,6 +14288,11 @@ export class CopilotAgentSession extends Disposable {
 					this._invalidateCanvasRegistrySnapshot();
 					this._markCanvasProjectionLive();
 					this._publishSettledCanvasRegistry();
+					void this._prepareCanvasExtensionDataDirectories().then(() => {
+						if (!this._store.isDisposed) {
+							void this._sandbox.applyConfig(false).catch(() => undefined);
+						}
+					}).catch(() => undefined);
 				}
 			}
 		}));
@@ -14247,6 +14303,11 @@ export class CopilotAgentSession extends Disposable {
 				this._markCanvasProjectionLive();
 				this._publishCanvases();
 				this._revalidateCanvasIcons();
+				void this._prepareCanvasExtensionDataDirectories().then(() => {
+					if (!this._store.isDisposed) {
+						void this._sandbox.applyConfig(false).catch(() => undefined);
+					}
+				}).catch(() => undefined);
 			}
 		}));
 

@@ -125,6 +125,9 @@ export interface SandboxSeatbeltPolicy {
  * `extraReadonlyPaths` grants read access to application contents, session attachments,
  * generated shell init scripts and applied plugin resources, unless a managed read-only list is present.
  *
+ * `extraReadwritePaths` grants write access to canvas extension private storage folders
+ * under `<COPILOT_HOME>/extension-data/<canvas-id>/`, unless a managed read-write list is present.
+ *
  * `attachedPaths` grants read-only access to the exact files and folders the
  * user attached to the chat; see {@link resolveAttachedPathGrants}.
  */
@@ -134,6 +137,7 @@ export function buildSandboxConfigForSdk(
 	extraReadonlyPaths?: readonly string[],
 	managedPolicy?: ISessionSandboxPolicy,
 	attachedPaths?: ISandboxAttachedPaths,
+	extraReadwritePaths?: readonly string[],
 ): SandboxConfig | undefined {
 	const enabledRaw = sandbox?.[AgentHostSandboxKey.Enabled];
 	if (enabledRaw !== AgentSandboxEnabledValue.On) {
@@ -145,8 +149,14 @@ export function buildSandboxConfigForSdk(
 	// User denies win over host-generated read grants; existing read/write grants are preserved.
 	for (const path of managedPolicy?.readonlyPaths !== undefined ? [] : extraReadonlyPaths ?? []) {
 		const p = normalizeSandboxFileSystemPath(path, os);
-		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
+		if (![...denied].some(d => isEqualOrInside(p, d, os)) && !readonly.has(p) && !readwrite.has(p)) {
 			readonly.add(p);
+		}
+	}
+	for (const path of managedPolicy?.readwritePaths !== undefined ? [] : extraReadwritePaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
+		if (![...denied].some(d => isEqualOrInside(p, d, os)) && !readonly.has(p) && !readwrite.has(p)) {
+			readwrite.add(p);
 		}
 	}
 	for (const path of partitionAttachedPaths(os, sandbox, { denied, readonly, readwrite }, managedPolicy, attachedPaths).granted) {

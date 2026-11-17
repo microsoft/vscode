@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { dirname, join } from '../../../../base/common/path.js';
@@ -16,10 +16,12 @@ import { getAttachedLocalPaths } from '../../common/attachedLocalPaths.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
-import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
+import { COPILOT_EXTENSION_DATA_DIRNAME, getVSCodeSandboxReadRoots, getVSCodeSandboxWriteRoots } from '../../common/vscodeSandboxPaths.js';
 import { AgentSandboxEnabledValue, type IAgentSandboxUserConfiguredPaths } from '../../../sandbox/common/settings.js';
 import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSystemPath, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { getApplicationSandboxReadRoots } from '../../node/applicationSandboxPaths.js';
+import { discoverCanvasExtensionIds, ensureCanvasExtensionDataDirectories, getCanvasExtensionDataRoots } from '../../node/canvasExtensionSandboxPaths.js';
+import type { ISessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 
 suite('application sandbox read roots', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -100,6 +102,89 @@ suite('VS Code sandbox read roots', () => {
 
 	test('does not grant session storage or host internals by default', () => {
 		assert.deepStrictEqual(getVSCodeSandboxReadRoots({}), []);
+	});
+});
+
+suite('VS Code sandbox write roots', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('grants extension private state under copilotHome without granting the parent or unrelated extensions', () => {
+		const copilotHome = URI.file('/Users/user/.copilot');
+		const canvasIds = ['copilot-chat-progress', 'custom-preview'];
+		const roots = getVSCodeSandboxWriteRoots({ copilotHome, canvasIds });
+
+		assert.deepStrictEqual(roots, [
+			URI.file('/Users/user/.copilot/extension-data/copilot-chat-progress'),
+			URI.file('/Users/user/.copilot/extension-data/custom-preview'),
+		]);
+	});
+
+	test('returns empty when copilotHome or canvasIds are omitted or empty', () => {
+		assert.deepStrictEqual(getVSCodeSandboxWriteRoots({}), []);
+		assert.deepStrictEqual(getVSCodeSandboxWriteRoots({ copilotHome: URI.file('/Users/user/.copilot'), canvasIds: [] }), []);
+		assert.deepStrictEqual(getVSCodeSandboxWriteRoots({ canvasIds: ['c1'] }), []);
+	});
+
+	test('deduplicates and filters empty canvas identifiers', () => {
+		const copilotHome = URI.file('/copilot');
+		assert.deepStrictEqual(getVSCodeSandboxWriteRoots({ copilotHome, canvasIds: ['chat-progress', '', 'chat-progress', 'other'] }), [
+			URI.file('/copilot/extension-data/chat-progress'),
+			URI.file('/copilot/extension-data/other'),
+		]);
+	});
+});
+
+suite('canvas extension discovery and write roots', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('discovers canvas IDs from workspace, copilot home, and plugins', async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), 'vscode-canvas-discovery-'));
+		store.add(toDisposable(() => rmSync(tempRoot, { recursive: true, force: true })));
+
+		const workspace = URI.file(join(tempRoot, 'workspace'));
+		const copilotHome = URI.file(join(tempRoot, 'copilot'));
+		const plugin = URI.file(join(tempRoot, 'plugin'));
+
+		// Workspace extension with extension.json sidecar
+		const wsExtDir = join(workspace.fsPath, '.github', 'extensions', 'ext-a');
+		mkdirSync(wsExtDir, { recursive: true });
+		writeFileSync(join(wsExtDir, 'extension.json'), JSON.stringify({
+			canvases: [{ id: 'canvas-from-json-1' }, { id: 'canvas-from-json-2' }],
+		}));
+		writeFileSync(join(wsExtDir, 'extension.mjs'), 'export default {};');
+
+		// Copilot home extension with only extension.mjs
+		const homeExtDir = join(copilotHome.fsPath, 'extensions', 'copilot-chat-progress');
+		mkdirSync(homeExtDir, { recursive: true });
+		writeFileSync(join(homeExtDir, 'extension.mjs'), 'export default {};');
+
+		// Plugin extension with extension.json
+		const pluginExtDir = join(plugin.fsPath, 'extensions', 'plugin-ext');
+		mkdirSync(pluginExtDir, { recursive: true });
+		writeFileSync(join(pluginExtDir, 'extension.json'), JSON.stringify({
+			canvases: [{ id: 'plugin-canvas' }],
+		}));
+
+		const discovered = await discoverCanvasExtensionIds([workspace], copilotHome, [plugin]);
+		assert.deepStrictEqual(discovered, [
+			'canvas-from-json-1',
+			'canvas-from-json-2',
+			'copilot-chat-progress',
+			'plugin-canvas',
+		]);
+
+		const writeRoots = getCanvasExtensionDataRoots(copilotHome, discovered);
+		assert.deepStrictEqual(writeRoots, [
+			URI.joinPath(copilotHome, COPILOT_EXTENSION_DATA_DIRNAME, 'canvas-from-json-1'),
+			URI.joinPath(copilotHome, COPILOT_EXTENSION_DATA_DIRNAME, 'canvas-from-json-2'),
+			URI.joinPath(copilotHome, COPILOT_EXTENSION_DATA_DIRNAME, 'copilot-chat-progress'),
+			URI.joinPath(copilotHome, COPILOT_EXTENSION_DATA_DIRNAME, 'plugin-canvas'),
+		]);
+
+		await ensureCanvasExtensionDataDirectories(writeRoots);
+		for (const root of writeRoots) {
+			assert.strictEqual(existsSync(root.fsPath), true);
+		}
 	});
 });
 
@@ -477,6 +562,36 @@ suite('buildSandboxConfigForSdk', () => {
 				readwritePaths: ['/work'],
 				readonlyPaths: ['/shared'],
 			}).userPolicy?.filesystem);
+		});
+
+		test('grants extraReadwritePaths while respecting denials, readonly paths, and managed policy', () => {
+			const fs: IAgentSandboxUserConfiguredPaths = {
+				deniedPaths: ['/denied'],
+				readonlyPaths: ['/readonly'],
+				readwritePaths: ['/user-write'],
+			};
+			// Grants extra readwrite paths when not denied or readonly
+			const res = buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs), undefined, undefined, undefined, [
+				'/copilot/extension-data/c1',
+				'/denied/subpath',
+				'/readonly',
+				'/user-write',
+			]);
+			assert.deepStrictEqual(res?.userPolicy?.filesystem?.readwritePaths, [
+				'/user-write',
+				'/copilot/extension-data/c1',
+			]);
+
+			// Managed policy with readwritePaths suppresses host-generated extra readwrite paths
+			const managed: ISessionSandboxPolicy = {
+				readwritePaths: ['/managed/allowlist'],
+			};
+			const managedRes = buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs), undefined, managed, undefined, [
+				'/copilot/extension-data/c1',
+			]);
+			assert.deepStrictEqual(managedRes?.userPolicy?.filesystem?.readwritePaths, [
+				'/user-write',
+			]);
 		});
 	});
 

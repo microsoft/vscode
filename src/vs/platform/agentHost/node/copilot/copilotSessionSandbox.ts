@@ -74,6 +74,8 @@ interface ICopilotSessionSandboxOptions {
 	readonly getWorkspaceWorkingDirectories: () => readonly URI[] | undefined;
 	readonly shellManager: ShellManager | undefined;
 	readonly onDidChangeRuntimeConfig?: () => void;
+	readonly getCanvasExtensionDataDirectories?: () => readonly URI[];
+	readonly prepareCanvasExtensionDataDirectories?: () => Promise<void>;
 }
 
 /** Owns sandbox configuration, request-bound approvals, and diagnostics for one SDK session. */
@@ -126,6 +128,9 @@ export class CopilotSessionSandbox extends Disposable {
 			this._applicationReadRoots = this._environmentService.appBundleRoot
 				? await getApplicationSandboxReadRoots(this._environmentService.appRoot, this._environmentService.appBundleRoot, this._options.platform)
 				: [];
+		}
+		if (this._options.prepareCanvasExtensionDataDirectories) {
+			await this._options.prepareCanvasExtensionDataDirectories();
 		}
 		await this._sessionPaths.load(this._options.ownerSession);
 	}
@@ -438,7 +443,15 @@ export class CopilotSessionSandbox extends Disposable {
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
 		}), ...this._options.getAppliedPluginDirectories()].map(root => root.fsPath);
-		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy, this._attachedPathsFor([...this._attachedPaths.values()]));
+		const writeRoots = this._options.getCanvasExtensionDataDirectories?.() ?? [];
+		return buildSandboxConfigForSdk(
+			this._options.platform,
+			sandbox,
+			readonlyPaths,
+			policy,
+			this._attachedPathsFor([...this._attachedPaths.values()]),
+			writeRoots.map(root => root.fsPath),
+		);
 	}
 
 	updateDiagnostics(config?: SandboxConfig): Promise<void> {
