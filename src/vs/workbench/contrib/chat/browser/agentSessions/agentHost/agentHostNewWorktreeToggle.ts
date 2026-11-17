@@ -5,6 +5,7 @@
 
 import { getWindow } from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -44,28 +45,32 @@ export const ChatAgentHostNewWorktreeSelected = new RawContextKey<boolean>('chat
  */
 export function markWorktreeSendChoiceTarget(element: HTMLElement, sendChoice: IAgentHostWorktreeSendChoiceService, sessionResource: () => URI | undefined, onDidChangeSessionResource: Event<unknown>): IDisposable {
 	const store = new DisposableStore();
-	// The callout keeps the element it anchored on: once the control shows another chat, the question about the chat it showed
-	// ends unanswered, rather than staying on the other chat's control. One that goes ends it too, unless a control of the same
-	// chat replaces it, as where its toolbar renders again, which the callout then shows on.
-	let shown = sessionResource();
-	store.add(toDisposable(() => {
-		const resource = shown;
-		const pending = sendChoice.pendingSendChoice.get();
-		if (resource && pending && extUriBiasedIgnorePathCase.isEqual(resource, pending)) {
-			const targetWindow = getWindow(element);
-			queueMicrotask(() => {
-				if (!resolveOnboardingTarget(targetWindow, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID)) {
-					sendChoice.cancelSendChoice(resource);
-				}
-			});
+	// The callout keeps the element it shows on. While this control is that element, the question ends unanswered once it shows
+	// another chat or goes, rather than staying on the other chat's control or on a detached one. Other controls of the same chat
+	// never end it.
+	let anchoredFor: URI | undefined;
+	store.add(sendChoice.onDidShowSendChoice(resource => {
+		// As the callout shows, it anchors on the target that resolves now
+		anchoredFor = resolveOnboardingTarget(getWindow(element), AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID)?.element === element ? resource : undefined;
+	}));
+	store.add(autorun(reader => {
+		const pending = sendChoice.pendingSendChoice.read(reader);
+		if (anchoredFor && !(pending && extUriBiasedIgnorePathCase.isEqual(anchoredFor, pending))) {
+			anchoredFor = undefined;
 		}
 	}));
 	store.add(onDidChangeSessionResource(() => {
 		const next = sessionResource();
-		if (shown && !(next && extUriBiasedIgnorePathCase.isEqual(shown, next))) {
-			sendChoice.cancelSendChoice(shown);
+		if (anchoredFor && !(next && extUriBiasedIgnorePathCase.isEqual(anchoredFor, next))) {
+			const resource = anchoredFor;
+			anchoredFor = undefined;
+			sendChoice.cancelSendChoice(resource);
 		}
-		shown = next;
+	}));
+	store.add(toDisposable(() => {
+		if (anchoredFor) {
+			sendChoice.cancelSendChoice(anchoredFor);
+		}
 	}));
 	// A callout run has no scope: it matches only the control of the chat it asks about, and every other control is out of scope
 	store.add(markOnboardingTarget(element, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, {

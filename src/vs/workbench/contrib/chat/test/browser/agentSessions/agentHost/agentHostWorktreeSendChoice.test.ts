@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -665,43 +665,66 @@ suite('Agent host Work in Parallel choice on send', () => {
 		assert.deepStrictEqual({ aborted, askedWhileHeld, askedOn, sent: window.sent, answered }, { aborted: 'folder', askedWhileHeld: 2, askedOn: ['control', 'draft'], sent: ['folder'], answered: 'folder' });
 	});
 
-	test('ends the question about a chat unanswered once the control its callout shows on shows another chat, or goes: it works in the folder, and nothing is remembered', async () => {
+	test('ends the question about a chat unanswered only through the control its callout shows on: as that shows another chat, goes, or is replaced, it works in the folder and nothing is remembered; another control of the chat does not end it', async () => {
 		const results: Record<string, unknown> = {};
-		for (const how of ['retarget', 'dispose'] as const) {
+		for (const how of ['retargetAnchor', 'disposeAnchor', 'replaceAnchor', 'retargetOther', 'disposeOther'] as const) {
 			const window = createWindow({ firstChatIn: primary, realCallout: true });
 			const asked = window.newDraft();
 			const other = window.newDraft();
-			// One control, as the chat input's checkbox or folder chip, showing the chat it asks about and then another
-			let current = asked;
-			const onDidChange = new Emitter<void>();
-			const domNode = append(mainWindow.document.body, $('div'));
-			const control = append(domNode, $('.action-item', undefined, 'New Worktree'));
-			const marker = markWorktreeSendChoiceTarget(control, window.service, () => current, onDidChange.event);
-			const asking = window.service.requestSendChoice(asked);
+			const store = new DisposableStore();
+			// Controls of the chat input, as its checkbox or folder chip, each showing a chat that can change, one below the other
+			const controls: { readonly name: string; readonly element: HTMLElement; readonly marker: IDisposable; current: URI; readonly onDidChange: Emitter<void> }[] = [];
+			const addControl = (name: string, top: number) => {
+				const element = append(mainWindow.document.body, $('.action-item', undefined, name));
+				Object.assign(element.style, { position: 'absolute', left: '100px', top: `${top}px`, width: '120px', height: '20px' });
+				store.add(toDisposable(() => element.remove()));
+				const onDidChange = store.add(new Emitter<void>());
+				const control = { name, element, current: asked, onDidChange, marker: undefined! as IDisposable };
+				Object.assign(control, { marker: store.add(markWorktreeSendChoiceTarget(element, window.service, () => control.current, onDidChange.event)) });
+				controls.push(control);
+				return control;
+			};
+			const first = addControl('first', 200);
+			const second = addControl('second', 300);
 			const callout = () => mainWindow.document.querySelector<HTMLElement>('.spotlight-callout');
-			await retry(async () => assert.ok(callout()), 10, 50);
-			if (how === 'retarget') {
-				current = other;
-				onDidChange.fire();
+			// The control the shown callout highlights, as its hole covers it
+			const anchor = () => {
+				const hole = mainWindow.document.querySelector<HTMLElement>('.spotlight-hole');
+				if (!callout() || !hole || hole.parentElement?.style.display === 'none') {
+					return undefined;
+				}
+				const rect = hole.getBoundingClientRect();
+				const y = rect.top + rect.height / 2;
+				return controls.find(control => control.element.isConnected && (({ top, bottom }) => y >= top && y <= bottom)(control.element.getBoundingClientRect()))?.name;
+			};
+			const asking = window.service.requestSendChoice(asked);
+			await retry(async () => assert.ok(anchor()), 20, 50);
+			const before = anchor();
+			const target = how.endsWith('Anchor') ? first : second;
+			if (how.startsWith('retarget')) {
+				target.current = other;
+				target.onDidChange.fire();
 			} else {
-				marker.dispose();
-				domNode.remove();
+				target.marker.dispose();
+				target.element.remove();
+				if (how === 'replaceAnchor') {
+					// Its toolbar renders it again, for the same chat
+					addControl('replacement', 200);
+				}
 			}
-			// A callout that still shows is answered on the control as it is now
 			await timeout(0);
+			const live = { asking: window.service.pendingSendChoice.get()?.toString() === asked.toString(), anchor: anchor() };
+			// A callout that still shows is answered
 			Array.from(callout()?.querySelectorAll<HTMLElement>('.monaco-button') ?? []).find(button => button.textContent === 'Use New Worktree')?.click();
 			const answer = await asking;
-			results[how] = { answer, remembered: window.storage.get(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, StorageScope.PROFILE), pending: window.service.pendingSendChoice.get(), callout: !!callout() };
-			marker.dispose();
-			domNode.remove();
-			onDidChange.dispose();
+			results[how] = { before, live, answer, remembered: window.storage.get(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, StorageScope.PROFILE), callout: !!callout() };
+			store.dispose();
 			window.dispose();
 		}
 
-		assert.deepStrictEqual(results, {
-			retarget: { answer: 'folder', remembered: undefined, pending: undefined, callout: false },
-			dispose: { answer: 'folder', remembered: undefined, pending: undefined, callout: false },
-		});
+		const ended = { before: 'first', live: { asking: false, anchor: undefined }, answer: 'folder', remembered: undefined, callout: false };
+		const kept = { before: 'first', live: { asking: true, anchor: 'first' }, answer: 'worktree', remembered: 'worktree', callout: false };
+		assert.deepStrictEqual(results, { retargetAnchor: ended, disposeAnchor: ended, replaceAnchor: ended, retargetOther: kept, disposeOther: kept });
 	});
 
 	test('does not apply a new worktree to a new chat whose chat input closed while it asked', async () => {

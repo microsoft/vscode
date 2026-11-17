@@ -20,7 +20,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { ChatAgentHostNewWorktreeSelected, ChatAgentHostNewWorktreeToggleVisible, createNewWorktreeCheckboxViewItem, ToggleAgentHostNewWorktreeAction } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, IAgentHostWorktreeSendChoiceService } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { resolveOnboardingTarget } from '../../../../../onboarding/browser/spotlight/onboardingTarget.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
@@ -46,7 +46,8 @@ suite('Agent host New Worktree checkbox', () => {
 		// The chat whose send the Work in Parallel callout asks about, which the checkbox of that chat anchors
 		const pendingSendChoice = observableValue<URI | undefined>('pendingSendChoice', undefined);
 		const cancelled: string[] = [];
-		instantiation.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice, cancelSendChoice: (resource: URI) => { cancelled.push(resource.path); } }));
+		const onDidShowSendChoice = store.add(new Emitter<URI>());
+		instantiation.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice, onDidShowSendChoice: onDidShowSendChoice.event, cancelSendChoice: (resource: URI) => { cancelled.push(resource.path); } }));
 		// A local agent host's new chat in a window with a single local folder, which has no worktrees
 		context.createKey(ChatContextKeys.enabled.key, true);
 		context.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
@@ -86,17 +87,19 @@ suite('Agent host New Worktree checkbox', () => {
 		const checked = state();
 		checkbox()!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, bubbles: true }));
 		await settle();
-		sessionIsEmpty.set(false);
-		await settle();
-		const started = state();
-		// While it asks about its chat, the chat input shows another: that question ends; and the one about the other chat, once
-		// the checkbox goes with no other control of that chat
+		// While its callout shows on it about its chat, the chat input shows another: that question ends; and the one about the
+		// other chat, once the checkbox it shows on goes
 		pendingSendChoice.set(chat, undefined);
+		onDidShowSendChoice.fire(chat);
 		const other = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-3' });
 		widget.viewModel = { sessionResource: other };
 		onDidChangeViewModel.fire();
 		const cancelledOnOtherChat = [...cancelled];
 		pendingSendChoice.set(other, undefined);
+		onDidShowSendChoice.fire(other);
+		sessionIsEmpty.set(false);
+		await settle();
+		const started = state();
 		toolbar.dispose();
 		const afterDisposed = !!resolveOnboardingTarget(mainWindow, AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID);
 		await settle();
@@ -123,7 +126,7 @@ suite('Agent host New Worktree checkbox', () => {
 		instantiation.stub(IMenuService, store.add(instantiation.createInstance(MenuService)));
 		// The chat whose send the Work in Parallel callout asks about, which the checkbox of that chat anchors
 		const pendingSendChoice = observableValue<URI | undefined>('pendingSendChoice', undefined);
-		instantiation.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice }));
+		instantiation.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ pendingSendChoice, onDidShowSendChoice: Event.None }));
 		context.createKey(ChatContextKeys.enabled.key, true);
 		context.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
 		context.createKey(ChatContextKeys.chatSessionType.key, SessionType.AgentHostCopilot);

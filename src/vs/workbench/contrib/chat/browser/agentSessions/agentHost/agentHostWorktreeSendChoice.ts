@@ -6,6 +6,7 @@
 import { Sequencer } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -99,6 +100,12 @@ export interface IAgentHostWorktreeSendChoiceService {
 	readonly pendingSendChoice: IObservable<URI | undefined>;
 
 	/**
+	 * Fires with the chat asked about each time its callout shows, on the control it then anchors on, which can tell so by
+	 * resolving the callout's target as it fires.
+	 */
+	readonly onDidShowSendChoice: Event<URI>;
+
+	/**
 	 * Where the new chat of `resource` in the window's own folder works: as the user chose before, else as they choose now in
 	 * the Work in Parallel callout on that chat's worktree control, which it remembers for the profile; the folder where they
 	 * give no answer, such as where no control of that chat shows. The caller decides when to ask, such as with
@@ -162,6 +169,8 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	private _asking: { readonly resource: URI; readonly cancellation: CancellationTokenSource; useWorktree: boolean } | undefined;
 	private readonly _pendingSendChoice = observableValue<URI | undefined>(this, undefined);
 	readonly pendingSendChoice: IObservable<URI | undefined> = this._pendingSendChoice;
+	private readonly _onDidShowSendChoice = this._register(new Emitter<URI>());
+	readonly onDidShowSendChoice = this._onDidShowSendChoice.event;
 	/** Asks one after another, so that each has its own chat and answer. */
 	private readonly _asks = new Sequencer();
 	/** The preselections of New Worktree under way, by the new chat. */
@@ -444,6 +453,11 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 						endTourLabel: localize('agentHost.worktreeSendChoice.continueInFolder', "Continue in Folder"),
 						placement: 'above',
 						missingTarget: { kind: 'abort' },
+						onDidShow: () => {
+							if (this._asking) {
+								this._onDidShowSendChoice.fire(this._asking.resource);
+							}
+						},
 					}],
 				},
 			},
