@@ -20,7 +20,7 @@ import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../c
 import { buildGitBlobUri } from './gitDiffContent.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
-import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
+import { firstParallel, Limiter, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
 import { createWorktreeSymlink } from './worktreeSymlink.js';
 
@@ -60,7 +60,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * A cache of repository roots and confirmed non-repositories.
 	 */
 	private readonly _repositoryRoots = observableValueOpts({ owner: this, equalsFn: () => false }, new LRUCache<string, URI | undefined>(100));
-	private readonly _repositoryRootSequencer = new SequencerByKey<string>();
+	private readonly _pendingRepositoryRoots = new Map<string, Promise<URI | undefined>>();
 	private readonly _indexPaths = new LRUCache<string, string>(100);
 	private readonly _pendingBranches = new Map<string, Promise<Branch | undefined>>();
 
@@ -76,11 +76,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 			|| undefined;
 	}
 
-	async getHEAD(workingDirectory: URI): Promise<IBranch | IDetachedHead | undefined> {
+	async getHEAD(workingDirectory: URI, options?: { readonly nameOnly?: boolean }): Promise<IBranch | IDetachedHead | undefined> {
 		const headRef = await this._runGit(workingDirectory, ['symbolic-ref', 'HEAD']);
 		if (headRef) {
-			// Branch
-			const branch = await this.getBranch(workingDirectory, headRef.trim());
+			const ref = headRef.trim();
+			if (options?.nameOnly && ref.startsWith('refs/heads/')) {
+				return { kind: GitRefType.Head, ref, name: ref.substring('refs/heads/'.length) };
+			}
+			const branch = await this.getBranch(workingDirectory, ref);
 			return branch?.kind === GitRefType.Head ? branch : undefined;
 		}
 
@@ -239,48 +242,59 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		const workingDirectoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
 
-		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {
-			const roots = this._repositoryRoots.get();
-			if (roots.has(workingDirectoryKey)) {
-				const repositoryRoot = roots.get(workingDirectoryKey);
-				if (repositoryRoot || !options?.refreshIfNone) {
-					return repositoryRoot;
-				}
-			}
+		const pending = this._pendingRepositoryRoots.get(workingDirectoryKey);
+		if (pending) {
+			return pending;
+		}
 
-			if (await this._isMissingDirectory(workingDirectory.fsPath)) {
-				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
-				return undefined;
+		const roots = this._repositoryRoots.get();
+		if (roots.has(workingDirectoryKey)) {
+			const repositoryRoot = roots.get(workingDirectoryKey);
+			if (repositoryRoot || !options?.refreshIfNone) {
+				return repositoryRoot;
 			}
+		}
 
-			try {
-				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel'], { throwOnError: true, env: { LC_ALL: 'C' } }))?.trim();
-				if (repositoryRootPath) {
-					const repositoryRoot = URI.file(repositoryRootPath);
-					this._cacheRepositoryRoot(workingDirectoryKey, repositoryRoot);
-					return repositoryRoot;
-				}
-				throw new Error('Git repository root lookup returned no path');
-			} catch (error) {
-				if (error instanceof GitCommandError && /^fatal: (?:not a git repository\b|this operation must be run in a work tree\b)/m.test(error.stderr)) {
-					if (!roots.peek(workingDirectoryKey)) {
-						this._cacheRepositoryRoot(workingDirectoryKey, undefined);
-					}
-				} else {
-					if (roots.has(workingDirectoryKey) && !roots.peek(workingDirectoryKey)) {
-						roots.delete(workingDirectoryKey);
-						this._repositoryRoots.set(roots, undefined);
-					}
-					if (isSpawnEnoentError(error) && await this._isMissingDirectory(workingDirectory.fsPath)) {
-						this._logService.trace(`[agentHostGitService] Directory ${workingDirectory.fsPath} disappeared during repository root lookup`);
-					} else {
-						this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
-					}
-				}
-			}
+		const request = this._readRepositoryRoot(workingDirectory, workingDirectoryKey)
+			.finally(() => this._pendingRepositoryRoots.delete(workingDirectoryKey));
+		this._pendingRepositoryRoots.set(workingDirectoryKey, request);
+		return request;
+	}
 
+	private async _readRepositoryRoot(workingDirectory: URI, workingDirectoryKey: string): Promise<URI | undefined> {
+		const roots = this._repositoryRoots.get();
+		if (await this._isMissingDirectory(workingDirectory.fsPath)) {
+			this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
 			return undefined;
-		});
+		}
+
+		try {
+			const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel'], { throwOnError: true, env: { LC_ALL: 'C' } }))?.trim();
+			if (repositoryRootPath) {
+				const repositoryRoot = URI.file(repositoryRootPath);
+				this._cacheRepositoryRoot(workingDirectoryKey, repositoryRoot);
+				return repositoryRoot;
+			}
+			throw new Error('Git repository root lookup returned no path');
+		} catch (error) {
+			if (error instanceof GitCommandError && /^fatal: (?:not a git repository\b|this operation must be run in a work tree\b)/m.test(error.stderr)) {
+				if (!roots.peek(workingDirectoryKey)) {
+					this._cacheRepositoryRoot(workingDirectoryKey, undefined);
+				}
+			} else {
+				if (roots.has(workingDirectoryKey) && !roots.peek(workingDirectoryKey)) {
+					roots.delete(workingDirectoryKey);
+					this._repositoryRoots.set(roots, undefined);
+				}
+				if (isSpawnEnoentError(error) && await this._isMissingDirectory(workingDirectory.fsPath)) {
+					this._logService.trace(`[agentHostGitService] Directory ${workingDirectory.fsPath} disappeared during repository root lookup`);
+				} else {
+					this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
@@ -1485,7 +1499,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return this._runGit(workingDirectory, ['status', ...args], { env: { GIT_OPTIONAL_LOCKS: '0' } });
 	}
 
-	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void; readonly input?: string }): Promise<string | undefined> {
+	protected _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number; readonly onStderr?: (chunk: string) => void; readonly input?: string }): Promise<string | undefined> {
 		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
 
 		return new Promise((resolve, reject) => {

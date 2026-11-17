@@ -2098,7 +2098,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 
 		const [headRef, defaultBranch] = await Promise.all([
-			this._gitService.getHEAD(repositoryRoot),
+			this._gitService.getHEAD(repositoryRoot, { nameOnly: !resolveDefaultBranch }),
 			resolveDefaultBranch ? this._gitService.getDefaultBranch2(repositoryRoot) : undefined,
 		]);
 

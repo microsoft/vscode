@@ -545,11 +545,13 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(rootReads, 2);
 	});
 
-	test('folder isolation skips the default branch without sharing incomplete reads with worktree requests', async () => {
+	test('folder isolation reads only the HEAD name without sharing incomplete reads with worktree requests', async () => {
 		let defaultReads = 0;
+		const nameOnlyReads: (boolean | undefined)[] = [];
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
+				getHEAD: async (_root, options) => { nameOnlyReads.push(options?.nameOnly); return localBranch('feature'); },
 				getDefaultBranch2: async () => { defaultReads++; return localBranch('main'); },
 			}
 		});
@@ -561,8 +563,8 @@ suite('WorktreeIsolation', () => {
 			isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined }),
 			isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { ...config, [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/1' } }),
 		]);
-		assert.deepStrictEqual({ folderDefaultReads, defaultReads, branches: results.map(result => result.branchValue) }, {
-			folderDefaultReads: 0, defaultReads: 1, branches: ['feature', 'main', 'main'],
+		assert.deepStrictEqual({ folderDefaultReads, defaultReads, nameOnlyReads, branches: results.map(result => result.branchValue) }, {
+			folderDefaultReads: 0, defaultReads: 1, nameOnlyReads: [true, true, false], branches: ['feature', 'main', 'main'],
 		});
 	});
 
