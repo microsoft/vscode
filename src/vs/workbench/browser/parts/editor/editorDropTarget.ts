@@ -59,7 +59,7 @@ function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationSer
 const DROP_INTO_EDITOR_MODIFIER_LABEL = isMacintosh ? '⇧' : 'Shift';
 
 function isDragIntoEditorEvent(e: DragEvent): boolean {
-	return e.shiftKey;
+	return e.shiftKey || containsDragType(e, 'text/x-moz-url');
 }
 
 /**
