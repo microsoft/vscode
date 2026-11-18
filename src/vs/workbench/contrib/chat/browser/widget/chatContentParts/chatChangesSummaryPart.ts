@@ -251,10 +251,11 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				source,
 				localize('chat.checkpointFileChanges', 'Checkpoint File Changes'),
 				resources.map(resource => {
+					const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(resource.modifiedUri ?? resource.originalUri);
 					return new MultiDiffEditorItem(
 						resource.originalUri,
 						resource.modifiedUri,
-						undefined,
+						fileURI,
 					);
 				}),
 				false
@@ -585,9 +586,10 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 		templateData.elementDisposables.clear();
 		templateData.element = data;
 		const label = templateData.label;
-		label.setFile(data.modifiedURI, {
+		const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(data.modifiedURI) ?? data.modifiedURI;
+		label.setFile(fileURI, {
 			fileKind: FileKind.FILE,
-			title: data.modifiedURI.path
+			title: fileURI.path
 		});
 
 		templateData.changesElement?.remove();

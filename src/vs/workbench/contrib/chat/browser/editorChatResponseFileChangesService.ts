@@ -8,14 +8,16 @@ import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IEditSessionEntryDiff } from '../common/editing/chatEditingService.js';
+import { ChatEditingSnapshotTextModelContentProvider } from './chatEditing/chatEditingTextModelContentProviders.js';
 import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext } from './chatResponseFileChangesService.js';
 
 /** Maps a chat-produced file change to the editor resources that represent its actual before/after states. */
 export function toChatFileChangeEditorResource(diff: IEditSessionEntryDiff) {
+	const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI) ?? diff.modifiedURI;
 	return {
 		original: { resource: diff.isCreated ? undefined : diff.originalURI },
 		modified: { resource: diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI },
-		goToFileResource: diff.modifiedURI,
+		goToFileResource: fileURI,
 	};
 }
 

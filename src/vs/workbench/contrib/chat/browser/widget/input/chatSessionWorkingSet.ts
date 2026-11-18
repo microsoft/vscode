@@ -39,6 +39,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { chatEditingWidgetFileStateContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
+import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
 import { getChatFileChangeLineCounts, IChangesSummaryFileList, openChatFileChangeDiff, renderChangesSummaryFileList } from '../chatContentParts/chatChangesSummaryPart.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 
@@ -224,8 +225,11 @@ export class ChatSessionWorkingSet extends Disposable {
 						const diffs = this._diffs.read(undefined);
 						const reviewFiles = session?.additionalReviewFiles?.read(undefined);
 						if (session?.supportsKeepUndo.read(undefined) && reviewFiles
-							&& diffs.every(diff => reviewFiles.some(file => isEqual(file.modifiedURI, diff.modifiedURI))
-								&& session.getEntry(diff.modifiedURI)?.state.read(undefined) === ModifiedFileEntryState.Modified)) {
+							&& diffs.every(diff => {
+								const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI) ?? diff.modifiedURI;
+								return reviewFiles.some(file => isEqual(file.modifiedURI, fileURI) || isEqual(file.modifiedURI, diff.modifiedURI))
+									&& (session.getEntry(fileURI) ?? session.getEntry(diff.modifiedURI))?.state.read(undefined) === ModifiedFileEntryState.Modified;
+							})) {
 							return session.show();
 						}
 						return openChatFileChanges(this._editorService, localize('chat.sessionWorkingSet.changesEditor', "Session Changes"), diffs);
@@ -264,7 +268,8 @@ export class ChatSessionWorkingSet extends Disposable {
 			getRowActions: (diff, reader) => {
 				fileMenuChanged.read(reader);
 				// Clicking an action doesn't move focus to its chat, so the commands are told which working set to run on.
-				return getActionBarActions(fileMenu.getActions({ args: [diff.modifiedURI, this] }), 'navigation').primary;
+				const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI) ?? diff.modifiedURI;
+				return getActionBarActions(fileMenu.getActions({ args: [fileURI, this] }), 'navigation').primary;
 			},
 		}));
 		this._register(button.onDidClick(() => collapsed.set(!collapsed.get(), undefined)));
@@ -297,7 +302,7 @@ export class ChatSessionWorkingSet extends Disposable {
 
 	/** The files of the selected rows. */
 	get selectedResources(): URI[] {
-		return this._fileList.getSelectedElements().map(diff => diff.modifiedURI);
+		return this._fileList.getSelectedElements().map(diff => ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI) ?? diff.modifiedURI);
 	}
 
 	/** Whether the working set lists changes to `resource`. */
@@ -343,8 +348,9 @@ export class ChatSessionWorkingSet extends Disposable {
 	}
 
 	private async _openFile(diff: IEditSessionEntryDiff, options?: IEditorOptions, sideBySide = false): Promise<void> {
-		const entry = diff.isDeleted ? undefined : this._fileActions.editingSession?.()?.getEntry(diff.modifiedURI);
-		const resource = diff.isDeleted ? diff.originalURI : diff.modifiedURI;
+		const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI) ?? diff.modifiedURI;
+		const entry = diff.isDeleted ? undefined : this._fileActions.editingSession?.()?.getEntry(fileURI);
+		const resource = diff.isDeleted ? (ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.originalURI) ?? diff.originalURI) : fileURI;
 		const pane = await this._editorService.openEditor({ resource, options }, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		if (pane && entry?.state.get() === ModifiedFileEntryState.Modified) {
 			entry.getEditorIntegration(pane).reveal(true, options?.preserveFocus);
@@ -353,9 +359,10 @@ export class ChatSessionWorkingSet extends Disposable {
 
 	private async _openFileDiff(diff: IEditSessionEntryDiff, options?: IEditorOptions, sideBySide = false): Promise<void> {
 		const session = this._fileActions.editingSession?.();
+		const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI) ?? diff.modifiedURI;
 		let entry: IModifiedFileEntry | undefined;
 		try {
-			entry = session?.resolveEntry ? await session.resolveEntry(diff.modifiedURI) : session?.getEntry(diff.modifiedURI);
+			entry = session?.resolveEntry ? await session.resolveEntry(fileURI) : session?.getEntry(fileURI);
 		} catch (error) {
 			if (isCancellationError(error)) {
 				return;
@@ -375,7 +382,16 @@ export class ChatSessionWorkingSet extends Disposable {
 
 	private _getDiffs(resources: readonly URI[]): IEditSessionEntryDiff[] {
 		const diffs = this._diffs.get();
-		return diffs.filter(diff => resources.some(resource => isEqual(resource, diff.modifiedURI)));
+		return diffs.filter(diff => {
+			const modifiedFileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
+			const originalFileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.originalURI);
+			return resources.some(resource =>
+				isEqual(resource, diff.modifiedURI)
+				|| (modifiedFileURI && isEqual(resource, modifiedFileURI))
+				|| isEqual(resource, diff.originalURI)
+				|| (originalFileURI && isEqual(resource, originalFileURI))
+			);
+		});
 	}
 
 	private _isKeepEnabled(reader: IReader | undefined): boolean {
@@ -441,7 +457,8 @@ function getSessionKey(session: URI): string {
 }
 
 function getFileKey(diff: IEditSessionEntryDiff): string {
-	return digest([getComparisonKey(diff.modifiedURI)]);
+	const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI) ?? diff.modifiedURI;
+	return digest([getComparisonKey(fileURI)]);
 }
 
 /** The parts of a file's change that differ once the file changes again. A deletion has no snapshot after it, so deleting a file again matches its earlier deletion. */

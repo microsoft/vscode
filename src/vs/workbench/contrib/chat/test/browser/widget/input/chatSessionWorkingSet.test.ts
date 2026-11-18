@@ -37,6 +37,7 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { emptySessionEntryDiff, IChatEditingService, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
+import { ChatEditingSnapshotTextModelContentProvider } from '../../../../browser/chatEditing/chatEditingTextModelContentProviders.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../../common/model/chatViewModel.js';
 
@@ -782,6 +783,60 @@ suite('ChatSessionWorkingSet', () => {
 			input: context.getValue(ChatContextKeys.inChatInput.key) === true,
 			help: new AgentChatAccessibilityHelp().when?.evaluate(context),
 		}, { workingSet: true, input: false, help: true });
+	});
+
+	test('opens original remote file when clicking a working set row backed by snapshot URIs (#349032)', async () => {
+		const sessionResource = URI.parse('vscode-chat-session://session-1');
+		const remoteFile = URI.from({ scheme: 'vscode-remote', authority: 'wsl+Fedora', path: '/home/user/project/main.c' });
+		const originalSnapshotUri = ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionResource, 'req-1', 'stop-0', remoteFile.path, remoteFile.scheme, remoteFile.authority);
+		const modifiedSnapshotUri = ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionResource, 'req-1', '', remoteFile.path, remoteFile.scheme, remoteFile.authority);
+
+		const diff: IEditSessionEntryDiff = {
+			...emptySessionEntryDiff(originalSnapshotUri, modifiedSnapshotUri),
+			added: 5,
+			removed: 2,
+		};
+
+		const { workingSet, rows, opened, executed, fileAction } = createWorkingSet([diff], false);
+
+		assert.strictEqual(workingSet.includes(remoteFile), true);
+		assert.strictEqual(workingSet.includes(modifiedSnapshotUri), true);
+
+		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual(opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined), [
+			remoteFile.toString(),
+		]);
+
+		fileAction(rows()[0], 'Keep').click();
+		await timeout(0);
+		assert.strictEqual(executed.some(e => e.resource === remoteFile.path), true);
+	});
+
+	test('opens original remote file when clicking a deleted file row backed by snapshot URIs (#349032)', async () => {
+		const sessionResource = URI.parse('vscode-chat-session://session-1');
+		const remoteFile = URI.from({ scheme: 'vscode-remote', authority: 'wsl+Fedora', path: '/home/user/project/deleted.c' });
+		const originalSnapshotUri = ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionResource, 'req-1', 'stop-0', remoteFile.path, remoteFile.scheme, remoteFile.authority);
+		const modifiedSnapshotUri = ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionResource, 'req-1', '', remoteFile.path, remoteFile.scheme, remoteFile.authority);
+
+		const diff: IEditSessionEntryDiff = {
+			...emptySessionEntryDiff(originalSnapshotUri, modifiedSnapshotUri),
+			isDeleted: true,
+			added: 0,
+			removed: 10,
+		};
+
+		const { workingSet, rows, opened } = createWorkingSet([diff], false);
+
+		assert.strictEqual(workingSet.includes(remoteFile), true);
+
+		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual(opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined), [
+			remoteFile.toString(),
+		]);
 	});
 
 	suite('ChatSessionWorkingSetKeptChanges', () => {
