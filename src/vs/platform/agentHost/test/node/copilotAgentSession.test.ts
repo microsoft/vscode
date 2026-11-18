@@ -26238,7 +26238,8 @@ Use the attached image as context.
 		}
 
 		test('late output from an earlier Fusion workflow keeps its owner after an idle echo', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, { telemetryService });
 			session.resetTurnState('original');
 			mockSession.fire('user.message', { content: 'original', turnId: 'old-loop', interactionId: 'i1' }, { id: 'old-message' });
 			mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'old-route', parentId: 'old-message' });
@@ -26265,6 +26266,7 @@ Use the attached image as context.
 			mockSession.fire('tool.execution_complete', { toolCallId: 'late-stream', success: true, result: { content: 'old file' }, fusion: committed });
 
 			assert.deepStrictEqual({
+				counted: telemetryService.events.filter(event => event.eventName === 'agentHost.modelCallUsageCounted').map(event => event.data),
 				signals: signals.slice(start).flatMap((signal): object[] => signal.kind === 'model_call_completed'
 					? [{ kind: signal.kind, turnId: signal.turnId, modelCallId: signal.modelCallId }]
 					: signal.kind === 'action' && (signal.action.type === ActionType.ChatUsage
@@ -26280,6 +26282,10 @@ Use the attached image as context.
 					return [{ tokens: meta.turnTokenTotals, credits: meta.copilotUsage?.totalNanoAiu }];
 				}),
 			}, {
+				counted: [
+					{ sdkSessionId: mockSession.sessionId, modelCallId: 'late-usage-call', usageCountedInTurnId: successor },
+					{ sdkSessionId: mockSession.sessionId, modelCallId: 'ordinary-call', usageCountedInTurnId: successor },
+				],
 				signals: [
 					{ kind: 'model_call_completed', turnId: 'original', modelCallId: 'late-usage-call' },
 					{ type: ActionType.ChatUsage, successor: true },
@@ -26292,6 +26298,23 @@ Use the attached image as context.
 					{ tokens: [{ model: 'model-a', inputTokens: 20, cachedTokens: 0, outputTokens: 10 }], credits: 500_000_000 },
 				],
 			});
+		});
+
+		test('reports the accounting turn only for joinable direct root model usage', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			const usage = { model: 'model-a', inputTokens: 10, outputTokens: 5 };
+			session.resetTurnState('root');
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'root-call' });
+			mockSession.fire('assistant.usage', usage);
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'compaction-call', interactionType: 'conversation-compaction' });
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'child-call' }, { agentId: 'unmapped' });
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'child-without-agent-id', initiator: 'sub-agent' });
+			mockSession.fire('session.idle', {});
+			mockSession.fire('assistant.usage', { ...usage, apiCallId: 'after-idle' });
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.modelCallUsageCounted').map(event => event.data), [
+				{ sdkSessionId: mockSession.sessionId, modelCallId: 'root-call', usageCountedInTurnId: 'root' },
+			]);
 		});
 
 		test('steering during a Fusion phase hands the in-flight workflow to the steering turn', async () => {

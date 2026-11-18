@@ -664,6 +664,20 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	modelCallCount: number;
 }
 
+type ModelCallUsageCountedEvent = {
+	sdkSessionId: string;
+	modelCallId: string;
+	usageCountedInTurnId: string;
+};
+
+type ModelCallUsageCountedClassification = {
+	owner: 'amunger';
+	comment: 'Identifies the accounting turn for a Copilot root model usage report so its placement can be compared with the call owner.';
+	sdkSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK session containing the model call.' };
+	modelCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK API call identifier shared with model-call correlation and response telemetry.' };
+	usageCountedInTurnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Agent Host execution turn accumulating the reported root model usage.' };
+};
+
 interface IRequestTokenUsageEvent extends IAgentHostEventTelemetry, Omit<IAgentTokenUsageSummary, 'model'> {
 	provider: string;
 	agentSessionId: string;
@@ -2037,6 +2051,10 @@ export class AgentHostTelemetryReporter {
 		]);
 		restricted.sendEnhancedGHTelemetryEventForContext(context, 'request.repoInfo', enhancedProperties, measurements);
 		restricted.sendInternalMSFTTelemetryEventForContext(context, 'request.repoInfo', internalMultiplexedProperties, measurements);
+	}
+
+	modelCallUsageCounted(report: ModelCallUsageCountedEvent): void {
+		this._telemetryService.publicLog2<ModelCallUsageCountedEvent, ModelCallUsageCountedClassification>('agentHost.modelCallUsageCounted', report);
 	}
 
 	requestTokenUsage(report: { clientContext: IAgentHostClientTelemetryContext; telemetryContext?: IAgentTelemetryContext; provider: string; session: string; owner: string; requestId: string; parentTurnId?: string; parentToolCallId?: string; subagentKind?: AgentSubagentKind; selectedModel?: string; selectedModelTelemetryKind?: AgentHostModelTelemetryKind; modelTelemetryKind?: AgentHostModelTelemetryKind; result: AgentHostTurnResult; summary: IAgentTokenUsageSummary }): void {

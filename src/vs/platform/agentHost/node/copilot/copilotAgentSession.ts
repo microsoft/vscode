@@ -12614,6 +12614,9 @@ export class CopilotAgentSession extends Disposable {
 			// Compaction is counted from compaction_complete only; assistant.usage can report the same work.
 			if (!isUnmappedSubagent && (!isChildUsage || parentToolCallId) && e.data.interactionType !== 'conversation-compaction') {
 				this._observeTokenUsage(parentToolCallId, e.id, eventContext.model, 'direct-model', eventContext, e.data.reasoningEffort, e.data.apiCallId);
+				if (turn && !e.agentId && !parentToolCallId && e.data.apiCallId) {
+					this._telemetryReporter.modelCallUsageCounted({ sdkSessionId: wrapper.sessionId, modelCallId: e.data.apiCallId, usageCountedInTurnId: turn.id });
+				}
 			}
 
 			// Builds a usage object carrying the given context's tokens/model plus
