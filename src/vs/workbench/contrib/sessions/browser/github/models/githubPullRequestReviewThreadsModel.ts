@@ -14,6 +14,7 @@ import { compareRequestPriority, RequestPriority } from '../../../../../../platf
 import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../../common/github/types.js';
 import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
+import { getStaggeredPollDelay } from './pollDelay.js';
 
 const LOG_PREFIX = '[GitHubPullRequestReviewThreadsModel]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
@@ -151,7 +152,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
 		if (this._pollingClientCount++ === 0) {
 			this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Start polling ${this.owner}/${this.repo}#${this.prNumber} every ${intervalMs}ms`);
-			this._pollScheduler.schedule(intervalMs);
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}`, intervalMs));
 		}
 
 		return toDisposable(() => {

@@ -10,7 +10,8 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
-import { RequestPriority } from '../../../../../../platform/github/common/types.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { RequestError, RequestPriority } from '../../../../../../platform/github/common/types.js';
 import { Issue } from '../../../../../../platform/github/common/core/issues.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -30,6 +31,7 @@ import { constObservable, IObservable, observableValue } from '../../../../../..
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../common/github/types.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../../services/sessions/common/session.js';
 import { PullRequestIconCache } from '../../../browser/github/pullRequestIconCache.js';
+import { getStaggeredPollDelay } from '../../../browser/github/models/pollDelay.js';
 
 //#region Mock Fetchers
 
@@ -174,7 +176,7 @@ suite('GitHubPullRequestModel', () => {
 		mockFetcher.nextPR = makePR();
 		await model.refresh({ priority: 'visible' });
 		store.add(model.startPolling(10));
-		await timeout(10);
+		await timeout(15);
 		assert.deepStrictEqual(mockFetcher.priorities, ['visible', 'visible', 'background', 'background']);
 	}));
 
@@ -328,7 +330,7 @@ suite('GitHubPullRequestModel', () => {
 		const secondPolling = model.startPolling(1_000);
 		firstPolling.dispose();
 
-		await timeout(10);
+		await timeout(15);
 		assert.deepStrictEqual({
 			getPullRequestCalls: mockFetcher.getPullRequestCalls,
 			getReviewsCalls: mockFetcher.getReviewsCalls,
@@ -393,7 +395,7 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher, logService));
 		await model.refresh(false, { priority: 'visible' });
 		store.add(model.startPolling(10));
-		await timeout(10);
+		await timeout(15);
 		assert.deepStrictEqual(mockFetcher.priorities, ['visible', 'background']);
 	}));
 
@@ -571,7 +573,7 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 		const secondPolling = model.startPolling(1_000);
 		firstPolling.dispose();
 
-		await timeout(10);
+		await timeout(15);
 		assert.strictEqual(mockFetcher.getReviewThreadsCalls, 1);
 
 		await mockFetcher.getReviewThreadsGate.complete(undefined);
@@ -631,7 +633,7 @@ suite('GitHubPullRequestCIModel', () => {
 		const model = acquireModel();
 		await model.refresh(false, { priority: 'visible' });
 		store.add(model.startPolling(10));
-		await timeout(10);
+		await timeout(15);
 		assert.deepStrictEqual(mockFetcher.priorities, ['visible', 'background']);
 	}));
 
@@ -865,7 +867,7 @@ suite('GitHubPullRequestCIModel', () => {
 		const secondPolling = model.startPolling(1_000);
 		firstPolling.dispose();
 
-		await timeout(10);
+		await timeout(15);
 		assert.strictEqual(mockFetcher.getCheckRunsCalls, 1);
 
 		await mockFetcher.getCheckRunsGate.complete(undefined);
@@ -1126,3 +1128,65 @@ function makeComment(id: number, body: string, threadId: string = String(id)): I
 }
 
 //#endregion
+
+suite('getStaggeredPollDelay', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('spreads the polls of many pull requests over half an interval', () => {
+		const delays = Array.from({ length: 100 }, (_, i) => getStaggeredPollDelay(`microsoft/vscode#${346000 + i}`, 60_000));
+		const secondsWithPolls = new Set(delays.map(delay => Math.floor((delay - 60_000) / 1000)));
+		assert.deepStrictEqual({
+			inRange: delays.every(delay => delay >= 60_000 && delay < 90_000),
+			stable: getStaggeredPollDelay('microsoft/vscode#346000', 60_000) === delays[0],
+			spread: secondsWithPolls.size >= 20,
+		}, { inRange: true, stable: true, spread: true });
+	});
+});
+
+suite('GitHubPullRequestModel polling capacity', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Mimics the shared request queue: it rejects requests while too many are retained. */
+	class CapacityLimitedFetcher extends MockPRFetcher {
+		inFlight = 0;
+		rejected = 0;
+
+		private async _request<T>(result: T): Promise<T> {
+			if (this.inFlight >= 56) {
+				this.rejected++;
+				throw new RequestError('Request capacity exceeded', 'overloaded');
+			}
+			this.inFlight++;
+			try {
+				await timeout(100);
+			} finally {
+				this.inFlight--;
+			}
+			return result;
+		}
+
+		override async getPullRequest(): Promise<IGitHubPullRequest> {
+			return this._request(makePR());
+		}
+
+		override async getReviews(): Promise<readonly IGitHubPullRequestReview[]> {
+			return this._request([]);
+		}
+	}
+
+	test('polling many pull requests does not exceed the request capacity', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 100_000 }, async () => {
+		const fetcher = new CapacityLimitedFetcher();
+		const iconCache = new PullRequestIconCache(store.add(new TestStorageService()));
+		const polling: IDisposable[] = [];
+		for (let i = 0; i < 100; i++) {
+			const model = store.add(new GitHubPullRequestModel('microsoft', 'vscode', 346000 + i, fetcher, new NullLogService(), iconCache));
+			polling.push(model.startPolling(60_000));
+		}
+		await timeout(180_000);
+		polling.forEach(p => p.dispose());
+		await timeout(1_000);
+		assert.strictEqual(fetcher.rejected, 0);
+	}));
+});

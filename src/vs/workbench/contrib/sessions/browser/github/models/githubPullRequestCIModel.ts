@@ -19,6 +19,7 @@ import { GitHubCIOverallStatus, IGitHubCICheck } from '../../../common/github/ty
 import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubPRCIFetcher } from '../fetchers/githubPRCIFetcher.js';
 import { IPullRequestChecksSource, IPullRequestChecksSubscription } from '../fetchers/githubPRChecksSource.js';
+import { getStaggeredPollDelay } from './pollDelay.js';
 
 const LOG_PREFIX = '[GitHubPullRequestCIModel]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
@@ -300,7 +301,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
 		if (this._pollingClientCount++ === 0) {
 			this._logService.trace(`${TRACE_PREFIX} [CIModel] Start polling ${this.owner}/${this.repo}#${this.prNumber}@${this.headSha} every ${intervalMs}ms`);
-			this._pollScheduler.schedule(intervalMs);
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}@${this.headSha}`, intervalMs));
 		}
 
 		return toDisposable(() => {
