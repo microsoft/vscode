@@ -5369,6 +5369,43 @@ suite('AgentHostProtocolClient', () => {
 			);
 		});
 
+		test('automation create and update dispatch implicit reads for customizations', () => {
+			const { service, calls } = createCapturingPermissionService();
+			const { client } = createClient(undefined, service);
+
+			client.dispatch(AUTOMATION_CATALOG_URI, {
+				type: ActionType.AutomationCreateRequested,
+				resource: 'ahp-automation:/test',
+				definition: {
+					title: 'Review issues',
+					message: { text: 'Review issues', origin: { kind: MessageKind.Automation } },
+					session: {
+						customizations: [
+							{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/create'), uri: 'file:///plugins/create', name: 'Create' },
+						],
+					},
+					enabled: true,
+					triggers: [],
+				},
+			});
+			client.dispatch(AUTOMATION_CATALOG_URI, {
+				type: ActionType.AutomationUpdateRequested,
+				resource: 'ahp-automation:/test',
+				changes: {
+					session: {
+						customizations: [
+							{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/update'), uri: 'file:///plugins/update', name: 'Update' },
+						],
+					},
+				},
+			});
+
+			assert.deepStrictEqual(
+				calls.map(call => call.uri.toString()),
+				['file:///plugins/create', 'file:///plugins/update'],
+			);
+		});
+
 		test('ChatTurnStarted grants attachment access before reverse resourceRead', async () => {
 			const granted = new Set<string>();
 			const attachmentUri = URI.file('/attachments/example.txt');
