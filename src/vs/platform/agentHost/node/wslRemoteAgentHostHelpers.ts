@@ -169,6 +169,8 @@ export function decodeWslOutput(buffer: Buffer): string {
 /**
  * Parse the output of `wsl --list --verbose`. Only WSL 2 distros are
  * returned — WSL 1 lacks the kernel features needed to host the agent.
+ * Docker Desktop's internal `docker-desktop*` distros are skipped because
+ * they cannot run the agent host.
  *
  * Robust against:
  *  - BOM, CRLF and lone LF line endings
@@ -219,7 +221,7 @@ export function parseWslListVerbose(output: string): IWSLDistro[] {
 		}
 		const state = columns[columns.length - 2];
 		const name = columns.slice(0, columns.length - 2).join(' ');
-		if (!name) {
+		if (!name || name.toLowerCase().startsWith('docker-desktop')) {
 			continue;
 		}
 		distros.push({
