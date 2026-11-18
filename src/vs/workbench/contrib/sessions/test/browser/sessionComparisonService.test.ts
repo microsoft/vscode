@@ -1950,7 +1950,7 @@ suite('SessionComparisonService', () => {
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
 		sessionsManagementService.enqueue(stubSession('attempt-two'));
 		const originatingChatResource = URI.parse('test:/evaluator#nested-chat');
-		categories.selectCategory('chat');
+		categories.selectCategory('personal');
 		const pending = service.startComparison({
 			...startOptions(), originatingChatResource, judgeHarness: undefined, synthesisHarness: undefined,
 		});
@@ -1964,7 +1964,7 @@ suite('SessionComparisonService', () => {
 			legacyParent: restored.getComparison(comparison.id)?.sessionResource,
 			category: restored.getComparison(comparison.id)?.category,
 			attemptCategories: sessionsManagementService.createCalls.map(call => call.createOptions?.category),
-		}, { created: originatingChatResource.toString(), restored: originatingChatResource.toString(), legacyParent: undefined, category: 'chat', attemptCategories: ['chat', 'chat'] });
+		}, { created: originatingChatResource.toString(), restored: originatingChatResource.toString(), legacyParent: undefined, category: 'personal', attemptCategories: ['personal', 'personal'] });
 	});
 
 	test('restores persisted URI fields', () => {

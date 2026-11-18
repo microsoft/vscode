@@ -1118,7 +1118,7 @@ suite('Scheduled chat handoffs', () => {
 
 	test('a schedule keeps its starting category without requiring a custom group', async () => {
 		const fixture = create();
-		await fixture.service.schedule(input, { ...target, category: 'chat', folderUri: URI.file('/personal') }, session, 'composition');
+		await fixture.service.schedule(input, { ...target, category: 'personal', folderUri: URI.file('/personal') }, session, 'composition');
 		const pending = fixture.service.items.get()[0].category;
 		fixture.categories.selectCategory('work');
 		const resource = URI.parse('agent-host-copilot:/created');
@@ -1131,7 +1131,7 @@ suite('Scheduled chat handoffs', () => {
 		fixture.sessions.set(resource.toString(), created);
 		fixture.sessionsChanged.fire({ added: [created], removed: [], changed: [] });
 		assert.deepStrictEqual({ pending, started: fixture.categories.getCategory('created'), groups: [...fixture.memberships] }, {
-			pending: 'chat', started: 'chat', groups: [],
+			pending: 'personal', started: 'personal', groups: [],
 		});
 	});
 });

@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -16,7 +16,10 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
-import { IsNewChatSessionContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsNewChatSessionContext, IsQuickChatSessionContext, SessionItemIsMultiSelectionContext, SessionsSelectedCategoryContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ISessionCategoriesService, SessionCategory } from '../../../../../workbench/contrib/sessions/common/sessionCategory.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { canStartNewSessionLike, getNewSessionSources, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
@@ -408,6 +411,64 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 		sessionsService.focusActiveSession();
 	}
 });
+
+//  Work and Personal
+
+/**
+ * Moves sessions to `category`. A session with a folder moves with its folder, since a folder belongs to one context;
+ * a session without one, such as a quick chat, moves alone.
+ */
+function moveSessionsToCategory(accessor: ServicesAccessor, sessions: readonly ISession[], category: SessionCategory): void {
+	const sessionCategoriesService = accessor.get(ISessionCategoriesService);
+	for (const session of sessions) {
+		const folder = session.isQuickChat?.get() ? undefined : session.workspace.get()?.uri;
+		if (folder) {
+			sessionCategoriesService.setFolderCategory(folder, category);
+		} else {
+			sessionCategoriesService.setCategory(session.sessionId, category);
+		}
+	}
+	status(category === 'personal'
+		? localize('movedToPersonal', "Moved to Personal")
+		: localize('movedToWork', "Moved to Work"));
+}
+
+for (const { category, from, sessionTitle, folderTitle } of [
+	{ category: 'personal', from: 'work', sessionTitle: localize2('moveSessionToPersonal', "Move to Personal"), folderTitle: localize2('moveFolderToPersonal', "Move Folder to Personal") },
+	{ category: 'work', from: 'personal', sessionTitle: localize2('moveSessionToWork', "Move to Work"), folderTitle: localize2('moveFolderToWork', "Move Folder to Work") },
+] satisfies { category: SessionCategory; from: SessionCategory; sessionTitle: ILocalizedString; folderTitle: ILocalizedString }[]) {
+	const inOtherCategory = ContextKeyExpr.equals(SessionsSelectedCategoryContext.key, from);
+	// A session without a folder moves alone.
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `sessionsView.moveSessionTo.${category}`,
+				title: sessionTitle,
+				menu: { id: Menus.SessionItemContextMenu, group: '5_category', order: 0, when: ContextKeyExpr.and(inOtherCategory, IsQuickChatSessionContext) },
+			});
+		}
+		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
+			moveSessionsToCategory(accessor, context ? Array.isArray(context) ? context : [context] : [], category);
+		}
+	});
+	// A session with a folder moves with the folder, from the session's menu or the folder's.
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `sessionsView.moveFolderTo.${category}`,
+				title: folderTitle,
+				menu: [
+					{ id: Menus.SessionItemContextMenu, group: '5_category', order: 0, when: ContextKeyExpr.and(inOtherCategory, IsQuickChatSessionContext.negate()) },
+					{ id: Menus.SessionSectionContext, group: '5_category', order: 0, when: ContextKeyExpr.and(inOtherCategory, ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace')) },
+				],
+			});
+		}
+		run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionSection): void {
+			const sessions = !context ? [] : Array.isArray(context) ? context : hasKey(context, { sessions: true }) ? context.sessions : [context];
+			moveSessionsToCategory(accessor, sessions, category);
+		}
+	});
+}
 
 //  Session Item Actions
 

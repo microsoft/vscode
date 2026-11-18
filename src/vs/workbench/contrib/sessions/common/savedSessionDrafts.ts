@@ -92,11 +92,13 @@ export class SavedSessionDrafts extends Disposable {
 			if (!draft || typeof draft.id !== 'string' || typeof draft.revision !== 'string' || !Number.isFinite(draft.createdAt) || !Number.isFinite(draft.updatedAt) || !draft.target || typeof draft.target !== 'object'
 				|| (draft.target.folderUri !== undefined && !URI.isUri(draft.target.folderUri))
 				|| (draft.target.providerId !== undefined && typeof draft.target.providerId !== 'string')
-				|| (draft.target.category !== undefined && draft.target.category !== 'work' && draft.target.category !== 'chat')
+				|| (draft.target.category !== undefined && draft.target.category !== 'work' && draft.target.category !== 'personal' && draft.target.category as string !== 'chat')
 				|| (draft.target.sessionTypeId !== undefined && typeof draft.target.sessionTypeId !== 'string')) {
 				throw new Error('Invalid saved session draft.');
 			}
-			return { ...draft, legacy: key === storageKey || draft.legacy !== false, input: fromStoredChatDraft(draft.input) };
+			// Earlier builds named Personal "Chat".
+			const target = draft.target.category as string === 'chat' ? { ...draft.target, category: 'personal' as const } : draft.target;
+			return { ...draft, target, legacy: key === storageKey || draft.legacy !== false, input: fromStoredChatDraft(draft.input) };
 		});
 	}
 

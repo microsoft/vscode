@@ -16,7 +16,7 @@ import { ISessionGridPane } from '../../../../../workbench/services/sessions/bro
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -67,7 +67,7 @@ const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayo
 suite('Sessions - SessionsViewPane', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Work/Chat switch supports pointer and keyboard selection and restores the selected category', () => {
+	test('Work/Personal switch supports pointer and keyboard selection and restores the selected category', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const environment = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true });
 		const categories = disposables.add(new SessionCategoriesService(storage, environment));
@@ -85,11 +85,12 @@ suite('Sessions - SessionsViewPane', () => {
 		const restored = disposables.add(new SessionCategoriesService(storage, environment)).selectedCategory.get();
 		buttons[1].focus();
 		buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
-		assert.deepStrictEqual({ initial, chat, restored, work: snapshot(), focused: mainWindow.document.activeElement === buttons[0] }, {
-			initial: { kind: 'work', buttons: [['Work', 'true', 0], ['Chat', 'false', -1]] },
-			chat: { kind: 'chat', buttons: [['Work', 'false', -1], ['Chat', 'true', 0]] },
-			restored: 'chat',
-			work: { kind: 'work', buttons: [['Work', 'true', 0], ['Chat', 'false', -1]] },
+		assert.deepStrictEqual({ labels: buttons.map(button => button.textContent?.trim()), initial, chat, restored, work: snapshot(), focused: mainWindow.document.activeElement === buttons[0] }, {
+			labels: ['Work', 'Personal'],
+			initial: { kind: 'work', buttons: [['Work', 'true', 0], ['Personal', 'false', -1]] },
+			chat: { kind: 'personal', buttons: [['Work', 'false', -1], ['Personal', 'true', 0]] },
+			restored: 'personal',
+			work: { kind: 'work', buttons: [['Work', 'true', 0], ['Personal', 'false', -1]] },
 			focused: true,
 		});
 	});
@@ -98,13 +99,13 @@ suite('Sessions - SessionsViewPane', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const environment = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true });
 		const categories = disposables.add(new SessionCategoriesService(storage, environment));
-		categories.selectCategory('chat');
+		categories.selectCategory('personal');
 		categories.assignCategory('draft');
 		categories.selectCategory('work');
 		categories.assignCategory('draft');
 		categories.transferCategory('draft', 'started');
 		categories.assignCategory('work');
-		categories.selectCategory('chat');
+		categories.selectCategory('personal');
 		categories.transferCategory('started', 'started');
 		const restored = disposables.add(new SessionCategoriesService(storage, environment));
 		const editor = disposables.add(new SessionCategoriesService(storage, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false })));
@@ -115,7 +116,26 @@ suite('Sessions - SessionsViewPane', () => {
 			discardedDraft: restored.getCategory('draft'),
 			selection: restored.selectedCategory.get(),
 			editorSelection: editor.selectedCategory.get(),
-		}, { chat: 'chat', work: 'work', legacy: 'work', discardedDraft: 'work', selection: 'chat', editorSelection: 'work' });
+		}, { chat: 'personal', work: 'work', legacy: 'work', discardedDraft: 'work', selection: 'personal', editorSelection: 'work' });
+	});
+
+	test('a folder\'s context takes precedence over its sessions\' and legacy Chat values read as Personal', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const categories = disposables.add(new SessionCategoriesService(storage, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true })));
+		const folder = URI.file('/personal-project');
+		categories.setCategory('in-folder', 'work');
+		categories.setCategory('no-folder', 'work');
+		const beforeMove = categories.resolveCategory('in-folder', folder);
+		categories.setFolderCategory(folder, 'personal');
+		storage.store('sessions.category.legacy', 'chat', StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual({
+			beforeMove,
+			inFolder: categories.resolveCategory('in-folder', folder),
+			recorded: categories.getCategory('in-folder'),
+			noFolder: categories.resolveCategory('no-folder', undefined),
+			unknownSessionInFolder: categories.resolveCategory(undefined, folder),
+			legacy: categories.getCategory('legacy'),
+		}, { beforeMove: 'work', inFolder: 'personal', recorded: 'work', noFolder: 'work', unknownSessionInFolder: 'personal', legacy: 'personal' });
 	});
 
 	test('keeps global customization actions operable before a draft session is bound', async () => {

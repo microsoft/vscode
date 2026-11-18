@@ -29,7 +29,8 @@ export type { SessionCategory as SessionsListKind } from '../../common/sessionCa
 import { SessionCategory as SessionsListKind } from '../../common/sessionCategory.js';
 
 export function matchesSessionsListKind(kind: SessionsListKind | undefined, category: SessionsListKind | undefined): boolean {
-	return kind === undefined || kind === (category ?? 'work');
+	// Earlier builds stored Personal as 'chat'.
+	return kind === undefined || kind === (category as string === 'chat' ? 'personal' : category ?? 'work');
 }
 
 export interface ISessionFilterOption {

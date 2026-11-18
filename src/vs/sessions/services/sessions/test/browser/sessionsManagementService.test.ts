@@ -6429,10 +6429,10 @@ suite('SessionsManagementService', () => {
 					override async sendRequest(): Promise<ISession> { return started; }
 				}(draft);
 				const { service, categories } = createSessionsManagementService(draft, disposables, provider);
-				categories.selectCategory(quickChat ? 'work' : 'chat');
+				categories.selectCategory(quickChat ? 'work' : 'personal');
 				const created = quickChat ? service.createQuickChat()! : service.createNewSession(folder);
 				const draftCategory = categories.getCategory(created.sessionId);
-				categories.selectCategory(quickChat ? 'chat' : 'work');
+				categories.selectCategory(quickChat ? 'personal' : 'work');
 				const startedEvent = Event.toPromise(service.onDidStartSession);
 				await service.sendNewChatRequest(created, { query: 'hello', background });
 				await startedEvent;
@@ -6440,9 +6440,9 @@ suite('SessionsManagementService', () => {
 			}
 		}
 		assert.deepStrictEqual(results, [
-			{ background: false, quickChat: false, draft: 'chat', started: 'chat' },
+			{ background: false, quickChat: false, draft: 'personal', started: 'personal' },
 			{ background: false, quickChat: true, draft: 'work', started: 'work' },
-			{ background: true, quickChat: false, draft: 'chat', started: 'chat' },
+			{ background: true, quickChat: false, draft: 'personal', started: 'personal' },
 			{ background: true, quickChat: true, draft: 'work', started: 'work' },
 		]);
 	});
@@ -6459,12 +6459,12 @@ suite('SessionsManagementService', () => {
 			override resolveWorkspace(): ISessionWorkspace { return workspace; }
 		}(quick);
 		const { service, categories } = createSessionsManagementService(quick, disposables, provider);
-		categories.selectCategory('chat');
+		categories.selectCategory('personal');
 		service.createQuickChat();
 		categories.selectCategory('work');
 		const replacement = service.createNewSession(folder);
 		assert.deepStrictEqual({ workspace: replacement.workspace.get()?.uri, category: categories.getCategory(replacement.sessionId) }, {
-			workspace: folder, category: 'chat',
+			workspace: folder, category: 'personal',
 		});
 	});
 

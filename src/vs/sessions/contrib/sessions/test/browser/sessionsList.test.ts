@@ -235,11 +235,11 @@ suite('Sessions - SessionsList', () => {
 			}
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 				kind, grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
-				getCategory: session => session.sessionId.includes('chat') ? 'chat' : 'work',
+				getCategory: session => session.sessionId.includes('chat') ? 'personal' : 'work',
 			}));
 			list.setExcludeArchived(false);
 			const work = collectIds(list.getTreeSnapshot()).sort();
-			kind.set('chat', undefined);
+			kind.set('personal', undefined);
 			const chat = collectIds(list.getTreeSnapshot()).sort();
 			list.resetFilters();
 			const kindAfterReset = kind.get();
@@ -248,7 +248,7 @@ suite('Sessions - SessionsList', () => {
 		assert.deepStrictEqual(results, Array.from({ length: 5 }, () => ({
 			work: ['archived-work', 'hydrating', 'pinned-work', 'work'],
 			chat: ['archived-chat', 'chat', 'pinned-chat'],
-			kindAfterReset: 'chat',
+			kindAfterReset: 'personal',
 		})));
 	});
 
@@ -264,11 +264,11 @@ suite('Sessions - SessionsList', () => {
 			const kind = observableValue<SessionsListKind>(disposables, 'work');
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 				kind, grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
-				getCategory: session => session.sessionId === 'chat' ? 'chat' : 'work',
+				getCategory: session => session.sessionId === 'chat' ? 'personal' : 'work',
 			}));
 			const listed = () => sessions.filter(session => list.isSessionListed(session)).map(session => session.sessionId);
 			const work = listed();
-			kind.set('chat', undefined);
+			kind.set('personal', undefined);
 			const chat = listed();
 			model.hideAutomationSessions([sessions[1]]);
 			const hidden = listed();
@@ -290,11 +290,11 @@ suite('Sessions - SessionsList', () => {
 		const kind = observableValue<SessionsListKind>(disposables, 'work');
 		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 			kind, grouping: () => kind.get() === 'work' ? SessionsGrouping.Workspace : SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
-			getCategory: session => session.sessionId === 'chat' ? 'chat' : 'work',
+			getCategory: session => session.sessionId === 'chat' ? 'personal' : 'work',
 		}));
 		const sections = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [node.label] : []);
 		const work = sections();
-		kind.set('chat', undefined);
+		kind.set('personal', undefined);
 		assert.deepStrictEqual({ work, chat: sections() }, { work: ['Work Folder'], chat: ['Recent'] });
 	});
 
@@ -304,7 +304,7 @@ suite('Sessions - SessionsList', () => {
 		const groups: ISessionGroup[] = ['work-comparison', 'chat-comparison', 'pending-work', 'pending-chat'].map(id => ({ id, name: id, createdAt: 1 }));
 		const comparisons: ISessionComparison[] = groups.map((group, index) => ({
 			id: group.id, groupId: group.id, title: group.name, prompt: 'Compare', createdAt: 1,
-			category: index % 2 === 0 ? 'work' : 'chat',
+			category: index % 2 === 0 ? 'work' : 'personal',
 			workspace: index % 2 === 1 ? URI.file('/workspace') : undefined,
 			launching: index >= 2,
 			participants: index < 2 ? [{
@@ -319,13 +319,13 @@ suite('Sessions - SessionsList', () => {
 		const kind = observableValue<SessionsListKind>(disposables, 'work');
 		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 			kind, grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
-			getCategory: session => session.sessionId === chat.sessionId ? 'chat' : 'work',
+			getCategory: session => session.sessionId === chat.sessionId ? 'personal' : 'work',
 		}));
 		const collectGroups = (nodes: readonly SessionsListSnapshotNode[]): string[] => nodes.flatMap(node => node.type === 'session' ? [] : [
 			...(node.type === 'group' ? [node.label] : []), ...collectGroups(node.children),
 		]);
 		const workGroups = collectGroups(list.getTreeSnapshot()).sort();
-		kind.set('chat', undefined);
+		kind.set('personal', undefined);
 		assert.deepStrictEqual({ workGroups, chatGroups: collectGroups(list.getTreeSnapshot()).sort() }, {
 			workGroups: ['pending-work', 'work-comparison'],
 			chatGroups: ['chat-comparison', 'pending-chat'],

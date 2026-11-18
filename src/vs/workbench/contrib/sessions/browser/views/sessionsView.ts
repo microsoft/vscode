@@ -9,7 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue, runOnChange } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
@@ -64,7 +64,7 @@ import { Menus, SessionsViewShowGroup } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
-import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext, SessionsSelectedCategoryContext } from '../../common/contextkeys.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
@@ -292,7 +292,7 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 	/** Whether grouping by time lists the sessions without a workspace in the "Chats" section. See the sessions list's option. */
 	readonly quickChatsInTimeGrouping?: boolean;
 
-	/** Separates sessions by their starting tab; opt-in for the Agents window. */
+	/** Separates Work and Personal sessions (see {@link ISessionCategoriesService}); opt-in for the Agents window. */
 	readonly separateWorkAndChat?: boolean;
 }
 
@@ -405,11 +405,8 @@ export class SessionsView extends ViewPane {
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
 		if (this.workChatToggle) {
-			this._register(runOnChange(this.workChatToggle.kind, () => {
-				bindSessionsViewGroupings(contextKeyService, this.offeredGroupings);
-				this.groupingContextKey?.set(this.grouping);
-				this.updateHeaderLayout();
-			}));
+			const selectedCategory = SessionsSelectedCategoryContext.bindTo(contextKeyService);
+			this._register(autorun(reader => selectedCategory.set(this.workChatToggle!.kind.read(reader))));
 		}
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING) && this.currentGrouping === undefined) {
@@ -508,7 +505,8 @@ export class SessionsView extends ViewPane {
 		const inSessionsWindow = this.scopedContextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true;
 		const sessionsControl = this.sessionsControl = this._register(listInstantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			kind: this.workChatToggle?.kind,
-			getCategory: this.workChatToggle ? (session, reader) => this.sessionCategoriesService.getCategory(session.sessionId, reader) : undefined,
+			getCategory: this.workChatToggle ? (session, reader) => this.sessionCategoriesService.resolveCategory(session.sessionId, session.workspace.read(reader)?.uri, reader) : undefined,
+			getItemCategory: this.workChatToggle ? (folder, category, reader) => (folder && this.sessionCategoriesService.getFolderCategory(folder, reader)) ?? category : undefined,
 			pendingSections: derived(this, reader => {
 				const claimedDraftIds = this.scheduledChatsService.claimedDraftIds.read(reader);
 				const drafts = this.sessionDraftsService.sections.read(reader)
@@ -1372,18 +1370,12 @@ export class SessionsView extends ViewPane {
 	}
 
 	get grouping(): SessionsGrouping {
-		if (this.workChatToggle) {
-			return this.workChatToggle.kind.get() === 'work' ? SessionsGrouping.Workspace : SessionsGrouping.Date;
-		}
 		return this.currentGrouping ?? this.groupings?.default ?? (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
 			? SessionsGrouping.Inbox
 			: SessionsGrouping.Workspace);
 	}
 
 	private get offeredGroupings(): readonly SessionsGrouping[] {
-		if (this.workChatToggle) {
-			return [this.grouping];
-		}
 		return this.groupings?.offered ?? DEFAULT_SESSIONS_GROUPINGS;
 	}
 

@@ -4649,6 +4649,8 @@ interface ISessionsListControlBaseOptions {
 	/** A strict category scope, including the active session, pins, groups, and pending items. */
 	readonly kind?: IObservable<SessionsListKind>;
 	readonly getCategory?: (session: ISession, reader?: IReader) => SessionsListKind;
+	/** The category of a comparison or pending item in `folder` whose recorded category is `category`. */
+	readonly getItemCategory?: (folder: URI | undefined, category: SessionsListKind | undefined, reader?: IReader) => SessionsListKind | undefined;
 	readonly pendingSections?: IObservable<readonly IPendingSessionSection[]>;
 	readonly schedulingEnabled?: IObservable<boolean>;
 	readonly scheduledSessions?: IObservable<readonly IPendingSessionItem[]>;
@@ -6152,7 +6154,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const isComparisonInScope = (comparison: ISessionComparison) => {
 			const sessions = getComparisonSessions(comparison, this._sessionsManagementService);
 			return (!scope || sessions.some(session => scope.has(session.sessionId)))
-				&& matchesSessionsListKind(kind, comparison.category);
+				&& matchesSessionsListKind(kind, this.getItemCategory(comparison.workspace, comparison.category));
 		};
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
@@ -6705,7 +6707,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const pendingItems = [
 			...(this.options.scheduledSessions?.get() ?? []),
 			...(scheduledOnly ? [] : draftsSection?.items ?? []),
-		].filter(item => matchesSessionsListKind(this.options.kind?.get(), item.category) && matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
+		].filter(item => matchesSessionsListKind(this.options.kind?.get(), this.getItemCategory(item.folderUri, item.category)) && matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
 			children.push({
@@ -9520,6 +9522,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this._sessionsListModelService.isSessionPinned(session);
 	}
 
+	private getItemCategory(folder: URI | undefined, category: SessionsListKind | undefined): SessionsListKind | undefined {
+		return this.options.getItemCategory ? this.options.getItemCategory(folder, category) : category;
+	}
+
 	/** Whether the list includes the session before its source filters apply. */
 	isSessionListed(session: ISession, reader?: IReader): boolean {
 		return matchesSessionsListKind(this.options.kind?.read(reader), this.options.getCategory?.(session, reader))
@@ -9745,7 +9751,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * folders, which lists no quick chat and starts none.
 	 */
 	private get hasQuickChatsSection(): boolean {
-		return !this.options.scoped?.get() && !this.options.kind;
+		return !this.options.scoped?.get();
 	}
 
 	private isRenderedInExternalSection(session: ISession): boolean {

@@ -25,13 +25,23 @@ export class SessionsWorkChatToggle extends Disposable {
 			className: 'segmented',
 			ariaLabel: localize('workChat.label', "Session category"),
 			items: [
-				{ text: localize('workChat.work', "{0} Work", '$(code)'), ariaLabel: localize('workChat.workLabel', "Work"), tooltip: localize('workChat.workDescription', "Sessions started in Work, grouped by workspace"), isActive: initial === 'work' },
-				{ text: localize('workChat.chat', "{0} Chat", '$(comment-discussion)'), ariaLabel: localize('workChat.chatLabel', "Chat"), tooltip: localize('workChat.chatDescription', "Sessions started in Chat, without workspace groups"), isActive: initial === 'chat' },
+				{
+					text: localize('sessionCategory.work', "{0} Work", '$(briefcase)'),
+					ariaLabel: localize('sessionCategory.workLabel', "Work"),
+					tooltip: localize('sessionCategory.workDescription', "Sessions in your work folders, and conversations without a folder started here. Switching changes only which sessions are listed: Work and Personal use the same account, agents, and tools."),
+					isActive: initial === 'work',
+				},
+				{
+					text: localize('sessionCategory.personal', "{0} Personal", '$(home)'),
+					ariaLabel: localize('sessionCategory.personalLabel', "Personal"),
+					tooltip: localize('sessionCategory.personalDescription', "Sessions in your personal folders, and conversations without a folder started here. Switching changes only which sessions are listed: Work and Personal use the same account, agents, and tools."),
+					isActive: initial === 'personal',
+				},
 			],
 		}));
 		this.element = this.radio.domNode;
 		this.element.classList.add('sessions-work-chat-toggle');
-		this._register(this.radio.onDidSelect(index => this.sessionCategoriesService.selectCategory(index === 0 ? 'work' : 'chat')));
+		this._register(this.radio.onDidSelect(index => this.sessionCategoriesService.selectCategory(index === 0 ? 'work' : 'personal')));
 		this._register(runOnChange(this.kind, kind => this.radio.setActiveItem(kind === 'work' ? 0 : 1)));
 	}
 }

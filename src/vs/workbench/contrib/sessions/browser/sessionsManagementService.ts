@@ -964,6 +964,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
 		if (isNewSessionRequest) {
 			this.sessionCategoriesService.assignCategory(session.sessionId);
+			this._assignFolderCategory(session, session.workspace.get()?.uri);
+			// A session sent in a folder of the other context moves there; show it.
+			const category = this.sessionCategoriesService.resolveCategory(session.sessionId, session.workspace.get()?.uri);
+			if (!options.background && category !== this.sessionCategoriesService.selectedCategory.get()) {
+				this.sessionCategoriesService.selectCategory(category);
+			}
 		}
 		if (isNewSessionRequest && !provider.sessionTypes.some(type => type.id === session.sessionType)) {
 			throw new Error(localize('newSession.typeUnavailable', "{0} is no longer available for new sessions. Choose an available agent to try again.", provider.label));
@@ -1213,6 +1219,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, createOptions));
 		this.sessionCategoriesService.assignCategory(session.sessionId, category);
+		this._assignFolderCategory(session, folderUri);
 		this._unlistedNewSessions.set(session.resource, session);
 		const requestActivity = new MutableDisposable();
 		try {
@@ -1247,6 +1254,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw error;
 		}
 		return this._configureAndSendNewSession(provider, session, options, createOptions, false, token);
+	}
+
+	/**
+	 * Gives `folder` a context when it has none: that of the sessions already in it, else that of `session`, the first
+	 * session sent in it. Sessions without a folder, such as quick chats, keep their own.
+	 */
+	private _assignFolderCategory(session: ISession, folder: URI | undefined): void {
+		if (!folder || session.isQuickChat?.get() || this.sessionCategoriesService.getFolderCategory(folder)) {
+			return;
+		}
+		const existing = this.getSessions().find(other => other.sessionId !== session.sessionId && this.uriIdentityService.extUri.isEqual(other.workspace.get()?.uri, folder));
+		this.sessionCategoriesService.setFolderCategory(folder, this.sessionCategoriesService.getCategory((existing ?? session).sessionId));
 	}
 
 	private async _configureAndSendNewSession(

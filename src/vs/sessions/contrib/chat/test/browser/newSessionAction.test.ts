@@ -24,7 +24,7 @@ import { ICustomViewService } from '../../../../../workbench/contrib/sessions/br
 import { IWindowCanvasService } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
@@ -40,20 +40,20 @@ suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.parse(`${SessionType.AgentHostCopilot}:/new-session`);
 
-	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; chatCategory?: boolean; storage?: IStorageService; isSessionsWindow?: boolean } = {}) {
+	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; chatCategory?: boolean; storage?: IStorageService; isSessionsWindow?: boolean; sessions?: readonly ISession[] } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IViewsService, { getViewWithId: () => null });
 		const environment = upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: options.isSessionsWindow ?? true });
 		instantiationService.stub(IWorkbenchEnvironmentService, environment);
 		const categories = store.add(new SessionCategoriesService(options.storage ?? store.add(new InMemoryStorageService()), environment));
 		if (options.chatCategory) {
-			categories.selectCategory('chat');
+			categories.selectCategory('personal');
 		}
 		instantiationService.stub(ISessionCategoriesService, categories);
 		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 		instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
-		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
+		const opened: { target: (ICreateNewSessionOptions & { readonly folderUri?: URI }) | undefined; preserveNavigation: boolean | undefined }[] = [];
 		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		let navigations = 0;
 		instantiationService.stub(INewSessionComposerService, {
@@ -61,6 +61,9 @@ suite('NewChatInSessionsWindowAction', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, {
 			isQuickChatTargetAvailable: () => options.available ?? true,
+			getSessions: () => [...options.sessions ?? []],
+			getNewSessionTarget: () => undefined,
+			isNewSessionTargetAvailable: () => true,
 		});
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(options.active ? upcastPartial<ITestSessionWithChat>({
@@ -143,16 +146,16 @@ suite('NewChatInSessionsWindowAction', () => {
 		assert.deepStrictEqual(fixture.opened, [{ target: undefined, preserveNavigation: true }]);
 	});
 
-	test('New Session in Chat assigns the category and defaults the workspace picker to Chat', async () => {
+	test('New Session in Personal without a personal folder assigns the category and starts without a workspace', async () => {
 		const fixture = createCommand({ chatCategory: true });
 		assert.deepStrictEqual({ result: await fixture.run(), opened: fixture.opened, category: fixture.categories.getCategory('new-session') }, {
 			result: resource,
-			opened: [{ target: { category: 'chat' }, preserveNavigation: false }],
-			category: 'chat',
+			opened: [{ target: { category: 'personal' }, preserveNavigation: false }],
+			category: 'personal',
 		});
 	});
 
-	test('restores Chat for New Session before the Sessions view is instantiated', async () => {
+	test('restores Personal for New Session before the Sessions view is instantiated', async () => {
 		const storage = store.add(new InMemoryStorageService());
 		const previous = createCommand({ chatCategory: true, storage });
 		previous.categories.dispose();
@@ -166,25 +169,38 @@ suite('NewChatInSessionsWindowAction', () => {
 			editorOpened: editor.opened,
 		}, {
 			result: resource,
-			opened: [{ target: { category: 'chat' }, preserveNavigation: false }],
-			category: 'chat',
+			opened: [{ target: { category: 'personal' }, preserveNavigation: false }],
+			category: 'personal',
 			editorResult: resource,
 			editorOpened: [{ target: { toSide: undefined, folderUri: undefined }, preserveNavigation: undefined }],
 		});
+		// Without workspace-less agents, Personal starts an ordinary new session.
 		const unavailable = createCommand({ storage, available: false });
-		await assert.rejects(async () => unavailable.run(), /Workspace-less chat is unavailable/);
-		assert.deepStrictEqual(unavailable.opened, []);
+		await unavailable.run();
+		assert.deepStrictEqual(unavailable.opened, [{ target: { toSide: undefined, folderUri: undefined, category: 'personal' }, preserveNavigation: undefined }]);
 	});
 
-	test('explicit workspace-less options preserve navigation when Chat is selected', async () => {
+	test('explicit workspace-less options preserve navigation when Personal is selected', async () => {
 		const fixture = createCommand({ chatCategory: true });
 		await fixture.run({ noWorkspace: true });
 		assert.deepStrictEqual(fixture.opened, [{ target: undefined, preserveNavigation: true }]);
 	});
 
-	test('Chat defaults report unsupported or failed workspace-less creation', async () => {
-		await assert.rejects(async () => createCommand({ chatCategory: true, available: false }).run(), /Workspace-less chat is unavailable/);
-		await assert.rejects(async () => createCommand({ chatCategory: true, creationFailed: true }).run(), /Could not create a conversation/);
+	test('New Session starts in the selected context\'s most recently updated folder', async () => {
+		const session = (sessionId: string, folder: string, updated: number) => upcastPartial<ISession>({
+			sessionId, providerId: 'provider', sessionType: 'agent', createdAt: new Date(0),
+			updatedAt: constObservable(new Date(updated)), isArchived: constObservable(false), isQuickChat: constObservable(false),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ uri: URI.file(folder) })),
+		});
+		const sessions = [session('old-personal', '/old-personal', 1), session('personal', '/personal', 2), session('work', '/work', 3)];
+		const personal = createCommand({ chatCategory: true, sessions });
+		personal.categories.setFolderCategory(URI.file('/old-personal'), 'personal');
+		personal.categories.setFolderCategory(URI.file('/personal'), 'personal');
+		await personal.run();
+		const work = createCommand({ sessions });
+		work.categories.setFolderCategory(URI.file('/personal'), 'personal');
+		await work.run();
+		assert.deepStrictEqual({ personal: personal.opened.map(({ target }) => target?.folderUri?.path), work: work.opened.map(({ target }) => target?.folderUri?.path) }, { personal: ['/personal'], work: ['/work'] });
 	});
 
 	test('uses the provider creation target instead of the active backend workspace', async () => {

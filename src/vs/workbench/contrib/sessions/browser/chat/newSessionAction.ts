@@ -31,7 +31,7 @@ import { INewSessionComposerService } from '../newSessionComposerService.js';
 import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { ISessionCategoriesService } from '../../common/sessionCategory.js';
+import { ISessionCategoriesService, SessionCategory } from '../../common/sessionCategory.js';
 
 /** The folder, provider and agent a new session inherits ({@link getInheritedNewSessionTarget}). */
 export interface IInheritedNewSessionTarget extends Pick<ICreateNewSessionOptions, 'providerId' | 'sessionTypeId'> {
@@ -66,6 +66,31 @@ export function getInheritedNewSessionTarget(sessionsManagementService: ISession
 		...inheritedTarget,
 		...(containerSourceProviderId ? { requireDevContainer: true } : {}),
 	};
+}
+
+/**
+ * The session a new session of `category` starts like: `activeSession` when it has a folder of that context, else the
+ * most recently updated unarchived session with a folder of that context.
+ */
+function getCategorySourceSession(sessionsManagementService: ISessionsManagementService, sessionCategoriesService: ISessionCategoriesService, category: SessionCategory, activeSession: ISession | undefined): ISession | undefined {
+	const hasFolderOfCategory = (session: ISession) => {
+		const folder = session.workspace.get()?.uri;
+		return !!folder && !session.isQuickChat?.get() && sessionCategoriesService.resolveCategory(session.sessionId, folder) === category;
+	};
+	if (activeSession && hasFolderOfCategory(activeSession)) {
+		return activeSession;
+	}
+	let source: ISession | undefined;
+	for (const session of sessionsManagementService.getSessions()) {
+		if (!session.isArchived.get() && hasFolderOfCategory(session) && (!source || getLastUpdated(session) > getLastUpdated(source))) {
+			source = session;
+		}
+	}
+	return source;
+}
+
+function getLastUpdated(session: ISession): number {
+	return (session.updatedAt.get() ?? session.createdAt).getTime();
 }
 
 export class NewChatInSessionsWindowAction extends Action2 {
@@ -112,16 +137,16 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionCategoriesService = !options && accessor.get(IWorkbenchEnvironmentService).isSessionsWindow ? accessor.get(ISessionCategoriesService) : undefined;
 		const category = sessionCategoriesService?.selectedCategory.get();
-		if (category === 'chat') {
-			if (!sessionsManagementService.isQuickChatTargetAvailable()) {
-				throw new Error(localize('sessions.newSession.quickChatUnavailable', "Workspace-less chat is unavailable. Enable an agent that supports sessions without a project."));
-			}
-			options = { noWorkspace: true };
-		}
 		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;
 		// New sessions open in the main window, from the session it shows.
 		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
 		const activeSession = mainWindowHost.session.get();
+		// In Work or Personal, a new session starts in the folder of the shown session when it is of that context, else in
+		// the context's most recently used folder. Personal without a folder of its own starts without a workspace.
+		const categorySource = category ? getCategorySourceSession(sessionsManagementService, sessionCategoriesService!, category, activeSession) : undefined;
+		if (category === 'personal' && !categorySource && sessionsManagementService.isQuickChatTargetAvailable()) {
+			options = { noWorkspace: true };
+		}
 		if (!options?.toSide) {
 			accessor.get(ISessionDraftsService).stowAndClear();
 		}
@@ -155,9 +180,6 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			if (category && session) {
 				sessionCategoriesService!.setCategory(session.sessionId, category);
 			}
-			if (category === 'chat' && !session) {
-				throw new Error(localize('sessions.newSession.quickChatCreationFailed', "Could not create a conversation without a project."));
-			}
 			if (options.agentHostProvider && !session) {
 				throw new Error(localize('sessions.newSession.creationFailed', "Could not create a session for Agent Host provider '{0}'.", options.agentHostProvider));
 			}
@@ -173,7 +195,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 				recentWorkspacesService.clearCheckedWorkspace();
 			}
 			sessionsService.unsetNewSession();
-			const { session } = await sessionsService.openNewSession();
+			const { session } = await sessionsService.openNewSession(categorySource ? { ...getInheritedNewSessionTarget(sessionsManagementService, accessor.get(ISessionsProvidersService), categorySource), category } : undefined);
 			if (category && session) {
 				sessionCategoriesService!.setCategory(session.sessionId, category);
 			}
@@ -183,7 +205,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		const { session } = await sessionsService.openNewSession({
 			toSide: options?.toSide,
-			...getInheritedNewSessionTarget(sessionsManagementService, accessor.get(ISessionsProvidersService), isQuickChat ? undefined : activeSession),
+			...getInheritedNewSessionTarget(sessionsManagementService, accessor.get(ISessionsProvidersService), category ? categorySource : isQuickChat ? undefined : activeSession),
 			...(category ? { category } : {}),
 		});
 		if (category && session) {
