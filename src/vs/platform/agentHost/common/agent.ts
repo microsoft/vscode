@@ -751,6 +751,15 @@ export interface IAgentTokenUsageSummary {
 	readonly knownCacheReadTokens?: number;
 }
 
+/** Observed provider interactions and steering lineage. */
+export interface IAgentTurnInteraction {
+	readonly sdkSessionId: string;
+	readonly originalTurnId?: string;
+	readonly steeredFromTurn?: string;
+	readonly interactionIds: readonly string[];
+	readonly interactionIdsTruncated: boolean;
+}
+
 /** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */
 export interface IAgentTurnTokenUsage {
 	readonly summaries: readonly IAgentTokenUsageSummary[];
@@ -1105,6 +1114,12 @@ export interface IAgentChatContext {
 	readonly originalMessageText?: string;
 	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
+	/**
+	 * The still-pending turn-start checkpoint capture, supplied only for the send of a
+	 * provider that sets {@link IAgentChats.awaitsTurnStartCheckpoint}. The provider
+	 * must await it before any tool of the turn runs and must not run tools if it rejects.
+	 */
+	readonly turnStartCheckpoint?: Promise<void>;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
 	/**
@@ -1478,10 +1493,18 @@ export interface IAgentChatReleaseOptions {
  */
 export interface IAgentChats {
 	/**
+	 * Whether the provider awaits the turn-start checkpoint itself, before the
+	 * turn's first tool runs, via {@link IAgentChatContext.turnStartCheckpoint}.
+	 * The host then sends without waiting for the capture; otherwise it awaits
+	 * the capture before {@link sendMessage}.
+	 */
+	readonly awaitsTurnStartCheckpoint?: boolean;
+
+	/**
 	 * Optional pre-send preparation, such as materializing a deferred provider
 	 * session, after the turn's model/agent selection and working directories
 	 * are resolved. The host may run it concurrently with the turn-start
-	 * checkpoint capture and awaits both before {@link sendMessage} for the same
+	 * checkpoint capture and awaits it before {@link sendMessage} for the same
 	 * `turnId`, so implementations must not send a prompt or modify the working
 	 * tree. Preparation that is not needed must resolve without doing work.
 	 */
@@ -2308,6 +2331,9 @@ export interface IAgent {
 
 	/** Read observed usage at terminal dispatch for this exact owning turn, excluding descendants and later delivery. */
 	getTurnTokenUsage?(chat: URI, turnId: string, parentToolCallId?: string): IAgentTurnTokenUsage | undefined;
+
+	/** Capture bounded provider interaction and steering lineage from cached state. */
+	getTurnInteraction?(chat: URI, turnId: string): IAgentTurnInteraction | undefined;
 
 	/** Record the host-remapped turn for a completed provider model call. */
 	recordModelCallTurnCorrelation?(chat: URI, modelCallId: string, turnId: string): void;

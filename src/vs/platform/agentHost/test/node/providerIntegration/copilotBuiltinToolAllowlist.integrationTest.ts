@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mkdir, mkdtemp, rm } from 'fs/promises';
 import type { Server } from 'http';
 import { tmpdir } from 'os';
-import { CopilotClient, type SessionConfig } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient, type CreateSessionOptions } from '@microsoft/copilot-sdk';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -149,16 +149,23 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 		assert.ok(address && typeof address !== 'string');
 		endpoint = `http://127.0.0.1:${address.port}`;
 		client = new CopilotClient({
-			useLoggedInUser: false,
-			gitHubToken: 'synthetic-no-real-credential',
-			logLevel: 'error',
-			env: {
-				...createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory), [], false, undefined, undefined, true),
-				COPILOT_API_URL: endpoint,
-				COPILOT_DEBUG_GITHUB_API_URL: endpoint,
-				COPILOT_MANAGED_SETTINGS_CACHE: '0',
-				COPILOT_TELEMETRY_ENABLED: 'false',
+			mode: 'coding-agent',
+			github: {
+				useLoggedInUser: false,
+				token: 'synthetic-no-real-credential',
 			},
+			observability: {
+				logLevel: 'error',
+			},
+			runtime: RuntimeConnection.forSpawnedStdio({
+				env: {
+					...createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory), [], false, undefined, undefined, true),
+					COPILOT_API_URL: endpoint,
+					COPILOT_DEBUG_GITHUB_API_URL: endpoint,
+					COPILOT_MANAGED_SETTINGS_CACHE: '0',
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				},
+			}),
 		});
 		await client.start();
 	});
@@ -183,22 +190,23 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 
 	/** The built-ins a session registers across every mode, by name, with their descriptions. */
 	async function registeredBuiltins(model: string, availableTools: string[] | undefined): Promise<Map<string, string>> {
-		const config: SessionConfig = {
+		const config: CreateSessionOptions = {
 			model,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			workingDirectory: join(directory, 'workspace'),
-			onPermissionRequest: () => ({ kind: 'denied-interactively-by-user' }),
-			onUserInputRequest: () => ({ answer: '', wasFreeform: true }),
-			askUserVariant: 'elicitation',
-			onElicitationRequest: () => ({ action: 'cancel' }),
-			onExitPlanModeRequest: () => ({ approved: false }),
-			interactiveUser: true,
+			permissions: { onRequest: () => ({ kind: 'denied-interactively-by-user' }) },
+			interaction: {
+				onUserInputRequest: () => ({ answer: '', wasFreeform: true }),
+				askUserVariant: 'elicitation',
+				onElicitationRequest: () => ({ action: 'cancel' }),
+				onExitPlanModeRequest: () => ({ approved: false }),
+			},
+			github: { interactiveUser: true },
 			enableConfigDiscovery: false,
-			enableSkills: true,
-			featureFlags: { MCP_SKILLS: true },
-			enableSessionStore: true,
-			infiniteSessions: { enabled: true },
-			...(availableTools ? { availableTools } : {}),
+			skills: { enabled: true },
+			experiments: { flags: { MCP_SKILLS: true } },
+			state: { enableCrossSessionStore: true, infiniteSessions: { enabled: true } },
+			...(availableTools ? { tools: { availableTools } } : {}),
 		};
 		const session = await client!.createSession(config);
 		try {

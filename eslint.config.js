@@ -1510,7 +1510,7 @@ export default [
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
-						'@github/copilot-sdk',
+						'@microsoft/copilot-sdk',
 						'zod',
 						'@microsoft/dev-tunnels-contracts',
 						'@microsoft/dev-tunnels-management',
@@ -1664,7 +1664,7 @@ export default [
 						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
 						'@anthropic-ai/claude-agent-sdk', // used by agentHost for Claude Agent SDK session enumeration / queries
 						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
-						'@github/copilot-sdk',
+						'@microsoft/copilot-sdk',
 						'zod', // used by agentHost for Claude client-tool MCP input schemas
 						{ 'when': 'hasNode', 'pattern': 'libsodium-wrappers' },
 						{ 'when': 'hasNode', 'pattern': '@hpke/core' },

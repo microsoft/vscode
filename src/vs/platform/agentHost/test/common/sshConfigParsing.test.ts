@@ -118,6 +118,19 @@ suite('SSH Config Parsing', () => {
 
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver']);
 		});
+
+		test('skips GitHub hosts', () => {
+			const config = [
+				'Host GitHub.com ssh.github.com myserver',
+				'	HostName 10.0.0.1',
+				'',
+				'Host github-work',
+				'	HostName github.com',
+			].join('\n');
+
+			// Aliases are kept even when their HostName points at GitHub: the effective HostName depends on OpenSSH's precedence rules.
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver', 'github-work']);
+		});
 	});
 
 	suite('parseSSHConfigIncludePaths', () => {
