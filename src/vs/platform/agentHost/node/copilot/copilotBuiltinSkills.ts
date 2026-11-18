@@ -29,7 +29,7 @@ function troubleshootDescriptor() {
 function modelRouterDescriptor() {
 	return {
 		name: modelRouterName,
-		description: localize('copilot.builtinModelRouter.description', "Create, edit or fix a model router: a .model-router.yaml file that picks the model for a chat from routes the user writes. Checks every edit with check_model_router."),
+		description: localize('copilot.builtinModelRouter.description', "Create, edit, clean up or fix a model router: a .model-router.yaml file that picks the model for a chat from routes the user writes. Checks every edit with check_model_router."),
 		userInvocable: true,
 	};
 }
@@ -309,7 +309,7 @@ const modelRouterNamedRoutesExample = [
 
 const modelRouterSkillContent = `# Model router
 
-A model router is a YAML file that VS Code lists as a model in the model picker. A chat that uses it asks a decision model which route fits the request, and runs on that route's model. By default that happens once, on the chat's first message. Use this skill to create, edit or fix one.
+A model router is a YAML file that VS Code lists as a model in the model picker. A chat that uses it asks a decision model which route fits the request, and runs on that route's model. By default that happens once, on the chat's first message. Use this skill to create, edit, clean up or fix one.
 
 ## Where routers live
 
@@ -343,6 +343,20 @@ ${modelRouterExample}
 - Put short hand-off replies in the examples of the route that should do the work, such as "fix it (after finding the cause)" or "do that and open a PR" under the building route. On their own they read like quick chores.
 - A message can ask for two kinds of work, such as "brainstorm this, then build it" or "find the cause and fix it". The decision can go either way on those, so say where they go: in the \`when\` of the route that should take them ("…, including when the message also asks to build the result"), or as a rule in the top-level \`guidance\`.
 - Keep the top-level \`guidance\` for rules that hold for every request. A line like "prefer the cheapest model" pulls almost every request to the cheapest model's route.
+
+## Cleaning up an existing router
+
+When the user asks to review, clean up or improve a router, a clean check is not enough: the check does not read what the routes say. Read the router against this list and fix what you find:
+
+- Routes whose \`when\` overlap or contradict each other, so that a request fits two of them. Say in one of them where those requests go, or merge them.
+- A first route that is a cheap catch-all.
+- A \`when\` that names a topic and not the work, or a route with no examples for the short requests it should take.
+- No rule for requests that ask for two kinds of work.
+- An exact model version where a family would do. Keep the version when the file or the user says it is wanted.
+- Top-level \`guidance\` that pulls every request one way, or that holds instructions for the agent: those belong in a route's \`guidance\`.
+- Keys the check reports as unknown, ignored or reserved.
+
+A router says how the user wants to work, so keep their routes, models and wording where they are not a problem. Tell the user each change and why. Ask before you remove a route or change which model it uses.
 
 ## Named routes and guidance
 
