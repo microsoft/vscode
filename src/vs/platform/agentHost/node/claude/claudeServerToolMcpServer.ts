@@ -64,7 +64,7 @@ export async function buildServerToolMcpServer(
 	const tools = await Promise.all(definitions.map(def => sdk.tool(
 		def.name,
 		def.description ?? '',
-		jsonSchemaToZodRawShape(def.inputSchema),
+		jsonSchemaToZodRawShape(def.deferLoading === true ? def.deferredInputSchema ?? def.inputSchema : def.inputSchema),
 		async (args, extra) => {
 			try {
 				const text = await host.executeTool(chatUri, def.name, args, extractToolUseId(extra));

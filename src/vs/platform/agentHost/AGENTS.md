@@ -413,6 +413,10 @@ A `currentSession` chat without `workspace` shares the current session's complet
 
 All of the above applies only when the session's provider advertises the `multipleWorkingDirectories` capability. Copilot, Claude, and Codex always advertise it. Without it, the session is offered the shared-workspace variant of `create_session`: `relationship` is required, every `currentSession` chat shares the session's workspace, and `workspace` and `worktree` are rejected for `currentSession` and remain valid only for `independent` sessions.
 
+The new chat's model selection is resolved before anything is created. A chat on the calling chat's agent inherits that chat's complete selection, including its reasoning effort and context size, when `model` is omitted; an explicit `model` starts from its own defaults. While `chat.agentHost.sessionModelOptions` is `inline` or `tool`, a `model` that names the calling chat's model is inherited the same way. `model` is resolved in the catalog the calling chat uses: the credential-scoped catalog for a caller with credentials, never the host's shared one. Reading that catalog can start model discovery, so it is read only when a call needs it, after every check that doesn't. While the setting is `inline` or `tool`, `create_session` also offers `reasoningEffort` and `contextTier`, which are then set in `ModelSelection.config` as explicit choices (`thinkingLevel`, and the `contextSize` that the tier selects from the model's context-size options), replacing each option's legacy alias (`reasoningEffort`, `contextTier`) so a stale value can't override them. Each is checked against the model's `configSchema` in the same catalog. An option the model doesn't offer, a model router, or a request without a model to apply it to fails before any folder, session, or chat is created. Claude offers no `contextSize`: its larger windows are separate models. With `off`, the tool's schema is unchanged and both arguments are ignored.
+
+`chat.agentHost.sessionModelOptions` (root key `sessionModelOptions`, experiment-controlled) is the experiment: `off`, the default and control, keeps `create_session` as it was, and `inline` and `tool` enable everything above and add a way to find the models and options `create_session` accepts. With `inline`, `create_session`'s `deferredInputSchema` lists each agent's models with their `reasoningEffort` values and `long_context` support, so the list costs tokens only where the tool loads on demand; a session on its own credentials gets no list, because its catalog can only be read during a call. With `tool`, the deferred, read-only `list_models` returns the same list from the calling chat's catalog, and `create_session` points to it only while the session offers it. The session tools are materialized, so a session keeps or lacks `list_models` as it was first advertised.
+
 ---
 
 ## 3b. Session State Store
@@ -1079,6 +1083,8 @@ Tool search requires the client to forward its `toolSearch` tool, which users tu
 | Per-model tool filter | `chat.agentHost.copilot.modelCapabilityOverrides` (`availableTools` / `excludedTools`) | Experiment and debugging knob | Not a substitute for the code-level default. |
 
 The Copilot session maps `deferLoading: false` to the SDK's `defer: 'never'` and everything else to `'auto'`, matching the SDK's own default. Claude and Codex own deferral for their runtimes; the host only forwards an explicit value to Claude.
+
+A server tool can also set `deferredInputSchema`, a schema with text that only pays off once the agent loads the tool, such as `create_session`'s model catalog. The Copilot session sends it when it defers the tool, Claude when the tool sets `deferLoading: true`, and Codex never, because Codex keeps every server tool eager. It is never published to clients.
 
 ### Guardrails that fail a PR
 
