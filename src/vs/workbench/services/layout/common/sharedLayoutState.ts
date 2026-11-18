@@ -16,8 +16,8 @@ export const ISharedLayoutStateService = createDecorator<ISharedLayoutStateServi
 
 /**
  * Stores layout state that all windows of a profile share, for example the location
- * of view containers and views. The state is stored in the profile, so a change made
- * in one window applies to all windows of the profile.
+ * of view containers and views or the panel alignment. The state is stored in the
+ * profile, so a change made in one window applies to all windows of the profile.
  *
  * A window can use a local copy of this state instead, for example while a named
  * layout is active. Changes to the local copy only apply to this window. The local
@@ -49,6 +49,7 @@ export interface ISharedLayoutStateService {
 	 * Returns the value of the given key, or the fallback value if it has no value.
 	 */
 	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
 
 	/**
 	 * Stores the value of the given key. Shared values are user state and
@@ -119,7 +120,9 @@ export class SharedLayoutStateService extends Disposable implements ISharedLayou
 		return Event.filter(this._onDidChangeValue.event, changedKey => changedKey === key, disposable);
 	}
 
-	get(key: string, fallbackValue: string): string {
+	get(key: string, fallbackValue: string): string;
+	get(key: string, fallbackValue?: string): string | undefined;
+	get(key: string, fallbackValue?: string): string | undefined {
 		this.keys.add(key);
 		return this.getValue(key) ?? fallbackValue;
 	}

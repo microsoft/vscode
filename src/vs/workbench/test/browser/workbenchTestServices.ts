@@ -719,6 +719,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	toggleMaximizedAuxiliaryBar(): void { }
 	setAuxiliaryBarMaximized(maximized: boolean): boolean { return false; }
 	isAuxiliaryBarMaximized(): boolean { return false; }
+	isVisibleWhenAuxiliaryBarNotMaximized(part: Parts.SIDEBAR_PART | Parts.PANEL_PART): boolean { return this.isVisible(part); }
 	hideAuxiliaryBarMaximize(): IDisposable { return Disposable.None; }
 	isAuxiliaryBarMaximizeHidden(): boolean { return false; }
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }

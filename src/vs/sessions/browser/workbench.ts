@@ -3318,6 +3318,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return false; // Maximize not supported
 	}
 
+	isVisibleWhenAuxiliaryBarNotMaximized(part: Parts.SIDEBAR_PART | Parts.PANEL_PART): boolean {
+		return this.isVisible(part);
+	}
+
 	hideAuxiliaryBarMaximize(): IDisposable {
 		return Disposable.None; // Maximize not supported
 	}

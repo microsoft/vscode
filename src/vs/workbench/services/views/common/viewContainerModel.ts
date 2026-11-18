@@ -127,6 +127,13 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private updateGlobalState(viewDescriptors: ReadonlyArray<IViewDescriptor>): void {
+		// The stored state changed and this window has not applied the change yet, for example while
+		// switching layouts moves views before their view containers are notified. Do not store the
+		// outdated state over it: the change is applied when it is notified and stored if necessary
+		if (this._globalViewsStatesValue !== undefined && this._globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue()) {
+			return;
+		}
+
 		const storedGlobalState = this.getStoredGlobalState();
 		for (const viewDescriptor of viewDescriptors) {
 			const state = this.get(viewDescriptor.id);

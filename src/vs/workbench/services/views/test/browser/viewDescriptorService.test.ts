@@ -746,4 +746,41 @@ suite('ViewDescriptorService', () => {
 		});
 	});
 
+	test('switching between the shared layout state and a local copy that moves views keeps the visibility of the views in both', function () {
+		const testObject = aViewDescriptorService();
+		const sharedLayoutStateService = instantiationService.get(ISharedLayoutStateService);
+		// eslint-disable-next-line local/code-no-any-casts
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		// eslint-disable-next-line local/code-no-any-casts
+		const viewContainer2 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
+		const aView = (id: string): IViewDescriptor => ({ id, ctorDescriptor: null!, name: { value: id, original: id }, canMoveView: true, canToggleVisibility: true });
+		const view1 = aView('view1');
+		ViewsRegistry.registerViews([view1], viewContainer1);
+		ViewsRegistry.registerViews([aView('view2'), aView('view3')], viewContainer2);
+		testObject.whenExtensionsRegistered();
+		const viewContainer2Model = testObject.getViewContainerModel(viewContainer2);
+		const sharedState = sharedLayoutStateService.getSharedState();
+
+		// A local copy in which a view moved and another view of its new view container is hidden
+		sharedLayoutStateService.setLocalState(sharedLayoutStateService.getState());
+		testObject.moveViewsToContainer([view1], viewContainer2);
+		viewContainer2Model.setVisible('view3', false);
+		const localState = sharedLayoutStateService.getState();
+
+		sharedLayoutStateService.setLocalState(undefined);
+		sharedLayoutStateService.setLocalState(localState);
+
+		assert.deepStrictEqual({
+			views: viewContainer2Model.allViewDescriptors.map(v => v.id).sort((a, b) => compare(a, b)),
+			visibleViews: viewContainer2Model.visibleViewDescriptors.map(v => v.id).sort((a, b) => compare(a, b)),
+			localState: sharedLayoutStateService.getState(),
+			sharedState: sharedLayoutStateService.getSharedState()
+		}, {
+			views: ['view1', 'view2', 'view3'],
+			visibleViews: ['view1', 'view2'],
+			localState,
+			sharedState
+		});
+	});
+
 });

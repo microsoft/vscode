@@ -24,12 +24,10 @@ interface IPaneCompositePartLayoutState {
 
 interface IWorkbenchPartsLayoutState {
 	readonly sideBar: IPaneCompositePartLayoutState;
-	readonly panel: IPaneCompositePartLayoutState & { readonly position: string; readonly alignment: PanelAlignment; readonly maximized: boolean };
+	readonly panel: IPaneCompositePartLayoutState & { readonly position: string; readonly maximized: boolean };
 	readonly auxiliaryBar: IPaneCompositePartLayoutState & { readonly maximized: boolean };
 	readonly editorCentered: boolean;
 }
-
-const PANEL_ALIGNMENTS: readonly PanelAlignment[] = ['left', 'center', 'right', 'justify'];
 
 function isPaneCompositePartLayoutState(candidate: unknown): candidate is IPaneCompositePartLayoutState {
 	const state = candidate as IPaneCompositePartLayoutState;
@@ -45,7 +43,6 @@ function isWorkbenchPartsLayoutState(candidate: unknown): candidate is IWorkbenc
 		&& isPaneCompositePartLayoutState(state.sideBar)
 		&& isPaneCompositePartLayoutState(state.panel)
 		&& typeof state.panel.position === 'string'
-		&& PANEL_ALIGNMENTS.includes(state.panel.alignment)
 		&& typeof state.panel.maximized === 'boolean'
 		&& isPaneCompositePartLayoutState(state.auxiliaryBar)
 		&& typeof state.auxiliaryBar.maximized === 'boolean'
@@ -95,6 +92,8 @@ function onDidResizeWithoutEvent(commandService: ICommandService): Event<unknown
  *
  * The side bar position, the activity bar location and the visibility of the
  * status bar are settings and therefore part of the settings of a named layout.
+ * The panel alignment is part of the state that {@link SharedLayoutStateParticipant}
+ * captures, so that a named layout does not change the alignment of other windows.
  */
 export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant {
 
@@ -110,7 +109,6 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 		this.onDidChange = Event.any<unknown>(
 			layoutService.onDidChangePartVisibility,
 			layoutService.onDidChangePanelPosition,
-			layoutService.onDidChangePanelAlignment,
 			layoutService.onDidChangeAuxiliaryBarMaximized,
 			layoutService.onDidChangeMainEditorCenteredLayout,
 			layoutService.onDidLayoutMainContainer,
@@ -129,7 +127,6 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 			panel: {
 				...this.capturePart(Parts.PANEL_PART, ViewContainerLocation.Panel, isHorizontal(panelPosition), panelMaximized),
 				position: positionToString(panelPosition),
-				alignment: this.layoutService.getPanelAlignment(),
 				maximized: panelMaximized
 			},
 			auxiliaryBar: {
@@ -141,9 +138,16 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 	}
 
 	async apply(state: unknown): Promise<void> {
-		if (!isWorkbenchPartsLayoutState(state)) {
-			return;
+		if (isWorkbenchPartsLayoutState(state)) {
+			await this.applyState(state, undefined);
 		}
+	}
+
+	/**
+	 * Applies the given state and, if given, the panel alignment. The alignment
+	 * is applied before the parts are maximized, because changing it restores them.
+	 */
+	private async applyState(state: IWorkbenchPartsLayoutState, panelAlignment: PanelAlignment | undefined): Promise<void> {
 
 		// Restore the regular size of the parts before arranging them
 		this.unmaximizeParts();
@@ -153,8 +157,8 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 		if (this.layoutService.getPanelPosition() !== panelPosition) {
 			this.layoutService.setPanelPosition(panelPosition);
 		}
-		if (isHorizontal(panelPosition) && this.layoutService.getPanelAlignment() !== state.panel.alignment) {
-			this.layoutService.setPanelAlignment(state.panel.alignment);
+		if (panelAlignment && isHorizontal(panelPosition) && this.layoutService.getPanelAlignment() !== panelAlignment) {
+			this.layoutService.setPanelAlignment(panelAlignment);
 		}
 
 		// Visibility and active view container
@@ -194,12 +198,12 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 		const panelIsHorizontal = isHorizontal(positionFromString(panelPosition));
 		const panelState = panelIsHorizontal === isHorizontal(positionFromString(state.panel.position)) ? state.panel : { ...state.panel, size: undefined };
 
-		await this.apply({
+		// The panel alignment that the definition does not specify is the one of the default layout
+		await this.applyState({
 			sideBar: toPartLayoutState(state.sideBar, definition.sideBar, width),
 			panel: {
 				...toPartLayoutState(panelState, definition.panel, panelIsHorizontal ? height : width),
 				position: panelPosition,
-				alignment: definition.panel?.alignment ?? state.panel.alignment,
 				maximized: definition.panel?.maximized ?? state.panel.maximized
 			},
 			auxiliaryBar: {
@@ -207,7 +211,7 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 				maximized: definition.secondarySideBar?.maximized ?? state.auxiliaryBar.maximized
 			},
 			editorCentered: definition.editor?.centered ?? state.editorCentered
-		} satisfies IWorkbenchPartsLayoutState);
+		}, definition.panel?.alignment);
 	}
 
 	captureDefinition(): INamedLayoutDefinition {
@@ -220,7 +224,7 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 			panel: {
 				...toPartDefinition(state.panel, panelIsHorizontal ? height : width),
 				position: toPanelPositionDefinition(state.panel.position),
-				alignment: state.panel.alignment,
+				alignment: this.layoutService.getPanelAlignment(),
 				maximized: state.panel.maximized
 			},
 			secondarySideBar: {
@@ -241,13 +245,17 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 	}
 
 	private capturePart(part: SINGLE_WINDOW_PARTS, location: ViewContainerLocation, sizeIsHeight: boolean, maximized: boolean): IPaneCompositePartLayoutState {
-		const visible = this.layoutService.isVisible(part);
-		const size = visible && !maximized ? this.layoutService.getSize(part) : undefined;
+		const shown = this.layoutService.isVisible(part);
+
+		// A maximized secondary side bar hides the side bar and the panel until it is restored
+		const visible = part === Parts.SIDEBAR_PART || part === Parts.PANEL_PART ? this.layoutService.isVisibleWhenAuxiliaryBarNotMaximized(part) : shown;
+		const size = shown && !maximized ? this.layoutService.getSize(part) : undefined;
 
 		return {
 			visible,
 			size: size ? (sizeIsHeight ? size.height : size.width) : undefined,
 			activeViewContainer: this.paneCompositePartService.getActivePaneComposite(location)?.getId()
+				?? (visible && !shown ? this.paneCompositePartService.getLastActivePaneCompositeId(location) : undefined)
 		};
 	}
 
@@ -321,8 +329,9 @@ function toViewContainerLocation(location: NamedLayoutViewContainerLocation): Vi
  * Captures and applies the layout state that the default layout shares with the
  * other windows of the profile: the location of view containers and views, the
  * view containers shown in the activity bar, the panel and the secondary side bar
- * and their order, and the visibility and order of the views in each view container.
- * While a named layout is active, this window uses a local copy of that state.
+ * and their order, the visibility and order of the views in each view container,
+ * and the panel alignment. While a named layout is active, this window uses a local
+ * copy of that state.
  *
  * Must be applied before {@link WorkbenchPartsLayoutParticipant}, so that the
  * active view containers it opens are in their locations.
