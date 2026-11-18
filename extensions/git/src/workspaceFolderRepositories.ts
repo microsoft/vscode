@@ -10,8 +10,10 @@ import { isDescendant, pathEquals } from './util';
  * Decides which repositories to open and close as the workspace folders change. The open
  * repositories of removed folders are closed, except that a repository that a visible
  * editor belongs to is retained, and closed once no visible editor belongs to it anymore.
- * The repository of a folder that switched to another of its locations is closed right away,
- * or once the locations are known.
+ * The repository of a location that a folder left, right away when the folder switched to
+ * another of its known locations or once the locations are known, is kept warm instead: hidden
+ * and ready to be shown when the folder switches back. At most `warmCapacity` repositories are
+ * kept warm, the least recently left one is closed first.
  */
 export class WorkspaceFolderRepositories<T> {
 
@@ -20,7 +22,13 @@ export class WorkspaceFolderRepositories<T> {
 	/** The repositories of removed folders that are kept as they are inside a remaining folder. */
 	private readonly keptInWorkspace = new Set<T>();
 
-	constructor(private readonly getRoot: (repository: T) => string) { }
+	/** The warm repositories, the least recently left first. */
+	private readonly warm: T[] = [];
+
+	constructor(
+		private readonly getRoot: (repository: T) => string,
+		private readonly warmCapacity = 3
+	) { }
 
 	/**
 	 * The added workspace folders to open a repository for: the ones that are not the root of an open repository.
@@ -32,15 +40,17 @@ export class WorkspaceFolderRepositories<T> {
 	}
 
 	/**
-	 * Returns the repositories of the folders removed in `e` to close now, and retains
-	 * the ones that a visible editor belongs to, unless their folder switched location.
+	 * Returns the repositories of the folders removed in `e` to close now and the ones of the locations
+	 * that the folders left, to keep warm. Retains the ones that a visible editor belongs to, unless
+	 * their folder switched location.
 	 */
-	onDidChangeWorkspaceFolders(e: WorkspaceFoldersChangeEvent, workspaceFolders: readonly WorkspaceFolder[], getRepository: (folder: Uri) => T | undefined, hasVisibleEditor: (repository: T) => boolean): T[] {
+	onDidChangeWorkspaceFolders(e: WorkspaceFoldersChangeEvent, workspaceFolders: readonly WorkspaceFolder[], getRepository: (folder: Uri) => T | undefined, hasVisibleEditor: (repository: T) => boolean): { close: T[]; leave: T[] } {
 		this.forgetRepositoriesInWorkspace(workspaceFolders);
 
-		const result = new Set<T>();
+		const close = new Set<T>();
+		const leave = new Set<T>();
 		for (const folder of e.removed) {
-			// The location that is left is closed, also when it is nested in the new location, and its editors are replaced by the ones of the new location
+			// The location that is left is kept warm, also when it is nested in the new location, and its editors are replaced by the ones of the new location
 			const isSwitch = this.isFolderLocationSwitch(folder, e.added);
 			const repository = getRepository(folder.uri);
 			if (!repository) {
@@ -52,27 +62,57 @@ export class WorkspaceFolderRepositories<T> {
 				continue;
 			}
 
-			if (!isSwitch && hasVisibleEditor(repository)) {
+			this.retained.delete(repository);
+			this.keptInWorkspace.delete(repository);
+
+			if (isSwitch) {
+				leave.add(repository);
+			} else if (hasVisibleEditor(repository)) {
 				this.retained.add(repository);
 			} else {
-				this.retained.delete(repository);
-				this.keptInWorkspace.delete(repository);
-				result.add(repository);
+				close.add(repository);
 			}
 		}
 
-		return [...result];
+		return { close: [...close], leave: [...leave] };
 	}
 
 	/**
 	 * Returns the repositories of removed folders that were kept as they are inside a remaining folder,
-	 * and that turn out to be another known location of a workspace folder, to close now. This is how a
-	 * switch from a folder whose locations were not known yet is told apart, once they are.
+	 * and that turn out to be another known location of a workspace folder, to keep warm, and the warm
+	 * repositories that are not a known location anymore, to close. This is how a switch from a folder
+	 * whose locations were not known yet is told apart, once they are.
 	 */
-	onDidChangeWorkspaceFolderLocations(workspaceFolders: readonly WorkspaceFolder[]): T[] {
-		const result = [...this.keptInWorkspace].filter(r => this.isOtherFolderLocation(this.getRoot(r), workspaceFolders));
-		result.forEach(r => this.keptInWorkspace.delete(r));
-		return result;
+	onDidChangeWorkspaceFolderLocations(workspaceFolders: readonly WorkspaceFolder[]): { close: T[]; leave: T[] } {
+		const leave = [...this.keptInWorkspace].filter(r => this.isOtherFolderLocation(this.getRoot(r), workspaceFolders));
+		leave.forEach(r => this.keptInWorkspace.delete(r));
+
+		const close = this.warm.filter(r => !this.isOtherFolderLocation(this.getRoot(r), workspaceFolders));
+		close.forEach(r => this.warm.splice(this.warm.indexOf(r), 1));
+
+		return { close, leave };
+	}
+
+	/**
+	 * Keeps `repository` warm, as the most recently left one. Returns the warm repositories that
+	 * do not fit anymore, to close.
+	 */
+	keepWarm(repository: T): T[] {
+		const index = this.warm.indexOf(repository);
+		if (index !== -1) {
+			this.warm.splice(index, 1);
+		}
+
+		this.warm.push(repository);
+		return this.warm.splice(0, Math.max(0, this.warm.length - this.warmCapacity));
+	}
+
+	/**
+	 * Takes the warm repository whose root is `fsPath`, to show it.
+	 */
+	takeWarm(fsPath: string): T | undefined {
+		const index = this.warm.findIndex(r => pathEquals(this.getRoot(r), fsPath));
+		return index === -1 ? undefined : this.warm.splice(index, 1)[0];
 	}
 
 	/**
@@ -98,6 +138,11 @@ export class WorkspaceFolderRepositories<T> {
 	delete(repository: T): void {
 		this.retained.delete(repository);
 		this.keptInWorkspace.delete(repository);
+
+		const index = this.warm.indexOf(repository);
+		if (index !== -1) {
+			this.warm.splice(index, 1);
+		}
 	}
 
 	/**

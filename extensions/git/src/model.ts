@@ -7,7 +7,7 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDefined, isDescendant, Limiter, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -202,6 +202,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
 
 	private possibleGitRepositoryPaths = new Set<string>();
+
+	/** Identifies the latest switch of a workspace folder to another location. */
+	private folderLocationSwitchId = 0;
 
 	private readonly workspaceFolderRepositories = new WorkspaceFolderRepositories<OpenRepository>(r => r.repository.root);
 
@@ -474,30 +477,83 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
 		try {
 			const activeRepositories = this.getVisibleEditorRepositories();
-			const openRepositoriesToDispose = this.workspaceFolderRepositories.onDidChangeWorkspaceFolders(
+			const { close, leave } = this.workspaceFolderRepositories.onDidChangeWorkspaceFolders(
 				{ added, removed },
 				workspace.workspaceFolders || [],
 				uri => this.getOpenRepository(uri),
 				r => activeRepositories.has(r.repository));
 
-			openRepositoriesToDispose.forEach(r => r.dispose());
+			close.forEach(r => r.dispose());
+
+			// The warm repositories of the added folders are shown instead of being opened
+			const show = added.map(folder => this.workspaceFolderRepositories.takeWarm(folder.uri.fsPath)).filter(isDefined);
 
 			// Decided once the repositories of the removed folders are closed, as an added folder can be a repository nested in one of them
 			const possibleRepositoryFolders = this.workspaceFolderRepositories.getAddedFoldersToOpen(added, this.openRepositories.flatMap(r => [r.repository.root, r.repository.rootRealPath ?? r.repository.root]));
 			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
-			await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
+
+			if (leave.length === 0 && show.length === 0) {
+				await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
+				return;
+			}
+
+			// A folder switched location: the location that is left stays shown until the new one is ready
+			const switchId = ++this.folderLocationSwitchId;
+			if (possibleRepositoryFolders.length > 0) {
+				await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath, false, false, true)));
+				const opened = possibleRepositoryFolders
+					.map(folder => this.getOpenRepository(folder.uri))
+					.filter((r): r is OpenRepository => !!r && r.repository.isWarm && !show.includes(r));
+				await Promise.race([Promise.all(opened.map(r => r.repository.whenFirstStatus)), new Promise(c => setTimeout(c, 10000))]);
+				show.push(...opened);
+			}
+
+			if (switchId !== this.folderLocationSwitchId) {
+				// A newer switch shows its own location
+				[...show, ...leave].forEach(r => this.keepWarm(r));
+				return;
+			}
+
+			this.switchFolderLocation(show, leave);
 		}
 		catch (err) {
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
 		}
 	}
 
+	/**
+	 * Shows the repositories of the locations that folders switched to and keeps the ones of the
+	 * locations that they left warm, in one tick, so that the views change in one step.
+	 */
+	private switchFolderLocation(show: readonly OpenRepository[], leave: readonly OpenRepository[]): void {
+		for (const openRepository of show) {
+			this.logger.trace(`[Model][switchFolderLocation] Showing repository: ${openRepository.repository.root}`);
+			openRepository.repository.setWarm(false);
+		}
+
+		leave.forEach(r => this.keepWarm(r));
+	}
+
+	private keepWarm(openRepository: OpenRepository): void {
+		this.logger.trace(`[Model][keepWarm] Keeping repository warm: ${openRepository.repository.root}`);
+		openRepository.repository.setWarm(true);
+
+		for (const evicted of this.workspaceFolderRepositories.keepWarm(openRepository)) {
+			this.logger.trace(`[Model][keepWarm] Closing least recently used warm repository: ${evicted.repository.root}`);
+			evicted.dispose();
+		}
+	}
+
 	private onDidChangeWorkspaceFolderLocations(): void {
-		// The repository of a location that was left before the locations were known
-		for (const openRepository of this.workspaceFolderRepositories.onDidChangeWorkspaceFolderLocations(workspace.workspaceFolders || [])) {
-			this.logger.trace(`[Model][onDidChangeWorkspaceFolderLocations] Closing repository at another location of a workspace folder: ${openRepository.repository.root}`);
+		const { close, leave } = this.workspaceFolderRepositories.onDidChangeWorkspaceFolderLocations(workspace.workspaceFolders || []);
+
+		for (const openRepository of close) {
+			this.logger.trace(`[Model][onDidChangeWorkspaceFolderLocations] Closing warm repository that is not a known location anymore: ${openRepository.repository.root}`);
 			openRepository.dispose();
 		}
+
+		// The repository of a location that was left before the locations were known
+		leave.forEach(r => this.keepWarm(r));
 	}
 
 	private async onDidChangeWorkspaceTrustedFolders(): Promise<void> {
@@ -615,8 +671,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		commands.executeCommand('setContext', 'git.activeResourceHasMergeConflicts', hasMergeConflicts);
 	}
 
+	/**
+	 * @param isWarm Whether the repository opens hidden, as a warm repository of a location that a folder switches to.
+	 */
 	@sequentialize
-	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false): Promise<void> {
+	async openRepository(repoPath: string, openIfClosed = false, openIfParent = false, isWarm = false): Promise<void> {
 		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
@@ -704,7 +763,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Open repository
 			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
-			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache);
+			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache, isWarm);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);

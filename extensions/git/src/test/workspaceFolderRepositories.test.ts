@@ -13,10 +13,11 @@ import { isDescendant } from '../util';
 const primary = Uri.file('/repo/primary').fsPath;
 const wt1 = Uri.file('/repo/wt1').fsPath;
 const wt2 = Uri.file('/repo/wt2').fsPath;
+const wt3 = Uri.file('/repo/wt3').fsPath;
 const nested = path.join(primary, '.worktrees', 'w1');
 const other = Uri.file('/other').fsPath;
 const submodule = path.join(primary, 'submodule');
-const knownLocations = [primary, wt1, wt2, nested];
+const knownLocations = [primary, wt1, wt2, wt3, nested];
 
 type TestFolder = { -readonly [K in keyof WorkspaceFolder]: WorkspaceFolder[K] };
 
@@ -41,57 +42,81 @@ function folderAt(fsPath: string, resolved = true): TestFolder {
 }
 
 /**
- * The open repositories of a workspace, where each repository is its root, opened and closed as the git model does.
+ * The open repositories of a workspace, where each repository is its root, opened, closed and kept warm as the git model does.
  */
 class TestWorkspace {
 
 	private readonly tracker = new WorkspaceFolderRepositories<string>(root => root);
-	private readonly repositoriesOnDisk = [primary, wt1, wt2, nested, submodule, other];
+	private readonly repositoriesOnDisk = [primary, wt1, wt2, wt3, nested, submodule, other];
+
+	/** The shown repositories. */
 	readonly repositories = new Set<string>();
+
+	/** The warm repositories, hidden, the least recently left first. */
+	readonly warm: string[] = [];
+
 	private visibleEditors: string[] = [];
 
 	constructor(private folders: TestFolder[]) {
 		folders.forEach(f => this.repositories.add(this.getRepositoryRoot(f.uri.fsPath)));
 	}
 
+	/** `Model.onDidChangeWorkspaceFolders`, where a repository that is opened is ready right away. */
 	updateFolders(folders: TestFolder[]): void {
 		const removed = this.folders.filter(f => !folders.includes(f));
 		const added = folders.filter(f => !this.folders.includes(f));
 		this.folders = folders;
-		for (const repository of this.tracker.onDidChangeWorkspaceFolders({ added, removed }, folders, uri => this.getOpenRepository(uri.fsPath), r => this.hasVisibleEditor(r))) {
-			this.repositories.delete(repository);
-		}
-		for (const folder of this.tracker.getAddedFoldersToOpen(added, [...this.repositories])) {
-			this.repositories.add(this.getRepositoryRoot(folder.uri.fsPath));
-		}
+
+		const { close, leave } = this.tracker.onDidChangeWorkspaceFolders({ added, removed }, folders, uri => this.getOpenRepository(uri.fsPath), r => this.hasVisibleEditor(r));
+		close.forEach(r => this.close(r));
+
+		const show = added.map(f => this.tracker.takeWarm(f.uri.fsPath)).filter((r): r is string => !!r);
+		show.forEach(r => this.warm.splice(this.warm.indexOf(r), 1));
+		const opened = this.tracker.getAddedFoldersToOpen(added, [...this.repositories, ...this.warm, ...show]).map(f => this.getRepositoryRoot(f.uri.fsPath));
+
+		// The views change in one step
+		[...show, ...opened].forEach(r => this.repositories.add(r));
+		leave.forEach(r => this.keepWarm(r));
 	}
 
 	setVisibleEditors(files: string[]): void {
 		this.visibleEditors = files;
-		for (const repository of this.tracker.onDidChangeVisibleEditors(this.folders, r => this.hasVisibleEditor(r))) {
-			this.repositories.delete(repository);
-		}
+		this.tracker.onDidChangeVisibleEditors(this.folders, r => this.hasVisibleEditor(r)).forEach(r => this.close(r));
 	}
 
 	/** The locations of the folders become known, see `Model.onDidChangeWorkspaceFolderLocations`. */
-	resolveLocations(): void {
-		this.folders.forEach(f => f.locations = knownLocations.map(l => ({ uri: Uri.file(l), name: path.basename(l) })));
-		for (const repository of this.tracker.onDidChangeWorkspaceFolderLocations(this.folders)) {
-			this.repositories.delete(repository);
-		}
+	resolveLocations(locations = knownLocations): void {
+		this.folders.forEach(f => f.locations = locations.map(l => ({ uri: Uri.file(l), name: path.basename(l) })));
+		const { close, leave } = this.tracker.onDidChangeWorkspaceFolderLocations(this.folders);
+		close.forEach(r => this.close(r));
+		leave.forEach(r => this.keepWarm(r));
 	}
 
 	/**
 	 * A switch as the workbench applies it: the folder is replaced by a folder whose locations are not known yet,
 	 * then the editors of the new location are restored, then the locations of the new folder become known.
 	 */
-	switchTo(location: string): { beforeEditorsSwap: string[]; afterEditorsSwap: string[]; afterLocations: string[] } {
+	switchTo(location: string): { beforeEditorsSwap: string[]; afterEditorsSwap: string[]; afterLocations: string[]; warm: string[] } {
 		this.updateFolders([folderAt(location, false)]);
 		const beforeEditorsSwap = [...this.repositories];
 		this.setVisibleEditors([path.join(location, 'a.txt')]);
 		const afterEditorsSwap = [...this.repositories];
 		this.resolveLocations();
-		return { beforeEditorsSwap, afterEditorsSwap, afterLocations: [...this.repositories] };
+		return { beforeEditorsSwap, afterEditorsSwap, afterLocations: [...this.repositories], warm: [...this.warm] };
+	}
+
+	private keepWarm(repository: string): void {
+		this.repositories.delete(repository);
+		this.warm.push(repository);
+		this.tracker.keepWarm(repository).forEach(r => this.close(r));
+	}
+
+	private close(repository: string): void {
+		this.repositories.delete(repository);
+		if (this.warm.includes(repository)) {
+			this.warm.splice(this.warm.indexOf(repository), 1);
+		}
+		this.tracker.delete(repository);
 	}
 
 	private getRepositoryRoot(fsPath: string): string {
@@ -99,7 +124,7 @@ class TestWorkspace {
 	}
 
 	private getOpenRepository(fsPath: string): string | undefined {
-		return this.getDeepest([...this.repositories], fsPath);
+		return this.getDeepest([...this.repositories, ...this.warm], fsPath);
 	}
 
 	private getDeepest(repositories: string[], fsPath: string): string | undefined {
@@ -174,45 +199,64 @@ suite('WorkspaceFolderRepositories', () => {
 		]);
 	});
 
-	test('a folder switching locations with editors open leaves one repository', () => {
+	test('a folder switching locations shows one repository and keeps the locations it left warm', () => {
 		const ws = new TestWorkspace([folderAt(primary)]);
 		ws.setVisibleEditors([path.join(primary, 'a.txt')]);
 
 		const steps = [ws.switchTo(wt1), ws.switchTo(wt2), ws.switchTo(wt1)];
 
 		assert.deepStrictEqual(steps, [
-			{ beforeEditorsSwap: [wt1], afterEditorsSwap: [wt1], afterLocations: [wt1] },
-			{ beforeEditorsSwap: [wt2], afterEditorsSwap: [wt2], afterLocations: [wt2] },
-			{ beforeEditorsSwap: [wt1], afterEditorsSwap: [wt1], afterLocations: [wt1] },
+			{ beforeEditorsSwap: [wt1], afterEditorsSwap: [wt1], afterLocations: [wt1], warm: [primary] },
+			{ beforeEditorsSwap: [wt2], afterEditorsSwap: [wt2], afterLocations: [wt2], warm: [primary, wt1] },
+			{ beforeEditorsSwap: [wt1], afterEditorsSwap: [wt1], afterLocations: [wt1], warm: [primary, wt2] },
 		]);
+	});
+
+	test('keeps the three most recently left locations warm and closes the least recently left one', () => {
+		const ws = new TestWorkspace([folderAt(primary)]);
+
+		[wt1, wt2, wt3].forEach(location => ws.switchTo(location));
+
+		assert.deepStrictEqual(ws.switchTo(nested), { beforeEditorsSwap: [nested], afterEditorsSwap: [nested], afterLocations: [nested], warm: [wt1, wt2, wt3] });
+	});
+
+	test('closes a warm repository once it is not a known location anymore', () => {
+		const ws = new TestWorkspace([folderAt(primary)]);
+		ws.switchTo(wt1);
+
+		ws.resolveLocations([primary, wt1]);
+		const whileKnown = [...ws.warm];
+		ws.resolveLocations([wt1, wt2]);
+
+		assert.deepStrictEqual({ whileKnown, after: ws.warm, shown: [...ws.repositories] }, { whileKnown: [primary], after: [], shown: [wt1] });
 	});
 
 	test('a folder switching locations before its locations are known closes the location that is left once its editors are replaced', () => {
 		const ws = new TestWorkspace([folderAt(primary, false)]);
 		ws.setVisibleEditors([path.join(primary, 'a.txt')]);
 
-		assert.deepStrictEqual(ws.switchTo(wt1), { beforeEditorsSwap: [primary, wt1], afterEditorsSwap: [wt1], afterLocations: [wt1] });
+		assert.deepStrictEqual(ws.switchTo(wt1), { beforeEditorsSwap: [primary, wt1], afterEditorsSwap: [wt1], afterLocations: [wt1], warm: [] });
 	});
 
 	test('a folder switching to a worktree nested in its primary location opens the worktree', () => {
 		const ws = new TestWorkspace([folderAt(primary)]);
 		ws.setVisibleEditors([path.join(primary, 'a.txt')]);
 
-		assert.deepStrictEqual(ws.switchTo(nested), { beforeEditorsSwap: [nested], afterEditorsSwap: [nested], afterLocations: [nested] });
+		assert.deepStrictEqual(ws.switchTo(nested), { beforeEditorsSwap: [nested], afterEditorsSwap: [nested], afterLocations: [nested], warm: [primary] });
 	});
 
-	test('a folder switching from a nested worktree back to its primary location closes the worktree', () => {
+	test('a folder switching from a nested worktree back to its primary location keeps the worktree warm', () => {
 		const ws = new TestWorkspace([folderAt(nested)]);
 		ws.setVisibleEditors([path.join(nested, 'a.txt')]);
 
-		assert.deepStrictEqual(ws.switchTo(primary), { beforeEditorsSwap: [primary], afterEditorsSwap: [primary], afterLocations: [primary] });
+		assert.deepStrictEqual(ws.switchTo(primary), { beforeEditorsSwap: [primary], afterEditorsSwap: [primary], afterLocations: [primary], warm: [nested] });
 	});
 
-	test('a folder switching from a nested worktree back to its primary location before its locations are known closes the worktree once they are', () => {
+	test('a folder switching from a nested worktree back to its primary location before its locations are known keeps the worktree warm once they are', () => {
 		const ws = new TestWorkspace([folderAt(nested, false)]);
 		ws.setVisibleEditors([path.join(nested, 'a.txt')]);
 
-		assert.deepStrictEqual(ws.switchTo(primary), { beforeEditorsSwap: [nested, primary], afterEditorsSwap: [nested, primary], afterLocations: [primary] });
+		assert.deepStrictEqual(ws.switchTo(primary), { beforeEditorsSwap: [nested, primary], afterEditorsSwap: [nested, primary], afterLocations: [primary], warm: [nested] });
 	});
 
 	test('keeps the repository of a removed folder inside a remaining folder that is not one of its locations', () => {
@@ -222,7 +266,7 @@ suite('WorkspaceFolderRepositories', () => {
 		ws.updateFolders([primaryFolder]);
 		ws.resolveLocations();
 
-		assert.deepStrictEqual([...ws.repositories], [primary, submodule]);
+		assert.deepStrictEqual({ shown: [...ws.repositories], warm: ws.warm }, { shown: [primary, submodule], warm: [] });
 	});
 
 	test('a folder replaced by a repository nested in it with editors open ends with the nested repository', () => {
@@ -247,29 +291,29 @@ suite('WorkspaceFolderRepositories.getAddedFoldersToOpen', () => {
 });
 
 /**
- * Whether the repository of the removed folder `removed`, which a visible editor belongs to, is closed right away
- * when `added` are added.
+ * Whether the repository of the removed folder `removed`, which a visible editor belongs to, is left
+ * right away, to keep warm, when `added` are added.
  */
-function closesRightAway(removed: TestFolder, added: TestFolder[]): boolean {
+function leavesRightAway(removed: TestFolder, added: TestFolder[]): boolean {
 	const tracker = new WorkspaceFolderRepositories<string>(root => root);
-	return tracker.onDidChangeWorkspaceFolders({ added, removed: [removed] }, added, () => removed.uri.fsPath, () => true).length === 1;
+	return tracker.onDidChangeWorkspaceFolders({ added, removed: [removed] }, added, () => removed.uri.fsPath, () => true).leave.length === 1;
 }
 
 suite('WorkspaceFolderRepositories locations', () => {
 
-	test('closes the repository of a removed folder right away only when the added folder is one of its known locations', () => {
+	test('leaves the repository of a removed folder right away only when the added folder is one of its known locations', () => {
 		assert.deepStrictEqual([
-			closesRightAway(folderAt(primary), [folderAt(wt1, false)]),
-			closesRightAway(folderAt(wt1), [folderAt(wt2, false)]),
-			closesRightAway(folderAt(wt2), [folderAt(primary, false)]),
-			closesRightAway(folderAt(primary), [folderAt(nested, false)]),
-			closesRightAway(folderAt(primary), [folder(other)]),
-			closesRightAway(folderAt(primary, false), [folderAt(wt1, false)]),
-			closesRightAway(folderAt(primary), []),
+			leavesRightAway(folderAt(primary), [folderAt(wt1, false)]),
+			leavesRightAway(folderAt(wt1), [folderAt(wt2, false)]),
+			leavesRightAway(folderAt(wt2), [folderAt(primary, false)]),
+			leavesRightAway(folderAt(primary), [folderAt(nested, false)]),
+			leavesRightAway(folderAt(primary), [folder(other)]),
+			leavesRightAway(folderAt(primary, false), [folderAt(wt1, false)]),
+			leavesRightAway(folderAt(primary), []),
 		], [true, true, true, true, false, false, false]);
 	});
 
-	test('once the locations are known, closes a kept repository that is another location, and keeps the current location and others', () => {
+	test('once the locations are known, leaves a kept repository that is another location, and keeps the current location and others', () => {
 		const tracker = new WorkspaceFolderRepositories<string>(root => root);
 		const removed = [folder(nested, 1), folder(submodule, 2), folder(path.join(primary, 'src'), 3)];
 		const roots = [nested, submodule, primary];
@@ -277,6 +321,15 @@ suite('WorkspaceFolderRepositories locations', () => {
 		const onRemove = tracker.onDidChangeWorkspaceFolders({ added: [], removed }, [folder(primary)], uri => roots[removed.findIndex(f => f.uri.toString() === uri.toString())], () => false);
 		const onLocations = tracker.onDidChangeWorkspaceFolderLocations([folder(primary, 0, [primary, wt1, nested])]);
 
-		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: [], onLocations: [nested] });
+		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: { close: [], leave: [] }, onLocations: { close: [], leave: [nested] } });
+	});
+
+	test('takes a warm repository by its root, keeps at most the capacity and closes the least recently left one first', () => {
+		const tracker = new WorkspaceFolderRepositories<string>(root => root, 2);
+
+		const evicted = [wt1, wt2, wt3].map(r => tracker.keepWarm(r));
+		const taken = [tracker.takeWarm(Uri.file('/repo/wt3/').fsPath), tracker.takeWarm(wt3), tracker.takeWarm(wt1)];
+
+		assert.deepStrictEqual({ evicted, taken }, { evicted: [[], [], [wt1]], taken: [wt3, undefined, undefined] });
 	});
 });

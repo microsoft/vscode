@@ -22,7 +22,7 @@ function folder(fsPath: string, index = 0, locations?: string[]): WorkspaceFolde
  */
 function closeRemoved(removed: WorkspaceFolder[], remaining: WorkspaceFolder[], repositories: string[]): string[] {
 	const tracker = new WorkspaceFolderRepositories<string>(root => root);
-	return tracker.onDidChangeWorkspaceFolders({ added: [], removed }, remaining, uri => repositories[removed.findIndex(f => f.uri.toString() === uri.toString())], () => false);
+	return tracker.onDidChangeWorkspaceFolders({ added: [], removed }, remaining, uri => repositories[removed.findIndex(f => f.uri.toString() === uri.toString())], () => false).close;
 }
 
 // The paths are compared with the file system semantics of the platform the tests run on
@@ -49,18 +49,18 @@ function closeRemoved(removed: WorkspaceFolder[], remaining: WorkspaceFolder[], 
 		assert.deepStrictEqual(closeRemoved(removed, [folder('C:\\Work')], ['D:\\Repo', '\\\\server\\other\\repo']), ['D:\\Repo', '\\\\server\\other\\repo']);
 	});
 
-	test('closes the repository of a removed folder right away only when the added folder is one of its known locations, ignoring drive letter and path casing and separators', () => {
-		const closesRightAway = (removed: WorkspaceFolder, added: WorkspaceFolder) => new WorkspaceFolderRepositories<string>(root => root).onDidChangeWorkspaceFolders({ added: [added], removed: [removed] }, [added], () => removed.uri.fsPath, () => true).length === 1;
+	test('leaves the repository of a removed folder right away only when the added folder is one of its known locations, ignoring drive letter and path casing and separators', () => {
+		const leavesRightAway = (removed: WorkspaceFolder, added: WorkspaceFolder) => new WorkspaceFolderRepositories<string>(root => root).onDidChangeWorkspaceFolders({ added: [added], removed: [removed] }, [added], () => removed.uri.fsPath, () => true).leave.length === 1;
 
 		assert.deepStrictEqual([
-			closesRightAway(folder('C:\\Repo\\WT1', 0, ['C:\\Repo\\Primary', 'C:\\Repo\\WT1', 'C:\\Repo\\WT2']), folder('c:/repo/WT2/')),
-			closesRightAway(folder('\\\\server\\share\\wt1', 0, ['\\\\server\\share\\primary', '\\\\server\\share\\wt1']), folder('\\\\SERVER\\Share\\Primary\\')),
-			closesRightAway(folder('C:\\Repo\\WT1', 0, ['C:\\Repo\\Primary', 'C:\\Repo\\WT1', 'C:\\Repo\\WT2']), folder('D:\\Repo\\WT2')),
-			closesRightAway(folder('C:\\Repo\\WT1'), folder('c:\\repo\\wt2')),
+			leavesRightAway(folder('C:\\Repo\\WT1', 0, ['C:\\Repo\\Primary', 'C:\\Repo\\WT1', 'C:\\Repo\\WT2']), folder('c:/repo/WT2/')),
+			leavesRightAway(folder('\\\\server\\share\\wt1', 0, ['\\\\server\\share\\primary', '\\\\server\\share\\wt1']), folder('\\\\SERVER\\Share\\Primary\\')),
+			leavesRightAway(folder('C:\\Repo\\WT1', 0, ['C:\\Repo\\Primary', 'C:\\Repo\\WT1', 'C:\\Repo\\WT2']), folder('D:\\Repo\\WT2')),
+			leavesRightAway(folder('C:\\Repo\\WT1'), folder('c:\\repo\\wt2')),
 		], [true, true, false, false]);
 	});
 
-	test('once the locations are known, closes the kept repositories at another known location, regardless of drive letter and path casing and separators', () => {
+	test('once the locations are known, leaves the kept repositories at another known location, regardless of drive letter and path casing and separators', () => {
 		const tracker = new WorkspaceFolderRepositories<string>(root => root);
 		const roots = ['C:/repo/wt1', 'c:\\repo\\primary', '\\\\Server\\Share\\WT3\\', 'C:/REPO/WT2/', 'C:\\Repo\\WT4'];
 		const removed = roots.map((root, i) => folder(root, i + 3));
@@ -69,26 +69,34 @@ function closeRemoved(removed: WorkspaceFolder[], remaining: WorkspaceFolder[], 
 		const onRemove = tracker.onDidChangeWorkspaceFolders({ added: [], removed }, containers, uri => roots[removed.findIndex(f => f.uri.toString() === uri.toString())], () => false);
 		const onLocations = tracker.onDidChangeWorkspaceFolderLocations([folder('C:\\Repo\\WT2', 0, ['C:\\Repo\\Primary', 'C:\\Repo\\WT1', 'C:\\Repo\\WT2', '\\\\server\\share\\wt3']), ...containers]);
 
-		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: [], onLocations: ['C:/repo/wt1', 'c:\\repo\\primary', '\\\\Server\\Share\\WT3\\'] });
+		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: { close: [], leave: [] }, onLocations: { close: [], leave: ['C:/repo/wt1', 'c:\\repo\\primary', '\\\\Server\\Share\\WT3\\'] } });
 	});
 
-	test('closes the repository of a nested worktree that is left for its primary location, even with an editor of it visible', () => {
+	test('leaves the repository of a nested worktree for its primary location, even with an editor of it visible', () => {
 		const tracker = new WorkspaceFolderRepositories<string>(root => root);
 		const nested = folder('C:\\Repo\\Primary\\.worktrees\\w1', 0, ['C:\\Repo\\Primary', 'C:\\Repo\\Primary\\.worktrees\\w1']);
 		const primary = folder('c:\\repo\\primary');
 
-		const toClose = tracker.onDidChangeWorkspaceFolders({ added: [primary], removed: [nested] }, [primary], () => 'C:\\Repo\\Primary\\.worktrees\\w1', () => true);
+		const toLeave = tracker.onDidChangeWorkspaceFolders({ added: [primary], removed: [nested] }, [primary], () => 'C:\\Repo\\Primary\\.worktrees\\w1', () => true);
 
-		assert.deepStrictEqual(toClose, ['C:\\Repo\\Primary\\.worktrees\\w1']);
+		assert.deepStrictEqual(toLeave, { close: [], leave: ['C:\\Repo\\Primary\\.worktrees\\w1'] });
 	});
 
-	test('closes the repository of a nested worktree that is left before the locations are known, once they are', () => {
+	test('leaves the repository of a nested worktree that is left before the locations are known, once they are', () => {
 		const tracker = new WorkspaceFolderRepositories<string>(root => root);
 		const primary = folder('c:\\repo\\primary');
 
 		const onSwitch = tracker.onDidChangeWorkspaceFolders({ added: [primary], removed: [folder('C:\\Repo\\Primary\\.worktrees\\w1')] }, [primary], () => 'C:\\Repo\\Primary\\.worktrees\\w1', () => false);
 		const onLocations = tracker.onDidChangeWorkspaceFolderLocations([folder('c:\\repo\\primary', 0, ['C:/Repo/Primary', 'c:\\repo\\primary\\.WORKTREES\\w1\\'])]);
 
-		assert.deepStrictEqual({ onSwitch, onLocations }, { onSwitch: [], onLocations: ['C:\\Repo\\Primary\\.worktrees\\w1'] });
+		assert.deepStrictEqual({ onSwitch, onLocations }, { onSwitch: { close: [], leave: [] }, onLocations: { close: [], leave: ['C:\\Repo\\Primary\\.worktrees\\w1'] } });
+	});
+
+	test('takes a warm repository by its root, ignoring drive letter and path casing and separators', () => {
+		const tracker = new WorkspaceFolderRepositories<string>(root => root);
+		tracker.keepWarm('C:\\Repo\\WT1');
+		tracker.keepWarm('\\\\server\\share\\wt3');
+
+		assert.deepStrictEqual([tracker.takeWarm('c:/repo/wt1/'), tracker.takeWarm('\\\\SERVER\\Share\\WT3\\'), tracker.takeWarm('C:\\Repo\\WT1')], ['C:\\Repo\\WT1', '\\\\server\\share\\wt3', undefined]);
 	});
 });
