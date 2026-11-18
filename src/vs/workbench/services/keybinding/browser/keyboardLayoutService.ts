@@ -458,7 +458,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 		return true;
 	}
 
-	private async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
+	protected async _getBrowserKeyMapping(keyboardEvent?: IKeyboardEvent): Promise<IRawMixedKeyboardMapping | null> {
 		if (this.keyboardLayoutMapAllowed) {
 			try {
 				return await (navigator as INavigatorWithKeyboard).keyboard.getLayoutMap().then((e: any) => {
