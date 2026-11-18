@@ -18,7 +18,7 @@ import { IRequestService } from '../../../request/common/request.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { devContainerEnvironmentImage, devContainerEnvironmentUri, findDevContainerEnvironment } from '../../common/devContainerEnvironments.js';
 import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
-import { devContainerEnvironmentLabel, getDevContainerEnvironmentVolumeName, prepareDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
+import { devContainerEnvironmentLabel, devContainerVolumeLabel, getDevContainerEnvironmentVolumeName, prepareDevContainerEnvironment, removeDevContainerEnvironment } from '../../node/devContainerEnvironments.js';
 import { devContainerStateIdLabel, getDevContainerId, getDevContainerStateVolumeName } from '../../node/devContainerState.js';
 
 suite('Dev Container environments', () => {
@@ -44,45 +44,55 @@ suite('Dev Container environments', () => {
 		].map(findDevContainerEnvironment), [{ sourceAuthority: 'ssh-host', environmentId }, undefined, undefined, undefined]);
 	});
 
-	test('creates the volume once and hands the volume root to the remote user on every start', async () => {
+	test('creates the volume and its workspace folder once, labeled like New Dev Container, and hands them to the remote user on every start', async () => {
 		const calls: string[] = [];
 		let existing = false;
+		const workspace = `/workspaces/${volumeName}`;
 		const commands: Parameters<typeof prepareDevContainerEnvironment>[2] = {
 			onContainerStarted: id => calls.push(`started ${id}`),
 			docker: async args => {
-				calls.push(args[0] === 'volume' ? `volume ${args[1]}` : `exec ${args.at(-1)}`);
+				calls.push(args[1] === 'create' || args[0] === 'run' ? args.join(' ') : args[0] === 'exec' ? `exec ${args.at(-1)}` : args.slice(0, 2).join(' '));
 				const stdout = args[1] === 'ls' ? (existing ? `other\n${volumeName}` : 'other')
-					: args[1] === 'inspect' ? JSON.stringify({ [devContainerEnvironmentLabel]: environmentId }) : '';
+					: args[1] === 'inspect' ? JSON.stringify({ [devContainerEnvironmentLabel]: environmentId })
+						: args[0] === 'ps' && existing ? 'running' : '';
 				return { stdout, stderr: '', code: 0 };
 			},
 			devcontainer: async args => {
 				calls.push(args.filter(arg => !arg.startsWith(cacheDirectory)).join(' '));
-				return { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: '/workspaces' }), stderr: '', code: 0 };
+				return { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: workspace }), stderr: '', code: 0 };
 			},
 		};
 		const source = { environmentId, image: devContainerEnvironmentImage };
 		const first = await prepareDevContainerEnvironment(source, cacheDirectory, commands);
 		existing = true;
 		await prepareDevContainerEnvironment(source, cacheDirectory, commands);
-		const label = `${devContainerEnvironmentLabel}=${environmentId}`;
-		const up = `up --log-level debug --override-config --id-label ${label} --mount type=volume,source=vscode,target=/vscode,external=true`;
-		const chown = `exec chown "$(id -u 'vscode'):$(id -g 'vscode')" '/workspaces'`;
+		const idLabels = `--id-label vsc.devcontainer.volume.name=${volumeName} --id-label vsc.devcontainer.volume.folder=${volumeName}`;
+		const up = `up --log-level debug --override-config ${idLabels} --mount type=volume,source=vscode,target=/vscode,external=true`;
+		const chown = `exec chown "$(id -u 'vscode'):$(id -g 'vscode')" '/workspaces' '${workspace}'`;
 		assert.deepStrictEqual({
+			volumeName,
 			calls,
 			prepared: first,
 			config: JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8')),
 		}, {
-			calls: ['volume ls', 'volume create', 'volume inspect', up, 'started container', chown, 'volume ls', 'volume inspect', up, 'started container', chown],
-			prepared: { containerId: 'container', remoteWorkspaceFolder: '/workspaces', cliArgs: ['--override-config', join(cacheDirectory, 'devcontainer.json'), '--id-label', label] },
-			config: { image: devContainerEnvironmentImage, workspaceFolder: '/workspaces', workspaceMount: `type=volume,source=${volumeName},target=/workspaces`, updateRemoteUserUID: false },
+			volumeName: 'dev-container-0b5c8e9e',
+			calls: [
+				'volume ls', `volume create --label dev.container.volume=true --label ${devContainerEnvironmentLabel}=${environmentId} ${volumeName}`, 'volume inspect', 'ps -a',
+				`run --rm --mount type=volume,source=${volumeName},target=/workspaces --entrypoint mkdir ${devContainerEnvironmentImage} -p ${workspace}`,
+				up, 'started container', chown,
+				'volume ls', 'volume inspect', 'ps -a', up, 'started container', chown,
+			],
+			prepared: { containerId: 'container', remoteWorkspaceFolder: workspace, cliArgs: ['--override-config', join(cacheDirectory, 'devcontainer.json'), ...idLabels.split(' ')] },
+			config: { image: devContainerEnvironmentImage, workspaceFolder: workspace, workspaceMount: `type=volume,source=${volumeName},target=/workspaces`, updateRemoteUserUID: false },
 		});
 	});
 
 	test('keeps user state on its own state volume, linked before lifecycle commands run', async () => {
 		const calls: string[] = [];
 		const reports: string[] = [];
-		const label = `${devContainerEnvironmentLabel}=${environmentId}`;
-		const stateVolumeName = getDevContainerStateVolumeName([label]);
+		const idLabels = [`vsc.devcontainer.volume.name=${volumeName}`, `vsc.devcontainer.volume.folder=${volumeName}`];
+		const idLabelArgs = idLabels.map(label => `--id-label ${label}`).join(' ');
+		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
 		await prepareDevContainerEnvironment({ environmentId, image: devContainerEnvironmentImage }, cacheDirectory, {
 			onContainerStarted: () => { },
 			docker: async args => {
@@ -92,7 +102,7 @@ suite('Dev Container environments', () => {
 			},
 			devcontainer: async args => {
 				calls.push(args.filter(arg => !arg.startsWith(cacheDirectory)).join(' '));
-				const result = args[0] === 'up' ? { outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: '/workspaces' } : { outcome: 'success' };
+				const result = args[0] === 'up' ? { outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${volumeName}` } : { outcome: 'success' };
 				return { stdout: JSON.stringify(result), stderr: '', code: 0 };
 			},
 			linkUserState: async (containerId, remoteUser, _selectorArgs, keepExistingFolders) => { calls.push(`link ${containerId} ${remoteUser} keepExistingFolders=${keepExistingFolders}`); },
@@ -101,9 +111,9 @@ suite('Dev Container environments', () => {
 		assert.deepStrictEqual({ calls, reports }, {
 			calls: [
 				'volume ls', `volume create ${volumeName}`, 'volume inspect', `volume create ${stateVolumeName}`, 'ps -a',
-				`up --log-level debug --override-config --id-label ${label} --skip-post-create --mount type=volume,source=vscode,target=/vscode,external=true --mount type=volume,source=${stateVolumeName},target=/.vscode-volume,external=true`,
+				`up --log-level debug --override-config ${idLabelArgs} --skip-post-create --mount type=volume,source=vscode,target=/vscode,external=true --mount type=volume,source=${stateVolumeName},target=/.vscode-volume,external=true`,
 				'chown', 'link container vscode keepExistingFolders=false',
-				`run-user-commands --log-level debug --override-config --id-label ${label} --container-id container`,
+				`run-user-commands --log-level debug --override-config ${idLabelArgs} --container-id container`,
 			],
 			reports: ['added'],
 		});
@@ -123,8 +133,8 @@ suite('Dev Container environments', () => {
 
 	test('removes the labeled containers, the owned volumes, and the cached configuration, and never recreates the environment', async () => {
 		const calls: string[] = [];
-		const label = `${devContainerEnvironmentLabel}=${environmentId}`;
-		const stateVolumeName = getDevContainerStateVolumeName([label]);
+		const idLabels = [`vsc.devcontainer.volume.name=${volumeName}`, `vsc.devcontainer.volume.folder=${volumeName}`];
+		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
 		const configuration = new TestConfigurationService({});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const host = store.add(new class extends DevContainerAgentHostMainService {
@@ -132,7 +142,7 @@ suite('Dev Container environments', () => {
 				calls.push(args.join(' '));
 				const stdout = args[0] === 'ps' ? 'first\nsecond\n'
 					: args[1] === 'ls' ? `${volumeName}\n${stateVolumeName}`
-						: args[1] === 'inspect' ? JSON.stringify({ [devContainerEnvironmentLabel]: environmentId, [devContainerStateIdLabel]: getDevContainerId([label]) }) : '';
+						: args[1] === 'inspect' ? JSON.stringify({ [devContainerEnvironmentLabel]: environmentId, [devContainerStateIdLabel]: getDevContainerId(idLabels) }) : '';
 				return { stdout, stderr: '', code: 0 };
 			}
 		}(
@@ -151,16 +161,25 @@ suite('Dev Container environments', () => {
 		}, {
 			removed: true,
 			calls: [
-				`ps --all --quiet --filter label=${devContainerEnvironmentLabel}=${environmentId}`,
-				'rm --force first second',
 				'volume ls --format {{.Name}}',
 				`volume inspect --format {{json .Labels}} ${volumeName}`,
+				`ps --all --quiet --filter label=vsc.devcontainer.volume.name=${volumeName} --filter label=vsc.devcontainer.volume.folder=${volumeName}`,
+				'rm --force first second',
 				`volume rm ${volumeName}`,
 				`volume inspect --format {{json .Labels}} ${stateVolumeName}`,
 				`volume rm ${stateVolumeName}`,
 			],
 			cacheRemoved: true,
 		});
+	});
+
+	test('leaves containers and volumes of a same-named volume it does not own', async () => {
+		const calls: string[] = [];
+		await removeDevContainerEnvironment(environmentId, join(cacheDirectory, 'environment'), async args => {
+			calls.push(args.slice(0, 2).join(' '));
+			return { stdout: args[1] === 'ls' ? volumeName : JSON.stringify({ [devContainerVolumeLabel]: 'true' }), stderr: '', code: 0 };
+		});
+		assert.deepStrictEqual(calls, ['volume ls', 'volume inspect']);
 	});
 
 	test('still starts an environment whose removal failed, so it can be used or deleted again', async () => {

@@ -15,9 +15,6 @@ export const devContainerEnvironmentImage = 'mcr.microsoft.com/devcontainers/bas
 /** Images that hosts accept for Dev Container environments. */
 export const devContainerEnvironmentImages: readonly string[] = [devContainerEnvironmentImage];
 
-/** Workspace folder of a Dev Container environment, backed by the environment's Docker volume. */
-export const devContainerEnvironmentWorkspaceFolder = '/workspaces';
-
 /** Identifies a standalone Dev Container that is not created for a workspace folder. */
 export interface IDevContainerEnvironmentReference {
 	/** Client-chosen identifier that names the container's Docker volume and identity label. */

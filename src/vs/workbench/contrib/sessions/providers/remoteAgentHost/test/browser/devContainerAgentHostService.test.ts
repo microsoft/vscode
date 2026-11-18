@@ -287,7 +287,7 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 suite('Dev Container Agent Host Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setupEnvironments(removeContainer: (workspaceUri: URI) => Promise<boolean> = async () => true, options: { readonly localDocker?: boolean; readonly stored?: readonly unknown[] } = {}) {
+	function setupEnvironments(removeContainer: (workspaceUri: URI) => Promise<boolean> = async () => true, options: { readonly localDocker?: boolean; readonly stored?: readonly unknown[]; readonly beforeConnect?: () => Promise<void> } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
 		const remoteService = store.add(new TestRemoteAgentHostService());
@@ -307,6 +307,7 @@ suite('Dev Container Agent Host Service', () => {
 			showLog: async () => { },
 			createConnection: async (workspaceUri, address) => {
 				createdUris.push(workspaceUri);
+				await options.beforeConnect?.();
 				return { address, name: 'Dev Container on Build', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspaces' }), transportFactory: () => undefined as never, defaultDirectory: '/workspaces' };
 			},
 			removeContainer: async workspaceUri => {
@@ -416,6 +417,21 @@ suite('Dev Container Agent Host Service', () => {
 			closed: { status: 'disconnected', connected: false },
 			reopened: { status: 'connected', connected: true, connections: 2 },
 		});
+	});
+
+	test('keeps an environment whose creation was cancelled by disconnecting its host, without connecting the host to remove it', async () => {
+		const host: { disconnect?: () => void } = {};
+		const { service, remoteService, removedUris, createHostConnection } = setupEnvironments(undefined, {
+			beforeConnect: async () => {
+				host.disconnect?.();
+				throw new CancellationError();
+			},
+		});
+		remoteService.setHostConnection('ssh:build', createHostConnection());
+		await waitForState(service.environmentHosts, hosts => hosts.has('ssh:build'));
+		host.disconnect = () => remoteService.setHostConnection('ssh:build', undefined);
+		await assert.rejects(service.createEnvironment('ssh:build'), /Canceled/);
+		assert.deepStrictEqual({ environments: service.environments.get().map(environment => environment.sourceAddress), removals: removedUris.length }, { environments: ['ssh:build'], removals: 0 });
 	});
 
 	test('does not reconnect an environment whose deletion connects its host', async () => {

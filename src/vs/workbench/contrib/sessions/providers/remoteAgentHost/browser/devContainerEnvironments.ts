@@ -134,7 +134,11 @@ export class DevContainerEnvironments extends Disposable {
 		try {
 			await this._connect(state.address, true);
 		} catch (error) {
-			await this.delete(state.address).catch(cleanupError => this._logService.warn('[DevContainerEnvironments] Failed to remove an environment that could not be created', cleanupError));
+			// Removing the container would connect a host that was disconnected meanwhile, and with it its other environments.
+			// The environment is kept instead, so it starts with its host or can be deleted.
+			if (isLocal(stored) || this._remoteAgentHostService.getConnection(sourceAddress)) {
+				await this.delete(state.address).catch(cleanupError => this._logService.warn('[DevContainerEnvironments] Failed to remove an environment that could not be created', cleanupError));
+			}
 			throw error;
 		}
 		return this._toEnvironment(state);

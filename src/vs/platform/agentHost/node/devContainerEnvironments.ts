@@ -8,7 +8,7 @@ import { isCancellationError } from '../../../base/common/errors.js';
 import { ParseError, parse } from '../../../base/common/json.js';
 import { join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
-import { devContainerEnvironmentImages, devContainerEnvironmentWorkspaceFolder, IDevContainerEnvironmentSource, isDevContainerEnvironmentId } from '../common/devContainerEnvironments.js';
+import { devContainerEnvironmentImages, IDevContainerEnvironmentSource, isDevContainerEnvironmentId } from '../common/devContainerEnvironments.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from './devContainerServerCache.js';
@@ -16,8 +16,15 @@ import { devContainerSandboxRunArgs } from './devContainerSandbox.js';
 import { checked, ICommandResult, isRecord, writeAtomic } from './devContainerSamples.js';
 import { devContainerStateFallbackTarget, getDevContainerStateMount, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerRunning, isDevContainerStateVolumeFor } from './devContainerState.js';
 
-/** Docker label that identifies an environment's container and volume. */
+/** Docker label that identifies the environment that owns a volume. */
 export const devContainerEnvironmentLabel = 'vscode.agents.environment';
+/** Label of the Docker volumes that the Dev Containers extension's New Dev Container command creates. */
+export const devContainerVolumeLabel = 'dev.container.volume';
+/** Id labels that the Dev Containers extension gives the container of a folder in a Docker volume. */
+export const devContainerVolumeNameLabel = 'vsc.devcontainer.volume.name';
+export const devContainerVolumeFolderLabel = 'vsc.devcontainer.volume.folder';
+/** Where the volume is mounted, so its folders are under /workspaces, as for New Dev Container. */
+const volumeTarget = '/workspaces';
 
 type DockerCommand = (args: readonly string[]) => Promise<ICommandResult>;
 
@@ -41,8 +48,9 @@ export interface IPreparedDevContainerEnvironment {
 	readonly cliArgs: readonly string[];
 }
 
+/** Names an environment's Docker volume, and the workspace folder in it, like New Dev Container names them. */
 export function getDevContainerEnvironmentVolumeName(environmentId: string): string {
-	return `vscode-agents-environment-${environmentId}`;
+	return `dev-container-${environmentId.slice(0, 8)}`;
 }
 
 function validateEnvironmentId(environmentId: string): void {
@@ -60,8 +68,9 @@ async function isEnvironmentVolume(docker: DockerCommand, volumeName: string, en
 	return isRecord(labels) && labels[devContainerEnvironmentLabel] === environmentId;
 }
 
-function getIdLabels(environmentId: string): readonly string[] {
-	return [`${devContainerEnvironmentLabel}=${environmentId}`];
+/** The volume and its folder share a name, as with New Dev Container, so the Dev Containers extension identifies the same container. */
+function getIdLabels(volumeName: string): readonly string[] {
+	return [`${devContainerVolumeNameLabel}=${volumeName}`, `${devContainerVolumeFolderLabel}=${volumeName}`];
 }
 
 async function isEnvironmentStateVolume(docker: DockerCommand, volumeName: string, idLabels: readonly string[]): Promise<boolean> {
@@ -78,11 +87,12 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 		throw new Error(localize('devContainerEnvironment.unsupportedImage', "Unsupported Dev Container environment image: {0}", source.image));
 	}
 	await prepareOwnerOnlyDirectory(cacheDirectory);
-	const idLabels = getIdLabels(source.environmentId);
 	const volumeName = getDevContainerEnvironmentVolumeName(source.environmentId);
+	const idLabels = getIdLabels(volumeName);
+	const workspace = `${volumeTarget}/${volumeName}`;
 	const existingVolumes = await listVolumes(commands.docker);
 	if (!existingVolumes.includes(volumeName)) {
-		checked(await commands.docker(['volume', 'create', ...idLabels.flatMap(label => ['--label', label]), volumeName]), 'docker volume create');
+		checked(await commands.docker(['volume', 'create', '--label', `${devContainerVolumeLabel}=true`, '--label', `${devContainerEnvironmentLabel}=${source.environmentId}`, volumeName]), 'docker volume create');
 	}
 	if (!await isEnvironmentVolume(commands.docker, volumeName, source.environmentId)) {
 		throw new Error(localize('devContainerEnvironment.volumeConflict', "The Docker volume '{0}' does not belong to this Dev Container environment.", volumeName));
@@ -106,18 +116,18 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 		// The environment's volume is mounted at /workspaces.
 		userStateMountArgs.push('--mount', getDevContainerStateMount(idLabels, devContainerStateFallbackTarget));
 	}
-	let keepExistingFolders = true;
-	if (commands.linkUserState) {
-		const existing = await commands.docker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])]);
-		keepExistingFolders = existing.code !== 0 || existing.stdout.split(/\r?\n/).some(isDevContainerRunning);
+	const containerStates = checked(await commands.docker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])]), 'docker ps').split(/\r?\n/).filter(state => state.trim());
+	if (!containerStates.length) {
+		// New Dev Container creates the workspace folder before the container, which starts in it.
+		checked(await commands.docker(['run', '--rm', '--mount', `type=volume,source=${volumeName},target=${volumeTarget}`, '--entrypoint', 'mkdir', source.image, '-p', workspace]), 'mkdir');
 	}
+	const keepExistingFolders = containerStates.some(isDevContainerRunning);
 
-	const workspace = devContainerEnvironmentWorkspaceFolder;
 	const configPath = join(cacheDirectory, 'devcontainer.json');
 	await writeAtomic(configPath, JSON.stringify({
 		image: source.image,
 		workspaceFolder: workspace,
-		workspaceMount: `type=volume,source=${volumeName},target=${workspace}`,
+		workspaceMount: `type=volume,source=${volumeName},target=${volumeTarget}`,
 		updateRemoteUserUID: false,
 		...(sandboxEnabled ? { runArgs: devContainerSandboxRunArgs } : {}),
 	}));
@@ -134,8 +144,8 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 		throw new Error(localize('devContainerEnvironment.invalidUpResult', "The Dev Container CLI returned an invalid environment container."));
 	}
 
-	// Docker creates the volume root for root; the remote user owns the workspace.
-	const ownershipScript = `chown "$(id -u ${shellEscape(result.remoteUser)}):$(id -g ${shellEscape(result.remoteUser)})" ${shellEscape(workspace)}`;
+	// The volume and its folders are created for root; the remote user owns them, so agents can add folders next to the workspace.
+	const ownershipScript = `chown "$(id -u ${shellEscape(result.remoteUser)}):$(id -g ${shellEscape(result.remoteUser)})" ${shellEscape(volumeTarget)} ${shellEscape(workspace)}`;
 	checked(await commands.docker(['exec', '--user', 'root', '--workdir', '/', result.containerId, '/bin/sh', '-c', ownershipScript]), 'chown');
 	// Containers created with the setting on keep their volume, so they are linked even if it is off now.
 	await commands.linkUserState?.(result.containerId, result.remoteUser, cliArgs, keepExistingFolders);
@@ -149,21 +159,26 @@ export async function prepareDevContainerEnvironment(source: IDevContainerEnviro
 	return { containerId: result.containerId, remoteWorkspaceFolder: workspace, cliArgs };
 }
 
-/** Removes an environment's containers, Docker volumes, and cached configuration. */
+/**
+ * Removes an environment's containers, Docker volumes, and cached configuration. Its containers and state volume are
+ * identified by its volume's name, which a volume of the Dev Containers extension could share, so they are only
+ * removed with the environment's own volume, or if that is already gone.
+ */
 export async function removeDevContainerEnvironment(environmentId: string, cacheDirectory: string, docker: DockerCommand): Promise<void> {
 	validateEnvironmentId(environmentId);
-	const idLabels = getIdLabels(environmentId);
-	const containerIds = checked(await docker(['ps', '--all', '--quiet', ...idLabels.flatMap(label => ['--filter', `label=${label}`])]), 'docker ps').trim().split(/\r?\n/).filter(Boolean);
-	if (containerIds.length) {
-		checked(await docker(['rm', '--force', ...containerIds]), 'docker rm');
-	}
 	const volumeName = getDevContainerEnvironmentVolumeName(environmentId);
-	const stateVolumeName = getDevContainerStateVolumeName(idLabels);
+	const idLabels = getIdLabels(volumeName);
 	const volumes = await listVolumes(docker);
-	if (volumes.includes(volumeName) && await isEnvironmentVolume(docker, volumeName, environmentId)) {
+	const ownsVolume = volumes.includes(volumeName) && await isEnvironmentVolume(docker, volumeName, environmentId);
+	if (ownsVolume) {
+		const containerIds = checked(await docker(['ps', '--all', '--quiet', ...idLabels.flatMap(label => ['--filter', `label=${label}`])]), 'docker ps').trim().split(/\r?\n/).filter(Boolean);
+		if (containerIds.length) {
+			checked(await docker(['rm', '--force', ...containerIds]), 'docker rm');
+		}
 		checked(await docker(['volume', 'rm', volumeName]), 'docker volume rm');
 	}
-	if (volumes.includes(stateVolumeName) && await isEnvironmentStateVolume(docker, stateVolumeName, idLabels)) {
+	const stateVolumeName = getDevContainerStateVolumeName(idLabels);
+	if ((ownsVolume || !volumes.includes(volumeName)) && volumes.includes(stateVolumeName) && await isEnvironmentStateVolume(docker, stateVolumeName, idLabels)) {
 		checked(await docker(['volume', 'rm', stateVolumeName]), 'docker volume rm');
 	}
 	await rm(cacheDirectory, { recursive: true, force: true });
