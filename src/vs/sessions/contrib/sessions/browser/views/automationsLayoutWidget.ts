@@ -539,7 +539,14 @@ class AutomationsLayoutModel extends Disposable {
 		const sessionsChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessions);
 		// Like today's page, newer progress in a run's conversation (a follow-up that is running or needs input)
 		// overrides the run's history until the history catches up.
-		const withLocalProgress = (run: IAutomationRun, reader: IReader) => automationRunWithLocalProgress(run, chatService.chatModels.read(reader), reader);
+		const withLocalProgress = (run: IAutomationRun, reader: IReader): IAutomationRun => {
+			sessionsChanged.read(reader);
+			const progress = automationRunWithLocalProgress(run, chatService.chatModels.read(reader), reader);
+			const session = progress.sessionResource ? sessionsManagementService.getSession(progress.sessionResource) : undefined;
+			return progress.status === 'running' && session?.status.read(reader) === SessionStatus.NeedsInput
+				? { ...progress, needsInput: true }
+				: progress;
+		};
 
 		this.rows = derived(this, reader => {
 			providersChanged.read(reader);
@@ -561,10 +568,7 @@ class AutomationsLayoutModel extends Disposable {
 				const automationName = automationService.getAutomation(run.automationId)?.name
 					?? automationService.getAutomationHistoryName?.(run.automationId)
 					?? localize('automationsLayout.removedAutomation', "Removed automation");
-				let state = getAutomationRunState(run);
-				if (state === 'running' && session?.status.read(reader) === SessionStatus.NeedsInput) {
-					state = 'needsInput';
-				}
+				const state = getAutomationRunState(run);
 				const time = getRunTime(run, state);
 				const startTime = Date.parse(run.startedAt);
 				return {

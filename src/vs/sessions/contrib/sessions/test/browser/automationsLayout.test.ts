@@ -25,7 +25,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import type { IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -33,7 +33,7 @@ import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/brow
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionArtifact, SessionArtifactKind } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISession, ISessionArtifact, SessionArtifactKind, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { AUTOMATIONS_NAV_IDS, classifyAutomation, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationRows, filterAutomationRuns, getAutomationLayoutDetails, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunArtifacts, getAutomationRunDestination, getThisMachineLabel, groupAutomationRunsByDay, hasAutomationRunResult, IAutomationLayoutRun, LOCAL_AUTOMATION_HOST } from '../../browser/views/automationsLayoutModel.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { FileAccess } from '../../../../../base/common/network.js';
@@ -415,7 +415,7 @@ suite('Automations layout details panel', () => {
 	function createWidget(
 		contextMenuVisible = false,
 		showContextMenu: IContextMenuService['showContextMenu'] = () => { },
-		model?: { readonly automations: IObservable<readonly IAutomationDescriptor[]>; readonly configurationService?: TestConfigurationService; readonly storageService?: IStorageService },
+		model?: { readonly automations: IObservable<readonly IAutomationDescriptor[]>; readonly runs?: IObservable<readonly IAutomationRun[]>; readonly sessions?: readonly ISession[]; readonly configurationService?: TestConfigurationService; readonly storageService?: IStorageService },
 	): AutomationsLayoutWidget {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configurationService = model?.configurationService ?? new TestConfigurationService({ chat: { automations: { sampleData: !model } } });
@@ -435,7 +435,10 @@ suite('Automations layout details panel', () => {
 		instantiationService.stub(IClipboardService, {});
 		instantiationService.stub(IChatViewFactory, {});
 		instantiationService.stub(ISessionsService, {});
-		instantiationService.stub(ISessionsManagementService, { onDidChangeSessions: Event.None });
+		instantiationService.stub(ISessionsManagementService, {
+			onDidChangeSessions: Event.None,
+			getSession: resource => model?.sessions?.find(session => session.resource.toString() === resource.toString()),
+		});
 		instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None });
 		instantiationService.stub(IChatService, { chatModels: constObservable([]) });
 		instantiationService.stub(IAgentPluginService, { plugins: constObservable([]) });
@@ -445,7 +448,7 @@ suite('Automations layout details panel', () => {
 			canUpdateAutomation: () => true,
 			canDeleteAutomation: () => true,
 			getAutomation: id => automations.get().find(automation => automation.id === id),
-			runs: constObservable([]),
+			runs: model?.runs ?? constObservable([]),
 			catalogueState: constObservable<AutomationCatalogueState>('ready'),
 			availableProviders: constObservable([]),
 			unavailableProviders: constObservable([]),
@@ -464,6 +467,31 @@ suite('Automations layout details panel', () => {
 		assert.ok(result, selector);
 		return result;
 	}
+
+	test('rows and details track a background run waiting for input before its chat is opened', () => {
+		const resource = URI.parse('test://session/run');
+		const status = observableValue('status', SessionStatus.InProgress);
+		const run: IAutomationRun = { id: 'run', automationId: 'task', status: 'running', trigger: 'manual', startedAt: new Date().toISOString(), sessionResource: resource };
+		const runs = observableValue<readonly IAutomationRun[]>('runs', [run]);
+		const session = upcastPartial<ISession>({
+			resource, status, title: constObservable('Task session'), description: constObservable(undefined), isRead: constObservable(true),
+		});
+		const widget = createWidget(false, undefined, { automations: constObservable([automation('task')]), runs, sessions: [session] });
+		element(widget, '[data-key="row:task"]').click();
+		const states = () => [
+			element(widget, '.automations-layout-last-run').textContent,
+			element(widget, '.automations-layout-details-run-state').textContent,
+		];
+		assert.deepStrictEqual(states(), ['Running', 'Running']);
+		status.set(SessionStatus.NeedsInput, undefined);
+		assert.deepStrictEqual(states(), ['Needs input', 'Needs input']);
+		status.set(SessionStatus.InProgress, undefined);
+		assert.deepStrictEqual(states(), ['Running', 'Running']);
+		status.set(SessionStatus.NeedsInput, undefined);
+		runs.set([{ ...run, status: 'completed', completedAt: new Date().toISOString() }], undefined);
+		assert.strictEqual(element(widget, '.automations-layout-details-run-state').textContent, 'Succeeded');
+		assert.ok(element(widget, '[data-key="row:task"]').getAttribute('aria-label')?.includes('succeeded'));
+	});
 
 	test('off automations stay in their group and the remembered switch only hides personal off entries', () => {
 		const storageService = store.add(new InMemoryStorageService());
