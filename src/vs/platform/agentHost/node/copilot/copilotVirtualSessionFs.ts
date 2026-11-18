@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionFsConfig, SessionFsFileInfo, SessionFsProvider } from '@github/copilot-sdk';
+import type { SessionFsConfig, SessionFsFileInfo, SessionFsProvider } from '@microsoft/copilot-sdk';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';

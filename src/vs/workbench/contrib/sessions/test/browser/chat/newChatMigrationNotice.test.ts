@@ -318,6 +318,7 @@ suite('NewChatMigrationNotice', () => {
 		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		env.migrations.result = resource => resource.path === '/one' ? pending.p : Promise.resolve(undefined);
 		const notice = env.create();
+		await timeout(0);
 		env.session.set(createSession('two'), undefined);
 		await timeout(0);
 		await pending.complete({
@@ -383,6 +384,7 @@ suite('NewChatMigrationNotice', () => {
 		const earlyResult = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		env.migrations.result = async () => earlyResult.p;
 		env.changed.fire();
+		await timeout(0);
 		loading.set(true, undefined);
 		const whileLoading = snapshot(notice).visible;
 		env.session.set(draft('replacement'), undefined);

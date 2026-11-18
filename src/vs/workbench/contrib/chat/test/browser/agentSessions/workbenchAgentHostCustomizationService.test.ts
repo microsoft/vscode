@@ -14,9 +14,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, withSessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionState, SessionStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { buildChatUri, buildDefaultChatUri, createSessionState, withSessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
@@ -35,6 +36,91 @@ import { MockPromptsService } from '../../common/promptSyntax/service/mockPrompt
 
 suite('WorkbenchAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('notifies only when session customization inputs change', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(IOutputService, new class extends mock<IOutputService>() { }());
+		const subscriptionChanged = store.add(new Emitter<SessionState>());
+		const subscription = {
+			value: undefined as SessionState | undefined,
+			onDidChange: subscriptionChanged.event,
+		} as IAgentSubscription<SessionState> & { value: SessionState | undefined };
+		const connection = {
+			onDidAction: Event.None,
+			rootState: { value: undefined },
+			resourceUris: agentHostConnectionKinds[0].resourceUris,
+			getSubscription: () => ({ object: subscription, dispose: () => { } }),
+		} as unknown as IAgentConnection;
+		const backend = URI.parse('agent-host:/session');
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const service = store.add(new WorkbenchAgentHostCustomizationService(
+			{ ambientConnection: connection } as Partial<IAgentHostConnectionsService> as IAgentHostConnectionsService,
+			{ onDidChange: Event.None, get: () => backend, getProvisionalWorkingDirectories: () => [] } as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService,
+			instantiationService,
+			new NullLogService(),
+			{ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService,
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new class extends mock<IMcpService>() { }(),
+			configurationService,
+			new TestNotificationService(),
+		));
+		service.getCustomizations(URI.parse('untitled:chat-session'));
+		let customizationChanges = 0;
+		let agentChanges = 0;
+		store.add(service.onDidChangeCustomizations(() => customizationChanges++));
+		store.add(service.onDidChangeCustomAgents(() => agentChanges++));
+		let state = createSessionState({
+			resource: backend.toString(), provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
+			createdAt: '', modifiedAt: '',
+		});
+		const chat = buildDefaultChatUri(backend.toString());
+		state = { ...state, defaultChat: chat, chats: [{ resource: chat, title: 'Chat', status: SessionStatus.Idle, modifiedAt: '' }] };
+		const changes: { action: string; customizations: number; agents: number }[] = [];
+		const notify = (action: string) => {
+			subscription.value = state;
+			subscriptionChanged.fire(state);
+			changes.push({ action, customizations: customizationChanges, agents: agentChanges });
+		};
+		notify('snapshot');
+		const actions: SessionAction[] = [
+			{ type: ActionType.SessionReady },
+			{ type: ActionType.SessionTitleChanged, title: 'Updated Session' },
+			{ type: ActionType.SessionActivityChanged, activity: 'Working' },
+			{ type: ActionType.SessionIsReadChanged, isRead: true },
+			{ type: ActionType.SessionChatUpdated, chat, changes: { status: SessionStatus.InProgress, modifiedAt: 'updated' } },
+			{
+				type: ActionType.SessionCustomizationsChanged, customizations: [{
+					type: CustomizationType.Directory, id: 'skills', uri: 'file:///workspace/skills', name: 'Skills',
+					contents: CustomizationType.Skill, writable: true, enabled: true,
+				}]
+			},
+			{ type: ActionType.SessionWorkingDirectorySet, directory: 'file:///workspace' },
+			{ type: ActionType.SessionMetaChanged, _meta: withSessionFolderPickerDecision(undefined, { hidden: true, primary: 'file:///workspace' })! },
+			{ type: ActionType.SessionActiveClientSet, activeClient: { clientId: 'vscode', tools: [{ name: 'tool', description: 'Tool' }] } },
+			{ type: ActionType.SessionDefaultChatChanged, defaultChat: buildChatUri(backend.toString(), 'peer') },
+			{ type: ActionType.SessionChatRemoved, chat },
+		];
+		for (const action of actions) {
+			state = sessionReducer(state, action);
+			notify(action.type);
+		}
+		assert.deepStrictEqual(changes, [
+			{ action: 'snapshot', customizations: 1, agents: 1 },
+			{ action: ActionType.SessionReady, customizations: 1, agents: 1 },
+			{ action: ActionType.SessionTitleChanged, customizations: 1, agents: 1 },
+			{ action: ActionType.SessionActivityChanged, customizations: 1, agents: 1 },
+			{ action: ActionType.SessionIsReadChanged, customizations: 1, agents: 1 },
+			{ action: ActionType.SessionChatUpdated, customizations: 1, agents: 1 },
+			{ action: ActionType.SessionCustomizationsChanged, customizations: 2, agents: 2 },
+			{ action: ActionType.SessionWorkingDirectorySet, customizations: 3, agents: 3 },
+			{ action: ActionType.SessionMetaChanged, customizations: 4, agents: 4 },
+			{ action: ActionType.SessionActiveClientSet, customizations: 5, agents: 5 },
+			{ action: ActionType.SessionDefaultChatChanged, customizations: 6, agents: 6 },
+			{ action: ActionType.SessionChatRemoved, customizations: 7, agents: 7 },
+		]);
+	});
 
 	for (const kind of agentHostConnectionKinds) {
 		test(`keeps roots in client space through hydration and subscription errors (${kind.name})`, async () => {
