@@ -7,7 +7,7 @@ import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitte
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, Limiter, pathEquals, PendingOperations, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -21,7 +21,7 @@ import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { RepositoryCache } from './repositoryCache';
-import { WorkspaceFolderRepositories } from './workspaceFolderRepositories';
+import { ILocationOpening, IRepositoryChanges, WorkspaceFolderRepositories } from './workspaceFolderRepositories';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -203,9 +203,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	private possibleGitRepositoryPaths = new Set<string>();
 
-	private readonly workspaceFolderRepositories: WorkspaceFolderRepositories<Repository>;
+	private readonly workspaceFolderRepositories = new WorkspaceFolderRepositories<Repository>();
 
-	/** The repositories of locations that folders switched to that are opening, see `showOpeningLocations`. */
+	/** The repositories of locations that workspace folders switched to, until they are open. */
+	private readonly locationOpens = new PendingOperations();
+
+	/** The locations that workspace folders switched to, until their repository is shown or kept warm. */
+	private readonly locationSwitches = new PendingOperations();
+
+	/** The switches in progress while the Source Control view shows that they are, see `showOpeningLocations`. */
 	private openingLocations: Promise<void> | undefined;
 
 
@@ -300,8 +306,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
-		this.workspaceFolderRepositories = new WorkspaceFolderRepositories(this, workspace);
-		this.disposables.push(this.workspaceFolderRepositories);
+		workspace.onDidChangeWorkspaceFolderLocations(this.onDidChangeWorkspaceFolderLocations, this, this.disposables);
 		workspace.onDidChangeWorkspaceTrustedFolders(this.onDidChangeWorkspaceTrustedFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this.disposables);
@@ -479,14 +484,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
 		// A folder that switched to another of its locations shows the repository of that location only
 		const switches = this.workspaceFolderRepositories.getFolderLocationSwitches({ added, removed });
-		if (switches) {
-			const switching = this.workspaceFolderRepositories.switchFolderLocations(switches);
-			if (this.workspaceFolderRepositories.isOpeningLocations) {
-				this.showOpeningLocations(this.workspaceFolderRepositories.whenLocationsOpened());
-			}
-
+		if (switches && !switches.some(s => workspace.getConfiguration('git', s.to.uri).get<boolean>('detectWorktrees'))) {
 			try {
-				await switching;
+				await this.applyRepositoryChanges(this.workspaceFolderRepositories.switchFolderLocations(switches, workspace.workspaceFolders ?? [], this.repositories));
 			} catch (err) {
 				this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error switching folder locations: ${err}`);
 			}
@@ -521,7 +521,59 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	 * Resolves once the repositories of locations that workspace folders switched to are open.
 	 */
 	whenFolderLocationSwitchesOpened(): Promise<void> {
-		return this.workspaceFolderRepositories.whenSwitchesOpened();
+		return this.locationOpens.settled();
+	}
+
+	private async onDidChangeWorkspaceFolderLocations(): Promise<void> {
+		try {
+			const keepLeftLocationsWarm = !workspace.getConfiguration('git').get<boolean>('detectWorktrees');
+			await this.applyRepositoryChanges(this.workspaceFolderRepositories.updateLeftLocations(workspace.workspaceFolders ?? [], this.repositories, keepLeftLocationsWarm));
+		} catch (err) {
+			this.logger.warn(`[Model][onDidChangeWorkspaceFolderLocations] Error: ${err}`);
+		}
+	}
+
+	/**
+	 * Shows, keeps warm and closes repositories as decided for workspace folders that switched location, in one
+	 * tick so that the views change in one step, and opens the repositories of the locations to open. Resolves once
+	 * those are shown or kept warm.
+	 */
+	private async applyRepositoryChanges(changes: IRepositoryChanges<Repository>): Promise<void> {
+		changes.warm.forEach(r => r.setWarm(true));
+		changes.show.forEach(r => r.setWarm(false));
+		changes.close.forEach(r => this.disposeRepository(r));
+
+		const opening = changes.open.map(o => this.locationSwitches.track(this.openSwitchedLocation(o)));
+		if (opening.length > 0) {
+			this.showOpeningLocations(this.locationSwitches.settled());
+		}
+		await Promise.all(opening);
+	}
+
+	/**
+	 * Opens the repository of a location that a workspace folder switched to hidden, and shows it or keeps it warm
+	 * once its first git status ran, at most 10 seconds later.
+	 */
+	private async openSwitchedLocation(opening: ILocationOpening): Promise<void> {
+		await this.locationOpens.track(this.openRepository(opening.location, false, false, true));
+
+		const repository = this.getRepository(opening.location);
+		if (repository?.isWarm && !this.workspaceFolderRepositories.setOpenedRepository(opening, repository)) {
+			let onDidClose: Disposable | undefined;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				await Promise.race([
+					repository.whenFirstStatus,
+					new Promise<void>(c => onDidClose = filterEvent(this.onDidCloseRepository, r => r === repository)(() => c())),
+					new Promise<void>(c => timer = setTimeout(c, 10000))
+				]);
+			} finally {
+				onDidClose?.dispose();
+				clearTimeout(timer);
+			}
+		}
+
+		await this.applyRepositoryChanges(this.workspaceFolderRepositories.completeOpening(opening, workspace.workspaceFolders ?? [], this.repositories));
 	}
 
 	/**

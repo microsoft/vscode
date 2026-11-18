@@ -3,32 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, workspace as vscodeWorkspace, WorkspaceFolder, WorkspaceFoldersChangeEvent } from 'vscode';
-import { dispose, pathEquals, PendingOperations } from './util';
-
-/**
- * A repository that can be kept warm, see `Repository.isWarm`.
- */
-export interface IWarmRepository {
-	readonly root: string;
-	readonly isWarm: boolean;
-	readonly whenFirstStatus: Promise<void>;
-	setWarm(isWarm: boolean): void;
-}
-
-/**
- * The repositories model, see `Model`.
- */
-export interface IRepositoryModel<T extends IWarmRepository> {
-	readonly repositories: readonly T[];
-	/** The deepest open repository that contains `fsPath`. */
-	getRepository(fsPath: string): T | undefined;
-	openRepository(repoPath: string, openIfClosed?: boolean, openIfParent?: boolean, isWarm?: boolean): Promise<void>;
-	/** Closes a repository, without remembering that it was closed. */
-	disposeRepository(repository: T): void;
-}
-
-export type IWorkspace = Pick<typeof vscodeWorkspace, 'workspaceFolders' | 'onDidChangeWorkspaceFolders' | 'onDidChangeWorkspaceFolderLocations' | 'getConfiguration'>;
+import type { WorkspaceFolder, WorkspaceFoldersChangeEvent } from 'vscode';
+import { isDescendant, pathEquals } from './util';
 
 /**
  * A workspace folder that switched to another of its known locations, for example from a repository to one of
@@ -40,67 +16,51 @@ export interface IFolderLocationSwitch {
 }
 
 /**
- * Shows one repository for a workspace folder that switches between its locations, and switches without
- * flicker. The repository of the location that is left is kept warm: hidden, with git status paused, and
- * shown again right away when the folder switches back. At most `warmCapacity` repositories are kept warm,
- * the least recently left one is closed first. The repository of a location that is not warm opens hidden,
- * and is shown once its first git status ran, at most `firstStatusTimeout` later, so that it shows with its
- * changes. Only the repositories of the switching folders are affected.
+ * A location whose repository a switch opens, hidden, until it is shown or kept warm.
  */
-export class WorkspaceFolderRepositories<T extends IWarmRepository> {
+export interface ILocationOpening {
+	readonly location: string;
+}
 
-	/** The warm repositories, the least recently left first. These are ready: their first git status ran. */
+/**
+ * What to do with the repositories: show them, keep them warm (hidden, with git status paused), close them, and
+ * the locations whose repository to open hidden, see {@link WorkspaceFolderRepositories.completeOpening}.
+ */
+export interface IRepositoryChanges<T> {
+	readonly show: T[];
+	readonly warm: T[];
+	readonly close: T[];
+	readonly open: ILocationOpening[];
+}
+
+interface Opening<T> extends ILocationOpening {
+	repository?: T;
+}
+
+/**
+ * Decides which repositories to show for workspace folders that switch between their locations, so that a folder
+ * shows one repository and switches without flicker. The repository of the location that is left is kept warm and
+ * shown again right away when the folder switches back. At most `warmCapacity` repositories are kept warm, the least
+ * recently left one is closed first. The repository of a location that is not warm opens hidden, and is shown once
+ * ready. Only the repositories of the switching folders are affected.
+ */
+export class WorkspaceFolderRepositories<T extends { readonly root: string }> {
+
+	/** The warm repositories, the least recently left first. These are ready. */
 	private readonly warm: T[] = [];
 
-	/** The repositories that a switch opened and that await their first git status, with the switches awaiting each. */
-	private readonly pending = new Map<T, number>();
-
-	/** Ends the wait for the first git status of a pending repository that is closed. */
-	private readonly onDidClose = new Map<T, () => void>();
-
-	/** The repositories that switches open, until they are open. */
-	private readonly opening = new PendingOperations();
-
-	/** The switches to locations that are not warm, until their repository is shown or kept warm. */
-	private readonly switching = new PendingOperations();
-
-	/** The locations whose repository a switch opens, once for each switch, until it is shown or kept warm. */
-	private readonly openingLocations: string[] = [];
+	/** The locations whose repository switches open, one for each switch, until it is shown or kept warm. */
+	private readonly openings = new Set<Opening<T>>();
 
 	/** The folders that a switch added, until their locations are known. */
 	private readonly awaitingLocations = new Set<WorkspaceFolder>();
 
-	private readonly disposables: Disposable[] = [];
-
-	constructor(
-		private readonly model: IRepositoryModel<T>,
-		private readonly workspace: IWorkspace,
-		private readonly warmCapacity = 3,
-		private readonly firstStatusTimeout = 10000
-	) {
-		workspace.onDidChangeWorkspaceFolders(this.closeWarmRepositoriesOfRemovedFolders, this, this.disposables);
-		workspace.onDidChangeWorkspaceFolderLocations(this.updateLeftLocations, this, this.disposables);
-	}
-
-	/**
-	 * Whether the repositories of locations that folders switched to are opening.
-	 */
-	get isOpeningLocations(): boolean {
-		return !this.switching.isEmpty;
-	}
-
-	/**
-	 * Resolves once the repositories of locations that folders switched to are shown or kept warm.
-	 */
-	whenLocationsOpened(): Promise<void> {
-		return this.switching.settled();
-	}
+	constructor(private readonly warmCapacity = 3) { }
 
 	/**
 	 * Returns the switches of folders to other locations in `e`, or `undefined` if `e` is not only that: the removed
-	 * folders' known locations include the added folders, and git does not open their worktrees anyway. The locations
-	 * of a folder are known once resolved, so a switch right after the folder was added runs as any folder change,
-	 * see {@link updateLeftLocations}.
+	 * folders' known locations include the added folders. The locations of a folder are known once resolved, so a
+	 * switch right after the folder was added cannot be told from any folder change, see {@link updateLeftLocations}.
 	 */
 	getFolderLocationSwitches(e: WorkspaceFoldersChangeEvent): IFolderLocationSwitch[] | undefined {
 		if (e.added.length === 0 || e.added.length !== e.removed.length) {
@@ -112,7 +72,7 @@ export class WorkspaceFolderRepositories<T extends IWarmRepository> {
 			const to = e.added.find(folder => !pathEquals(folder.uri.fsPath, from.uri.fsPath)
 				&& !result.some(s => s.to === folder)
 				&& (from.locations ?? []).some(location => location.uri.scheme === 'file' && pathEquals(location.uri.fsPath, folder.uri.fsPath)));
-			if (!to || this.isDetectingWorktrees(to)) {
+			if (!to) {
 				return undefined;
 			}
 			result.push({ from, to });
@@ -121,38 +81,115 @@ export class WorkspaceFolderRepositories<T extends IWarmRepository> {
 	}
 
 	/**
-	 * Switches the repositories of folders that switched location: keeps the repository of the location that is
-	 * left warm, and shows the repository of the new location, right away when it is warm. Otherwise opens it hidden
-	 * and shows it once ready. Resolves once the switches completed.
+	 * Switches the repositories of folders that switched location: keeps the repository of the location that is left
+	 * warm, and shows the repository of the new location right away when it is warm, or opens it otherwise.
 	 */
-	async switchFolderLocations(switches: readonly IFolderLocationSwitch[]): Promise<void> {
+	switchFolderLocations(switches: readonly IFolderLocationSwitch[], workspaceFolders: readonly WorkspaceFolder[], repositories: readonly T[]): IRepositoryChanges<T> {
+		const changes = createChanges<T>();
 		const targets = switches.map(s => s.to);
-		const opening: Promise<void>[] = [];
 		for (const { from, to } of switches) {
 			this.awaitingLocations.add(to);
 
 			// The new location can be a repository nested in the one that is left, which is open while the new one is not yet
-			const left = this.model.getRepository(from.uri.fsPath);
-			if (left && !this.pending.has(left) && !left.isWarm && !this.isCurrent(left, targets)) {
-				this.keepWarm(left);
+			const left = getDeepest(repositories, from.uri.fsPath);
+			if (left && this.isShown(left) && !this.isCurrent(left, workspaceFolders, repositories, targets)) {
+				this.keepWarm(left, changes);
 			}
 
 			const target = this.takeWarm(to.uri.fsPath);
 			if (target) {
-				target.setWarm(false);
+				changes.show.push(target);
 			} else {
-				opening.push(this.openLocation(to.uri.fsPath));
+				changes.open.push(this.addOpening(to.uri.fsPath));
 			}
 		}
-
-		await Promise.all(opening);
+		return changes;
 	}
 
 	/**
-	 * Resolves once the repositories that switches open are open, so that their git resources can be served.
+	 * Sets the repository that `opening` opened, hidden. Returns whether it is ready to be shown: otherwise it is once
+	 * its first git status ran.
 	 */
-	whenSwitchesOpened(): Promise<void> {
-		return this.opening.settled();
+	setOpenedRepository(opening: ILocationOpening, repository: T): boolean {
+		(opening as Opening<T>).repository = repository;
+		return this.warm.includes(repository);
+	}
+
+	/**
+	 * Completes `opening`: shows the repository it opened if a folder is at it, and keeps it warm otherwise, unless
+	 * another switch opens it too. The folders can have switched again while it was opening.
+	 */
+	completeOpening(opening: ILocationOpening, workspaceFolders: readonly WorkspaceFolder[], repositories: readonly T[]): IRepositoryChanges<T> {
+		const changes = createChanges<T>();
+		const repository = (opening as Opening<T>).repository;
+		this.openings.delete(opening as Opening<T>);
+		if (!repository || !repositories.includes(repository)) {
+			return changes;
+		}
+
+		if (this.isCurrent(repository, workspaceFolders, repositories)) {
+			this.takeWarmRepository(repository);
+			changes.show.push(repository);
+		} else if (!this.isPending(repository) && !this.isOpening(repository.root)) {
+			this.keepWarm(repository, changes);
+		}
+		return changes;
+	}
+
+	/**
+	 * Once the locations of the folders are known: shows the warm repository that a folder is at, closes the warm
+	 * repositories of locations that are not known anymore and, when `keepLeftLocationsWarm`, keeps the open repositories
+	 * of other known locations of the folders warm and opens the location of a folder that has no repository. That is
+	 * the case for a folder that switched before its locations were known, whose repositories were handled as the
+	 * ones of any removed and added folder.
+	 */
+	updateLeftLocations(workspaceFolders: readonly WorkspaceFolder[], repositories: readonly T[], keepLeftLocationsWarm: boolean): IRepositoryChanges<T> {
+		const changes = createChanges<T>();
+		for (const folder of [...this.awaitingLocations]) {
+			if (folder.locations !== undefined || !workspaceFolders.includes(folder)) {
+				this.awaitingLocations.delete(folder);
+			}
+		}
+
+		// The locations of a folder that just switched are not known yet, so the ones it left would look unknown
+		if (this.awaitingLocations.size > 0) {
+			return changes;
+		}
+
+		// A folder that switched to a repository nested in the one it left has none open, as the one it left contained it.
+		// The one it left is warm then, and must not be shown as the folder's repository.
+		if (keepLeftLocationsWarm) {
+			for (const folder of workspaceFolders) {
+				const repository = getDeepest(repositories, folder.uri.fsPath);
+				if ((folder.locations?.length ?? 0) > 1 && (!repository || this.warm.includes(repository)) && !this.isOpening(folder.uri.fsPath)) {
+					changes.open.push(this.addOpening(folder.uri.fsPath));
+				}
+			}
+		}
+
+		for (const repository of [...this.warm]) {
+			if (this.isCurrent(repository, workspaceFolders, repositories)) {
+				// A folder that switched back before its locations were known is at a warm repository
+				this.takeWarmRepository(repository);
+				changes.show.push(repository);
+			} else if (!isOtherFolderLocation(repository.root, workspaceFolders) && !this.isOpening(repository.root)) {
+				this.takeWarmRepository(repository);
+				changes.close.push(repository);
+			}
+		}
+
+		if (!keepLeftLocationsWarm) {
+			return changes;
+		}
+
+		for (const repository of repositories) {
+			if (this.isShown(repository) && !this.isOpening(repository.root) && !changes.show.includes(repository)
+				&& isOtherFolderLocation(repository.root, workspaceFolders) && !this.isCurrent(repository, workspaceFolders, repositories)) {
+				this.keepWarm(repository, changes);
+			}
+		}
+
+		return changes;
 	}
 
 	/**
@@ -160,179 +197,33 @@ export class WorkspaceFolderRepositories<T extends IWarmRepository> {
 	 */
 	delete(repository: T): void {
 		this.takeWarmRepository(repository);
-		this.pending.delete(repository);
-		this.onDidClose.get(repository)?.();
-		this.onDidClose.delete(repository);
 	}
 
-	dispose(): void {
-		dispose(this.disposables);
+	private addOpening(location: string): Opening<T> {
+		const opening = { location };
+		this.openings.add(opening);
+		return opening;
 	}
 
-	/**
-	 * Once the locations of the folders are known: shows the warm repository that a folder is at, closes the warm
-	 * repositories of locations that are not known anymore and, unless git opens worktrees anyway, keeps the open
-	 * repositories of other known locations of the folders warm. That is the case for a folder that switched before
-	 * its locations were known, whose repositories were handled as the ones of any removed and added folder.
-	 */
-	private updateLeftLocations(): void {
-		for (const folder of [...this.awaitingLocations]) {
-			if (folder.locations !== undefined || !this.workspaceFolders.includes(folder)) {
-				this.awaitingLocations.delete(folder);
-			}
-		}
-
-		// The locations of a folder that just switched are not known yet, so the ones it left would look unknown
-		if (this.awaitingLocations.size > 0) {
-			return;
-		}
-
-		for (const repository of [...this.warm]) {
-			const root = repository.root;
-			if (this.isCurrent(repository)) {
-				// A folder that switched back before its locations were known is at a warm repository
-				this.takeWarmRepository(repository);
-				repository.setWarm(false);
-			} else if (!this.isOtherFolderLocation(root) && !this.isOpening(root)) {
-				this.takeWarmRepository(repository);
-				this.model.disposeRepository(repository);
-			}
-		}
-
-		for (const repository of [...this.model.repositories]) {
-			const root = repository.root;
-			const folder = this.getFolderAtOtherLocation(root);
-			if (folder && !this.isDetectingWorktrees(folder) && !repository.isWarm && !this.pending.has(repository)
-				&& !this.isOpening(root) && !this.isCurrent(repository)) {
-				this.keepWarm(repository);
-			}
-		}
-
-		// A folder that switched to a repository nested in the one it left has none open, as the one it left contained it
-		for (const folder of this.workspaceFolders) {
-			const repository = this.model.getRepository(folder.uri.fsPath);
-			if ((folder.locations?.length ?? 0) > 1 && !this.isDetectingWorktrees(folder)
-				&& (!repository || repository.isWarm) && !this.isOpening(folder.uri.fsPath)) {
-				this.openLocation(folder.uri.fsPath);
-			}
-		}
+	/** Whether `repository` is shown: not warm, and not opening for a switch. */
+	private isShown(repository: T): boolean {
+		return !this.warm.includes(repository) && !this.isPending(repository);
 	}
 
-	/**
-	 * Closes the warm repositories of the known locations of folders that were removed, rather than switched.
-	 */
-	private closeWarmRepositoriesOfRemovedFolders(e: WorkspaceFoldersChangeEvent): void {
-		if (this.warm.length === 0 || this.getFolderLocationSwitches(e)) {
-			return;
-		}
-
-		for (const repository of [...this.warm]) {
-			const root = repository.root;
-			if (e.removed.some(folder => (folder.locations ?? []).some(location => pathEquals(location.uri.fsPath, root))) && !this.isOtherFolderLocation(root)) {
-				this.takeWarmRepository(repository);
-				this.model.disposeRepository(repository);
-			}
-		}
-	}
-
-	private get workspaceFolders(): readonly WorkspaceFolder[] {
-		return this.workspace.workspaceFolders ?? [];
-	}
-
-	/** Whether git opens the worktrees of the repository of `folder` anyway, see `git.detectWorktrees`. */
-	private isDetectingWorktrees(folder: WorkspaceFolder): boolean {
-		return !!this.workspace.getConfiguration('git', folder.uri).get<boolean>('detectWorktrees');
+	/** Whether a switch opened `repository` and awaits it. */
+	private isPending(repository: T): boolean {
+		return [...this.openings].some(o => o.repository === repository);
 	}
 
 	private isOpening(fsPath: string): boolean {
-		return this.openingLocations.some(l => pathEquals(l, fsPath));
+		return [...this.openings].some(o => pathEquals(o.location, fsPath));
 	}
 
-	private openLocation(fsPath: string): Promise<void> {
-		// Tracked before awaiting, so that git resources read in the same tick wait for the repository
-		const open = this.opening.track(this.model.openRepository(fsPath, false, false, true));
-		this.openingLocations.push(fsPath);
-		let isOpening = true;
-		const endOpening = () => {
-			if (isOpening) {
-				isOpening = false;
-				this.openingLocations.splice(this.openingLocations.indexOf(fsPath), 1);
-			}
-		};
-
-		const opened = (async () => {
-			await open;
-
-			const repository = this.model.getRepository(fsPath);
-			if (!repository || !repository.isWarm) {
-				return;
-			}
-
-			// The location is in a warm repository, for example the one that was left, which is ready
-			if (!this.warm.includes(repository)) {
-				await this.whenReady(repository);
-			}
-
-			endOpening();
-			this.complete(repository);
-		})();
-		opened.then(endOpening, endOpening);
-
-		this.switching.track(opened);
-		return opened;
-	}
-
-	/**
-	 * Resolves once the first git status of `repository` ran, it is closed, or `firstStatusTimeout` passed.
-	 */
-	private async whenReady(repository: T): Promise<void> {
-		this.pending.set(repository, (this.pending.get(repository) ?? 0) + 1);
-		const closed = new Promise<void>(c => {
-			const previous = this.onDidClose.get(repository);
-			this.onDidClose.set(repository, () => { previous?.(); c(); });
-		});
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		const timeout = new Promise<void>(c => timer = setTimeout(c, this.firstStatusTimeout));
-		try {
-			await Promise.race([repository.whenFirstStatus, closed, timeout]);
-		} finally {
-			clearTimeout(timer);
-			const count = this.pending.get(repository);
-			if (count !== undefined && count > 1) {
-				this.pending.set(repository, count - 1);
-			} else {
-				this.pending.delete(repository);
-				this.onDidClose.delete(repository);
-			}
-		}
-	}
-
-	/**
-	 * Shows the repository that a switch opened if a folder is at it, and keeps it warm otherwise, once no other
-	 * switch awaits it. The folders can have switched again while it was opening.
-	 */
-	private complete(repository: T): void {
-		if (!this.model.repositories.includes(repository) || !repository.isWarm) {
-			return;
-		}
-
-		if (this.isCurrent(repository)) {
-			this.takeWarmRepository(repository);
-			repository.setWarm(false);
-		} else if (!this.pending.has(repository) && !this.isOpening(repository.root)) {
-			// A switch that opens the location again decides about it
-			this.keepWarm(repository);
-		}
-	}
-
-	private keepWarm(repository: T): void {
+	private keepWarm(repository: T, changes: IRepositoryChanges<T>): void {
 		this.takeWarmRepository(repository);
 		this.warm.push(repository);
-		repository.setWarm(true);
-
-		for (const evicted of this.warm.splice(0, Math.max(0, this.warm.length - this.warmCapacity))) {
-			this.model.disposeRepository(evicted);
-		}
+		changes.warm.push(repository);
+		changes.close.push(...this.warm.splice(0, Math.max(0, this.warm.length - this.warmCapacity)));
 	}
 
 	private takeWarm(fsPath: string): T | undefined {
@@ -354,24 +245,28 @@ export class WorkspaceFolderRepositories<T extends IWarmRepository> {
 	 * Whether `repository` is the deepest open repository of a workspace folder, other than the `excluded` ones. A folder
 	 * whose location a switch opens is at no repository yet: the deepest open one can be the one it left, which contains it.
 	 */
-	private isCurrent(repository: T, excluded: readonly WorkspaceFolder[] = []): boolean {
-		return this.workspaceFolders.some(folder => !excluded.some(e => pathEquals(e.uri.fsPath, folder.uri.fsPath))
+	private isCurrent(repository: T, workspaceFolders: readonly WorkspaceFolder[], repositories: readonly T[], excluded: readonly WorkspaceFolder[] = []): boolean {
+		return workspaceFolders.some(folder => !excluded.some(e => pathEquals(e.uri.fsPath, folder.uri.fsPath))
 			&& !this.isOpening(folder.uri.fsPath)
-			&& this.model.getRepository(folder.uri.fsPath) === repository);
+			&& getDeepest(repositories, folder.uri.fsPath) === repository);
 	}
+}
 
-	/**
-	 * Whether `fsPath` is a known location of a workspace folder other than the one it is at.
-	 */
-	private isOtherFolderLocation(fsPath: string): boolean {
-		return !!this.getFolderAtOtherLocation(fsPath);
-	}
+function createChanges<T>(): IRepositoryChanges<T> {
+	return { show: [], warm: [], close: [], open: [] };
+}
 
-	/**
-	 * The workspace folder that `fsPath` is another known location of.
-	 */
-	private getFolderAtOtherLocation(fsPath: string): WorkspaceFolder | undefined {
-		return this.workspaceFolders.find(folder => !pathEquals(folder.uri.fsPath, fsPath)
-			&& (folder.locations ?? []).some(location => location.uri.scheme === 'file' && pathEquals(location.uri.fsPath, fsPath)));
-	}
+/**
+ * The deepest of `repositories` that contains `fsPath`.
+ */
+function getDeepest<T extends { readonly root: string }>(repositories: readonly T[], fsPath: string): T | undefined {
+	return repositories.filter(r => isDescendant(r.root, fsPath)).sort((a, b) => b.root.length - a.root.length)[0];
+}
+
+/**
+ * Whether `fsPath` is a known location of a workspace folder other than the one it is at.
+ */
+function isOtherFolderLocation(fsPath: string, workspaceFolders: readonly WorkspaceFolder[]): boolean {
+	return workspaceFolders.some(folder => !pathEquals(folder.uri.fsPath, fsPath)
+		&& (folder.locations ?? []).some(location => location.uri.scheme === 'file' && pathEquals(location.uri.fsPath, fsPath)));
 }
