@@ -10,7 +10,7 @@ import { Delayer, Promises, Throttler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, disposeIfDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
@@ -41,7 +41,7 @@ import { INotificationService, IPromptChoice, Severity } from '../../../../platf
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IQuickPickItem, IQuickInputService, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IWorkbenchThemeService, IWorkbenchTheme, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from '../../../services/themes/common/workbenchThemeService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -51,7 +51,7 @@ import { IDialogService, IPromptButton } from '../../../../platform/dialogs/comm
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IActionViewItemOptions, ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
-import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -1294,7 +1294,7 @@ export class DropDownExtensionActionViewItem extends ActionViewItem {
 	}
 }
 
-async function getContextMenuActionsGroups(extension: IExtension | undefined | null, contextKeyService: IContextKeyService, instantiationService: IInstantiationService): Promise<[string, Array<MenuItemAction | SubmenuItemAction>][]> {
+async function getContextMenuActionsGroups(extension: IExtension | undefined | null, contextKeyService: IContextKeyService, instantiationService: IInstantiationService, token: CancellationToken = CancellationToken.None): Promise<[string, Array<MenuItemAction | SubmenuItemAction>][]> {
 	return instantiationService.invokeFunction(async accessor => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
@@ -1359,6 +1359,11 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 
 			cksOverlay.push(['canSetLanguage', extensionsWorkbenchService.canSetLanguage(extension)]);
 			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === getLocale(extension.gallery)]);
+		}
+
+		// The context key service may have been disposed while the lookups above were pending.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
 		}
 
 		const actionsGroups = menuService.getMenuActions(MenuId.ExtensionContext, contextKeyService.createOverlay(cksOverlay), { shouldForwardArgs: true });
@@ -1487,7 +1492,7 @@ export class ExtensionEditorManageExtensionAction extends DropDownExtensionActio
 	private static readonly Class = `${ExtensionAction.ICON_ACTION_CLASS} manage ${ThemeIcon.asClassName(manageExtensionIcon)}`;
 	private static readonly HideClass = `${this.Class} hide`;
 
-	private updateRequest = 0;
+	private readonly updateLifetime = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
@@ -1506,9 +1511,11 @@ export class ExtensionEditorManageExtensionAction extends DropDownExtensionActio
 	 * Hides the action while it has no actions to show for the extension, such as in windows that register none.
 	 */
 	update(): void {
-		const request = ++this.updateRequest;
-		getContextMenuActionsGroups(this.extension, this.contextKeyService, this.instantiationService).then(actionsGroups => {
-			if (request === this.updateRequest) {
+		// Updating again, or disposing the action with its editor, cancels the pending lookup.
+		const lifetime = this.updateLifetime.value = new DisposableStore();
+		const token = cancelOnDispose(lifetime);
+		getContextMenuActionsGroups(this.extension, this.contextKeyService, this.instantiationService, token).then(actionsGroups => {
+			if (!token.isCancellationRequested) {
 				const hasActions = actionsGroups.some(([, actions]) => actions.length > 0);
 				this.enabled = hasActions;
 				this.class = hasActions ? ExtensionEditorManageExtensionAction.Class : ExtensionEditorManageExtensionAction.HideClass;

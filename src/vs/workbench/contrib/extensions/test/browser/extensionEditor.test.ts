@@ -35,9 +35,10 @@ suite('ExtensionEditor', () => {
 
 /**
 	 * Creates an editor, with what its actions and widgets use to show extensions that aren't installed, which shows the
-	 * actions that `getMenuActions` returns for the context menu of extensions in its Manage action.
+	 * actions that `getMenuActions` returns for the context menu of extensions in its Manage action, and which learns from
+	 * `extensionUsesAuth` whether extensions use authentication.
 	 */
-	function createEditor(getMenuActions: () => [string, MenuItemAction[]][] = () => []) {
+	function createEditor(getMenuActions: () => [string, MenuItemAction[]][] = () => [], extensionUsesAuth: () => Promise<boolean> = async () => false) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
 			override readonly onChange = Event.None;
@@ -74,7 +75,7 @@ suite('ExtensionEditor', () => {
 			override readonly onDidChangeAccessData = Event.None;
 		});
 		instantiationService.stub(IAuthenticationUsageService, new class extends mock<IAuthenticationUsageService>() {
-			override async extensionUsesAuth() { return false; }
+			override extensionUsesAuth() { return extensionUsesAuth(); }
 		});
 		instantiationService.stub(IWorkbenchThemeService, 'getColorThemes', async () => []);
 		instantiationService.stub(IWorkbenchThemeService, 'getFileIconThemes', async () => []);
@@ -199,5 +200,27 @@ suite('ExtensionEditor', () => {
 		const withActions = await showsManageAction(anExtension('pub.with'));
 
 		assert.deepStrictEqual({ withoutActions, withActions }, { withoutActions: false, withActions: true });
+	});
+
+	test('stops looking up the actions of its Manage action once disposed while it waits to learn whether the extension uses authentication', async () => {
+		let disposed = false;
+		let lookupsAfterDisposal = 0;
+		const usesAuth = new DeferredPromise<boolean>();
+		const { editor } = createEditor(() => {
+			if (disposed) {
+				lookupsAfterDisposal++;
+			}
+			return [];
+		}, () => usesAuth.p);
+		await editor.setInput(disposables.add(new ExtensionsInput(anExtension('pub.disposed', 'Disposed', Promise.resolve(manifest), false))), { preserveFocus: true }, {}, CancellationToken.None);
+		// The action looks up its actions once the editor shows the extension.
+		await timeout(0);
+
+		editor.dispose();
+		disposed = true;
+		await usesAuth.complete(false);
+		await timeout(0);
+
+		assert.strictEqual(lookupsAfterDisposal, 0);
 	});
 });
