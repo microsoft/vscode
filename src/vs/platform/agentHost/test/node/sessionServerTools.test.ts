@@ -13,6 +13,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
+import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
+import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
@@ -2296,6 +2298,66 @@ suite('SessionServerTools', () => {
 			/model must match an available model id or name for provider "copilot"/,
 		);
 		store.dispose();
+	});
+
+	suite('model selection', () => {
+		const configured: IAgentModelInfo = {
+			provider: 'copilot', id: 'gpt-configured', name: 'GPT Configured', supportsVision: false,
+			configSchema: {
+				type: 'object', properties: {
+					thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['low', 'medium', 'high', 'xhigh'], enumLabels: ['Low', 'Medium', 'High', 'Extra High'], default: 'medium' },
+					contextSize: { type: 'number', title: 'Context Size', enum: [200_000, 1_000_000], default: 200_000 },
+				},
+			},
+		};
+		const other: IAgentModelInfo = { ...configured, id: 'gpt-other', name: 'GPT Other' };
+		const allModels = [model, configured, other];
+		/** The calling chat runs `gpt-configured` at Extra High on its 1M window, its effort picked by default. */
+		const inherited: ModelSelection = { id: 'gpt-configured', config: { thinkingLevel: 'xhigh', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'explicit' } };
+		const source = URI.parse(buildDefaultChatUri('copilot:/s1'));
+
+		function recordingAccessor(overrides: Partial<ISessionServerToolAccessor> = {}) {
+			const calls: string[] = [];
+			const models: (ModelSelection | undefined)[] = [];
+			const accessor = createAccessor({
+				getSessionModelOptions: () => 'inline',
+				getModels: () => allModels,
+				getCreationDefaults: () => ({ provider: 'copilot', sessionProvider: 'copilot', model: inherited }),
+				prepareChatWorkingDirectory: async (_session, directory) => { calls.push('prepare'); return prepared(directory); },
+				onCreate: config => { calls.push('createSession'); models.push(config.model); },
+				onCreateChat: (_session, _chat, options) => { calls.push('createChat'); models.push(options?.model); },
+				onPrompt: () => calls.push('startPrompt'),
+				...overrides,
+			});
+			return { accessor, calls, models };
+		}
+
+		async function createdModels(relationship: 'currentSession' | 'independent', requests: readonly Record<string, unknown>[], modelOptions: AgentHostSessionModelOptions = 'inline') {
+			const { accessor, models } = recordingAccessor({ getSessionModelOptions: () => modelOptions });
+			for (const request of requests) {
+				await applyCreateSessionTool(accessor, { relationship, prompt: 'p', title: 'T', ...request }, source);
+			}
+			return models;
+		}
+
+		test('with model options, an explicit model naming the calling chat\'s model keeps its selection; without them, any explicit model starts from its defaults', async () => {
+			const requests = [{}, { model: 'gpt-configured' }, { model: 'GPT Configured' }, { model: 'gpt-other' }];
+			const expected = [inherited, inherited, inherited, { id: 'gpt-other' }];
+			const expectedOff = [inherited, { id: 'gpt-configured' }, { id: 'gpt-configured' }, { id: 'gpt-other' }];
+			assert.deepStrictEqual({
+				independent: await createdModels('independent', requests),
+				currentSession: await createdModels('currentSession', requests),
+				offIndependent: await createdModels('independent', requests, 'off'),
+				offCurrentSession: await createdModels('currentSession', requests, 'off'),
+			}, { independent: expected, currentSession: expected, offIndependent: expectedOff, offCurrentSession: expectedOff });
+		});
+
+		test('the retired create_chat keeps its model resolution', async () => {
+			const { accessor, models } = recordingAccessor();
+			await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'p', model: 'gpt-configured' }, source);
+			await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'p' }, source);
+			assert.deepStrictEqual(models, [{ id: 'gpt-configured' }, inherited]);
+		});
 	});
 
 	suite('harness', () => {

@@ -897,13 +897,16 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 }
 
 /**
- * The model selection of a chat `create_session` creates: an explicit `model` starts from its own defaults, an
- * omitted one from the calling chat's selection. `undefined` leaves the model to the provider.
+ * The model selection of a chat `create_session` creates. An omitted `model` starts from the calling chat's selection
+ * and an explicit one from its own defaults, except that with {@link modelOptions} an explicit `model` that names the
+ * calling chat's model also starts from that chat's selection, so it keeps the chat's effort and context size.
+ * `undefined` leaves the model to the provider.
  *
  * @param inherited The calling chat's selection, when the new chat uses the calling chat's agent.
+ * @param modelOptions Whether agents can choose model options (`sessionModelOptions` isn't `off`).
  */
-function resolveCreatedModelSelection(args: IResolvedCreateSessionArgs, inherited: ModelSelection | undefined): ModelSelection | undefined {
-	return args.model === undefined ? inherited : { id: args.model.id };
+function resolveCreatedModelSelection(args: IResolvedCreateSessionArgs, inherited: ModelSelection | undefined, modelOptions: boolean): ModelSelection | undefined {
+	return args.model === undefined || (modelOptions && inherited?.id === args.model.id) ? inherited : { id: args.model.id };
 }
 
 /** Decodes the {@link SessionStatus} bit-flags into readable names for the agent. */
@@ -1172,6 +1175,7 @@ export function isChatWorkspacelessInSession(metadata: IAgentSessionMetadata | u
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true): Promise<ICreateSessionResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
+	const modelOptions = accessor.getSessionModelOptions() !== 'off';
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
@@ -1192,7 +1196,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.`);
 		}
 		// The calling chat's model is inherited only by a chat of the same agent.
-		const model = resolveCreatedModelSelection(args, currentProvider === defaults?.provider ? defaults?.model : undefined);
+		const model = resolveCreatedModelSelection(args, currentProvider === defaults?.provider ? defaults?.model : undefined, modelOptions);
 		// A requested folder joins the session and is assigned only to the new chat.
 		const prepared = args.workspace !== undefined
 			? await accessor.prepareChatWorkingDirectory(currentSession, args.workspace, { ...getChatWorkingDirectoryOptions(args.worktree, defaults?.isolation, args.prompt), ...(credentials ? { credentialSource: credentials } : {}) })
@@ -1231,7 +1235,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	}
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
 	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
-	const model = resolveCreatedModelSelection(args, defaults?.model);
+	const model = resolveCreatedModelSelection(args, args.model === undefined || args.model.provider === defaults?.provider ? defaults?.model : undefined, modelOptions);
 	let isolation: 'folder' | 'worktree' | undefined;
 	if (workspace !== undefined) {
 		isolation = 'worktree';
