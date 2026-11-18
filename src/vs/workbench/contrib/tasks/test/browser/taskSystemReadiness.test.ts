@@ -23,6 +23,7 @@ import { RunAutomaticTasks } from '../../browser/runAutomaticTasks.js';
 import { TaskService } from '../../browser/taskService.js';
 import { ITaskService, IWorkspaceFolderTaskResult } from '../../common/taskService.js';
 import { ITaskSystemInfo } from '../../common/taskSystem.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
@@ -61,6 +62,7 @@ suite('Task system readiness', function () {
 			override readonly remoteAuthority = remoteAuthority;
 		});
 		instantiationService.stub(IOutputService, { getChannel: () => undefined });
+		instantiationService.stub(IWorkspaceFolderLocationService, { onWillChangeLocation: Event.None });
 		instantiationService.stub(IConfigurationResolverService, { contributeVariable: () => { } });
 		instantiationService.stub(ITerminalService, { whenConnected: Promise.resolve(), instances: [] });
 		const registerCommand = sinon.spy(CommandsRegistry, 'registerCommand');
