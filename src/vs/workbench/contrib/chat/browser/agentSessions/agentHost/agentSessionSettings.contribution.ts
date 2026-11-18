@@ -88,6 +88,8 @@ registerAction2(class OpenAgentSessionSettingsAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.openAgentSessionSettings',
 			title: localize2('openAgentSessionSettings', "Open Session Settings"),
+			// The shared sessions list sets this key; the Chat view list never does.
+			precondition: ContextKeyExpr.not('sessionItem.isMultiSelection'),
 			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: '3_settings',
@@ -104,7 +106,8 @@ registerAction2(class OpenAgentSessionSettingsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext.negate(),
 					agentSessionSettingsPrecondition,
-					ContextKeyExpr.regex('sessionProviderId', /^(local-agent-host|agenthost-)/),
+					// Settings commands target the local host only, not remote or container providers.
+					ContextKeyExpr.equals('sessionProviderId', 'local-agent-host'),
 				),
 			}],
 		});

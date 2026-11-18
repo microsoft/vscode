@@ -430,7 +430,7 @@ export class OpenAgentSessionCustomizationsAction extends Action2 {
 			id: 'agentSession.openCustomizations',
 			title: localize2('openSessionCustomizations', "Open Customizations"),
 			icon: Codicon.extensions,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate(), ContextKeyExpr.not('sessionItem.isMultiSelection')),
 			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: 'navigation',

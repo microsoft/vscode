@@ -82,7 +82,8 @@ registerAction2(class OpenAgentHostSettingsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext.negate(),
 					agentHostSettingsPrecondition,
-					ContextKeyExpr.regex('sessionProviderId', /^(local-agent-host|agenthost-)/),
+					// Settings commands target the local host only, not remote or container providers.
+					ContextKeyExpr.equals('sessionProviderId', 'local-agent-host'),
 				),
 			}],
 		});

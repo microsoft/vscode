@@ -118,33 +118,54 @@ suite('AgentSessionsActions', () => {
 		for (const action of [OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenAgentSessionCustomizationsAction, MarkAllAgentSessionsReadAction]) {
 			disposables.add(registerAction2(action));
 		}
-		const evaluate = (isSessionsWindow: boolean) => {
+		// Menus render the navigation group first.
+		const groupRank = (group: string | undefined) => group === 'navigation' ? 0 : 1;
+		const evaluate = (isSessionsWindow: boolean, providerId = 'local-agent-host') => {
 			const values: Record<string, boolean | string> = {
 				[IsSessionsWindowContext.key]: isSessionsWindow,
 				[ChatContextKeys.enabled.key]: true,
 				[AGENT_HOST_ENABLED_CONTEXT_KEY.key]: true,
-				sessionProviderId: 'local-agent-host',
+				sessionProviderId: providerId,
 			};
 			const context: IContext = { getValue: <T>(key: string) => values[key] as T | undefined };
 			return MenuRegistry.getMenuItems(MenuId.SessionItemContextMenu).filter(isIMenuItem)
 				.filter(item => item.command.id.startsWith('workbench.action.chat.open') || item.command.id.startsWith('agentSession.') || item.command.id === 'workbench.action.chat.markAllAgentSessionsRead')
 				.filter(item => item.when?.evaluate(context) ?? true)
-				.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
+				.sort((a, b) => groupRank(a.group) - groupRank(b.group) || (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
 				.map(item => `${item.group}@${item.order}: ${item.command.id}`);
 		};
-		assert.deepStrictEqual({ editor: evaluate(false), agents: evaluate(true) }, {
+		assert.deepStrictEqual({ editor: evaluate(false), remote: evaluate(false, 'agenthost-devcontainer'), agents: evaluate(true) }, {
 			editor: [
-				'1_state@5: workbench.action.chat.markAllAgentSessionsRead',
-				'4_manage@2.5: workbench.action.chat.openAgentHostSettings',
-				'4_manage@2.6: workbench.action.chat.openAgentSessionSettings',
 				'navigation@2.1: workbench.action.chat.openSessionInEditorGroup',
 				'navigation@2.2: workbench.action.chat.openSessionInNewEditorGroup',
 				'navigation@2.3: workbench.action.chat.openSessionInNewWindow',
 				'navigation@6: agentSession.openCustomizations',
+				'1_state@5: workbench.action.chat.markAllAgentSessionsRead',
+				'4_manage@2.5: workbench.action.chat.openAgentHostSettings',
+				'4_manage@2.6: workbench.action.chat.openAgentSessionSettings',
+			],
+			// Host and session settings only target the local host.
+			remote: [
+				'navigation@2.1: workbench.action.chat.openSessionInEditorGroup',
+				'navigation@2.2: workbench.action.chat.openSessionInNewEditorGroup',
+				'navigation@2.3: workbench.action.chat.openSessionInNewWindow',
+				'navigation@6: agentSession.openCustomizations',
+				'1_state@5: workbench.action.chat.markAllAgentSessionsRead',
 			],
 			// The Agents window registers its own entries for these actions.
 			agents: [],
 		});
+	});
+
+	test('disables single-session actions while the shared sessions list has several rows selected', () => {
+		disposables.add(registerAction2(OpenAgentSessionCustomizationsAction));
+		for (const id of ['agentSession.openCustomizations', 'workbench.action.chat.openAgentSessionSettings']) {
+			const precondition = MenuRegistry.getMenuItems(MenuId.SessionItemContextMenu).filter(isIMenuItem).find(item => item.command.id === id)?.command.precondition;
+			const enabled = (multiSelection: boolean) => !!precondition?.evaluate({
+				getValue: <T>(key: string) => ({ [ChatContextKeys.enabled.key]: true, [AGENT_HOST_ENABLED_CONTEXT_KEY.key]: true, 'sessionItem.isMultiSelection': multiSelection } as Record<string, boolean>)[key] as T | undefined,
+			});
+			assert.deepStrictEqual({ id, single: enabled(false), multiple: enabled(true) }, { id, single: true, multiple: false });
+		}
 	});
 
 	test('runs the Chat view open actions on rows of the shared sessions list', async () => {
