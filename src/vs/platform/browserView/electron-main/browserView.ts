@@ -26,6 +26,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { BrowserViewReportedFocus } from '../common/browserViewFocus.js';
 import { URI } from '../../../base/common/uri.js';
+import { BrowserViewFavicon } from './browserViewFavicon.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -43,7 +44,7 @@ export class BrowserView extends Disposable {
 	presentation = BrowserViewPresentation.Listed;
 
 	private _lastScreenshot: VSBuffer | undefined = undefined;
-	private _lastFavicon: string | undefined = undefined;
+	private readonly _favicon: BrowserViewFavicon;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
@@ -168,6 +169,7 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._favicon = new BrowserViewFavicon(this._view.webContents.getURL(), favicon => this._onDidChangeFavicon.fire({ favicon }));
 		this._updateBackgroundThrottling();
 		this._register(this.onDidChangeAudiences(() => this._updateBackgroundThrottling()));
 		this._register(this.onDidChangeOwner(() => this._updateBackgroundThrottling()));
@@ -353,9 +355,10 @@ export class BrowserView extends Disposable {
 				}
 
 				try {
-					this._lastFavicon = await this._faviconRequestCache.get(url)!;
-					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
-					this._currentHistoryHandle?.update({ favicon: this._lastFavicon });
+					const favicon = await this._faviconRequestCache.get(url)!;
+					if (this._favicon.update(favicon)) {
+						this._currentHistoryHandle?.update({ favicon });
+					}
 					// On success, stop searching
 					return;
 				} catch (e) {
@@ -364,9 +367,7 @@ export class BrowserView extends Disposable {
 			}
 
 			// If we searched all favicons and none worked, clear the favicon
-			if (this._lastFavicon) {
-				this._lastFavicon = undefined;
-				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
+			if (this._favicon.value && this._favicon.update(undefined)) {
 				this._currentHistoryHandle?.update({ favicon: null });
 			}
 		});
@@ -374,12 +375,6 @@ export class BrowserView extends Disposable {
 			if (this._redirectPinnedNavigation(event.url)) {
 				event.preventDefault();
 				return;
-			}
-			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
-			const host = URL.parse(event.url)?.host;
-			const currHost = URL.parse(this.webContents.getURL())?.host;
-			if (host !== currHost) {
-				this._lastFavicon = undefined;
 			}
 		});
 		webContents.on('will-redirect', event => {
@@ -395,6 +390,7 @@ export class BrowserView extends Disposable {
 		});
 
 		const fireNavigationEvent = (url: string) => {
+			this._favicon.didNavigate(url);
 			this._onDidNavigate.fire({
 				url,
 				title: webContents.getTitle(),
@@ -435,6 +431,7 @@ export class BrowserView extends Disposable {
 					certificateError: errorCode <= -200 && errorCode >= -220 ? this.session.trust.getCertificateError(validatedURL) : undefined
 				};
 
+				this._favicon.didFailLoad(validatedURL);
 				fireLoadingEvent(false);
 				this._onDidNavigate.fire({
 					url: validatedURL,
@@ -643,7 +640,7 @@ export class BrowserView extends Disposable {
 		this._currentHistoryHandle = this.session.history.add(
 			url,
 			webContents.getTitle(),
-			this._lastFavicon,
+			this._favicon.value,
 			userInitiated,
 		);
 	}
@@ -678,7 +675,7 @@ export class BrowserView extends Disposable {
 			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
-			lastFavicon: this._lastFavicon,
+			lastFavicon: this._favicon.value,
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
 			session: this.session.options,
