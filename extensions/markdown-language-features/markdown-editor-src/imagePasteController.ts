@@ -16,16 +16,34 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 	#request = 0;
 	#interaction = 0;
 	#media: ClipboardMediaStore | undefined;
+	#clipboardContext: IClipboardContext | undefined;
 
 	constructor(
 		readonly editor: EditorModel,
 		readonly view: EditorView,
 		readonly host: Pick<MarkdownEditorHost, 'pasteImages'>,
 		readonly epoch: () => number,
+		forwardPasteAsTextKeybinding: boolean,
 		readonly clipboard: Clipboard = navigator.clipboard,
 	) {
 		super();
-		this.#strategy = new AsyncClipboardStrategy(clipboard, (context, plainText, nativeData?: NativeClipboardData) => this.#paste(context, async () => {
+		this.#strategy = new AsyncClipboardStrategy(clipboard, (context, plainText, nativeData) => this.#pasteFromClipboard(context, plainText, nativeData), !forwardPasteAsTextKeybinding);
+		this.#status.className = 'md-language-status';
+		this.#status.setAttribute('role', 'status');
+		this.#status.hidden = true;
+		this._register(view.mountOverlay(this.#status, 'top-chrome'));
+	}
+
+	async pasteAsText(): Promise<void> {
+		const context = this.#clipboardContext;
+		if (context && context.element === document.activeElement) {
+			await this.#pasteFromClipboard(context, true);
+		}
+	}
+
+	#pasteFromClipboard(context: IClipboardContext, plainText: boolean, nativeData?: NativeClipboardData): Promise<void> {
+		const clipboard = this.clipboard;
+		return this.#paste(context, async () => {
 			const native = nativeData ?? readNativeClipboard(context.element);
 			if (native) {
 				return getNativeClipboardMedia(native, plainText);
@@ -49,11 +67,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 				throw new Error(clipboardFormatsUnavailableMessage);
 			}
 			return { text, images };
-		}, plainText));
-		this.#status.className = 'md-language-status';
-		this.#status.setAttribute('role', 'status');
-		this.#status.hidden = true;
-		this._register(view.mountOverlay(this.#status, 'top-chrome'));
+		}, plainText);
 	}
 
 	writeText(text: string): Promise<void> { return this.#strategy.writeText(text); }
@@ -66,12 +80,16 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 	}
 
 	connect(context: IClipboardContext): { dispose(): void } {
+		this.#clipboardContext = context;
 		const interact = (): void => { this.#interaction++; };
 		context.element.addEventListener('pointerdown', interact);
 		context.element.addEventListener('keydown', interact);
 		const connection = this.#strategy.connect(context);
 		return {
 			dispose: () => {
+				if (this.#clipboardContext === context) {
+					this.#clipboardContext = undefined;
+				}
 				connection.dispose();
 				context.element.removeEventListener('pointerdown', interact);
 				context.element.removeEventListener('keydown', interact);

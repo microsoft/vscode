@@ -146,6 +146,12 @@
     ],
     "commands": [
       {
+        "command": "markdown.editor.pasteAsText",
+        "title": "%markdown.editor.pasteAsText%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
         "command": "markdown.editor.triggerSuggest",
         "title": "%markdown.editor.triggerSuggest%",
         "category": "Markdown Editor",
@@ -744,6 +750,10 @@
       ],
       "commandPalette": [
         {
+          "command": "markdown.editor.pasteAsText",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
           "command": "markdown.editor.triggerSuggest",
           "when": "activeCustomEditorId == 'vscode.markdown.editor'"
         },
@@ -1105,6 +1115,12 @@
       ]
     },
     "keybindings": [
+      {
+        "command": "markdown.editor.pasteAsText",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus && !isWeb"
+      },
       {
         "command": "markdown.editor.triggerSuggest",
         "key": "ctrl+space",
