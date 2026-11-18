@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -18,7 +20,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IValue, PromptHeaderAttributes, VSCodeAgentAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatAgentEmptyChatMessage, IChatWidget, IChatWidgetService } from '../chat.js';
 
 /**
  * The message a custom agent shows in an empty chat, from the VS Code-only `vscode:` map of its agent file.
@@ -99,7 +101,7 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		if (rendered) {
 			this._messages.set(widget, rendered.store);
 		}
-		widget.setAgentEmptyChatMessage?.(rendered?.element);
+		widget.setAgentEmptyChatMessage?.(rendered?.message);
 	}
 
 	private async _read(agentName: string, uri: URI): Promise<IAgentEmptyChatMessage | undefined> {
@@ -112,36 +114,55 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 	}
 
 	/** Renders like a chat response: markdown, then a row of command buttons as in `ChatCommandButtonContentPart`. */
-	private _render(message: IAgentEmptyChatMessage, widget: IChatWidget): { element: HTMLElement; store: DisposableStore } {
+	private _render(message: IAgentEmptyChatMessage, widget: IChatWidget): { message: IChatAgentEmptyChatMessage; store: DisposableStore } {
 		const store = new DisposableStore();
 		const element = dom.$('.interactive-item-container.interactive-response.chat-agent-empty-chat-message-item');
 		const user = dom.append(dom.append(element, dom.$('.header')), dom.$('.user'));
 		dom.append(user, dom.$('.avatar-container', undefined, dom.$('.avatar.codicon-avatar', undefined, dom.$(ThemeIcon.asCSSSelector(Codicon.chatSparkle)))));
 		dom.append(user, dom.$('h3.username', undefined, message.agentName));
 		const value = dom.append(element, dom.$('.value'));
-		const markdown = store.add(this._markdownRendererService.render(new MarkdownString(message.markdown, { supportThemeIcons: true })));
+		const markdownString = new MarkdownString(message.markdown, { supportThemeIcons: true });
+		const markdown = store.add(this._markdownRendererService.render(markdownString));
 		markdown.element.classList.add('rendered-markdown');
 		value.appendChild(markdown.element);
 
-		if (message.buttons.length) {
+		const actions = message.buttons.map((definition, index) => toAction({
+			id: `chat.agentEmptyChatMessage.button${index}`,
+			label: definition.label,
+			run: () => this._commandService.executeCommand(definition.command, ...(definition.args ?? [{ sessionResource: widget.viewModel?.sessionResource }])),
+		}));
+		if (actions.length) {
 			const row = dom.append(value, dom.$('.chat-command-button'));
+			// The empty chat focuses the input on click, which would undo a command that moves focus.
+			store.add(dom.addDisposableListener(row, dom.EventType.CLICK, e => e.stopPropagation()));
 			message.buttons.forEach((definition, index) => {
 				const button = store.add(new Button(row, { ...defaultButtonStyles, supportIcons: true, secondary: index > 0 }));
 				button.label = definition.icon ? `$(${definition.icon}) ${definition.label}` : definition.label;
-				store.add(button.onDidClick(() => this._commandService.executeCommand(definition.command, ...(definition.args ?? [{ sessionResource: widget.viewModel?.sessionResource }]))));
+				store.add(button.onDidClick(() => actions[index].run()));
 			});
 		}
-		return { element, store };
+		const accessibleText = `${message.agentName}: ${renderAsPlaintext(markdownString)}`;
+		return { message: { element, accessibleText, actions }, store };
 	}
 }
 
 function toJson(value: IValue | undefined): unknown {
 	switch (value?.type) {
-		case 'scalar': return value.value;
+		case 'scalar': return value.format === 'none' ? plainScalar(value.value) : value.value;
 		case 'sequence': return value.items.map(toJson);
 		case 'map': return Object.fromEntries(value.properties.map(property => [property.key.value, toJson(property.value)]));
 		default: return undefined;
 	}
+}
+
+/** An unquoted YAML scalar, typed as YAML reads it, so that e.g. command arguments can be booleans or numbers. */
+function plainScalar(value: string): unknown {
+	switch (value) {
+		case 'true': return true;
+		case 'false': return false;
+		case 'null': case '~': return null;
+	}
+	return /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value) ? Number(value) : value;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

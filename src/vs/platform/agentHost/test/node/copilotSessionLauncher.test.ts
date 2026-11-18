@@ -2204,6 +2204,10 @@ suite('getCopilotAgentSelectionName', () => {
 		assert.deepStrictEqual([...uris, nativeUri, URI.parse('client-agent:/missing')].map(uri =>
 			getCopilotAgentSelectionName(customizations, uri.toString())),
 			[...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', undefined]);
+		// The agent host reads an agent's file (e.g. its Assisted permissions instructions) back from the selected name.
+		assert.deepStrictEqual([...uris.map(uri => getSdkCustomAgentName(uri)), 'opaque-native-sdk-id', 'unknown'].map(name =>
+			getCopilotCustomAgentUri(customizations, name)?.toString()),
+			[...uris.map(uri => uri.toString()), nativeUri.toString(), undefined]);
 	});
 
 	test('keeps plugin and standalone SDK identities stable across cache revisions', () => {
