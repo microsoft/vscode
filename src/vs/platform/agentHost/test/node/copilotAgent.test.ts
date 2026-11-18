@@ -23232,7 +23232,7 @@ suite('CopilotAgent', () => {
 				const guidanceOf = (config: { readonly systemMessage?: { readonly content?: string } } | undefined) => /How the user wants the work done:\n(?<guidance>.*)\n/.exec(config?.systemMessage?.content ?? '')?.groups?.guidance;
 				/** The guidance each session was launched with: those created, then those resumed. */
 				const launched = () => ({ created: h.launchConfigs.map(guidanceOf), resumed: resumeConfigs.map(guidanceOf) });
-				return { ...h, send, launched };
+				return { ...h, send, launched, fileService };
 			}
 
 			test('a warm session is replaced once when the first message is routed to a route with guidance', async () => {
@@ -23270,6 +23270,14 @@ suite('CopilotAgent', () => {
 					later: { kept: true, notices: [] },
 					launched: { created: [undefined], resumed: ['Plan first.'] },
 				});
+			});
+
+			test('a router picked with a custom agent that names a model routes, as a model picked with that agent runs', async () => {
+				const h = await createRoutedAgent('router-agent-model');
+				const agentFile = joinPath(userHome, 'agents', 'reviewer.agent.md');
+				await h.fileService.writeFile(agentFile, VSBuffer.fromString('---\nname: Reviewer\nmodel: gpt-5\n---\nReview.'));
+				const resolution = await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-1', selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [], agent: { uri: agentFile.toString() } }, h.context, CancellationToken.None);
+				assert.deepStrictEqual({ model: resolution.selection?.id, route: resolution.routed?.routeName, notices: resolution.notices }, { model: 'claude-sonnet', route: 'feature', notices: [] });
 			});
 
 			test('a chat that is routed to a route with other guidance is relaunched with it', async () => {
