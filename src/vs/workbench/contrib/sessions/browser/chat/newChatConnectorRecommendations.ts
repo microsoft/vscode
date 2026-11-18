@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -20,6 +21,7 @@ import { ICustomizationMarketplaceInstallService } from '../../../chat/common/cu
 import { findMatchingConnectorRecommendationIds } from '../../../chat/common/connectorRecommendations.js';
 import { getConnectorMcpServerNames, getMatchingInstalledMcpPlugins, getMatchingInstalledMcpServers } from '../../../chat/common/connectorUpgrade.js';
 import { IAgentPluginService } from '../../../chat/common/plugins/agentPluginService.js';
+import { ICopilotConnectorsService } from '../../../chat/browser/aiCustomization/copilotConnectorsService.js';
 import { IMcpWorkbenchService } from '../../../mcp/common/mcpTypes.js';
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../common/chatConstants.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
@@ -49,6 +51,7 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 	private _availableRecommendationIds: readonly string[] = [];
 	private _tipStateKey = '';
 	private _tip: IChatTip | undefined;
+	private _connectorInventoryLoading = false;
 
 	constructor(
 		private readonly options: {
@@ -64,6 +67,7 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICustomizationMarketplaceInstallService private readonly customizationMarketplaceInstallService: ICustomizationMarketplaceInstallService,
+		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 	) {
 		super();
 		if (isConfigurationValueFromDefault(this.configurationService, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING)) {
@@ -87,6 +91,8 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 		this._register(this.mcpWorkbenchService.onChange(() => this.update()));
 		this._register(this.mcpWorkbenchService.onReset(() => this.update()));
 		this._register(this.customizationMarketplaceInstallService.onDidChange(() => this.update()));
+		this._register(this.copilotConnectorsService.onDidChange(() => this.update()));
+		this._register(this.copilotConnectorsService.onDidChangeAccount(() => this.update()));
 		this._register(autorun(reader => {
 			for (const plugin of this.agentPluginService.plugins.read(reader)) {
 				plugin.mcpServerDefinitions.read(reader);
@@ -150,7 +156,11 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 		const matching = enabled
 			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this._recommendationUrls)
 			: new Set<string>();
-		const recommendationId = this.getRecommendationId(matching);
+		const inventoryReady = matching.size === 0 || this.copilotConnectorsService.connectionStateKnown;
+		if (!inventoryReady) {
+			this.ensureConnectorInventory();
+		}
+		const recommendationId = inventoryReady ? this.getRecommendationId(matching) : undefined;
 		const recommendation = recommendationId ? this._recommendations.get(recommendationId) : undefined;
 		const isUpgrade = recommendation ? this.isUpgrade(recommendation) : false;
 		const tip = recommendation ? this.createTip(recommendation, isUpgrade) : undefined;
@@ -161,6 +171,19 @@ export class NewChatConnectorRecommendations extends Disposable implements IChat
 		this._tipStateKey = tipStateKey;
 		this._tip = tip;
 		this._onDidChange.fire();
+	}
+
+	private ensureConnectorInventory(): void {
+		if (this._connectorInventoryLoading) {
+			return;
+		}
+		this._connectorInventoryLoading = true;
+		void this.copilotConnectorsService.getConnectors(CancellationToken.None).finally(() => {
+			this._connectorInventoryLoading = false;
+			if (!this._store.isDisposed && this.copilotConnectorsService.connectionStateKnown) {
+				this.update();
+			}
+		});
 	}
 
 	private getRecommendationId(matching: ReadonlySet<string>): string | undefined {

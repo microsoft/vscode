@@ -292,6 +292,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override get account() { return this.accountOverride; }
 			connectionStateKnownOverride = true;
 			override get connectionStateKnown() { return this.connectionStateKnownOverride; }
+			authorizationRequiredOverride = false;
+			override get authorizationRequired() { return this.authorizationRequiredOverride; }
 			readonly connectCalls: string[] = [];
 			readonly disconnectCalls: string[] = [];
 			statusOverride: CopilotConnectorConnectionStatus | undefined;
@@ -299,6 +301,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			catalogVisible = true;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
+			onRefresh: (() => void) | undefined;
 			override get connectors() {
 				return this.catalogVisible ? [{
 					name: 'mail',
@@ -316,6 +319,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}
 			override readonly connectedMcpServers = [];
 			override async refresh(): Promise<readonly ICopilotConnector[]> {
+				this.onRefresh?.();
 				return this.connectors;
 			}
 			override async connect(name: string, token: CancellationToken): Promise<void> {
@@ -2037,6 +2041,49 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}, {
 				connects: ['mail'],
 				state: { kind: 'available' },
+				recorded: [],
+			});
+		});
+
+		test('preserves a connection error when the connector account changes', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			fixture.connectorsService.onConnect = async name => {
+				fixture.connectedConnectors.add(name);
+				fixture.connectorsService.accountOverride = { providerId: 'github', accountName: 'hubot', enterprise: false };
+				fixture.connectorAccountChanges.fire();
+				throw new Error('Connection operation was cancelled');
+			};
+
+			await assert.rejects(fixture.service.install(candidate), /Connection operation was cancelled/);
+
+			assert.deepStrictEqual({
+				state: fixture.service.getInstallState(candidate),
+				recorded: recordedResources(fixture.service),
+			}, {
+				state: { kind: 'installed', target: connectorInstallationTarget },
+				recorded: [],
+			});
+		});
+
+		test('preserves a connection error when refreshed authorization is required', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			fixture.connectorsService.onConnect = async name => {
+				fixture.connectedConnectors.add(name);
+				throw new Error('Connector authorization was declined');
+			};
+			fixture.connectorsService.onRefresh = () => {
+				fixture.connectorsService.authorizationRequiredOverride = true;
+			};
+
+			await assert.rejects(fixture.service.install(candidate), /Connector authorization was declined/);
+
+			assert.deepStrictEqual({
+				state: fixture.service.getInstallState(candidate),
+				recorded: recordedResources(fixture.service),
+			}, {
+				state: { kind: 'installed', target: connectorInstallationTarget },
 				recorded: [],
 			});
 		});

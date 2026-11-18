@@ -20,6 +20,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { ICopilotConnectorsService } from '../../../../chat/browser/aiCustomization/copilotConnectorsService.js';
 import { AICustomizationManagementCommands } from '../../../../chat/common/aiCustomizationWorkspaceService.js';
 import { IChatTipProvider, IChatTipService } from '../../../../chat/browser/chatTipService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../../chat/common/customizationMarketplaceInstallService.js';
@@ -49,6 +50,7 @@ suite('NewChatConnectorRecommendations', () => {
 		readonly installedMcpServerNames?: readonly string[];
 		readonly installedPluginMcpServerNames?: readonly string[];
 		readonly installedConnectors?: readonly { readonly name: string; readonly displayName: string }[];
+		readonly connectorInventoryKnown?: boolean;
 		readonly random?: () => number;
 		readonly phone?: boolean;
 	} = {}) {
@@ -72,8 +74,11 @@ suite('NewChatConnectorRecommendations', () => {
 		const onDidChangeMcp = store.add(new Emitter<IWorkbenchMcpServer | undefined>());
 		const onDidResetMcp = store.add(new Emitter<void>());
 		const onDidChangeConnector = store.add(new Emitter<void>());
+		const onDidChangeConnectorAccount = store.add(new Emitter<void>());
 		let inputValue = '';
 		let inputReadCount = 0;
+		let connectorInventoryKnown = options.connectorInventoryKnown ?? true;
+		let connectorInventoryLoadCount = 0;
 		let provider: IChatTipProvider | undefined;
 		const createInstalledMcpServer = (name: string) => new class extends mock<IWorkbenchMcpServer>() {
 			override readonly id = name;
@@ -110,6 +115,18 @@ suite('NewChatConnectorRecommendations', () => {
 		mainContainer.classList.toggle('phone-layout', options.phone ?? false);
 		const layoutChanged = store.add(new Emitter<IDimension>());
 		instantiationService.stub(IWorkbenchLayoutService, { mainContainer, onDidLayoutMainContainer: layoutChanged.event });
+		instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = onDidChangeConnector.event;
+			override readonly onDidChangeAccount = onDidChangeConnectorAccount.event;
+			override get connectionStateKnown() { return connectorInventoryKnown; }
+			override get authorizationRequired() { return false; }
+			override async getConnectors() {
+				connectorInventoryLoadCount++;
+				connectorInventoryKnown = true;
+				onDidChangeConnector.fire();
+				return [];
+			}
+		}());
 		instantiationService.stub(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 			override readonly onChange = onDidChangeMcp.event;
 			override readonly onReset = onDidResetMcp.event;
@@ -156,7 +173,15 @@ suite('NewChatConnectorRecommendations', () => {
 				installedConnectors = connectors;
 				onDidChangeConnector.fire();
 			},
+			setConnectorInventoryKnown(known: boolean) {
+				connectorInventoryKnown = known;
+				onDidChangeConnector.fire();
+			},
+			fireConnectorAccountChange() {
+				onDidChangeConnectorAccount.fire();
+			},
 			get inputReadCount() { return inputReadCount; },
+			get connectorInventoryLoadCount() { return connectorInventoryLoadCount; },
 		};
 	}
 
@@ -207,6 +232,7 @@ suite('NewChatConnectorRecommendations', () => {
 				icon: URI.parse('https://example.com/linear.png'),
 			},
 		});
+
 		assert.match(fixture.provider.provideTip()!.content.value, /\*\*Tip:\*\* \[Triage your open issues in Linear\]\(command:aiCustomization\.openMarketplace\?/);
 		const commandArgs = /\?([^)]*)/.exec(fixture.provider.provideTip()!.content.value)?.[1];
 		assert.deepStrictEqual(JSON.parse(decodeURIComponent(commandArgs!)), [{
@@ -215,6 +241,35 @@ suite('NewChatConnectorRecommendations', () => {
 			connectorName: 'linear',
 			connectorDisplayName: 'Linear',
 		}]);
+	});
+
+	test('loads unknown connector inventory before recommending and suppresses installed connectors after load', async () => {
+		const fixture = setup({
+			connectorInventoryKnown: false,
+			installedConnectors: [{ name: 'slack', displayName: 'Slack' }],
+		});
+		fixture.setInput('https://slack.com/archives/C123');
+
+		assert.strictEqual(fixture.provider.provideTip(), undefined);
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			loadCount: fixture.connectorInventoryLoadCount,
+			tip: fixture.provider.provideTip(),
+		}, {
+			loadCount: 1,
+			tip: undefined,
+		});
+	});
+
+	test('reloads connector inventory after an account change', async () => {
+		const fixture = setup({ connectorInventoryKnown: false });
+		fixture.setInput('https://slack.com/archives/C123');
+		await Promise.resolve();
+		fixture.setConnectorInventoryKnown(false);
+		fixture.fireConnectorAccountChange();
+		await Promise.resolve();
+
+		assert.strictEqual(fixture.connectorInventoryLoadCount, 2);
 	});
 
 	test('recommends upgrading an installed equivalent MCP server', () => {

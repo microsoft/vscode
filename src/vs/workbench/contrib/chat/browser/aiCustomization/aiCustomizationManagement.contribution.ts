@@ -47,7 +47,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { ConnectorUpgradeSource, findConnectorUpgradeTarget, getMatchingInstalledMcpServers, upgradeMcpSourcesToConnector } from '../../common/connectorUpgrade.js';
+import { createConnectorUpgradeSource, findConnectorUpgradeTarget, getCurrentConnectorUpgradeServer, getMatchingInstalledMcpServers, upgradeMcpSourcesToConnector } from '../../common/connectorUpgrade.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -953,6 +953,7 @@ export class AICustomizationManagementActionsContribution extends Disposable imp
 					});
 					return;
 				}
+				const sources = matchingServers.map(createConnectorUpgradeSource);
 
 				const confirmation = await dialogService.confirm({
 					type: 'info',
@@ -973,21 +974,41 @@ export class AICustomizationManagementActionsContribution extends Disposable imp
 					if (!connector) {
 						throw new Error(localize('connectorUpgradeUnavailable', "The connector is not available"));
 					}
-					const sources: ConnectorUpgradeSource[] = matchingServers.map(server => ({ kind: 'mcpServer', server }));
+					const connectorResource = {
+						...toCopilotConnectorMarketplaceEntry(connector),
+						sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+					};
 					const result = await upgradeMcpSourcesToConnector(
-						() => installService.install({
-							...toCopilotConnectorMarketplaceEntry(connector),
-							sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
-						}),
+						async () => {
+							const state = installService.getInstallState(connectorResource);
+							if (state.kind === 'available') {
+								await installService.install(connectorResource);
+							} else if (state.kind === 'missing') {
+								await installService.repair(connectorResource);
+							} else if (state.kind !== 'installed') {
+								throw new Error(localize('connectorUpgradeNotReady', "The connector is not ready to install"));
+							}
+							if (installService.getInstallState(connectorResource).kind !== 'installed') {
+								throw new Error(localize('connectorUpgradeNotInstalled', "The connector could not be verified as installed"));
+							}
+						},
 						sources,
-						source => mcpWorkbenchService.uninstall(source.server),
+						async source => {
+							const current = getCurrentConnectorUpgradeServer(source, mcpWorkbenchService.local);
+							if (!current) {
+								return false;
+							}
+							await mcpWorkbenchService.uninstall(current);
+							return true;
+						},
 					);
-					if (result.removalErrors.length) {
+					const manualCleanupCount = result.removalErrors.length + result.preservedSources.length;
+					if (manualCleanupCount) {
 						notificationService.warn(localize(
 							'connectorUpgradePartialFailure',
-							"The {0} Connector is connected, but {1} matching MCP configuration(s) could not be removed. Remove them manually to avoid duplicate tools.",
+							"The {0} Connector is connected, but {1} matching MCP configuration(s) were changed or could not be removed. Review them manually to avoid duplicate tools.",
 							target.connectorDisplayName,
-							result.removalErrors.length
+							manualCleanupCount
 						));
 					}
 				} catch (error) {

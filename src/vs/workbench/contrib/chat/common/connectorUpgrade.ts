@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { deepClone, equals } from '../../../../base/common/objects.js';
+import { IWorkbenchLocalMcpServer } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IWorkbenchMcpServer, McpServerInstallState } from '../../mcp/common/mcpTypes.js';
 import { IAgentPlugin } from './plugins/agentPluginService.js';
 
-export type ConnectorUpgradeSource = { readonly kind: 'mcpServer'; readonly server: IWorkbenchMcpServer };
+export type ConnectorUpgradeSource = {
+	readonly kind: 'mcpServer';
+	readonly server: IWorkbenchMcpServer;
+	readonly local: IWorkbenchLocalMcpServer;
+};
 
 export interface IConnectorUpgradeResult {
 	readonly removalErrors: readonly { readonly source: ConnectorUpgradeSource; readonly error: unknown }[];
+	readonly preservedSources: readonly ConnectorUpgradeSource[];
 }
 
 export function getConnectorMcpServerNames(
@@ -54,21 +61,56 @@ export function getMatchingInstalledMcpPlugins(
 	);
 }
 
+export function createConnectorUpgradeSource(server: IWorkbenchMcpServer): ConnectorUpgradeSource {
+	if (!server.local) {
+		throw new Error(`Expected MCP server '${server.name}' to have a local installation`);
+	}
+	return {
+		kind: 'mcpServer',
+		server,
+		local: {
+			...server.local,
+			config: deepClone(server.local.config),
+		},
+	};
+}
+
+export function getCurrentConnectorUpgradeServer(
+	source: ConnectorUpgradeSource,
+	servers: readonly IWorkbenchMcpServer[],
+): IWorkbenchMcpServer | undefined {
+	const current = servers.find(server =>
+		server.local?.id === source.local.id
+		&& server.local.scope === source.local.scope
+		&& server.local.mcpResource.toString() === source.local.mcpResource.toString()
+	);
+	return current?.local
+		&& current.name === source.server.name
+		&& current.local.name === source.local.name
+		&& current.local.format === source.local.format
+		&& equals(current.local.config, source.local.config)
+		? current
+		: undefined;
+}
+
 export async function upgradeMcpSourcesToConnector(
 	installConnector: () => Promise<void>,
 	sources: readonly ConnectorUpgradeSource[],
-	removeSource: (source: ConnectorUpgradeSource) => Promise<void>,
+	removeSource: (source: ConnectorUpgradeSource) => Promise<boolean>,
 ): Promise<IConnectorUpgradeResult> {
 	await installConnector();
 
 	const removalErrors: { source: ConnectorUpgradeSource; error: unknown }[] = [];
+	const preservedSources: ConnectorUpgradeSource[] = [];
 	for (const source of sources) {
 		try {
-			await removeSource(source);
+			if (!await removeSource(source)) {
+				preservedSources.push(source);
+			}
 		} catch (error) {
 			removalErrors.push({ source, error });
 		}
 	}
 
-	return { removalErrors };
+	return { removalErrors, preservedSources };
 }

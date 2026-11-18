@@ -9,17 +9,25 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { findConnectorUpgradeTarget, getConnectorMcpServerNames, getMatchingInstalledMcpPlugins, getMatchingInstalledMcpServers, upgradeMcpSourcesToConnector } from '../../../common/connectorUpgrade.js';
+import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { createConnectorUpgradeSource, findConnectorUpgradeTarget, getConnectorMcpServerNames, getMatchingInstalledMcpPlugins, getMatchingInstalledMcpServers, getCurrentConnectorUpgradeServer, upgradeMcpSourcesToConnector } from '../../../common/connectorUpgrade.js';
 import { IAgentPlugin, IAgentPluginMcpServerDefinition } from '../../../common/plugins/agentPluginService.js';
 import { IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 
-function createServer(name: string, installState = McpServerInstallState.Installed, isLocal = true): IWorkbenchMcpServer {
+function createServer(name: string, installState = McpServerInstallState.Installed, isLocal = true, config: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: name }): IWorkbenchMcpServer {
+	const local = new class extends mock<IWorkbenchLocalMcpServer>() {
+		override readonly id = name;
+		override readonly scope = LocalMcpServerScope.User;
+		override readonly mcpResource = URI.file('/user/mcp.json');
+		override readonly name = name;
+		override readonly config = config;
+	}();
 	return new class extends mock<IWorkbenchMcpServer>() {
 		override readonly id = name;
 		override readonly name = name;
 		override readonly installState = installState;
-		override readonly local = isLocal ? new class extends mock<IWorkbenchLocalMcpServer>() { }() : undefined;
+		override readonly local = isLocal ? local : undefined;
 	}();
 }
 
@@ -94,8 +102,8 @@ suite('ConnectorUpgrade', () => {
 		const result = await upgradeMcpSourcesToConnector(
 			async () => { operations.push('connect'); },
 			[
-				{ kind: 'mcpServer', server: first },
-				{ kind: 'mcpServer', server: second },
+				createConnectorUpgradeSource(first),
+				createConnectorUpgradeSource(second),
 			],
 			async source => {
 				assert.strictEqual(source.kind, 'mcpServer');
@@ -103,6 +111,7 @@ suite('ConnectorUpgrade', () => {
 				if (source.server === first) {
 					throw new Error('first removal failed');
 				}
+				return true;
 			}
 		);
 
@@ -128,11 +137,71 @@ suite('ConnectorUpgrade', () => {
 					operations.push('connect');
 					throw new Error('connection failed');
 				},
-				[{ kind: 'mcpServer', server }],
-				async source => { operations.push(`remove:${source.kind}`); }
+				[createConnectorUpgradeSource(server)],
+				async source => {
+					operations.push(`remove:${source.kind}`);
+					return true;
+				}
 			),
 			/connection failed/
 		);
 		assert.deepStrictEqual(operations, ['connect']);
+	});
+
+	test('revalidates unchanged MCP sources and preserves changed or missing sources', () => {
+		const server = createServer('slack');
+		const source = createConnectorUpgradeSource(server);
+		assert.strictEqual(source.kind, 'mcpServer');
+		const unchanged = createServer('slack');
+		const changed = createServer('slack');
+		if (!changed.local) {
+			throw new Error('Expected a local MCP server.');
+		}
+		const originalLocal = changed.local;
+		const changedLocal = new class extends mock<IWorkbenchLocalMcpServer>() {
+			override readonly id = originalLocal.id;
+			override readonly scope = originalLocal.scope;
+			override readonly mcpResource = originalLocal.mcpResource;
+			override readonly name = originalLocal.name;
+			override readonly config: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'changed' };
+		}();
+		const changedServer = new class extends mock<IWorkbenchMcpServer>() {
+			override readonly local = changedLocal;
+		}();
+
+		assert.deepStrictEqual([
+			getCurrentConnectorUpgradeServer(source, [unchanged])?.name,
+			getCurrentConnectorUpgradeServer(source, [changedServer]),
+			getCurrentConnectorUpgradeServer(source, []),
+		], ['slack', undefined, undefined]);
+	});
+
+	test('captures an immutable MCP configuration snapshot', () => {
+		const args = ['--original'];
+		const server = createServer('slack', McpServerInstallState.Installed, true, { type: McpServerType.LOCAL, command: 'slack', args });
+		const source = createConnectorUpgradeSource(server);
+		assert.strictEqual(source.kind, 'mcpServer');
+
+		args[0] = '--changed';
+
+		assert.deepStrictEqual(source.local.config, { type: McpServerType.LOCAL, command: 'slack', args: ['--original'] });
+		assert.strictEqual(getCurrentConnectorUpgradeServer(source, [server]), undefined);
+	});
+
+	test('reports MCP sources preserved after revalidation', async () => {
+		const server = createServer('slack');
+		const result = await upgradeMcpSourcesToConnector(
+			async () => { },
+			[createConnectorUpgradeSource(server)],
+			async () => false,
+		);
+
+		assert.deepStrictEqual({
+			removalErrors: result.removalErrors,
+			preservedSources: result.preservedSources.map(source => source.server.name),
+		}, {
+			removalErrors: [],
+			preservedSources: ['slack'],
+		});
 	});
 });
