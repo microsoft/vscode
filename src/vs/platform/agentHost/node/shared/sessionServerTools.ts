@@ -21,6 +21,7 @@ import { ContextSizeConfigKey, getContextSizeForTier, modelContextTiers, withExp
 import { isModelRouterModelId } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import type { JsonPrimitive } from '../../common/state/protocol/state.js';
+import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 import { ChatInteractivity, ChatOriginKind, DEFAULT_CHAT_ID, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type ConfigPropertySchema, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type SessionActiveClient, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CHAT_LINK_PATTERN, buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -857,7 +858,8 @@ async function getCreateSessionCatalog(accessor: ISessionServerToolAccessor, raw
 	}
 }
 
-function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider): IAgentModelInfo | undefined {
+/** @param listAvailable Whether the error for a model that isn't found lists the available model ids. */
+function resolveModel(modelName: string | undefined, models: readonly IAgentModelInfo[], provider?: AgentProvider, listAvailable = false): IAgentModelInfo | undefined {
 	if (modelName === undefined) {
 		return undefined;
 	}
@@ -866,7 +868,9 @@ function resolveModel(modelName: string | undefined, models: readonly IAgentMode
 	const matches = idMatches.length > 0 ? idMatches : availableModels.filter(candidate => candidate.name === modelName);
 	if (matches.length === 0) {
 		const providerSuffix = provider === undefined ? '' : ` for provider "${provider}"`;
-		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model must match an available model id or name${providerSuffix}.`);
+		const ids = listAvailable ? getSelectableModels(availableModels).map(model => model.id) : [];
+		const available = ids.length > 0 ? ` Available model ids: ${ids.join(', ')}.` : '';
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model must match an available model id or name${providerSuffix}.${available}`);
 	}
 	if (matches.length > 1) {
 		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${modelName}" is ambiguous; use one of these model ids: ${matches.map(model => model.id).join(', ')}.`);
@@ -913,7 +917,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const worktree = getOptionalBoolean(args.worktree, 'worktree', SessionServerToolName.CreateSession);
 	const reasoningEffort = modelOptions ? getOptionalEnum(args.reasoningEffort, 'reasoningEffort', reasoningEffortLevels, SessionServerToolName.CreateSession) : undefined;
 	const contextTier = modelOptions ? getOptionalEnum(args.contextTier, 'contextTier', modelContextTiers, SessionServerToolName.CreateSession) : undefined;
-	const model = models === undefined ? undefined : resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
+	const model = models === undefined ? undefined : resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined, modelOptions);
 	const requestedOptions: ICreateSessionModelOptions = {
 		...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
 		...(contextTier !== undefined ? { contextTier } : {}),
@@ -1025,6 +1029,11 @@ function assertConfigWritable(property: ConfigPropertySchema, field: string, mod
 	if (property.readOnly) {
 		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: ${field} is locked for model "${modelId}" and can't be changed. Omit ${field}.`);
 	}
+}
+
+/** The models an agent can choose: every catalog model that policy doesn't disable, sorted by id so the list is stable. */
+function getSelectableModels(models: readonly IAgentModelInfo[]): readonly IAgentModelInfo[] {
+	return models.filter(model => model.policyState !== PolicyState.Disabled).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /**

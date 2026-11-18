@@ -2429,7 +2429,7 @@ suite('SessionServerTools', () => {
 			await applyCreateSessionTool(accessor, { relationship: 'independent', reasoningEffort: 'high', prompt: 'p', title: 'T' }, source);
 			await assert.rejects(
 				applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-shared-only', prompt: 'p', title: 'T' }, source),
-				{ message: 'Invalid create_session input: model must match an available model id or name.' },
+				{ message: 'Invalid create_session input: model must match an available model id or name. Available model ids: gpt-configured.' },
 			);
 			assert.deepStrictEqual({ reads, models }, {
 				reads: ['scoped', 'scoped', 'scoped'],
@@ -2519,6 +2519,22 @@ suite('SessionServerTools', () => {
 			await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'p', model: 'gpt-configured' }, source);
 			await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'p' }, source);
 			assert.deepStrictEqual(models, [{ id: 'gpt-configured' }, inherited]);
+		});
+
+		test('the error for a model create_session can\'t find lists the available ids only with model options', async () => {
+			const attempt = async (modelOptions: AgentHostSessionModelOptions) => {
+				const { accessor } = recordingAccessor({ getSessionModelOptions: () => modelOptions, getModels: () => [configured, claudeModel] });
+				try {
+					await applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-missing', prompt: 'p', title: 'T' }, source);
+					return 'created';
+				} catch (error) {
+					return error instanceof Error ? error.message : String(error);
+				}
+			};
+			assert.deepStrictEqual({ inline: await attempt('inline'), off: await attempt('off') }, {
+				inline: 'Invalid create_session input: model must match an available model id or name. Available model ids: claude-opus, gpt-configured.',
+				off: 'Invalid create_session input: model must match an available model id or name.',
+			});
 		});
 
 		test('create_session offers and applies reasoningEffort and contextTier only with model options', async () => {
