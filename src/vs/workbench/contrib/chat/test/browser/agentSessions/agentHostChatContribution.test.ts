@@ -10420,6 +10420,9 @@ suite('AgentHostChatContribution', () => {
 					routedTurn('stayed-again', { router: 'daily', chosenModel: 'gpt-5.5', effort: 'high', kept: true }),
 					// The chat keeps its route, and the route now runs on another model.
 					routedTurn('route-on-another-model', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'high', kept: true }),
+					// A turn without an effort runs on the model's default.
+					routedTurn('stayed-on-default-effort', { router: 'daily', chosenModel: 'gpt-5.4-mini', kept: true }),
+					routedTurn('stayed-with-an-effort-again', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'medium', kept: true }),
 				],
 			});
 			const session = disposables.add(await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: backend.path }), CancellationToken.None));
@@ -10431,6 +10434,8 @@ suite('AgentHostChatContribution', () => {
 				['daily switched from GPT-5.4 mini to GPT-5.5 \u00b7 High effort'],
 				[],
 				['daily switched from GPT-5.5 to GPT-5.4 mini \u00b7 High effort'],
+				['daily changed effort from High to the model\'s default'],
+				['daily changed effort from the model\'s default to Medium'],
 			]);
 		});
 

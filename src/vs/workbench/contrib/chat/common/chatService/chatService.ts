@@ -705,8 +705,8 @@ export interface IChatAutoModeResolutionPart {
 	defaulted?: boolean;
 	/** The chat stayed on the model it was already running. */
 	kept?: boolean;
-	/** The effort the chat was on before this turn, when it stayed on its model and the router changed its effort. */
-	effortChangedFrom?: string;
+	/** Set when the chat stayed on its model and the router changed its effort: the effort before this turn, or none when that was the model's default. */
+	effortChangedFrom?: { readonly effort?: string };
 	/** Auto is presented as Copilot Fusion, so the row names it that way. */
 	fusion?: boolean;
 }

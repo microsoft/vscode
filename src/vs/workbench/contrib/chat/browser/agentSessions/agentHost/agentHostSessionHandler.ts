@@ -8018,7 +8018,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// A chat keeps its route when the route moves to another model, such as a family's newer version or a fallback.
 					const switchedFrom = routed.kept && previousRouted && previousRouted.chosenModel !== routed.chosenModel ? previousRouted.chosenModel : routed.switchedFrom;
 					const kept = routed.kept && !switchedFrom;
-					const effortChangedFrom = kept && routed.effort && previousRouted?.effort && previousRouted.effort !== routed.effort ? previousRouted.effort : undefined;
+					// A turn with no effort ran on its model's default.
+					const effortChangedFrom = kept && previousRouted && previousRouted.effort !== routed.effort ? { effort: previousRouted.effort } : undefined;
 					// A turn that stayed on its model and effort has nothing new to report, but a row already showing "picking a model" still has to settle.
 					if (kept && !effortChangedFrom && !settlesPendingRow) {
 						return undefined;
