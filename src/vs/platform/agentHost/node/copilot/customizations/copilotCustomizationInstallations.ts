@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, InstallationConfirmationHandler, InstallationConfirmationRequest } from '@github/copilot-sdk';
+import type { CopilotClient, InstallationConfirmationHandler, InstallationConfirmationRequest } from '@microsoft/copilot-sdk';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';

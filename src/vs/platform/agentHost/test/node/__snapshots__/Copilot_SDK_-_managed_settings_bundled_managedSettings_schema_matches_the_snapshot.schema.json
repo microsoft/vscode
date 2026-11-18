@@ -71,11 +71,15 @@
 			}
 		},
 		"features": {
-			"description": "Open map of managed product feature availability. A false value blocks the named feature; true or absent does not force-enable it. Native MDM supports both a JSON-encoded features object and the features.computerUse boolean leaf. When both supply computerUse, false in either form wins and other feature entries are preserved.",
+			"description": "Open map of managed product feature availability. A false value blocks the named feature; true or absent does not force-enable it. Native MDM supports both a JSON-encoded features object and the features.computerUse and features.browserUse boolean leaves. When both forms supply a feature, false in either form wins and other feature entries are preserved.",
 			"type": "object",
 			"properties": {
 				"computerUse": {
 					"description": "Whether Computer Use is available. For native MDM, features.computerUse is a string containing the JSON boolean false or true.",
+					"type": "boolean"
+				},
+				"browserUse": {
+					"description": "Whether the built-in Browser Use plugin is available. False disables the entire bundle, including when enabledPlugins forces it on; true or absent does not opt users in. Independent of Computer Use and third-party plugins. For native MDM, features.browserUse is a string containing the JSON boolean false or true.",
 					"type": "boolean"
 				}
 			},
