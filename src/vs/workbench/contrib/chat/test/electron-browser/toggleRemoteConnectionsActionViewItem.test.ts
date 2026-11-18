@@ -275,22 +275,22 @@ suite('RemoteConnectionsActionViewItem', () => {
 		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings, managedSettings, opened, fireManagedSettingsChange: () => managedSettingsChange.fire(), isMenuOpen: () => !!hideMenu, selectMethodEvents };
 	}
 
-	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
+	test('shows single-line choices and marks GitHub Environment as preview', () => {
 		const { openMenu, menuItems } = fixture();
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
-			{ label: 'Off', detail: 'Don\'t allow connections from other devices through this app.', badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'GitHub Environments', detail: 'Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.', badge: 'Preview', role: 'menuitemcheckbox' },
-			{ label: 'Dev Tunnels', detail: 'Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'Off', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'GitHub Environment', detail: undefined, badge: 'Preview', role: 'menuitemcheckbox' },
+			{ label: 'Dev Tunnel', detail: undefined, badge: undefined, role: 'menuitemcheckbox' },
 		]);
 	});
 
-	test('connection methods do not add extra hovers', () => {
+	test('connection method explanations are shown on hover and as accessible descriptions', () => {
 		const { openMenu } = fixture();
-		assert.deepStrictEqual(openMenu().map(action => ({ id: action.id, hover: action.hover })), [
-			{ id: 'remoteConnections.off', hover: undefined },
-			{ id: 'remoteConnections.githubEnvironment', hover: undefined },
-			{ id: 'remoteConnections.devTunnel', hover: undefined },
+		assert.deepStrictEqual(openMenu().map(action => ({ id: action.id, description: action.ariaDescription, hoverMatches: action.hover?.content === action.ariaDescription })), [
+			{ id: 'remoteConnections.off', description: 'Sharing through this app is off. Agent tasks keep running on this computer.', hoverMatches: true },
+			{ id: 'remoteConnections.githubEnvironment', description: 'Connect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.', hoverMatches: true },
+			{ id: 'remoteConnections.devTunnel', description: 'Connect from VS Code or the browser-based Agents window.', hoverMatches: true },
 		]);
 	});
 
@@ -319,9 +319,10 @@ suite('RemoteConnectionsActionViewItem', () => {
 		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
 		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
 		const action = openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!;
-		assert.deepStrictEqual({ enabled: action.enabled, detail: action.detail, icon: action.labelIcon }, {
+		assert.deepStrictEqual({ enabled: action.enabled, description: action.ariaDescription, hover: action.hover?.content, icon: action.labelIcon }, {
 			enabled: false,
-			detail: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
+			description: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
+			hover: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
 			icon: Codicon.briefcase,
 		});
 	});
@@ -415,30 +416,31 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}, { enabledSetting: true, actions: ['remoteConnections.off', 'remoteConnections.devTunnel'] });
 	});
 
-	test('shows distinct method icons, including for Off', () => {
+	test('keeps the connection methods free of decorative icons', () => {
 		const { openMenu } = fixture();
 		assert.deepStrictEqual(openMenu().map(action => ({ id: action.id, icon: action.labelIcon?.id })), [
-			{ id: 'remoteConnections.off', icon: 'circle-slash' },
-			{ id: 'remoteConnections.githubEnvironment', icon: 'github' },
-			{ id: 'remoteConnections.devTunnel', icon: 'radio-tower' },
+			{ id: 'remoteConnections.off', icon: undefined },
+			{ id: 'remoteConnections.githubEnvironment', icon: undefined },
+			{ id: 'remoteConnections.devTunnel', icon: undefined },
 		]);
 	});
 
 	test('offers a separate management entry after the connection methods when provided', async () => {
 		const manage = stub().resolves(undefined);
 		const managementAction = store.add(new Action('test.manage', 'Manage Remote Environments...', undefined, true, manage));
+		managementAction.tooltip = 'Add, connect, and manage remote environments';
 		const { openMenu, menuItems, sharing, executeCommand } = fixture('devTunnel', { quality: 'insider', managementAction });
 		const actions = openMenu();
 		await actions.find(action => action.id === 'test.manage')!.run();
 		assert.deepStrictEqual({
 			items: menuItems().map(item => item.label),
-			management: actions.filter(action => action.id === 'test.manage').map(action => ({ category: action.category?.label, icon: action.labelIcon?.id, checked: action.checked })),
+			management: actions.filter(action => action.id === 'test.manage').map(action => ({ category: action.category?.label, icon: action.labelIcon?.id, checked: action.checked, hover: action.hover?.content, description: action.ariaDescription })),
 			managed: manage.callCount,
 			sharing: sharing.calls,
 			commands: executeCommand.callCount,
 		}, {
-			items: ['Off', 'GitHub Environments', 'Dev Tunnels', '', 'Manage Remote Environments...'],
-			management: [{ category: 'management', icon: Codicon.settingsGear.id, checked: undefined }],
+			items: ['Off', 'GitHub Environment', 'Dev Tunnel', '', 'Manage Remote Environments...'],
+			management: [{ category: 'management', icon: undefined, checked: undefined, hover: managementAction.tooltip, description: managementAction.tooltip }],
 			managed: 1,
 			sharing: [],
 			commands: 0,
@@ -526,8 +528,8 @@ suite('RemoteConnectionsActionViewItem', () => {
 			}, {
 				methods: [
 					{ label: 'Off', checked: true },
-					{ label: 'GitHub Environments', checked: false },
-					{ label: 'Dev Tunnels', checked: false },
+					{ label: 'GitHub Environment', checked: false },
+					{ label: 'Dev Tunnel', checked: false },
 				],
 				updates: 0,
 				toggles: 0,
@@ -612,7 +614,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}, {
 			updates: [[AgentHostRemoteConnectionsSettingId, 'githubEnvironment', ConfigurationTarget.USER]],
 			configuredMethod: 'githubEnvironment',
-			methods: [{ label: 'Off', checked: false }, { label: 'GitHub Environments', checked: true }, { label: 'Dev Tunnels', checked: false }],
+			methods: [{ label: 'Off', checked: false }, { label: 'GitHub Environment', checked: true }, { label: 'Dev Tunnel', checked: false }],
 			state: 'disconnected',
 			sharing: [false, true],
 			toggles: 1,
@@ -730,7 +732,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			sharing: sharing.calls,
 			toggles: run.callCount,
 		}, {
-			methods: [{ label: 'Off', checked: true }, { label: 'GitHub Environments', checked: false }, { label: 'Dev Tunnels', checked: false }],
+			methods: [{ label: 'Off', checked: true }, { label: 'GitHub Environment', checked: false }, { label: 'Dev Tunnel', checked: false }],
 			label: 'Remote Connections: Off',
 			pressed: null,
 			sharing: [false],
@@ -909,7 +911,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
-	test('uses a narrow wrapping picker and the host-owned environment name in its header', async () => {
+	test('uses a narrow picker and the host-owned environment name in its header', async () => {
 		const { sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
 		await timeout(0);
 		openMenu();
@@ -920,13 +922,12 @@ suite('RemoteConnectionsActionViewItem', () => {
 		assert.deepStrictEqual({
 			minWidth: disabled?.minWidth,
 			maxWidth: disabled?.maxWidth,
-			wrap: disabled?.wrapDetails,
 			icon: disabled?.headerIcon?.id,
 			footer: disabled?.footerText,
 			disabled: disabled?.headerText,
 			enabled: listOptions()?.headerText,
 		}, {
-			minWidth: 300, maxWidth: 320, wrap: true,
+			minWidth: 300, maxWidth: 320,
 			icon: Codicon.deviceDesktop.id,
 			footer: undefined,
 			disabled: 'Will be shared as: Test Machine (VS Code Insiders)',
@@ -1067,7 +1068,7 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 			_usesMissionControl: () => true,
 			getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nContinue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.');
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nConnect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {

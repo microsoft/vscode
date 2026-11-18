@@ -234,9 +234,9 @@ suite('RemotesEditor', () => {
 			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID],
 			accessible: 'This Computer\nSharing name: my-workstation\nRemote connections are on via Dev Tunnels.\nLocal sessions run directly here. Sharing lets other devices use agents and folders on this computer. Files and tools stay here.\nLearn More: https://aka.ms/vscode-agent-environments',
 			optionNames: [
-				'Off: Don\'t allow connections from other devices through this app.',
-				'GitHub Environments (Preview): Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.',
-				'Dev Tunnels: Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.',
+				'Off: Sharing through this app is off. Agent tasks keep running on this computer.',
+				'GitHub Environments (Preview): Connect from VS Code, the browser-based Agents window, or supported Copilot clients. Make this computer discoverable through your GitHub account.',
+				'Dev Tunnels: Connect from VS Code or the browser-based Agents window.',
 			],
 		});
 	});

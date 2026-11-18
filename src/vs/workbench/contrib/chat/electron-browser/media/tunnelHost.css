@@ -43,10 +43,6 @@
 	overflow-wrap: anywhere;
 }
 
-.remote-connections-picker .actionList .monaco-list-row.action .detail {
-	padding-left: var(--vscode-spacing-size400);
-}
-
 @keyframes tunnel-host-pulse {
 	0%, 100% {
 		opacity: 1;

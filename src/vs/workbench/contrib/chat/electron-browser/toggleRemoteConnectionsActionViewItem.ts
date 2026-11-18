@@ -154,7 +154,6 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const options: IActionListOptions = {
 			minWidth: 300,
 			maxWidth: 320,
-			wrapDetails: true,
 			...this._getNameHeader(),
 			widgetClassName: 'remote-connections-picker',
 			hideDefaultKeybindingTooltip: true,
@@ -242,33 +241,34 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					checked: active === 'off',
 					run: () => this._selectConnectionMethod('off'),
 				}),
-				labelIcon: Codicon.circleSlash,
-				detail: getOffDetail(),
+				hover: { content: getOffDetail() },
+				ariaDescription: getOffDetail(),
 			},
 		];
 		if (environments !== 'unavailable') {
 			methods.push({
 				...toAction({
 					id: 'remoteConnections.githubEnvironment',
-					label: localize('remoteConnections.githubEnvironment', "GitHub Environments"),
+					label: localize('remoteConnections.githubEnvironmentMethod', "GitHub Environment"),
 					enabled: environments === 'enabled',
 					checked: active === 'githubEnvironment',
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
-				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : Codicon.github,
-				detail: getGitHubEnvironmentsDetail(environments),
+				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : undefined,
+				hover: { content: getGitHubEnvironmentsDetail(environments) },
+				ariaDescription: getGitHubEnvironmentsDetail(environments),
 				badge: localize('remoteConnections.preview', "Preview"),
 			});
 		}
 		methods.push({
 			...toAction({
 				id: 'remoteConnections.devTunnel',
-				label: localize('remoteConnections.devTunnel', "Dev Tunnels"),
+				label: localize('remoteConnections.devTunnelMethod', "Dev Tunnel"),
 				checked: active === 'devTunnel',
 				run: () => this._selectConnectionMethod('devTunnel'),
 			}),
-			labelIcon: Codicon.radioTower,
-			detail: getDevTunnelsDetail(),
+			hover: { content: getDevTunnelsDetail() },
+			ariaDescription: getDevTunnelsDetail(),
 		});
 		const management = this._options.getManagementAction?.();
 		if (management) {
@@ -280,12 +280,14 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				...toAction({
 					id: management.id,
 					label: management.label,
+					tooltip: management.tooltip,
 					enabled: management.enabled,
 					run: () => management.run(),
 				}),
+				hover: management.tooltip ? { content: management.tooltip } : undefined,
+				ariaDescription: management.tooltip || undefined,
 				// Keeps the label aligned with the checkable connection methods.
 				icon: Codicon.blank,
-				labelIcon: Codicon.settingsGear,
 				category: { label: 'management', order: 1 },
 			});
 		}
