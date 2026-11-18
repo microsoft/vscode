@@ -441,7 +441,7 @@ export class OpenAgentSessionCustomizationsAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
-		return openAgentSessionCustomizations(accessor, context);
+		return openAgentSessionCustomizations(accessor.get(ICommandService), context);
 	}
 }
 
@@ -468,16 +468,16 @@ export class OpenSessionsListItemCustomizationsAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, context?: readonly { readonly resource: URI }[]): Promise<void> {
-		return openAgentSessionCustomizations(accessor, context);
+		return openAgentSessionCustomizations(accessor.get(ICommandService), context);
 	}
 }
 
-async function openAgentSessionCustomizations(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
+async function openAgentSessionCustomizations(commandService: ICommandService, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
 	const sessions = Array.isArray(context) ? context as readonly { readonly resource: URI }[] : isMarshalledAgentSessionContext(context) ? context.sessions ?? [context.session] : context ? [context as IAgentSession] : [];
 	if (sessions.length !== 1) {
 		throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
 	}
-	await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
+	await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
 }
 
 abstract class BaseAgentSessionAction extends Action2 {
