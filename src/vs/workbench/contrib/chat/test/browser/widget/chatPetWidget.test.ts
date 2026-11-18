@@ -38,7 +38,8 @@ import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite
 import '../../../browser/widget/media/chat.css';
 import { drawChatPetComposite, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetFixedOrientationDecoration } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { ChatPetJumpGameRetry } from '../../../browser/widget/chatPetJumpGame.js';
+import { ChatPetJumpGameRetry, IChatPetJumpGameOptions } from '../../../browser/widget/chatPetJumpGame.js';
+import { ChatPetJumpGameRendererKind, IChatPetJumpGameRenderer } from '../../../browser/widget/chatPetJumpGameRenderer.js';
 import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowMaximumFallSpeed, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
@@ -114,7 +115,9 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void, jumpGameOptions?: {
+		readonly loadWebGpuRenderer?: IChatPetJumpGameOptions['loadWebGpuRenderer'];
+	}) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		if (supportsJumpGame) {
@@ -177,7 +180,11 @@ suite('ChatPetWidget', () => {
 		}
 		initializeService?.(service);
 		const widget = disposables.add(new ChatPetWidget(
-			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor }, service, accessibilityService,
+			firstHost, {
+			resizeObserverCtor: TestResizeObserver,
+			intersectionObserverCtor,
+			loadJumpGameWebGpuRenderer: jumpGameOptions?.loadWebGpuRenderer,
+		}, service, accessibilityService,
 			new class extends mock<IContextMenuService>() {
 				override showContextMenu(delegate: IContextMenuDelegate): void { contextMenu = delegate; }
 			}(),
@@ -279,6 +286,126 @@ suite('ChatPetWidget', () => {
 			label: 'Play Blobby\'s Jump Game. Activate the pet on this perch to play, or drag it to move it.',
 			platforms: true,
 		});
+	});
+
+	test('uses the Babylon Lite WebGPU renderer by default', async () => {
+		let disposed = 0;
+		let renders = 0;
+		const loadWebGpuRenderer: IChatPetJumpGameOptions['loadWebGpuRenderer'] = async stage => {
+			const element = mainWindow.document.createElement('div');
+			element.className = 'test-chat-pet-jump-webgpu-renderer';
+			stage.append(element);
+			return new class implements IChatPetJumpGameRenderer {
+				readonly kind: ChatPetJumpGameRendererKind = 'lite-webgpu';
+				layout(): void { }
+				render(): void { renders++; }
+				dispose(): void {
+					disposed++;
+					element.remove();
+				}
+			}();
+		};
+		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true, undefined, { loadWebGpuRenderer });
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		await timeout(0);
+		const webGpu = {
+			kind: widget.jumpGame?.rendererKind,
+			dom: root.querySelectorAll('.chat-pet-jump-playfield-dom').length,
+			webGpu: root.querySelectorAll('.test-chat-pet-jump-webgpu-renderer').length,
+			rendered: renders > 0,
+		};
+		widget.jumpGame?.dispose();
+		assert.deepStrictEqual({
+			webGpu,
+			disposed,
+		}, {
+			webGpu: { kind: 'lite-webgpu', dom: 0, webGpu: 1, rendered: true },
+			disposed: 1,
+		});
+	});
+
+	test('switches the WebGPU renderer back to DOM when its device fails', async () => {
+		let disposed = 0;
+		let fail: ((error: Error) => void) | undefined;
+		const loadWebGpuRenderer: IChatPetJumpGameOptions['loadWebGpuRenderer'] = async (stage, _themeService, onDidFail) => {
+			fail = onDidFail;
+			const element = mainWindow.document.createElement('div');
+			element.className = 'test-chat-pet-jump-webgpu-renderer';
+			stage.append(element);
+			return new class implements IChatPetJumpGameRenderer {
+				readonly kind: ChatPetJumpGameRendererKind = 'lite-webgpu';
+				layout(): void { }
+				render(): void { }
+				dispose(): void {
+					disposed++;
+					element.remove();
+				}
+			}();
+		};
+		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true, undefined, {
+			loadWebGpuRenderer,
+		});
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		await timeout(0);
+		const webGpu = {
+			kind: widget.jumpGame?.rendererKind,
+			dom: root.querySelectorAll('.chat-pet-jump-playfield-dom').length,
+			webGpu: root.querySelectorAll('.test-chat-pet-jump-webgpu-renderer').length,
+		};
+		fail?.(new Error('Device lost'));
+		assert.deepStrictEqual({
+			webGpu,
+			fallback: {
+				kind: widget.jumpGame?.rendererKind,
+				dom: root.querySelectorAll('.chat-pet-jump-playfield-dom').length,
+				webGpu: root.querySelectorAll('.test-chat-pet-jump-webgpu-renderer').length,
+				disposed,
+			},
+		}, {
+			webGpu: { kind: 'lite-webgpu', dom: 0, webGpu: 1 },
+			fallback: { kind: 'dom', dom: 1, webGpu: 0, disposed: 1 },
+		});
+	});
+
+	test('keeps the DOM renderer when Babylon Lite WebGPU is unavailable', async () => {
+		const loadWebGpuRenderer: IChatPetJumpGameOptions['loadWebGpuRenderer'] = async () => {
+			throw new Error('WebGPU unavailable');
+		};
+		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true, undefined, {
+			loadWebGpuRenderer,
+		});
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			kind: widget.jumpGame?.rendererKind,
+			dom: root.querySelectorAll('.chat-pet-jump-playfield-dom').length,
+			webGpu: root.querySelectorAll('.chat-pet-jump-playfield-lite-webgpu').length,
+		}, { kind: 'dom', dom: 1, webGpu: 0 });
+	});
+
+	test('disposes a WebGPU renderer that resolves after the game is disposed', async () => {
+		let resolveRenderer: ((renderer: IChatPetJumpGameRenderer) => void) | undefined;
+		let disposed = 0;
+		const loadWebGpuRenderer: IChatPetJumpGameOptions['loadWebGpuRenderer'] = () => new Promise(resolve => {
+			resolveRenderer = resolve;
+		});
+		const { widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true, undefined, {
+			loadWebGpuRenderer,
+		});
+		await waitForPetAnimation(() => button.dataset.state === 'idle');
+		button.click();
+		widget.jumpGame?.dispose();
+		resolveRenderer?.(new class implements IChatPetJumpGameRenderer {
+			readonly kind: ChatPetJumpGameRendererKind = 'lite-webgpu';
+			layout(): void { }
+			render(): void { }
+			dispose(): void { disposed++; }
+		}());
+		await timeout(0);
+		assert.strictEqual(disposed, 1);
 	});
 
 	for (const width of [320, 800]) {
@@ -497,9 +624,12 @@ suite('ChatPetWidget', () => {
 		sinon.stub(ChatPetJumpGameModel.prototype, 'platforms').get(() => platforms);
 		sinon.stub(ChatPetJumpGameModel.prototype, 'walls').get(() => walls);
 		const advance = sinon.spy(ChatPetJumpGameModel.prototype, 'advance');
-		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		const { root, widget, button } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true, undefined, {
+			loadWebGpuRenderer: async () => { throw new Error('WebGPU unavailable'); },
+		});
 		await waitForPetAnimation(() => button.dataset.state === 'idle');
 		button.click();
+		await timeout(0);
 		const game = widget.jumpGame!;
 		game.pause();
 		const callsBeforePause = advance.callCount;
@@ -528,7 +658,9 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('charged game jumps scroll platforms, keep the pet in view, and leave the host and pet preferences untouched', async () => {
-		const { widget, root, firstParent, button, overlay, service } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true);
+		const { widget, root, firstParent, button, overlay, service } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, true, undefined, {
+			loadWebGpuRenderer: async () => { throw new Error('WebGPU unavailable'); },
+		});
 		const position = service.horizontalPosition.get();
 		const initialPetBounds = button.getBoundingClientRect();
 		const initialHostBounds = firstParent.getBoundingClientRect();
@@ -536,6 +668,7 @@ suite('ChatPetWidget', () => {
 		draft.value = 'Keep this unsent draft';
 		root.appendChild(draft);
 		button.click();
+		await timeout(0);
 		const effects = root.querySelector<HTMLElement>('.chat-pet-jump-effects')!;
 		const platform = effects.querySelector<HTMLElement>('.chat-pet-jump-platform')!;
 		const platformTop = platform.getBoundingClientRect().top;
@@ -1186,16 +1319,17 @@ suite('ChatPetWidget', () => {
 		const fadeOut = effects.getAnimations()[0];
 		assert.ok(fadeOut.effect instanceof mainWindow.KeyframeEffect);
 		const exiting = fadeOut.effect.getKeyframes().map(frame => Number(frame.opacity));
+		const playfieldDuringFade = !!effects.querySelector('.chat-pet-jump-playfield');
 		fadeOut.finish();
 		await waitForPetAnimation(() => !effects.isConnected);
 		assert.deepStrictEqual({
-			presentation, exiting, effectsRemaining: root.querySelectorAll('.chat-pet-jump-effects').length,
+			presentation, exiting, playfieldDuringFade, effectsRemaining: root.querySelectorAll('.chat-pet-jump-effects').length,
 		}, {
 			presentation: {
 				entering: [0, 1], petOutline: 'none', petBorder: '0px', backdropOpacity: '1', backdropPointerEvents: 'none',
 				backdropBounds: root.getBoundingClientRect().toJSON(),
 			},
-			exiting: [1, 0], effectsRemaining: 0,
+			exiting: [1, 0], playfieldDuringFade: true, effectsRemaining: 0,
 		});
 	});
 
