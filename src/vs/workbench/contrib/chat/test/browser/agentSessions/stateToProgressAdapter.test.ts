@@ -39,7 +39,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, previousModelRouted, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
@@ -1717,6 +1717,12 @@ suite('stateToProgressAdapter', () => {
 				anotherRouter: isModelRouterPickSettled([picked], 'turn-2', 'other'),
 				notARouter: isModelRouterPickSettled([picked], 'turn-2', undefined),
 			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, anotherRouter: false, notARouter: false });
+		});
+
+		test('the routing a turn is compared with is the last one before it', () => {
+			const routedTurn = (id: string, chosenModel: string) => createTurn({ id, usage: { _meta: { modelRouted: { router: 'daily', chosenModel } } } });
+			const turns = [routedTurn('turn-1', 'haiku'), createTurn({ id: 'turn-2' }), routedTurn('turn-3', 'opus')];
+			assert.deepStrictEqual(['turn-1', 'turn-3', 'turn-4'].map(turnId => previousModelRouted(turns, turnId)?.chosenModel), [undefined, 'haiku', 'opus']);
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {

@@ -25,6 +25,9 @@ export function autoModeRoutingTitle(part: IChatAutoModeResolutionPart): string 
 		if (!part.resolved) {
 			return localize('modelRouter.routing', "{0} picking a model", part.router);
 		}
+		if (part.kept && part.effort && part.effortChangedFrom) {
+			return localize('modelRouter.effortChanged', "{0} changed effort from {1} to {2}", part.router, getReasoningEffortLabel(part.effortChangedFrom), getReasoningEffortLabel(part.effort));
+		}
 		// A chat saved while named routes were written as playbooks stored the name as `playbook`.
 		const legacyName = (part as { readonly playbook?: unknown }).playbook;
 		const routeName = part.routeName ?? (typeof legacyName === 'string' ? legacyName : undefined);

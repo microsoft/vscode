@@ -10390,7 +10390,7 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('a chat on a model router shows its pick and its moves, not the turns that stayed on the model', async () => {
+		test('a chat on a model router shows its pick and what changed since, not the turns that stayed as they were', async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:model-router:daily', upcastPartial<ILanguageModelChatMetadata>({ name: 'Daily Driver' })],
 				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
@@ -10413,19 +10413,24 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.chatStates.set(defaultChat, {
 				...createChatState(main),
 				turns: [
-					routedTurn('picked', { router: 'daily', chosenModel: 'gpt-5.4-mini' }),
-					routedTurn('stayed', { router: 'daily', chosenModel: 'gpt-5.4-mini', kept: true }),
-					routedTurn('moved', { router: 'daily', chosenModel: 'gpt-5.5', switchedFrom: 'gpt-5.4-mini' }),
-					routedTurn('stayed-again', { router: 'daily', chosenModel: 'gpt-5.5', kept: true }),
+					routedTurn('picked', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'low' }),
+					routedTurn('stayed', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'low', kept: true }),
+					routedTurn('stayed-with-more-effort', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'high', kept: true }),
+					routedTurn('moved', { router: 'daily', chosenModel: 'gpt-5.5', effort: 'high', switchedFrom: 'gpt-5.4-mini' }),
+					routedTurn('stayed-again', { router: 'daily', chosenModel: 'gpt-5.5', effort: 'high', kept: true }),
+					// The chat keeps its route, and the route now runs on another model.
+					routedTurn('route-on-another-model', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'high', kept: true }),
 				],
 			});
 			const session = disposables.add(await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: backend.path }), CancellationToken.None));
 
 			assert.deepStrictEqual(session.history.flatMap(item => item.type === 'response' ? [item.parts.flatMap(part => part.kind === 'autoModeResolution' ? [autoModeRoutingTitle(part)] : [])] : []), [
-				['daily picked GPT-5.4 mini'],
+				['daily picked GPT-5.4 mini \u00b7 Low effort'],
 				[],
-				['daily switched from GPT-5.4 mini to GPT-5.5'],
+				['daily changed effort from Low to High'],
+				['daily switched from GPT-5.4 mini to GPT-5.5 \u00b7 High effort'],
 				[],
+				['daily switched from GPT-5.5 to GPT-5.4 mini \u00b7 High effort'],
 			]);
 		});
 
