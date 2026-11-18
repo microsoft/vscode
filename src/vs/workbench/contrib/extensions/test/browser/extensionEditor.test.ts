@@ -12,9 +12,11 @@ import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IAllowedExtensionsService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { IAuthenticationUsageService } from '../../../../services/authentication/browser/authenticationUsageService.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IExtensionFeaturesManagementService } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 import { IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
@@ -32,11 +34,12 @@ suite('ExtensionEditor', () => {
 	const manifest: IExtensionManifest = { name: 'extension', publisher: 'pub', version: '1.0.0', engines: { vscode: '*' } };
 
 	/**
-	 * Creates an editor in a container in the window, which it returns too.
+	 * Creates an editor, with what its actions and widgets use to show extensions that aren't installed, which shows the
+	 * actions that `getMenuActions` returns for the context menu of extensions in its Manage action, and which learns from
+	 * `extensionUsesAuth` whether extensions use authentication.
 	 */
-	function createEditor() {
+	function createEditor(getMenuActions: () => [string, MenuItemAction[]][] = () => [], extensionUsesAuth: () => Promise<boolean> = async () => false) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		// What the editor's actions and widgets use to show extensions that aren't installed.
 		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
 			override readonly onChange = Event.None;
 			override readonly local = [];
@@ -61,16 +64,23 @@ suite('ExtensionEditor', () => {
 			override readonly webExtensionManagementServer = null;
 		});
 		instantiationService.stub(IWorkbenchExtensionManagementService, new class extends mock<IWorkbenchExtensionManagementService>() { });
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() { });
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() {
+			override isEnabledEnablementState() { return false; }
+		});
 		instantiationService.stub(IAllowedExtensionsService, new class extends mock<IAllowedExtensionsService>() {
 			override readonly onDidChangeAllowedExtensionsConfigValue = Event.None;
+			override isAllowed() { return true as const; }
 		});
 		instantiationService.stub(IExtensionFeaturesManagementService, new class extends mock<IExtensionFeaturesManagementService>() {
 			override readonly onDidChangeAccessData = Event.None;
 		});
+		instantiationService.stub(IAuthenticationUsageService, new class extends mock<IAuthenticationUsageService>() {
+			override extensionUsesAuth() { return extensionUsesAuth(); }
+		});
 		instantiationService.stub(IWorkbenchThemeService, 'getColorThemes', async () => []);
 		instantiationService.stub(IWorkbenchThemeService, 'getFileIconThemes', async () => []);
 		instantiationService.stub(IWorkbenchThemeService, 'getProductIconThemes', async () => []);
+		instantiationService.stub(IMenuService, 'getMenuActions', getMenuActions);
 		const container = mainWindow.document.body.appendChild($('div'));
 		disposables.add(toDisposable(() => container.remove()));
 		const editor = disposables.add(instantiationService.createInstance(ExtensionEditor, new class extends mock<IEditorGroup>() {
@@ -159,5 +169,58 @@ suite('ExtensionEditor', () => {
 			narrowDetails: true,
 			wideFeatures: true,
 		});
+	});
+
+	test('hides its Manage action while the context menu of extensions has no actions for the extension that it shows, such as in windows that register none', async () => {
+		let menuActions: [string, MenuItemAction[]][] = [];
+		const { editor, container } = createEditor(() => menuActions);
+		const manifest: IExtensionManifest = { name: 'extension', publisher: 'pub', version: '1.0.0', engines: { vscode: '*' } };
+		const anExtension = (id: string) => new class extends mock<IExtension>() {
+			override readonly identifier = { id };
+			override readonly displayName = id;
+			override readonly description = '';
+			override readonly state = ExtensionState.Uninstalled;
+			override readonly dependencies: string[] = [];
+			override readonly categories: string[] = [];
+			override readonly telemetryData = {};
+			override async getManifest() { return manifest; }
+			override getReadme() { return Promise.reject(new Error('No README')); }
+			override hasChangelog() { return false; }
+		}();
+		const showsManageAction = async (extension: IExtension) => {
+			await editor.setInput(disposables.add(new ExtensionsInput(extension)), { preserveFocus: true }, {}, CancellationToken.None);
+			// The action looks up its actions once the editor shows the extension.
+			await timeout(0);
+			const manage = container.querySelector('.extension-editor .action-label.manage');
+			return !!manage && !manage.classList.contains('hide');
+		};
+
+		const withoutActions = await showsManageAction(anExtension('pub.without'));
+		menuActions = [['1_copy', [new class extends mock<MenuItemAction>() { }()]]];
+		const withActions = await showsManageAction(anExtension('pub.with'));
+
+		assert.deepStrictEqual({ withoutActions, withActions }, { withoutActions: false, withActions: true });
+	});
+
+	test('stops looking up the actions of its Manage action once disposed while it waits to learn whether the extension uses authentication', async () => {
+		let disposed = false;
+		let lookupsAfterDisposal = 0;
+		const usesAuth = new DeferredPromise<boolean>();
+		const { editor } = createEditor(() => {
+			if (disposed) {
+				lookupsAfterDisposal++;
+			}
+			return [];
+		}, () => usesAuth.p);
+		await editor.setInput(disposables.add(new ExtensionsInput(anExtension('pub.disposed', 'Disposed', Promise.resolve(manifest), false))), { preserveFocus: true }, {}, CancellationToken.None);
+		// The action looks up its actions once the editor shows the extension.
+		await timeout(0);
+
+		editor.dispose();
+		disposed = true;
+		await usesAuth.complete(false);
+		await timeout(0);
+
+		assert.strictEqual(lookupsAfterDisposal, 0);
 	});
 });

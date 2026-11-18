@@ -195,6 +195,10 @@ export class ModelCard extends DisposableStore {
 	private readonly _groupControls = new Map<string, Radio>();
 	private readonly _pricingDisclosureListener = this.add(new MutableDisposable());
 	private _configurationChangeVersion = 0;
+	/** Settles once the selection motion of the latest choice ends. */
+	private _selectionMotion: Promise<unknown> | undefined;
+	/** Whether a render was requested while that motion played. */
+	private _renderDeferred = false;
 	/** Choices made here that are still saving, in the order they were made. */
 	private readonly _pendingEdits = new Set<{ readonly configurationAccess: IModelConfigurationAccess; readonly modelId: string; readonly values: IStringDictionary<unknown> }>();
 	/** Reads the saved configuration with those choices on top, so a rebuild before they save keeps showing them. */
@@ -211,7 +215,6 @@ export class ModelCard extends DisposableStore {
 		},
 		getModelConfigurationSchema: modelId => this._options.configurationAccess.getModelConfigurationSchema?.(modelId),
 	};
-	private _renderPending = false;
 	/** The settings and choices the current controls were rendered with. */
 	private _renderedBindings: readonly (readonly unknown[])[] = [];
 	private _headerActions: ActionBar | undefined;
@@ -277,6 +280,7 @@ export class ModelCard extends DisposableStore {
 				}
 			}
 		}
+		const selectionMotion = this._whenSelectionMotionEnds(this._groupControls.values());
 		let saved = false;
 		try {
 			await this._saveValues(options, values);
@@ -287,7 +291,7 @@ export class ModelCard extends DisposableStore {
 				}
 				this._setSelectedRoutingAlternative(undefined);
 			}
-			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
+			await selectionMotion;
 		} finally {
 			// A failed choice is taken back wherever the card still shows its model, even after a newer selection.
 			const showsEdit = this._options.model.identifier === options.model.identifier && this._options.configurationAccess === options.configurationAccess;
@@ -298,6 +302,24 @@ export class ModelCard extends DisposableStore {
 		if (!this.isDisposed && version === this._configurationChangeVersion) {
 			options.onDidAccept?.();
 		}
+	}
+
+	/**
+	 * Waits for the controls' selection motion. Renders requested meanwhile, such as the picker's
+	 * refresh when a saved change is reported, wait for it: a replaced control would make the selection jump.
+	 */
+	private _whenSelectionMotionEnds(controls: Iterable<Radio>): Promise<unknown> {
+		const motion = this._selectionMotion = Promise.all(Array.from(controls, control => control.whenSelectionAnimationSettles()));
+		const end = () => {
+			if (this._selectionMotion === motion) {
+				this._selectionMotion = undefined;
+				if (this._renderDeferred && !this.isDisposed) {
+					this._renderPreservingFocus();
+				}
+			}
+		};
+		motion.then(end, end);
+		return motion;
 	}
 
 	private async _saveValues(options: IModelCardOptions, values: IStringDictionary<unknown>): Promise<void> {
@@ -313,12 +335,11 @@ export class ModelCard extends DisposableStore {
 	private _renderPreservingFocus(fallbackGroup?: string): void {
 		// Changed settings or model choices must stop accepting input before selection motion settles.
 		const controlsFit = equals(this._renderedBindings, getControlBindings(this._options), (a, b) => equals(a, b));
-		if (controlsFit && this._renderPending) {
-			return;
-		}
-		if (controlsFit && [...this._groupControls.values()].some(control => control.isSelectionAnimating)) {
-			this._renderPending = true;
-			this._renderAfterSelectionAnimation(fallbackGroup).catch(onUnexpectedError);
+		this._renderDeferred = controlsFit && [...this._groupControls.values()].some(control => control.isSelectionAnimating);
+		if (this._renderDeferred) {
+			if (!this._selectionMotion) {
+				this._whenSelectionMotionEnds(this._groupControls.values());
+			}
 			return;
 		}
 		const hadFocus = this.element.contains(dom.getActiveElement()) || this.headerElement.contains(dom.getActiveElement());
@@ -338,18 +359,6 @@ export class ModelCard extends DisposableStore {
 			this._headerActions?.focus(actionIndex);
 		} else {
 			this._restoreFocus(group, optionIndex);
-		}
-	}
-
-	/** Rebuilding the setting controls would cut their selection motion short, so a rebuild waits for it to settle. */
-	private async _renderAfterSelectionAnimation(fallbackGroup?: string): Promise<void> {
-		try {
-			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
-		} finally {
-			this._renderPending = false;
-		}
-		if (!this.isDisposed) {
-			this._renderPreservingFocus(fallbackGroup);
 		}
 	}
 
@@ -799,12 +808,13 @@ export class ModelCard extends DisposableStore {
 	private async _selectVariant(model: ILanguageModelChatMetadataAndIdentifier, control: Radio): Promise<void> {
 		const options = this._options;
 		const version = ++this._configurationChangeVersion;
+		const selectionMotion = this._whenSelectionMotionEnds([control]);
 		options.onWillSelect?.();
 		options.onSelect?.(model);
 		if (options.routingAlternatives?.some(alternative => alternative.model === model)) {
 			this._setSelectedRoutingAlternative(model);
 		}
-		await control.whenSelectionAnimationSettles();
+		await selectionMotion;
 		if (!this.isDisposed && version === this._configurationChangeVersion) {
 			options.onDidAccept?.();
 		}

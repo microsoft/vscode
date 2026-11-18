@@ -1237,7 +1237,10 @@ suite('ModelCard', () => {
 	});
 
 	test('configuration is applied before animation completes, then accepted without an extra click', async () => {
-		const result = createCard();
+		let refresh = () => { };
+		// The picker refreshes the card as soon as the change is reported, while the selection still slides.
+		const result = createCard({}, { onDidChangeConfiguration: () => refresh() });
+		refresh = () => result.card.refresh();
 		const group = element(result.card.element, '[role="radiogroup"]');
 		const indicator = element(group, '.monaco-radio-selection');
 		const animation = indicator.animate([{ opacity: 1 }, { opacity: 0.9 }], { duration: 160 });
