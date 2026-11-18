@@ -15,6 +15,8 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../../../../platform/dnd/browser/dnd.js';
@@ -35,6 +37,10 @@ import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } 
 import { LegacyFakePaneState, testPaneContentOf } from '../sessionHostTestUtils.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionHost, isSessionHostCommandContext } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
+import { ChatConfiguration, ChatResponseStats } from '../../../../chat/common/constants.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../chat/common/model/chatModel.js';
+import { MockChatService } from '../../../../chat/test/common/chatService/mockChatService.js';
 import '../../../browser/parts/media/chatCompositeBar.css';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
@@ -652,6 +658,61 @@ suite('Sessions - Headers', () => {
 			mainTitle: 'Main Chat',
 			secondTitle: 'Second Chat',
 			updatedSecondTitle: 'Renamed Second Chat',
+		});
+	});
+
+	test('shows the stats of its chat\'s running response, found by the chat\'s resource, right after the title', () => {
+		const { instantiationService, session, mainChat, secondChat } = createHarness(disposables);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ResponseStats]: ChatResponseStats.Title }));
+		const chatService = new MockChatService();
+		instantiationService.stub(IChatService, chatService);
+		const bar = disposables.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+		const chat = observableValue<IChat | undefined>('chat', mainChat);
+		bar.setContext({ session, chat });
+		bar.setVisible(true);
+		// Laid out, with the stats set well apart in size from the title.
+		bar.element.style.setProperty('--vscode-fontSize-label1', '9px');
+		mainWindow.document.body.appendChild(bar.element);
+		disposables.add(toDisposable(() => bar.element.remove()));
+		const stats = bar.element.querySelector<HTMLElement>('.chat-live-response-stats');
+		assert.ok(stats);
+		const shown = () => stats.hidden ? undefined : stats.textContent;
+		const baseline = (element: HTMLElement) => {
+			const probe = element.appendChild($('span', { style: 'display: inline-block; width: 0; height: 0;' }));
+			const y = probe.getBoundingClientRect().bottom;
+			probe.remove();
+			return y;
+		};
+
+		const chatNotLoaded = shown();
+		// Waiting for a confirmation keeps the time still.
+		const response = upcastPartial<IChatResponseModel>({
+			isIncomplete: constObservable(true),
+			confirmationAdjustedTimestamp: constObservable(1000),
+			isPendingConfirmation: constObservable({ startedWaitingAt: 84_000 }),
+			usageObs: constObservable({ kind: 'usage', promptTokens: 900, completionTokens: 310, latestModelCall: { duration: 5000 } }),
+		});
+		chatService.addSession(upcastPartial<IChatModel>({
+			sessionResource: secondChat.resource,
+			lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ response })),
+		}));
+		const otherChatRunning = shown();
+		chat.set(secondChat, undefined);
+
+		assert.deepStrictEqual({
+			chatNotLoaded,
+			otherChatRunning,
+			chatRunning: shown(),
+			betweenTitleAndActions: stats.previousElementSibling?.classList.contains('chat-composite-bar-session-title') && stats.parentElement?.nextElementSibling?.classList.contains('chat-composite-bar-title-actions'),
+			sharedBaseline: Math.abs(baseline(stats) - baseline(bar.element.querySelector<HTMLElement>('.chat-composite-bar-session-title .label-name')!)) < 0.25,
+			separator: mainWindow.getComputedStyle(stats, '::before').content,
+		}, {
+			chatNotLoaded: undefined,
+			otherChatRunning: undefined,
+			chatRunning: '1m 23s \u00b7 62 tk/s',
+			betweenTitleAndActions: true,
+			sharedBaseline: true,
+			separator: '"\u00b7"',
 		});
 	});
 

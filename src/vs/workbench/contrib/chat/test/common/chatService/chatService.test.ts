@@ -6602,6 +6602,33 @@ suite('ChatService', () => {
 			});
 		});
 
+		test('times a turn that was already running when its session was loaded from the turn\'s start', async () => {
+			const startedAt = Date.now() - 40_000;
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'hello', participant: remoteScheme, timestamp: startedAt },
+					{ type: 'response', parts: [], participant: remoteScheme },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', false),
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const response = ref.object.getRequests()[0].response;
+			assert.deepStrictEqual({
+				running: response?.isIncomplete.get(),
+				startedAt: response?.confirmationAdjustedTimestamp.get(),
+			}, {
+				running: true,
+				startedAt,
+			});
+		});
+
 		test('restores cancelled remote turns as cancelled at their recorded time', async () => {
 			const timestamp = 1_752_012_321_000;
 			const response = (completedAt: number | undefined, isCanceled: boolean): IChatSessionHistoryItem => ({ type: 'response', parts: [], participant: remoteScheme, completedAt, ...(isCanceled ? { isCanceled } : {}) });
@@ -6945,9 +6972,11 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({
 				message: ref.object.lastRequest?.message.text,
 				timestamp: ref.object.lastRequest?.timestamp,
+				responseStartedAt: ref.object.lastRequest?.response?.confirmationAdjustedTimestamp.get(),
 			}, {
 				message: 'server request',
 				timestamp,
+				responseStartedAt: timestamp,
 			});
 		});
 

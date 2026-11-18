@@ -2783,6 +2783,8 @@ suite('AgentHostChatContribution', () => {
 				]
 			},
 			{ name: 'Copilot D latest-call diagnostics', meta: { 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: undefined, sessionCredits: undefined, latest: { cost: 0.5, duration: 12 }, attribution: undefined },
+			{ name: 'VS Code model call timing', meta: { 'vscode.modelCall': { schemaVersion: 1, sdkSessionId: 'sdk', eventId: 'event', durationMs: 5000, outputTokens: 300 } }, credits: undefined, sessionCredits: undefined, latest: { duration: 5000, outputTokens: 300 }, attribution: undefined },
+			{ name: 'VS Code model call without timing', meta: { 'vscode.modelCall': { schemaVersion: 1, sdkSessionId: 'sdk', eventId: 'event', outputTokens: 300 } }, credits: undefined, sessionCredits: undefined, latest: undefined, attribution: undefined },
 			{ name: 'mixed usage does not promote model multipliers to credits', meta: { cost: 0, 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: undefined, sessionCredits: undefined, latest: undefined, attribution: undefined },
 		];
 		for (const entry of usageCases) {

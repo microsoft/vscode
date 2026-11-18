@@ -3705,6 +3705,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			requestId: request.id,
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
+			// A request that started elsewhere has been answered since then, not since it was added here.
+			timestamp: requestTimestamp,
 		});
 		this._requests.splice(index, replacedRequest ? 1 : 0, request);
 		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);
