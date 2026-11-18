@@ -139,6 +139,7 @@ suite('Session Artifacts', () => {
 				isGitHub: true,
 			},
 			added: false,
+			outcome: 'promoted',
 		});
 	});
 

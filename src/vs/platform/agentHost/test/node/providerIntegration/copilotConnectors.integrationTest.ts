@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { execFile } from 'child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
@@ -189,16 +189,23 @@ suite('Copilot SDK Connector reconciliation', function () {
 		assert.ok(apiAddress && typeof apiAddress !== 'string');
 		baseUrl = `http://127.0.0.1:${apiAddress.port}`;
 		client = new CopilotClient({
-			workingDirectory: home,
-			baseDirectory: join(home, '.copilot'),
-			useLoggedInUser: false,
-			logLevel: 'all',
-			env: createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
-				COPILOT_API_URL: baseUrl, COPILOT_DEBUG_GITHUB_API_URL: baseUrl,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-				NODE_EXTRA_CA_CERTS: fixture.caPath, SSL_CERT_FILE: fixture.caPath, REQUESTS_CA_BUNDLE: fixture.caPath, CURL_CA_BUNDLE: fixture.caPath,
+			mode: 'coding-agent',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				workingDirectory: home,
+				baseDirectory: join(home, '.copilot'),
+				env: createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
+					COPILOT_API_URL: baseUrl, COPILOT_DEBUG_GITHUB_API_URL: baseUrl,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+					NODE_EXTRA_CA_CERTS: fixture.caPath, SSL_CERT_FILE: fixture.caPath, REQUESTS_CA_BUNDLE: fixture.caPath, CURL_CA_BUNDLE: fixture.caPath,
+				}),
 			}),
+			github: {
+				useLoggedInUser: false,
+			},
+			observability: {
+				logLevel: 'all',
+			},
 		});
 	});
 
@@ -220,12 +227,20 @@ suite('Copilot SDK Connector reconciliation', function () {
 	test('keeps the backing and unrelated servers while refreshing membership and targeting a reconnect', async () => {
 		const session = await client.createSession({
 			workingDirectory: home,
-			gitHubToken: 'ghu_connector_integration_test_only',
+			github: {
+				token: 'ghu_connector_integration_test_only',
+			},
 			enableConfigDiscovery: false,
-			featureFlags: { CONNECTORS: true, MANAGED_MCP_SERVERS: true },
-			disabledMcpServers: ['github-mcp-server'],
-			mcpServers: { ordinary: { type: 'http', url: `${mcpUrl}/mcp/ordinary`, tools: ['*'] } },
-			onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			experiments: {
+				flags: { CONNECTORS: true, MANAGED_MCP_SERVERS: true },
+			},
+			mcp: {
+				disabledServers: ['github-mcp-server'],
+				servers: { ordinary: { type: 'http', url: `${mcpUrl}/mcp/ordinary`, tools: ['*'] } },
+			},
+			permissions: {
+				onRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			},
 		});
 		const sdkSessionId = session.sessionId;
 		const warnings: string[] = [];

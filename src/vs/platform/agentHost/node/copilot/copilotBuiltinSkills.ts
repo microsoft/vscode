@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SkillProvider } from '@github/copilot-sdk';
+import type { SkillProvider } from '@microsoft/copilot-sdk';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -133,9 +133,10 @@ Each line is a JSON object sharing one envelope:
 - **\`session.start\`** (once) — \`selectedModel\`, \`reasoningEffort\`.
 - **\`user.message\`** — \`content\`; \`transformedContent\` (expanded prompt, when it differs).
 - **\`assistant.turn_start\` / \`assistant.turn_end\`** — \`turnId\`; measure a turn's duration vs the following \`assistant.message\`.
-- **\`assistant.message\`** — \`model\`, \`outputTokens\`, \`content\`, \`reasoningText\` (thinking, when present), \`turnId\`, \`parentToolCallId\` (set \u21D2 sub-agent turn spawned by that tool call).
-- **\`tool.execution_start\`** — \`toolName\`, \`toolCallId\`, \`arguments\`, \`parentToolCallId\` (set \u21D2 nested/sub-agent).
+- **\`assistant.message\`** — \`model\`, \`outputTokens\`, \`content\`, \`reasoningText\` (thinking, when present), \`turnId\`. Sub-agent attribution is the envelope's \`agentId\`.
+- **\`tool.execution_start\`** — \`toolName\`, \`toolCallId\`, \`arguments\`. Sub-agent attribution is the envelope's \`agentId\`.
 - **\`tool.execution_complete\`** — \`toolCallId\` (matches start), \`success\`, \`result\`. Pair with its start by \`toolCallId\` for the full call + duration.
+- **\`subagent.started\`** — the envelope's \`agentId\` identifies the child; \`data.toolCallId\` identifies its owning task call.
 - **\`session.shutdown\`** (once, at end) — \`modelMetrics[*].usage\`, \`totalNanoAiu\`. Absent mid-session.
 - Other (\`hook.*\`, \`permission.*\`, \`system.message\`) — inspect \`data\` as needed.
 
@@ -144,9 +145,12 @@ Each line is a JSON object sharing one envelope:
 Iterate records in order and rebuild the logical tree from context:
 - \`session.start\` is the root.
 - a \`user.message\` begins a turn.
-- an \`assistant.message\` answers the current \`user.message\` — unless it has \`data.parentToolCallId\`, in which case it belongs to the sub-agent spawned by that tool call.
-- a \`tool.execution_start\` belongs to the current \`assistant.message\` — unless it has \`data.parentToolCallId\`, in which case it is nested under that parent tool call.
+- index \`subagent.started\` records by envelope \`agentId\` to resolve each child's owning \`data.toolCallId\`.
+- an \`assistant.message\` answers the current \`user.message\` unless its envelope has \`agentId\`; route it to that child's turn instead.
+- a \`tool.execution_start\` belongs to the current \`assistant.message\` unless its envelope has \`agentId\`; route it to that child instead.
 - pair each \`tool.execution_start\` with its \`tool.execution_complete\` by \`toolCallId\`.
+
+Older logs can duplicate attribution in \`data.parentToolCallId\`. Use that only as a fallback when the envelope-to-task mapping is unavailable; SDK v2 no longer supplies it on message, usage, or tool execution events.
 
 ## Secondary Source — Agent Host Wire Log (protocol communication)
 

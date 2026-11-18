@@ -68,6 +68,7 @@ minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@anthropic-ai/*'
   - '@github/copilot*'
+  - '@microsoft/copilot-sdk*'
   - '@openai/codex*'
   - '@playwright/*'
   - '@typescript/*'
