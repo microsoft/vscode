@@ -2109,7 +2109,7 @@ export class Repository {
 		try {
 			if (paths && paths.length > 0) {
 				for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
-					await this.exec([...args, '--', ...chunk]);
+					await this.exec(['--literal-pathspecs', ...args, '--', ...chunk]);
 				}
 			} else {
 				await this.exec(args);
