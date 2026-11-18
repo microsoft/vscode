@@ -25,6 +25,9 @@ import { CodexCompactCompletionProvider } from './codexCompactCommand.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { registerBuiltInChatContributions } from './chatContributions/builtInChatContributions.js';
 import { GitHubPullRequestArtifactIntegration } from './artifactIntegrations/githubPullRequestArtifactIntegration.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_BUILTIN_SKILL_SCHEME } from '../common/agentHostCustomizationUri.js';
+import { IAgentHostResourceProviders } from './agentHostResourceProviders.js';
+import { CopilotBuiltinSkillResourceProvider } from './copilot/copilotBuiltinSkills.js';
 
 export function activateAgentHostContributions(accessor: ServicesAccessor, instantiationService: IInstantiationService): DisposableStore {
 	const store = new DisposableStore();
@@ -53,6 +56,10 @@ export function activateAgentHostContributions(accessor: ServicesAccessor, insta
 			session => stateManager.getSessionSummary(session)?.provider,
 		)));
 		store.add(registerBuiltInChatContributions(accessor.get(IAgentHostChatContributions)));
+		const resources = accessor.get(IAgentHostResourceProviders);
+		const builtinSkills = new CopilotBuiltinSkillResourceProvider();
+		store.add(resources.registerProvider(AGENT_BUILTIN_SKILL_SCHEME, builtinSkills));
+		store.add(resources.registerProvider(AGENT_BUILTIN_CUSTOMIZATION_SCHEME, builtinSkills));
 		return store;
 	} catch (error) {
 		store.dispose();
