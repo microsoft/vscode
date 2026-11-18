@@ -42,6 +42,7 @@ import {
 	RemoteAgentHostEntryType,
 } from '../common/remoteAgentHostService.js';
 import { computeReconnectDelay, hasExhaustedReconnectAttempts } from '../common/reconnectPolicy.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION } from '../common/state/sessionProtocol.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
@@ -466,8 +467,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return existingConnection;
 		}
 		const entry = this._entries.get(normalizedAddress);
-		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status)
-			&& (entry.store.isDisposed || !this._pendingConnects.has(normalizedAddress))) {
+		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status) && !this._pendingConnects.has(normalizedAddress)) {
 			throw new Error(entry.status.message);
 		}
 		const reconnectFailure = this._failedReconnects.get(normalizedAddress);
@@ -825,7 +825,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				return;
 			}
 			this._logService.warn(`[RemoteAgentHost] Connection closed: ${address}`);
-			if (RemoteAgentHostConnectionStatus.isIncompatible(entry.status)) {
+			// A client that closes with the rejection lost its transport along with it. A rejected
+			// transport that closes later means the host went away, as it does when it is upgraded,
+			// and is redialed below.
+			if (RemoteAgentHostConnectionStatus.isIncompatible(entry.status) && client.connectionError?.code === AHP_UNSUPPORTED_PROTOCOL_VERSION) {
 				const { message, supportedByClient, offeredByServer } = entry.status;
 				// The rejection stays terminal, but the closed transport can no longer carry an upgrade.
 				entry.status = RemoteAgentHostConnectionStatus.incompatible(message, supportedByClient, offeredByServer);
@@ -905,7 +908,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					entry.status = RemoteAgentHostConnectionStatus.fromConnectError(client.connectionError, getAgentHostSupportedProtocolVersions())
 						?? RemoteAgentHostConnectionStatus.incompatible(message, getAgentHostSupportedProtocolVersions());
 					entry.lastConnectionError = undefined;
-					this._reconnectAttempts.delete(address);
+					// An automatic redial keeps its place in the retry budget, so a host that
+					// rejects and then closes cannot restart the backoff.
+					if (options.userInitiated) {
+						this._reconnectAttempts.delete(address);
+					}
 					if (wasReconnecting) {
 						this._rejectPendingConnectionWait(address, client.connectionError ?? new Error(message));
 					}
@@ -955,7 +962,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);
 				entry.status = incompatible;
 				entry.lastConnectionError = undefined;
-				this._reconnectAttempts.delete(address);
+				if (options.userInitiated) {
+					this._reconnectAttempts.delete(address);
+				}
 				this._rejectPendingConnectionWait(address, err);
 				this._onDidChangeConnections.fire();
 				return;

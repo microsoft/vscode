@@ -1372,6 +1372,11 @@ suite('RemoteAgentHostService', () => {
 			};
 		}
 
+		/** The error a protocol client closes with once a transport it had kept open is lost. */
+		function connectionClosedError(address: string): ProtocolError {
+			return new ProtocolError(-32000, `Connection closed: ${address}`);
+		}
+
 		async function waitForFactoryConnection(factory: TestConnectionFactory, count: number): Promise<void> {
 			while (factory.createdConnectionCount < count) {
 				await Event.toPromise(factory.onDidCreateConnection);
@@ -1595,7 +1600,7 @@ suite('RemoteAgentHostService', () => {
 		});
 
 		for (const initiallyConnected of [false, true]) {
-			test(`a rejected peer closing stays incompatible until explicit reconnect (initiallyConnected=${initiallyConnected})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			test(`a peer that rejects and closes in one step stays incompatible until explicit reconnect (initiallyConnected=${initiallyConnected})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const factory = createFactory();
 				const entry = cloudSandboxEntry('Environment', 'cloudsandbox:rejected-peer');
 				const address = getEntryAddress(entry);
@@ -1636,6 +1641,61 @@ suite('RemoteAgentHostService', () => {
 				assert.deepStrictEqual({ status: service.connections[0].status.kind, dials: factory.observations.filter(event => event.state === 'connecting').length }, { status: 'connected', dials: 2 });
 			}));
 		}
+
+		test('a rejected host whose connection closes later is redialed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:restarted-host');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			factory.stage(entry, client);
+			service.reconnect(address);
+			await client.connectRequested.p;
+			const rejection = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Server accepts ^0.8.0', { supportedVersions: ['0.8.0'] });
+			const rejected = assert.rejects(service.waitForConnection(address), /Server accepts/);
+			client.connectionError = rejection;
+			client.fireConnectionState('incompatible');
+			client.connectDeferred.error(rejection);
+			await rejected;
+			const statusWhileOpen = service.connections[0].status.kind;
+			const replacement = disposables.add(new MockProtocolClient(address));
+			replacement.connectDeferred.complete();
+			factory.stage(entry, replacement);
+			// The host exits, as it does when it is upgraded or restarted.
+			client.connectionError = connectionClosedError(address);
+			client.fireClose();
+			await timeout(30_000);
+			assert.deepStrictEqual({ statusWhileOpen, status: service.connections[0].status, dials: factory.createdConnectionCount }, {
+				statusWhileOpen: 'incompatible', status: RemoteAgentHostConnectionStatus.connected, dials: 2,
+			});
+		}));
+
+		test('a peer that keeps rejecting and then closing is redialed only within the retry budget', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:closing-peer');
+			const address = getEntryAddress(entry);
+			const rejection = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Server accepts ^0.8.0');
+			const clients = Array.from({ length: 15 }, () => disposables.add(new MockProtocolClient(address)));
+			for (const client of clients) {
+				void client.connectRequested.p.then(async () => {
+					client.connectionError = rejection;
+					client.fireConnectionState('incompatible');
+					client.connectDeferred.error(rejection);
+					await timeout(10);
+					client.connectionError = connectionClosedError(address);
+					client.fireClose();
+				});
+			}
+			factory.stage(entry, clients[0]);
+			service.reconnect(address);
+			await clients[0].connectRequested.p;
+			for (const client of clients.slice(1)) {
+				factory.stage(entry, client);
+			}
+			await timeout(600_000);
+			assert.deepStrictEqual({ status: service.connections[0].status, dials: factory.createdConnectionCount }, {
+				status: RemoteAgentHostConnectionStatus.disconnected, dials: 11,
+			});
+		}));
 
 		test('waiters joining the terminal connection notification are rejected', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const factory = createFactory();

@@ -6176,6 +6176,37 @@ suite('AgentHostProtocolClient', () => {
 			assert.strictEqual(findRequest(transports[0], '_vscodeUpgrade'), undefined);
 		});
 
+		test('a rejected transport that closes later reports the close rather than the rejection', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			let closed = 0;
+			disposables.add(client.onDidClose(() => closed++));
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequestAtWithin(transports[0], 'initialize', 0);
+			const error = { code: AhpErrorCodes.UnsupportedProtocolVersion, message: 'Server accepts ^0.8.0' };
+			const rejected = assertRemoteProtocolError(connecting, error);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: initialize.id, error });
+			await rejected;
+			const whileOpen = { state: client.connectionState, rejection: client.connectionError?.code === error.code };
+			transports[0].fireClose();
+			await timeout(50);
+
+			assert.deepStrictEqual({
+				whileOpen,
+				state: client.connectionState,
+				rejection: client.connectionError?.code === error.code,
+				transports: transports.length,
+				closed,
+			}, {
+				whileOpen: { state: AgentHostClientState.Incompatible, rejection: true },
+				state: AgentHostClientState.Closed,
+				rejection: false,
+				transports: 1,
+				closed: 1,
+			});
+		});
+
 		for (const initiallyConnected of [false, true]) {
 			test(`protocol mismatch during fresh reconnect initialization closes with its rejected transport (initiallyConnected=${initiallyConnected})`, async function () {
 				this.timeout(10_000);

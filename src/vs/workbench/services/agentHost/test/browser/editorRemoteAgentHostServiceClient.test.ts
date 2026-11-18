@@ -697,7 +697,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			assert.deepStrictEqual({ reloads: fixture.reload.callCount, closed: fixture.close.callCount }, { reloads: 1, closed: 1 });
 		});
 
-		test('does not mislabel compatible connections or authentication failures as protocol mismatches', async () => {
+		test('does not report compatible connections or other terminal errors as protocol mismatches', async () => {
 			const fixture = await createService();
 			fixture.onState.fire(AgentHostClientState.Connected);
 			fixture.protocolClient.connectionError = new ProtocolError(AhpErrorCodes.AuthRequired, 'Authentication required');
