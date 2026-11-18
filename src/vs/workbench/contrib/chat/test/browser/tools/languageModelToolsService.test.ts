@@ -184,6 +184,7 @@ class AutoApprovePolicyTestConfigurationService extends TestConfigurationService
 
 class McpPolicyTestConfigurationService extends TestConfigurationService {
 	private mcpPolicyValue: McpAccessValue | undefined;
+	mcpInspectCalls = 0;
 
 	setMcpPolicyValue(value: McpAccessValue | undefined): void {
 		this.mcpPolicyValue = value;
@@ -196,6 +197,9 @@ class McpPolicyTestConfigurationService extends TestConfigurationService {
 	}
 
 	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		if (key === mcpAccessConfig) {
+			this.mcpInspectCalls++;
+		}
 		const result = super.inspect<T>(key, overrides);
 		return key === mcpAccessConfig
 			? { ...result, policyValue: this.mcpPolicyValue as T | undefined }
@@ -4529,6 +4533,38 @@ suite('LanguageModelToolsService', () => {
 			type: 'extension', label: 'Test Extension', extensionId: new ExtensionIdentifier('test.extension'),
 		};
 		const policyError = /disabled because your organization has disabled MCP and third-party extension tools/;
+
+		test('caches policy inspections across tool lookups and refreshes on policy changes', () => {
+			const config = new McpPolicyTestConfigurationService();
+			const { service } = createTestToolsService(store, { configurationService: config });
+			store.add(service.registerToolData({
+				id: 'extensionTool', source: extensionSource, displayName: 'Extension Tool', modelDescription: 'Extension Tool',
+				toolReferenceName: 'extensionTool', canBeReferencedInPrompt: true,
+			}));
+
+			const initialInspections = config.mcpInspectCalls;
+			const snapshots = [];
+			for (const policyValue of [undefined, McpAccessValue.None, McpAccessValue.Registry, undefined]) {
+				config.setMcpPolicyValue(policyValue);
+				const inspectionsAfterRefresh = config.mcpInspectCalls;
+				snapshots.push({
+					tools: Array.from(service.getAllToolsIncludingDisabled(), tool => tool.id),
+					reference: service.getToolByFullReferenceName('test.extension/extensionTool')?.id,
+					inspectionsAfterRefresh,
+					inspectionsAfterLookups: config.mcpInspectCalls,
+				});
+			}
+
+			assert.deepStrictEqual({ initialInspections, snapshots }, {
+				initialInspections: 1,
+				snapshots: [
+					{ tools: ['extensionTool'], reference: 'extensionTool', inspectionsAfterRefresh: 2, inspectionsAfterLookups: 2 },
+					{ tools: [], reference: undefined, inspectionsAfterRefresh: 3, inspectionsAfterLookups: 3 },
+					{ tools: ['extensionTool'], reference: 'extensionTool', inspectionsAfterRefresh: 4, inspectionsAfterLookups: 4 },
+					{ tools: ['extensionTool'], reference: 'extensionTool', inspectionsAfterRefresh: 5, inspectionsAfterLookups: 5 },
+				],
+			});
+		});
 
 		test('only policy none filters extension tools and reactively updates tools and toolsets', () => {
 			const config = new McpPolicyTestConfigurationService({ [mcpAccessConfig]: McpAccessValue.None });
