@@ -4528,7 +4528,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async resolveTurnModel(chat: URI, request: IAgentTurnModelRequest, context: IAgentChatContext, token: CancellationToken): Promise<IAgentTurnModelResolution> {
 		const chatKey = chat.toString();
-		// Before any await: a later turn must never see this turn's agents, nor this turn an earlier one's.
+		// Before any await: a later turn must never take this turn's guidance, nor this turn an earlier one's.
 		this._modelRouterGuidance.enterTurn(chatKey, request.turnId);
 		const catalog = this._modelRouterCatalog.value;
 		if (!catalog || !this._modelRouter) {
@@ -4551,37 +4551,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 			situation: { ...request.situation, ...(customAgent ? { agent: customAgent.name } : {}) },
 			picker: new DecisionsModelRouterPicker(decisionsRequest => this.askDecisions(decisionsRequest, context.credentials, token)),
 		});
-		return this._withModelRouterGuidance(chatKey, request, file?.router, models, resolution);
+		this._takeModelRouterGuidance(chatKey, request.turnId, file?.router, models, resolution.routed);
+		return resolution;
 	}
 
 	/**
-	 * Offers the guidance of the route a turn was routed to as the chat's. It is taken only for
-	 * a chat that has not started work yet; the routing result itself is unchanged.
+	 * Stages the guidance of the route a turn was routed to. When the turn is sent, a session
+	 * launched with other guidance is relaunched with it, and it becomes the chat's.
 	 */
-	private _withModelRouterGuidance(chatKey: string, { turnId, previousTurns }: IAgentTurnModelRequest, router: IModelRouter | undefined, models: readonly IAgentModelInfo[], resolution: IAgentTurnModelResolution): IAgentTurnModelResolution {
-		const guidance = router && resolution.routed ? resolveModelRouterGuidance(router, resolution.routed, models) : undefined;
-		const taken = this._modelRouterGuidance.setCandidate(chatKey, turnId, guidance);
-		if (!guidance || this._modelRouterGuidance.isFresh(chatKey)) {
-			if (guidance && taken && !resolution.routed?.kept) {
-				this._logService.info(`[ModelRouter] ${chatKey}: guidance of ${guidance.route ? `route ${guidance.route}` : 'the chosen route'}`);
-			}
-			return resolution;
+	private _takeModelRouterGuidance(chatKey: string, turnId: string, router: IModelRouter | undefined, models: readonly IAgentModelInfo[], routed: IAgentTurnModelResolution['routed']): void {
+		if (!router || !routed) {
+			this._modelRouterGuidance.leaveTurnUnrouted(chatKey, turnId);
+			return;
 		}
-		// The chat has started work, and its main agent is told how to work once. A route chosen
-		// now may have guidance the chat was not started with. So may the route the chat is on,
-		// when the chat has none at all: after a host restart, which forgets every chat's guidance.
-		const committed = this._modelRouterGuidance.guidanceFor(chatKey);
-		if ((resolution.routed?.kept && committed) || structuralEquals(guidance, committed)) {
-			return resolution;
+		const guidance = resolveModelRouterGuidance(router, routed, models);
+		if (this._modelRouterGuidance.routeTurn(chatKey, turnId, guidance)) {
+			this._logService.info(`[ModelRouter] ${chatKey}: ${guidance ? `guidance of ${guidance.route ? `route ${guidance.route}` : 'the chosen route'}` : 'a route without guidance'}`);
 		}
-		const notice = guidance.route
-			? localize('modelRouter.guidanceUnavailable', "This chat does not have the guidance of the {0} route. A route's guidance is given to a chat when it starts and is lost when VS Code restarts. Start a new chat to use it.", guidance.route)
-			: localize('modelRouter.guidanceUnavailable.unnamed', "This chat does not have the guidance of this route. A route's guidance is given to a chat when it starts and is lost when VS Code restarts. Start a new chat to use it.");
-		// The chat is told once: a turn that showed the notice is part of its history. A notice
-		// that was never shown, because its turn was cancelled or its model change failed, is
-		// not in the history, so it is given again.
-		const shown = previousTurns.some(turn => turn.responseParts.some(part => part.kind === ResponsePartKind.SystemNotification && part.content === notice));
-		return shown ? resolution : { ...resolution, notices: [...resolution.notices, notice] };
 	}
 
 	/** A custom agent's name, and whether its file names a model, which the runtime runs it on instead of a router's pick. */
@@ -6984,10 +6970,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// runs (which re-records the same scope for an idempotent duplicate) so
 		// the check reflects what existed walking in, not what this call added.
 		const preexisting = this._chatOwners.has(chatKey) || this._chatBackings.has(chatKey) || !!this._findChatByUri(chat);
-		// A chat created new can still take a model router's agents; a fork or an import arrives with history.
-		if (!preexisting && !options.fork && !options.importConversation) {
-			this._modelRouterGuidance.markFresh(chatKey);
-		}
 		this._rememberChatScope(chat, context.owner, context.resource);
 		try {
 			const resolved = this._resolveExplicitChatContext(chat, context);
@@ -8798,8 +8780,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
 			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
-			// A session that has not started work, launched before the chat's guidance was known or with another turn's.
-			?? (!entry.isEphemeral && !entry.hasStartedRootWork && entry.modelRouterGuidance !== this._modelRouterGuidance.guidanceFor(context.chatKey) ? 'modelRouterGuidanceChanged' : undefined);
+			// A session launched before its turn's guidance was known or with another turn's, or a chat whose turn moved it to a route with other
+			// guidance. Only a turn takes its guidance, and not while background subagents of an earlier turn still run in this session.
+			?? (!entry.isEphemeral && !isIdleRefreshOperation(options.operation) && !entry.hasActiveSubagents && entry.modelRouterGuidance !== this._modelRouterGuidance.guidanceFor(context.chatKey) ? 'modelRouterGuidanceChanged' : undefined);
 	}
 
 	private async _refreshSessionConfiguration(
@@ -9201,7 +9184,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext, clientTelemetryContext?: IAgentHostClientTelemetryContext): Promise<void> {
-		// A turn that was not routed, or another turn than the one routed, sends without that routing's agents.
+		// A turn that was not routed, or another turn than the one routed, sends without that routing's guidance.
 		this._modelRouterGuidance.enterTurn(chat.toString(), turnId);
 		const context = this._resolveSendChatContext(chat, operationContext);
 		const sendContext = operationContext && !URI.isUri(operationContext) ? operationContext : undefined;
@@ -11182,7 +11165,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				getSessionPathRoots: () => this._getSessionPathRoots(),
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
-				// The first session of a chat to start work fixes the chat's guidance to the one it was launched with.
+				// A session that starts work makes the guidance it was launched with the chat's.
 				onRootWorkStarted: () => this._modelRouterGuidance.commit(chatKey, modelRouterGuidance),
 				builtinPluginDirectories: this._builtinPluginDirectories,
 				activeClientToolSet: launchPlan.activeClientToolSet,
