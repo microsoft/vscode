@@ -16,6 +16,8 @@ import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata 
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
+import { modelRouterModelId } from '../../common/modelRouter.js';
+import { getCopilotContextTier, getCopilotReasoningEffort } from '../../node/copilot/copilotSessionLauncher.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
@@ -2313,7 +2315,20 @@ suite('SessionServerTools', () => {
 			},
 		};
 		const other: IAgentModelInfo = { ...configured, id: 'gpt-other', name: 'GPT Other' };
-		const allModels = [model, configured, other];
+		const claudeModel: IAgentModelInfo = {
+			provider: 'claude', id: 'claude-opus', name: 'Claude Opus', supportsVision: false,
+			configSchema: { type: 'object', properties: { thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['low', 'medium', 'high', 'max'] } } },
+		};
+		const autoModel: IAgentModelInfo = {
+			provider: 'copilot', id: 'auto', name: 'Auto', supportsVision: false,
+			configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize For', enum: ['efficiency', 'balance'] } } },
+		};
+		const lockedModel: IAgentModelInfo = {
+			provider: 'copilot', id: 'gpt-locked', name: 'GPT Locked', supportsVision: false,
+			configSchema: { type: 'object', properties: { thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['high'], readOnly: true } } },
+		};
+		const routerModel: IAgentModelInfo = { provider: 'copilot', id: modelRouterModelId('daily'), name: 'Daily', supportsVision: false };
+		const allModels = [model, configured, other, claudeModel, autoModel, lockedModel, routerModel];
 		/** The calling chat runs `gpt-configured` at Extra High on its 1M window, its effort picked by default. */
 		const inherited: ModelSelection = { id: 'gpt-configured', config: { thinkingLevel: 'xhigh', contextSize: 1_000_000, [modelConfigurationSourceKey('thinkingLevel')]: 'default', [modelConfigurationSourceKey('contextSize')]: 'explicit' } };
 		const source = URI.parse(buildDefaultChatUri('copilot:/s1'));
@@ -2324,6 +2339,7 @@ suite('SessionServerTools', () => {
 			const accessor = createAccessor({
 				getSessionModelOptions: () => 'inline',
 				getModels: () => allModels,
+				getChatHarnesses: () => ['copilot', 'claude'],
 				getCreationDefaults: () => ({ provider: 'copilot', sessionProvider: 'copilot', model: inherited }),
 				prepareChatWorkingDirectory: async (_session, directory) => { calls.push('prepare'); return prepared(directory); },
 				onCreate: config => { calls.push('createSession'); models.push(config.model); },
@@ -2354,7 +2370,52 @@ suite('SessionServerTools', () => {
 			}, { independent: expected, currentSession: expected, offIndependent: expectedOff, offCurrentSession: expectedOff });
 		});
 
-		test('a caller with credentials resolves models in its own catalog, read only when needed', async () => {
+		const explicit = (key: string) => ({ [modelConfigurationSourceKey(key)]: 'explicit' });
+
+		test('applies requested options as explicit choices over the inherited or explicit model\'s selection', async () => {
+			const requests = [
+				{ reasoningEffort: 'high' },
+				{ model: 'GPT Configured', contextTier: 'default' },
+				{ model: 'gpt-other', reasoningEffort: 'low', contextTier: 'long_context' },
+			];
+			const expected = [
+				{ id: 'gpt-configured', config: { ...inherited.config, thinkingLevel: 'high', ...explicit('thinkingLevel') } },
+				{ id: 'gpt-configured', config: { ...inherited.config, contextSize: 200_000, ...explicit('contextSize') } },
+				{ id: 'gpt-other', config: { thinkingLevel: 'low', ...explicit('thinkingLevel'), contextSize: 1_000_000, ...explicit('contextSize') } },
+			];
+			assert.deepStrictEqual({
+				independent: await createdModels('independent', requests),
+				currentSession: await createdModels('currentSession', requests),
+			}, { independent: expected, currentSession: expected });
+		});
+
+		test('a chat on another harness takes options only with a model of that harness', async () => {
+			const { accessor, models } = recordingAccessor();
+			await applyCreateSessionTool(accessor, { harness: 'claude', model: 'claude-opus', reasoningEffort: 'max', prompt: 'p', title: 'T' }, source);
+			await applyCreateSessionTool(accessor, { harness: 'claude', prompt: 'p', title: 'T' }, source);
+			await assert.rejects(
+				applyCreateSessionTool(accessor, { harness: 'claude', reasoningEffort: 'max', prompt: 'p', title: 'T' }, source),
+				{ message: 'Invalid create_session input: reasoningEffort needs a model, but the new chat has no model to inherit. Pass `model` as well.' },
+			);
+			assert.deepStrictEqual(models, [{ id: 'claude-opus', config: { thinkingLevel: 'max', ...explicit('thinkingLevel') } }, undefined]);
+		});
+
+		test('an explicit option replaces its legacy alias, so the provider applies it', async () => {
+			const results: { tier: string | undefined; effort: string | undefined; config: ModelSelection['config'] }[] = [];
+			for (const [legacy, contextTier] of [['long_context', 'default'], ['default', 'long_context']] as const) {
+				const { accessor, models } = recordingAccessor({
+					getCreationDefaults: () => ({ provider: 'copilot', model: { id: 'gpt-configured', config: { contextTier: legacy, reasoningEffort: 'low', other: 'kept' } } }),
+				});
+				await applyCreateSessionTool(accessor, { relationship: 'independent', contextTier, reasoningEffort: 'xhigh', prompt: 'p', title: 'T' }, source);
+				results.push({ tier: getCopilotContextTier(models[0], 1_000_000), effort: getCopilotReasoningEffort(models[0]), config: models[0]?.config });
+			}
+			assert.deepStrictEqual(results, [
+				{ tier: 'default', effort: 'xhigh', config: { other: 'kept', contextSize: 200_000, ...explicit('contextSize'), thinkingLevel: 'xhigh', ...explicit('thinkingLevel') } },
+				{ tier: 'long_context', effort: 'xhigh', config: { other: 'kept', contextSize: 1_000_000, ...explicit('contextSize'), thinkingLevel: 'xhigh', ...explicit('thinkingLevel') } },
+			]);
+		});
+
+		test('a caller with credentials resolves and checks models in its own catalog, read only when needed', async () => {
 			const credentials: IAgentHostCredentialSource = { getCredential: () => undefined };
 			const sharedOnly: IAgentModelInfo = { ...other, id: 'gpt-shared-only', name: 'GPT Shared Only' };
 			const reads: string[] = [];
@@ -2365,13 +2426,14 @@ suite('SessionServerTools', () => {
 			});
 			await applyCreateSessionTool(accessor, { relationship: 'independent', prompt: 'p', title: 'T' }, source);
 			await applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-configured', prompt: 'p', title: 'T' }, source);
+			await applyCreateSessionTool(accessor, { relationship: 'independent', reasoningEffort: 'high', prompt: 'p', title: 'T' }, source);
 			await assert.rejects(
 				applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-shared-only', prompt: 'p', title: 'T' }, source),
 				{ message: 'Invalid create_session input: model must match an available model id or name.' },
 			);
 			assert.deepStrictEqual({ reads, models }, {
-				reads: ['scoped', 'scoped'],
-				models: [inherited, inherited],
+				reads: ['scoped', 'scoped', 'scoped'],
+				models: [inherited, inherited, { id: 'gpt-configured', config: { ...inherited.config, thinkingLevel: 'high', ...explicit('thinkingLevel') } }],
 			});
 		});
 
@@ -2395,17 +2457,59 @@ suite('SessionServerTools', () => {
 				}
 			};
 			await attempt({ model: 'gpt-configured', worktree: true });
+			await attempt({ model: 'gpt-configured', reasoningEffort: 'extreme' });
+			await attempt({ harness: 'claude', contextTier: 'long_context' });
 			quickChat = true;
 			await attempt({ workspace: workspace.toString(), model: 'gpt-configured' });
 			depth = 3;
-			await attempt({ relationship: 'independent', model: 'gpt-configured' });
+			await attempt({ relationship: 'independent', model: 'gpt-configured', reasoningEffort: 'high' });
 			assert.deepStrictEqual({ messages, reads, calls }, {
 				messages: [
 					'Invalid create_session input: worktree requires workspace.',
+					'Invalid create_session input: reasoningEffort must be one of: none, minimal, low, medium, high, xhigh, max, ultra.',
+					'Invalid create_session input: contextTier needs a model, but the new chat has no model to inherit. Pass `model` as well.',
 					'Invalid create_session input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.',
 					'Refusing to create a session: recursion limit reached (max spawn depth 3). This session was itself created 3 level(s) deep.',
 				],
 				reads: [],
+				calls: [],
+			});
+		});
+
+		test('rejects options a model does not offer before creating anything', async () => {
+			const cases: [string, Record<string, unknown>, ReturnType<ISessionServerToolAccessor['getCreationDefaults']>?][] = [
+				['unsupported effort', { model: 'gpt-configured', reasoningEffort: 'max' }],
+				['no effort option', { model: 'gpt-4o', reasoningEffort: 'high' }],
+				['effort on Auto', { model: 'auto', reasoningEffort: 'high' }],
+				['single context window', { model: 'claude-opus', contextTier: 'long_context', relationship: 'independent' }],
+				['locked option', { model: 'gpt-locked', reasoningEffort: 'high' }],
+				['model router', { model: modelRouterModelId('daily'), reasoningEffort: 'high', contextTier: 'default' }],
+				['no model to inherit', { contextTier: 'long_context' }, { provider: 'copilot' }],
+				['inherited model unavailable', { reasoningEffort: 'high' }, { provider: 'copilot', model: { id: 'gpt-retired' } }],
+			];
+			const results: Record<string, string> = {};
+			const calls: string[] = [];
+			for (const [name, request, defaults] of cases) {
+				const recorded = recordingAccessor(defaults ? { getCreationDefaults: () => defaults } : {});
+				try {
+					await applyCreateSessionTool(recorded.accessor, { workspace: workspace.toString(), prompt: 'p', title: 'T', ...request }, source);
+					results[name] = 'created';
+				} catch (error) {
+					results[name] = error instanceof Error ? error.message : String(error);
+				}
+				calls.push(...recorded.calls);
+			}
+			assert.deepStrictEqual({ results, calls }, {
+				results: {
+					'unsupported effort': 'Invalid create_session input: model "gpt-configured" doesn\'t support reasoningEffort "max". Use one of: low (Low), medium (Medium), high (High), xhigh (Extra High), or omit reasoningEffort.',
+					'no effort option': 'Invalid create_session input: model "gpt-4o" has no reasoning effort option. Omit reasoningEffort.',
+					'effort on Auto': 'Invalid create_session input: model "auto" has no reasoning effort option. Omit reasoningEffort.',
+					'single context window': 'Invalid create_session input: model "claude-opus" has a single context window, so contextTier doesn\'t apply. Omit contextTier, or pass a model with a larger context window.',
+					'locked option': 'Invalid create_session input: reasoningEffort is locked for model "gpt-locked" and can\'t be changed. Omit reasoningEffort.',
+					'model router': `Invalid create_session input: model "${modelRouterModelId('daily')}" is a model router, which chooses its own models and their options. Omit reasoningEffort and contextTier, or pass a model that isn't a router.`,
+					'no model to inherit': 'Invalid create_session input: contextTier needs a model, but the new chat has no model to inherit. Pass `model` as well.',
+					'inherited model unavailable': 'Invalid create_session input: can\'t check reasoningEffort because model "gpt-retired" isn\'t among the available models right now. Retry, or pass `model` with an available model.',
+				},
 				calls: [],
 			});
 		});
@@ -2415,6 +2519,37 @@ suite('SessionServerTools', () => {
 			await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'p', model: 'gpt-configured' }, source);
 			await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'p' }, source);
 			assert.deepStrictEqual(models, [{ id: 'gpt-configured' }, inherited]);
+		});
+
+		test('create_session offers and applies reasoningEffort and contextTier only with model options', async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const session = 'copilot:/s1';
+			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
+			let modelOptions: AgentHostSessionModelOptions = 'off';
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({ getSessionModelOptions: () => modelOptions, getChatHarnesses: () => ['copilotcli', 'claude'] }))]);
+			const offered = () => {
+				const properties = host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.CreateSession)?.inputSchema?.properties ?? {};
+				const description = (name: string) => (properties[name] as { description?: string } | undefined)?.description;
+				return { properties: Object.keys(properties), model: description('model'), harness: description('harness')?.split('defaults; ')[1] };
+			};
+			const off = offered();
+			modelOptions = 'inline';
+			const inline = offered();
+			const ignored = await createdModels('independent', [{ reasoningEffort: 'high', contextTier: 'long_context' }, { reasoningEffort: 'extreme' }], 'off');
+
+			assert.deepStrictEqual({ off, inline, ignored }, {
+				off: {
+					properties: ['relationship', 'prompt', 'workspace', 'worktree', 'title', 'model', 'harness'],
+					model: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.',
+					harness: '`model`, when given, must belong to it.',
+				},
+				inline: {
+					properties: ['relationship', 'prompt', 'workspace', 'worktree', 'title', 'model', 'reasoningEffort', 'contextTier', 'harness'],
+					model: 'Optional model ID or display name. Defaults to the current chat\'s model, with its reasoning effort and context size, when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.',
+					harness: '`model`, when given, must belong to it, and is needed to set `reasoningEffort` or `contextTier`.',
+				},
+				ignored: [inherited, inherited],
+			});
 		});
 	});
 

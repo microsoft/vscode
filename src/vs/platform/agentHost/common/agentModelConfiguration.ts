@@ -6,6 +6,7 @@
 import { formatTokenCount } from '../../../base/common/numbers.js';
 import { localize } from '../../../nls.js';
 import { hasLongContextSurcharge, type ICAPIModelBilling } from './meta/agentModelMeta.js';
+import { ReasoningEffortConfigKey } from './reasoningEffort.js';
 import type { ConfigPropertySchema, JsonPrimitive, ModelSelection } from './state/protocol/state.js';
 import { isObject } from '../../../base/common/types.js';
 
@@ -25,6 +26,12 @@ export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
 /** The context windows that can be requested without naming a size: a model's standard window, or its largest. */
 export const modelContextTiers = ['default', 'long_context'] as const;
 export type ModelContextTier = typeof modelContextTiers[number];
+
+/** Other keys that carry the same option as a key, which an explicit value of that key supersedes. */
+const modelConfigurationAliasKeys: Readonly<Record<string, readonly string[]>> = {
+	[ContextSizeConfigKey]: [ContextTierConfigKey],
+	[ReasoningEffortConfigKey]: [CopilotReasoningEffortConfigKey],
+};
 
 export const agentModelConfigurationReportKey = 'vscode.modelConfiguration';
 
@@ -132,6 +139,23 @@ export function modelConfigurationSourceKey(key: string): string {
 export function isModelConfigurationDefault(configuration: Readonly<Record<string, unknown>> | undefined, key: string): boolean {
 	const source = configuration?.[modelConfigurationSourceKey(key)];
 	return source === 'default' || source === 'managed';
+}
+
+/**
+ * Sets model options as explicit choices, so a provider applies them even where a managed default owns the option,
+ * and removes each option's legacy alias, which could otherwise override or contradict it. Other options are kept.
+ */
+export function withExplicitModelConfiguration(selection: ModelSelection, values: Readonly<Record<string, JsonPrimitive>>): ModelSelection {
+	const config = { ...selection.config };
+	for (const [key, value] of Object.entries(values)) {
+		for (const alias of modelConfigurationAliasKeys[key] ?? []) {
+			delete config[alias];
+			delete config[modelConfigurationSourceKey(alias)];
+		}
+		config[key] = value;
+		config[modelConfigurationSourceKey(key)] = 'explicit';
+	}
+	return { ...selection, config };
 }
 
 /**
