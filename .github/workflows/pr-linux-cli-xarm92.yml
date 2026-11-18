@@ -85,8 +85,8 @@ jobs:
           cargo test "${args[@]}"
         working-directory: ${{ env.CRATE_DIRECTORY }}
 
-  copilot-shim:
-    name: Copilot Shim
+  copilot-xarm92:
+    name: Copilot Linux xARM92
     if: ${{ inputs.copilot_shim_affected }}
     runs-on: ${{ inputs.runner }}
     env:
