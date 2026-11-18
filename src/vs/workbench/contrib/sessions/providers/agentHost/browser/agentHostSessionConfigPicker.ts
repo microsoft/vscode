@@ -2033,6 +2033,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			properties.forEach(([property, schema], index) => {
 				const commandId = this._registerRepositoryProperty(property, actionViewItemService);
 				const order = index + 1;
+				// A quick chat has no workspace to isolate or branch, but takes the host's other options, such as where it runs.
+				const workspaceScoped = property === workspace.isolation?.key || property === workspace.baseBranch?.key || getSessionConfigPresentationKey(property, config.schema) === 'newBranch';
 				this._repositoryMenuItems.add(MenuRegistry.appendMenuItem(Menus.NewSessionRepositoryConfig, {
 					command: {
 						id: commandId,
@@ -2042,7 +2044,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 					order,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						IsQuickChatSessionContext.negate(),
+						workspaceScoped ? IsQuickChatSessionContext.negate() : undefined,
 						SessionIdContext.isEqualTo(session.sessionId),
 					),
 				}));
