@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
+import { equals as arrayEquals } from '../../../../base/common/arrays.js';
 import { Event } from '../../../../base/common/event.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
@@ -15,6 +16,7 @@ import { IWorkbenchLayoutService, isHorizontal, PanelAlignment, Parts, positionF
 import { ISharedLayoutStateService } from '../../../services/layout/common/sharedLayoutState.js';
 import { INamedLayoutDefinition, INamedLayoutEditorGroupDefinition, INamedLayoutPanelDefinition, INamedLayoutPartDefinition, INamedLayoutParticipant, INamedLayoutViewContainerDefinition, INamedLayoutViewDefinition, NamedLayoutViewContainerLocation } from '../../../services/namedLayouts/common/namedLayouts.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { compareViewDescriptorsByDefaultOrder } from '../../../services/views/common/viewContainerModel.js';
 
 interface IPaneCompositePartLayoutState {
 	readonly visible: boolean;
@@ -69,7 +71,8 @@ function toPartDefinition(state: IPaneCompositePartLayoutState, windowSize: numb
 	return {
 		visible: state.visible,
 		...(state.size !== undefined && windowSize > 0 ? { size: roundFraction(state.size / windowSize) } : {}),
-		...(state.activeViewContainer ? { activeViewContainer: state.activeViewContainer } : {})
+		// A hidden part does not open a view container
+		...(state.visible && state.activeViewContainer ? { activeViewContainer: state.activeViewContainer } : {})
 	};
 }
 
@@ -218,20 +221,25 @@ export class WorkbenchPartsLayoutParticipant implements INamedLayoutParticipant 
 		const state = this.capture();
 		const { width, height } = this.layoutService.mainContainerDimension;
 		const panelIsHorizontal = isHorizontal(positionFromString(state.panel.position));
+		const panelPosition = toPanelPositionDefinition(state.panel.position);
+		const panelAlignment = this.layoutService.getPanelAlignment();
 
+		// The visibility, size and view container of the parts are always described. Other values are
+		// only described if they differ from those VS Code uses by default
 		return {
 			sideBar: toPartDefinition(state.sideBar, width),
 			panel: {
 				...toPartDefinition(state.panel, panelIsHorizontal ? height : width),
-				position: toPanelPositionDefinition(state.panel.position),
-				alignment: this.layoutService.getPanelAlignment(),
-				maximized: state.panel.maximized
+				...(panelPosition !== 'bottom' ? { position: panelPosition } : {}),
+				// The alignment only applies to a horizontal panel
+				...(panelIsHorizontal && panelAlignment !== 'center' ? { alignment: panelAlignment } : {}),
+				...(state.panel.maximized ? { maximized: true } : {})
 			},
 			secondarySideBar: {
 				...toPartDefinition(state.auxiliaryBar, width),
-				maximized: state.auxiliaryBar.maximized
+				...(state.auxiliaryBar.maximized ? { maximized: true } : {})
 			},
-			editor: { centered: state.editorCentered }
+			...(state.editorCentered ? { editor: { centered: true } } : {})
 		};
 	}
 
@@ -326,6 +334,14 @@ function toViewContainerLocation(location: NamedLayoutViewContainerLocation): Vi
 }
 
 /**
+ * The index of the given view container in the given bar. View containers that are not in the bar come last.
+ */
+function toBarIndex(barIds: readonly string[], id: string): number {
+	const index = barIds.indexOf(id);
+	return index === -1 ? Number.MAX_VALUE : index;
+}
+
+/**
  * Captures and applies the layout state that the default layout shares with the
  * other windows of the profile: the location of view containers and views, the
  * view containers shown in the activity bar, the panel and the secondary side bar
@@ -389,19 +405,31 @@ export class SharedLayoutStateParticipant implements INamedLayoutParticipant {
 		const viewContainers: IStringDictionary<INamedLayoutViewContainerDefinition> = {};
 		const views: IStringDictionary<INamedLayoutViewDefinition> = {};
 
-		// Values are described even if they are the defaults of the contributions: aspects that a
-		// definition does not specify are taken from the default layout of the user, not from the contributions
+		// Only values that differ from those VS Code uses by default are described. Aspects that a
+		// contributed layout does not specify are taken from the default layout of each user
 		for (const [locationName, location] of VIEW_CONTAINER_LOCATIONS) {
-			const locationViewContainers = this.viewDescriptorService.getViewContainersByLocation(location);
+			const barIds = this.paneCompositePartService.getPaneCompositeIds(location);
 			const pinnedIds = this.paneCompositePartService.getPinnedPaneCompositeIds(location);
-			const barIds = this.paneCompositePartService.getPaneCompositeIds(location).filter(id => locationViewContainers.some(viewContainer => viewContainer.id === id));
+
+			// In the order of the bar, so that view containers moved here are added in that order
+			const locationViewContainers = [...this.viewDescriptorService.getViewContainersByLocation(location)]
+				.sort((a, b) => toBarIndex(barIds, a.id) - toBarIndex(barIds, b.id));
+			const pinnedViewContainers = locationViewContainers.filter(viewContainer => barIds.includes(viewContainer.id) && pinnedIds.includes(viewContainer.id));
+
+			// The bar orders view containers by their order unless the user changed it
+			const hasDefaultOrder = arrayEquals(pinnedViewContainers, [...pinnedViewContainers].sort((a, b) => (a.order ?? Number.MAX_VALUE) - (b.order ?? Number.MAX_VALUE)));
 
 			for (const viewContainer of locationViewContainers) {
-				const index = barIds.indexOf(viewContainer.id);
-				viewContainers[viewContainer.id] = {
-					location: locationName,
-					...(index !== -1 ? { visible: pinnedIds.includes(viewContainer.id), order: index + 1 } : {})
+				const isInBar = barIds.includes(viewContainer.id);
+				const pinnedIndex = pinnedViewContainers.indexOf(viewContainer);
+				const definition: INamedLayoutViewContainerDefinition = {
+					...(this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer) !== location ? { location: locationName } : {}),
+					...(isInBar && pinnedIndex === -1 ? { visible: false } : {}),
+					...(!hasDefaultOrder && pinnedIndex !== -1 ? { order: pinnedIndex + 1 } : {})
 				};
+				if (Object.keys(definition).length) {
+					viewContainers[viewContainer.id] = definition;
+				}
 
 				this.captureViewDefinitions(viewContainer, views);
 			}
@@ -417,14 +445,19 @@ export class SharedLayoutStateParticipant implements INamedLayoutParticipant {
 		// Views moved into another view container cannot be described
 		const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
 		const viewDescriptors = model.allViewDescriptors.filter(viewDescriptor => this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id) === viewContainer);
+		const hasDefaultOrder = arrayEquals(viewDescriptors, [...viewDescriptors].sort(compareViewDescriptorsByDefaultOrder));
 
 		viewDescriptors.forEach((viewDescriptor, index) => {
 			// The visibility of a view whose when clause does not match is not known
 			const isActive = model.activeViewDescriptors.includes(viewDescriptor);
-			views[viewDescriptor.id] = {
-				...(viewDescriptor.canToggleVisibility && isActive ? { visible: model.isVisible(viewDescriptor.id) } : {}),
-				order: index + 1
+			const visible = viewDescriptor.canToggleVisibility && isActive ? model.isVisible(viewDescriptor.id) : undefined;
+			const definition: INamedLayoutViewDefinition = {
+				...(visible !== undefined && visible === !!viewDescriptor.hideByDefault ? { visible } : {}),
+				...(!hasDefaultOrder ? { order: index + 1 } : {})
 			};
+			if (Object.keys(definition).length) {
+				views[viewDescriptor.id] = definition;
+			}
 		});
 	}
 
@@ -573,6 +606,12 @@ export class EditorGroupsLayoutParticipant implements INamedLayoutParticipant {
 
 	captureDefinition(): INamedLayoutDefinition {
 		const layout = this.capture();
+
+		// A single editor group is the arrangement VS Code uses by default
+		if (layout.groups.length < 2) {
+			return {};
+		}
+
 		return {
 			editor: {
 				orientation: layout.orientation === GroupOrientation.VERTICAL ? 'vertical' : 'horizontal',

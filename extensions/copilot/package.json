@@ -157,9 +157,34 @@
     "environmentPower",
     "terminalTitle",
     "toolInvocationApproveCombination",
-    "chatSessionCustomizationProvider"
+    "chatSessionCustomizationProvider",
+    "windowLayouts"
   ],
   "contributes": {
+    "layouts": [
+      {
+        "id": "agentic",
+        "label": "Agentic",
+        "settings": {
+	        "chat.viewSessions.orientation": "sideBySide",
+	        "chat.editorWindow.enableWorktree": true,
+	        "chat.viewSessions.openInChatPart": true,
+	        "chat.viewSessions.sessionsList.enabled": true
+        },
+        "sideBar": { "visible": true, "size": 0.21, "activeViewContainer": "workbench.panel.chat" },
+        "secondarySideBar": { "visible": true, "size": 0.23, "activeViewContainer": "workbench.view.explorer" },
+        "panel": { "visible": true, "activeViewContainer": "terminal" },
+        "viewContainers": {
+          "workbench.panel.chat": { "location": "sideBar", "visible": true, "order": 1 },
+          "workbench.view.explorer": { "location": "secondarySideBar", "visible": true, "order": 1 },
+          "workbench.view.scm": { "location": "secondarySideBar", "visible": true, "order": 2 },
+          "workbench.view.search": { "visible": false },
+          "workbench.view.debug": { "visible": false },
+          "workbench.view.remote": { "visible": false },
+          "workbench.view.extensions": { "visible": false }
+        }
+      }
+    ],
     "languageModelTools": [
       {
         "name": "copilot_searchCodebase",

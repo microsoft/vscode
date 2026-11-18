@@ -242,7 +242,8 @@ export interface INamedLayoutParticipant {
 
 	/**
 	 * Describes the current state of the aspect the participant owns as part of a
-	 * {@link INamedLayoutDefinition}. The descriptions of all participants are merged.
+	 * {@link INamedLayoutDefinition}, leaving out values that VS Code uses by default.
+	 * The descriptions of all participants are merged.
 	 */
 	captureDefinition?(): INamedLayoutDefinition;
 }
@@ -348,11 +349,10 @@ export interface INamedLayoutsService {
 	revertLayout(): Promise<void>;
 
 	/**
-	 * Describes the current layout of this window in the format of layouts that
-	 * extensions contribute. Aspects that a definition does not specify are taken from the
-	 * default layout of the user, so the description specifies them explicitly. It is not
-	 * complete, for example it does not contain the sizes of views or views moved into other
-	 * view containers.
+	 * Describes the current layout of this window in the format of layouts that extensions
+	 * contribute. Values that VS Code uses by default are left out, so a contributed layout
+	 * takes them from the default layout of each user. It is not complete, for example it does
+	 * not contain the sizes of views or views moved into other view containers.
 	 */
 	captureDefinition(): INamedLayoutDefinition;
 }

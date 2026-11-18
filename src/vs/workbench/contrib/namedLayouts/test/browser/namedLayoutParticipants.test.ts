@@ -8,11 +8,12 @@ import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
+import { EditorGroupLayout, GroupLayoutArgument, GroupOrientation, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { ISharedLayoutStateService } from '../../../../services/layout/common/sharedLayoutState.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { mock } from '../../../../test/common/workbenchTestServices.js';
-import { SharedLayoutStateParticipant, WorkbenchPartsLayoutParticipant } from '../../browser/namedLayoutParticipants.js';
+import { EditorGroupsLayoutParticipant, SharedLayoutStateParticipant, WorkbenchPartsLayoutParticipant } from '../../browser/namedLayoutParticipants.js';
 
 class TestLayoutService extends mock<IWorkbenchLayoutService>() {
 
@@ -109,29 +110,39 @@ suite('NamedLayoutParticipants', () => {
 			capturedDefinition: 'justify'
 		});
 	});
-	test('the description of view containers and views specifies values that are the defaults of their contributions', () => {
-		const createViewContainer = (id: string) => new class extends mock<ViewContainer>() { override readonly id = id; };
-		const createView = (id: string) => new class extends mock<IViewDescriptor>() { override readonly id = id; override readonly canToggleVisibility = true; };
-		const explorer = createViewContainer('explorer');
-		const search = createViewContainer('search');
-		const outline = createView('outline');
-		const timeline = createView('timeline');
+	test('the description of view containers and views only specifies values that differ from the defaults of their contributions', () => {
+		const createViewContainer = (id: string, order: number) => new class extends mock<ViewContainer>() { override readonly id = id; override readonly order = order; };
+		const createView = (id: string, order: number, hideByDefault = false) => new class extends mock<IViewDescriptor>() { override readonly id = id; override readonly order = order; override readonly hideByDefault = hideByDefault; override readonly canToggleVisibility = true; };
+		const explorer = createViewContainer('explorer', 0);
+		const search = createViewContainer('search', 1);
+		const chat = createViewContainer('chat', 100);
+		const outline = createView('outline', 1);
+		const timeline = createView('timeline', 2);
+		const openEditors = createView('openEditors', 3, true);
+		const chatView = createView('chatView', 1);
+		const sessions = createView('sessions', 2);
 		const createModel = (viewDescriptors: IViewDescriptor[], visibleIds: string[]) => new class extends mock<IViewContainerModel>() {
 			override readonly allViewDescriptors = viewDescriptors;
 			override readonly activeViewDescriptors = viewDescriptors;
 			override isVisible(id: string) { return visibleIds.includes(id); }
 		};
-		const explorerModel = createModel([outline, timeline], [outline.id]);
-		const searchModel = createModel([], []);
+		// The views of the explorer have their default order, timeline is hidden and open editors hidden by default.
+		// The user moved the sessions view before the chat view
+		const models = new Map<ViewContainer, IViewContainerModel>([
+			[explorer, createModel([outline, timeline, openEditors], [outline.id])],
+			[search, createModel([], [])],
+			[chat, createModel([sessions, chatView], [chatView.id, sessions.id])]
+		]);
 		const viewDescriptorService = new class extends mock<IViewDescriptorService>() {
-			override getViewContainersByLocation(location: ViewContainerLocation) { return location === ViewContainerLocation.Sidebar ? [explorer, search] : []; }
-			override getViewContainerModel(viewContainer: ViewContainer) { return viewContainer === explorer ? explorerModel : searchModel; }
-			override getDefaultContainerById() { return explorer; }
+			override getViewContainersByLocation(location: ViewContainerLocation) { return location === ViewContainerLocation.Sidebar ? [explorer, search, chat] : []; }
+			override getViewContainerModel(viewContainer: ViewContainer) { return models.get(viewContainer)!; }
+			override getDefaultViewContainerLocation(viewContainer: ViewContainer) { return viewContainer === chat ? ViewContainerLocation.AuxiliaryBar : ViewContainerLocation.Sidebar; }
+			override getDefaultContainerById(id: string) { return id === chatView.id || id === sessions.id ? chat : explorer; }
 		};
-		// The pinned view containers and their order are the defaults of their contributions
+		// The user moved chat into the side bar before the explorer and unpinned search
 		const paneCompositePartService = new class extends mock<IPaneCompositePartService>() {
-			override getPinnedPaneCompositeIds() { return [explorer.id]; }
-			override getPaneCompositeIds() { return [explorer.id, search.id]; }
+			override getPinnedPaneCompositeIds(location: ViewContainerLocation) { return location === ViewContainerLocation.Sidebar ? [chat.id, explorer.id] : []; }
+			override getPaneCompositeIds(location: ViewContainerLocation) { return location === ViewContainerLocation.Sidebar ? [chat.id, explorer.id, search.id] : []; }
 		};
 		const sharedLayoutStateService = new class extends mock<ISharedLayoutStateService>() { override readonly onDidChange = Event.None; };
 
@@ -139,13 +150,49 @@ suite('NamedLayoutParticipants', () => {
 
 		assert.deepStrictEqual(testObject.captureDefinition(), {
 			viewContainers: {
-				explorer: { location: 'sideBar', visible: true, order: 1 },
-				search: { location: 'sideBar', visible: false, order: 2 }
+				chat: { location: 'sideBar', order: 1 },
+				explorer: { order: 2 },
+				search: { visible: false }
 			},
 			views: {
-				outline: { visible: true, order: 1 },
-				timeline: { visible: false, order: 2 }
+				timeline: { visible: false },
+				sessions: { order: 1 },
+				chatView: { order: 2 }
 			}
+		});
+	});
+
+	test('the description of the parts only specifies values that differ from those VS Code uses by default', () => {
+		const layoutService = new TestLayoutService();
+		layoutService.setPartHidden(true, Parts.PANEL_PART);
+		const testObject = aWorkbenchPartsLayoutParticipant(layoutService);
+
+		assert.deepStrictEqual(testObject.captureDefinition(), {
+			sideBar: { visible: true, size: 0.3 },
+			panel: { visible: false },
+			secondarySideBar: { visible: true, size: 0.3 }
+		});
+	});
+
+	test('the description of the editor groups is left out for a single editor group', () => {
+		const describe = (groups: GroupLayoutArgument[]) => {
+			const editorGroupsService = new class extends mock<IEditorGroupsService>() {
+				override readonly mainPart = new class extends mock<IEditorPart>() {
+					override readonly onDidAddGroup = Event.None;
+					override readonly onDidRemoveGroup = Event.None;
+					override readonly onDidMoveGroup = Event.None;
+					override readonly onDidChangeGroupMaximized = Event.None;
+					override readonly onDidLayout = Event.None;
+					override getLayout(): EditorGroupLayout { return { orientation: GroupOrientation.HORIZONTAL, groups }; }
+				};
+			};
+			const commandService = new class extends mock<ICommandService>() { override readonly onDidExecuteCommand = Event.None; };
+			return new EditorGroupsLayoutParticipant(editorGroupsService, commandService).captureDefinition();
+		};
+
+		assert.deepStrictEqual({ single: describe([{ size: 800 }]), split: describe([{ size: 600 }, { size: 200 }]) }, {
+			single: {},
+			split: { editor: { orientation: 'horizontal', groups: [{ size: 0.75 }, { size: 0.25 }] } }
 		});
 	});
 });

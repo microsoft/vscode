@@ -9,7 +9,7 @@ import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -32,6 +32,10 @@ class TestLayoutConfigurationService extends TestConfigurationService {
 			return this.layoutConfiguration[arg1] as T;
 		}
 		return super.getValue<T>(arg1, arg2);
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		return { ...super.inspect<T>(key, overrides), defaultValue: Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[key]?.default as T };
 	}
 
 	getLayoutConfiguration(): IStringDictionary<unknown> {
@@ -193,6 +197,16 @@ suite('NamedLayoutsService', () => {
 			switchToDebugIfDefaultIsActive: DEFAULT_NAMED_LAYOUT_ID,
 			active: debugLayout.id
 		});
+	});
+
+	test('the description of a layout only specifies settings that differ from their default values', () => {
+		const testObject = createService(new TestParticipant());
+		const userValue = testObject.captureDefinition().settings?.[LAYOUT_SETTING];
+
+		configurationService.setLayoutConfiguration({ [LAYOUT_SETTING]: 'defaultValue' });
+		const describesDefaultValue = Object.hasOwn(testObject.captureDefinition().settings ?? {}, LAYOUT_SETTING);
+
+		assert.deepStrictEqual({ userValue, describesDefaultValue }, { userValue: 'userValue', describesDefaultValue: false });
 	});
 
 	test('restores the settings of the active named layout, including changes saved with the storage', async () => {

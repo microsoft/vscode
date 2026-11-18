@@ -406,8 +406,15 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	captureDefinition(): INamedLayoutDefinition {
-		// Settings that a definition does not specify have the values of the default layout of the user
-		const settings = this.captureSettings();
+		// Settings that have their default value are not described: a contributed
+		// layout takes the settings it does not specify from the settings of the user
+		const settings: IStringDictionary<unknown> = {};
+		for (const key of getLayoutOverridableSettings()) {
+			const { value, defaultValue } = this.configurationService.inspect(key);
+			if (!equals(value, defaultValue)) {
+				settings[key] = value;
+			}
+		}
 
 		const definition: INamedLayoutDefinition = Object.keys(settings).length ? { settings } : {};
 		for (const participant of this.participants) {

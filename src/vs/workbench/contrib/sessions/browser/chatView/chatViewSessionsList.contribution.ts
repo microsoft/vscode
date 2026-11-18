@@ -50,6 +50,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: localize('chat.viewSessions.sessionsList.enabled', "Controls whether the Chat view of editor windows shows the sessions of the Agents window, with their chats, in place of its own chats. Local chats are not available while it is on."),
+			layoutOverridable: true
 		},
 	},
 });

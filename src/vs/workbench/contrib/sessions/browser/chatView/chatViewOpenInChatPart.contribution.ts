@@ -44,6 +44,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: localize('chat.viewSessions.openInChatPart', "Controls whether chats open in the chat area beside the Chat view, which then shows only its sessions, instead of in the Chat view. Applies while {0} is `sideBySide`.", '`#chat.viewSessions.orientation#`'),
+			layoutOverridable: true
 		},
 	},
 });

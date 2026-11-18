@@ -24,6 +24,24 @@ import { ISharedLayoutStateService } from '../../layout/common/sharedLayoutState
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
 
+function compareViewOrders(a: number | undefined, b: number | undefined): number {
+	return (typeof a === 'number' ? a : Number.MAX_VALUE) - (typeof b === 'number' ? b : Number.MAX_VALUE);
+}
+
+function compareViewGroups(a: IViewDescriptor, b: IViewDescriptor): number {
+	if (!a.group || !b.group || a.group === b.group) {
+		return 0;
+	}
+	return a.group < b.group ? -1 : 1;
+}
+
+/**
+ * Compares views like a view container orders its views while their order was not changed.
+ */
+export function compareViewDescriptorsByDefaultOrder(a: IViewDescriptor, b: IViewDescriptor): number {
+	return compareViewOrders(a.order, b.order) || compareViewGroups(a, b);
+}
+
 interface IStoredWorkspaceViewState {
 	collapsed: boolean;
 	isHidden: boolean;
@@ -806,23 +824,10 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			return 0;
 		}
 
-		return (this.getViewOrder(a) - this.getViewOrder(b)) || this.getGroupOrderResult(a.viewDescriptor, b.viewDescriptor);
+		return compareViewOrders(this.getViewOrder(a), this.getViewOrder(b)) || compareViewGroups(a.viewDescriptor, b.viewDescriptor);
 	}
 
-	private getViewOrder(viewDescriptorItem: IViewDescriptorItem): number {
-		const viewOrder = typeof viewDescriptorItem.state.order === 'number' ? viewDescriptorItem.state.order : viewDescriptorItem.viewDescriptor.order;
-		return typeof viewOrder === 'number' ? viewOrder : Number.MAX_VALUE;
-	}
-
-	private getGroupOrderResult(a: IViewDescriptor, b: IViewDescriptor) {
-		if (!a.group || !b.group) {
-			return 0;
-		}
-
-		if (a.group === b.group) {
-			return 0;
-		}
-
-		return a.group < b.group ? -1 : 1;
+	private getViewOrder(viewDescriptorItem: IViewDescriptorItem): number | undefined {
+		return typeof viewDescriptorItem.state.order === 'number' ? viewDescriptorItem.state.order : viewDescriptorItem.viewDescriptor.order;
 	}
 }

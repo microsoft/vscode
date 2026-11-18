@@ -730,6 +730,7 @@ registerAction2(class ExportLayoutAction extends Action2 {
 
 		const contents = [
 			`// ${localize('exportLayout.usage', "Add the following to the package.json of an extension to contribute the layout.")}`,
+			`// ${localize('exportLayout.defaults', "Values that VS Code uses by default are left out. A layout takes them from the default layout of each user.")}`,
 			`// ${localize('exportLayout.limitations', "Views moved into other view containers, the sizes of views and whether views are collapsed cannot be contributed.")}`,
 			JSON.stringify({ enabledApiProposals: ['windowLayouts'], contributes: { layouts: [layout] } }, undefined, '\t')
 		].join('\n');
