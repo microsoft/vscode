@@ -12120,6 +12120,69 @@ suite('CopilotAgent', () => {
 			}
 		}).timeout(30_000);
 
+		test('opening a canvas starts a workspace-less draft that stays listed until its first send after a restart', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-canvas-home-`));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const runtimes: MockCopilotSession[] = [];
+			const client = new TestCopilotClient([]);
+			client.createSession = async config => {
+				const runtime = new MockCopilotSession(config.sessionId);
+				runtimes.push(runtime);
+				return runtime as unknown as CopilotSession;
+			};
+			client.resumeSession = async () => { throw new Error('A session that never sent a message has nothing to resume'); };
+			const options = { copilotClient: client, useRealResumePath: true, sessionDataService, userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } };
+			const first = createTestAgent(disposables, options);
+			let firstDisposed = false;
+			afterTest(async () => {
+				if (!firstDisposed) {
+					await disposeAgent(first);
+				}
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+			await first.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			const materialized: string[] = [];
+			disposables.add(first.onDidMaterializeChat(e => materialized.push(e.chat.toString())));
+			const session = URI.parse('ahp-session:/canvas-first');
+			const chat = defaultChatUri(session);
+			const context = { ...exactChatContext(session, chat, session), workspaceless: true };
+			const created = await provisionSession(first, { session });
+			const withWorkspace = URI.parse('ahp-session:/canvas-first-folder');
+			const withWorkspaceChat = defaultChatUri(withWorkspace);
+			await provisionSession(first, { session: withWorkspace, workingDirectories: [URI.file(process.cwd())] });
+
+			const opened = await first.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context);
+			const folderDraft = await first.openSessionCanvas(withWorkspace, { canvasId: 'preview', instanceId: 'preview' }, withWorkspaceChat, exactChatContext(withWorkspace, withWorkspaceChat, withWorkspace)).then(() => 'opened', (error: Error) => error.message);
+			await disposeAgent(first);
+			firstDisposed = true;
+
+			const restored = createTestAgent(disposables, options);
+			afterTest(() => disposeAgent(restored));
+			await restored.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+			await restored.materializeChat(chat, context, created.providerData);
+			const listed = await restored.getChatMetadata(chat, context, created.providerData);
+			await restored.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1', undefined, context);
+
+			assert.deepStrictEqual({
+				opened: opened.kind,
+				materialized,
+				folderDraft,
+				opens: runtimes.map(runtime => runtime.canvasOpenCalls.map(call => call.instanceId)),
+				listedAfterRestart: listed !== undefined,
+				sameBacking: runtimes.map(runtime => runtime.sessionId === runtimes[0].sessionId),
+				sends: runtimes.map(runtime => runtime.sendCalls),
+			}, {
+				opened: 'opened',
+				materialized: [chat.toString()],
+				folderDraft: 'Canvas operation requires an initialized Copilot chat.',
+				opens: [['preview'], []],
+				listedAfterRestart: true,
+				// The SDK saves a session only once it records a message, so its first send after the restart creates it again.
+				sameBacking: [true, true],
+				sends: [0, 1],
+			});
+		}).timeout(30_000);
+
 		test('a host decision of not workspaceless overrides the stored session marker', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), sessionDataService });
@@ -23366,7 +23429,7 @@ suite('CopilotAgent', () => {
 		const tool = (name: string) => ({ name, description: name, inputSchema: { type: 'object' as const } });
 
 		/** Creates an agent whose SDK sessions are recorded and which fails if anything resumes an unclaimed warm session. */
-		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI; readonly model?: ModelSelection; readonly models?: readonly { readonly id: string; readonly name: string }[]; readonly rootConfig?: Record<string, unknown>; readonly userHome?: URI; readonly fileService?: FileService; readonly mcpListGate?: Promise<void> }) {
+		async function createWarmableAgent(name: string, createGate?: Promise<void>, options?: { readonly workspacelessHome?: URI; readonly model?: ModelSelection; readonly models?: readonly { readonly id: string; readonly name: string }[]; readonly rootConfig?: Record<string, unknown>; readonly userHome?: URI; readonly fileService?: FileService; readonly mcpListGate?: Promise<void>; readonly onSdkSession?: (session: MockCopilotSession) => void }) {
 			const client = new TestCopilotClient([], options?.models ?? [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			const sdkSessions: MockCopilotSession[] = [];
 			const launchConfigs: Parameters<ITestCopilotClient['createSession']>[0][] = [];
@@ -23386,6 +23449,7 @@ suite('CopilotAgent', () => {
 					warmSteps.push('toolsInitialized');
 					return {};
 				};
+				options?.onSdkSession?.(sdkSession);
 				sdkSessions.push(sdkSession);
 				return sdkSession as unknown as CopilotSession;
 			};
@@ -23893,6 +23957,100 @@ suite('CopilotAgent', () => {
 				afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true },
 				materializedIn: [h.resolvedWorkingDirectory?.toString()],
 			});
+		}).timeout(30_000);
+
+		test('opening a canvas in a workspace-less draft claims its warm session, which its first send then uses', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-home-`));
+			const h = await createWarmableAgent('warm-workspaceless-canvas', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
+			afterTest(async () => {
+				await disposeAgent(h.agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			await h.agent.openSessionCanvas(AgentSession.uri('copilotcli', 'warm-workspaceless-canvas'), { canvasId: 'preview', instanceId: 'preview' }, h.chat, h.context);
+			const afterOpen = h.state();
+			await h.agent.chats.sendMessage(h.chat, 'hello', undefined, undefined, 'turn-1', undefined, h.sendContext);
+
+			assert.deepStrictEqual({ afterOpen, afterSend: h.state(), opens: h.sdkSessions.map(s => s.canvasOpenCalls.map(call => call.instanceId)), sends: h.sdkSessions.map(s => s.sendCalls) }, {
+				afterOpen: { creates: 1, mcpLists: 1, materialized: 1, prewarm: [], deleted: 0, live: true },
+				afterSend: { creates: 1, mcpLists: 1, materialized: 1, prewarm: [], deleted: 0, live: true },
+				opens: [['preview']],
+				sends: [1],
+			});
+		}).timeout(30_000);
+
+		test('listing canvases in a workspace-less draft launches it early without starting it, and opening one claims that launch', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-list-home-`));
+			const h = await createWarmableAgent('warm-workspaceless-canvas-list', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
+			afterTest(async () => {
+				await disposeAgent(h.agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+			const session = AgentSession.uri('copilotcli', 'warm-workspaceless-canvas-list');
+			const listed = await h.agent.listSessionCanvases(session, h.chat, h.context);
+			const afterList = h.state();
+			await h.agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, h.chat, h.context);
+
+			assert.deepStrictEqual({ listed: Array.isArray(listed), afterList, afterOpen: h.state() }, {
+				listed: true,
+				afterList: { creates: 1, mcpLists: 1, materialized: 0, prewarm: [], deleted: 0, live: true },
+				afterOpen: { creates: 1, mcpLists: 1, materialized: 1, prewarm: [], deleted: 0, live: true },
+			});
+		}).timeout(30_000);
+
+		test('listing canvases in a workspace-less draft waits for the extensions the listing starts to settle', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-settle-home-`));
+			// A lazily activated extension starts when its canvases are first listed, and settles a moment later.
+			const onSdkSession = (sdkSession: MockCopilotSession) => {
+				const list = sdkSession.rpc.canvas.list;
+				let activated = false;
+				sdkSession.rpc.canvas.list = async () => {
+					if (!activated) {
+						activated = true;
+						sdkSession.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'starting' });
+						sdkSession.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'A board.' });
+						void timeout(20).then(() => {
+							sdkSession.extensions[0] = { ...sdkSession.extensions[0], status: 'running' };
+							sdkSession.emit({ id: 'extensions-loaded', timestamp: '2026-01-01T00:00:00Z', parentId: null, ephemeral: true, type: 'session.extensions_loaded', data: { extensions: [...sdkSession.extensions] } });
+						});
+					}
+					return list();
+				};
+			};
+			const h = await createWarmableAgent('warm-workspaceless-canvas-settle', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true }, onSdkSession });
+			afterTest(async () => {
+				await disposeAgent(h.agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+
+			const listed = await h.agent.listSessionCanvases(AgentSession.uri('copilotcli', 'warm-workspaceless-canvas-settle'), h.chat, h.context);
+
+			assert.deepStrictEqual(listed?.map(canvas => [canvas.canvasId, canvas.extensionSource]), [['board', 'user']]);
+		}).timeout(30_000);
+
+		test('listing canvases in a workspace-less draft lists the registered canvases when an extension never finishes starting', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/warm-qc-canvas-stuck-home-`));
+			// A lazily activated extension that starts when canvases are first listed, and never finishes starting.
+			const onSdkSession = (sdkSession: MockCopilotSession) => {
+				const list = sdkSession.rpc.canvas.list;
+				sdkSession.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'running' });
+				sdkSession.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'A board.' });
+				sdkSession.rpc.canvas.list = async () => {
+					if (!sdkSession.extensions.some(extension => extension.id === 'user:stuck')) {
+						sdkSession.extensions.push({ id: 'user:stuck', name: 'stuck', source: 'user', status: 'starting' });
+					}
+					return list();
+				};
+			};
+			const h = await createWarmableAgent('warm-workspaceless-canvas-stuck', undefined, { workspacelessHome: userHome, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true }, onSdkSession });
+			afterTest(async () => {
+				await disposeAgent(h.agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			});
+
+			const listed = await h.agent.listSessionCanvases(AgentSession.uri('copilotcli', 'warm-workspaceless-canvas-stuck'), h.chat, h.context);
+
+			assert.deepStrictEqual(listed?.map(canvas => canvas.canvasId), ['board']);
 		}).timeout(30_000);
 
 		test('a worktree send discards the folder warm session and materializes in the worktree', async () => {
