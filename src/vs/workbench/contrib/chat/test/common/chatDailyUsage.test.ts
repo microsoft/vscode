@@ -40,7 +40,7 @@ suite('ChatDailyUsage', () => {
 	const hour = 60 * minute;
 	const day = 24 * hour;
 
-	test('sums messages and new sessions over the current and preceding UTC days and in total', () => {
+	test('sums messages, new sessions and active days over the current and preceding UTC days and in total', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const empty = new ChatDailyUsage(storage).getTelemetry(100 * day);
 		const usage = new ChatDailyUsage(storage);
@@ -49,10 +49,11 @@ suite('ChatDailyUsage', () => {
 		usage.recordMessage(true, 71 * day);
 		usage.recordMessage(false, 93 * day + 23 * hour);
 		usage.recordMessage(true, 94 * day);
+		usage.recordMessage(false, 100 * day + hour);
 		usage.recordMessage(false, 100 * day + 2 * hour);
 		assert.deepStrictEqual({ empty, recorded: new ChatDailyUsage(storage).getTelemetry(100 * day + 12 * hour) }, {
-			empty: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 0, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 0, minutesSinceLastMessage: undefined, trackedDays: 0 },
-			recorded: { messagesLast7Days: 2, messagesLast30Days: 4, messagesTotal: 5, sessionsLast7Days: 1, sessionsLast30Days: 2, sessionsTotal: 3, minutesSinceLastMessage: 600, trackedDays: 30 },
+			empty: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 0, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 0, activeDaysLast7Days: 0, activeDaysLast30Days: 0, activeDaysTotal: 0, minutesSinceLastMessage: undefined, trackedDays: 0 },
+			recorded: { messagesLast7Days: 3, messagesLast30Days: 5, messagesTotal: 6, sessionsLast7Days: 1, sessionsLast30Days: 2, sessionsTotal: 3, activeDaysLast7Days: 2, activeDaysLast30Days: 4, activeDaysTotal: 5, minutesSinceLastMessage: 600, trackedDays: 30 },
 		});
 	});
 
@@ -69,9 +70,9 @@ suite('ChatDailyUsage', () => {
 			await second.takeDailyReport(11 * day),
 			await first.takeDailyReport(11 * day + hour),
 		], [
-			{ messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 1, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, minutesSinceLastMessage: 60, trackedDays: 0 },
+			{ messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 1, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, activeDaysLast7Days: 1, activeDaysLast30Days: 1, activeDaysTotal: 1, minutesSinceLastMessage: 60, trackedDays: 0 },
 			undefined,
-			{ messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 1, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, minutesSinceLastMessage: 23 * 60, trackedDays: 1 },
+			{ messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 1, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, activeDaysLast7Days: 1, activeDaysLast30Days: 1, activeDaysTotal: 1, minutesSinceLastMessage: 23 * 60, trackedDays: 1 },
 			undefined,
 		]);
 	});
@@ -108,15 +109,27 @@ suite('ChatDailyUsage', () => {
 		const restarted = usage.getTelemetry(10 * day + hour);
 		usage.recordMessage(true, 10 * day + 45 * minute);
 		assert.deepStrictEqual({ seeded, restarted, recorded: usage.getTelemetry(10 * day + hour) }, {
-			seeded: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 3, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 2, minutesSinceLastMessage: 60, trackedDays: 0 },
-			restarted: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 3, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 2, minutesSinceLastMessage: 20, trackedDays: 0 },
-			recorded: { messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 4, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 3, minutesSinceLastMessage: 15, trackedDays: 0 },
+			seeded: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 3, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 2, activeDaysLast7Days: 0, activeDaysLast30Days: 0, activeDaysTotal: 0, minutesSinceLastMessage: 60, trackedDays: 0 },
+			restarted: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 3, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 2, activeDaysLast7Days: 0, activeDaysLast30Days: 0, activeDaysTotal: 0, minutesSinceLastMessage: 20, trackedDays: 0 },
+			recorded: { messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 4, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 3, activeDaysLast7Days: 1, activeDaysLast30Days: 1, activeDaysTotal: 1, minutesSinceLastMessage: 15, trackedDays: 0 },
 		});
+	});
+
+	test('derives the active day total from retained days for usage stored before the total existed', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store('chat.dailyUsage', '{"days":[[3,2,1],[4,1,0],[5,0,0]],"messagesTotal":10,"sessionsTotal":4}', StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		const usage = new ChatDailyUsage(storage);
+		const totals = [usage.getTelemetry(5 * day).activeDaysTotal];
+		for (const time of [5 * day, 5 * day + hour, 6 * day]) {
+			usage.recordMessage(false, time);
+			totals.push(usage.getTelemetry(6 * day).activeDaysTotal);
+		}
+		assert.deepStrictEqual(totals, [2, 3, 3, 4]);
 	});
 
 	test('recovers from malformed state and keeps usage in machine-local shared storage', () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		storage.store('chat.dailyUsage', '{"days":[[5,"x",0],[5,2]],"lastMessage":"y","messagesTotal":-1,"sessionsTotal":"z"}', StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		storage.store('chat.dailyUsage', '{"days":[[5,"x",0],[5,2],[4,0,0]],"lastMessage":"y","messagesTotal":-1,"sessionsTotal":"z"}', StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 		const malformed = new ChatDailyUsage(storage).getTelemetry(5 * day);
 		storage.store('chat.dailyUsage', 'not json', StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 		const usage = new ChatDailyUsage(storage);
@@ -129,11 +142,11 @@ suite('ChatDailyUsage', () => {
 			application: storage.keys(StorageScope.APPLICATION, StorageTarget.MACHINE),
 			recorded: new ChatDailyUsage(storage).getTelemetry(5 * day),
 		}, {
-			malformed: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 0, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 0, minutesSinceLastMessage: undefined, trackedDays: 0 },
+			malformed: { messagesLast7Days: 0, messagesLast30Days: 0, messagesTotal: 0, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 0, activeDaysLast7Days: 0, activeDaysLast30Days: 0, activeDaysTotal: 0, minutesSinceLastMessage: undefined, trackedDays: 0 },
 			shared: ['chat.dailyUsage', 'chat.dailyUsage.trackingStartDay'],
 			synced: [],
 			application: [],
-			recorded: { messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 1, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 0, minutesSinceLastMessage: 0, trackedDays: 0 },
+			recorded: { messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 1, sessionsLast7Days: 0, sessionsLast30Days: 0, sessionsTotal: 0, activeDaysLast7Days: 1, activeDaysLast30Days: 1, activeDaysTotal: 1, minutesSinceLastMessage: 0, trackedDays: 0 },
 		});
 	});
 });

@@ -416,6 +416,9 @@ export class Dialog extends Disposable {
 				const isArrowNavigation = evt.equals(KeyCode.RightArrow) || evt.equals(KeyCode.LeftArrow);
 				const isEditableTarget = isHTMLElement(e.target) && (isEditableElement(e.target) || e.target.isContentEditable);
 				if (evt.equals(KeyCode.Tab) || evt.equals(KeyMod.Shift | KeyCode.Tab) || isArrowNavigation && !isEditableTarget) {
+					if (isHTMLElement(e.target) && this.options.isExternalFocusAllowed?.(e.target)) {
+						return;
+					}
 
 					// Build a list of focusable elements in their visual order
 					const focusableElements: { focus: () => void }[] = [];

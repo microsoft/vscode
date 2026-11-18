@@ -54,7 +54,7 @@ parameters:
   # already published to the private feed. 'none' = use the OSS SDK version.
   # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
   - name: VSCODE_SDK_CANARY_VERSION
-    displayName: "SDK canary: @github/copilot-sdk version ('none' = normal build)"
+    displayName: "SDK canary: @microsoft/copilot-sdk version ('none' = normal build)"
     type: string
     default: none
   - name: VSCODE_CLI_CANARY_VERSION

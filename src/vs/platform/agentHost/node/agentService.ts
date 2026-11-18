@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IOtlpLogRecord, OtlpLogLevelName } from '../common/otlp/otlpLogEmitter.js';
 import { withMessageReplacedTurn, withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
 import { readRuntimePluginEnablement } from '../common/meta/pluginEnablementMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
@@ -2296,6 +2297,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- MCP `mcp://` channel routing --------------------------------------
 
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable {
+		return this._providerService.subscribeMcpServerLogs(session, serverName, level, onRecords);
+	}
+
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
 		return this._providerService.handleMcpRequest(channel, method, params);
 	}
@@ -2403,11 +2408,11 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+	async removeSessionArtifact(session: URI, artifactId: string): Promise<ISessionArtifact | undefined> {
 		await this.restoreSession(session);
 		const recordedChat = readSessionArtifacts(this._stateManager.getSessionState(session.toString())?._meta).find(artifact => artifact.id === artifactId)?.chat;
 		const chatUri = recordedChat && this._chatOwnership.getChatOwner(recordedChat) === session.toString() ? recordedChat : this._requireDefaultChat(session);
-		await new SessionArtifacts(this._stateManager, session.toString(), chatUri, this._createArtifactServerToolAccessor().persist).remove(artifactId, async artifact => {
+		return new SessionArtifacts(this._stateManager, session.toString(), chatUri, this._createArtifactServerToolAccessor().persist).remove(artifactId, async artifact => {
 			if (artifact.type === SessionArtifactType.PullRequest && artifact.link) {
 				try {
 					await this._gitStateService.removePendingRecordedPullRequest?.(session.toString(), artifact.chat ?? chatUri, artifact.link);
@@ -14938,7 +14943,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let title = meta.summary ?? 'Session';
 		let isRead: boolean | undefined;
 		let defaultChatIsRead: boolean | undefined;
-		let isArchived: boolean | undefined;
+		let isArchived = meta.status === undefined ? undefined : isSessionStatusArchived(meta.status);
 		let persistedConfigValues: Record<string, unknown> | undefined;
 		let changes: ChangesSummary | undefined;
 		let gitMetadata: Record<string, string | undefined> | undefined;

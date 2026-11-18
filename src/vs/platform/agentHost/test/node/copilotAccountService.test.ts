@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotClient, CopilotSession, EntraTokenProvider } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, EntraTokenProvider } from '@microsoft/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -44,7 +44,7 @@ suite('Copilot account resource authentication', () => {
 		const context = store.add(instantiation.createInstance(CopilotAccountService));
 		contexts.push(context);
 		const state = {
-			step: both as LoginStep, selected: '', created: 0, disconnected: 0, deleted: 0,
+			step: both as LoginStep, accounts: choices, selected: '', created: 0, disconnected: 0, deleted: 0,
 			discovery: undefined as DeferredPromise<LoginStep> | undefined,
 			starting: undefined as DeferredPromise<CopilotSession> | undefined,
 			started: new DeferredPromise<void>(),
@@ -69,7 +69,7 @@ suite('Copilot account resource authentication', () => {
 						},
 						get: async () => ({
 							kind: 'activeAccount',
-							account: { ...choices.find(choice => choice.selectionId === state.selected)!, active: true, derivedFrom: 'runtime-base' },
+							account: { ...state.accounts.find(choice => choice.selectionId === state.selected)!, active: true, derivedFrom: 'runtime-base' },
 						}),
 						enumerate: async () => ({ kind: 'accounts', items: [] }),
 						set: async () => { throw new Error('Verification must not change the active account'); },
@@ -283,6 +283,23 @@ suite('Copilot account resource authentication', () => {
 			contextUnchanged: true, created: 2, released: 1,
 		});
 	});
+
+	for (const service of ['m365', 'github'] as const) {
+		test(`a restoring sign-in that names the ${service} account differently ${service === 'm365' ? 'restores it and signs in a new conversation' : 'is refused'}`, async () => {
+			const f = fixture();
+			await f.authenticate();
+			await f.authenticate(f.credential(service));
+			const selected = f.context.requireReady();
+			await f.context.releaseSession();
+			f.state.accounts = choices.map(choice => ({ ...choice, selectionId: `restored-${choice.selectionId}`, login: `restored-${choice.login}` }));
+			f.state.step = { kind: 'completed', result: { status: 'needs-account-selection', accounts: f.state.accounts } };
+			const conversation = conversationSession();
+			const restored = await f.context.authenticateSession(conversation.session, f.client, selected, CancellationToken.None).then(() => true, error => error.message);
+			assert.deepStrictEqual({ restored, activated: f.state.selected, contextUnchanged: f.context.state.get() === selected, calls: conversation.calls }, service === 'm365'
+				? { restored: true, activated: 'restored-opaque-m365', contextUnchanged: true, calls: ['begin:entra', 'select:conversation-opaque-m365', 'cancel'] }
+				: { restored: 'The selected Copilot service is no longer available.', activated: 'opaque-emu', contextUnchanged: false, calls: [] });
+		});
+	}
 
 	test('a failed runtime restoration can be retried unless the runtime disowns the selected service', async () => {
 		const f = fixture();

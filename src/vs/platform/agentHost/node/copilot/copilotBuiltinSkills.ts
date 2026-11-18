@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SkillProvider } from '@github/copilot-sdk';
+import type { SkillProvider } from '@microsoft/copilot-sdk';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -133,9 +133,10 @@ Each line is a JSON object sharing one envelope:
 - **\`session.start\`** (once) — \`selectedModel\`, \`reasoningEffort\`.
 - **\`user.message\`** — \`content\`; \`transformedContent\` (expanded prompt, when it differs).
 - **\`assistant.turn_start\` / \`assistant.turn_end\`** — \`turnId\`; measure a turn's duration vs the following \`assistant.message\`.
-- **\`assistant.message\`** — \`model\`, \`outputTokens\`, \`content\`, \`reasoningText\` (thinking, when present), \`turnId\`, \`parentToolCallId\` (set \u21D2 sub-agent turn spawned by that tool call).
-- **\`tool.execution_start\`** — \`toolName\`, \`toolCallId\`, \`arguments\`, \`parentToolCallId\` (set \u21D2 nested/sub-agent).
+- **\`assistant.message\`** — \`model\`, \`outputTokens\`, \`content\`, \`reasoningText\` (thinking, when present), \`turnId\`. Sub-agent attribution is the envelope's \`agentId\`.
+- **\`tool.execution_start\`** — \`toolName\`, \`toolCallId\`, \`arguments\`. Sub-agent attribution is the envelope's \`agentId\`.
 - **\`tool.execution_complete\`** — \`toolCallId\` (matches start), \`success\`, \`result\`. Pair with its start by \`toolCallId\` for the full call + duration.
+- **\`subagent.started\`** — the envelope's \`agentId\` identifies the child; \`data.toolCallId\` identifies its owning task call.
 - **\`session.shutdown\`** (once, at end) — \`modelMetrics[*].usage\`, \`totalNanoAiu\`. Absent mid-session.
 - Other (\`hook.*\`, \`permission.*\`, \`system.message\`) — inspect \`data\` as needed.
 
@@ -144,9 +145,12 @@ Each line is a JSON object sharing one envelope:
 Iterate records in order and rebuild the logical tree from context:
 - \`session.start\` is the root.
 - a \`user.message\` begins a turn.
-- an \`assistant.message\` answers the current \`user.message\` — unless it has \`data.parentToolCallId\`, in which case it belongs to the sub-agent spawned by that tool call.
-- a \`tool.execution_start\` belongs to the current \`assistant.message\` — unless it has \`data.parentToolCallId\`, in which case it is nested under that parent tool call.
+- index \`subagent.started\` records by envelope \`agentId\` to resolve each child's owning \`data.toolCallId\`.
+- an \`assistant.message\` answers the current \`user.message\` unless its envelope has \`agentId\`; route it to that child's turn instead.
+- a \`tool.execution_start\` belongs to the current \`assistant.message\` unless its envelope has \`agentId\`; route it to that child instead.
 - pair each \`tool.execution_start\` with its \`tool.execution_complete\` by \`toolCallId\`.
+
+Older logs can duplicate attribution in \`data.parentToolCallId\`. Use that only as a fallback when the envelope-to-task mapping is unavailable; SDK v2 no longer supplies it on message, usage, or tool execution events.
 
 ## Secondary Source — Agent Host Wire Log (protocol communication)
 
@@ -347,7 +351,7 @@ ${modelRouterNamedRoutesExample}
 
 - \`name\` (optional) is what the chat shows for the route: lowercase letters, digits and single hyphens, each used once. Routes with a name may use the same model, for example the same model at two effort levels; a route without one may not share its model.
 - \`guidance\` on a route (optional, at most 4000 characters) is given to the chat's main agent, not to the decision model. Write it as instructions for that kind of work: the steps to take, and the skills and custom agents to use, by name. The agent already has the user's skills and custom agents, so naming one is enough; a custom agent runs on the model its own file names, else the chat's.
-- A chat gets the guidance of the route its first message is routed to, and keeps it. So \`switching: auto\` can't be used when a route has \`guidance\`. A router chosen in a chat that already has messages picks models but brings no guidance; it is also lost when VS Code restarts. Start a new chat to get it.
+- A chat has the guidance of the route it is on. With \`switching: first-turn\` that is the route of its first routed message. With \`switching: auto\`, a chat that moves to another route gets that route's guidance in place of the earlier one. A router chosen in a chat that already has messages brings the guidance of the route it picks.
 - One route is enough when it has \`guidance\`.
 - The router's own \`guidance\`, at the top of the file, is different: it is for the routing decision.
 

@@ -23,7 +23,7 @@ import { IChatModelReference, IChatService } from '../../../../chat/common/chatS
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
-import { IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
@@ -214,21 +214,22 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
-	test('opens a session as restored or committed when asked to, so that it does not report it as opened', async () => {
+	test('opens a session as restored, committed or keeping the folder when asked to, so that it does not report it as opened', async () => {
 		const chatResource = URI.parse('agent-host-copilot:/session-1');
 		const { owner, widget } = sessionOf(chatResource);
 		const opened: string[] = [];
 		const { host } = createHost({
-			chatPart: { openChat: async (_session, _chat, openOptions) => { opened.push(`restore=${openOptions?.restore} commit=${openOptions?.commit}`); } },
+			chatPart: { openChat: async (_session, _chat, openOptions) => { opened.push(getChatViewHostOpenReason(openOptions)); } },
 			sessionsManagementService: { getSessionForChatResource: () => owner },
 			widgets: [widget],
 		});
 
 		await host.openSession(chatResource, { restore: true });
 		await host.openSession(chatResource, { commit: true });
+		await host.openSession(chatResource, { keepFolder: true });
 		await host.openSession(chatResource);
 
-		assert.deepStrictEqual(opened, ['restore=true commit=undefined', 'restore=undefined commit=true', 'restore=undefined commit=undefined']);
+		assert.deepStrictEqual(opened, ['restore', 'commit', 'keepFolder', 'open']);
 	});
 
 	test('deactivated while it loads the session it starts, it releases the session and starts nothing', async () => {

@@ -218,6 +218,7 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	readonly chatViewHosts: IObservable<boolean>;
+	readonly requests: IObservable<number>;
 
 	/** The registered contributions, the one registered last at the end: one each, also of the same contribution. */
 	private readonly contributions = observableValue<readonly IChatViewContribution[]>(this, []);
@@ -232,6 +233,7 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		this.hostInUse = observableValue<IChatViewHost>(this, this.chatViewHost);
 		this.state = observableValue<IChatViewHostState>(this, { host: this.chatViewHost, newChat: false, request: 0 });
 		this.chatViewHosts = derived(this, reader => this.state.read(reader).host === this.chatViewHost);
+		this.requests = derived(this, reader => this.state.read(reader).request);
 		this.shownSession = derived(this, reader => {
 			const state = this.state.read(reader);
 			return state.newChat ? undefined : state.host.shownSession?.read(reader);

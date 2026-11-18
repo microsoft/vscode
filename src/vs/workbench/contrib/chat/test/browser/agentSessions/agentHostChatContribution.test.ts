@@ -561,7 +561,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			fromSeq: 0,
 		};
 	}
-	unsubscribe(_resource: URI): void { }
+	override unsubscribe(_resource: URI): void { }
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
@@ -7115,6 +7115,33 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('sessionRemoved preserves identities through every list controller removal delta', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService));
+			const backend = URI.parse('host-session://owner/session?revision=one');
+			agentHostService.addSession({ session: backend, provider: 'copilot', startTime: 1000, modifiedTime: 2000, summary: 'A' });
+			const controllers = [0, 1].map(() => createSessionListController(disposables, instantiationService, agentHostService));
+			await Promise.all(controllers.map(controller => controller.refresh(CancellationToken.None)));
+			const resource = connections.findSessionResource(backend)!;
+			const removals: { resources: URI[]; advertised: URI | undefined }[] = [];
+			for (const controller of controllers) {
+				disposables.add(controller.onDidChangeChatSessionItems(delta => {
+					removals.push({ resources: [...(delta.removed ?? [])], advertised: connections.findSessionResource(backend) });
+				}));
+			}
+			agentHostService.fireNotification({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				removals,
+				remainingItems: controllers.map(controller => controller.items.length),
+				advertised: connections.findSessionResource(backend),
+			}, {
+				removals: [{ resources: [resource], advertised: resource }, { resources: [resource], advertised: resource }],
+				remainingItems: [0, 0],
+				advertised: undefined,
+			});
+		});
+
 		test('refresh keeps both sessions after the backend list reorders (order not significant)', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
@@ -8145,6 +8172,20 @@ suite('AgentHostChatContribution', () => {
 				windowDefault: folders.getDefaultFolder()?.path,
 			}, { carried: '/workspace/b', windowDefault: '/workspace/a' });
 		}));
+
+		test('with worktree support, the folder picker sits where the multi-root folder picker does, and stays shown, disabled, once the session starts', () => {
+			const folderItems = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
+				.filter((i): i is IMenuItem => isIMenuItem(i) && i.group === 'navigation' && i.command.id === OpenAgentHostFolderPickerAction.ID);
+			const worktree = folderItems.find(i => !!i.when?.keys().includes(`config.${ChatConfiguration.EditorWindowEnableWorktree}`));
+			const multiRoot = folderItems.find(i => i !== worktree);
+
+			assert.deepStrictEqual({
+				order: worktree?.order,
+				multiRootOrder: multiRoot?.order,
+				hiddenOnceStarted: !!worktree?.when?.keys().includes(ChatContextKeys.chatSessionIsEmpty.key),
+				disabledOnceStarted: !!worktree?.command.precondition?.keys().includes(ChatContextKeys.chatSessionIsEmpty.key),
+			}, { order: 1.1, multiRootOrder: 1.1, hiddenOnceStarted: false, disabledOnceStarted: true });
+		});
 
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
 			const item = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)

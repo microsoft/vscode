@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent } from '../../../../../base/common/observable.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, observableFromEvent, runOnChange, waitForState } from '../../../../../base/common/observable.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
@@ -17,7 +21,12 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { ActiveAuxiliaryContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { ChatViewId } from '../../../chat/browser/chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
+import { localChatSessionType } from '../../../chat/common/chatSessionsService.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
+import { isSessionCreated } from '../../../../services/sessions/common/session.js';
+import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
@@ -39,6 +48,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	},
 });
 
+/** The input of a new chat that moves, and the widget it was taken from (`source`), with the chat it showed (`sourceResource`). */
+type ChatDraftHandover = { readonly kind: 'draft'; readonly source: IChatWidget | undefined; readonly sourceResource: URI | undefined; readonly input: string; readonly attachments: readonly IChatRequestVariableEntry[] };
+
+/**
+ * What moves to the other host as the chat part turns on or off: a session, a new chat with the input of the one it took
+ * (`draft`), or a new chat (`none`). A local chat of the Chat view (`local`) leaves it for a new chat of the chat part
+ * (`then`) only while local chats are hidden.
+ */
+type ChatHandover =
+	| { readonly kind: 'session'; readonly resource: URI }
+	| ChatDraftHandover
+	| { readonly kind: 'none' }
+	| { readonly kind: 'local'; readonly then: ChatDraftHandover };
+
 /** The chat part docks beside the Chat view: the Agents viewlet docks it beside its own view, over this. */
 const CHAT_VIEW_ANCHOR_PRIORITY = 1;
 
@@ -56,13 +79,15 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IEditorWindowChatPartService chatPartService: IEditorWindowChatPartService,
+		@IEditorWindowChatPartService private readonly _chatPartService: IEditorWindowChatPartService,
 		@IEditorWindowSessionsRuntime sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
-		@ILocalChatAvailabilityService localChatAvailabilityService: ILocalChatAvailabilityService,
+		@ILocalChatAvailabilityService private readonly _localChatAvailabilityService: ILocalChatAvailabilityService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IEditorWindowShownChatService private readonly _shownChatService: IEditorWindowShownChatService,
 	) {
 		super();
 
@@ -76,8 +101,10 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		const available = ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)!;
 		const availableKeys = new Set(available.keys());
 		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
-		const enabled = derived(this, reader => openInChatPart.read(reader) && orientation.read(reader) !== 'stacked' && chatAvailable.read(reader));
-		this._register(chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
+		// As configured: its setting, with the sessions side by side (not the width-based layout)
+		const configured = derived(this, reader => openInChatPart.read(reader) && orientation.read(reader) !== 'stacked');
+		const enabled = derived(this, reader => configured.read(reader) && chatAvailable.read(reader));
+		this._register(this._chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
 		// The sessions that the chat part shows are known while the Chat view lists them
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
@@ -86,10 +113,134 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 				// part leaves to it, such as a local chat: the seam owns that rule.
 				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
 				// No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions
-				reader.store.add(localChatAvailabilityService.hide());
+				reader.store.add(this._localChatAvailabilityService.hide());
 			}
 		}));
+
+		// What the Chat view showed until chats opened in the chat part: as they do, the chat part's host shows what opens
+		let chatViewShown: URI | undefined;
+		this._register(autorun(reader => {
+			if (!enabled.read(reader)) {
+				chatViewShown = this._chatViewHostService.shownSession.read(reader)?.resource;
+			}
+		}));
+		// As it is configured on or off while the window runs, the chat shown moves to the other host: not as the window starts,
+		// which restores each, nor as chat itself comes or goes
+		const handover = this._register(new MutableDisposable());
+		this._register(runOnChange(configured, toChatPart => {
+			if (!this._contextKeyService.contextMatchesRules(available)) {
+				return;
+			}
+			const taken = toChatPart ? this._takeFromChatView(chatViewShown) : this._takeFromChatPart();
+			// A later move supersedes this one
+			const cts = new CancellationTokenSource();
+			handover.value = toDisposable(() => cts.dispose(true));
+			this._handOver(taken, toChatPart, cts.token).catch(error => {
+				if (!isCancellationError(error)) {
+					onUnexpectedError(error);
+				}
+			});
+		}));
 		this._hideMaximizeWhileSessionsOnly();
+	}
+
+	/**
+	 * What the Chat view shows, to show in the chat part: its session, or the input of its new chat. A local chat, which the
+	 * chat part does not show, gives way to a new chat of the chat part, which takes the input typed in it.
+	 */
+	private _takeFromChatView(resource: URI | undefined): ChatHandover {
+		if (!resource) {
+			return { kind: 'none' };
+		}
+		if (getChatSessionType(resource) === localChatSessionType) {
+			return { kind: 'local', then: this._takeDraft(this._chatWidgetService.getWidgetBySessionResource(resource)) };
+		}
+		return isUntitledChatSession(resource) ? this._takeDraft(this._chatWidgetService.getWidgetBySessionResource(resource)) : { kind: 'session', resource };
+	}
+
+	/** What the chat part shows, to show in the Chat view: its session, or the input of its new session. */
+	private _takeFromChatPart(): ChatHandover {
+		const shown = this._shownChatService.shown.get();
+		if (!shown) {
+			return { kind: 'none' };
+		}
+		return isSessionCreated(shown.session) ? { kind: 'session', resource: shown.chat.resource } : this._takeDraft(this._chatWidgetService.getWidgetBySessionResource(shown.chat.resource));
+	}
+
+	private _takeDraft(widget: IChatWidget | undefined): ChatDraftHandover {
+		return { kind: 'draft', source: widget, sourceResource: widget?.viewModel?.sessionResource, input: widget?.getInput() ?? '', attachments: [...widget?.attachmentModel.attachments ?? []] };
+	}
+
+	/**
+	 * Shows what `handover` took in the other host, once that host is in use: its session, unless it shows it already, which
+	 * a session taken from the chat part then leaves once the Chat view shows it; else a new chat there, with the input it
+	 * took, which leaves its source only once the new chat holds it. Never in the host it took it from, nor after a later
+	 * request, such as an open by the user; over the input of the new chat only as the chat part's composer parks it. A local chat leaves the Chat view only while local
+	 * chats are hidden: the chat part's new chat then takes the Chat view, which shows only its sessions, and the local chat
+	 * stays in its history.
+	 */
+	private async _handOver(handover: ChatHandover, toChatPart: boolean, token: CancellationToken): Promise<void> {
+		await waitForState(this._chatViewHostService.replaced, replaced => replaced === toChatPart, undefined, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (handover.kind === 'local') {
+			if (!this._localChatAvailabilityService.hidden.get()) {
+				return;
+			}
+			handover = handover.then;
+		}
+		if (handover.kind === 'session') {
+			// The seam shows what the host in use shows: the target's
+			if (!isEqual(this._chatViewHostService.shownSession.get()?.resource, handover.resource)) {
+				await this._chatViewHostService.openSession(handover.resource, { preserveFocus: true });
+			}
+			// The chat part keeps its other chats, for as it turns on again, but not the one the Chat view shows now: only once
+			// it does, not when it failed to open it, or a later request showed another chat
+			if (!toChatPart && !token.isCancellationRequested && this._chatViewHostService.chatViewHosts.get() && isEqual(this._chatViewHostService.shownSession.get()?.resource, handover.resource)) {
+				await this._chatPartService.closeChat(handover.resource);
+			}
+			return;
+		}
+		// What the user asks for meanwhile, such as an open, supersedes the move: the new chat it starts is the only request
+		let requests = this._chatViewHostService.requests.get() + 1;
+		// Only the chat part's own new chat as it turns on, never the Chat view's in its place; the Chat view's own as it turns off
+		if (!await this._chatViewHostService.newChat(undefined, { ownChat: !toChatPart, preserveFocus: true }) || token.isCancellationRequested || this._chatViewHostService.requests.get() !== requests) {
+			return;
+		}
+		if (handover.kind !== 'draft' || (!handover.input && !handover.attachments.length)) {
+			return;
+		}
+		requests++;
+		const target = await this._chatViewHostService.reveal(true);
+		if (!target || target === handover.source || token.isCancellationRequested || this._chatViewHostService.requests.get() !== requests || !this._isUnchanged(handover)) {
+			return;
+		}
+		if (target.getInput() || target.attachmentModel.attachments.length) {
+			// The chat part's one unsent composer, with a draft typed before the chat part turned off: the newer one, typed in the
+			// Chat view since, takes it, and the composer keeps the older one for its next new chat
+			if (!toChatPart || !this._chatPartService.parkComposerInput()) {
+				return;
+			}
+		}
+		target.setInput(handover.input);
+		target.attachmentModel.clearAndSetContext(...handover.attachments);
+		handover.source?.setInput('');
+		handover.source?.attachmentModel.clear();
+	}
+
+	/**
+	 * Whether the source of `handover` still shows what it took: not once it shows another chat, or its text or attachments
+	 * changed, such as an attachment that resolved meanwhile. It keeps its input then.
+	 */
+	private _isUnchanged(handover: ChatDraftHandover): boolean {
+		const source = handover.source;
+		if (!source) {
+			return true;
+		}
+		const attachments = source.attachmentModel.attachments;
+		return isEqual(source.viewModel?.sessionResource, handover.sourceResource) && source.getInput() === handover.input
+			&& attachments.length === handover.attachments.length && attachments.every((attachment, index) => attachment === handover.attachments[index]);
 	}
 
 	/**
