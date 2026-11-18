@@ -81,7 +81,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { getAgentHostApprovalDefault, getChatDefaultConfiguration, resolveInitialAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, filterHostAddressableWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
@@ -439,7 +439,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	private _computeWorkingDirectories(primary: URI | undefined, provider: string): readonly URI[] | undefined {
-		return computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._agentHostService.rootState.value, provider);
+		const addressableFolders = filterHostAddressableWorkingDirectories(
+			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			this._agentHostService,
+			provider,
+			this._environmentService.isSessionsWindow,
+			this._logService,
+		) ?? [];
+		return computeWorkingDirectories(primary, addressableFolders, this._agentHostService.rootState.value, provider);
 	}
 
 	private _computeEntryWorkingDirectories(entry: IEntry): readonly URI[] | undefined {
@@ -448,10 +455,17 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return primary ? [primary] : undefined;
 		}
 		const current = entry.generation?.workingDirectories ?? [primary];
+		const addressableFolders = filterHostAddressableWorkingDirectories(
+			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			this._agentHostService,
+			entry.provider,
+			this._environmentService.isSessionsWindow,
+			this._logService,
+		) ?? [];
 		return computeDesiredWorkingDirectories(
 			primary,
 			current,
-			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			addressableFolders,
 		);
 	}
 

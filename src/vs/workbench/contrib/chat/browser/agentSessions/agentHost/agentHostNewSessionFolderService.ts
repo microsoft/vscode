@@ -13,6 +13,10 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { RootState, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { isVirtualResource } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
 export const IAgentHostNewSessionFolderService = createDecorator<IAgentHostNewSessionFolderService>('agentHostNewSessionFolderService');
@@ -52,6 +56,36 @@ export function supportsMultipleWorkingDirectories(rootState: RootState | Error 
 export function hasImmutablePrimaryWorkingDirectory(rootState: RootState | Error | undefined, provider: string): boolean {
 	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
 	return agent?.capabilities?.multipleWorkingDirectories?.immutablePrimary === true;
+}
+
+/**
+ * Drops workspace folders or requested directories that the host cannot address
+ * unless the local provider can read them back from this client.
+ */
+export function filterHostAddressableWorkingDirectories(
+	directories: readonly URI[] | undefined,
+	connection: Pick<IAgentConnection, 'initializeResult'> & Partial<Pick<IAgentConnection, 'clientConnectionKind' | 'resourceUris'>>,
+	provider: string,
+	isSessionsWindow: boolean,
+	logService?: ILogService,
+): readonly URI[] | undefined {
+	const defaultDirectory = connection.initializeResult?.get ? connection.initializeResult.get()?.defaultDirectory : undefined;
+	if (!directories?.length || !defaultDirectory) {
+		return directories;
+	}
+	const hostScheme = URI.isUri(defaultDirectory) ? URI.revive(defaultDirectory).scheme : URI.parse(defaultDirectory).scheme;
+	const supportsVirtualWorkingDirectories = !isSessionsWindow
+		&& connection.clientConnectionKind === AgentHostClientConnectionKind.Local
+		&& provider === COPILOT_CLI_AGENT_PROVIDER_ID;
+	const addressable = directories.filter(directory => {
+		const hostDirectory = connection.resourceUris ? connection.resourceUris.toAgentHost(directory) : directory;
+		return hostDirectory.scheme === hostScheme || (supportsVirtualWorkingDirectories && isVirtualResource(hostDirectory));
+	});
+	if (addressable.length === directories.length) {
+		return directories;
+	}
+	logService?.warn(`[AgentHost] Host addresses '${hostScheme}' working directories; dropping ${directories.length - addressable.length} that it cannot use.`);
+	return addressable.length > 0 ? addressable : undefined;
 }
 
 /**
