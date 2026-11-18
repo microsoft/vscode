@@ -136,6 +136,12 @@
 	margin-inline-start: calc(-1 * (var(--modern-ui-tab-terminal-gutter) + var(--last-tab-add-tab-width) + var(--last-tab-margin-right)));
 }
 
+/* An add tab button on a row of its own aligns with the leading tab of the row above, by the inset the tabs control computes. */
+.modern-ui-tabs.monaco-workbench .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab.controls-only-row .action-label {
+	margin-inline-start: var(--modern-ui-editor-tab-left-inset);
+	margin-inline-end: calc(var(--vscode-spacing-size80) - var(--modern-ui-editor-tab-left-inset));
+}
+
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
 	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2);
 	border-block: var(--vscode-spacing-size20) solid transparent;
