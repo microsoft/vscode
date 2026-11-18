@@ -3983,7 +3983,7 @@ export function isEmptyThinkingPart(part: { readonly kind: string } | undefined)
 		&& (part.value === '' || (Array.isArray(part.value) && part.value.every(value => value === '')));
 }
 
-/** Joins Markdown across empty thinking markers for plaintext extraction, retaining its first source index. */
+/** Joins compatible Markdown fragments across empty thinking markers for plaintext extraction, retaining the first source index. */
 export function* getResponsePartsForPlaintext(parts: readonly IChatProgressResponseContent[]): Iterable<{ part: IChatProgressResponseContent; partIndex: number }> {
 	const legacySubagentMarkdown = getLegacySubagentMarkdown(parts);
 	const normalizeMarkdown = (content: IMarkdownString, index: number): IMarkdownString | undefined => {
@@ -4002,7 +4002,7 @@ export function* getResponsePartsForPlaintext(parts: readonly IChatProgressRespo
 				continue;
 			}
 			let nextIndex = partIndex + 1;
-			while (isEmptyThinkingPart(parts[nextIndex])) {
+			while (nextIndex < parts.length) {
 				while (isEmptyThinkingPart(parts[nextIndex])) {
 					nextIndex++;
 				}

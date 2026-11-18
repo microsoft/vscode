@@ -253,26 +253,29 @@ suite('ChatFindModel', () => {
 		model.dispose();
 	});
 
-	test('empty thinking markers do not expose split link targets or formatting to Find', () => {
-		const items = [fakeResponse('resp1', [
-			markdown('[Open](https://example.'),
-			thinking(''),
-			markdown('com)\n\n**Verif'),
-			thinking(''),
-			markdown('ying** settings.json'),
-		])];
-		const model = new ChatFindModel(() => items);
-		const matches = ['example.com', 'Open', 'Verifying settings.json'].map(query => {
-			model.setQuery(query, { isRegex: false, matchCase: true, wholeWord: false });
-			return model.matches.map(match => ({ text: match.text, partIndex: match.partIndex }));
+	for (const adjacentChunks of [false, true]) {
+		test(`empty thinking markers do not expose split link targets or formatting to Find (adjacent=${adjacentChunks})`, () => {
+			const items = [fakeResponse('resp1', [
+				...(adjacentChunks ? [markdown('[Op'), markdown('en](https://exam')] : [markdown('[Open](https://example.')]),
+				thinking(''),
+				...(adjacentChunks ? [markdown('ple.')] : []),
+				markdown('com)\n\n**Verif'),
+				thinking(''),
+				markdown('ying** settings.json'),
+			])];
+			const model = new ChatFindModel(() => items);
+			const matches = ['example.com', 'Open', 'Verifying settings.json'].map(query => {
+				model.setQuery(query, { isRegex: false, matchCase: true, wholeWord: false });
+				return model.matches.map(match => ({ text: match.text, partIndex: match.partIndex }));
+			});
+			model.dispose();
+			assert.deepStrictEqual(matches, [
+				[],
+				[{ text: 'Open', partIndex: 1 }],
+				[{ text: 'Verifying settings.json', partIndex: 1 }],
+			]);
 		});
-		model.dispose();
-		assert.deepStrictEqual(matches, [
-			[],
-			[{ text: 'Open', partIndex: 1 }],
-			[{ text: 'Verifying settings.json', partIndex: 1 }],
-		]);
-	});
+	}
 
 	test('empty thinking markers preserve normalized legacy subagent answer sources', () => {
 		const items = [fakeResponse('resp1', [

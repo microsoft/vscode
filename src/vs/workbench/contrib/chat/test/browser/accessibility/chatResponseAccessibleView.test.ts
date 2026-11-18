@@ -72,6 +72,17 @@ suite('ChatResponseAccessibleView', () => {
 		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{ partIndex: 4, text: 'Verifying settings.json' }]);
 	});
 
+	test('empty thinking markers keep adjacent restored link fragments in one plaintext run', () => {
+		const response = store.add(new Response([
+			new MarkdownString('[Open](https://exam'),
+			{ kind: 'thinking', value: '' },
+			new MarkdownString('ple.'),
+			new MarkdownString('com)'),
+		]));
+		const item = upcastPartial<IChatResponseViewModel>({ response });
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{ partIndex: 0, text: 'Open' }]);
+	});
+
 	for (const toolId of ['image_generation', 'image_gen.imagegen', 'custom_image_tool', 'view']) {
 		test(`keeps preconfirmation image tools out of accessible and response text (${toolId})`, async () => {
 			const invocation = ChatToolInvocation.createStreaming({
