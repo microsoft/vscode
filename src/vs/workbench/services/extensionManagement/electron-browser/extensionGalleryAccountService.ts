@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
+import { getGitHubCredential, IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getExpirationTime, isExpired } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -167,8 +167,9 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 			this.logService.debug('[Marketplace] Account has access to configured gallery');
 			return true;
 		}
-		this.logService.debug('[Marketplace] Checking enterprise account access for configured gallery', account.enterprise);
-		return account.enterprise;
+		const enterprise = getGitHubCredential(account)?.enterprise === true;
+		this.logService.debug('[Marketplace] Checking enterprise account access for configured gallery', enterprise);
+		return enterprise;
 	}
 }
 

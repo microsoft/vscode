@@ -6,7 +6,7 @@
 import { distinct } from '../../../../../base/common/arrays.js';
 import { disposableTimeout, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { getGitHubCredential, IDefaultAccount, IDefaultAccountGitHubCredential } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { matchesFuzzy2 } from '../../../../../base/common/filters.js';
@@ -179,7 +179,7 @@ interface ICopilotConnectorsSnapshot {
 }
 
 interface ICopilotConnectorsAuthentication {
-	readonly account: IDefaultAccount;
+	readonly account: IDefaultAccountGitHubCredential;
 	readonly session: AuthenticationSession;
 	readonly sessions: readonly AuthenticationSession[];
 }
@@ -256,7 +256,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.accountIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
+		this.accountIdentity = getAccountIdentity(getGitHubCredential(this.defaultAccountService.currentDefaultAccount));
 		this.updateEnablement();
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)) {
@@ -274,7 +274,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	get account(): ICopilotConnectorAccount | undefined {
-		const account = this.defaultAccountService.currentDefaultAccount;
+		const account = getGitHubCredential(this.defaultAccountService.currentDefaultAccount);
 		return account ? {
 			providerId: account.authenticationProvider.id,
 			accountName: account.accountName,
@@ -318,7 +318,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				throw new CancellationError();
 			}
 			authentication = await this.getAuthentication(cancellation.token, true);
-			if (authentication && getAccountIdentity(authentication.account) !== getAccountIdentity(account)) {
+			if (authentication && getAccountIdentity(authentication.account) !== getAccountIdentity(getGitHubCredential(account))) {
 				throw new CancellationError();
 			}
 		}
@@ -337,7 +337,8 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			return authorized;
 		}
 		const store = new DisposableStore();
-		store.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+		store.add(this.defaultAccountService.onDidChangeDefaultAccount(defaultAccount => {
+			const account = getGitHubCredential(defaultAccount);
 			if (account?.authenticationProvider.id !== authentication.account.authenticationProvider.id || account?.accountName !== authentication.account.accountName) {
 				cancellation.cancel();
 			}
@@ -348,7 +349,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				distinct([...requiredScopes, copilotConnectorsScope]),
 				{ account: authentication.session.account },
 			), cancellation.token);
-			const account = this.defaultAccountService.currentDefaultAccount;
+			const account = getGitHubCredential(this.defaultAccountService.currentDefaultAccount);
 			if (cancellation.token.isCancellationRequested || !this.isEnabled() || this._store.isDisposed ||
 				account?.authenticationProvider.id !== authentication.account.authenticationProvider.id || account?.accountName !== authentication.account.accountName) {
 				throw new CancellationError();
@@ -449,7 +450,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				await this.authorize(token);
 				const operation = await this.createOperation(token);
 				try {
-					const currentIdentity = getAccountIdentity(this.defaultAccountService.currentDefaultAccount);
+					const currentIdentity = getAccountIdentity(getGitHubCredential(this.defaultAccountService.currentDefaultAccount));
 					if (resets === 0) {
 						accountIdentity = currentIdentity;
 					} else if (currentIdentity !== accountIdentity) {
@@ -467,7 +468,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 					// connecting with a fresh operation instead of abandoning a consent the user may still complete.
 					if (!isCancellationError(error) || token.isCancellationRequested || !operation.cacheToken.isCancellationRequested ||
 						resets >= maxConnectCatalogResets || !this.isEnabled() || this._store.isDisposed ||
-						accountIdentity !== getAccountIdentity(this.defaultAccountService.currentDefaultAccount)) {
+						accountIdentity !== getAccountIdentity(getGitHubCredential(this.defaultAccountService.currentDefaultAccount))) {
 						throw error;
 					}
 				} finally {
@@ -656,7 +657,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private handleAuthenticationSessionsChanged(providerId: string, event: AuthenticationSessionsChangeEvent): void {
-		const account = this.defaultAccountService.currentDefaultAccount;
+		const account = getGitHubCredential(this.defaultAccountService.currentDefaultAccount);
 		if (!account || account.authenticationProvider.id !== providerId) {
 			return;
 		}
@@ -701,7 +702,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private updateAccountIdentity(account: IDefaultAccount | null): void {
-		const identity = getAccountIdentity(account);
+		const identity = getAccountIdentity(getGitHubCredential(account));
 		if (identity !== this.accountIdentity) {
 			this.accountIdentity = identity;
 			this.authenticationAccountId = undefined;
@@ -842,12 +843,12 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			}
 			return undefined;
 		}
-		const account = this.defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this.defaultAccountService.getDefaultAccount(), token);
+		const account = getGitHubCredential(this.defaultAccountService.currentDefaultAccount ?? await raceCancellationError(this.defaultAccountService.getDefaultAccount(), token));
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const sessions = await raceCancellationError(this.authenticationService.getSessions(provider.id, [], { silent: true }, true), token);
-		if (token.isCancellationRequested || !this.isEnabled() || this._store.isDisposed || getAccountIdentity(account) !== getAccountIdentity(this.defaultAccountService.currentDefaultAccount)) {
+		if (token.isCancellationRequested || !this.isEnabled() || this._store.isDisposed || getAccountIdentity(account) !== getAccountIdentity(getGitHubCredential(this.defaultAccountService.currentDefaultAccount))) {
 			throw new CancellationError();
 		}
 		const session = account ? sessions.find(candidate => candidate.id === account.sessionId) : undefined;
@@ -979,7 +980,7 @@ export class CopilotConnectorsMarketplaceProvider implements ICustomizationMarke
 	}
 }
 
-function getAccountIdentity(account: IDefaultAccount | null): string | undefined {
+function getAccountIdentity(account: IDefaultAccountGitHubCredential | undefined): string | undefined {
 	return account ? JSON.stringify([account.authenticationProvider.id, account.authenticationProvider.enterprise, account.accountName, account.sessionId]) : undefined;
 }
 
