@@ -81,6 +81,8 @@ suite('Sessions - Sign-In Dialog', () => {
 			store.add(new SessionsSigningInDialog(() => progressCancelled++, new MockKeybindingService(), layoutService, hostService));
 			const progress = container.querySelector<HTMLElement>('.monaco-dialog-box')!;
 			background.focus();
+			// Hidden Electron workers do not dispatch native focus transitions.
+			progress.dispatchEvent(new mainWindow.FocusEvent('focusout', { bubbles: true, relatedTarget: background }));
 			const backgroundBounds = background.getBoundingClientRect();
 			const backgroundBlocked = {
 				focus: progress.contains(dom.getActiveElement()),
@@ -98,6 +100,7 @@ suite('Sessions - Sign-In Dialog', () => {
 			const buttons = container.querySelectorAll<HTMLElement>('.mobile-content-sheet-actions .monaco-button');
 			store.add(toDisposable(() => buttons[1].click()));
 			const first = container.querySelector<HTMLInputElement>('input[type="checkbox"]') ?? buttons[0];
+			progress.dispatchEvent(new mainWindow.FocusEvent('focusout', { bubbles: true, relatedTarget: buttons[1] }));
 			const initialFocus = dom.getActiveElement() === buttons[1];
 			buttons[1].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
 			const tabWraps = dom.getActiveElement() === first;
