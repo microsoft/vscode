@@ -10,6 +10,12 @@ import { ContextKeyExpression } from '../../../../../platform/contextkey/common/
 /** The presentation `kind` handled by the spotlight presentation. */
 export const SPOTLIGHT_PRESENTATION_KIND = 'spotlight';
 
+/** Setting that controls whether spotlights dim the window around the highlighted target. */
+export const SPOTLIGHT_BACKDROP_CONFIG = 'onboarding.spotlight.backdrop';
+
+/** Experiment-controlled setting that ends tours with a close button by the title instead of an End Tour button. */
+export const SPOTLIGHT_CLOSE_BUTTON_CONFIG = 'onboarding.spotlight.closeButton';
+
 /** Preferred placement of the callout relative to the spotlighted target. */
 export type SpotlightPlacement = 'above' | 'below' | 'left' | 'right' | 'auto';
 
@@ -53,7 +59,11 @@ export interface ISpotlightStep {
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
 
-	/** Localized label of the button that ends the tour, replacing End Tour. Keeps the button on the last step. */
+	/**
+	 * Localized label of the button that ends the tour, replacing End Tour. Keeps the button on the last step.
+	 * With {@link SPOTLIGHT_CLOSE_BUTTON_CONFIG}, the footer button only shows for such a label, for steps
+	 * where ending the tour is a choice such as "Got It".
+	 */
 	readonly endTourLabel?: string;
 
 	/**
@@ -69,7 +79,7 @@ export interface ISpotlightStep {
 		readonly advance?: boolean;
 	};
 
-	/** Focuses the end tour button instead of the primary action when the step is shown, so Enter does not run the action. */
+	/** Focuses the end tour button, or the title close button when no end tour button shows, instead of the primary action when the step is shown, so Enter does not run the action. */
 	readonly focusEndTour?: boolean;
 
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
