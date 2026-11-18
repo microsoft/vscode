@@ -602,6 +602,10 @@ class AutomationCardsSection extends Disposable {
 			this.latestAutomations.delete(automationId);
 		}
 
+		const visibleAutomations = automations.filter(automation => showDisabled || automation.enabled || automation.ownership === 'repository');
+		const hiddenDisabledDescription = visibleAutomations.length < automations.length
+			? localize('hiddenDisabledAutomations', "Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.")
+			: undefined;
 		const groups = getAutomationOwnershipGroups(automations);
 		for (const [ownership, rendered] of this.ownershipSections) {
 			if (!groups.some(group => group.ownership === ownership)) {
@@ -618,14 +622,14 @@ class AutomationCardsSection extends Disposable {
 			}
 			rendered.title.textContent = group.label;
 			if (group.ownership === 'user') {
-				if (!showDisabled && group.automations.some(automation => !automation.enabled)) {
-					rendered.summary.setAttribute('aria-description', localize('hiddenDisabledAutomations', "Disabled automations are hidden. Use View options, then Show Disabled Automations to reveal them."));
+				if (hiddenDisabledDescription) {
+					rendered.summary.setAttribute('aria-description', hiddenDisabledDescription);
 				} else {
 					rendered.summary.removeAttribute('aria-description');
 				}
 			}
 			if (rendered.emptyState) {
-				rendered.emptyState.style.display = group.automations.length === 0 ? '' : 'none';
+				rendered.emptyState.style.display = visibleAutomations.every(automation => automation.ownership === 'repository') ? '' : 'none';
 			}
 			const currentSection = Array.from(this.container.children).filter(child => child !== this.builtInTemplatesSection)[groupIndex];
 			if (currentSection !== rendered.section) {
@@ -634,7 +638,7 @@ class AutomationCardsSection extends Disposable {
 			this.renderCardsInto(rendered.grid, group.automations, group.ownership !== 'user' || showDisabled);
 		}
 
-		const showBuiltInTemplates = hasEmptyAutomationSection(automations);
+		const showBuiltInTemplates = hasEmptyAutomationSection(visibleAutomations);
 		if (!this.builtInTemplatesUserToggled) {
 			const defaultExpanded = showBuiltInTemplates;
 			if (this.builtInTemplatesExpanded !== defaultExpanded) {
@@ -646,7 +650,7 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		if (!this.pluginTemplatesUserToggled) {
-			const defaultExpanded = automations.length === 0;
+			const defaultExpanded = visibleAutomations.length === 0;
 			if (this.pluginTemplatesExpanded !== defaultExpanded) {
 				this.pluginTemplatesExpanded = defaultExpanded;
 				if (this.pluginTemplatesSection) {
@@ -670,28 +674,34 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		this.updatePluginTemplateUnreadState(
-			this.pluginTemplatesUserToggled || (catalogueState === 'ready' && automations.length === 0)
+			this.pluginTemplatesUserToggled || (catalogueState === 'ready' && visibleAutomations.length === 0)
 		);
 		const showTemplateSections = templates.some(template => template.source || showBuiltInTemplates && this.builtInTemplatesSection?.parentElement === this.templatesContainer);
 		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
 
 		this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
-		const nextContainer = automations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
+		const nextContainer = visibleAutomations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
+		for (const button of [this.emptyCreateButton, this.loadingCreateButton, this.unavailableCreateButton, this.errorCreateButton]) {
+			if (hiddenDisabledDescription && visibleAutomations.length === 0) {
+				button?.element.setAttribute('aria-description', hiddenDisabledDescription);
+			} else {
+				button?.element.removeAttribute('aria-description');
+			}
+		}
 		const previousContainer = this.visibleContainer;
 		if (previousContainer !== nextContainer) {
 			nextContainer.style.display = '';
 			this.visibleContainer = nextContainer;
 		}
-		this.renderPartialState(automations.length > 0 ? catalogueState : 'ready', unavailableProviders);
+		this.renderPartialState(visibleAutomations.length > 0 ? catalogueState : 'ready', unavailableProviders);
 
 		// Move focus before hiding its previous container.
 		if (!this.focusPendingAutomation() && contentOwnedFocus && DOM.isHTMLElement(activeElement)) {
 			const hiddenCard = activeElement.closest<HTMLElement>('.automations-card-wrapper');
-			const userSection = this.ownershipSections.get('user');
 			if (hiddenCard?.style.display === 'none') {
-				userSection?.summary.focus();
+				this.focusHiddenAutomation();
 			} else if (!nextContainer.contains(activeElement) && !this.isVisibleTemplateElement(activeElement)) {
-				this.focusVisibleState(automations, catalogueState);
+				this.focusVisibleState(visibleAutomations, catalogueState);
 			} else if (!DOM.isActiveElement(activeElement)) {
 				activeElement.focus();
 			}
@@ -1552,7 +1562,7 @@ class AutomationCardsSection extends Disposable {
 
 	private focusCard(card: IAutomationCardEntry): void {
 		if (card.element.style.display === 'none') {
-			this.ownershipSections.get('user')?.summary.focus();
+			this.focusHiddenAutomation();
 			return;
 		}
 		const section = card.element.closest<HTMLDetailsElement>('details.automations-ownership-section');
@@ -1560,6 +1570,14 @@ class AutomationCardsSection extends Disposable {
 			section.open = true;
 		}
 		card.main.focus();
+	}
+
+	private focusHiddenAutomation(): void {
+		if (this.visibleContainer === this.container) {
+			this.ownershipSections.get('user')?.summary.focus();
+		} else {
+			this.focusVisibleState([], this.automationService.catalogueState.get());
+		}
 	}
 
 	private async openEditDialog(automation: IAutomationDescriptor): Promise<void> {
@@ -1588,7 +1606,7 @@ class AutomationCardsSection extends Disposable {
 			if (!this._store.isDisposed && this.focusRoot.isConnected && DOM.isHTMLElement(focusedElement)
 				&& focusedElement.closest<HTMLElement>('.automations-card-wrapper')?.style.display === 'none'
 				&& DOM.getActiveElement() === DOM.getWindow(this.focusRoot).document.body) {
-				this.ownershipSections.get('user')?.summary.focus();
+				this.focusHiddenAutomation();
 			}
 			if (!result || result.kind !== 'update') {
 				return;
@@ -3200,12 +3218,12 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
 MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
 	command: {
 		id: TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID,
-		title: localize2('showDisabledAutomations', "Show Disabled Automations"),
+		title: localize2('showDisabledAutomations', "Show disabled automations"),
 		toggled: ShowDisabledAutomationsContext,
 		precondition: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatEntitlementContextKeys.Setup.hidden.negate()),
 	},
 	group: '1_state',
-	order: 2,
+	order: 0,
 	when: ContextKeyExpr.and(ChatAutomationsEnabledContext, ChatEntitlementContextKeys.Setup.hidden.negate()),
 });
 
@@ -3217,7 +3235,7 @@ registerAction2(class ToggleOtherSharedAutomationsAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
 			toggled: ContextKeyExpr.equals(`config.${SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING}`, true),
 			menu: {
-				id: AgentsWindowMenus.AutomationsMoreActions, group: '1_state', order: 1,
+				id: AgentsWindowMenus.AutomationsMoreActions, group: '1_state', order: 2,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true), AutomationsHasOthersContext),
 			},
 		});
@@ -3241,7 +3259,7 @@ registerAction2(class RefreshAutomationsAction extends Action2 {
 			icon: Codicon.refresh,
 			precondition: ChatAutomationsEnabledContext,
 			menu: [{
-				id: AgentsWindowMenus.AutomationsMoreActions, group: 'navigation', order: 1,
+				id: AgentsWindowMenus.AutomationsMoreActions, group: '1_state', order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true)),
 			}],
 		});

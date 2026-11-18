@@ -1025,11 +1025,11 @@ suite('AutomationsCardsWidget', () => {
 			before, checked: disabledFilter().checked,
 			display: widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!.style.display,
 		}, {
-			before: { label: 'Show Disabled Automations', checked: 'false' }, checked: true, display: '',
+			before: { label: 'Show disabled automations', checked: 'false' }, checked: true, display: '',
 		});
 	});
 
-	test('filtering disabled personal automations does not expose empty-state template onboarding', () => {
+	test('filtering disabled personal automations exposes the personal empty state alongside shared cards', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
 		automationService.setAutomations([automation({ enabled: false }), automation({ id: 'shared', ownership: 'repository' })]);
 		const templates = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
@@ -1037,7 +1037,32 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			templatesVisible: templates.checkVisibility(), disabledDisplay: disabled.style.display,
 			onboardingAvailable: !!resolveOnboardingTarget(getWindow(widget.element), 'sessions.automations.templates'),
-		}, { templatesVisible: false, disabledDisplay: 'none', onboardingAvailable: false });
+			emptyVisible: widget.element.querySelector<HTMLElement>('.automations-ownership-empty')!.checkVisibility(),
+		}, { templatesVisible: true, disabledDisplay: 'none', onboardingAvailable: true, emptyVisible: true });
+	});
+
+	test('only hidden disabled automations show the empty state and templates until revealed', () => {
+		const { widget, automationService, toggleDisabled } = setup();
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([
+			automation({ enabled: false }),
+			automation({ id: 'cloud-disabled', enabled: false, target: { ...workspaceTarget(), providerId: 'cloud' } }),
+		]);
+		const state = () => ({
+			headingVisible: widget.element.querySelector<HTMLElement>('.automations-ownership-summary')!.checkVisibility(),
+			emptyVisible: widget.element.querySelector<HTMLElement>('.automations-cards-scroll-content > .automations-cards-empty')!.checkVisibility(),
+			templatesVisible: widget.element.querySelector<HTMLElement>('.automations-built-in-templates')!.checkVisibility(),
+			visibleCards: [...widget.element.querySelectorAll<HTMLElement>('.automations-card-wrapper')].filter(card => card.checkVisibility()).length,
+		});
+		const hidden = state();
+		toggleDisabled();
+		const shown = state();
+		toggleDisabled();
+		assert.deepStrictEqual({ hidden, shown, hiddenAgain: state() }, {
+			hidden: { headingVisible: false, emptyVisible: true, templatesVisible: true, visibleCards: 0 },
+			shown: { headingVisible: true, emptyVisible: false, templatesVisible: false, visibleCards: 2 },
+			hiddenAgain: { headingVisible: false, emptyVisible: true, templatesVisible: true, visibleCards: 0 },
+		});
 	});
 
 	test('hidden disabled automations have accessible guidance until revealed or enabled', () => {
@@ -1052,9 +1077,9 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		descriptions.push(summary.getAttribute('aria-description'));
 		assert.deepStrictEqual(descriptions, [
-			'Disabled automations are hidden. Use View options, then Show Disabled Automations to reveal them.',
+			'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.',
 			null,
-			'Disabled automations are hidden. Use View options, then Show Disabled Automations to reveal them.',
+			'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.',
 			null,
 		]);
 	});
@@ -1103,12 +1128,13 @@ suite('AutomationsCardsWidget', () => {
 			const storage = disposables.add(new InMemoryStorageService());
 			storage.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, showDisabled, StorageScope.PROFILE, StorageTarget.MACHINE);
 			const { widget, automationService, toggleDisabled } = setup('archive', NullHoverService, undefined, storage);
+			automationService.setCatalogueState('ready');
 			automationService.setAutomations([automation()]);
 			const main = widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!;
 			main.focus();
 			automationService.setAutomations([automation({ enabled: false })]);
-			const summary = widget.element.querySelector<HTMLElement>('.automations-ownership-summary')!;
-			assert.strictEqual(document.activeElement, showDisabled ? main : summary);
+			const emptyButton = widget.element.querySelector<HTMLElement>('.automations-cards-scroll-content > .automations-cards-empty .monaco-button')!;
+			assert.strictEqual(document.activeElement, showDisabled ? main : emptyButton);
 			if (!showDisabled) {
 				toggleDisabled();
 			}
@@ -1118,8 +1144,32 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
+	test('hidden disabled automations preserve incomplete catalogue states and visible focus guidance', () => {
+		const { widget, automationService } = setup();
+		const states = (['loading', 'unavailable', 'error'] as const).map(catalogueState => {
+			automationService.setCatalogueState(catalogueState);
+			automationService.setAutomations([automation()]);
+			widget.element.querySelector<HTMLElement>('.automations-card-main')!.focus();
+			automationService.setAutomations([automation({ enabled: false })]);
+			const button = widget.element.querySelector<HTMLElement>(`.automations-cards-${catalogueState} .monaco-button`)!;
+			return {
+				state: catalogueState,
+				focused: document.activeElement === button,
+				visible: button.checkVisibility(),
+				description: button.getAttribute('aria-description'),
+			};
+		});
+		assert.deepStrictEqual(states, ['loading', 'unavailable', 'error'].map(state => ({
+			state,
+			focused: true,
+			visible: true,
+			description: 'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.',
+		})));
+	});
+
 	test('editing a card out of the filter repairs failed dialog focus restoration', async () => {
 		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setCatalogueState('ready');
 		const item = automation();
 		automationService.setAutomations([item]);
 		automationDialogService.result = { kind: 'update', id: item.id, value: { enabled: false } };
@@ -1128,7 +1178,7 @@ suite('AutomationsCardsWidget', () => {
 		main.focus();
 		main.click();
 		await timeout(0);
-		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-ownership-summary'));
+		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-cards-scroll-content > .automations-cards-empty .monaco-button'));
 	});
 	test('native cloud actions retain GitHub opening and remote Stop while Mark as Done is local', async () => {
 		const { widget, automationService, sessionsManagementService, opened, contextMenuService } = setup('done');
@@ -2121,14 +2171,14 @@ suite('AutomationsCardsWidget', () => {
 			states: [before, afterOn, afterOff], withoutChatReady, hiddenWithAI, hiddenWithAutomations: !moreActions(), writes,
 		}, {
 			withoutCloud: ['sessions.automations.toggleShowDisabled'], hiddenWithoutCloud: false,
-			withCloud: ['sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers', 'sessions.automations.toggleShowDisabled'],
+			withCloud: ['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers'],
 			catalogueStates: [
-				['sessions.automations.refresh', 'sessions.automations.toggleShowDisabled'],
-				['sessions.automations.refresh', 'sessions.automations.toggleShowDisabled'],
-				['sessions.automations.refresh', 'sessions.automations.toggleShowDisabled'],
-				['sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers', 'sessions.automations.toggleShowDisabled'],
-				['sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers', 'sessions.automations.toggleShowDisabled'],
-				['sessions.automations.refresh', 'sessions.automations.toggleShowDisabled'],
+				['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh'],
+				['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh'],
+				['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh'],
+				['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers'],
+				['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh', 'sessions.automations.toggleShowSharedByOthers'],
+				['sessions.automations.toggleShowDisabled', 'sessions.automations.refresh'],
 			],
 			disabledCloud: { hidden: false, actions: ['sessions.automations.toggleShowDisabled'] },
 			menuIsLast: true, refreshInHeader: false, label: 'View options',
@@ -3994,8 +4044,8 @@ suite('AutomationsCardsWidget', () => {
 			{ visible: true, expanded: true, accessible: true },
 			{ visible: false, expanded: false, accessible: false },
 			{ visible: true, expanded: true, accessible: true },
-			{ visible: false, expanded: false, accessible: false },
-			{ visible: false, expanded: false, accessible: false },
+			{ visible: true, expanded: true, accessible: false },
+			{ visible: true, expanded: true, accessible: false },
 			{ visible: true, expanded: true, accessible: true },
 			{ visible: true, expanded: true, accessible: true },
 		]);
@@ -4201,7 +4251,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('disabled template creation focuses its ownership section heading', async () => {
+	test('disabled template creation focuses the empty state with guidance to reveal it', async () => {
 		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
 		automationService.setCatalogueState('ready');
 		automationDialogService.result = { kind: 'create', value: { ...automation(), enabled: false } };
@@ -4209,13 +4259,15 @@ suite('AutomationsCardsWidget', () => {
 		template.focus();
 		template.click();
 		await timeout(0);
-		const summary = widget.element.querySelector('.automations-ownership-summary');
+		const emptyButton = widget.element.querySelector<HTMLElement>('.automations-cards-scroll-content > .automations-cards-empty .monaco-button');
 		assert.deepStrictEqual({
-			focused: document.activeElement === summary,
-			description: summary?.getAttribute('aria-description'),
+			focused: document.activeElement === emptyButton,
+			description: emptyButton?.getAttribute('aria-description'),
+			visible: emptyButton?.checkVisibility(),
 		}, {
 			focused: true,
-			description: 'Disabled automations are hidden. Use View options, then Show Disabled Automations to reveal them.',
+			description: 'Disabled automations are hidden. Use View options, then Show disabled automations to reveal them.',
+			visible: true,
 		});
 	});
 
