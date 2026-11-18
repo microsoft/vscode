@@ -614,7 +614,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EditorWorkingSetEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.editor.workingSet.enabled', "Show Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Use its context menu to enable or disable Keep and Undo in both the working set and the editor, or choose Show Pill to turn this setting off. View All Edits opens all changed files in a diff editor, or the session's Changes editor where {0} applies. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected.", `\`#${ChatConfiguration.EditorWindowOpenWorkingSetInChangesEditor}#\``),
+			markdownDescription: nls.localize('chat.editor.workingSet.enabled', "Show Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Use its context menu to enable or disable Keep and Undo in both the working set and the editor, or choose Show Pill to turn this setting off. View All Edits opens all changed files in a diff editor, or the session's Changes editor where {0} applies. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected.", `\`#${ChatConfiguration.EditorWindowOpenWorkingSetInChangesEditor}#\``),
 			default: true,
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
