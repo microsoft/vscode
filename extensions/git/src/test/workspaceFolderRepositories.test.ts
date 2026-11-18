@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
-import { Uri, WorkspaceFolder } from 'vscode';
+import { EventEmitter, Uri, WorkspaceFolder, WorkspaceFoldersChangeEvent } from 'vscode';
 import { IWorkspaceFolderRepositoriesHost, WorkspaceFolderRepositories } from '../workspaceFolderRepositories';
 import { isDescendant } from '../util';
 
@@ -58,6 +58,12 @@ class TestWorkspace implements IWorkspaceFolderRepositoriesHost<string> {
 
 	readonly model: WorkspaceFolderRepositories<string>;
 
+	private readonly _onDidChangeWorkspaceFolders = new EventEmitter<WorkspaceFoldersChangeEvent>();
+	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
+	private readonly _onDidChangeWorkspaceFolderLocations = new EventEmitter<void>();
+	readonly onDidChangeWorkspaceFolderLocations = this._onDidChangeWorkspaceFolderLocations.event;
+	detectingWorktrees = false;
+
 	constructor(folders: TestFolder[], private readonly autoOpen = true, firstStatusTimeout = 1e9) {
 		this.folders = folders;
 		this.model = new WorkspaceFolderRepositories<string>(this, 3, firstStatusTimeout);
@@ -67,6 +73,7 @@ class TestWorkspace implements IWorkspaceFolderRepositoriesHost<string> {
 	}
 
 	getWorkspaceFolders() { return this.folders; }
+	isDetectingWorktrees() { return this.detectingWorktrees; }
 	getOpenRepositories() { return [...this.open.keys()]; }
 	getRoot(r: string) { return r; }
 	getOpenRepository(fsPath: string) { return deepest(this.open.keys(), fsPath); }
@@ -116,18 +123,19 @@ class TestWorkspace implements IWorkspaceFolderRepositoriesHost<string> {
 		}
 	}
 
-	/** `Model.onDidChangeWorkspaceFolders`: a switch, or the code of `main` for a folder that is not known to switch. */
+	/** The folder at `index` moves to `fsPath`: `Model.onDidChangeWorkspaceFolders` handles a switch, or runs the code of `main`. */
 	switchTo(fsPath: string, index = 0): void {
 		const removed = this.folders[index];
 		const added = folder(fsPath, index);
 		this.folders = this.folders.map((f, i) => i === index ? added : f);
-		const switches = this.model.getFolderLocationSwitches([added], [removed]);
-		if (switches.length) {
+		const e = { added: [added], removed: [removed] };
+		this._onDidChangeWorkspaceFolders.fire(e);
+		const switches = this.model.getFolderLocationSwitches(e);
+		if (switches) {
 			this.model.switchFolderLocations(switches);
 			return;
 		}
 
-		this.model.onDidRemoveWorkspaceFolders([removed]);
 		const toOpen = this.getOpenRepository(added.uri.fsPath) ? undefined : deepest(repositoriesOnDisk, added.uri.fsPath);
 		const left = this.getOpenRepository(removed.uri.fsPath);
 		if (left && !this.folders.some(f => isDescendant(f.uri.fsPath, left))) {
@@ -141,7 +149,12 @@ class TestWorkspace implements IWorkspaceFolderRepositoriesHost<string> {
 	/** The locations of the workspace folders become known. */
 	resolveLocations(): void {
 		this.folders.forEach(f => f.locations ??= knownLocations.map(l => ({ uri: Uri.file(l), name: path.basename(l) })));
-		this.model.onDidChangeWorkspaceFolderLocations(true);
+		this._onDidChangeWorkspaceFolderLocations.fire();
+	}
+
+	/** The known locations of the workspace folders change. */
+	fireLocationsChange(): void {
+		this._onDidChangeWorkspaceFolderLocations.fire();
 	}
 
 	get shown(): string[] { return [...this.open].filter(([, r]) => !r.warm).map(([root]) => root); }
@@ -164,11 +177,12 @@ suite('WorkspaceFolderRepositories', () => {
 		const known = folder(primary, 0, knownLocations);
 
 		assert.deepStrictEqual([
-			model.getFolderLocationSwitches([folder(wt1)], [known]).map(s => s.to.uri.fsPath),
-			model.getFolderLocationSwitches([folder(other)], [known]),
-			model.getFolderLocationSwitches([folder(wt1)], [folder(primary)]),
-			model.getFolderLocationSwitches([folder(primary)], [known]),
-		], [[wt1], [], [], []]);
+			model.getFolderLocationSwitches({ added: [folder(wt1)], removed: [known] })?.map(s => s.to.uri.fsPath),
+			model.getFolderLocationSwitches({ added: [folder(other)], removed: [known] }),
+			model.getFolderLocationSwitches({ added: [folder(wt1)], removed: [folder(primary)] }),
+			model.getFolderLocationSwitches({ added: [folder(primary)], removed: [known] }),
+			model.getFolderLocationSwitches({ added: [folder(wt1), folder(other, 1)], removed: [known] }),
+		], [[wt1], undefined, undefined, undefined, undefined]);
 	});
 
 	test('a switch to a cold location hides the location that is left at once and shows the new one once ready', async () => {
@@ -285,7 +299,7 @@ suite('WorkspaceFolderRepositories', () => {
 		ws.resolveLocations();
 
 		ws.folders[0].locations = [{ uri: Uri.file(wt1), name: 'wt1' }, { uri: Uri.file(wt2), name: 'wt2' }];
-		ws.model.onDidChangeWorkspaceFolderLocations(true);
+		ws.fireLocationsChange();
 
 		assert.deepStrictEqual(ws.state, { shown: [wt1], warm: [] });
 	});

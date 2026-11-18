@@ -472,6 +472,10 @@ export class PendingOperations {
 		return operation;
 	}
 
+	get isEmpty(): boolean {
+		return this.pending.size === 0;
+	}
+
 	async settled(): Promise<void> {
 		while (this.pending.size > 0) {
 			await Promise.allSettled([...this.pending]);
