@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
+import { buildMcpServerLogsChannelTemplate, MCP_SERVER_LOGS_META_KEY } from '../../../common/otlp/mcpServerLogsChannel.js';
 import { buildMcpResourceUri } from '../../../common/mcpResourceUri.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
@@ -27,6 +28,7 @@ const MCP_SEARCH_CHANNEL = buildMcpChannel(CHAT_URI, 'search', 'copilot');
 
 function harness(store: Pick<DisposableStore, 'add'>, opts: {
 	customizations?: readonly Customization[];
+	supportsServerLogs?: boolean;
 	desiredEnabled?: boolean;
 	pluginMcpServerSources?: () => ReadonlyMap<string, string> | undefined;
 	resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
@@ -59,6 +61,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 		});
 	}
 	const controller = new McpCustomizationController({
+		supportsServerLogs: opts.supportsServerLogs,
 		chatUri: CHAT_URI,
 		sessionUri: SESSION_URI,
 		emit: a => actions.push(a),
@@ -128,6 +131,29 @@ suite('McpCustomizationController', () => {
 	}
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const nested of [false, true]) {
+		test(`advertises opt-in server logs on ${nested ? 'child' : 'top-level'} customizations and preserves metadata`, () => {
+			const metadata = { 'other/key': 'retained' };
+			const existing: McpServerCustomization = { type: CustomizationType.McpServer, id: 'existing', uri: 'existing', name: 'fs', state: starting(), _meta: metadata };
+			const customizations: readonly Customization[] = nested ? [{ ...PLUGIN_CUSTOMIZATIONS[0] as PluginCustomization, children: [existing] }] : [existing];
+			const { controller, actions } = harness(store, { customizations, supportsServerLogs: true });
+			store.add(controller);
+			controller.applyOne(server('fs', ready()));
+			const updates = actions.filter(action => action.type === ActionType.SessionCustomizationUpdated);
+			const updated = updates[updates.length - 1]?.customization;
+			const published = updated?.type === CustomizationType.McpServer ? updated : updated?.children?.find(child => child.type === CustomizationType.McpServer);
+			assert.deepStrictEqual(published?._meta, { ...metadata, [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate(SESSION_URI.toString(), 'fs') });
+		});
+	}
+
+	test('does not advertise server logs without provider support', () => {
+		const { controller } = harness(store);
+		store.add(controller);
+		controller.applyOne(server('fs', ready()));
+		assert.strictEqual(controller.topLevelCustomizations()[0]._meta?.[MCP_SERVER_LOGS_META_KEY], undefined);
+	});
+
 
 	for (const nested of [false, true]) {
 		test(`publishes mapped MCP skills on a ${nested ? 'plugin child' : 'top-level'} server and preserves them on republish`, () => {

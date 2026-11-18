@@ -172,7 +172,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 			// Load this session in the host of the Chat view's chats (preferred)
 			if (target === ChatViewPaneTarget || typeof target === 'undefined') {
-				const widget = await this.chatViewHostService.openSession(sessionResource, { preserveFocus: options?.preserveFocus, sessionTypeSelectionReason: options?.sessionTypeSelectionReason });
+				const widget = await this.chatViewHostService.openSession(sessionResource, { preserveFocus: options?.preserveFocus, sessionTypeSelectionReason: options?.sessionTypeSelectionReason, keepFolder: options?.keepFolder });
 				this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=view`);
 				return widget;
 			}

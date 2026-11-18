@@ -7953,6 +7953,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		});
 	}
 
+	getAgentConnection(): IAgentConnection | undefined {
+		return this.connection;
+	}
+
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
 		const connection = this.connection;
 		if (!connection) {

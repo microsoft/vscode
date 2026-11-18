@@ -64,6 +64,8 @@ export interface IChatEditorOptions extends IEditorOptions {
 	explicitSessionType?: string;
 	/** Creation-only metadata describing why the new session type was selected. */
 	sessionTypeSelectionReason?: SessionTypeSelectionReason;
+	/** Where the chat shows in the host of the Chat view's chats, it leaves the window's folder as it is, as `IChatViewHostOpenOptions.keepFolder` does. */
+	keepFolder?: boolean;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;

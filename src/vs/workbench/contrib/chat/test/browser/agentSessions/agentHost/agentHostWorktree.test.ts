@@ -319,6 +319,31 @@ suite('AgentHostWorktree', () => {
 		assert.deepStrictEqual({ moves: feature.moves, notices: feature.notices }, { moves: [], notices: ['error'] });
 	});
 
+	test('a chat opened by a link in the window keeps the folder where it is, also as it comes to work elsewhere, and is not the last chat of where the folder is; a chat picked in the sessions list follows', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('linked').toString(), worktree.fsPath);
+		feature.show(agentSession('linked'), 'keepFolder');
+		await settle();
+		feature.workingDirectories.set(agentSession('linked').toString(), created.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+		const linked = [...feature.moves];
+		// Moved away and back by the user, the folder reopens no chat of its own location
+		feature.userMovesTo(worktree);
+		feature.userMovesTo(primary);
+		await settle();
+		const reopened = [...feature.opened];
+		feature.workingDirectories.set(agentSession('picked').toString(), worktree.fsPath);
+		feature.show(agentSession('picked'));
+		await settle();
+
+		assert.deepStrictEqual({ linked, reopened, picked: feature.moves.slice(linked.length) }, {
+			linked: [],
+			reopened: [],
+			picked: ['/work/vscode.worktrees/feature'],
+		});
+	});
+
 	test('opens the last chat of a location the user moves the folder to themselves', async () => {
 		const feature = createWorktree({ enabled: true });
 		feature.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);

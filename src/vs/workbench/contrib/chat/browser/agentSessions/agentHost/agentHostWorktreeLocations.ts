@@ -20,6 +20,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { getWorktreesLabel } from '../../../../../services/workspaces/common/folderLocationSections.js';
 import { readSessionSummaryBranchName } from './agentHostSessionListController.js';
 import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
 
@@ -74,6 +75,8 @@ function toFolder(uri: string | undefined): URI | undefined {
 export class AgentHostWorktreeLocationProvider extends Disposable implements IWorkspaceFolderLocationProvider {
 
 	readonly id = AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID;
+	/** Its locations are worktrees of the folder, which pickers group under this name. */
+	readonly label = getWorktreesLabel();
 
 	/**
 	 * The local agent host's own sessions, as it lists them and tells of their changes: all of them, not only those of the
