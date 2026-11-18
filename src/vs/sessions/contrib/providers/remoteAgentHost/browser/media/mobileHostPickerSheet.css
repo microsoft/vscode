@@ -188,7 +188,8 @@
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
-	min-height: 32px;
+	min-height: var(--mobile-target, 44px);
+	min-width: var(--mobile-target, 44px);
 	margin: -6px calc(-1 * var(--vscode-spacing-size80)) -6px 0;
 	padding: 0 var(--vscode-spacing-size80);
 	border: none;
