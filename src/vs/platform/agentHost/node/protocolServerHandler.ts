@@ -58,6 +58,8 @@ import { AgentHostChatStateFileCapabilityMetaKey, AcknowledgeAutomationDeletionE
 import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, PrepareSessionWorktreeCleanupExtensionMethod, prepareSessionWorktreeCleanupParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
 import { AgentHostWorktreeCleanupCapabilityMetaKey, ForceWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey, PrepareSessionWorktreeCleanupCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
+import { AGENT_HOST_REQUEST_SEARCH_MAX_QUERY_LENGTH, AGENT_HOST_REQUEST_SEARCH_MAX_TERMS, parseAgentHostRequestSearchTerms, SearchAgentHostRequestsExtensionMethod, searchAgentHostRequestsParamsValidator } from '../common/agentHostRequestSearch.js';
+import { AgentHostRequestSearchCapabilityMetaKey } from '../common/meta/agentHostRequestSearchMeta.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { chatUserInteractionAttributes, chatUserInteractionValidator } from '../../otel/common/chatUserInteraction.js';
@@ -1242,6 +1244,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							? { [sandboxCertificateRemovalCapability]: true } : {}),
 						...(this._agentService.refreshSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateRefreshCapability]: true } : {}),
+						...(this._canSearchRequests(transport) ? { [AgentHostRequestSearchCapabilityMetaKey]: true } : {}),
 						...this._getGitHubEnvironmentMeta(transport),
 						...transport.relayHandshakeMeta,
 					}),
@@ -3749,6 +3752,29 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	/** Request search reads every chat's requests, so relay lanes, which are scoped to granted roots, never get it. */
+	private _canSearchRequests(transport: IProtocolTransport): boolean {
+		return !!this._agentService.searchRequests && transport.relayClientId === undefined && !transport.relayPassive && !this._config.relayRoots && !this._config.relayRootMeta;
+	}
+
+	private _handleSearchRequestsRequest(client: IConnectedClient, params: unknown): Promise<unknown> | undefined {
+		if (!this._canSearchRequests(client.transport) || !this._agentService.searchRequests) {
+			return undefined;
+		}
+		const validated = searchAgentHostRequestsParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		const { query, limit } = validated.content;
+		if (!parseAgentHostRequestSearchTerms(query)) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, `query must contain between 1 and ${AGENT_HOST_REQUEST_SEARCH_MAX_TERMS} terms and at most ${AGENT_HOST_REQUEST_SEARCH_MAX_QUERY_LENGTH} characters`));
+		}
+		if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'limit must be a positive integer'));
+		}
+		return this._agentService.searchRequests(query, limit);
+	}
+
 	private _handleCompleteSavedChatContinuationRequest(client: IConnectedClient, params: unknown): Promise<unknown> | undefined {
 		if (client.transport.relayClientId !== undefined || client.transport.relayPassive || this._config.relayRoots || this._config.relayRootMeta || !this._agentService.completeSavedChatContinuation) {
 			return undefined;
@@ -4176,6 +4202,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (method === ReadSavedChatExtensionMethod) {
 			return this._handleReadSavedChatRequest(client, params);
+		}
+		if (method === SearchAgentHostRequestsExtensionMethod) {
+			return this._handleSearchRequestsRequest(client, params);
 		}
 		if (method === CompleteSavedChatContinuationExtensionMethod) {
 			return this._handleCompleteSavedChatContinuationRequest(client, params);

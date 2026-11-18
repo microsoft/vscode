@@ -35,6 +35,7 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostRequestIndex } from '../../node/agentHostRequestIndex.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -66,7 +67,7 @@ import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromp
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService, nullAgentHostRequestIndex } from './chatMetadataTestHelpers.js';
 import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -272,6 +273,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		// Blocked-turn hang telemetry is reported by `SessionInputNeededContribution`,
 		// so the built-in contributions must be registered for this graph to mirror
 		// production wiring.
+		services.set(IAgentHostRequestIndex, nullAgentHostRequestIndex);
 		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,

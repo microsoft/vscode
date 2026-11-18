@@ -45,6 +45,7 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { IAgentHostRequestIndex } from '../../node/agentHostRequestIndex.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -76,7 +77,7 @@ import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDir
 import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
-import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService } from './chatMetadataTestHelpers.js';
+import { createLegacyChatMetadataPersistence, createTestSessionStateStore, createTestChatRows, createTestWorktreeCleanupService, nullAgentHostRequestIndex } from './chatMetadataTestHelpers.js';
 import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -345,6 +346,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostLocalTurns, localTurns);
 		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 		services.set(IAgentHostLocalCommands, localCommands);
+		services.set(IAgentHostRequestIndex, nullAgentHostRequestIndex);
 		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,

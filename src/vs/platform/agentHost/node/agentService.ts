@@ -9,6 +9,7 @@ import { readRuntimePluginEnablement } from '../common/meta/pluginEnablementMeta
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
+import { IAgentHostRequestIndex } from './agentHostRequestIndex.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { getErrorCode, isCancellationError } from '../../../base/common/errors.js';
@@ -101,6 +102,7 @@ import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffe
 import { AgentHostLocalTurns, interleaveLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget } from './agentHostSavedChatService.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
+import type { IAgentHostRequestSearchResult } from '../common/agentHostRequestSearch.js';
 import { hasSingleUserChat, ISessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { persistSideChatSourceContext } from './chatContributions/sideChat/sideChatContext.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
@@ -1296,6 +1298,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostTurnTracker private readonly _turnTracker: IAgentHostTurnTracker,
 		@IAgentHostResourceProviders private readonly _resourceProviders: IAgentHostResourceProviders,
 		@IAgentHostWorktreeDiskUsageService private readonly _worktreeDiskUsage: IAgentHostWorktreeDiskUsageService,
+		@IAgentHostRequestIndex private readonly _requestIndex: IAgentHostRequestIndex,
 	) {
 		super();
 		this.artifactIntegrations = collaborators.artifactIntegrations;
@@ -2424,6 +2427,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
 		return this._savedChats.readSavedChat(session, chat);
+	}
+
+	searchRequests(query: string, limit: number | undefined): Promise<IAgentHostRequestSearchResult> {
+		return this._requestIndex.search(query, limit);
 	}
 
 	completeSavedChatContinuation(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult> {

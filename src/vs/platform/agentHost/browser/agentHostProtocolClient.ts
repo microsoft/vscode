@@ -56,6 +56,8 @@ import { agentHostGitHubEnvironmentStatusValidator, getAgentHostGitHubEnvironmen
 import { supportsAgentHostAutomationHistory } from '../common/meta/agentHostAutomationsMeta.js';
 import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
+import { supportsAgentHostRequestSearch } from '../common/meta/agentHostRequestSearchMeta.js';
+import { agentHostRequestSearchResultValidator, SearchAgentHostRequestsExtensionMethod, type IAgentHostRequestSearchResult } from '../common/agentHostRequestSearch.js';
 import { reviveSavedChat, type IAgentHostSavedChat, type IAgentHostSavedChatContinuation, type IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
@@ -2454,6 +2456,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			session: session.toString(),
 			...(chat ? { chat: chat.toString() } : {}),
 		}));
+	}
+
+	async searchRequests(query: string, limit: number | undefined): Promise<IAgentHostRequestSearchResult> {
+		if (!supportsAgentHostRequestSearch(this.initializeResult.get())) {
+			throw new Error('This Agent Host cannot search requests.');
+		}
+		const result = await this._sendExtensionRequest(SearchAgentHostRequestsExtensionMethod, { query, ...(limit !== undefined ? { limit } : {}) });
+		return agentHostRequestSearchResultValidator.validateOrThrow(result);
 	}
 
 	async completeSavedChatContinuation(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult> {

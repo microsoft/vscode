@@ -22,6 +22,7 @@ import { IRemoteAuthorityResolverService, type ResolverResult } from '../../../.
 import type { IChatUserInteractionTiming } from '../../../../platform/otel/common/chatUserInteraction.js';
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import type { AgentChatMoveDestination } from '../../../../platform/agentHost/common/agentHostChatMove.js';
+import type { IAgentHostRequestSearchResult } from '../../../../platform/agentHost/common/agentHostRequestSearch.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { getSSHRemoteAuthorityConnectionKey } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
@@ -388,6 +389,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
 		return this._requireClient().moveChat(chat, destination);
+	}
+
+	searchRequests(query: string, limit: number | undefined): Promise<IAgentHostRequestSearchResult> {
+		return this._requireClient().searchRequests(query, limit);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
