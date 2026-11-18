@@ -1951,8 +1951,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet): string {
-		for (const [item, toolFullReferenceName] of this.toolsWithFullReferenceName.get()) {
+	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet, reader?: IReader): string {
+		for (const [item, toolFullReferenceName] of this.toolsWithFullReferenceName.read(reader)) {
 			if (item === tool) {
 				return toolFullReferenceName;
 			}
