@@ -89,6 +89,8 @@ jobs:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Download vscode sysroots
 
+      - template: ./linux/steps/restore-chromium-build-files.yml@self
+
       - script: |
           set -e
 
