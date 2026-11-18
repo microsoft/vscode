@@ -293,7 +293,8 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 
 		// Update user keyboard map settings
 		return this._getBrowserKeyMapping().then((mapping: IKeyboardMapping | null) => {
-			if (this.isKeyMappingActive(mapping)) {
+			// The configured layout may have been applied while the mapping was being read
+			if (this._isConfiguredKeyboardLayoutKept() || this.isKeyMappingActive(mapping)) {
 				return;
 			}
 
@@ -303,8 +304,8 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 
 	/**
 	 * Whether the layout configured in `keyboard.layout` must not be overridden
-	 * by auto-detection: while the layouts are loading (it is applied once they
-	 * are loaded) and afterwards only if it matches a known layout.
+	 * by auto-detection: while the layouts are loading and afterwards only while
+	 * the configured layout is the active one.
 	 */
 	private _isConfiguredKeyboardLayoutKept(): boolean {
 		const layout = this._getConfiguredKeyboardLayout();
@@ -313,10 +314,12 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 		}
 
 		if (!this._initialized) {
+			// A detection started now could finish after the layouts are loaded
+			// and override the configured layout applied on load
 			return true;
 		}
 
-		return this.keymapInfos.some(keymapInfo => getKeyboardLayoutId(keymapInfo.layout) === layout);
+		return !!this._activeKeymapInfo && getKeyboardLayoutId(this._activeKeymapInfo.layout) === layout;
 	}
 
 	private _getConfiguredKeyboardLayout(): string | undefined {
