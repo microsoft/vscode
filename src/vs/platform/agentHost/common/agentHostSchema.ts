@@ -726,6 +726,8 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  * Copilot draft starts its SDK session and MCP servers before the first send.
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
+export const AgentHostKeepAwakeConfigKey = 'keepAwakeWhileWorking';
+export const AgentHostKeepAwakeOnBatteryConfigKey = 'keepAwakeOnBattery';
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -1139,6 +1141,18 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
+		default: true,
+	}),
+	[AgentHostKeepAwakeConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.keepAwake.title', "Keep Awake While Working"),
+		description: localize('agentHost.config.keepAwake.description', "Prevent the machine running this Agent Host from idle-sleeping while a chat is working, where supported. The display can turn off and explicit sleep is not inhibited."),
+		default: true,
+	}),
+	[AgentHostKeepAwakeOnBatteryConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.keepAwakeOnBattery.title', "Keep Awake on Battery"),
+		description: localize('agentHost.config.keepAwakeOnBattery.description', "Allow idle-sleep inhibition while the machine running this Agent Host is on battery power."),
 		default: true,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
