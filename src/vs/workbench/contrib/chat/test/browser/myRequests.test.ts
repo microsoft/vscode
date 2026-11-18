@@ -90,12 +90,14 @@ suite('Search My Requests', () => {
 		let confirm = false;
 		let forget = false;
 		services.stub(IQuickInputService, {}, 'pick', async (picks: IQuickPickItem[]) => choose ? picks[0] : undefined);
-		services.stub(IDialogService, { confirm: async () => {
-			if (forget) {
-				await store.forget({ text: 'cache chosen match', link: link('b') });
+		services.stub(IDialogService, {
+			confirm: async () => {
+				if (forget) {
+					await store.forget({ text: 'cache chosen match', link: link('b') });
+				}
+				return { confirmed: confirm };
 			}
-			return { confirmed: confirm };
-		} });
+		});
 		const run = () => services.invokeFunction(requestMyRequestMatches, 'cache');
 		assert.deepStrictEqual(await run(), []);
 		choose = true;

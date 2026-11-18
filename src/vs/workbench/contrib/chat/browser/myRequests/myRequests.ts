@@ -126,11 +126,13 @@ export function registerMyRequestsActions(): void {
 				message: localize('myRequests.saved', "Saved request"),
 				detail: request.text,
 				buttons: [
-					{ label: localize('myRequests.open', "Open Request"), run: async () => {
-						if (!parseOpenSessionLinkUri(request.link) || !parseOpenSessionLinkConnectionAuthority(request.link) || !parseOpenSessionLinkTurnId(request.link) || !await opener.open(request.link, { allowContributedOpeners: false })) {
-							await dialogs.info(localize('myRequests.unavailable', "The original request is unavailable in this window. Reconnect its Agent Host and try again."));
+					{
+						label: localize('myRequests.open', "Open Request"), run: async () => {
+							if (!parseOpenSessionLinkUri(request.link) || !parseOpenSessionLinkConnectionAuthority(request.link) || !parseOpenSessionLinkTurnId(request.link) || !await opener.open(request.link, { allowContributedOpeners: false })) {
+								await dialogs.info(localize('myRequests.unavailable', "The original request is unavailable in this window. Reconnect its Agent Host and try again."));
+							}
 						}
-					} },
+					},
 					{ label: localize('myRequests.copyLink', "Copy Link to Request"), run: () => clipboard.writeText(request.link) },
 					{ label: localize('myRequests.forget', "Forget Request"), run: () => store.forget(request) },
 				],
