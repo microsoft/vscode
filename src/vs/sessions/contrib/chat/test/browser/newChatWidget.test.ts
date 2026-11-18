@@ -24,7 +24,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
-import { ICreateNewSessionOptions, INewSessionDraftSlot, INewSessionRequestEndedEvent, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICreateNewSessionOptions, INewSessionDraftSlot, INewSessionRequestDispatchedEvent, INewSessionRequestEndedEvent, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -398,7 +398,10 @@ interface ISendHarness {
 		readonly onDidSendRequest: Event<ISendRequestSentEvent>;
 		readonly onDidReplaceNewDraftSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
 		readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+		readonly onDidDispatchNewSessionRequest?: Event<INewSessionRequestDispatchedEvent>;
 		readonly onDidEndNewSessionRequest?: Event<INewSessionRequestEndedEvent>;
+		readonly onDidChangeSession?: Event<readonly ISessionChange[]>;
+		getSession?(resource: URI): ISession | undefined;
 		sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void>;
 		getSessionTypesForFolder?(workspace: URI): readonly { readonly providerId: string; readonly sessionType: { readonly id: string; readonly label: string; readonly supportsWorktreeConfiguration?: boolean } }[];
 	};
@@ -4873,7 +4876,7 @@ suite('NewChatWidget', () => {
 			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), notifications: notifications.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })), openedBeforeAction, opened, errors }, {
 				beforeSuccess: { restored: [], status: undefined, notifications: 0 }, afterUnrelatedSend: { restored: [], status: undefined, notifications: 0 },
 				restored: [folderUri], pending: 0, background: true,
-				status: backgroundSend ? { kind: 'started', session: sentSession } : undefined,
+				status: backgroundSend ? { kind: 'sent', session: sentSession } : undefined,
 				notifications: backgroundSend ? [] : [{ severity: Severity.Info, message: 'Message sent', choices: ['Open Session'] }],
 				openedBeforeAction: [],
 				opened: backgroundSend ? [] : [{ resource: sentSession.resource, options: { source: 'link', forceMainChat: true } }],
@@ -4883,7 +4886,7 @@ suite('NewChatWidget', () => {
 	}
 
 	for (const outcome of ['failed', 'new draft', 'superseded', 'disposed'] as const) {
-		test(`Inbox does not confirm a background send that is ${outcome}`, async () => {
+		test(`a composer does not confirm an Alt+Enter send that is ${outcome}`, async () => {
 			const sent = disposables.add(new Emitter<ISendRequestSentEvent>());
 			const pending = disposables.add(new DisposableMap<object, IDisposable>());
 			const status = observableValue<BackgroundSendStatus | undefined>('status', undefined);
@@ -4917,22 +4920,22 @@ suite('NewChatWidget', () => {
 				_getWorkspaceRoots: () => [],
 				_createNewSession: async () => { },
 			};
-			const result = await send.call(harness, 'hello');
+			const result = await send.call(harness, 'hello', undefined, true);
 			if (outcome === 'new draft') {
 				hasInput = true;
 			} else if (outcome === 'superseded') {
-				await send.call(harness, 'next request');
+				await send.call(harness, 'next request', undefined, true);
 			} else if (outcome === 'disposed') {
 				pending.dispose();
 			}
-			sent.fire(upcastPartial<ISendRequestSentEvent>({ options: options[0] }));
+			sent.fire(upcastPartial<ISendRequestSentEvent>({ options: options[0], session: upcastPartial<ISession>({ sessionId: 'first' }) }));
 			assert.deepStrictEqual({ result, status: status.get(), errors: errors.length }, {
 				result: outcome !== 'failed', status: undefined, errors: outcome === 'failed' ? 1 : 0,
 			});
 		});
 	}
 
-	test('a send status announces each change once, ends with a decorative spinner while starting and a checkmark once done, and clears on editing', () => {
+	test('a send status announces each change once, a starting session only once it lasts a second, ends with a decorative spinner while starting and a checkmark once done, and clears on editing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const changed = disposables.add(new Emitter<void>());
 		const status = observableValue<BackgroundSendStatus | undefined>('status', undefined);
 		const announcements: string[] = [];
@@ -4956,17 +4959,22 @@ suite('NewChatWidget', () => {
 		};
 		status.set({ kind: 'starting' }, undefined);
 		const starting = shown();
+		await timeout(999);
 		status.set({ kind: 'comparisonStarted' }, undefined);
 		changed.fire();
 		const done = shown();
+		const quick = announcements.splice(0);
+		status.set({ kind: 'starting' }, undefined);
+		await timeout(1000);
+		const lasting = announcements.splice(0);
 		hasInput = true;
 		changed.fire();
-		assert.deepStrictEqual({ starting, done, announcements, cleared: element?.textContent, pending: harness._lastBackgroundSendOptions }, {
+		assert.deepStrictEqual({ starting, done, quick, lasting, cleared: element?.textContent, pending: harness._lastBackgroundSendOptions }, {
 			starting: { text: 'Starting session', icon: ['codicon-loading', 'codicon-modifier-spin'], trailingDecorative: 'true' },
 			done: { text: 'Comparison started', icon: ['codicon-check'], trailingDecorative: 'true' },
-			announcements: ['Starting session', 'Comparison started'], cleared: '', pending: undefined,
+			quick: ['Comparison started'], lasting: ['Starting session'], cleared: '', pending: undefined,
 		});
-	});
+	}));
 
 	test('a comparison confirmation expires after five seconds and a later confirmation gets a fresh timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const store = disposables.add(new DisposableStore());
@@ -5005,7 +5013,7 @@ suite('NewChatWidget', () => {
 	}));
 
 	for (const activation of ['click', 'Enter'] as const) {
-		test(`the started session's link opens it on ${activation} before expiring`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test(`the sent session's link opens it on ${activation} before expiring`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IHoverService, NullHoverService);
 			instantiationService.stub(IOpenerService, {});
@@ -5027,7 +5035,7 @@ suite('NewChatWidget', () => {
 			const container = $('div');
 			const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
 			render.call(harness, container);
-			status.set({ kind: 'started', session: upcastPartial<ISession>({ resource }) }, undefined);
+			status.set({ kind: 'sent', session: upcastPartial<ISession>({ resource }) }, undefined);
 			await timeout(6000);
 			const link = container.querySelector('a')!;
 			if (activation === 'click') {
@@ -5039,7 +5047,7 @@ suite('NewChatWidget', () => {
 			hasInput = true;
 			changed.fire();
 			assert.deepStrictEqual({ confirmation, opened, cleared: container.textContent, status: status.get() }, {
-				confirmation: 'Session startedOpen Session', opened: [{ resource, options: { source: 'inbox', forceMainChat: true } }], cleared: '', status: undefined,
+				confirmation: 'Message sentOpen Session', opened: [{ resource, options: { source: 'inbox', forceMainChat: true } }], cleared: '', status: undefined,
 			});
 		}));
 	}
@@ -5178,6 +5186,8 @@ suite('NewChatWidget', () => {
 						onDidReplaceNewDraftSession: replaced.event,
 						onDidReplaceSession: Event.None,
 						onDidEndNewSessionRequest: ended.event,
+						onDidDispatchNewSessionRequest: Event.None,
+						onDidChangeSession: Event.None,
 						sendNewChatRequest: async () => {
 							trackedWhenSent = tracked.length;
 							if (outcome === 'rejected') {
@@ -5235,20 +5245,25 @@ suite('NewChatWidget', () => {
 			});
 		}
 
-		test('shows an Alt+Enter send as starting until its session starts, and nothing for an Enter send that leaves for its session', async () => {
+		test('shows an Alt+Enter send as starting until its message was sent and its session is listed, in either order, or else until its session has started, once, and nothing for an Enter send that leaves for its session', async () => {
 			const sent = disposables.add(new Emitter<ISendRequestSentEvent>());
+			const dispatched = disposables.add(new Emitter<INewSessionRequestDispatchedEvent>());
+			const changed = disposables.add(new Emitter<readonly ISessionChange[]>());
 			const status = observableValue<BackgroundSendStatus | undefined>('status', undefined);
 			const options: ISendRequestOptions[] = [];
+			const known = new Map<string, ISession>();
+			const slot = upcastPartial<INewSessionDraftSlot>({ id: 'slot' });
+			const draft = upcastPartial<ISession>({ sessionId: 'draft', resource: URI.parse('test-session:/draft') });
 			const harness: ISendHarness = {
 				_backgroundSend: true,
-				_draftHost: host(upcastPartial<INewSessionDraftSlot>({ id: 'slot' })),
+				_draftHost: host(slot),
 				_backgroundSendStatus: status,
 				_newChatInput: { hasInput: false },
 				notificationService: { error: () => assert.fail('Unexpected error') },
 				_pendingBackgroundSends: disposables.add(new DisposableMap<object, IDisposable>()),
 				recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
 				newSessionComposerService: { notifyWillSendRequest: () => { } },
-				_session: constObservable(upcastPartial<ISession>({ sessionId: 'draft' })),
+				_session: constObservable(draft),
 				_feedbackItems: constObservable([]),
 				_comparisonSelection: { enabled: constObservable(false) },
 				_workspacePicker: { selectedFolderUri: URI.file('/workspace'), validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } },
@@ -5258,7 +5273,10 @@ suite('NewChatWidget', () => {
 					onDidSendRequest: sent.event,
 					onDidReplaceNewDraftSession: Event.None,
 					onDidReplaceSession: Event.None,
+					onDidDispatchNewSessionRequest: dispatched.event,
 					onDidEndNewSessionRequest: Event.None,
+					onDidChangeSession: changed.event,
+					getSession: resource => known.get(resource.toString()),
 					sendNewChatRequest: async (_session, sendOptions) => { options.push(sendOptions); },
 				},
 				logService: { error: () => assert.fail('Unexpected error') },
@@ -5266,17 +5284,45 @@ suite('NewChatWidget', () => {
 				_createNewSession: async () => { },
 				_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 			};
+			const listedDraft = upcastPartial<ISession>({ sessionId: 'draft', resource: draft.resource, status: constObservable(SessionStatus.InProgress) });
 			const started = upcastPartial<ISession>({ sessionId: 'started', resource: URI.parse('test-session:/started') });
-			const run = async (requestedInBackground: boolean) => {
+			const run = async (requestedInBackground: boolean, order: 'sentThenListed' | 'listedThenSent' | 'notReported') => {
+				known.clear();
 				await send.call(harness, 'hello', undefined, requestedInBackground || undefined);
-				const whileStarting = status.get();
+				const steps: Record<string, BackgroundSendStatus | undefined> = { sending: status.get() };
+				const list = () => {
+					known.set(draft.resource.toString(), listedDraft);
+					changed.fire([{ session: listedDraft, kind: 'added' }]);
+					steps.listed = status.get();
+				};
+				const dispatch = () => {
+					dispatched.fire({ session: draft, owner: upcastPartial<INewSessionDraftSlot>({ id: 'other' }) });
+					dispatched.fire({ session: draft, owner: slot });
+					steps.sent = status.get();
+				};
+				if (order === 'sentThenListed') {
+					dispatch();
+					list();
+				} else if (order === 'listedThenSent') {
+					list();
+					dispatch();
+				}
 				sent.fire(upcastPartial<ISendRequestSentEvent>({ options: options.at(-1), session: started }));
-				return { whileStarting, afterStart: status.get() };
+				steps.ended = status.get();
+				return steps;
 			};
+			const shownAsSent = { kind: 'sent', session: listedDraft } as const;
 
-			assert.deepStrictEqual({ altEnter: await run(true), enter: await run(false) }, {
-				altEnter: { whileStarting: { kind: 'starting' }, afterStart: { kind: 'started', session: started } },
-				enter: { whileStarting: undefined, afterStart: undefined },
+			assert.deepStrictEqual({
+				sentThenListed: await run(true, 'sentThenListed'),
+				listedThenSent: await run(true, 'listedThenSent'),
+				notReported: await run(true, 'notReported'),
+				enter: await run(false, 'sentThenListed'),
+			}, {
+				sentThenListed: { sending: { kind: 'starting' }, sent: { kind: 'starting' }, listed: shownAsSent, ended: shownAsSent },
+				listedThenSent: { sending: { kind: 'starting' }, listed: { kind: 'starting' }, sent: shownAsSent, ended: shownAsSent },
+				notReported: { sending: { kind: 'starting' }, ended: { kind: 'sent', session: started } },
+				enter: { sending: undefined, sent: undefined, listed: undefined, ended: undefined },
 			});
 		});
 
@@ -5290,6 +5336,8 @@ suite('NewChatWidget', () => {
 				onDidReplaceNewDraftSession: replaced.event,
 				onDidReplaceSession: Event.None,
 				onDidEndNewSessionRequest: ended.event,
+				onDidDispatchNewSessionRequest: Event.None,
+				onDidChangeSession: Event.None,
 			};
 			// A host as a chat window's composer model is: it follows each request for as long as the request runs, and
 			// decides on recovery in its own end listener, which runs after the composer's.
@@ -7158,7 +7206,7 @@ suite('NewChatWidget', () => {
 					_workspacePicker: { selectedFolderUri: folder, validateSelectedWorkspace: async () => true, clearAttachedContext: () => { }, showPicker: () => { } },
 					_isQuickChatComposer: constObservable(false),
 					agentFeedbackService: { removeFeedback: () => { } },
-					sessionsManagementService: { onDidSendRequest: Event.None, onDidReplaceNewDraftSession: Event.None, onDidReplaceSession: Event.None, onDidEndNewSessionRequest: Event.None, sendNewChatRequest: async () => { } },
+					sessionsManagementService: { onDidSendRequest: Event.None, onDidReplaceNewDraftSession: Event.None, onDidReplaceSession: Event.None, onDidEndNewSessionRequest: Event.None, onDidDispatchNewSessionRequest: Event.None, onDidChangeSession: Event.None, sendNewChatRequest: async () => { } },
 					logService: { error: () => { } },
 					_getWorkspaceRoots: () => [],
 					_createNewSession: async (folderUri: URI, pick?: IPreferredSessionType) => { created.push({ folder: folderUri.path, pick }); },
@@ -7175,13 +7223,13 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		test('opens the session an Alt+Enter send started through its host, not in the main window', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('opens the session of an Alt+Enter send through its host, not in the main window', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IHoverService, NullHoverService);
 			instantiationService.stub(IOpenerService, {});
 			const changed = disposables.add(new Emitter<void>());
 			const status = observableValue<BackgroundSendStatus | undefined>('status', undefined);
-			const started = upcastPartial<ISession>({ sessionId: 'started', resource: URI.parse('test-session:/started') });
+			const sent = upcastPartial<ISession>({ sessionId: 'sent', resource: URI.parse('test-session:/sent') });
 			const opened: ISession[] = [];
 			const harness = {
 				_draftHost: host(upcastPartial<INewSessionDraftSlot>({ id: 'slot' }), opened),
@@ -7196,15 +7244,15 @@ suite('NewChatWidget', () => {
 			const container = $('div');
 			const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
 			render.call(harness, container);
-			status.set({ kind: 'started', session: started }, undefined);
+			status.set({ kind: 'sent', session: sent }, undefined);
 			container.querySelector('a')!.click();
 			await timeout(0);
 
-			assert.deepStrictEqual({ confirmation: container.textContent, opened: opened.map(session => session.sessionId) }, { confirmation: 'Session startedOpen Session', opened: ['started'] });
+			assert.deepStrictEqual({ confirmation: container.textContent, opened: opened.map(session => session.sessionId) }, { confirmation: 'Message sentOpen Session', opened: ['sent'] });
 		}));
 	});
 
-	test('a started session\'s status reserves its height and expires after eight seconds of being seen, pausing for hover, focus and a hidden composer; a starting session\'s waits for its end', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('a sent message\'s status reserves its height and expires after eight seconds of being seen, pausing for hover, focus and a hidden composer; a starting session\'s waits for its end', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IOpenerService, {});
@@ -7219,7 +7267,7 @@ suite('NewChatWidget', () => {
 			_isShown: (reader: IReader) => shown.read(reader),
 			_register: <T extends IDisposable>(value: T) => disposables.add(value),
 		};
-		const started = (path: string) => ({ kind: 'started', session: upcastPartial<ISession>({ resource: URI.parse(`test-session:/${path}`) }) } as const);
+		const sent = (path: string) => ({ kind: 'sent', session: upcastPartial<ISession>({ resource: URI.parse(`test-session:/${path}`) }) } as const);
 		const host = mainWindow.document.body.appendChild($('div'));
 		disposables.add(toDisposable(() => host.remove()));
 		const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
@@ -7228,13 +7276,13 @@ suite('NewChatWidget', () => {
 		status.set({ kind: 'starting' }, undefined);
 		await timeout(60000);
 		const startingAfterAMinute = host.textContent;
-		status.set(started('started'), undefined);
+		status.set(sent('sent'), undefined);
 		const shownHeight = host.firstElementChild!.getBoundingClientRect().height;
 		await timeout(7999);
 		const beforeTimeout = host.textContent;
 		await timeout(1);
 		const afterTimeout = host.textContent;
-		status.set(started('next'), undefined);
+		status.set(sent('next'), undefined);
 		await timeout(3000);
 		const confirmation = host.firstElementChild!;
 		const link = host.querySelector('a')!;
@@ -7255,8 +7303,8 @@ suite('NewChatWidget', () => {
 		const beforeResumedTimeout = host.textContent;
 		await timeout(1);
 		assert.deepStrictEqual({ startingAfterAMinute, beforeTimeout, afterTimeout, hovered, focused, hidden, beforeResumedTimeout, afterResumedTimeout: host.textContent, status: status.get(), preservesHeight: reservedHeight > 0 && shownHeight === reservedHeight && host.firstElementChild!.getBoundingClientRect().height === reservedHeight }, {
-			startingAfterAMinute: 'Starting session', beforeTimeout: 'Session startedOpen Session', afterTimeout: '', hovered: 'Session startedOpen Session', focused: 'Session startedOpen Session',
-			hidden: 'Session startedOpen Session', beforeResumedTimeout: 'Session startedOpen Session', afterResumedTimeout: '', status: undefined, preservesHeight: true,
+			startingAfterAMinute: 'Starting session', beforeTimeout: 'Message sentOpen Session', afterTimeout: '', hovered: 'Message sentOpen Session', focused: 'Message sentOpen Session',
+			hidden: 'Message sentOpen Session', beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', status: undefined, preservesHeight: true,
 		});
 	}));
 

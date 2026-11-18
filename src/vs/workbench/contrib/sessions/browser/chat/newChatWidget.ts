@@ -31,7 +31,7 @@ import { IDefaultAccountService } from '../../../../../platform/defaultAccount/c
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getSessionWorkspaceProperties } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { localize } from '../../../../../nls.js';
-import { ICreateNewSessionOptions, INewSessionDraftSlot, ISendRequestOptions, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { ICreateNewSessionOptions, INewSessionDraftSlot, ISendRequestOptions, ISessionsManagementService, trackNewSessionRequestEnd, trackNewSessionRequestSent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, isSessionCreated, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../sessionsService.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
@@ -180,10 +180,10 @@ function isTypingInEditableElement(): boolean {
 
 /** What a composer shows below its input about its latest background send. */
 export type BackgroundSendStatus =
-	/** The request went out, and its session is starting. */
+	/** The request went out, and its message is not sent yet, such as while its session's agent sets up. */
 	| { readonly kind: 'starting' }
-	/** The request started `session`. */
-	| { readonly kind: 'started'; readonly session: ISession }
+	/** The request's message was sent, in `session`, which can be opened. */
+	| { readonly kind: 'sent'; readonly session: ISession }
 	/** A comparison started its attempts. */
 	| { readonly kind: 'comparisonStarted' };
 
@@ -3171,6 +3171,14 @@ export class NewChatWidget extends Disposable {
 			// send of a composer that sends all its requests in the background, such as Enter in the Agents Launcher, leaves
 			// for its session instead, so its status would only wait there, stale, for the composer to show again.
 			const showsStatus = requestedInBackground && (this._backgroundSend || !!this._draftHost);
+			// Shown as sent once: as soon as its message was sent, which can be well before its session has started, or else as it starts.
+			let shownAsSent = false;
+			const showSent = (sent: ISession) => {
+				if (!shownAsSent && showsStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+					shownAsSent = true;
+					this._backgroundSendStatus.set({ kind: 'sent', session: sent }, undefined);
+				}
+			};
 			const pending = new DisposableStore();
 			pending.add(Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
@@ -3182,17 +3190,19 @@ export class NewChatWidget extends Disposable {
 						label: localize('newSession.openSentSession', "Open Session"),
 						run: () => this.sessionsService.openSession(event.session.resource, { source: 'link', forceMainChat: true }).catch(onUnexpectedError),
 					}]);
-				} else if (showsStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
-					this._backgroundSendStatus.set({ kind: 'started', session: event.session }, undefined);
+				} else {
+					showSent(event.session);
 				}
 				this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			}));
 			if (this._draftHost) {
 				pending.add(this._clearBackgroundSendOnFailure(this._draftHost.slot, session, sendOptions));
-				// Its session can take a while to start, such as while its agent sets up. Only a hosted composer says so
-				// meanwhile: it follows the request to its end, which clears the status of a session that doesn't start.
+				// Its session can take a while to start, such as while its agent sets up, but can be opened as soon as its message
+				// was sent. Only a hosted composer says so meanwhile: it follows the request to its end, which clears the status of
+				// a session that doesn't start.
 				if (showsStatus) {
 					this._backgroundSendStatus.set({ kind: 'starting' }, undefined);
+					pending.add(trackNewSessionRequestSent(this.sessionsManagementService, this._draftHost.slot, session, showSent));
 				}
 			}
 			this._pendingBackgroundSends.set(sendOptions, pending);
@@ -3354,19 +3364,21 @@ export class NewChatWidget extends Disposable {
 			}
 			const message = status.kind === 'starting'
 				? localize('newSession.startingSession', "Starting session")
-				: status.kind === 'started'
-					? localize('newSession.sessionStarted', "Session started")
+				: status.kind === 'sent'
+					? localize('newSession.messageSent', "Message sent")
 					: localize('newSession.comparisonStarted', "Comparison started");
 			const icon = status.kind === 'starting'
 				? dom.$('span.new-session-send-status-spinner', undefined, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')))
 				: renderIcon(Codicon.check);
 			icon.setAttribute('aria-hidden', 'true');
 			dom.append(statusElement, dom.$('span.new-session-send-status-message', undefined, message), icon);
-			this.accessibilityService.status(message);
 			if (status.kind === 'starting') {
-				// Until the request ends: its session's start replaces it, and a session that doesn't start clears it.
+				// Until its message was sent or its session has started, which replaces it; a session that doesn't start clears it.
+				// Announced only once it lasts, so that a message that is sent right away is announced once, as sent.
+				reader.store.add(disposableTimeout(() => this.accessibilityService.status(message), 1000));
 				return;
 			}
+			this.accessibilityService.status(message);
 			if (status.kind === 'comparisonStarted') {
 				reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
 				return;
@@ -3386,7 +3398,7 @@ export class NewChatWidget extends Disposable {
 				},
 			}));
 			// It expires only while it can be seen. It waits while hovered or focused, and while the composer is hidden, such
-			// as the Agents Launcher once the user switched away before the session started.
+			// as the Agents Launcher once the user switched away before the message was sent.
 			const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
 			let remaining = 8000;
 			let startedAt = Date.now();
