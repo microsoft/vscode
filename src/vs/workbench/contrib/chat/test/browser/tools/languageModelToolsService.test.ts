@@ -184,6 +184,7 @@ class AutoApprovePolicyTestConfigurationService extends TestConfigurationService
 
 class McpPolicyTestConfigurationService extends TestConfigurationService {
 	private mcpPolicyValue: McpAccessValue | undefined;
+	mcpPolicyInspections = 0;
 
 	setMcpPolicyValue(value: McpAccessValue | undefined): void {
 		this.mcpPolicyValue = value;
@@ -196,6 +197,9 @@ class McpPolicyTestConfigurationService extends TestConfigurationService {
 	}
 
 	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		if (key === mcpAccessConfig) {
+			this.mcpPolicyInspections++;
+		}
 		const result = super.inspect<T>(key, overrides);
 		return key === mcpAccessConfig
 			? { ...result, policyValue: this.mcpPolicyValue as T | undefined }
@@ -4530,6 +4534,44 @@ suite('LanguageModelToolsService', () => {
 		};
 		const policyError = /disabled because your organization has disabled MCP and third-party extension tools/;
 
+		test('discovery shares policy inspections across tools and refreshes on policy changes', () => {
+			const config = new McpPolicyTestConfigurationService();
+			const { service } = createTestToolsService(store, { configurationService: config });
+			const toolSet = store.add(service.createToolSet(extensionSource, 'extensionSet', 'extensionSet'));
+			for (let index = 0; index < 20; index++) {
+				const id = `extensionTool${index}`;
+				const tool: IToolData = { id, source: extensionSource, displayName: id, modelDescription: id, toolReferenceName: id, canBeReferencedInPrompt: true };
+				store.add(service.registerToolData(tool));
+				store.add(toolSet.addTool(tool));
+			}
+			service.flushToolUpdates();
+			const initialInspections = config.mcpPolicyInspections;
+			const snapshots = [];
+			for (const policyValue of [undefined, McpAccessValue.None, undefined]) {
+				config.setMcpPolicyValue(policyValue);
+				service.flushToolUpdates();
+				const inspectionsBeforeDiscovery = config.mcpPolicyInspections;
+				const allTools = Array.from(service.getAllToolsIncludingDisabled());
+				for (const tool of allTools) {
+					service.getFullReferenceName(tool);
+				}
+				snapshots.push({
+					allTools: allTools.length,
+					tools: Array.from(service.getTools(undefined)).length,
+					members: Array.from(toolSet.getTools()).length,
+					additionalInspections: config.mcpPolicyInspections - inspectionsBeforeDiscovery,
+				});
+			}
+			assert.deepStrictEqual({ initialInspections, snapshots }, {
+				initialInspections: 1,
+				snapshots: [
+					{ allTools: 20, tools: 20, members: 20, additionalInspections: 0 },
+					{ allTools: 0, tools: 0, members: 0, additionalInspections: 0 },
+					{ allTools: 20, tools: 20, members: 20, additionalInspections: 0 },
+				],
+			});
+		});
+
 		test('only policy none filters extension tools and reactively updates tools and toolsets', () => {
 			const config = new McpPolicyTestConfigurationService({ [mcpAccessConfig]: McpAccessValue.None });
 			const { service } = createTestToolsService(store, { configurationService: config });
@@ -4580,12 +4622,15 @@ suite('LanguageModelToolsService', () => {
 			store.add(service.createToolSet(extensionSource, 'extensionSet', 'extensionSet'));
 			let errorMessage: string | undefined;
 			let invocationCreated = false;
+			let freshPolicyInspections = 0;
 			store.add(config.onDidChangeConfiguration(() => {
+				const inspectionsBeforeCall = config.mcpPolicyInspections;
 				try {
 					invocationCreated = !!service.beginToolCall({ toolCallId: 'stream', toolId: tool.id });
 				} catch (error) {
 					errorMessage = error instanceof Error ? error.message : String(error);
 				}
+				freshPolicyInspections = config.mcpPolicyInspections - inspectionsBeforeCall;
 			}));
 			store.add(autorun(reader => {
 				service.toolSets.read(reader);
@@ -4596,10 +4641,12 @@ suite('LanguageModelToolsService', () => {
 			assert.deepStrictEqual({
 				blocked: policyError.test(errorMessage ?? ''),
 				invocationCreated,
+				freshPolicyInspections,
 				effects,
 			}, {
 				blocked: true,
 				invocationCreated: false,
+				freshPolicyInspections: 1,
 				effects: [],
 			});
 		});
