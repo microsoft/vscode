@@ -2240,11 +2240,11 @@ export class AgentSideEffects extends Disposable {
 			// for worktree sessions (created here on the first send) or the picked
 			// folder for folder sessions; undefined for workspace-less sessions.
 			const agentMergeTurn = message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message);
-			// Directory-dependent snapshots can overlap base-branch persistence, but both must settle before dispatch.
+			// Directory-dependent snapshots can overlap base-branch persistence.
 			const captureCheckpoint = (workingDirectories: readonly URI[] | undefined) => {
 				if (!checkpointCapture && !this._stateManager.isEphemeralSession(sessionChannel) && !this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 					checkpointCapture = this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, workingDirectories);
-					checkpointCapture.catch(() => { /* surfaced by the await below */ });
+					checkpointCapture.catch(() => { /* surfaced by the await below or by the provider */ });
 				}
 			};
 			const resolvedWorkingDirectories = await this._options.resolveWorkingDirectoryBeforeSend?.({ session: options.sessionChannel, chat, turnId, prompt: message.text, ...(credentials ? { credentials } : {}), ...(agentMergeTurn ? { agentMergeTurn } : {}), onResolved: captureCheckpoint });
@@ -2301,8 +2301,8 @@ export class AgentSideEffects extends Disposable {
 
 			// A provider can prepare the turn — e.g. materialize a deferred session
 			// with the selection applied above — while attachments, contributions
-			// and the checkpoint capture run. Dispatch still waits for both, so the
-			// checkpoint keeps describing the tree the agent starts from. A failed
+			// and the checkpoint capture run. Dispatch waits for preparation; opted-in
+			// providers await the checkpoint before their first tool call. A failed
 			// preparation is only logged: `sendMessage` then prepares as usual and
 			// surfaces any error exactly as it would without the overlap.
 			let providerPreparation: Promise<void> | undefined;
@@ -2333,6 +2333,8 @@ export class AgentSideEffects extends Disposable {
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
 				...prewarmReporters,
+				// Pre-tool runtime command hooks (e.g. SessionStart/UserPromptSubmit) may race the snapshot when opting in.
+				...(agent.chats.awaitsTurnStartCheckpoint && checkpointCapture ? { turnStartCheckpoint: checkpointCapture } : {}),
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
@@ -2347,7 +2349,7 @@ export class AgentSideEffects extends Disposable {
 				this._turnTracker.markSendStage(turnChannel, turnId, 'providerPreparation');
 				await providerPreparation;
 			}
-			if (checkpointCapture) {
+			if (checkpointCapture && !agent.chats.awaitsTurnStartCheckpoint) {
 				// Measures only what the checkpoint still costs the critical path
 				// after overlapping the work above, not the capture's total cost.
 				this._turnTracker.markSendStage(turnChannel, turnId, 'checkpoint');

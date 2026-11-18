@@ -30198,6 +30198,66 @@ Use the attached image as context.
 
 	suite('SDK callback logging', () => {
 
+		suite('turn-start checkpoint', () => {
+			const hook = {
+				sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo',
+				toolName: 'edit', toolArgs: { path: '/repo/file.ts' },
+			};
+			const send = (session: CopilotAgentSession, checkpoint?: Promise<void>, turnId = 'turn-checkpoint') =>
+				session.send('Edit the file', undefined, turnId, undefined, undefined, AgentHostClientType.Unknown, undefined, undefined, false, undefined, undefined, undefined, checkpoint);
+
+			test('waits for the checkpoint before any pre-tool work', async () => {
+				const checkpoint = new DeferredPromise<void>();
+				const { session, runtime } = await createAgentSession(disposables);
+				let editStarts = 0;
+				(session as unknown as ISessionInternalsForTest)._editTracker.trackEditStart = async () => { editStarts++; };
+				await send(session, checkpoint.p);
+				let resolved = 0;
+				const preToolUse = Promise.all(['edit', 'external_tool', 'docs-search'].map(toolName => runtime.handlePreToolUse({ ...hook, toolName }).then(result => {
+					resolved++;
+					return result;
+				})));
+				await timeout(0);
+				const pending = { resolved, editStarts };
+				checkpoint.complete();
+				const result = await preToolUse;
+
+				assert.deepStrictEqual({ pending, result, editStarts }, {
+					pending: { resolved: 0, editStarts: 0 }, result: [undefined, undefined, undefined], editStarts: 1,
+				});
+			});
+
+			test('denies tools without edit tracking when the checkpoint rejects', async () => {
+				const checkpoint = new DeferredPromise<void>();
+				const logService = new CapturingLogService();
+				const { session, runtime } = await createAgentSession(disposables, { logService });
+				let editStarts = 0;
+				(session as unknown as ISessionInternalsForTest)._editTracker.trackEditStart = async () => { editStarts++; };
+				await send(session, checkpoint.p);
+				const preToolUse = runtime.handlePreToolUse(hook);
+				const error = new Error('checkpoint failed');
+				checkpoint.error(error);
+				const reason = 'The checkpoint of the working tree could not be captured before this turn, so tools cannot run.';
+
+				assert.deepStrictEqual({ result: await preToolUse, editStarts, errors: logService.errors }, {
+					result: { permissionDecision: 'deny', permissionDecisionReason: reason, additionalContext: reason },
+					editStarts: 0,
+					errors: [{ first: error, args: ['[Copilot:test-session-1] Failed to capture turn-start checkpoint: tool=edit'] }],
+				});
+			});
+
+			test('subagent tools do not wait for the checkpoint', async () => {
+				const checkpoint = new DeferredPromise<void>();
+				const { session, runtime } = await createAgentSession(disposables);
+				let editStarts = 0;
+				(session as unknown as ISessionInternalsForTest)._editTracker.trackEditStart = async () => { editStarts++; };
+				await send(session, checkpoint.p);
+
+				assert.deepStrictEqual({ result: await runtime.handlePreToolUse({ ...hook, agentId: 'agent-1' }), editStarts }, { result: undefined, editStarts: 1 });
+				checkpoint.complete();
+			});
+		});
+
 		test('logs and rethrows user input callback failures', async () => {
 			const logService = new CapturingLogService();
 			const { session, runtime } = await createAgentSession(disposables, { logService });
