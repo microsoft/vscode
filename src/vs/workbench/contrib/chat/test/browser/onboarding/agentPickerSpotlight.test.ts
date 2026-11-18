@@ -355,7 +355,7 @@ suite('AgentPickerSpotlight', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return mainWindow.document.body; }
 			}();
-			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), context));
+			const presentation = store.add(new SpotlightPresentation(layout, new TestHostService(), context, new TestConfigurationService(), NullTelemetryService));
 			const shown = new DeferredPromise<void>();
 			const result = presentation.run(scenario, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
 			await shown.p;

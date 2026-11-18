@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { EntraAuthOptions, EntraTokenProviderArgs, EntraTokenProviderResult } from '@github/copilot-sdk';
+import type { EntraAuthOptions, EntraTokenProviderArgs, EntraTokenProviderResult } from '@microsoft/copilot-sdk';
 import { equals } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isExpired } from '../../../../base/common/date.js';

@@ -33,7 +33,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ContributionEnablementState, isContributionDisabled, isContributionEnabled } from '../../common/enablement.js';
-import { ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
 import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -168,6 +168,8 @@ interface IMcpServerItemEntry {
 interface IMcpSessionServerItemEntry {
 	readonly type: 'session-server-item';
 	readonly server: AgentHostMcpServer;
+	/** The catalog name of the server's installation, when it differs from the server's configuration key. */
+	readonly label?: string;
 }
 
 /**
@@ -205,8 +207,16 @@ export interface IMcpProviderItemEntry {
 	readonly localServer?: undefined;
 }
 
-export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHostMcpServer[]): readonly IMcpSessionServerItemEntry[] {
-	return servers.map(server => ({ type: 'session-server-item', server }));
+/**
+ * Creates the rows of servers only the active session knows. A row is named after its installation
+ * in {@link installations} when that has a catalog name, and matches {@link query} by either name.
+ */
+export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHostMcpServer[], installations?: ICustomizationMarketplaceInstallationSnapshot, query = ''): readonly IMcpSessionServerItemEntry[] {
+	return servers.map((server): IMcpSessionServerItemEntry => {
+		// A server that reports its own display name keeps it.
+		const label = server.displayName === undefined ? installations?.findByTarget({ kind: 'mcp', id: server.id })?.resource.displayName : undefined;
+		return label && label !== server.name ? { type: 'session-server-item', server, label } : { type: 'session-server-item', server };
+	}).filter(entry => customizationSearchMatchesAny(query, [entry.server.name, entry.server.displayName, entry.label]));
 }
 
 export function isMcpServerCollectionVisible(collectionId: string, hiddenCollectionIds: readonly string[] | undefined): boolean {
@@ -574,7 +584,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		if (element.type === 'session-server-item') {
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.toggle('has-detail', false);
-			templateData.name.textContent = formatDisplayName(getMcpServerDisplayLabel(element.server));
+			templateData.name.textContent = formatDisplayName(getMcpEntryLabel(element));
 			this.updateActiveSessionStatus(templateData, element);
 			return;
 		}
@@ -1342,7 +1352,7 @@ function getMcpEntryLabel(element: IMcpInstalledEntry): string {
 		case 'server-item':
 			return element.server.label;
 		case 'session-server-item':
-			return getMcpServerDisplayLabel(element.server);
+			return element.label ?? getMcpServerDisplayLabel(element.server);
 		case 'builtin-item':
 		case 'connector-item':
 		case 'provider-item':
@@ -3726,8 +3736,7 @@ export class McpListWidget extends Disposable {
 				]))
 				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.takeConnector([server.serverName], [server.connector.name, server.connector.displayName])))
 			: [];
-		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
-		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);
+		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionMatcher.unmatched(''), marketplaceInstallations, query);
 		this.installedEntries = [
 			...groups.flatMap(group => group.entries.map(entry => ({ entry }))),
 			...pluginServers.map(({ server, activeSessionServer }) => ({ entry: createBuiltinEntry(server, activeSessionServer) })),

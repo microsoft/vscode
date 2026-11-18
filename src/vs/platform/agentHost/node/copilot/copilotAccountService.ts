@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, EntraAuthOptions, EntraTokenProvider, EntraTokenProviderArgs, EntraTokenProviderResult } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, EntraAuthOptions, EntraTokenProvider, EntraTokenProviderArgs, EntraTokenProviderResult } from '@microsoft/copilot-sdk';
 import { raceCancellation, raceCancellationError, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
@@ -361,11 +361,33 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		const runtime = await raceCancellationError(attempt.client, attempt.cancellation.token);
 		this.assertCurrent(attempt);
 		const session = await runtime.createSession({
-			clientName: AGENT_HOST_COPILOT_CLIENT_NAME, configDirectory: this._home.home.fsPath,
-			enableConfigDiscovery: false, enableSessionStore: false, enableManagedSettings: true,
-			availableTools: [], disabledMcpServers: ['github-mcp-server'],
-			requestExtensions: false, requestCanvasRenderer: false, enableSessionTelemetry: false, enableHostGitOperations: false,
-			infiniteSessions: { enabled: false }, memory: { enabled: false },
+			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			configDirectory: this._home.home.fsPath,
+			enableConfigDiscovery: false,
+			state: {
+				enableCrossSessionStore: false,
+				infiniteSessions: { enabled: false },
+				memory: { enabled: false },
+			},
+			github: {
+				fetchManagedSettings: true,
+				telemetryEnabled: false,
+			},
+			tools: {
+				availableTools: [],
+			},
+			mcp: {
+				disabledServers: ['github-mcp-server'],
+			},
+			extensions: {
+				enabled: false,
+			},
+			canvases: {
+				requestRenderer: false,
+			},
+			git: {
+				enableHostGitOperations: false,
+			},
 		});
 		attempt.session = session;
 		this.assertCurrent(attempt);

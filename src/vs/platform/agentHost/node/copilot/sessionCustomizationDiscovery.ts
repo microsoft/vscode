@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@microsoft/copilot-sdk';
 import { appendFile, mkdir } from 'fs/promises';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';

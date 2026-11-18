@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { SessionEvent, SessionEventPayload, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@microsoft/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
