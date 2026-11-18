@@ -24,7 +24,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorsOrder, GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
-import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -481,8 +481,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	async closeAllChats(): Promise<void> {
 		this._closingAll = true;
 		try {
-			// The least recently active first: in Single, the composer used last keeps its draft last, for the next to take first
-			await Promise.all((this._part?.groups ?? []).map(group => group.closeEditors([...group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)].reverse())));
+			// The least recently active first, group by group and in each group: in Single, the composer used last keeps its draft
+			// last, for the next to take first
+			for (const group of [...this._part?.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE) ?? []].reverse()) {
+				await group.closeEditors([...group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)].reverse());
+			}
 		} finally {
 			this._closingAll = false;
 		}

@@ -20,7 +20,7 @@ import { parse, stringify } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { EditorInputWithOptions, EditorsOrder, IEditorPane, IVisibleEditorPane } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
-import { IContentPart, ICreateEditorPartOptions, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { GroupsOrder, IContentPart, ICreateEditorPartOptions, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { IEditorService, IVisibleEditorsChangeEvent, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
@@ -125,6 +125,8 @@ class FakeGroup {
 /** The editor part of the chat part, as the chat part creates it: it starts with one group and adds more beside it. */
 class FakePart {
 	readonly groups: FakeGroup[] = [];
+	/** Its groups, most recently active first, as a real part orders them. */
+	private readonly mruGroups: FakeGroup[] = [];
 	activeGroup: FakeGroup;
 	/** The options the chat part created it with. */
 	createOptions: ICreateEditorPartOptions | undefined;
@@ -145,10 +147,16 @@ class FakePart {
 	addGroup(): FakeGroup {
 		const group = new FakeGroup();
 		this.groups.push(group);
+		this.mruGroups.push(group);
 		this.onDidAddGroupEmitter.fire(group);
 		return group;
 	}
+	getGroups(order: GroupsOrder): readonly FakeGroup[] {
+		return order === GroupsOrder.MOST_RECENTLY_ACTIVE ? this.mruGroups : this.groups;
+	}
 	activate(group: FakeGroup): void {
+		this.mruGroups.splice(this.mruGroups.indexOf(group), 1);
+		this.mruGroups.unshift(group);
 		if (this.activeGroup !== group) {
 			this.activeGroup = group;
 			this.onDidChangeActiveGroupEmitter.fire(group);
@@ -1237,6 +1245,34 @@ suite('AgentsChatPartService', () => {
 			single: { closed: { tabs: [], visible: false }, next: ['D +a.ts', 'E', ''] },
 			multiple: { closed: { tabs: [], visible: false }, next: ['', '', ''] },
 		});
+	});
+
+	test('in Single, Close All keeps the draft of the composer used last for the next to take first, also across groups side by side', async () => {
+		const d = createChatWindowComposerResource();
+		// D shows in the first group; E, kept from before, comes back with a composer beside it
+		const first = createService({
+			chatTabs: SessionsChatTabsMode.Single, visible: true,
+			stored: stringify({ chats: [d.toString()], active: 0, kept: [toStoredChatDraft({ inputText: 'E', attachments: [] })] }),
+			storedComposers: stringify([{ resource: d, input: toStoredChatDraft({ inputText: 'D', attachments: [] }) }]),
+		});
+		await first.service.restore();
+		await first.service.openComposer(undefined, { sideBySide: true });
+		const groups = first.part.groups.map(group => group.editors.length);
+		// The user goes back to D, in the first group
+		first.part.activate(first.part.groups[0]);
+		await first.service.closeAllChats();
+
+		const sending = observableValue<ISession | undefined>('newSession', undefined);
+		const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: first.save(), newSession: sending });
+		await second.startWindow();
+		const next: string[] = [];
+		for (let i = 0; i < 3; i++) {
+			await second.service.openComposer(undefined, { newComposer: true });
+			next.push(second.composerDrafts().at(-1)!.input);
+			sending.set(sentSession(`sent${i}`), undefined);
+		}
+
+		assert.deepStrictEqual({ groups, next }, { groups: [1, 1], next: ['D', 'E', ''] });
 	});
 
 	test('a chat that the user opens in the Chat view while no host replaces it, or in an editor, leaves the chats it keeps; not one the Chat view restores, nor one it shows while a host replaces it', async () => {
