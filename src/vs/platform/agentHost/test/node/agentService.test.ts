@@ -3820,7 +3820,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('a previous-session Automation run gives the session the run\'s customizations, or removes stale ones, keeps its model, and rejects an archived session', async () => {
+		test('a previous-session Automation run gives the session the run\'s customizations, or removes stale ones, keeps its model, and reports an archived session as unusable', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
 			const chat = buildDefaultChatUri(session.toString());
@@ -3839,7 +3839,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}));
 			const queue = async (id: string, client: SessionActiveClient | undefined) => {
-				(await prepare(session, 'copilot', { provider: 'copilot' }, message, id, client))();
+				(await prepare(session, 'copilot', { provider: 'copilot' }, message, id, client))!();
 				return stateManager.getSessionState(session.toString())?.activeClients;
 			};
 			const withCustomizations = await queue('with', activeClient);
@@ -3856,7 +3856,7 @@ suite('AgentService (node dispatcher)', () => {
 				started: [{ queuedMessageId: 'with', model: { id: 'run-model' } }],
 				queued: ['without'],
 			});
-			await assert.rejects(prepare(session, 'copilot', { provider: 'copilot' }, message, 'archived', activeClient), /archived/);
+			assert.strictEqual(await prepare(session, 'copilot', { provider: 'copilot' }, message, 'archived', activeClient), undefined);
 		});
 
 		test('forwards the exact chat URI encoded in an MCP channel', async () => {

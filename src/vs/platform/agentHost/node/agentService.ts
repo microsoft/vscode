@@ -1455,14 +1455,16 @@ export class AgentService extends Disposable implements IAgentService {
 				const key = session.toString();
 				const registration = await this._orchestratorDatabase.getSessionV2Registration(key);
 				await this._restoreCredentialPrincipal(key);
+				// Sessions that can never take this run's message; a failure to read or restore one throws instead.
 				if (registration?.provider !== provider || this._providerService.resolveProvider(template.provider)?.id !== provider
-					|| (await this._sessionRegistry.listProvisional()).has(key) || this._authService.getSessionCredentialPrincipal(key)) {
-					throw new Error('The session belongs to another agent provider, is not ready, or requires an authenticated client.');
+					|| (await this._sessionRegistry.listProvisional()).has(key) || this._authService.getSessionCredentialPrincipal(key)
+					|| this._catalogSyncService.isSessionDeletionFenced(session) || this._sessionResidency.isBeingDisposed(session)) {
+					return undefined;
 				}
 				await this.restoreSession(session);
 				const chat = this._defaultChat(session);
 				if (chat === undefined || isSessionStatusArchived(this._stateManager.getSessionSummary(key)?.status) || !await this._stateManager.resolveChatState(chat)) {
-					throw new Error('The session was archived or has no default chat.');
+					return undefined;
 				}
 				return () => {
 					if (this._catalogSyncService.isSessionDeletionFenced(session) || this._sessionResidency.isBeingDisposed(session) || !this._stateManager.getChatState(chat)) {

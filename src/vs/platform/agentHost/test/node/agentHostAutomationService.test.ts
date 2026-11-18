@@ -1751,10 +1751,10 @@ suite('AgentHostAutomationService', () => {
 	}
 
 	/**
-	 * A host whose new sessions run one turn, given turn ids from `turnIds`, and that queues a continued run's message in its
-	 * session's default chat, unless `unusable` rejects the session.
+	 * A host whose new sessions run one turn and that queues a continued run's message in its session's default chat,
+	 * unless `unusable` rejects the session or `restoreError` fails restoring it.
 	 */
-	function createPreviousSessionService(sessions: readonly URI[], options: { readonly unusable?: () => boolean; readonly cancelled?: string[]; readonly createGate?: Promise<void> } = {}) {
+	function createPreviousSessionService(sessions: readonly URI[], options: { readonly unusable?: () => boolean; readonly restoreError?: () => Error | undefined; readonly cancelled?: string[]; readonly createGate?: Promise<void> } = {}) {
 		const created: string[] = [];
 		const prepared: { readonly session: string; readonly provider: string; readonly id: string; readonly model: unknown }[] = [];
 		const service = createService({
@@ -1771,8 +1771,12 @@ suite('AgentHostAutomationService', () => {
 				stateManager.dispatchServerAction(chat, chatTurnComplete(`created-${session.path}`, 1));
 			},
 			prepareSessionMessage: async (session, provider, _template, message, id) => {
+				const restoreError = options.restoreError?.();
+				if (restoreError) {
+					throw restoreError;
+				}
 				if (options.unusable?.()) {
-					throw new Error('Archived');
+					return undefined;
 				}
 				prepared.push({ session: session.toString(), provider, id, model: message.model });
 				return () => stateManager.dispatchServerAction(buildDefaultChatUri(session.toString()), { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id, message });
@@ -1893,6 +1897,34 @@ suite('AgentHostAutomationService', () => {
 			created: [first.toString(), afterArchive.toString()],
 			queued: [],
 			next: afterArchive.toString(),
+		});
+	});
+
+	test('a previous session that fails to restore fails the run instead of starting over', async () => {
+		const first = URI.parse('mock:/first');
+		let restoreError: Error | undefined;
+		const { service, created, prepared } = createPreviousSessionService([first, URI.parse('mock:/unexpected')], { restoreError: () => restoreError });
+		const automation = createAction().resource;
+		const run = (requestId: string) => service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId });
+		await service.handleCreate({ ...createAction(), definition: previousSessionDefinition() });
+		await terminalRun((await run('first')).resource);
+
+		restoreError = new Error('disk unavailable');
+		const failed = await run('failed');
+		await terminalRun(failed.resource);
+		restoreError = undefined;
+		const queued = nextQueuedMessage();
+		const retried = await run('retried');
+		await queued;
+
+		const lifecycle = stateManager.getAutomationRunState(failed.resource)?.lifecycle;
+		assert.deepStrictEqual({
+			failed: { status: lifecycle?.status, error: lifecycle?.status === AutomationRunStatus.Failed ? lifecycle.error?.message : undefined },
+			created, prepared: prepared.map(entry => entry.id),
+		}, {
+			failed: { status: AutomationRunStatus.Failed, error: 'disk unavailable' },
+			created: [first.toString()],
+			prepared: [retried.resource],
 		});
 	});
 

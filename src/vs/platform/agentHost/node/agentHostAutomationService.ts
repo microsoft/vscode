@@ -115,11 +115,12 @@ export interface IAgentHostAutomationExecution {
 	deleteSession(session: URI, provider: string): Promise<void>;
 	startSession(session: URI, message: Message): Promise<void>;
 	/**
-	 * Restores an existing session for a run's queued message, and throws when it can't continue `template`: its provider is
-	 * no longer `provider` or the template's, it was archived or has no default chat, or the automation may not drive it.
+	 * Restores an existing session for a run's queued message. `undefined` when the session can't continue `template`: its
+	 * provider is no longer `provider` or the template's, it was archived or has no default chat, or the automation may not
+	 * drive it. Throws when the session couldn't be checked, such as when restoring it failed.
 	 * The returned callback gives the session `activeClient`, the run's customizations, and queues `message` in its default chat.
 	 */
-	prepareSessionMessage?(session: URI, provider: string, template: AutomationSessionTemplate, message: Message, messageId: string, activeClient: SessionActiveClient | undefined): Promise<() => void>;
+	prepareSessionMessage?(session: URI, provider: string, template: AutomationSessionTemplate, message: Message, messageId: string, activeClient: SessionActiveClient | undefined): Promise<(() => void) | undefined>;
 	/** Cancels the session's running turn, only when it is `turnId` if given. */
 	cancelSession(session: URI, turnId?: string): Promise<boolean>;
 	/** Resumes a session's latest turn if it failed with a resumable error; returns whether it resumed. */
@@ -1315,6 +1316,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	/**
 	 * Queues the run's message in the session of the Automation's latest run that has one, after linking that session to the
 	 * run. `false` when that session can't continue the template, so the run creates a session that later runs continue.
+	 * Throws when the session couldn't be checked, so the run fails instead of starting over in a new session.
 	 * A run already linked to its session, such as before a restart, queues its message there again, or fails.
 	 */
 	private async _queueInPreviousSession(resource: string, template: AutomationSessionTemplate, message: Message, activeClient: SessionActiveClient | undefined, configuration: IAutomationConfigurationTelemetry): Promise<boolean> {
@@ -1332,18 +1334,16 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const session = previous?.primarySession;
 		const provider = previous && this._runProviders.get(previous.resource);
-		let submit: (() => void) | undefined;
 		// A session keeps the folders and configuration it was created with, so a run never continues one created otherwise.
-		if (session && provider && (linked || this._sessionShapes.get(session) === toSessionShape(template))) {
-			try {
-				submit = await this._execution.prepareSessionMessage?.(URI.parse(session), provider, template, message, resource, activeClient);
-			} catch (error) {
-				this._logService.info(`[AgentHostAutomationService] Cannot continue the previous Automation session: run=${resource}, session=${session}, error=${toErrorMessage(error)}`);
-			}
-		}
+		const submit = session && provider && (linked || this._sessionShapes.get(session) === toSessionShape(template))
+			? await this._execution.prepareSessionMessage?.(URI.parse(session), provider, template, message, resource, activeClient)
+			: undefined;
 		if (!session || !provider || !submit) {
 			if (linked) {
 				throw new Error('The Automation\'s session can no longer be continued.');
+			}
+			if (session) {
+				this._logService.info(`[AgentHostAutomationService] The previous Automation session can't be continued; creating a new one: run=${resource}, session=${session}.`);
 			}
 			return false;
 		}
