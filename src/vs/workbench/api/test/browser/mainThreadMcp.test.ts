@@ -26,16 +26,19 @@ import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchMcpGatewayService } from '../../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpHostDelegate, IMcpRegistry } from '../../../contrib/mcp/common/mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey } from '../../../contrib/mcp/common/mcpTypes.js';
+import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey, UserInteractionRequiredError } from '../../../contrib/mcp/common/mcpTypes.js';
 import { mcpEnterpriseManagedAuthIdpSection } from '../../../contrib/mcp/common/mcpConfiguration.js';
 import { MCP } from '../../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { AuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
+import { AuthenticationService } from '../../../services/authentication/browser/authenticationService.js';
 import { IAuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationService, IAuthenticationWwwAuthenticateRequest } from '../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
+import { TestEnvironmentService } from '../../../test/browser/workbenchTestServices.js';
+import { TestExtensionService, TestProductService, TestStorageService } from '../../../test/common/workbenchTestServices.js';
 import { IMcpServerAuthContext, MainThreadMcp, McpServerAuthTracker } from '../../browser/mainThreadMcp.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails } from '../../common/extHost.protocol.js';
 import { CommonRequestInit, CommonResponse, McpHTTPHandle } from '../../common/extHostMcp.js';
@@ -386,6 +389,9 @@ suite('MainThreadMcp - re-validation', () => {
 			override isDynamicAuthenticationProvider(): boolean {
 				return false;
 			}
+			override isAuthenticationProviderRegistered(): boolean {
+				return true;
+			}
 			override getProvider(id: string): IAuthenticationProvider {
 				return new class extends mock<IAuthenticationProvider>() {
 					override readonly id = id;
@@ -500,6 +506,68 @@ suite('MainThreadMcp - re-validation', () => {
 
 	test('revalidates clients without a secret-storage key without reading secret storage', async () => {
 		await assertRevalidationContext(false, undefined);
+	});
+});
+
+suite('MainThreadMcp - removed authentication provider', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports that user interaction is needed when a silent refresh removes the provider', async () => {
+		const providerId = 'dynamic-provider';
+		const storageService = disposables.add(new TestStorageService());
+		const accessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
+		const authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), accessService, TestEnvironmentService, new NullLogService()));
+		authenticationService.registerAuthenticationProvider(providerId, new class extends mock<IAuthenticationProvider>() {
+			override readonly id = providerId;
+			override readonly label = 'Dynamic Provider';
+			override readonly supportsMultipleAccounts = true;
+			override readonly onDidChangeSessions = Event.None;
+			override async getSessions(): Promise<readonly AuthenticationSession[]> {
+				// Mirrors DynamicAuthProvider removing itself when a silent refresh gets invalid_client.
+				authenticationService.unregisterAuthenticationProvider(providerId);
+				return [];
+			}
+		});
+
+		let capturedDelegate: IMcpHostDelegate | undefined;
+		const mcpRegistry = new class extends mock<IMcpRegistry>() {
+			override readonly collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
+			override registerDelegate(delegate: IMcpHostDelegate) {
+				capturedDelegate = delegate;
+				return { dispose() { } };
+			}
+		};
+		const mainThreadMcp = createMainThreadMcp(disposables, {
+			$startMcp() { },
+			$stopMcp() { },
+			$onDidChangeMcpServerDefinitions() { },
+		}, mcpRegistry, services => services.stub(IAuthenticationService, authenticationService));
+
+		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse('https://server.example/mcp'), headers: [] };
+		const definition: McpServerDefinition = { id: 'server', label: 'Server', launch, cacheNonce: 'nonce' };
+		const collection: McpCollectionDefinition = {
+			remoteAuthority: null,
+			id: 'collection',
+			label: 'Collection',
+			serverDefinitions: observableValue<readonly McpServerDefinition[]>('definitions', [definition]),
+			trustBehavior: McpServerTrust.Kind.Trusted,
+			scope: StorageScope.WORKSPACE,
+			configTarget: ConfigurationTarget.USER,
+			order: McpCollectionSortOrder.Extension,
+		};
+		assert.ok(capturedDelegate);
+		capturedDelegate.start(collection, definition, launch, {});
+
+		const error = await mainThreadMcp.$getTokenForProviderId(1, providerId, ['scope'], { errorOnUserInteraction: true }).then(() => undefined, e => e);
+
+		assert.deepStrictEqual({
+			needsUserInteraction: UserInteractionRequiredError.is(error),
+			registered: authenticationService.isAuthenticationProviderRegistered(providerId),
+		}, {
+			needsUserInteraction: true,
+			registered: false,
+		});
 	});
 });
 

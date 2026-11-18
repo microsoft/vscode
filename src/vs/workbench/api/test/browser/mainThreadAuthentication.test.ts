@@ -74,11 +74,17 @@ suite('MainThreadAuthentication', () => {
 			const removedProviders: string[] = [];
 			let clientRegistrationWrites = 0;
 			let stopped = false;
+			let rejectClient = false;
 			const proxy = upcastPartial<Proxied<ExtHostAuthenticationShape>>({
 				$onDidChangeAuthenticationSessions: async () => { },
 				$onDidUnregisterAuthenticationProvider: async id => { unregistered.push(id); },
-				$getSessions: async () => {
+				$getSessions: async providerId => {
 					assert.strictEqual(stopped, false, 'must not use the stopped extension host');
+					if (rejectClient) {
+						// Mirrors DynamicAuthProvider removing itself when a silent refresh gets invalid_client.
+						await mainThread.$removeDynamicAuthenticationProvider(providerId);
+						return [];
+					}
 					return [{ id: sessionId, accessToken: 'test-token', scopes: [], account: { id: 'account', label: 'Account' } }];
 				}
 			});
@@ -101,6 +107,7 @@ suite('MainThreadAuthentication', () => {
 			return {
 				mainThread, unregistered, removedProviders,
 				get clientRegistrationWrites() { return clientRegistrationWrites; },
+				rejectClient: () => { rejectClient = true; },
 				stop: () => { stopped = true; mainThread.dispose(); }
 			};
 		}
@@ -146,6 +153,26 @@ suite('MainThreadAuthentication', () => {
 				registered: false,
 				unregistered: ['dynamic-provider'],
 				removedProviders: ['dynamic-provider'],
+			});
+			host.stop();
+		});
+
+		test('passive lookups return no session when a silent refresh removes the provider', async () => {
+			const host = createHost('first-host');
+			host.rejectClient();
+			const results = [];
+			for (const options of [{ silent: true }, {}]) {
+				await registerDynamicProvider(host);
+				results.push(await host.mainThread.$getSession('dynamic-provider', [], 'publisher.extension', 'Extension', options));
+			}
+			assert.deepStrictEqual({
+				results,
+				registered: authenticationService.isAuthenticationProviderRegistered('dynamic-provider'),
+				removedProviders: host.removedProviders,
+			}, {
+				results: [undefined, undefined],
+				registered: false,
+				removedProviders: ['dynamic-provider', 'dynamic-provider'],
 			});
 			host.stop();
 		});
