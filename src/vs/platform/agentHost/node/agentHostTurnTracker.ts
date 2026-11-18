@@ -11,7 +11,7 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { AgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
-import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
+import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage, IAgentTurnInteraction } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { type AgentHostPrewarmSkipReason, type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
@@ -824,6 +824,12 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		this._closeProviderStage(timing, totalTime);
 		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
 		const usage = this._turnUsages.get(key);
+		let turnInteraction: IAgentTurnInteraction | undefined;
+		try {
+			turnInteraction = timing.agent.getTurnInteraction?.(timing.providerChat, turnId);
+		} catch (error) {
+			this._logService.error(`[AgentHostTurnTracker] Failed to collect turn interaction for provider=${timing.agent.id}`, error);
+		}
 		let summaries: readonly IAgentTokenUsageSummary[] | undefined;
 		if (timing.agent.getTurnTokenUsage) {
 			let snapshot: IAgentTurnTokenUsage | undefined;
@@ -840,6 +846,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		this._disposeTurn(key, timing);
 
 		const report: IAgentHostTurnCompletedReport = {
+			turnInteraction,
 			clientContext: timing.clientContext,
 			telemetryContext: timing.telemetryContext,
 			providerTelemetryContext: timing.providerTelemetryContext,

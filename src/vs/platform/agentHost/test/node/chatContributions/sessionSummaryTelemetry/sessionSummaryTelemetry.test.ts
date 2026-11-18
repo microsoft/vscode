@@ -16,7 +16,8 @@ import { AgentHostClientType } from '../../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../../common/agentHostTelemetry.js';
 import { SessionInputRequestKind } from '../../../../common/state/protocol/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, MessageKind, SessionStatus, type ErrorInfo } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, MessageKind, SessionStatus, withFolderGitHubState, type ErrorInfo } from '../../../../common/state/sessionState.js';
+import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../../../common/sessionArtifacts.js';
 import { AgentHostChatContributions } from '../../../../node/agentHostChatContributionsService.js';
 import { AgentHostClientConnectionService } from '../../../../node/agentHostClientConnectionService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../../../node/agentHostStateManager.js';
@@ -382,12 +383,46 @@ suite('SessionSummaryTelemetryContribution', () => {
 		});
 	}));
 
+	test('counts what the session recorded and how its own pull requests were recorded', () => {
+		const { stateManager, start, complete, dispatch, createStateSession, summaries } = createSummaries();
+		createStateSession();
+		const pullRequest = (number: number) => `https://github.com/microsoft/vscode/pull/${number}`;
+		const entry = (id: string, type: SessionArtifactType, isArtifact: boolean, link?: string): ISessionArtifact => ({ id, type, label: id, isArtifact, ...(link ? { link, isGitHub: true } : {}) });
+		const meta = withSessionArtifacts(undefined, [
+			entry('own-artifact', SessionArtifactType.PullRequest, true, pullRequest(1)),
+			// Another chat referenced the same pull request; an artifact entry for it still counts it as recorded as an artifact.
+			{ ...entry('own-artifact-also-referenced', SessionArtifactType.PullRequest, false, `${pullRequest(1)}/`), chat: buildChatUri(session, 'peer') },
+			entry('own-reference', SessionArtifactType.PullRequest, false, pullRequest(2)),
+			entry('preexisting-reference', SessionArtifactType.PullRequest, false, pullRequest(4)),
+			entry('issue-artifact', SessionArtifactType.Issue, true, 'https://github.com/microsoft/vscode/issues/5'),
+			entry('issue-reference', SessionArtifactType.Issue, false, 'https://github.com/microsoft/vscode/issues/6'),
+			{ id: 'file', type: SessionArtifactType.File, label: 'Plan', isArtifact: true, uri: 'file:///plan.md' },
+		]);
+		// Pull request 3 was never recorded, and pull request 4 already existed when the folder-isolated session started.
+		stateManager.setSessionMeta(session, withFolderGitHubState(meta, 'folder', { pullRequestUrls: [1, 2, 3, 4].map(pullRequest), initialPullRequestUrls: [pullRequest(4)] }));
+		complete(start());
+		dispatch({ type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+		const [summary] = summaries();
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(summary).filter(([key]) => /artifact|reference|ownPullRequest/i.test(key))), {
+			artifactCount: 3,
+			referenceCount: 4,
+			pullRequestArtifactCount: 1,
+			pullRequestReferenceCount: 3,
+			issueArtifactCount: 1,
+			issueReferenceCount: 1,
+			ownPullRequestCount: 3,
+			ownPullRequestArtifactCount: 1,
+			ownPullRequestReferenceCount: 1,
+		});
+	});
+
 	test('classifies every numeric and boolean field as a measurement and no other field', () => {
 		type CheckMeasurements<E, C> = {
 			[K in keyof E]-?: K extends keyof C
 			? NonNullable<E[K]> extends number | boolean
-			? C[K] extends { isMeasurement: true } ? true : never
-			: 'isMeasurement' extends keyof C[K] ? never : true
+			? NonNullable<C[K]> extends { isMeasurement: true } ? true : never
+			: 'isMeasurement' extends keyof NonNullable<C[K]> ? never : true
 			: never;
 		};
 		const checked: CheckMeasurements<Omit<IAgentHostSessionSummaryEvent, keyof IAgentHostEventTelemetry>, IAgentHostSessionSummaryClassification> = {
@@ -396,6 +431,8 @@ suite('SessionSummaryTelemetryContribution', () => {
 			failedSubagentTurnCount: true, unexpectedHangTurnCount: true, recoveredHangTurnCount: true, steeredTurnCount: true, modelCallCount: true,
 			promptTokenCount: true, promptCacheTokenCount: true, completionTokenCount: true, rootBilledNanoAiu: true, subagentBilledNanoAiu: true, totalBilledNanoAiu: true,
 			missingBilledNanoAiuTurnCount: true, durationMs: true, activeMs: true,
+			artifactCount: true, referenceCount: true, pullRequestArtifactCount: true, pullRequestReferenceCount: true, issueArtifactCount: true, issueReferenceCount: true,
+			ownPullRequestCount: true, ownPullRequestArtifactCount: true, ownPullRequestReferenceCount: true,
 		};
 		assert.ok(Object.values(checked).every(value => value));
 	});

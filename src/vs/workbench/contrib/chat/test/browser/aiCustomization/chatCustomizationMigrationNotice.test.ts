@@ -167,6 +167,30 @@ suite('ChatCustomizationMigrationNotice', () => {
 		});
 	});
 
+	test('coalesces synchronous discovery changes using the latest session context', async () => {
+		const env = setup(false);
+		for (let i = 0; i < 3; i++) {
+			env.changed.fire();
+		}
+		const latestContext = {
+			...env.context.get()!,
+			sessionResource: URI.parse('vscode-chat-session://local/materialized'),
+		};
+		env.context.set(latestContext, undefined);
+		const synchronousRequests = env.migrations.requests.length;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			synchronousRequests,
+			requests: env.migrations.requests,
+			available: env.availability.at(-1),
+		}, {
+			synchronousRequests: 0,
+			requests: [latestContext.sessionResource],
+			available: true,
+		});
+	});
+
 	test('preserves the last known hint until a same-context refresh completes', async () => {
 		const env = setup();
 		await timeout(0);

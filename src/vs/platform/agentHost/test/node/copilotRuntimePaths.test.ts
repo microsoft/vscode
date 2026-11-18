@@ -25,7 +25,7 @@ suite('resolveCopilotRuntimePaths', () => {
 	teardown(() => rm(testDir, { recursive: true, force: true }));
 
 	/**
-	 * Creates the `@github/copilot-sdk-<platform>` packages of every platform candidate of this
+	 * Creates the `@microsoft/copilot-sdk-<platform>` packages of every platform candidate of this
 	 * machine in `scopeDir`.
 	 */
 	async function createPlatformPackages(scopeDir: string): Promise<void> {
@@ -42,8 +42,8 @@ suite('resolveCopilotRuntimePaths', () => {
 		}
 	}
 
-	test('finds the platform package in the @github folder of node_modules', async () => {
-		const scopeDir = join(testDir, 'node_modules', '@github');
+	test('finds the platform package in the @microsoft folder of node_modules', async () => {
+		const scopeDir = join(testDir, 'node_modules', '@microsoft');
 		await createPlatformPackages(scopeDir);
 
 		const { runtimePath } = await resolveCopilotRuntimePaths(URI.file(join(testDir, 'node_modules')));
@@ -51,14 +51,14 @@ suite('resolveCopilotRuntimePaths', () => {
 		assert.strictEqual(relative(scopeDir, runtimePath).startsWith('copilot-sdk-'), true, runtimePath);
 	});
 
-	test('finds the platform package next to the real folder of @github/copilot-sdk', async () => {
+	test('finds the platform package next to the real folder of @microsoft/copilot-sdk', async () => {
 		// pnpm's isolated layout links only the direct dependencies into node_modules; the optional
-		// dependencies of @github/copilot-sdk are next to its real folder in the virtual store.
-		const storeScopeDir = join(testDir, 'node_modules', '.pnpm', '@github+copilot-sdk@1.0.0', 'node_modules', '@github');
+		// dependencies of @microsoft/copilot-sdk are next to its real folder in the virtual store.
+		const storeScopeDir = join(testDir, 'node_modules', '.pnpm', '@microsoft+copilot-sdk@2.0.0', 'node_modules', '@microsoft');
 		await mkdir(join(storeScopeDir, 'copilot-sdk'), { recursive: true });
 		await createPlatformPackages(storeScopeDir);
-		await mkdir(join(testDir, 'node_modules', '@github'), { recursive: true });
-		await symlink(join(storeScopeDir, 'copilot-sdk'), join(testDir, 'node_modules', '@github', 'copilot-sdk'), 'junction');
+		await mkdir(join(testDir, 'node_modules', '@microsoft'), { recursive: true });
+		await symlink(join(storeScopeDir, 'copilot-sdk'), join(testDir, 'node_modules', '@microsoft', 'copilot-sdk'), 'junction');
 
 		const { runtimePath } = await resolveCopilotRuntimePaths(URI.file(join(testDir, 'node_modules')));
 
