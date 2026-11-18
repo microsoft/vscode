@@ -462,6 +462,8 @@ suite('Agents Window workspace handoff telemetry', () => {
 				},
 			},
 			sessionsService: { openChat: async (_session: ISession, resource: URI) => { log.push(`main:${resource}`); } },
+			chatWidgetService: { getWidgetBySessionResource: () => undefined },
+			_pendingTurnReveal: disposables.add(new MutableDisposable()),
 		};
 		const openExistingSession = Reflect.get(SelectAgentsFolderContribution.prototype, 'openExistingSession') as (this: typeof harness, resource: URI, token: CancellationToken) => Promise<'unsupported' | undefined>;
 		const link = URI.parse(buildOpenSessionLinkUri(URI.parse('copilotcli:/session-1'), 'chat-2'));

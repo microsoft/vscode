@@ -5,7 +5,7 @@
 
 import { getActiveWindow, getWindowId } from '../../../../base/browser/dom.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,7 +24,9 @@ import { ISession, SessionStatus } from '../../../../workbench/services/sessions
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
-import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from './chatLinkRouting.js';
+import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat, revealLinkedTurn } from './chatLinkRouting.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 /**
  * Handles `agent-host-session://` links (surfaced by the `create_session` /
@@ -42,6 +44,11 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 
 	static readonly ID = 'sessions.openSessionLinkOpener';
 
+	/** Opening another link supersedes a reveal still waiting for its chat. */
+	private readonly _pendingTurnReveal = this._register(new MutableDisposable());
+	/** Counts link opens, so an open that finishes after a newer one does not reveal its turn. */
+	private _openGeneration = 0;
+
 	constructor(
 		@IOpenerService openerService: IOpenerService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -53,6 +60,8 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ILabelService labelService: ILabelService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -103,6 +112,8 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 	}
 
 	private async _open(resource: URI | string, openToSide: boolean, source: IChatWindowLinkSource | undefined): Promise<boolean> {
+		const generation = ++this._openGeneration;
+		this._pendingTurnReveal.clear();
 		const session = this._findSessionForLink(resource);
 		if (!session) {
 			return false;
@@ -110,7 +121,13 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = await resolveLinkedChat(this._connectionsService, session, chatId);
+		const revealTurn = () => {
+			if (generation === this._openGeneration) {
+				this._pendingTurnReveal.value = revealLinkedTurn(this._chatWidgetService, this._logService, resource, chatResource);
+			}
+		};
 		if (source && await openLinkedChatInChatWindow(this._chatWindowService, source, session, chatResource, openToSide)) {
+			revealTurn();
 			return true;
 		}
 		if (openToSide) {
@@ -122,6 +139,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		} else {
 			await this._sessionsService.openChat(session, chatResource, { source: 'link' });
 		}
+		revealTurn();
 		return true;
 	}
 }
