@@ -95,4 +95,5 @@ export const GitErrorCodes = Object.freeze({
 	WorktreeContainsChanges: 'WorktreeContainsChanges',
 	WorktreeAlreadyExists: 'WorktreeAlreadyExists',
 	WorktreeBranchAlreadyUsed: 'WorktreeBranchAlreadyUsed',
+	CantRemoveFile: 'CantRemoveFile',
 }) satisfies Record<keyof typeof git.GitErrorCodes, string>;

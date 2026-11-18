@@ -367,8 +367,20 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.WorktreeAlreadyExists;
 	} else if (/is already used by worktree at/.test(stderr)) {
 		return GitErrorCodes.WorktreeBranchAlreadyUsed;
+	} else if (getCantRemoveFilePath(stderr) !== undefined) {
+		return GitErrorCodes.CantRemoveFile;
 	}
 	return undefined;
+}
+
+// https://github.com/microsoft/vscode/issues/114374
+// Git cannot remove or replace a file, usually because another application
+// has it open (on Windows, for example). `git clean` reports this as
+// "warning: failed to remove <path>: <reason>" and `git checkout` reports it
+// as "error: unable to unlink old '<path>': <reason>".
+export function getCantRemoveFilePath(stderr: string): string | undefined {
+	const match = /^(?:warning: failed to remove (.+)|error: unable to unlink old '(.+)'): [^:\r\n]+\r?$/m.exec(stderr);
+	return match ? (match[1] ?? match[2]) : undefined;
 }
 
 // https://github.com/microsoft/vscode/issues/89373
