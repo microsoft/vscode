@@ -309,9 +309,35 @@ export class MissionControlEnvironment extends Disposable {
 			throw new MissionControlOwnerMismatchError('Credential does not match the Agent Host owner');
 		}
 		const resolveDirectory = (path: string) => withErrorCategory('AgentHostFileSystem', 'Mission Control could not resolve a shared directory', () => realpath(path));
-		const roots = await Promise.all(options.roots.map(resolveDirectory));
 		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(resolveDirectory));
 		const defaultDirectory = options.defaultDirectory === undefined ? undefined : await resolveDirectory(options.defaultDirectory);
+		const hasExplicitScope = options.projects !== undefined || options.defaultDirectory !== undefined;
+		const explicitRoots = new Set([
+			...(options.projects ?? []),
+			...(options.defaultDirectory !== undefined ? [options.defaultDirectory] : []),
+		]);
+		const roots: string[] = [];
+		for (const root of options.roots) {
+			if (!hasExplicitScope || explicitRoots.has(root)) {
+				roots.push(await resolveDirectory(root));
+			} else {
+				try {
+					roots.push(await realpath(root));
+				} catch (error) {
+					emitConnectionDiagnostic(this._host.onDiagnostic, {
+						operationId: '',
+						phase: 'configureResolveRoot',
+						timestamp: Date.now(),
+						outcome: 'failed',
+						detail: `root=${root}`,
+						error: getConnectionDiagnosticError(error),
+					});
+				}
+			}
+		}
+		if (options.roots.length > 0 && roots.length === 0) {
+			throw new CategorizedConnectionError('AgentHostFileSystem', 'Mission Control could not resolve a shared directory');
+		}
 		options = { ...options, projects, defaultDirectory };
 		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 			return;
