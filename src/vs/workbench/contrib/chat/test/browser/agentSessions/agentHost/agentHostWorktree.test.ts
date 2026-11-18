@@ -11,7 +11,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { isWindows } from '../../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, originalFSPath } from '../../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -56,7 +56,8 @@ suite('AgentHostWorktree', () => {
 		const worktrees = options.worktrees ?? [worktree, created];
 		const marks: string[] = [];
 		const terminal = upcastPartial<ITerminalInstance>({
-			initialCwd: options.terminalCwd?.fsPath,
+			// As the terminal reports it, with its drive letter in the case it has
+			initialCwd: options.terminalCwd && originalFSPath(options.terminalCwd),
 			statusList: upcastPartial<ITerminalInstance['statusList']>({ add: () => { marks.push('marked'); }, remove: () => { marks.push('unmarked'); } }),
 		});
 		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
@@ -619,7 +620,8 @@ suite('AgentHostWorktree', () => {
 		const feature = drive('c', '/work/vscode.worktrees/feature');
 		const follow = async (workingDirectory: URI) => {
 			const window = createWorktree({ enabled: true, root, worktrees: [feature] });
-			window.workingDirectories.set(agentSession('w').toString(), workingDirectory.fsPath);
+			// As the session reports it, with its drive letter in the case it has, which `fsPath` would lowercase
+			window.workingDirectories.set(agentSession('w').toString(), originalFSPath(workingDirectory));
 			window.show(agentSession('w'));
 			await settle();
 			return window.moves;
@@ -632,11 +634,14 @@ suite('AgentHostWorktree', () => {
 			otherDrive: await follow(drive('d', '/elsewhere/project')),
 			share: await follow(URI.from({ scheme: 'file', authority: 'server', path: '/share/project' })),
 			terminal: terminal.marks.at(-1),
+			// The product gets the other case: the window's folder and its worktree are `c:`
+			fedDrive: /^\/?([a-z]:)/i.exec(originalFSPath(drive(otherCase, '/work')))?.[1],
 		}, {
 			worktree: ['/c:/work/vscode.worktrees/feature'],
 			otherDrive: [],
 			share: [],
 			terminal: 'marked',
+			fedDrive: `${otherCase}:`,
 		});
 	});
 
