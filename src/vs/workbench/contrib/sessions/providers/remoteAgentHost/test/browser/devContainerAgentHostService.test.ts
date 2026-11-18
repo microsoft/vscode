@@ -91,6 +91,11 @@ class TestRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 		this._onDidChangeConnections.fire();
 	}
 
+	setConfiguredEntries(entries: readonly IRemoteAgentHostEntry[]): void {
+		this.configuredEntries = entries;
+		this._onDidChangeConfiguredEntries.fire();
+	}
+
 	override getDisplayNameOverride(address: string): string | undefined {
 		return this._displayNames.get(address);
 	}
@@ -309,14 +314,27 @@ suite('Dev Container Agent Host Service', () => {
 				return removeContainer(workspaceUri);
 			},
 		}));
+		const dockerChecks: string[] = [];
 		const createHostConnection = () => new class extends mock<IAgentConnection>() {
 			override readonly initializeResult = constObservable({ protocolVersion: '1', serverSeq: 0, snapshots: [], _meta: getAgentHostExtensionInitializeResultMeta(true, true) });
 			override readonly devContainerService = new class extends mock<IDevContainerAgentHostMainService>() {
-				override async isDockerAvailable() { return true; }
+				override async isDockerAvailable() { dockerChecks.push('checked'); return true; }
 			}();
 		}();
-		return { service, remoteService, storage, createdUris, removedUris, createHostConnection, providersService };
+		return { service, remoteService, storage, createdUris, removedUris, createHostConnection, providersService, dockerChecks };
 	}
+
+	test('checks Docker again on a host that was removed and configured again', async () => {
+		const { service, remoteService, createHostConnection, dockerChecks } = setupEnvironments();
+		const entries = remoteService.configuredEntries;
+		remoteService.setHostConnection('ssh:build', createHostConnection());
+		await waitForState(service.environmentHosts, hosts => hosts.has('ssh:build'));
+		remoteService.setConfiguredEntries([]);
+		const removed = [...service.environmentHosts.get()];
+		remoteService.setConfiguredEntries(entries);
+		await waitForState(service.environmentHosts, hosts => hosts.has('ssh:build'));
+		assert.deepStrictEqual({ removed, dockerChecks: dockerChecks.length }, { removed: [], dockerChecks: 2 });
+	});
 
 	test('creates environments on Docker hosts that connect and disconnect with the host until deleted', async () => {
 		const { service, remoteService, storage, createdUris, removedUris, createHostConnection } = setupEnvironments();

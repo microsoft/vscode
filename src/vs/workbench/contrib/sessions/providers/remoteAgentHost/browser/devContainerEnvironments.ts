@@ -373,11 +373,13 @@ export class DevContainerEnvironments extends Disposable {
 			if (this._localDockerCheck.available) {
 				hosts.add(LocalDevContainerEnvironmentHost);
 			}
+			const configured = new Set<string>();
 			for (const entry of this._remoteAgentHostService.configuredEntries) {
 				if (!isEnvironmentHostEntry(entry)) {
 					continue;
 				}
 				const address = getEntryAddress(entry);
+				configured.add(address);
 				const connection = this._remoteAgentHostService.getConnection(address);
 				const devContainerService = connection?.devContainerService;
 				if (!connection || !devContainerService || !supportsAgentHostDevContainerEnvironments(connection.initializeResult.get())) {
@@ -400,6 +402,12 @@ export class DevContainerEnvironments extends Disposable {
 				}
 				if (check.available) {
 					hosts.add(address);
+				}
+			}
+			// Checks of hosts that are no longer configured would retain their closed connections.
+			for (const address of [...this._dockerChecks.keys()]) {
+				if (!configured.has(address)) {
+					this._dockerChecks.delete(address);
 				}
 			}
 		} else {
