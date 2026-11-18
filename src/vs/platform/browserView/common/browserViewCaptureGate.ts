@@ -17,14 +17,15 @@ interface IHeldChanges {
  * another screenshot, ends that early, and the screenshot then repeats the visible area instead of showing the rest of
  * the page. So while a full-page screenshot is taken, changes to the view wait as well, and are applied in order once
  * it is done. A change that can't wait, like hiding the view under a menu, is applied right away, after the changes
- * that wait, and the screenshot is then taken again.
+ * that wait, and the screenshot is then taken again, until it is taken without such an interruption.
  */
 export class BrowserViewCaptureGate extends Disposable {
 
 	/**
 	 * How long a screenshot keeps the next one waiting at most, and a full-page screenshot also the changes to the view.
 	 * A screenshot that doesn't finish, for example because its page is busy or paused in the debugger, then cannot
-	 * keep the view from showing or moving, or keep other screenshots from being taken.
+	 * keep the view from showing or moving, or keep other screenshots from being taken. Once that time is up, an
+	 * interrupted full-page screenshot isn't taken again either.
 	 */
 	static readonly MAX_WAIT_MS = 5000;
 
@@ -70,9 +71,13 @@ export class BrowserViewCaptureGate extends Disposable {
 		};
 		const timeoutHandle = setTimeout(finish, BrowserViewCaptureGate.MAX_WAIT_MS);
 		try {
-			const result = await capture();
-			// A change that couldn't wait may have cut the screenshot short, so take it again while changes still wait.
-			return held.interrupted && this._held === held ? await capture() : result;
+			let result: T;
+			do {
+				held.interrupted = false;
+				result = await capture();
+				// A change that couldn't wait may have cut the screenshot short, so take it again while changes still wait.
+			} while (held.interrupted && this._held === held);
+			return result;
 		} finally {
 			clearTimeout(timeoutHandle);
 			finish();

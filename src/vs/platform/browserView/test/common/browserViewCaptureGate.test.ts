@@ -45,10 +45,10 @@ suite('BrowserViewCaptureGate', () => {
 		});
 	});
 
-	test('applies a change that cannot wait right away, after the changes that wait, and takes the full-page screenshot again', async () => {
+	test('applies a change that cannot wait right away, after the changes that wait, and takes the full-page screenshot again until it is not interrupted', async () => {
 		const gate = disposables.add(new BrowserViewCaptureGate());
 		const steps: string[] = [];
-		const attempts = [new DeferredPromise<string>(), new DeferredPromise<string>()];
+		const attempts = [new DeferredPromise<string>(), new DeferredPromise<string>(), new DeferredPromise<string>()];
 		let attempt = 0;
 
 		const screenshot = gate.capture(true, () => {
@@ -56,16 +56,19 @@ suite('BrowserViewCaptureGate', () => {
 			return attempts[attempt++].p;
 		});
 		await timeout(0);
-		gate.applyChange(() => steps.push('show'));
-		gate.applyChange(() => steps.push('hide'), false);
-		gate.applyChange(() => steps.push('move'));
+		gate.applyChange(() => steps.push('hide'), false);	// a menu opens over the page
 		attempts[0].complete('cut short');
 		await timeout(0);
-		attempts[1].complete('full page');
+		gate.applyChange(() => steps.push('show'));	// the menu closes
+		gate.applyChange(() => steps.push('hide again'), false);	// a dialog opens over the page
+		gate.applyChange(() => steps.push('show again'));	// the dialog closes
+		attempts[1].complete('cut short again');
+		await timeout(0);
+		attempts[2].complete('full page');
 
 		assert.deepStrictEqual({ result: await screenshot, steps }, {
 			result: 'full page',
-			steps: ['full page attempt 1', 'show', 'hide', 'full page attempt 2', 'move'],
+			steps: ['full page attempt 1', 'hide', 'full page attempt 2', 'show', 'hide again', 'full page attempt 3', 'show again'],
 		});
 	});
 
