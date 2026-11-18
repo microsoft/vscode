@@ -3159,6 +3159,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.refreshParsedInput();
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
+		}));
+		// Also when the selected agent's file changes its `argument-hint` in place.
+		store.add(autorun(reader => {
+			input.currentModeObs.read(reader).argumentHint?.read(reader);
 			this._applyInputPlaceholder();
 		}));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
