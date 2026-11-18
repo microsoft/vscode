@@ -205,8 +205,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	private readonly workspaceFolderRepositories = new WorkspaceFolderRepositories<OpenRepository>(r => r.repository.root);
 
-	/** The locations that folders switched to whose repository is opening or awaiting its first status. */
-	private readonly pendingSwitchLocations: string[] = [];
+	/** The locations that folders switched to whose repository is opening or, once open, awaiting its first status. */
+	private readonly pendingSwitchLocations: { readonly location: string; repository?: OpenRepository }[] = [];
 
 	/** The repositories of locations that folders switched to, awaiting their first status. */
 	private readonly pendingSwitchRepositories = new Set<OpenRepository>();
@@ -503,20 +503,26 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// A folder switched location: the location that is left stays shown until the new one is ready
 			if (possibleRepositoryFolders.length > 0) {
-				const locations = possibleRepositoryFolders.map(p => p.uri.fsPath);
-				this.pendingSwitchLocations.push(...locations);
+				const pending: { readonly location: string; repository?: OpenRepository }[] = possibleRepositoryFolders.map(p => ({ location: p.uri.fsPath }));
+				this.pendingSwitchLocations.push(...pending);
 				let opened: OpenRepository[] = [];
 				try {
-					await Promise.all(locations.map(location => this.openRepository(location, false, false, true)));
-					opened = possibleRepositoryFolders
-						.map(folder => this.getOpenRepository(folder.uri))
-						.filter((r): r is OpenRepository => !!r && r.repository.isWarm && !show.includes(r));
+					await Promise.all(pending.map(p => this.openRepository(p.location, false, false, true)));
+					for (const p of pending) {
+						const repository = this.getOpenRepository(Uri.file(p.location));
+						if (repository && repository.repository.isWarm && !show.includes(repository)) {
+							// Closing the repository ends its pending location, see `close`
+							p.repository = repository;
+							opened.push(repository);
+						}
+					}
 					opened.forEach(r => this.pendingSwitchRepositories.add(r));
 					await Promise.race([Promise.all(opened.map(r => r.repository.whenFirstStatus)), new Promise(c => setTimeout(c, 10000))]);
 				} finally {
-					locations.forEach(l => this.pendingSwitchLocations.splice(this.pendingSwitchLocations.indexOf(l), 1));
+					this.removePendingSwitchLocations(p => pending.includes(p));
 					opened.forEach(r => this.pendingSwitchRepositories.delete(r));
 				}
+				opened = opened.filter(r => this.openRepositories.includes(r));
 				show.push(...opened);
 			}
 
@@ -536,7 +542,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private switchFolderLocation(show: readonly OpenRepository[], leave: readonly OpenRepository[]): void {
 		// A repository can have been closed meanwhile
 		const candidates = [...new Set([...show, ...leave])].filter(r => this.openRepositories.includes(r));
-		const result = this.workspaceFolderRepositories.completeSwitch(workspace.workspaceFolders || [], candidates, this.openRepositories, [...this.pendingSwitchRepositories], this.pendingSwitchLocations);
+		const result = this.workspaceFolderRepositories.completeSwitch(workspace.workspaceFolders || [], candidates, this.openRepositories, [...this.pendingSwitchRepositories], this.pendingSwitchLocations.filter(p => !p.repository || this.pendingSwitchRepositories.has(p.repository)).map(p => p.location));
 
 		for (const openRepository of result.show) {
 			this.logger.trace(`[Model][switchFolderLocation] Showing repository: ${openRepository.repository.root}`);
@@ -545,6 +551,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 
 		result.warm.forEach(r => this.keepWarm(r));
+	}
+
+	private removePendingSwitchLocations(predicate: (pending: { readonly location: string; repository?: OpenRepository }) => boolean): void {
+		for (let i = this.pendingSwitchLocations.length - 1; i >= 0; i--) {
+			if (predicate(this.pendingSwitchLocations[i])) {
+				this.pendingSwitchLocations.splice(i, 1);
+			}
+		}
 	}
 
 	private keepWarm(openRepository: OpenRepository): void {
@@ -964,6 +978,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			repository.dispose();
 
 			this.workspaceFolderRepositories.delete(openRepository);
+			this.pendingSwitchRepositories.delete(openRepository);
+			this.removePendingSwitchLocations(p => p.repository === openRepository);
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
 			this._onDidCloseRepository.fire(repository);
 		};

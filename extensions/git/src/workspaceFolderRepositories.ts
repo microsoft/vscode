@@ -145,7 +145,8 @@ export class WorkspaceFolderRepositories<T> {
 	 *   switched away is handed over to the location it is at now (see `onDidChangeWorkspaceFolders`) and stays shown;
 	 * - a folder at a ready location is at the deepest ready repository that contains it, among the candidates, the
 	 *   handed over ones and the `openRepositories` that are not kept warm; it is shown if it is one of the first two;
-	 * - a handover ends once the location it is to is ready: its repository is kept warm, unless it is current.
+	 * - a handover ends once the location it is to is ready: its repository is kept warm, unless it is current;
+	 * - a pending repository is neither shown nor kept warm, as the switch that opens it completes for it.
 	 */
 	completeSwitch(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[], openRepositories: readonly T[], pending: readonly T[], pendingLocations: readonly string[]): { show: T[]; warm: T[] } {
 		const handovers = [...this.handovers].filter(([r]) => openRepositories.includes(r));
@@ -176,7 +177,8 @@ export class WorkspaceFolderRepositories<T> {
 			}
 		}
 
-		return { show: [...show], warm: affected.filter(r => !show.has(r)) };
+		// A pending repository stays hidden as it is: the switch that opens it decides about it once it is ready
+		return { show: [...show], warm: affected.filter(r => !show.has(r) && isReady(r)) };
 	}
 
 	/**
