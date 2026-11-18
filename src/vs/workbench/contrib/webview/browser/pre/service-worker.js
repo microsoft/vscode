@@ -46,13 +46,13 @@ const resolveTimeout = 30_000;
 
 /**
  * @template T
- * @typedef {{ status: 'ok', value: T } | { status: 'timeout' }} RequestStoreResult
+ * @typedef {{ status: 'ok', value: T } | { status: 'timeout' } | { status: 'disposed' }} RequestStoreResult
  */
 
 
 /**
  * @template T
- * @typedef {{ resolve: (x: RequestStoreResult<T>) => void, promise: Promise<RequestStoreResult<T>> }} RequestStoreEntry
+ * @typedef {{ resolve: (x: RequestStoreResult<T>) => void, promise: Promise<RequestStoreResult<T>>, timeout: any, webviewId?: string }} RequestStoreEntry
  */
 
 
@@ -63,34 +63,56 @@ class RequestStore {
 	constructor() {
 		/** @type {Map<number, RequestStoreEntry<T>>} */
 		this.map = new Map();
+		/** @type {Map<string, Set<number>>} */
+		this.webviewMap = new Map();
 		/** @type {number} */
 		this.requestPool = 0;
 	}
 
 	/**
-	 * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>> }}
+	 * @param {string} [webviewId]
+	 * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>>, cancel: () => void }}
 	 */
-	create() {
+	create(webviewId) {
 		const requestId = ++this.requestPool;
 
 		/** @type {(x: RequestStoreResult<T>) => void} */
 		let resolve;
 		const promise = new Promise(r => resolve = r);
 
-		/** @type {RequestStoreEntry<T>} */
-		const entry = { resolve, promise };
-		this.map.set(requestId, entry);
-
-		const dispose = () => {
+		const dispose = (status = 'timeout') => {
 			clearTimeout(timeout);
 			const existingEntry = this.map.get(requestId);
 			if (existingEntry === entry) {
-				existingEntry.resolve({ status: 'timeout' });
+				existingEntry.resolve({ status });
 				this.map.delete(requestId);
+				if (webviewId) {
+					const set = this.webviewMap.get(webviewId);
+					if (set) {
+						set.delete(requestId);
+						if (set.size === 0) {
+							this.webviewMap.delete(webviewId);
+						}
+					}
+				}
 			}
 		};
-		const timeout = setTimeout(dispose, resolveTimeout);
-		return { requestId, promise };
+		const timeout = setTimeout(() => dispose('timeout'), resolveTimeout);
+
+		/** @type {RequestStoreEntry<T>} */
+		const entry = { resolve, promise, timeout, webviewId };
+		this.map.set(requestId, entry);
+
+		if (webviewId) {
+			let set = this.webviewMap.get(webviewId);
+			if (!set) {
+				set = new Set();
+				this.webviewMap.set(webviewId, set);
+			}
+			set.add(requestId);
+		}
+
+		return { requestId, promise, cancel: () => dispose('disposed') };
 	}
 
 	/**
@@ -103,9 +125,38 @@ class RequestStore {
 		if (!entry) {
 			return false;
 		}
+		clearTimeout(entry.timeout);
 		entry.resolve({ status: 'ok', value: result });
 		this.map.delete(requestId);
+		if (entry.webviewId) {
+			const set = this.webviewMap.get(entry.webviewId);
+			if (set) {
+				set.delete(requestId);
+				if (set.size === 0) {
+					this.webviewMap.delete(entry.webviewId);
+				}
+			}
+		}
 		return true;
+	}
+
+	/**
+	 * @param {string} webviewId
+	 */
+	cancelForWebview(webviewId) {
+		const set = this.webviewMap.get(webviewId);
+		if (!set) {
+			return;
+		}
+		for (const requestId of [...set]) {
+			const entry = this.map.get(requestId);
+			if (entry) {
+				clearTimeout(entry.timeout);
+				entry.resolve({ status: 'disposed' });
+				this.map.delete(requestId);
+			}
+		}
+		this.webviewMap.delete(webviewId);
 	}
 }
 
@@ -121,15 +172,47 @@ class AsyncSemaphore {
 	}
 
 	/**
+	 * @param {AbortSignal} [signal]
 	 * @returns {Promise<() => void>}
 	 */
-	acquire() {
+	acquire(signal) {
+		if (signal?.aborted) {
+			return Promise.reject(new Error('Aborted'));
+		}
+
 		if (this.activeCount < this.maxConcurrency && this.waiters.length === 0) {
 			this.activeCount++;
 			return Promise.resolve(this.createReleaser());
 		}
 
-		return new Promise(resolve => this.waiters.push(resolve));
+		return new Promise((resolve, reject) => {
+			/** @type {(release: () => void) => void} */
+			const onAcquire = (release) => {
+				if (signal) {
+					signal.removeEventListener('abort', onAbort);
+				}
+				if (signal?.aborted) {
+					release();
+					reject(new Error('Aborted'));
+				} else {
+					resolve(release);
+				}
+			};
+
+			const onAbort = () => {
+				const index = this.waiters.indexOf(onAcquire);
+				if (index !== -1) {
+					this.waiters.splice(index, 1);
+				}
+				reject(new Error('Aborted'));
+			};
+
+			if (signal) {
+				signal.addEventListener('abort', onAbort, { once: true });
+			}
+
+			this.waiters.push(onAcquire);
+		});
 	}
 
 	/**
@@ -238,6 +321,28 @@ const safariResourceStreams = new Map();
 /** @type {RequestStore<string|undefined>} */
 const localhostRequestStore = new RequestStore();
 
+/** @type {Set<string>} */
+const disposedWebviews = new Set();
+
+/**
+ * @param {string} webviewId
+ */
+function markWebviewDisposed(webviewId) {
+	disposedWebviews.add(webviewId);
+	resourceRequestStore.cancelForWebview(webviewId);
+	localhostRequestStore.cancelForWebview(webviewId);
+	for (const [id, writer] of safariResourceStreams.entries()) {
+		const entry = resourceRequestStore.map.get(id);
+		if (!entry || entry.webviewId === webviewId) {
+			writer.abort(new Error('Webview disposed')).catch(() => { });
+			safariResourceStreams.delete(id);
+		}
+	}
+	setTimeout(() => {
+		disposedWebviews.delete(webviewId);
+	}, 60_000);
+}
+
 const unauthorized = () =>
 	new Response('Unauthorized', { status: 401, });
 
@@ -336,6 +441,13 @@ sw.addEventListener('message', async (event) => {
 			const data = event.data.data;
 			if (!localhostRequestStore.resolve(data.id, data.location)) {
 				console.log('Could not resolve unknown localhost', data.origin);
+			}
+			return;
+		}
+		case 'did-unload-webview': {
+			const id = event.data.id;
+			if (id) {
+				markWebviewDisposed(id);
 			}
 			return;
 		}
@@ -462,7 +574,7 @@ async function processResourceRequest(
 	 * @returns {Response}
 	 */
 	const resolveResourceEntry = (result, cachedResponse, releaseHostResourceResponseBody) => {
-		if (result.status === 'timeout') {
+		if (result.status === 'timeout' || result.status === 'disposed') {
 			releaseHostResourceResponseBody();
 			return requestTimeout();
 		}
@@ -579,6 +691,9 @@ async function processResourceRequest(
 	/** @type {Client[] | undefined} */
 	let parentClients;
 	if (webviewId) {
+		if (disposedWebviews.has(webviewId) || event.request.signal?.aborted) {
+			return notFound();
+		}
 		parentClients = await getOuterIframeClient(webviewId);
 		if (!parentClients.length) {
 			console.log('Could not find parent client for request');
@@ -586,11 +701,35 @@ async function processResourceRequest(
 		}
 	}
 
-	const releaseHostResourceResponseBody = shouldLimitHostResourceResponseBodies && webviewId
-		? await hostResourceResponseBodySemaphore.acquire()
-		: () => { };
+	let releaseHostResourceResponseBody = () => { };
+	if (shouldLimitHostResourceResponseBodies && webviewId) {
+		try {
+			releaseHostResourceResponseBody = await hostResourceResponseBodySemaphore.acquire(event.request.signal);
+		} catch {
+			return notFound();
+		}
+	}
 
-	const { requestId, promise } = resourceRequestStore.create();
+	if (webviewId) {
+		if (disposedWebviews.has(webviewId) || event.request.signal?.aborted) {
+			releaseHostResourceResponseBody();
+			return notFound();
+		}
+		parentClients = await getOuterIframeClient(webviewId);
+		if (!parentClients.length) {
+			console.log('Could not find parent client for request');
+			releaseHostResourceResponseBody();
+			return notFound();
+		}
+	}
+
+	const { requestId, promise, cancel } = resourceRequestStore.create(webviewId);
+	/** @type {(() => void) | undefined} */
+	let abortListener;
+	if (event.request.signal) {
+		abortListener = () => cancel();
+		event.request.signal.addEventListener('abort', abortListener, { once: true });
+	}
 	try {
 		if (parentClients) {
 			for (const parentClient of parentClients) {
@@ -617,6 +756,10 @@ async function processResourceRequest(
 	} catch (error) {
 		releaseHostResourceResponseBody();
 		throw error;
+	} finally {
+		if (abortListener && event.request.signal) {
+			event.request.signal.removeEventListener('abort', abortListener);
+		}
 	}
 }
 
