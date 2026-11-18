@@ -30,7 +30,7 @@ import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { scrollbarShadow } from '../../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
-import { IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { combineVoiceInput } from '../../../chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../chat/browser/attachments/chatVariables.js';
@@ -1226,12 +1226,18 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		};
 		try {
 			const session = this.options.session.get();
-			const handled = !hasAdditionalSendContent && !!session && await this.chatSubmitRequestHandlerService.tryHandle({
+			const outcome = !hasAdditionalSendContent && !!session ? (await this.chatSubmitRequestHandlerService.tryHandle({
 				sessionResource: session.resource,
 				providerId: session.providerId,
 				sessionId: session.sessionId,
 				input: query,
-			});
+			})).outcome : ChatSubmitRequestOutcome.Continue;
+			const handled = outcome === ChatSubmitRequestOutcome.Handled;
+			if (outcome === ChatSubmitRequestOutcome.Cancelled) {
+				// Stopped by the handler: neither sent nor cleared
+				userInteraction?.cancel('notDispatched');
+				return false;
+			}
 			// The handler can wait, during which the composer can be closed or move to another draft, also with the same input:
 			// the request is for the draft it was written for, so it is never sent to another, nor once that is closed, and the
 			// input, now another draft's, stays as it is, also where the handler acted on the request, which then dropped nothing.

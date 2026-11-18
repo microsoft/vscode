@@ -467,6 +467,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
 
+	/** Returns this host's current connection, or `undefined` while disconnected. */
+	getAgentConnection?(): IAgentConnection | undefined;
+
 	/** Sends a request on an `mcp://` AHP side channel of this host's connection. */
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 

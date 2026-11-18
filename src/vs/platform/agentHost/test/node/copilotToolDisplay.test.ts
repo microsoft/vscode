@@ -581,6 +581,23 @@ suite('getPermissionDisplay — MCP tool confirmation', () => {
 			toolName: 'issue_read',
 		});
 	});
+
+	test('labels a Connector server by its display name while keeping the server identity', () => {
+		const serverName = 'github-copilot-connector-9839aae413778b24b512';
+		const display = getPermissionDisplay({
+			kind: 'mcp',
+			serverName,
+			serverDisplayName: 'Slack',
+			toolName: 'slack_read_thread',
+			toolTitle: 'Read thread messages',
+			readOnly: true,
+		});
+		assert.deepStrictEqual({ confirmationTitle: display.confirmationTitle, invocationMessage: display.invocationMessage, mcpServerName: display.mcpServerName }, {
+			confirmationTitle: 'Allow tool from Slack?',
+			invocationMessage: 'Slack: Read thread messages',
+			mcpServerName: serverName,
+		});
+	});
 });
 
 suite('getPermissionDisplay — workflow confirmation', () => {
@@ -1020,6 +1037,32 @@ suite('copilotToolDisplay — built-in tool invocation/past-tense messages', () 
 			parameters: { agent_ids: ['agent-1', 'agent-2', 'unknown-agent'], message: 'Follow up' },
 		});
 	});
+
+	test('links known write recipients in streaming, ready, and completed messages', () => {
+		const names = new Map([['agent-1', 'Renderer reviewer'], ['agent-2', 'Review [permissions]']]);
+		const chats = new Map([['agent-1', 'ahp-chat:/renderer'], ['agent-2', 'ahp-chat:/permissions(a)']]);
+		const parameters = { agent_ids: ['agent-1', 'agent-2', 'unknown-agent'], message: 'Follow up' };
+		const resolveName = (id: string) => names.get(id);
+		const resolveChat = (id: string) => chats.get(id);
+		assert.deepStrictEqual([
+			getStreamingInvocationMessage('write_agent', 'Write to Agent', parameters, undefined, resolveName, resolveChat),
+			getInvocationMessage('write_agent', 'Write to Agent', parameters, undefined, resolveName, resolveChat),
+			getPastTenseMessage('write_agent', 'Write to Agent', parameters, true, undefined, undefined, resolveName, undefined, resolveChat),
+		], Array(3).fill({ markdown: 'Write to agents [Renderer reviewer](ahp-chat:/renderer), [Review \\[permissions\\]](ahp-chat:/permissions\\(a\\)), `unknown-agent`' }));
+	});
+
+	for (const [toolName, verb] of [['read_agent', 'Read agent'], ['write_agent', 'Write to agent']]) {
+		test(`links the named child chat in streaming, ready, and completed ${toolName} messages`, () => {
+			const parameters = { agent_id: 'agent-1' };
+			const resolveName = () => 'Review [permissions]';
+			const resolveChat = () => 'ahp-chat:/11111111-1111-5111-8111-111111111111';
+			assert.deepStrictEqual([
+				getStreamingInvocationMessage(toolName, 'Agent', parameters, undefined, resolveName, resolveChat),
+				getInvocationMessage(toolName, 'Agent', parameters, undefined, resolveName, resolveChat),
+				getPastTenseMessage(toolName, 'Agent', parameters, true, undefined, undefined, resolveName, undefined, resolveChat),
+			], Array(3).fill({ markdown: `${verb} [Review \\[permissions\\]](${resolveChat()})` }));
+		});
+	}
 
 	test('describes scoped writes and tolerates incomplete streaming recipients', () => {
 		assert.deepStrictEqual([

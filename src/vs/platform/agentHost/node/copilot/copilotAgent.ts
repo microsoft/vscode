@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IOtlpLogRecord, OtlpLogLevelName } from '../../common/otlp/otlpLogEmitter.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type CopilotSession, type GitHubTelemetryNotification, type NetworkAuthenticateBasicRequest, type NetworkAuthenticateBasicResult, type NetworkConfig, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@microsoft/copilot-sdk';
 import { constants as fsConstants } from 'fs';
@@ -116,7 +117,7 @@ import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointServi
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, findDiscoveredPluginMcpServer, getMcpServerCustomizations, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { withMcpServerLogsChannels, applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, findDiscoveredPluginMcpServer, getMcpServerCustomizations, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
 import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
@@ -1327,6 +1328,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
+	private readonly _mcpServerLogSubscriptions = this._register(new DisposableMap<symbol, DisposableStore>());
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 	private readonly _scopedModelCatalogs = new WeakMap<IAgentHostCredentialSource, IScopedCopilotModelCatalog>();
@@ -3868,6 +3870,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	addMcpServerConfiguration(name: string, config: IMcpServerConfiguration): Promise<void> {
 		return this._customizationInstallations.addMcpServerConfiguration(name, config);
+	}
+
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable {
+		const key = Symbol();
+		const store = new DisposableStore();
+		this._mcpServerLogSubscriptions.set(key, store);
+		const subscription = store.add(new MutableDisposable<IDisposable>());
+		const timer = store.add(new MutableDisposable<IDisposable>());
+		let current: CopilotAgentSession | undefined;
+		const refresh = () => {
+			const controlChat = this._resolveMcpServerControlChat(session);
+			const candidate = controlChat ? this._findSessionChat(session) ?? this._findChatByUri(controlChat.chat) : undefined;
+			const next = candidate?.isDisposed ? undefined : candidate;
+			if (next !== current) {
+				current = next;
+				subscription.value = next?.subscribeMcpServerLogs(serverName, level, onRecords);
+			}
+			timer.value = disposableTimeout(refresh, 1000);
+		};
+		refresh();
+		return toDisposable(() => this._mcpServerLogSubscriptions.deleteAndDispose(key));
 	}
 
 	async startMcpServer(session: URI, id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
@@ -9586,6 +9609,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const backing = this._chatBackings.get(context.chatKey);
 				const result = await mapSessionEvents(context.resource, reference.object, events, context.chat, context.ownerSession, createCopilotSessionPathMapper(metadata.workingDirectory && toCopilotWorkspace(metadata.workingDirectory), resourceJoinPath(this._copilotHomeService.home, 'session-state', sdkSessionId)), {
 					logService: this._logService,
+					resolveSubagentChatUri: toolCallId => subagentChatUri(context.ownerRef.getSubagentChatUriFormat(), context.ownerSession.toString(), context.chatKey, toolCallId),
 					workingDirectory: metadata.workingDirectory,
 					clientToolNames: new Set(this._activeClients.get(context.ownerSession)?.toolSet.merged().map(tool => tool.name) ?? []),
 					model: backing?.model ?? metadata.model,
@@ -13536,7 +13560,7 @@ class SessionPluginController extends Disposable {
 	 * stable.
 	 */
 	private _projectForPublish<T extends Customization>(customization: T): T {
-		return this._applyEnablement(applyMcpServerRuntimeStates(customization, this.mcpServerStates.get()));
+		return withMcpServerLogsChannels(this._applyEnablement(applyMcpServerRuntimeStates(customization, this.mcpServerStates.get())), this._session.toString());
 	}
 }
 

@@ -33,6 +33,7 @@ export const Menus = {
 	SessionsViewEnvironment: new MenuId('SessionsViewEnvironment'),
 	SessionsViewSource: new MenuId('SessionsViewSource'),
 	SessionsViewHarness: new MenuId('SessionsViewHarness'),
+	SessionsViewWorktree: new MenuId('SessionsViewWorktree'),
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	/** When automation sessions also appear in the Sessions list, a submenu of {@link SessionsViewShow}. */
 	SessionsViewAutomations: new MenuId('SessionsViewAutomations'),
