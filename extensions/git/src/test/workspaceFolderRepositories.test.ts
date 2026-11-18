@@ -102,7 +102,7 @@ class TestWorkspace {
 
 	/** `Model.switchFolderLocation`: the views change in one step, following the current folders. */
 	private completeSwitch(candidates: string[]): void {
-		const current = this.tracker.getCurrentRepositories(this.folders, candidates);
+		const current = this.tracker.getCurrentRepositories(this.folders, candidates, [...this.repositories, ...this.warm, ...this.opening]);
 		for (const repository of current) {
 			this.tracker.takeWarm(repository);
 			if (this.warm.includes(repository)) {
@@ -284,6 +284,18 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual({ shown: [...ws.repositories], warm: ws.warm }, { shown: [primary], warm: [] });
 	});
 
+	test('a switch that completes after the folder switched on to a worktree nested in its location keeps the nested worktree shown', () => {
+		const ws = new TestWorkspace([folderAt(primary)]);
+
+		const completeFirst = ws.beginUpdateFolders([folderAt(wt1, false)]);
+		ws.resolveLocations();
+		ws.updateFolders([folderAt(nested, false)]);
+		completeFirst();
+		ws.resolveLocations();
+
+		assert.deepStrictEqual({ shown: [...ws.repositories], warm: [...ws.warm].sort() }, { shown: [nested], warm: [primary, wt1].sort() });
+	});
+
 	test('a switch completes for its folder while another folder changes', () => {
 		const otherFolder = folder(other, 1);
 		const ws = new TestWorkspace([folderAt(primary), otherFolder]);
@@ -400,14 +412,18 @@ suite('WorkspaceFolderRepositories locations', () => {
 		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: { close: [], leave: [] }, onLocations: { close: [], leave: [nested] } });
 	});
 
-	test('the current repositories are the deepest candidates that contain a workspace folder', () => {
+	test('the current repositories are the candidates that are the deepest open repository containing a workspace folder', () => {
 		const tracker = new WorkspaceFolderRepositories<string>(root => root);
+		const warmTracker = new WorkspaceFolderRepositories<string>(root => root);
+		warmTracker.keepWarm(nested);
 
 		assert.deepStrictEqual([
-			[...tracker.getCurrentRepositories([folder(nested)], [primary, nested, wt1])],
-			[...tracker.getCurrentRepositories([folder(primary)], [nested, wt1])],
-			[...tracker.getCurrentRepositories([folder(wt1), folder(path.join(primary, 'src'), 1)], [primary, wt1, wt2])],
-		], [[nested], [], [wt1, primary]]);
+			[...tracker.getCurrentRepositories([folder(nested)], [primary, nested, wt1], [primary, nested, wt1])],
+			[...tracker.getCurrentRepositories([folder(primary)], [nested, wt1], [nested, wt1])],
+			[...tracker.getCurrentRepositories([folder(wt1), folder(path.join(primary, 'src'), 1)], [primary, wt1, wt2], [primary, wt1, wt2])],
+			[...tracker.getCurrentRepositories([folder(nested)], [primary, wt1], [primary, wt1, nested])],
+			[...warmTracker.getCurrentRepositories([folder(nested)], [primary, wt1], [primary, wt1, nested])],
+		], [[nested], [], [wt1, primary], [], [primary]]);
 	});
 
 	test('takes a warm repository by its root, keeps at most the capacity and closes the least recently left one first', () => {

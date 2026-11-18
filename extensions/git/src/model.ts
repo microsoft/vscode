@@ -520,7 +520,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private switchFolderLocation(show: readonly OpenRepository[], leave: readonly OpenRepository[]): void {
 		// A repository can have been closed meanwhile
 		const candidates = [...new Set([...show, ...leave])].filter(r => this.openRepositories.includes(r));
-		const current = this.workspaceFolderRepositories.getCurrentRepositories(workspace.workspaceFolders || [], candidates);
+		const current = this.workspaceFolderRepositories.getCurrentRepositories(workspace.workspaceFolders || [], candidates, this.openRepositories);
 
 		for (const openRepository of current) {
 			this.logger.trace(`[Model][switchFolderLocation] Showing repository: ${openRepository.repository.root}`);

@@ -108,17 +108,20 @@ export class WorkspaceFolderRepositories<T> {
 	}
 
 	/**
-	 * The repositories among `candidates` that the workspace folders are at: for each folder, the
-	 * deepest candidate that contains it. A switch that completes after the folders changed again
-	 * shows these and keeps the other candidates warm.
+	 * The repositories among `candidates` that the workspace folders are at: for each folder, the deepest
+	 * repository that contains it among the candidates and the other open repositories that are not kept
+	 * warm, which includes those still opening for another switch. A switch that completes after the folders
+	 * changed again shows these and keeps the other candidates warm, so it never shows a location again whose
+	 * folder is now at a nested repository that is already shown or opening.
 	 */
-	getCurrentRepositories(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[]): Set<T> {
+	getCurrentRepositories(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[], openRepositories: readonly T[]): Set<T> {
+		const repositories = [...new Set([...candidates, ...openRepositories.filter(r => !this.warm.includes(r))])];
 		const result = new Set<T>();
 		for (const folder of workspaceFolders) {
-			const current = candidates
+			const current = repositories
 				.filter(r => isDescendant(this.getRoot(r), folder.uri.fsPath))
 				.sort((a, b) => this.getRoot(b).length - this.getRoot(a).length)[0];
-			if (current) {
+			if (current && candidates.includes(current)) {
 				result.add(current);
 			}
 		}
