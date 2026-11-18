@@ -9,7 +9,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -97,6 +97,7 @@ import { SessionDataService } from '../../node/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { readCopilotSessionEvents } from '../../node/copilot/copilotSessionHistory.js';
+import { isCopilotJournalCorruptionError, recoverCopilotSessionHistory } from '../../node/copilot/copilotSessionHistoryRecovery.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { GENERATED_IMAGE_PRESENTATION_CONTEXT } from '../../node/copilot/copilotGeneratedImages.js';
@@ -160,6 +161,7 @@ import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContex
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { buildMcpServerLogsChannelTemplate, MCP_SERVER_LOGS_META_KEY } from '../../common/otlp/mcpServerLogsChannel.js';
 
 type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
 type TaskOutputRead = Parameters<CopilotSession['rpc']['tasks']['readOutput']>[0];
@@ -7824,6 +7826,84 @@ suite('CopilotAgentSession', () => {
 		});
 	}
 
+	test('damaged journal recovery validates records and leaves the source untouched', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'copilot-history-recovery-'));
+		const path = join(directory, 'events.jsonl');
+		const events = toSessionEvents([
+			{ type: 'user.message', data: { content: 'First prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'first', content: 'First answer' } },
+			{ type: 'user.message', data: { content: 'Second prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'second', content: 'Second answer' } },
+		]).map((event, index) => ({ ...event, id: `event-${index}`, timestamp: '2026-03-01T00:00:00.000Z', parentId: null }));
+		const original = [
+			JSON.stringify(events[0]), '{malformed',
+			JSON.stringify({ ...events[1], data: { content: [], messageId: 'invalid' } }),
+			JSON.stringify(events[1]), 'null', '[]',
+			JSON.stringify({ ...events[1], type: 'session.shutdown', data: {} }),
+			JSON.stringify(events[2]),
+			JSON.stringify({ ...events[3], data: { content: 'Invalid tools', messageId: 'invalid', toolRequests: [null] } }),
+			JSON.stringify(events[3]), '{"truncated":',
+		].join('\r\n');
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		};
+		try {
+			writeFileSync(path, original);
+			const recovered = await recoverCopilotSessionHistory(path, logService);
+			assert.deepStrictEqual({
+				messages: recovered.flatMap(event => event.type === 'user.message' || event.type === 'assistant.message' ? [event.data.content] : []),
+				unchanged: readFileSync(path, 'utf8') === original,
+				warnings,
+				notCorruption: ['Access denied', 'Authentication failed', 'Session history changed while it was loading'].map(message => isCopilotJournalCorruptionError(new Error(message))),
+			}, {
+				messages: ['First prompt', 'First answer', 'Second prompt', 'Second answer'],
+				unchanged: true,
+				warnings: ['[Copilot] Recovered 4 transcript records from a damaged journal; omitted 7 invalid or unsupported records. Rich payloads are excluded; the original journal was not changed.'],
+				notCorruption: [false, false, false],
+			});
+			writeFileSync(path, 'null\n{malformed');
+			await assert.rejects(recoverCopilotSessionHistory(path, logService), /No conversation could be recovered/);
+			await assert.rejects(recoverCopilotSessionHistory(join(directory, 'missing.jsonl'), logService), /ENOENT/);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('damaged journal recovery preserves host-sent turn boundaries and omits runtime injections', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'copilot-history-recovery-'));
+		const path = join(directory, 'events.jsonl');
+		const events = toSessionEvents([
+			{ type: 'user.message', data: { content: 'User prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'first', content: 'User reply' } },
+			{ type: 'user.message', data: { content: 'Automation prompt', source: 'automation', clientTurnId: 'automation-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'second', content: 'Automation reply' } },
+			{ type: 'user.message', data: { content: 'Agent prompt', source: 'agent', clientTurnId: 'agent-turn' } },
+			{ type: 'assistant.message', data: { messageId: 'third', content: 'Agent reply' } },
+			{ type: 'user.message', data: { content: 'System prompt', source: 'system', clientTurnId: 'system-turn' } },
+			{ type: 'user.message', data: { content: 'Runtime injection', source: 'system', clientTurnId: 42 } },
+			{ type: 'assistant.message', data: { messageId: 'fourth', content: 'System reply' } },
+			{ type: 'session.idle', data: {} },
+		]).map((event, index) => ({ ...event, id: `event-${index}`, timestamp: '2026-03-01T00:00:00.000Z', parentId: null }));
+		try {
+			writeFileSync(path, [...events.map(event => JSON.stringify(event)), '{malformed'].join('\n'));
+			const recovered = await recoverCopilotSessionHistory(path, new NullLogService());
+			const { session } = await createAgentSession(disposables);
+			const result = await mapSessionEvents(session.resourceUri, undefined, recovered, session.chatChannelUri, session.ownerSessionUri, createCopilotSdkPathMapper(toCopilotWorkspace(URI.file('/workspace'))));
+			assert.deepStrictEqual(result.turns.map(turn => ({
+				prompt: turn.message.text,
+				replies: turn.responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content),
+			})), [
+				{ prompt: 'User prompt', replies: ['User reply'] },
+				{ prompt: 'Automation prompt', replies: ['Automation reply'] },
+				{ prompt: 'Agent prompt', replies: ['Agent reply'] },
+				{ prompt: 'System prompt', replies: ['System reply'] },
+			]);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('restores and sends in the parent without waiting for child history', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		mockSession.messages = toSessionEvents([
@@ -12433,6 +12513,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('tool.execution_complete', { toolCallId: 'read', success: true, result: { content: 'The review is done.' } });
 			await timeout(0);
 
+			const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'tc-task');
 			assert.deepStrictEqual({
 				messages: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'read'
 					? [action.invocationMessage]
@@ -12440,7 +12521,7 @@ suite('CopilotAgentSession', () => {
 						? [action.result.pastTenseMessage] : []),
 				parameters,
 			}, {
-				messages: [{ markdown: 'Read agent `catalog-perf`' }, { markdown: 'Read agent `catalog-perf`' }],
+				messages: [{ markdown: `Read agent [catalog\\-perf](${chat})` }, { markdown: `Read agent [catalog\\-perf](${chat})` }],
 				parameters: { agent_id: agentId, wait: false },
 			});
 		});
@@ -12486,6 +12567,7 @@ suite('CopilotAgentSession', () => {
 			for (const kind of notifications) {
 				mockSession.fire('system.notification', { content: 'Agent finished', kind });
 			}
+			const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'tc-task');
 			assert.deepStrictEqual({
 				chatTitles: signals.flatMap(signal => signal.kind === 'subagent_started' ? [SubagentChatSignal.toSpawnEvent(signal, chat => { const owner = mintedTestChatOwner(chat); return owner === undefined ? undefined : { owner, format: 'shaped' }; })?.title] : []),
 				toolMessages: getActions(signals).flatMap(action => {
@@ -12499,15 +12581,15 @@ suite('CopilotAgentSession', () => {
 			}, {
 				chatTitles: restored ? [] : ['Fix Take-all ground pickup'],
 				toolMessages: [
-					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Read agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
-					{ markdown: 'Write to agent `Fix Take-all ground pickup`' },
+					{ markdown: `Read agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Read agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Write to agent [Fix Take\\-all ground pickup](${chat})` },
+					{ markdown: `Write to agent [Fix Take\\-all ground pickup](${chat})` },
 				],
 				notifications: [
-					'Background agent `Fix Take-all ground pickup` is complete',
-					'Background agent `Fix Take-all ground pickup` completed',
-					'Background agent `Fix Take-all ground pickup` failed',
+					`[Fix Take\\-all ground pickup](${chat}) is complete`,
+					`[Fix Take\\-all ground pickup](${chat}) completed`,
+					`[Fix Take\\-all ground pickup](${chat}) failed`,
 				],
 				coordinationParameters: { agent_id: agentId },
 			});
@@ -12561,12 +12643,13 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: { agent_id: 'agent-1', message: 'Follow up' } });
 		mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
 
+		const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'launch');
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
 			? [action.invocationMessage]
 			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
 				? [action.result.pastTenseMessage] : []), [
-			{ markdown: 'Write to agent `Review the history`' },
-			{ markdown: 'Write to agent `Review the history`' },
+			{ markdown: `Write to agent [Review the history](${chat})` },
+			{ markdown: `Write to agent [Review the history](${chat})` },
 		]);
 	});
 
@@ -12586,12 +12669,13 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('tool.execution_start', { toolCallId: 'write', toolName: 'write_agent', arguments: { agent_id: 'agent-1', message: 'Follow up' } });
 		mockSession.fire('tool.execution_complete', { toolCallId: 'write', success: true });
 
+		const chat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'launch');
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady && action.toolCallId === 'write'
 			? [action.invocationMessage]
 			: action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'write'
 				? [action.result.pastTenseMessage] : []), [
-			{ markdown: 'Write to agent `History reviewer`' },
-			{ markdown: 'Write to agent `History reviewer`' },
+			{ markdown: `Write to agent [History reviewer](${chat})` },
+			{ markdown: `Write to agent [History reviewer](${chat})` },
 		]);
 	});
 
@@ -20173,6 +20257,17 @@ Use the attached image as context.
 			]);
 		});
 
+		test('agent notification links escape labels and destinations', () => {
+			const event: SessionEventPayload<'system.notification'> = {
+				id: 'notification', parentId: null, timestamp: '2026-09-08T00:00:00.000Z', type: 'system.notification',
+				data: { content: 'Agent finished', kind: { type: 'agent_completed', agentId: 'agent', agentType: 'task', status: 'completed' } },
+			};
+			assert.deepStrictEqual(buildCopilotSystemNotification(event, () => 'Review [x] `y` & <z>\nnext', () => 'ahp-chat://subagent/path(a) b'), {
+				messageText: '[Review \\[x\\] \\`y\\` \\& \\<z\\> next](ahp-chat://subagent/path\\(a\\)%20b) completed',
+				startsTurn: true,
+			});
+		});
+
 		test('agent activity titles retain the chat title truncation and markdown escaping', () => {
 			const descriptions = ['  Review `permissions`  ', `  ${'a'.repeat(80)}  `, '   '];
 			const titles = ['Review `permissions`', `${'a'.repeat(60)}\u2026`, 'reviewer'];
@@ -20221,6 +20316,28 @@ Use the attached image as context.
 				message: { text: 'Background agent `Investigate the issue` is complete', origin: { kind: MessageKind.SystemNotification } },
 				responseTurnId: turnStarted.turnId,
 				completedTurnId: turnStarted.turnId,
+			});
+		});
+
+		test('restored subagent completion starts a turn linked to its exact chat', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => {
+					mock.messages = toSessionEvents([
+						{ type: 'subagent.started', agentId: 'first', data: { toolCallId: 'task-first', agentName: 'review', agentDisplayName: 'First', agentDescription: '' } },
+						{ type: 'subagent.started', agentId: 'second', data: { toolCallId: 'task-second', agentName: 'review', agentDisplayName: 'Second', agentDescription: '' } },
+					]);
+				},
+			});
+			await session.getMessages();
+			mockSession.fire('system.notification', {
+				content: 'Finished',
+				kind: { type: 'agent_completed', agentId: 'second', agentType: 'review', status: 'failed' },
+			});
+			const childChat = subagentChatUri('shaped', session.ownerSessionUri.toString(), session.chatChannelUri.toString(), 'task-second');
+			assert.deepStrictEqual(getActions(signals).find(action => action.type === ActionType.ChatTurnStarted)?.message, {
+				text: `[Second](${childChat}) failed`,
+				origin: { kind: MessageKind.SystemNotification },
 			});
 		});
 
@@ -22086,6 +22203,28 @@ Use the attached image as context.
 				invocationMessage: 'Read issue',
 				pastTenseMessage: 'Read issue',
 				meta: { mcpServerName: 'GitHub', mcpToolName: 'issue_read' },
+			});
+		});
+
+		test('MCP tool start carries the server display name without replacing the server identity', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-mcp-display-name');
+			const serverName = 'github-copilot-connector-9839aae413778b24b512';
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-mcp-display-name',
+				toolName: `${serverName}-slack_read_thread`,
+				toolTitle: 'Read thread messages',
+				mcpServerName: serverName,
+				mcpServerDisplayName: 'Slack',
+				mcpToolName: 'slack_read_thread',
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallStart));
+
+			const start = getActions(signals).find(action => action.type === ActionType.ChatToolCallStart);
+			assert.deepStrictEqual(start && readToolCallMeta(start), {
+				mcpServerName: serverName,
+				'vscode.mcpServerDisplayName': 'Slack',
+				mcpToolName: 'slack_read_thread',
 			});
 		});
 
@@ -36592,6 +36731,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Stopped },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				afterRuntimeUpdate: [{
 					type: CustomizationType.McpServer,
@@ -36603,6 +36743,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Starting, blocking: true },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				afterReconcile: [{
 					type: CustomizationType.McpServer,
@@ -36614,6 +36755,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Stopped },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 				enableCalls: [{ serverName }],
 				afterEnable: [{
@@ -36624,6 +36766,7 @@ Use the attached image as context.
 					state: { kind: McpServerStatus.Starting, blocking: true },
 					channel: undefined,
 					mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+					_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', serverName) },
 				}],
 			});
 		});
@@ -38871,6 +39014,7 @@ Use the attached image as context.
 				},
 				channel: undefined,
 				mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+				_meta: { [MCP_SERVER_LOGS_META_KEY]: buildMcpServerLogsChannelTemplate('copilot:/test-session-1', 'github') },
 			});
 
 			assert.strictEqual(await session.resolveMcpAuthentication({ resource: 'https://api.githubcopilot.com/mcp', scopes: ['repo', 'notifications'], token: 'token-1' }), true);

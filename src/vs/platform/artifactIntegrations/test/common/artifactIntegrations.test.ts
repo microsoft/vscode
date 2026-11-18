@@ -1007,6 +1007,27 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual(reference.object.snapshot.get().mainIntegrationId, 'preferred');
 	}));
 
+	test('automation can be turned on while the resource refreshes its last known state, but not while it first loads', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const binding = f.bindings[0];
+		const enable = async (availability: ArtifactContributionView['availability']) => {
+			binding.view.set({ ...binding.view.get(), availability }, undefined);
+			const revision = reference.object.snapshot.get().contributions[0].configuration.revision;
+			try {
+				await reference.object.configure('test', revision, { automatic: true });
+				await reference.object.configure('test', revision + 1, { automatic: false });
+				return 'enabled';
+			} catch (error) {
+				return error instanceof Error ? error.name : String(error);
+			}
+		};
+		assert.deepStrictEqual({
+			stale: await enable({ kind: 'stale', reason: 'Refreshing.' }),
+			loading: await enable({ kind: 'loading' }),
+		}, { stale: 'enabled', loading: 'ArtifactAutomationSelectionError' });
+	}));
+
 	test('automatic prompts target origin, manual prompts target the captured chat, and acceptance is not completion', () => run(async store => {
 		const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse this resource' } }) };
 		const f = fixture(store, action);
@@ -1052,6 +1073,19 @@ suite('Artifact Integrations', () => {
 					'No automation rules remain enabled for this artifact integration.',
 				],
 			}],
+			prompts: [],
+		});
+	}));
+
+	test('lets an integration post a status notice about its resource only while the artifact is recorded', () => run(async store => {
+		const f = fixture(store);
+		store.add(await f.service.acquireArtifact('session', artifact.id));
+		const context = f.bindings[0].context;
+		await context.postNotice!('Checks failed: *Windows* / [Unit].');
+		f.session.set({ ...f.session.get(), artifacts: [] }, undefined);
+		await assert.rejects(() => context.postNotice!('The artifact was removed.'));
+		assert.deepStrictEqual({ notices: f.notices, prompts: f.submitted }, {
+			notices: [{ session: 'session', artifact, kind: 'status', content: 'Checks failed: \\*Windows\\* / \\[Unit\\].', iconId: 'link' }],
 			prompts: [],
 		});
 	}));

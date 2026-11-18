@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { OtlpExportLogsParams } from './state/protocol/channels-otlp/notifications.js';
+import type { IOtlpLogRecord, OtlpLogLevelName } from './otlp/otlpLogEmitter.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { AgentChatMoveDestination } from './agentHostChatMove.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
@@ -887,7 +889,7 @@ export interface IMissionControlOptions {
 	readonly cloneRoot?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
-	/** Uses host GitHub and Copilot credentials for same-owner relay clients. */
+	/** Selects host execution credentials; omission and registration withdrawal preserve the current choice. */
 	readonly useLocalCredentials?: boolean;
 	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
 	readonly ignoreRemoteControlPolicy?: boolean;
@@ -905,6 +907,8 @@ export interface IMissionControlCredentialSealingRequest {
 
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
+	/** Replaces parent-owned execution credentials through trusted local IPC; an empty list revokes them without client fallback. */
+	setHostExecutionCredentials(credentials: readonly AuthenticateParams[]): Promise<void>;
 	/** Opt-in Mission Control ingress; failures are explicit data so structured causes survive trusted local IPC. */
 	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void | { readonly error: IConnectionDiagnosticError }>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
@@ -1180,6 +1184,7 @@ export interface IAgentService {
 	 * into a JSON-RPC `-32601`.
 	 */
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable;
 
 	/**
 	 * Aggregated stream of MCP notifications across every agent. The
@@ -1370,6 +1375,10 @@ export type IAgentImportSessionOptions = Pick<IAgentImportChatOptions, 'takeOver
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+	readonly onDidReceiveOtlpLogs?: Event<OtlpExportLogsParams>;
+	subscribeStateless?(resource: URI): Promise<void>;
+	unsubscribe?(resource: URI): void;
+
 	/** Optional provider-owned management APIs; unsupported hosts remain read-only. */
 	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;

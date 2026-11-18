@@ -390,6 +390,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			? derived(reader => runtimeEnablement.read(reader).managedDesiredEnabled)
 			: observableValue<boolean | undefined>('policyEnablement', undefined);
 		const policyBlocked = derived(reader => policyEnablement.read(reader) === false);
+		const teamProvided = runtimeEnablement ? derived(reader => runtimeEnablement.read(reader).team === true) : undefined;
 		const enablement = runtimeEnablement
 			? derived(reader => this._enablementModel instanceof RuntimeAgentPluginCollisionEnablementModel
 				? this._enablementModel.readRuntimeEnabled(key, reader)
@@ -541,6 +542,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			enablement,
 			policyEnablement,
 			policyBlocked,
+			teamProvided,
 			runtimeEnablement,
 			remove: removeCallback,
 			setEnabled,

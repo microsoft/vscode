@@ -867,6 +867,14 @@ suite('Mission Control sharing service', () => {
 		});
 	}));
 
+	test('explains rate-limited registration without retrying', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			configure: async options => { if (options) { throw Object.assign(new Error('Rate limited'), { status: 429 }); } },
+		});
+		await assert.rejects(sharing.setEnabled(true), /GitHub is limiting requests right now/);
+		assert.strictEqual(calls.filter(call => call.options).length, 1);
+	}));
+
 	for (const replacementFails of [false, true]) {
 		test(`waits for the replacement configuration when the original enable attempt fails (${replacementFails ? 'failure' : 'success'})`, () => runWithFakedTimers({}, async () => {
 			const first = new DeferredPromise<void>();

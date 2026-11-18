@@ -18,7 +18,7 @@ import { ActionRunner, IAction, toAction } from '../../../../../base/common/acti
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { renderScheduledRequestTime } from './chatScheduledRequestTime.js';
+import { renderScheduledRequestAbsoluteTime, renderScheduledRequestTime } from './chatScheduledRequestTime.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -753,6 +753,8 @@ export interface IChatRendererDelegate {
 	getEditingValue?(): string | undefined;
 	preserveScrollPosition?(target: HTMLElement): void;
 	onDidFinishProgressCollapse?(): void;
+	/** The widget whose list this renders, which shows the input requests, such as questions, of the chats it renders. */
+	readonly getWidget?: () => IChatWidget | undefined;
 
 	readonly onDidScroll?: Event<ScrollEvent>;
 }
@@ -995,6 +997,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
 	private readonly _notifiedQuestionCarousels = new Set<string>();
 	private readonly workingProgressConfirmationEndListeners = new WeakSet<IChatToolInvocation>();
+	private _onDidChangeInputRequestWidgets: Event<void> | undefined;
+	/**
+	 * The watch of each question and plan review this docked in a widget's input, which the docked form owns: it lives as long
+	 * as the input holds the form, also where this renderer goes first, such as a list without a widget of its own.
+	 */
+	private readonly dockedInputRequestWatches = new WeakMap<IChatContentPart, { isStale(): boolean }>();
 
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
 	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
@@ -1531,7 +1539,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responses = observableFromEvent(this, viewModel.onDidChange, () => viewModel.getItems().filter(isResponseVM));
 		const editing = observableFromEvent(this, viewModel.onDidChangeEditing, () => !!viewModel.editing);
 		const enabled = observableFromEvent(this, this.configService.onDidChangeConfiguration, () => this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel));
-		const widget = observableFromEvent(this, Event.any(this.chatWidgetService.onDidAddWidget, this.chatWidgetService.onDidRemoveWidget), () => this.chatWidgetService.getWidgetBySessionResource(viewModel.sessionResource, { preferInputRequests: true }));
+		// Only the renderer of the widget that docks the chat's input requests registers its tool approvals there, and removes them
+		const widget = observableFromEvent(this, this.onDidChangeInputRequestWidgets(), () => this.getDockingWidget(viewModel.sessionResource));
 
 		store.add(autorunPerKeyedItem(responses, response => response.id, (_id, response$, responseStore) => {
 			const response = response$.get();
@@ -1563,11 +1572,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			? parent.toolSpecificData
 			: undefined;
 		const subagentTitle = tool.subAgentInvocationId ? subagentData?.description ?? localize('confirmationSubagent', "Subagent") : undefined;
-		const revealSubagent = () => {
-			if (this.isSessionsChat && subagentData?.chatResource) {
-				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource: subagentData.chatResource });
+		// The subagent as the list renders it now, where it does
+		const getSubagentPart = (subAgentInvocationId: string) => subAgentInvocationId ? this.getSubagentPart(this.getTemplateDataForRequestId(response.id)?.renderedParts, subAgentInvocationId) : undefined;
+		const revealSubagent = (subAgentInvocationId: string) => {
+			const chatResource = getSubagentPart(subAgentInvocationId)?.getChatResource() ?? subagentData?.chatResource;
+			if (this.isSessionsChat && chatResource) {
+				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource });
 			} else {
+				// The response, which renders its row where the list does not, then the subagent in it
 				widget.reveal(response);
+				getSubagentPart(subAgentInvocationId)?.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}
 		};
 		const revealSubagentLabel = this.isSessionsChat && subagentTitle
@@ -1575,6 +1589,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			: undefined;
 		const context: IChatContentPartRenderContext = {
 			element: response,
+			focusInput: () => this.getFocusWidget(response.sessionResource)?.focusInput(),
 			elementIndex: this.viewModel?.getItems().indexOf(response) ?? 0,
 			container: this.delegate.container,
 			content: [tool],
@@ -2064,7 +2079,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					}));
 					templateData.transcriptNotice = notice;
 					templateData.elementDisposables.add(toDisposable(() => { templateData.transcriptNotice = undefined; }));
-					templateData.rowContainer.insertBefore(notice.domNode, templateData.footerToolbarContainer);
+					templateData.rowContainer.prepend(notice.domNode);
 				}
 			}
 		} else {
@@ -2397,7 +2412,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.append(header, dom.$('span.codicon.codicon-clock', { 'aria-hidden': 'true' }));
 		const description = dom.append(header, dom.$('span.scheduled-request-description', undefined, element.description));
 		if (element.runAt) {
-			store.add(renderScheduledRequestTime(element.runAt, description, label => description.textContent = label));
+			description.classList.add('scheduled-request-time');
+			dom.clearNode(description);
+			const relative = dom.append(description, dom.$('time.scheduled-request-from-now', { datetime: element.runAt }));
+			const exact = dom.append(description, dom.$('time.scheduled-request-exact', { datetime: element.runAt, 'aria-hidden': 'true' }));
+			store.add(renderScheduledRequestTime(element.runAt, relative, label => relative.textContent = label));
+			store.add(renderScheduledRequestAbsoluteTime(element.runAt, exact, label => exact.textContent = label));
 		}
 		const toolbarContainer = dom.append(templateData.rowContainer, dom.$('.request-hover.scheduled-request-actions'));
 		store.add(toDisposable(() => toolbarContainer.remove()));
@@ -2458,20 +2478,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dom.append(container, dom.$('.scheduled-request-attachments', undefined,
 				localize('scheduledRequestAttachments', "Attachments: {0}", retainedAttachments.join(', '))));
 		}
-		const buttons = store.add(new ButtonBar(dom.append(container, dom.$('.scheduled-request-editor-actions'))));
-		const time = buttons.addButton({ ...defaultButtonStyles, secondary: true, supportIcons: true, title: editing.description });
-		time.element.classList.add('scheduled-request-edit-time');
-		store.add(renderScheduledRequestTime(editing.runAt, time.element, label => {
-			time.label = `$(clock) ${label}`;
-			time.element.setAttribute('aria-label', localize('scheduledRequestEditTime', "Change send time, {0}", label));
-		}));
-		const save = buttons.addButton({ ...defaultButtonStyles });
-		save.label = localize('scheduledRequestSave', "Save");
-		const cancel = buttons.addButton({ ...defaultButtonStyles, secondary: true });
+		const actions = dom.append(container, dom.$('.scheduled-request-editor-actions'));
+		const buttons = store.add(new ButtonBar(actions));
+		const cancel = buttons.addButton({ secondary: true });
 		cancel.label = localize('scheduledRequestCancelEdit', "Cancel");
+		cancel.element.classList.add('scheduled-request-cancel');
+		const save = buttons.addButton({ ...defaultButtonStyles, supportIcons: true, title: true });
+		save.element.classList.add('scheduled-request-save-label');
+		const time = buttons.addButton({ ...defaultButtonStyles, supportIcons: true, title: localize('scheduledRequestChangeTime', "Change Send Time") });
+		time.label = '$(chevron-down-compact)';
+		time.element.classList.add('scheduled-request-edit-time');
+		time.element.setAttribute('aria-haspopup', 'dialog');
+		const split = dom.append(actions, dom.$('.scheduled-request-save'));
+		split.append(save.element, dom.$('span.scheduled-request-save-separator', { 'aria-hidden': 'true' }), time.element);
+		store.add(renderScheduledRequestAbsoluteTime(editing.runAt, save.element, label => {
+			const sendLabel = localize('scheduledRequestSendAt', "Send {0}", label);
+			save.label = sendLabel;
+			save.setAriaLabel(sendLabel);
+			time.setAriaLabel(localize('scheduledRequestEditTime', "Change send time, {0}", label));
+		}));
 		let busy = false;
 		const saveAction = toAction({
-			id: 'scheduledRequest.save', label: save.label,
+			id: 'scheduledRequest.save', label: localize('scheduledRequestSave', "Save"),
 			run: async () => {
 				if (busy) {
 					return;
@@ -2708,7 +2736,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Subagent approvals are surfaced by their pill and the input carousel, including out-of-band requests.
 		if (isResponseVM(element)) {
-			const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource, { preferInputRequests: true });
+			const widget = this.getInputRequestWidget(element.sessionResource);
 			if (widget?.inputPart.hasActiveToolConfirmationCarousel) {
 				const nonSubagentConfirmationCount = this.getPendingToolConfirmationCount(partsToRender, false);
 				if (nonSubagentConfirmationCount > 0) {
@@ -2800,7 +2828,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const state = part.state.get().type;
 			return state === IChatToolInvocation.StateKind.WaitingForConfirmation || state === IChatToolInvocation.StateKind.WaitingForPostApproval;
 		}).length;
-		const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource, { preferInputRequests: true });
+		const widget = this.getInputRequestWidget(element.sessionResource);
 		const state = getPersistentProgressState(partsToRender, pendingConfirmationCount, !!widget?.inputPart.hasActiveToolConfirmationCarousel);
 		switch (state) {
 			case 'planReview':
@@ -2954,20 +2982,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const element = context.element;
 		const renderedParts = templateData.renderedParts;
 		queueMicrotask(() => {
-			if (this._store.isDisposed || !this.isPersistentProgressEnabled() || !isResponseVM(element)
-				|| element.isComplete || element.isCanceled || templateData.currentElement !== element
-				|| templateData.renderedParts !== renderedParts) {
+			if (!this.isPersistentProgressEnabled() || !isResponseVM(element) || element.isComplete || element.isCanceled) {
 				return;
 			}
-			if (element.renderData) {
-				this.doNextProgressiveRender(element, context.elementIndex, templateData, true);
-			} else if (this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering)) {
-				this.doIncrementalRender(element, context.elementIndex, templateData);
-			} else {
-				this.renderChatResponseBasic(element, context.elementIndex, templateData);
-			}
-			this.fireItemHeightChange(templateData);
+			this.renderRowAgain(element, context.elementIndex, templateData, renderedParts);
 		});
+	}
+
+	/** Renders the row of `element` in `templateData` again, where it still renders the parts `renderedParts` it rendered. */
+	private renderRowAgain(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate, renderedParts: IChatListItemTemplate['renderedParts']): void {
+		if (this._store.isDisposed || templateData.currentElement !== element || templateData.renderedParts !== renderedParts) {
+			return;
+		}
+		if (element.renderData) {
+			this.doNextProgressiveRender(element, index, templateData, true);
+		} else if (this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering)) {
+			this.doIncrementalRender(element, index, templateData);
+		} else {
+			this.renderChatResponseBasic(element, index, templateData);
+		}
+		this.fireItemHeightChange(templateData);
 	}
 
 	private getWorkingProgressContentPart(templateData: IChatListItemTemplate): ChatWorkingProgressContentPart | undefined {
@@ -3314,6 +3348,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				element,
 				readOnly: this.rendererOptions.readOnly,
 				renderInputRequests: this.rendererOptions.renderInputRequests,
+				focusInput: () => this.getFocusWidget(element.sessionResource)?.focusInput(),
 				elementIndex: index,
 				contentIndex: contentIndex,
 				content: content,
@@ -3706,6 +3741,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			ChatSystemNotificationContentPart,
 			{ kind: 'systemNotification', content: new MarkdownString(label) },
 			this.chatContentMarkdownRenderer,
+			element.sessionResource.toString(),
 		);
 		templateData.elementDisposables.add(notificationPart);
 		templateData.value.appendChild(notificationPart.domNode);
@@ -4129,6 +4165,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				element,
 				readOnly: this.rendererOptions.readOnly,
 				renderInputRequests: this.rendererOptions.renderInputRequests,
+				focusInput: () => this.getFocusWidget(element.sessionResource)?.focusInput(),
 				elementIndex: elementIndex,
 				content: contentForThisTurn,
 				contentIndex: contentIndex,
@@ -5113,7 +5150,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData: IChatListItemTemplate,
 		codeBlockStartIndex: number,
 	): void {
-		if (!this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel)) {
+		// A preview, such as an agent session's hover, leaves the chat's input requests to the widget that shows the chat
+		if (context.renderInputRequests === false || this.rendererOptions.readOnly || !this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel)) {
 			return;
 		}
 		if (toolInvocation.kind !== 'toolInvocation' || !isResponseVM(context.element)) {
@@ -5123,41 +5161,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true });
+		const sessionResource = context.element.sessionResource;
+		const widget = this.getInputRequestWidget(sessionResource);
 		if (!widget) {
 			return;
 		}
 
 		const subAgentInvocationId = subagentPart.subAgentInvocationId;
-		const subagentTitle = subagentPart.getSubagentTitle();
 
-		const revealSubagent = (targetSubAgentId: string) => {
-			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
-			const currentSubagentPart = this.getSubagentPart(currentTemplateData?.renderedParts, targetSubAgentId) ?? subagentPart;
-			const chatResource = currentSubagentPart.getChatResource();
-			if (this.isSessionsChat && chatResource) {
-				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource });
-			} else {
-				currentSubagentPart.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
-			}
-		};
-		const revealSubagentLabel = this.isSessionsChat
-			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
-			: undefined;
-
+		// The carousel of the widget that docks the chat's input requests now, which the tool confirmation observation adds the
+		// subagent's approvals to, and keeps them in as that widget changes
 		const navigateToCarousel = (targetSubAgentId: string) => {
-			widget.inputPart.activateCarouselForSubagent(targetSubAgentId);
+			this.getInputRequestWidget(sessionResource)?.inputPart.activateCarouselForSubagent(targetSubAgentId);
 		};
-
-		const factory = this.createCarouselToolPartFactory(context, codeBlockStartIndex);
 
 		const addToolToCarousel = (tool: IChatToolInvocation) => {
-			// While a request is being edited the carousel does not host approvals; the model-driven
-			// observation adds them back once editing ends.
-			if (this.viewModel?.editing) {
-				return;
-			}
-			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, subagentTitle, revealSubagent, revealSubagentLabel);
 			const listener = this.createUpdateWorkingProgressOnConfirmationEnd(tool, templateData);
 			if (listener) {
 				templateData.elementDisposables.add(listener);
@@ -5208,6 +5226,144 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * The one widget that docks the input requests of the chat of `sessionResource` in its input, such as its questions, plan
+	 * reviews and tool approvals, of all the widgets that can show them and show the chat: the one focused last, else a visible
+	 * one, else any. Every renderer agrees on it, so a request is docked once; the other widgets that show the chat render it
+	 * in their list ({@link getDockingWidget}). It changes as {@link onDidChangeInputRequestWidgets} fires.
+	 */
+	private getInputRequestWidget(sessionResource: URI): IChatWidget | undefined {
+		const shows = (widget: IChatWidget) => widget.supportsInputRequests !== false && isEqual(widget.viewModel?.sessionResource, sessionResource);
+		const lastFocused = this.chatWidgetService.lastFocusedWidget;
+		if (lastFocused && shows(lastFocused)) {
+			return lastFocused;
+		}
+		return this.chatWidgetService.getAllWidgets().find(widget => shows(widget) && widget.visible)
+			?? this.chatWidgetService.getWidgetBySessionResource(sessionResource, { preferInputRequests: true });
+	}
+
+	/**
+	 * The widget in whose input this renders the input requests of the chat of `sessionResource`: the one that docks them
+	 * ({@link getInputRequestWidget}), unless this renders the list of another widget that shows the chat, which renders them
+	 * in its list instead.
+	 */
+	private getDockingWidget(sessionResource: URI): IChatWidget | undefined {
+		const docking = this.getInputRequestWidget(sessionResource);
+		const own = this.delegate.getWidget?.();
+		return own && own !== docking && isEqual(own.viewModel?.sessionResource, sessionResource) ? undefined : docking;
+	}
+
+	/** The widget whose input to focus once an input request of the chat of `sessionResource` is done: the one the user is in. */
+	private getFocusWidget(sessionResource: URI): IChatWidget | undefined {
+		const own = this.delegate.getWidget?.();
+		return own && isEqual(own.viewModel?.sessionResource, sessionResource) ? own : this.getInputRequestWidget(sessionResource);
+	}
+
+	/**
+	 * Fires as the widget that docks a chat's input requests can change: as widgets come and go, are focused or shown, or show
+	 * another chat. It listens to the widgets only while something listens to it, such as the watch of a docked form, which
+	 * can outlive this renderer.
+	 */
+	private onDidChangeInputRequestWidgets(): Event<void> {
+		if (!this._onDidChangeInputRequestWidgets) {
+			let listeners: DisposableStore | undefined;
+			const emitter = new Emitter<void>({
+				onWillAddFirstListener: () => {
+					listeners = new DisposableStore();
+					const viewModelListeners = listeners.add(new DisposableMap<IChatWidget>());
+					const track = (widget: IChatWidget) => viewModelListeners.set(widget, widget.onDidChangeViewModel(() => emitter.fire()));
+					this.chatWidgetService.getAllWidgets().forEach(track);
+					listeners.add(this.chatWidgetService.onDidAddWidget(widget => {
+						track(widget);
+						emitter.fire();
+					}));
+					listeners.add(this.chatWidgetService.onDidRemoveWidget(widget => {
+						viewModelListeners.deleteAndDispose(widget);
+						emitter.fire();
+					}));
+					listeners.add(Event.any(this.chatWidgetService.onDidChangeFocusedWidget, this.chatWidgetService.onDidChangeWidgetVisibility)(() => emitter.fire()));
+				},
+				onDidRemoveLastListener: () => {
+					listeners?.dispose();
+					listeners = undefined;
+				},
+			});
+			this._onDidChangeInputRequestWidgets = emitter.event;
+		}
+		return this._onDidChangeInputRequestWidgets;
+	}
+
+	/**
+	 * Whether `request` is settled: answered, skipped or dismissed, through any widget that shows its chat, or elsewhere. Its
+	 * model part tells; an extension's question, which is not one of the model's own, is settled as the chat service hears
+	 * its answer.
+	 */
+	private observeInputRequestUsed(request: IChatQuestionCarousel | IChatPlanReview, element: IChatResponseViewModel): IObservable<boolean> {
+		if (request instanceof ChatQuestionCarouselData || request instanceof ChatPlanReviewData) {
+			return request.used;
+		}
+		if (request.kind === 'questionCarousel' && request.resolveId) {
+			const resolveId = request.resolveId;
+			return observableFromEvent(this, Event.filter(this.chatService.onDidReceiveQuestionCarouselAnswer, e => e.requestId === element.requestId && e.resolveId === resolveId), () => !!request.isUsed);
+		}
+		return constObservable(!!request.isUsed);
+	}
+
+	/**
+	 * Watches `request`, which this rendered for `widget` to dock in its input, else in the list: once it is settled anywhere,
+	 * or another widget docks the chat's input requests, `clear` lets go of what `widget` docked, and the row that renders it
+	 * renders it again, such as in the list instead, or as its summary. `isStale` then tells the row's part so.
+	 */
+	private watchInputRequest(request: IChatQuestionCarousel | IChatPlanReview, element: IChatResponseViewModel, context: IChatContentPartRenderContext, widget: IChatWidget | undefined, clear: () => void): IDisposable & { isStale(): boolean } {
+		const used = this.observeInputRequestUsed(request, element);
+		const docking = observableFromEvent(this, this.onDidChangeInputRequestWidgets(), () => this.getDockingWidget(element.sessionResource));
+		// A request that is not one of the model's own can be settled where nothing tells: its row renders it again as it next renders
+		const renderedUsed = !!request.isUsed;
+		let stale = false;
+		let disposed = false;
+		const watch = autorun(reader => {
+			const isUsed = used.read(reader);
+			if (stale || (!isUsed && docking.read(reader) === widget)) {
+				return;
+			}
+			stale = true;
+			clear();
+			const templateData = this.getTemplateDataForRequestId(element.id);
+			if (templateData) {
+				const renderedParts = templateData.renderedParts;
+				queueMicrotask(() => this.renderRowAgain(element, context.elementIndex, templateData, renderedParts));
+			}
+		});
+		return {
+			dispose: () => {
+				disposed = true;
+				watch.dispose();
+			},
+			// Also once what it watches is gone, such as a form its widget's input let go of as it showed no chat for a while
+			isStale: () => stale || disposed || renderedUsed !== !!request.isUsed,
+		};
+	}
+
+	/**
+	 * The one watch of `part`, a question or plan review this docked in its widget's input, which `create` makes the first
+	 * time: it lives as long as the input holds the form, whichever rows render the request meanwhile, such as a row whose
+	 * template is used for another response, and goes as the input lets go of it, such as as its widget shows another chat.
+	 */
+	private watchDockedInputRequest(part: IChatContentPart, create: () => IDisposable & { isStale(): boolean }): { isStale(): boolean } {
+		let watch = this.dockedInputRequestWatches.get(part);
+		if (!watch) {
+			const created = create();
+			this.dockedInputRequestWatches.set(part, created);
+			if (part.addDisposable) {
+				part.addDisposable(created);
+			} else {
+				this._register(created);
+			}
+			watch = created;
+		}
+		return watch;
+	}
+
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, batchedSubagentParts?: Set<ChatSubagentContentPart>, retainedToolParts?: DisposableMap<string, IDisposable>): IChatContentPart | undefined {
 		try {
 			if (context.renderInputRequests === false && (
@@ -5255,7 +5411,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.instantiationService.createInstance(ChatProgressContentPart, content, this.chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, content.shimmer, undefined);
 			} else if (content.kind === 'systemNotification') {
 				this.finalizeCurrentThinkingPart(context, templateData);
-				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer);
+				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer, context.element.sessionResource.toString());
 			} else if (content.kind === 'working') {
 				if (this.isStickyProgressEnabled() && context.element === this.viewModel?.getItems().findLast(isResponseVM)) {
 					this.updateStickyProgressContent();
@@ -5326,13 +5482,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'mcpAuthenticationRequired') {
 				return this.instantiationService.createInstance(ChatMcpAuthenticationContentPart, content, context, {
 					onDidAuthenticate: () => this.refreshProgressAfterInteraction(context, templateData),
-					onDidRemoveFocusedAction: () => this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true })?.focusInput(),
+					onDidRemoveFocusedAction: () => this.getFocusWidget(context.element.sessionResource)?.focusInput(),
 				});
 			} else if (content.kind === 'mcpServersStartingSlow') {
 				return this.instantiationService.createInstance(ChatMcpServersStartingContentPart, content, {
 					showSpinner: !context.suppressProgressShimmer,
 					onDidFinishStarting: () => this.showWorkingProgressAfterMcp(context, templateData),
-					onDidRemoveFocusedAction: () => this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true })?.focusInput(),
+					onDidRemoveFocusedAction: () => this.getFocusWidget(context.element.sessionResource)?.focusInput(),
 				});
 			} else if (content.kind === 'disabledClaudeHooks') {
 				return this.renderDisabledClaudeHooks(content, context);
@@ -5659,23 +5815,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// For cases not handled above (no thinking part, no subagent, etc.), create the part now
 		const { part } = createToolPart();
 		retainedToolParts?.deleteAndLeak(toolInvocation.toolCallId);
-		// Watch for future confirmation transitions and route to carousel. The part itself keeps its
-		// transcript copy hidden while the carousel hosts the confirmation.
+		// Watch for future confirmation transitions. The carousel of the widget that docks the chat's input requests hosts
+		// the confirmation, as the tool confirmation observation puts it there, and the part keeps its transcript copy hidden.
 		if (context.renderInputRequests !== false && this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
 			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) &&
-			!isMcpToolInvocation(toolInvocation)) {
-			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true });
-			if (widget) {
-				const factory = this.createCarouselToolPartFactory(context, codeBlockStartIndex);
-				part.addDisposable(autorun(reader => {
-					const state = toolInvocation.state.read(reader);
-					if (this.shouldRouteConfirmationToCarousel(toolInvocation, state)) {
-						widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
-					} else {
-						this.updateWorkingProgress(templateData);
-					}
-				}));
-			}
+			!isMcpToolInvocation(toolInvocation) && this.getInputRequestWidget(context.element.sessionResource)) {
+			part.addDisposable(autorun(reader => {
+				const state = toolInvocation.state.read(reader);
+				if (!this.shouldRouteConfirmationToCarousel(toolInvocation, state)) {
+					this.updateWorkingProgress(templateData);
+				}
+			}));
 		}
 
 		return part;
@@ -5739,20 +5889,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return false;
 			}
 
-			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true });
-			if (!widget) {
+			if (!this.getInputRequestWidget(context.element.sessionResource)) {
 				return false;
 			}
 
-			// The moved-out part keeps its transcript copy hidden while the carousel hosts the confirmation.
+			// The moved-out part keeps its transcript copy hidden while the carousel of the widget that docks the chat's input
+			// requests hosts the confirmation, as the tool confirmation observation puts it there.
 			const part = moveConfirmationWidgetOutOfThinking();
-			const factory = this.createCarouselToolPartFactory(context, context.codeBlockStartIndex);
 
 			part.addDisposable(autorun(reader => {
 				const currentState = toolInvocation.state.read(reader);
-				if (this.shouldRouteConfirmationToCarousel(toolInvocation, currentState)) {
-					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
-				} else {
+				if (!this.shouldRouteConfirmationToCarousel(toolInvocation, currentState)) {
 					this.updateWorkingProgress(templateData);
 				}
 			}));
@@ -5924,7 +6071,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true }) : undefined;
+		const widget = isResponseVM(context.element) ? this.getDockingWidget(context.element.sessionResource) : undefined;
 		// Only auto-focus if the chat input is empty AND focus is already within the chat widget
 		// This prevents stealing focus from other VS Code UI (editor, terminal, etc.)
 		const shouldAutoFocus = !!widget && dom.isAncestorOfActiveElement(widget.domNode) && widget.getInput() === '';
@@ -5998,20 +6145,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return part;
 		}
 
+		// Watch the pending carousel: once it is settled anywhere, or another widget docks it, its row renders it again
+		const element = isResponseVM(context.element) ? context.element : undefined;
+		const createWatch = (response: IChatResponseViewModel) => this.watchInputRequest(carousel, response, context, widget, () => widget?.input.clearQuestionCarousel(undefined, carouselKey));
+		let watch: { isStale(): boolean } | undefined;
+		const isStale = () => !!watch?.isStale();
+
 		// Render the active carousel in the input part (above the input box, not while editing)
 		const isEditing = !!this.viewModel?.editing;
 		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
+			isStale,
 			onSubmit: async (answers, byUser) => handleSubmit(answers, part!, byUser)
 		});
 
-		// If we couldn't render in the input part, fall back to inline rendering
+		// Render it in the list where this does not dock it, such as where another widget that shows the chat docks it
 		if (!part) {
 			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus,
+				isStale,
 				onSubmit: async (answers, byUser) => handleSubmit(answers, fallbackPart, byUser)
 			});
+			if (element) {
+				const inlineWatch = createWatch(element);
+				watch = inlineWatch;
+				fallbackPart.addDisposable(inlineWatch);
+			}
 			return fallbackPart;
+		}
+		if (element) {
+			watch = this.watchDockedInputRequest(part, () => createWatch(element));
 		}
 
 		// Track the carousel for auto-skip when user submits a new message
@@ -6031,11 +6194,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Return a placeholder that will re-render as a summary when the carousel is used or response is complete/stopped
-		return this.renderNoContent((other, _followingContent, element) => {
+		const placeholder = this.renderNoContent((other, _followingContent, element) => {
 			// Re-render (return false) if:
 			// - carousel was used/submitted
 			// - response is complete (stopped)
-			if (carousel.isUsed || (isResponseVM(element) && element.isComplete)) {
+			// - another widget docks it now, or this widget let go of it, such as as it showed no chat for a while
+			if (carousel.isUsed || (isResponseVM(element) && element.isComplete) || isStale()) {
 				return false;
 			}
 			// Use resolveId for comparison instead of object identity to handle re-rendering during scrolling
@@ -6049,6 +6213,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			return false;
 		});
+		return placeholder;
 	}
 
 	private _getCarouselStableKey(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel): string | undefined {
@@ -6092,7 +6257,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderPlanReview(context: IChatContentPartRenderContext, review: IChatPlanReview, templateData: IChatListItemTemplate): IChatContentPart {
-		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource, { preferInputRequests: true }) : undefined;
+		const widget = isResponseVM(context.element) ? this.getDockingWidget(context.element.sessionResource) : undefined;
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
 		const reviewKey = review.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 
@@ -6101,6 +6266,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.finalizeCurrentThinkingPart(context, templateData);
 
 		const handleSubmit = (result: IChatPlanReviewResult) => {
+			// Another widget that shows the chat may have settled it already: its result stands
+			if (review.isUsed) {
+				return;
+			}
 			review.data = result;
 			review.isUsed = true;
 			if (review instanceof ChatPlanReviewData) {
@@ -6135,13 +6304,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// taken (e.g. "Approved plan", "Provided feedback"). The actual
 		// feedback text is rendered as a separate markdown block beneath
 		// rather than collapsed onto the progress line.
-		const renderProgress = (): IChatContentPart => {
+		const renderProgress = (isStale?: () => boolean): IChatContentPart => {
 			if (context.suppressProgressShimmer && !review.isUsed) {
-				return this.renderNoContent(other => other === review && !review.isUsed);
+				return this.renderNoContent(other => other === review && !review.isUsed && !isStale?.());
 			}
 			const message = this.getPlanReviewProgressMessage(review);
 			if (!message) {
-				return this.renderNoContent(other => other.kind === 'planReview');
+				return this.renderNoContent(other => other.kind === 'planReview' && !(!review.isUsed && isStale?.()));
 			}
 			// Capture the used state at render time. `other` and `review`
 			// are typically the same mutable object, so comparing
@@ -6175,6 +6344,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (!!review.isUsed !== renderedAsUsed) {
 						return false;
 					}
+					// Another widget docks it now, or this widget let go of it, while still pending: render it again
+					if (!review.isUsed && isStale?.()) {
+						return false;
+					}
 					if (review.resolveId && other.resolveId) {
 						return review.resolveId === other.resolveId;
 					}
@@ -6189,21 +6362,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return renderProgress();
 		}
 
+		// Watch the pending review: once it is settled anywhere, or another widget docks it, its row renders it again
+		const element = isResponseVM(context.element) ? context.element : undefined;
+		const createWatch = (response: IChatResponseViewModel) => this.watchInputRequest(review, response, context, widget, () => widget?.input.clearPlanReview(undefined, reviewKey));
+		let watch: { isStale(): boolean } | undefined;
+		const isStale = () => !!watch?.isStale();
+
 		// Dock the active review above the chat input (not while editing).
 		const isEditing = !!this.viewModel?.editing;
 		const dockedPart = isEditing ? undefined : widget?.input.renderPlanReview(review, context, {
 			onSubmit: handleSubmit,
 		});
 
-		// If we couldn't dock (no widget, editing, etc.), fall back to inline rendering.
+		// Render it in the list where this does not dock it, such as where another widget that shows the chat docks it
 		if (!dockedPart) {
 			const fallbackPart = this.instantiationService.createInstance(ChatPlanReviewPart, review, context, {
 				onSubmit: handleSubmit,
+				isStale,
 			});
+			if (element) {
+				const inlineWatch = createWatch(element);
+				watch = inlineWatch;
+				fallbackPart.addDisposable(inlineWatch);
+			}
 			return fallbackPart;
 		}
+		if (element) {
+			watch = this.watchDockedInputRequest(dockedPart, () => createWatch(element));
+		}
 
-		return renderProgress();
+		return renderProgress(isStale);
 	}
 
 	private getPlanReviewProgressMessage(review: IChatPlanReview): string | undefined {

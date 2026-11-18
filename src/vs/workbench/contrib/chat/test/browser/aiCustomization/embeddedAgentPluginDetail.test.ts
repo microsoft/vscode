@@ -7,15 +7,15 @@ import assert from 'assert';
 import { VSBuffer, bufferToStream } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
-import { AgentPluginItemKind, IAgentPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { getPluginRepository, getPluginSourceUri, getPluginVersion, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, resolveInstalledPluginSkillLink, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
+import { getInstalledPluginStatusLabel, getPluginRepository, getPluginSourceUri, getPluginVersion, IInstalledPluginSessionState, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, resolveInstalledPluginSkillLink, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -284,6 +284,39 @@ suite('embeddedAgentPluginDetail', () => {
 			marketplace: undefined,
 			disabled: undefined,
 			policyBlocked: undefined,
+		});
+	});
+
+	test('shows no status for an installed plugin that is active in the session, whatever its global setting', () => {
+		const createItem = (enablement: ContributionEnablementState, policyBlocked = false): IInstalledPluginItem => ({
+			kind: AgentPluginItemKind.Installed,
+			name: 'example',
+			description: 'Example plugin',
+			plugin: new class extends mock<IAgentPlugin>() {
+				override readonly enablement = constObservable(enablement);
+				override readonly policyEnablement = constObservable(policyBlocked ? false : undefined);
+				override readonly policyBlocked = constObservable(policyBlocked);
+			}(),
+		});
+		const session = (enabled: boolean): IInstalledPluginSessionState => ({ isInstalledPluginTeamProvided: () => false, isInstalledPluginEnabled: () => enabled });
+		const disabledGlobally = createItem(ContributionEnablementState.DisabledProfile);
+		const enabledGlobally = createItem(ContributionEnablementState.EnabledProfile);
+
+		assert.deepStrictEqual({
+			disabledGlobally: getInstalledPluginStatusLabel(disabledGlobally, undefined),
+			// A GitHub Team assignment turns the plugin on for the session without changing the global setting.
+			disabledGloballyActiveInSession: getInstalledPluginStatusLabel(disabledGlobally, session(true)),
+			disabledGloballyInactiveInSession: getInstalledPluginStatusLabel(disabledGlobally, session(false)),
+			enabledGlobally: getInstalledPluginStatusLabel(enabledGlobally, undefined),
+			enabledGloballyInactiveInSession: getInstalledPluginStatusLabel(enabledGlobally, session(false)),
+			blockedActiveInSession: getInstalledPluginStatusLabel(createItem(ContributionEnablementState.DisabledProfile, true), session(true)),
+		}, {
+			disabledGlobally: 'Excluded from Profile',
+			disabledGloballyActiveInSession: undefined,
+			disabledGloballyInactiveInSession: 'Excluded from Profile',
+			enabledGlobally: undefined,
+			enabledGloballyInactiveInSession: undefined,
+			blockedActiveInSession: 'Blocked by Organization',
 		});
 	});
 

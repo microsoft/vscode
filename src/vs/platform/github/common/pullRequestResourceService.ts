@@ -69,6 +69,12 @@ export interface PullRequestPollingPolicy {
 	readonly checksBackstop: number;
 	readonly mergeabilityVisible: number;
 	readonly mergeabilityBackground: number;
+	/**
+	 * How often core and mergeability are polled while the pull request is in a merge queue, where it can merge or be
+	 * removed at any time without a push of its own.
+	 */
+	readonly mergeQueueVisible: number;
+	readonly mergeQueueBackground: number;
 	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
@@ -86,6 +92,8 @@ const defaultPollingPolicy: PullRequestPollingPolicy = {
 	checksBackstop: 300_000,
 	mergeabilityVisible: 30_000,
 	mergeabilityBackground: 120_000,
+	mergeQueueVisible: 15_000,
+	mergeQueueBackground: 60_000,
 	failureBackoff: { immediateRetries: 0, base: 30_000, maximum: 300_000, jitter: 5_000 },
 	jitter: 5_000,
 };
@@ -562,9 +570,22 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'checks':
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt, result.headSha));
 				break;
-			case 'mergeability':
+			case 'mergeability': {
+				const wasQueued = !!entry.snapshot.get().mergeability.value?.mergeQueueEntryId;
+				const queued = !!result.value.mergeQueueEntryId;
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt, result.headSha));
+				// A queued pull request merges without a push of its own, which only core shows: core is polled on the merge
+				// queue interval while queued, and read at once when the entry leaves because it merged or was removed.
+				const coreInterest = entry.effective.get('core');
+				if (coreInterest && queued !== wasQueued) {
+					if (queued) {
+						this._scheduleNext(entry, 'core', coreInterest);
+					} else {
+						this._scheduleFragment(entry, 'core', this._clock.now());
+					}
+				}
 				break;
+			}
 		}
 		return entry;
 	}
@@ -687,9 +708,11 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			return undefined;
 		}
 		const visible = interest.priority !== 'background';
+		const queued = !!entry.snapshot.get().mergeability.value?.mergeQueueEntryId;
 		switch (fragment) {
 			case 'core':
-				return visible ? this._policy.coreVisible : this._policy.coreBackground;
+				return queued ? this._mergeQueueDelay(visible, this._policy.coreVisible, this._policy.coreBackground)
+					: visible ? this._policy.coreVisible : this._policy.coreBackground;
 			case 'topLevelComments':
 			case 'submittedReviews':
 			case 'reviewThreads':
@@ -702,8 +725,14 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 					: this._policy.checksBackstop;
 			}
 			case 'mergeability':
-				return visible ? this._policy.mergeabilityVisible : this._policy.mergeabilityBackground;
+				return queued ? this._mergeQueueDelay(visible, this._policy.mergeabilityVisible, this._policy.mergeabilityBackground)
+					: visible ? this._policy.mergeabilityVisible : this._policy.mergeabilityBackground;
 		}
+	}
+
+	/** Polls a queued pull request at least as often as the merge queue interval, without slowing a faster interval. */
+	private _mergeQueueDelay(visible: boolean, visibleDelay: number, backgroundDelay: number): number {
+		return Math.min(visible ? visibleDelay : backgroundDelay, visible ? this._policy.mergeQueueVisible : this._policy.mergeQueueBackground);
 	}
 
 	private _scheduleBodyRelease(entry: PullRequestEntry, fragment: PullRequestFragment): void {

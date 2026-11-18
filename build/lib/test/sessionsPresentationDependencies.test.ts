@@ -54,9 +54,10 @@ const mobileNewSessionPresentation = [
 ];
 const chatBackgroundPresentation = [
 	'src/vs/sessions/contrib/chat/browser/chatBackground.contribution.ts',
-	'src/vs/sessions/contrib/chat/browser/chatBackgroundTint.ts',
 	'src/vs/sessions/contrib/chat/browser/getThemeColorsTool.ts',
 	'src/vs/workbench/contrib/sessions/browser/chat/defaultChatViewFactory.ts',
+	'src/vs/workbench/contrib/sessions/browser/chatBackgroundActions.ts',
+	'src/vs/workbench/contrib/sessions/browser/chatBackgroundTint.ts',
 	'src/vs/workbench/contrib/sessions/browser/chatBackgroundService.ts',
 	'src/vs/workbench/contrib/sessions/browser/chatBackgroundRenderer.ts',
 	'src/vs/workbench/contrib/sessions/browser/sessionsChatSurface.ts',

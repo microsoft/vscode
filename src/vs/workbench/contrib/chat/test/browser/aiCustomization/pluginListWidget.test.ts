@@ -10,7 +10,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { type Action } from '../../../../../../base/common/actions.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -61,7 +61,7 @@ suite('pluginListWidget', () => {
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
 			harnessService,
-			sessionPluginItems: [remote], instantiationService,
+			sessionPluginItems: observableValue<readonly ICustomizationItem[]>('sessionPluginItems', [remote]), instantiationService,
 			marketplaceInstallService: undefined,
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
@@ -73,14 +73,14 @@ suite('pluginListWidget', () => {
 		const workspaceActions = $('div');
 		const toggle = widget.appendInstalledPluginToggle(workspaceActions, $('div'), $('div'), item).querySelector('button')!;
 		const ready = { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked'), label: toggle.getAttribute('aria-label'), badge: workspaceActions.querySelector('.inline-badge')?.textContent };
-		widget.sessionPluginItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, enabled: false })) }];
+		widget.sessionPluginItems.set([{ ...remote, actions: remote.actions!.map(action => ({ ...action, enabled: false })) }], undefined);
 		const pendingControls = $('div');
 		const pending = widget.appendInstalledPluginToggle(pendingControls, $('div'), $('div'), item).querySelector('button')!;
 		const pendingBadgeDisabled = pendingControls.querySelector('.plugin-scope-badge')!.getAttribute('aria-disabled');
-		widget.sessionPluginItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, scope: 'global' })) }];
+		widget.sessionPluginItems.set([{ ...remote, actions: remote.actions!.map(action => ({ ...action, scope: 'global' })) }], undefined);
 		const globalActions = $('div');
 		widget.appendInstalledPluginToggle(globalActions, $('div'), $('div'), item);
-		widget.sessionPluginItems = [remote];
+		widget.sessionPluginItems.set([remote], undefined);
 		const pendingChanges = widget.getPendingPluginScopeChanges();
 		pendingChanges.set(new Set([widget.getPluginScopeChangeKey(remote)]), undefined);
 		const busyMenuActions = widget.getInstalledPluginActions(item, store.add(new DisposableStore()));
@@ -118,7 +118,7 @@ suite('pluginListWidget', () => {
 		});
 		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
 			harnessService,
-			sessionPluginItems: [createSessionPlugin('required', true), createSessionPlugin('own'), createSessionPlugin('local', true)],
+			sessionPluginItems: observableValue<readonly ICustomizationItem[]>('sessionPluginItems', [createSessionPlugin('required', true), createSessionPlugin('own'), createSessionPlugin('local', true)]),
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
 			}(),
@@ -142,11 +142,12 @@ suite('pluginListWidget', () => {
 		});
 	});
 
-	test('installed rows reflect session activation rather than global installation enablement', () => {
+	test('installed rows react to session activation and Team or organization metadata arriving after rendering', () => {
 		const plugin = new class extends mock<IAgentPlugin>() {
 			override readonly uri = URI.file('/plugins/required');
 			override readonly label = 'required';
 			override readonly enablement = constObservable(ContributionEnablementState.DisabledProfile);
+			override readonly copilotCliInstallation = { name: 'required', marketplace: 'team' };
 			override readonly agents = constObservable([]);
 			override readonly skills = constObservable([]);
 			override readonly commands = constObservable([]);
@@ -155,40 +156,52 @@ suite('pluginListWidget', () => {
 			override readonly hooks = constObservable([]);
 		}();
 		const item: IInstalledPluginItem = { kind: AgentPluginItemKind.Installed, name: plugin.label, description: '', plugin };
-		let sessionItem: ICustomizationItem | undefined;
+		const sessionPluginItems = observableValue<readonly ICustomizationItem[]>('sessionPluginItems', []);
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), { sessionPluginItems });
 		const renderer = new PluginInstalledItemRenderer(
 			new class extends mock<ICustomizationHarnessService>() { }(),
 			new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return toDisposable(() => { }); }
 				override setupManagedHover() {
 					return { show() { }, hide() { }, update() { }, dispose() { } };
 				}
 			}(),
 			() => { },
-			() => sessionItem?.organizationControl,
+			(item, reader) => widget.getInstalledPluginOrganizationControl(item, reader),
+			(item, reader) => widget.isInstalledPluginTeamProvided(item, reader),
+			(item, reader) => widget.isInstalledPluginEnabled(item, reader),
 			false,
-			() => sessionItem,
 		);
 		const row = $('div');
 		const template = renderer.renderTemplate(row);
 		store.add(toDisposable(() => renderer.disposeTemplate(template)));
-		const render = () => {
-			renderer.renderElement({ type: 'plugin-item', item }, 0, template);
+		renderer.renderElement({ type: 'plugin-item', item }, 0, template);
+		const snapshot = () => {
 			return {
 				disabled: row.classList.contains('disabled'),
 				badgeVisible: row.querySelector<HTMLElement>('.organization-managed-tag')!.style.display !== 'none',
+				teamBadgeVisible: row.querySelector<HTMLElement>('.team-provided-tag')!.style.display !== 'none',
 			};
 		};
-		const global = render();
-		sessionItem = {
+		const global = snapshot();
+		const sessionItem: ICustomizationItem = {
 			uri: plugin.uri, type: 'plugin', name: plugin.label, source: AICustomizationSources.plugin,
-			extensionId: undefined, pluginUri: plugin.uri, enabled: true, organizationControl: { requiredEnabled: true },
+			extensionId: undefined, pluginUri: plugin.uri, enabled: true, teamProvided: true,
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: true, scope: 'global', run: () => { } }],
 		};
-		const enabledInSession = render();
-		sessionItem = { ...sessionItem, enabled: false };
-		assert.deepStrictEqual({ global, enabledInSession, disabledInSession: render() }, {
-			global: { disabled: true, badgeVisible: false },
-			enabledInSession: { disabled: false, badgeVisible: true },
-			disabledInSession: { disabled: true, badgeVisible: true },
+		sessionPluginItems.set([sessionItem], undefined);
+		const teamEnabled = snapshot();
+		sessionPluginItems.set([{ ...sessionItem, organizationControl: { requiredEnabled: true } }], undefined);
+		const organizationEnabled = snapshot();
+		sessionPluginItems.set([{ ...sessionItem, enabled: false, organizationControl: { requiredEnabled: false } }], undefined);
+		const organizationDisabled = snapshot();
+		sessionPluginItems.set([], undefined);
+		assert.deepStrictEqual({ global, teamEnabled, organizationEnabled, organizationDisabled, removed: snapshot() }, {
+			global: { disabled: true, badgeVisible: false, teamBadgeVisible: false },
+			teamEnabled: { disabled: false, badgeVisible: false, teamBadgeVisible: true },
+			organizationEnabled: { disabled: false, badgeVisible: true, teamBadgeVisible: false },
+			organizationDisabled: { disabled: true, badgeVisible: true, teamBadgeVisible: false },
+			removed: { disabled: true, badgeVisible: false, teamBadgeVisible: false },
 		});
 	});
 
@@ -208,6 +221,7 @@ suite('pluginListWidget', () => {
 		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
 			harnessService: { ...harnessService, getActiveDescriptor: () => ({ itemProvider: {} }) },
 			itemsModel: { getActiveItemSource: () => ({ fetchProviderItems: async () => [sessionPlugin] }) },
+			sessionPluginItems: observableValue<readonly ICustomizationItem[]>('sessionPluginItems', []),
 			agentPluginService: { plugins: constObservable([plugin]) },
 			labelService: new class extends mock<ILabelService>() {
 				override getUriLabel(uri: URI): string { return uri.path; }
@@ -233,6 +247,91 @@ suite('pluginListWidget', () => {
 			organization: { requiredEnabled: true },
 			switch: { disabled: true, checked: 'true' },
 		});
+	});
+
+	test('shows installed and host plugins as from a GitHub Team unless the organization manages them', () => {
+		const createItem = (name: string, teamProvided?: boolean, policyEnablement?: boolean, marketplace = 'team'): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${marketplace}/${name}`);
+				override readonly label = name;
+				override readonly policyEnablement = constObservable(policyEnablement);
+				override readonly teamProvided = teamProvided === undefined ? undefined : constObservable(teamProvided);
+				override readonly copilotCliInstallation = { name, marketplace };
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const createSessionPlugin = (name: string, overrides: Partial<ICustomizationItem>, marketplace = 'team'): ICustomizationItem => ({
+			uri: URI.file(`/plugins/${marketplace}/${name}`), type: 'plugin', name, source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined,
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: true, scope: 'global', run: () => { } }],
+			...overrides,
+		});
+		const sessionPluginItems = observableValue<readonly ICustomizationItem[]>('sessionPluginItems', [
+			createSessionPlugin('session-assigned', { teamProvided: true }),
+			createSessionPlugin('session-required', { teamProvided: true, organizationControl: { requiredEnabled: true } }),
+			createSessionPlugin('shared', { teamProvided: true }),
+			createSessionPlugin('shared', {}, 'public'),
+			createSessionPlugin('shared-one-session-plugin', { teamProvided: true }),
+		]);
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), { sessionPluginItems });
+		const hostPlugin = createSessionPlugin('host-plugin', { teamProvided: true });
+		// A session plugin that the runtime reports after its row or detail page is already showing.
+		const late = createItem('late');
+		const lateStates: boolean[] = [];
+		store.add(autorun(reader => lateStates.push(widget.isInstalledPluginTeamProvided(late, reader))));
+		sessionPluginItems.set([...sessionPluginItems.get(), createSessionPlugin('late', { teamProvided: true })], undefined);
+		assert.deepStrictEqual({
+			assigned: widget.isInstalledPluginTeamProvided(createItem('assigned', true)),
+			// Team assignment follows the signed-in account, so the plugin's session plugin may be the one reporting it.
+			sessionAssigned: widget.isInstalledPluginTeamProvided(createItem('session-assigned')),
+			own: widget.isInstalledPluginTeamProvided(createItem('own', false)),
+			blocked: widget.isInstalledPluginTeamProvided(createItem('blocked', true, false)),
+			sessionRequired: widget.isInstalledPluginTeamProvided(createItem('session-required', true)),
+			// Plugins from different marketplaces can share a name, so each takes the provenance of its own session plugin.
+			sameName: ['team', 'public'].map(marketplace => widget.isInstalledPluginTeamProvided(createItem('shared', undefined, undefined, marketplace))),
+			sameNameOneSessionPlugin: ['team', 'public'].map(marketplace => widget.isInstalledPluginTeamProvided(createItem('shared-one-session-plugin', undefined, undefined, marketplace))),
+			lateStates,
+			hostLabels: [hostPlugin, { ...hostPlugin, organizationControl: {} }].map(item => widget.getPluginEntryAriaLabel({ type: 'remote-item', item })),
+		}, {
+			assigned: true, sessionAssigned: true, own: false, blocked: false, sessionRequired: false,
+			sameName: [true, false], sameNameOneSessionPlugin: [true, false],
+			lateStates: [false, true],
+			hostLabels: [
+				'host-plugin. Agent host. Assigned by your GitHub Team. You can still enable or disable it.',
+				'host-plugin. Agent host. Managed by your organization.',
+			],
+		});
+	});
+
+	test('a runtime-installed plugin is shown as enabled when its session plugin is active, whatever its global setting', () => {
+		const createItem = (name: string, globalState: ContributionEnablementState, runtimeInstalled = true): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(globalState);
+				override readonly copilotCliInstallation = runtimeInstalled ? { name, marketplace: 'team' } : undefined;
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const createSessionPlugin = (name: string, enabled: boolean | undefined): ICustomizationItem => ({
+			uri: URI.file(`/plugins/${name}`), type: 'plugin', name, source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, enabled,
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: enabled ?? false, scope: 'global', run: () => { } }],
+		});
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			sessionPluginItems: observableValue<readonly ICustomizationItem[]>('sessionPluginItems', [
+				createSessionPlugin('team-assigned', true), createSessionPlugin('workspace-disabled', false), createSessionPlugin('pending', undefined), createSessionPlugin('local', true),
+			]),
+		});
+		const DisabledProfile = ContributionEnablementState.DisabledProfile;
+		const EnabledProfile = ContributionEnablementState.EnabledProfile;
+		assert.deepStrictEqual({
+			// A GitHub Team assignment turns the plugin on for the session without changing the user's global setting.
+			teamAssigned: widget.isInstalledPluginEnabled(createItem('team-assigned', DisabledProfile)),
+			workspaceDisabled: widget.isInstalledPluginEnabled(createItem('workspace-disabled', EnabledProfile)),
+			// Until the session reports its activation, and for plugins without a session plugin, the global setting applies.
+			pending: widget.isInstalledPluginEnabled(createItem('pending', DisabledProfile)),
+			withoutSessionPlugin: widget.isInstalledPluginEnabled(createItem('unpaired', DisabledProfile)),
+			local: widget.isInstalledPluginEnabled(createItem('local', DisabledProfile, false)),
+		}, { teamAssigned: true, workspaceDisabled: false, pending: false, withoutSessionPlugin: false, local: false });
 	});
 
 	test('This Workspace badge opens the existing scope action without changing scope until confirmed', async () => {
@@ -395,12 +494,14 @@ suite('pluginListWidget', () => {
 			extensionId: undefined, pluginUri: undefined,
 		};
 		const states: readonly Partial<ICustomizationItem>[] = [
-			{ enabled: true, organizationControl: { requiredEnabled: true } },
-			{ enabled: false, organizationControl: { requiredEnabled: false } },
+			{ enabled: true, teamProvided: true, organizationControl: { requiredEnabled: true } },
+			{ enabled: false, teamProvided: true, organizationControl: { requiredEnabled: false } },
 			{ enabled: false, organizationControl: { requiredEnabled: true } },
 			{ enabled: true, organizationControl: {} },
 			{ enabled: false },
 			{ enabled: true, organizationControl: {}, actions: [{ id: 'toggle', label: 'Toggle', checked: true, enabled: false, tooltip: 'Not supported', run: () => { } }] },
+			{ enabled: true, teamProvided: true },
+			{ enabled: false, teamProvided: true },
 		];
 		assert.deepStrictEqual(states.map(state => {
 			renderer.renderElement({
@@ -415,17 +516,20 @@ suite('pluginListWidget', () => {
 			return {
 				rowDisabled: row.classList.contains('disabled'),
 				badgeVisible: row.querySelector<HTMLElement>('.organization-managed-tag')!.style.display !== 'none',
+				teamBadgeVisible: row.querySelector<HTMLElement>('.team-provided-tag')!.style.display !== 'none',
 				checked: toggle.getAttribute('aria-checked'),
 				locked: toggle.disabled,
 				label: toggle.getAttribute('aria-label'),
 			};
 		}), [
-			{ rowDisabled: false, badgeVisible: true, checked: 'true', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is always enabled and can\'t be disabled.' },
-			{ rowDisabled: true, badgeVisible: true, checked: 'false', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is disabled and can\'t be enabled.' },
-			{ rowDisabled: true, badgeVisible: true, checked: 'false', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is always enabled and can\'t be disabled.' },
-			{ rowDisabled: false, badgeVisible: true, checked: 'true', locked: false, label: 'Plugin enablement for Native. Toggle' },
-			{ rowDisabled: true, badgeVisible: false, checked: 'false', locked: false, label: 'Plugin enablement for Native. Toggle' },
-			{ rowDisabled: false, badgeVisible: true, checked: 'true', locked: true, label: 'Plugin enablement for Native. Not supported' },
+			{ rowDisabled: false, badgeVisible: true, teamBadgeVisible: false, checked: 'true', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is always enabled and can\'t be disabled.' },
+			{ rowDisabled: true, badgeVisible: true, teamBadgeVisible: false, checked: 'false', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is disabled and can\'t be enabled.' },
+			{ rowDisabled: true, badgeVisible: true, teamBadgeVisible: false, checked: 'false', locked: true, label: 'Plugin enablement for Native. Managed by your organization. It is always enabled and can\'t be disabled.' },
+			{ rowDisabled: false, badgeVisible: true, teamBadgeVisible: false, checked: 'true', locked: false, label: 'Plugin enablement for Native. Toggle' },
+			{ rowDisabled: true, badgeVisible: false, teamBadgeVisible: false, checked: 'false', locked: false, label: 'Plugin enablement for Native. Toggle' },
+			{ rowDisabled: false, badgeVisible: true, teamBadgeVisible: false, checked: 'true', locked: true, label: 'Plugin enablement for Native. Not supported' },
+			{ rowDisabled: false, badgeVisible: false, teamBadgeVisible: true, checked: 'true', locked: false, label: 'Plugin enablement for Native. Toggle' },
+			{ rowDisabled: true, badgeVisible: false, teamBadgeVisible: true, checked: 'false', locked: false, label: 'Plugin enablement for Native. Toggle' },
 		]);
 	});
 

@@ -39,7 +39,7 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(IViewDescriptorService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
 		instantiationService.stub(IProgressService, {});
-		instantiationService.stub(IChatViewHostService, instantiationService.createInstance(ChatViewHostService));
+		instantiationService.stub(IChatViewHostService, store.add(instantiationService.createInstance(ChatViewHostService)));
 	}
 
 	test('only input-request routing prefers the full session over Inbox, preserving the submitting input context', () => {
@@ -221,6 +221,7 @@ suite('ChatWidgetService', () => {
 			const view = { widget: oldWidget, shownSession: constObservable(undefined), focus: () => calls.push('view.focus'), loadSession: async () => { calls.push('view.loadSession'); }, reportShown: (_resource: URI, reason: string) => calls.push(`view.reportShown ${reason}`) };
 			instantiationService.stub(IEditorGroupsService, { groups: [] });
 			instantiationService.stub(IViewsService, {
+				onDidChangeViewVisibility: Event.None,
 				getViewWithId: (() => view) as unknown as IViewsService['getViewWithId'],
 				openView: (async (id: string) => { calls.push(`openView ${id}`); return view; }) as unknown as IViewsService['openView'],
 			});
@@ -237,10 +238,12 @@ suite('ChatWidgetService', () => {
 
 		test('a Chat view that still holds the session is not shown or returned instead of what the replacement host shows', async () => {
 			const { calls, service, hostService, oldWidget, hostWidget } = setUp();
-			store.add(hostService.registerHost(upcastPartial<IChatViewHost>({
-				reveal: async () => { calls.push('host.reveal'); return hostWidget; },
-				openSession: async () => { calls.push('host.openSession'); return hostWidget; },
-			})));
+			store.add(hostService.register({
+				host: upcastPartial<IChatViewHost>({
+					reveal: async () => { calls.push('host.reveal'); return hostWidget; },
+					openSession: async () => { calls.push('host.openSession'); return hostWidget; },
+				})
+			}));
 			const registration = service.register(oldWidget);
 			store.add(registration);
 
@@ -261,9 +264,11 @@ suite('ChatWidgetService', () => {
 
 		test('a Chat view widget without a session is revealed by the replacement host, which may show none', async () => {
 			const { calls, service, hostService, emptyOldWidget } = setUp();
-			store.add(hostService.registerHost(upcastPartial<IChatViewHost>({
-				reveal: async () => { calls.push('host.reveal'); return undefined; },
-			})));
+			store.add(hostService.register({
+				host: upcastPartial<IChatViewHost>({
+					reveal: async () => { calls.push('host.reveal'); return undefined; },
+				})
+			}));
 
 			const revealed = await service.reveal(emptyOldWidget);
 

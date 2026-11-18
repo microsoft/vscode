@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IOtlpLogRecord, OtlpLogLevelName } from './otlp/otlpLogEmitter.js';
 import { Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -352,6 +353,8 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 	/** Explicit repository override; null inherits global state, absent means unavailable. */
 	readonly repositoryEnabled?: boolean | null;
 	readonly managedDesiredEnabled?: boolean;
+	/** Set when the signed-in account's GitHub Team assigns this plugin. Provenance only: the user's own enablement choices still apply. Absent when the runtime doesn't report it. */
+	readonly team?: boolean;
 	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
 	readonly resource?: URI;
 	/** Host-owned installed-content revision; activation-only changes preserve it. */
@@ -711,6 +714,8 @@ export interface IAgentPluginMarketplace {
 	readonly isDefault: boolean;
 	readonly managed: boolean;
 	readonly available: boolean;
+	/** Set when the signed-in account's GitHub Team provides this marketplace. Absent when the runtime doesn't report it. */
+	readonly team?: boolean;
 }
 
 export interface IAgentPluginMarketplaceItem {
@@ -2510,6 +2515,9 @@ export interface IAgent {
 
 	/** Optional `mcp://` router for providers that advertise chat-scoped MCP side-channel resources. */
 	handleMcpRequest?(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+
+	/** Streams per-server diagnostics without exporting them through host logging or telemetry. */
+	subscribeMcpServerLogs?(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable;
 
 	/** Optional notification stream paired with {@link handleMcpRequest}. */
 	readonly onMcpNotification?: Event<IMcpNotification>;

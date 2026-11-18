@@ -91,7 +91,6 @@ export const modelRouterSwitchPolicy = {
 	minLead: 0.25,
 	/** Turns to stay put after a switch, so one chat cannot flap between models. */
 	cooldownTurns: 2,
-	maxSwitchesPerChat: 3,
 } as const;
 
 /** How far a follow-up's score must move from the current effort, so a borderline score does not change it. */
@@ -133,11 +132,10 @@ export interface IModelRouterSwitchInput {
 	readonly currentModel: string;
 	readonly pick: IModelRouterPick;
 	readonly turnsSinceSwitch: number | undefined;
-	readonly switches: number;
 }
 
 /** Decides whether a follow-up moves the chat: it does when its message clearly fits another route. */
-export function decideModelRouterSwitch({ currentModel, pick, turnsSinceSwitch, switches }: IModelRouterSwitchInput): ModelRouterSwitchDecision {
+export function decideModelRouterSwitch({ currentModel, pick, turnsSinceSwitch }: IModelRouterSwitchInput): ModelRouterSwitchDecision {
 	const policy = modelRouterSwitchPolicy;
 	if (!pick.model || pick.model === currentModel) {
 		return 'stay';
@@ -146,7 +144,7 @@ export function decideModelRouterSwitch({ currentModel, pick, turnsSinceSwitch, 
 	if (pickProbability < policy.minPickProbability || pickProbability - (pick.probabilities[currentModel] ?? 0) < policy.minLead) {
 		return 'stay';
 	}
-	if (switches >= policy.maxSwitchesPerChat || (turnsSinceSwitch !== undefined && turnsSinceSwitch < policy.cooldownTurns)) {
+	if (turnsSinceSwitch !== undefined && turnsSinceSwitch < policy.cooldownTurns) {
 		return 'stay';
 	}
 	return 'switch';
@@ -304,7 +302,7 @@ export class CopilotModelRouter {
 			this._logService.warn(`[ModelRouter] ${request.chat}: follow-up pick failed; staying on ${current.model.id}`, error);
 			return stay;
 		}
-		const outcome = decideModelRouterSwitch({ currentModel: routeKey(current), pick, ...switchHistory(previousTurns) });
+		const outcome = decideModelRouterSwitch({ currentModel: routeKey(current), pick, turnsSinceSwitch: turnsSinceLastSwitch(previousTurns) });
 		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model}${describeDecision(pick)}`);
 		const effort = router.effort === 'auto' && !current.effort
 			? decideModelRouterEffort({ current: currentEffort, score: pick.effortScore, supported: current.supportedEfforts })
@@ -485,14 +483,8 @@ function isOnLongContext(turns: readonly Turn[]): boolean {
 	return false;
 }
 
-function switchHistory(turns: readonly Turn[]): { readonly turnsSinceSwitch: number | undefined; readonly switches: number } {
-	let switches = 0;
-	let turnsSinceSwitch: number | undefined;
-	turns.forEach((turn, index) => {
-		if (readUsageInfoMeta(turn.usage).modelRouted?.switchedFrom) {
-			switches++;
-			turnsSinceSwitch = turns.length - 1 - index;
-		}
-	});
-	return { turnsSinceSwitch, switches };
+/** How many turns a chat has stayed on its model since a turn last changed it, or `undefined` when none did. */
+function turnsSinceLastSwitch(turns: readonly Turn[]): number | undefined {
+	const last = turns.findLastIndex(turn => readUsageInfoMeta(turn.usage).modelRouted?.switchedFrom);
+	return last < 0 ? undefined : turns.length - 1 - last;
 }

@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -23,7 +24,8 @@ import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHo
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import type { IAgentHostTcpConnection } from '../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import type { IAgentHostDebugLogsArtifact } from '../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentHostDebugLogsArtifact, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -91,6 +93,37 @@ class DeferredRemoteAgentService extends TestRemoteAgentService {
 suite('EditorRemoteAgentHostServiceClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
+
+	function createService(protocolClient: Partial<AgentHostProtocolClient>, remoteAuthority?: string): EditorRemoteAgentHostServiceClient {
+		const remoteAgentService = remoteAuthority
+			? new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection({
+				call: <T>() => Promise.resolve(undefined as T),
+				listen: () => Event.None,
+			}, remoteAuthority)))
+			: new TestRemoteAgentService();
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IRemoteAgentService, remoteAgentService],
+			[IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: () => undefined })],
+			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
+			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false, remoteAuthority }],
+			[ILabelService, upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })],
+			[IAgentHostFileSystemService, {
+				_serviceBrand: undefined,
+				registerAuthority: () => Disposable.None,
+				ensureSyncedCustomizationProvider: () => { },
+			}],
+		)));
+		instantiationService.stubInstance(AgentHostProtocolClient, {
+			onDidClose: Event.None,
+			onDidChangeConnectionState: Event.None,
+			dispose: () => { },
+			...protocolClient,
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		return disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+	}
 
 	function createTransportFactory(channel: IChannel, resolveAuthority: IRemoteAuthorityResolverService['resolveAuthority'], isSessionsWindow = false, logService = new NullLogService(), certificates?: { useHostProxy: boolean; systemCertificates: boolean; authority?: string }, onOptions?: (options: IAgentHostProtocolClientOptions) => void, remoteAuthority = 'codespaces+test', getPreference: IRemoteAgentHostLocationPreferenceService['getPreference'] = () => undefined): () => IClientTransport {
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel, certificates ? certificates.authority ?? 'wsl+test' : remoteAuthority)));
@@ -301,7 +334,9 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const tcpTargets: Array<{ host: string; port: number }> = [];
 		const tcpConnection = upcastPartial<IAgentHostTcpConnection>({});
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const connectionAvailable = observableValue('connectionAvailable', false);
 		const protocolClient = {
+			connectionAvailable,
 			clientId: 'test-client',
 			clientConnectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
 			connect: async () => {
@@ -365,6 +400,13 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const createInstanceSpy = sinon.spy(instantiationService, 'createInstance');
 
 		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		const availability: boolean[] = [];
+		disposables.add(autorun(reader => {
+			const available = service.connectionAvailable?.read(reader);
+			if (available !== undefined) {
+				availability.push(available);
+			}
+		}));
 		const started = Event.toPromise(service.onAgentHostStart);
 		agentHostEnabled.set(true, undefined);
 		const beforeReady = connectCalls;
@@ -374,13 +416,17 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			await Promise.resolve();
 		}
 		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		connectionAvailable.set(true, undefined);
 		await started;
+		connectionAvailable.set(false, undefined);
+		connectionAvailable.set(true, undefined);
 
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
 		const createTransport = protocolClientCall?.args[2] as () => IClientTransport;
 		const transport = disposables.add(createTransport());
 		const openedTcpConnection = await service.openTcpConnection({ host: 'canvas.test', port: 4321 });
 		assert.deepStrictEqual({
+			availability,
 			beforeReady,
 			afterReady: connectCalls,
 			connectionKind: service.clientConnectionKind,
@@ -393,6 +439,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			tcpTargets,
 			openedTcpConnection: openedTcpConnection === tcpConnection,
 		}, {
+			availability: [false, true, false, true],
 			beforeReady: 0,
 			afterReady: 1,
 			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
@@ -496,6 +543,82 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		});
 	});
 
+	suite('worktree cleanup delegation', () => {
+		const session = URI.parse('custom-session://host/session');
+		const repository = URI.file('/repo');
+		const worktree = URI.file('/repo.worktrees/Task');
+		const root = URI.parse('vscode-remote://ssh-remote+test/repo.worktrees/Task');
+		const branch = 'agents/task';
+
+		test('forwards all worktree operations, options, cancellation and results through the concrete bridge', async () => {
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const measure = sinon.stub<Parameters<AgentHostProtocolClient['measureWorktreeDiskUsage']>>().resolves(1234);
+			const prepare = sinon.stub<Parameters<AgentHostProtocolClient['prepareSessionWorktreeCleanup']>>().resolves();
+			const status: IAgentHostWorktreeCleanupStatus = { state: 'pending' };
+			const cleanup = sinon.stub<Parameters<AgentHostProtocolClient['sessionWorktreeCleanup']>>().resolves(status);
+			const inventory: IAgentHostManagedWorktree[] = [{ repository: repository.toString(), worktree: worktree.toString(), branch, cleanupStatus: status }];
+			const list = sinon.stub<Parameters<AgentHostProtocolClient['listManagedWorktrees']>>().resolves(inventory);
+			const cleanupManaged = sinon.stub<Parameters<AgentHostProtocolClient['cleanupManagedWorktree']>>().resolves();
+			const service: IAgentHostService = createService({
+				measureWorktreeDiskUsage: measure,
+				prepareSessionWorktreeCleanup: prepare,
+				sessionWorktreeCleanup: cleanup,
+				listManagedWorktrees: list,
+				cleanupManagedWorktree: cleanupManaged,
+			}, 'ssh-remote+test');
+
+			const measured = await service.measureWorktreeDiskUsage!(root, cancellation.token, session);
+			await service.prepareSessionWorktreeCleanup!(session);
+			const cleanupStatus = await service.sessionWorktreeCleanup!(session, false);
+			await service.sessionWorktreeCleanup!(session, true, true);
+			const managed = await service.listManagedWorktrees!([repository]);
+			await service.cleanupManagedWorktree!(repository, worktree, branch);
+			await service.cleanupManagedWorktree!(repository, worktree, branch, true);
+			cancellation.cancel();
+			assert.deepStrictEqual({
+				measure: measure.args,
+				cancelled: measure.firstCall.args[1].isCancellationRequested,
+				prepare: prepare.args,
+				cleanup: cleanup.args,
+				list: list.args,
+				cleanupManaged: cleanupManaged.args,
+				measured, cleanupStatus, managed,
+			}, {
+				measure: [[root, cancellation.token, session]],
+				cancelled: true,
+				prepare: [[session]],
+				cleanup: [[session, false, undefined], [session, true, true]],
+				list: [[[repository]]],
+				cleanupManaged: [[repository, worktree, branch, undefined], [repository, worktree, branch, true]],
+				measured: 1234, cleanupStatus: status, managed: inventory,
+			});
+		});
+
+		for (const connected of [false, true]) {
+			test(`rejects worktree operations ${connected ? 'when the protocol client fails' : 'without a remote connection'}`, async () => {
+				const fail = async () => { throw new Error('Remote cleanup unavailable'); };
+				const service: IAgentHostService = createService({
+					measureWorktreeDiskUsage: fail,
+					prepareSessionWorktreeCleanup: fail,
+					sessionWorktreeCleanup: fail,
+					listManagedWorktrees: fail,
+					cleanupManagedWorktree: fail,
+				}, connected ? 'ssh-remote+test' : undefined);
+				const cancellation = disposables.add(new CancellationTokenSource());
+				const operations = [
+					() => service.measureWorktreeDiskUsage!(root, cancellation.token),
+					() => service.prepareSessionWorktreeCleanup!(session),
+					() => service.sessionWorktreeCleanup!(session, true),
+					() => service.listManagedWorktrees!([repository]),
+					() => service.cleanupManagedWorktree!(repository, worktree, branch),
+				];
+				for (const operation of operations) {
+					await assert.rejects(async () => operation(), connected ? /Remote cleanup unavailable/ : /no remote connection is available/);
+				}
+			});
+		}
+	});
+
 	suite('sandbox certificate delegation', () => {
 		const operations = [
 			['installSandboxCertificate', 'sandboxCertificateInstallationSupported'],
@@ -505,37 +628,6 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		] as const;
 		const chat = 'conversation://tenant/a%2Fb?revision%3D2#entry';
 		const scopeId = 'remote-runtime-scope';
-
-		function createService(protocolClient: Partial<AgentHostProtocolClient>, remoteAuthority?: string): EditorRemoteAgentHostServiceClient {
-			const remoteAgentService = remoteAuthority
-				? new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection({
-					call: <T>() => Promise.resolve(undefined as T),
-					listen: () => Event.None,
-				}, remoteAuthority)))
-				: new TestRemoteAgentService();
-			const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
-				[IRemoteAgentService, remoteAgentService],
-				[IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: () => undefined })],
-				[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
-				[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
-				[ILogService, new NullLogService()],
-				[IWorkbenchEnvironmentService, { isSessionsWindow: false, remoteAuthority }],
-				[ILabelService, upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })],
-				[IAgentHostFileSystemService, {
-					_serviceBrand: undefined,
-					registerAuthority: () => Disposable.None,
-					ensureSyncedCustomizationProvider: () => { },
-				}],
-			)));
-			instantiationService.stubInstance(AgentHostProtocolClient, {
-				onDidClose: Event.None,
-				onDidChangeConnectionState: Event.None,
-				dispose: () => { },
-				...protocolClient,
-			});
-			instantiationService.set(IInstantiationService, instantiationService);
-			return disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
-		}
 
 		for (const remoteAuthority of ['ssh-remote+test', 'wsl+test', 'dev-container+test']) {
 			test(`forwards independent live capabilities and exact certificate targets in ${remoteAuthority}`, async () => {

@@ -48,7 +48,7 @@ import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor } from '../chat.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor, IChatWidget } from '../chat.js';
 import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
@@ -322,6 +322,9 @@ export interface IChatListWidgetOptions {
 	 */
 	readonly getEditingValue?: () => string | undefined;
 
+	/** The widget whose list this is, which shows the input requests, such as questions, of the chats it renders. */
+	readonly getWidget?: () => IChatWidget | undefined;
+
 	/** Scrollable space kept below the last item, for content floating over the list. */
 	readonly paddingBottom?: number;
 
@@ -593,6 +596,7 @@ export class ChatListWidget extends Disposable {
 			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
+			getWidget: options.getWidget,
 			preserveScrollPosition: target => this.preserveScrollPosition(target),
 			onDidFinishProgressCollapse: () => this.updateBottomPadding(),
 		};

@@ -32,6 +32,7 @@ import { IChatHarnessSwitchFeedbackSurveyService } from '../../feedbackSurvey/ch
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { IGitService } from '../../../../git/common/gitService.js';
+import { ILocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
 
 /**
  * Action view item for delegating to a remote session (Background or Cloud).
@@ -62,8 +63,9 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IChatHarnessSwitchFeedbackSurveyService harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
 		@IGitService private readonly gitService: IGitService,
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
+		@ILocalChatAvailabilityService localChatAvailabilityService: ILocalChatAvailabilityService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, inputUri, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, harnessSwitchFeedbackSurveyService, managedSettingsService);
+		super(action, chatSessionPosition, delegate, pickerOptions, inputUri, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, harnessSwitchFeedbackSurveyService, managedSettingsService, localChatAvailabilityService);
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {
