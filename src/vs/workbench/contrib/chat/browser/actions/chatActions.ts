@@ -7,7 +7,8 @@ import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { raceTimeout, timeout } from '../../../../../base/common/async.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ChatCustomizationsLocationContext } from '../../common/customizationsLocation.js';
 import { safeIntl } from '../../../../../base/common/date.js';
@@ -164,6 +165,14 @@ const defaultChat = {
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
 };
+
+/** Options of `workbench.action.newChatWindow`. */
+export interface INewChatWindowOptions {
+	/** The name of the agent (mode) the new chat starts with, e.g. a custom agent contributed by an extension. */
+	readonly mode?: string;
+	/** Text to put into the chat input, without sending it. */
+	readonly query?: string;
+}
 
 export interface IChatViewOpenOptions {
 	/**
@@ -946,10 +955,25 @@ export function registerChatActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor) {
+		async run(accessor: ServicesAccessor, options?: INewChatWindowOptions) {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
-			await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } });
+			const widget = await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, compactAllowsSplit: true, bounds: { width: 640, height: 640 } } });
+			if (!widget) {
+				return;
+			}
+			if (options?.mode) {
+				// Custom agents may still be loading in a new window.
+				const modeName = options.mode;
+				const modes = await raceTimeout(waitForState(widget.input.currentChatModesObs, modes => !!modes.findModeByName(modeName)), 5000);
+				const mode = modes?.findModeByName(modeName);
+				if (mode) {
+					widget.input.setChatMode(mode.id, false);
+				}
+			}
+			if (options?.query) {
+				widget.setInput(options.query);
+			}
 		}
 	});
 
