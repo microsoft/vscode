@@ -93,6 +93,7 @@ import { readMessageReplacedTurn } from '../../common/meta/agentMessageMeta.js';
 import { ArtifactAutomationOption, IArtifactAutomationContext } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID } from '../../common/agentPluginManager.js';
 import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
 import { mintPeerChatUri, subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -3817,6 +3818,45 @@ suite('AgentService (node dispatcher)', () => {
 					endCheckpointCaptures: 0,
 				});
 			});
+		});
+
+		test('a previous-session Automation run gives the session the run\'s customizations, or removes stale ones, keeps its model, and rejects an archived session', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const chat = buildDefaultChatUri(session.toString());
+			const stateManager = getStateManager(service);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the production adapter without exposing a test-only API.
+			const prepare = service['_automationService']['_execution'].prepareSessionMessage!;
+			const activeClient: SessionActiveClient = {
+				clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///captured'), uri: 'file:///captured', name: 'Captured', clientId: AUTOMATION_ACTIVE_CLIENT_ID }],
+			};
+			const message = { text: 'Run', origin: { kind: MessageKind.Automation }, model: { id: 'run-model' } };
+			const started: unknown[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatTurnStarted) {
+					started.push({ queuedMessageId: envelope.action.queuedMessageId, model: envelope.action.message.model });
+				}
+			}));
+			const queue = async (id: string, client: SessionActiveClient | undefined) => {
+				(await prepare(session, 'copilot', { provider: 'copilot' }, message, id, client))();
+				return stateManager.getSessionState(session.toString())?.activeClients;
+			};
+			const withCustomizations = await queue('with', activeClient);
+			const fannedOut = copilotAgent.activeClientCalls.map(call => call.clientId);
+			const withoutCustomizations = await queue('without', undefined);
+			const queued = stateManager.getChatState(chat)?.queuedMessages?.map(pending => pending.id);
+			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+			// The idle chat starts a turn from the first message at once; the second waits for that turn.
+			assert.deepStrictEqual({ withCustomizations, fannedOut, withoutCustomizations, started, queued }, {
+				withCustomizations: [activeClient],
+				fannedOut: [AUTOMATION_ACTIVE_CLIENT_ID],
+				withoutCustomizations: [],
+				started: [{ queuedMessageId: 'with', model: { id: 'run-model' } }],
+				queued: ['without'],
+			});
+			await assert.rejects(prepare(session, 'copilot', { provider: 'copilot' }, message, 'archived', activeClient), /archived/);
 		});
 
 		test('forwards the exact chat URI encoded in an MCP channel', async () => {
