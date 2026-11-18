@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../../base/browser/dom.js';
 import { VSBuffer, bufferToStream } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -15,7 +16,7 @@ import { FileOperationError, FileOperationResult, IFileService } from '../../../
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
-import { getInstalledPluginStatusLabel, getPluginRepository, getPluginSourceUri, getPluginVersion, IInstalledPluginSessionState, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, resolveInstalledPluginSkillLink, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
+import { EmbeddedAgentPluginDetail, getInstalledPluginStatusLabel, getPluginRepository, getPluginSourceUri, getPluginVersion, IInstalledPluginSessionState, loadMarketplacePluginContributionEntries, loadPluginReadme, PluginReadmeRenderGuard, resolveInstalledPluginSkillLink, waitForInstalledPlugin } from '../../../browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/marketplaceReference.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -26,6 +27,10 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot } from '../../../common/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 
 class StatusRequestService extends mock<IRequestService>() {
 	override readonly onDidCompleteRequest = Event.None;
@@ -184,6 +189,54 @@ suite('embeddedAgentPluginDetail', () => {
 			sameNameRepository: undefined,
 			missingRepository: undefined,
 			nonGitHubRepository: undefined,
+		});
+	});
+
+	test('renders the plugin repository in Details before and after installation', () => {
+		const marketplaceItem = {
+			...createMarketplaceItem(URI.parse('https://example.test/README.md')),
+			sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'octo-org/example' },
+		} satisfies IMarketplacePluginItem;
+		const installedItem: IInstalledPluginItem = {
+			kind: AgentPluginItemKind.Installed,
+			name: marketplaceItem.name,
+			description: marketplaceItem.description,
+			marketplace: marketplaceItem.marketplace,
+			plugin: new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/example');
+				override readonly fromMarketplace = { ...marketplaceItem, version: '1.2.3' } satisfies IMarketplacePlugin;
+			}(),
+		};
+		const opened: string[] = [];
+		const facts = [marketplaceItem, installedItem].map(item => {
+			const factsEl = $('div');
+			const detail: { renderFacts(item: IAgentPluginItem): void } = Object.assign(Object.create(EmbeddedAgentPluginDetail.prototype), {
+				sourceFactsEl: $('div'),
+				factsEl,
+				renderDisposables: disposables.add(new DisposableStore()),
+				pluginRepositoryDisposables: disposables.add(new MutableDisposable()),
+				marketplaceInstallService: { installations: constObservable(emptyCustomizationMarketplaceInstallationSnapshot) },
+				hoverService: NullHoverService,
+				labelService: new class extends mock<ILabelService>() {
+					override getUriLabel(uri: URI) { return uri.path; }
+				}(),
+				openerService: new class extends mock<IOpenerService>() {
+					override async open(uri: URI | string) { opened.push(uri.toString()); return true; }
+				}(),
+			});
+			detail.renderFacts(item);
+			const row = [...factsEl.children].find(row => row.querySelector('.embedded-detail-fact-label')?.textContent === 'Repository');
+			const link = row?.querySelector('a');
+			link?.click();
+			return { visible: row instanceof HTMLElement && row.style.display !== 'none', label: link?.textContent, href: link?.href };
+		});
+
+		assert.deepStrictEqual({ facts, opened }, {
+			facts: [
+				{ visible: true, label: 'octo-org/example', href: 'https://github.com/octo-org/example' },
+				{ visible: true, label: 'octo-org/example', href: 'https://github.com/octo-org/example' },
+			],
+			opened: ['https://github.com/octo-org/example', 'https://github.com/octo-org/example'],
 		});
 	});
 
