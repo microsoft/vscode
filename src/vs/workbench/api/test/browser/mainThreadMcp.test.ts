@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -512,21 +513,30 @@ suite('MainThreadMcp - re-validation', () => {
 suite('MainThreadMcp - removed authentication provider', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const providerId = 'dynamic-provider';
 
-	test('reports that user interaction is needed when a silent refresh removes the provider', async () => {
-		const providerId = 'dynamic-provider';
+	/**
+	 * Registers a provider that, once `rejectClient` is set, removes itself on the next session lookup
+	 * like DynamicAuthProvider does when a silent refresh gets invalid_client.
+	 */
+	function createFixture(serverCount: number) {
+		const stoppedServers: number[] = [];
+		const onDidChangeSessions = disposables.add(new Emitter<AuthenticationSessionsChangeEvent>());
 		const storageService = disposables.add(new TestStorageService());
 		const accessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
 		const authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), accessService, TestEnvironmentService, new NullLogService()));
+		const state = { rejectClient: false };
 		authenticationService.registerAuthenticationProvider(providerId, new class extends mock<IAuthenticationProvider>() {
 			override readonly id = providerId;
 			override readonly label = 'Dynamic Provider';
-			override readonly supportsMultipleAccounts = true;
-			override readonly onDidChangeSessions = Event.None;
+			override readonly supportsMultipleAccounts = false;
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override async getSessions(): Promise<readonly AuthenticationSession[]> {
-				// Mirrors DynamicAuthProvider removing itself when a silent refresh gets invalid_client.
-				authenticationService.unregisterAuthenticationProvider(providerId);
-				return [];
+				if (state.rejectClient) {
+					authenticationService.unregisterAuthenticationProvider(providerId);
+					return [];
+				}
+				return [{ id: 'session', accessToken: 'token', account: { id: 'account', label: 'user' }, scopes: ['scope'] }];
 			}
 		});
 
@@ -540,9 +550,16 @@ suite('MainThreadMcp - removed authentication provider', () => {
 		};
 		const mainThreadMcp = createMainThreadMcp(disposables, {
 			$startMcp() { },
-			$stopMcp() { },
+			$stopMcp(id) {
+				stoppedServers.push(id);
+			},
 			$onDidChangeMcpServerDefinitions() { },
-		}, mcpRegistry, services => services.stub(IAuthenticationService, authenticationService));
+		}, mcpRegistry, services => {
+			services.stub(IAuthenticationService, authenticationService);
+			services.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+			services.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+			services.stub(IAuthenticationMcpUsageService, { addAccountUsage() { } });
+		});
 
 		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse('https://server.example/mcp'), headers: [] };
 		const definition: McpServerDefinition = { id: 'server', label: 'Server', launch, cacheNonce: 'nonce' };
@@ -557,7 +574,15 @@ suite('MainThreadMcp - removed authentication provider', () => {
 			order: McpCollectionSortOrder.Extension,
 		};
 		assert.ok(capturedDelegate);
-		capturedDelegate.start(collection, definition, launch, {});
+		for (let i = 0; i < serverCount; i++) {
+			capturedDelegate.start(collection, definition, launch, {});
+		}
+		return { mainThreadMcp, authenticationService, state, stoppedServers, onDidChangeSessions };
+	}
+
+	test('reports that user interaction is needed when a silent refresh removes the provider', async () => {
+		const { mainThreadMcp, authenticationService, state } = createFixture(1);
+		state.rejectClient = true;
 
 		const error = await mainThreadMcp.$getTokenForProviderId(1, providerId, ['scope'], { errorOnUserInteraction: true }).then(() => undefined, e => e);
 
@@ -569,6 +594,21 @@ suite('MainThreadMcp - removed authentication provider', () => {
 			registered: false,
 		});
 	});
+
+	test('stops every running server that shares a provider removed during revalidation', () => runWithFakedTimers({}, async () => {
+		const { mainThreadMcp, state, stoppedServers, onDidChangeSessions } = createFixture(2);
+		for (const id of [1, 2]) {
+			mainThreadMcp.$onDidChangeState(id, { state: McpConnectionState.Kind.Running });
+			await mainThreadMcp.$getTokenForProviderId(id, providerId, ['scope']);
+		}
+
+		state.rejectClient = true;
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+		// Past the wait for the removed provider to register again.
+		await timeout(6000);
+
+		assert.deepStrictEqual(stoppedServers, [1, 2]);
+	}));
 });
 
 suite('MainThreadMcp - request policy', () => {
