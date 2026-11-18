@@ -26,143 +26,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
-export class RenderedContentHover extends Disposable {
-
-	public closestMouseDistance: number | undefined;
-	public initialMousePosX: number | undefined;
-	public initialMousePosY: number | undefined;
-
-	public readonly showAtPosition: Position;
-	public readonly showAtSecondaryPosition: Position;
-	public readonly shouldFocus: boolean;
-	public readonly source: HoverStartSource;
-	public readonly shouldAppearBeforeContent: boolean;
-
-	private readonly _renderedHoverParts: RenderedContentHoverParts;
-
-	constructor(
-		editor: ICodeEditor,
-		hoverResult: ContentHoverResult,
-		participants: IEditorHoverParticipant<IHoverPart>[],
-		context: IEditorHoverContext,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService,
-		@IClipboardService clipboardService: IClipboardService
-	) {
-		super();
-		const parts = hoverResult.hoverParts;
-		this._renderedHoverParts = this._register(new RenderedContentHoverParts(
-			editor,
-			participants,
-			parts,
-			context,
-			keybindingService,
-			hoverService,
-			clipboardService
-		));
-		const contentHoverComputerOptions = hoverResult.options;
-		const anchor = contentHoverComputerOptions.anchor;
-		const { showAtPosition, showAtSecondaryPosition } = RenderedContentHover.computeHoverPositions(editor, anchor.range, parts);
-		this.shouldAppearBeforeContent = parts.some(m => m.isBeforeContent);
-		this.showAtPosition = showAtPosition;
-		this.showAtSecondaryPosition = showAtSecondaryPosition;
-		this.initialMousePosX = anchor.initialMousePosX;
-		this.initialMousePosY = anchor.initialMousePosY;
-		this.shouldFocus = contentHoverComputerOptions.shouldFocus;
-		this.source = contentHoverComputerOptions.source;
-	}
-
-	public get domNode(): DocumentFragment {
-		return this._renderedHoverParts.domNode;
-	}
-
-	public get domNodeHasChildren(): boolean {
-		return this._renderedHoverParts.domNodeHasChildren;
-	}
-
-	public get focusedHoverPartIndex(): number {
-		return this._renderedHoverParts.focusedHoverPartIndex;
-	}
-
-	public get hoverPartsCount(): number {
-		return this._renderedHoverParts.hoverPartsCount;
-	}
-
-	public focusHoverPartWithIndex(index: number): void {
-		this._renderedHoverParts.focusHoverPartWithIndex(index);
-	}
-
-	public getAccessibleWidgetContent(): string {
-		return this._renderedHoverParts.getAccessibleContent();
-	}
-
-	public getAccessibleWidgetContentAtIndex(index: number): string {
-		return this._renderedHoverParts.getAccessibleHoverContentAtIndex(index);
-	}
-
-	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
-		this._renderedHoverParts.updateHoverVerbosityLevel(action, index, focus);
-	}
-
-	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
-		return this._renderedHoverParts.doesHoverAtIndexSupportVerbosityAction(index, action);
-	}
-
-	public isColorPickerVisible(): boolean {
-		return this._renderedHoverParts.isColorPickerVisible();
-	}
-
-	public static computeHoverPositions(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]): { showAtPosition: Position; showAtSecondaryPosition: Position } {
-
-		let startColumnBoundary = 1;
-		if (editor.hasModel()) {
-			// Ensure the range is on the current view line
-			const viewModel = editor._getViewModel();
-			const coordinatesConverter = viewModel.coordinatesConverter;
-			const anchorViewRange = coordinatesConverter.convertModelRangeToViewRange(anchorRange);
-			const anchorViewMinColumn = viewModel.getLineMinColumn(anchorViewRange.startLineNumber);
-			const anchorViewRangeStart = new Position(anchorViewRange.startLineNumber, anchorViewMinColumn);
-			startColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeStart).column;
-		}
-
-		// The anchor range is always on a single line
-		const anchorStartLineNumber = anchorRange.startLineNumber;
-		let secondaryPositionColumn = anchorRange.startColumn;
-		let forceShowAtRange: Range | undefined;
-
-		for (const hoverPart of hoverParts) {
-			const hoverPartRange = hoverPart.range;
-			const hoverPartRangeOnAnchorStartLine = hoverPartRange.startLineNumber === anchorStartLineNumber;
-			const hoverPartRangeOnAnchorEndLine = hoverPartRange.endLineNumber === anchorStartLineNumber;
-			const hoverPartRangeIsOnAnchorLine = hoverPartRangeOnAnchorStartLine && hoverPartRangeOnAnchorEndLine;
-			if (hoverPartRangeIsOnAnchorLine) {
-				// this message has a range that is completely sitting on the line of the anchor
-				const hoverPartStartColumn = hoverPartRange.startColumn;
-				const minSecondaryPositionColumn = Math.min(secondaryPositionColumn, hoverPartStartColumn);
-				secondaryPositionColumn = Math.max(minSecondaryPositionColumn, startColumnBoundary);
-			}
-			if (hoverPart.forceShowAtRange) {
-				forceShowAtRange = hoverPartRange;
-			}
-		}
-
-		let showAtPosition: Position;
-		let showAtSecondaryPosition: Position;
-		if (forceShowAtRange) {
-			const forceShowAtPosition = forceShowAtRange.getStartPosition();
-			showAtPosition = forceShowAtPosition;
-			showAtSecondaryPosition = forceShowAtPosition;
-		} else {
-			showAtPosition = anchorRange.getStartPosition();
-			showAtSecondaryPosition = new Position(anchorStartLineNumber, secondaryPositionColumn);
-		}
-		return {
-			showAtPosition,
-			showAtSecondaryPosition,
-		};
-	}
-}
-
 interface IRenderedContentHoverPart {
 	/**
 	 * Type of rendered part
@@ -218,7 +81,20 @@ class RenderedStatusBar implements IDisposable {
 	}
 }
 
-class RenderedContentHoverParts extends Disposable {
+interface IContentHoverMetadata {
+	readonly showAtPosition: Position;
+	readonly showAtSecondaryPosition: Position;
+	readonly shouldFocus: boolean;
+	readonly source: HoverStartSource;
+	readonly shouldAppearBeforeContent: boolean;
+}
+
+export class RenderedContentHover extends Disposable {
+
+	public readonly metadata: IContentHoverMetadata;
+	public closestMouseDistance: number | undefined;
+	public initialMousePosX: number | undefined;
+	public initialMousePosY: number | undefined;
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		description: 'content-hover-highlight',
@@ -236,20 +112,80 @@ class RenderedContentHoverParts extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
+		hoverResult: ContentHoverResult,
 		participants: IEditorHoverParticipant<IHoverPart>[],
-		hoverParts: IHoverPart[],
 		context: IEditorHoverContext,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
+		const hoverParts = hoverResult.hoverParts;
 		this._context = context;
 		this._fragment = document.createDocumentFragment();
 		this._register(this._renderParts(participants, hoverParts, context, keybindingService, this._hoverService));
 		this._register(this._registerListenersOnRenderedParts());
 		this._register(this._createEditorDecorations(editor, hoverParts));
 		this._updateMarkdownAndColorParticipantInfo(participants);
+		const { anchor, shouldFocus, source } = hoverResult.options;
+		this.metadata = {
+			...RenderedContentHover.computeHoverPositions(editor, anchor.range, hoverParts),
+			shouldFocus,
+			source,
+			shouldAppearBeforeContent: hoverParts.some(part => part.isBeforeContent)
+		};
+		this.initialMousePosX = anchor.initialMousePosX;
+		this.initialMousePosY = anchor.initialMousePosY;
+	}
+
+	public static computeHoverPositions(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]): { showAtPosition: Position; showAtSecondaryPosition: Position } {
+
+		let startColumnBoundary = 1;
+		if (editor.hasModel()) {
+			// Ensure the range is on the current view line
+			const viewModel = editor._getViewModel();
+			const coordinatesConverter = viewModel.coordinatesConverter;
+			const anchorViewRange = coordinatesConverter.convertModelRangeToViewRange(anchorRange);
+			const anchorViewMinColumn = viewModel.getLineMinColumn(anchorViewRange.startLineNumber);
+			const anchorViewRangeStart = new Position(anchorViewRange.startLineNumber, anchorViewMinColumn);
+			startColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeStart).column;
+		}
+
+		// The anchor range is always on a single line
+		const anchorStartLineNumber = anchorRange.startLineNumber;
+		let secondaryPositionColumn = anchorRange.startColumn;
+		let forceShowAtRange: Range | undefined;
+
+		for (const hoverPart of hoverParts) {
+			const hoverPartRange = hoverPart.range;
+			const hoverPartRangeOnAnchorStartLine = hoverPartRange.startLineNumber === anchorStartLineNumber;
+			const hoverPartRangeOnAnchorEndLine = hoverPartRange.endLineNumber === anchorStartLineNumber;
+			const hoverPartRangeIsOnAnchorLine = hoverPartRangeOnAnchorStartLine && hoverPartRangeOnAnchorEndLine;
+			if (hoverPartRangeIsOnAnchorLine) {
+				// this message has a range that is completely sitting on the line of the anchor
+				const hoverPartStartColumn = hoverPartRange.startColumn;
+				const minSecondaryPositionColumn = Math.min(secondaryPositionColumn, hoverPartStartColumn);
+				secondaryPositionColumn = Math.max(minSecondaryPositionColumn, startColumnBoundary);
+			}
+			if (hoverPart.forceShowAtRange) {
+				forceShowAtRange = hoverPartRange;
+			}
+		}
+
+		let showAtPosition: Position;
+		let showAtSecondaryPosition: Position;
+		if (forceShowAtRange) {
+			const forceShowAtPosition = forceShowAtRange.getStartPosition();
+			showAtPosition = forceShowAtPosition;
+			showAtSecondaryPosition = forceShowAtPosition;
+		} else {
+			showAtPosition = anchorRange.getStartPosition();
+			showAtSecondaryPosition = new Position(anchorStartLineNumber, secondaryPositionColumn);
+		}
+		return {
+			showAtPosition,
+			showAtSecondaryPosition,
+		};
 	}
 
 	private _createEditorDecorations(editor: ICodeEditor, hoverParts: IHoverPart[]): IDisposable {
@@ -264,7 +200,7 @@ class RenderedContentHoverParts extends Disposable {
 		const highlightDecoration = editor.createDecorationsCollection();
 		highlightDecoration.set([{
 			range: highlightRange,
-			options: RenderedContentHoverParts._DECORATION_OPTIONS
+			options: RenderedContentHover._DECORATION_OPTIONS
 		}]);
 		return toDisposable(() => {
 			highlightDecoration.clear();
@@ -376,15 +312,15 @@ class RenderedContentHoverParts extends Disposable {
 		this._renderedParts[index].hoverElement.focus();
 	}
 
-	public getAccessibleContent(): string {
+	public getAccessibleWidgetContent(): string {
 		const content: string[] = [];
 		for (let i = 0; i < this._renderedParts.length; i++) {
-			content.push(this.getAccessibleHoverContentAtIndex(i));
+			content.push(this.getAccessibleWidgetContentAtIndex(i));
 		}
 		return content.join('\n\n');
 	}
 
-	public getAccessibleHoverContentAtIndex(index: number): string {
+	public getAccessibleWidgetContentAtIndex(index: number): string {
 		const renderedPart = this._renderedParts[index];
 		if (!renderedPart) {
 			return '';
