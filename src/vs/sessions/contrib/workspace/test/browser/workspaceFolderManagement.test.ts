@@ -10,8 +10,10 @@ import { constObservable, IObservable, observableValue } from '../../../../../ba
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
@@ -209,6 +211,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 			workspaceTrust,
 			folderLabel,
 			historyService,
+			upcastPartial<IFileService>({ canHandleResource: async resource => resource.scheme === Schemas.file }),
 		));
 
 		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel, historyService, workspaceFoldersChanged };
@@ -515,6 +518,24 @@ suite('WorkspaceFolderManagementContribution', () => {
 		}, {
 			added: 0,
 			updated: 0,
+		});
+	});
+
+	test('mounts only the folders the window can read, not a repository\'s web address', async () => {
+		const { activeSession, workspaceEditing } = createContribution();
+		const repository = URI.parse('https://github.com/microsoft/vscode');
+		const webAddress: ISessionFolder = { root: repository, workingDirectory: repository, name: 'microsoft/vscode', description: undefined };
+		const checkout = localFolder('/checkout');
+
+		activeSession.set(makeActiveSession('a', makeWorkspace(webAddress, false)), undefined);
+		await settle();
+		const projectOnly = workspaceEditing.folders.map(folder => folder.uri.toString());
+		activeSession.set(makeActiveSession('b', makeWorkspace([webAddress, checkout], false)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({ projectOnly, withCheckout: workspaceEditing.folders.map(folder => folder.uri.toString()) }, {
+			projectOnly: [],
+			withCheckout: [checkout.workingDirectory.toString()],
 		});
 	});
 
