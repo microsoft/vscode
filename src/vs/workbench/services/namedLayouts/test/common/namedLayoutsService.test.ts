@@ -168,6 +168,33 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
+	test('a switch returns the layout that was active when it ran, a conditional switch only runs while the given layout is active', async () => {
+		const testObject = createService(new TestParticipant());
+		const defaultLayout = testObject.activeLayout;
+		const debugLayout = await testObject.createLayout('Debug');
+		await testObject.switchLayout(defaultLayout);
+
+		// Queued one after another: each switch runs after the switches queued before it
+		const switchToDebug = testObject.switchLayout(debugLayout);
+		const switchToDefault = testObject.switchLayout(defaultLayout);
+		const switchToDebugIfDebugIsActive = testObject.switchLayout(debugLayout, { ifActiveLayoutId: debugLayout.id });
+		const switchToDebugIfDefaultIsActive = testObject.switchLayout(debugLayout, { ifActiveLayoutId: DEFAULT_NAMED_LAYOUT_ID });
+
+		assert.deepStrictEqual({
+			switchToDebug: (await switchToDebug).id,
+			switchToDefault: (await switchToDefault).id,
+			switchToDebugIfDebugIsActive: (await switchToDebugIfDebugIsActive)?.id,
+			switchToDebugIfDefaultIsActive: (await switchToDebugIfDefaultIsActive)?.id,
+			active: testObject.activeLayout.id
+		}, {
+			switchToDebug: DEFAULT_NAMED_LAYOUT_ID,
+			switchToDefault: debugLayout.id,
+			switchToDebugIfDebugIsActive: undefined,
+			switchToDebugIfDefaultIsActive: DEFAULT_NAMED_LAYOUT_ID,
+			active: debugLayout.id
+		});
+	});
+
 	test('restores the settings of the active named layout, including changes saved with the storage', async () => {
 		const first = createService(new TestParticipant());
 		await first.createLayout('Debug');

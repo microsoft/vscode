@@ -279,8 +279,18 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		});
 	}
 
-	switchLayout(layout: INamedLayout): Promise<void> {
-		return this.sequencer.queue(() => this.doSwitchLayout(layout.id, true));
+	switchLayout(layout: INamedLayout): Promise<INamedLayout>;
+	switchLayout(layout: INamedLayout, options: { readonly ifActiveLayoutId: string }): Promise<INamedLayout | undefined>;
+	switchLayout(layout: INamedLayout, options?: { readonly ifActiveLayoutId: string }): Promise<INamedLayout | undefined> {
+		return this.sequencer.queue(async () => {
+			if (options && options.ifActiveLayoutId !== this.activeLayoutId) {
+				return undefined;
+			}
+
+			const previousLayout = this.activeLayout;
+			await this.doSwitchLayout(layout.id, true);
+			return previousLayout;
+		});
 	}
 
 	deleteLayout(layout: INamedLayout): Promise<void> {

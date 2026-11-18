@@ -63,8 +63,8 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 			throw new Error(`The extension '${extensionId}' does not contribute a layout with the id '${id}'.`);
 		}
 
-		const previousLayout = this.namedLayoutsService.activeLayout;
-		await this.namedLayoutsService.switchLayout(layout);
+		// The layout that was active is determined when the switch runs, after the switches queued before it
+		const previousLayout = await this.namedLayoutsService.switchLayout(layout);
 
 		const token = this.nextToken++;
 		// Switching to the active layout changes nothing that could be restored, and fires
@@ -79,16 +79,13 @@ export class MainThreadWindowLayouts extends Disposable implements MainThreadWin
 	async $restoreLayout(token: number): Promise<boolean> {
 		const restorableSwitch = this.restorableSwitches.get(token);
 		this.restorableSwitches.delete(token);
-		if (!restorableSwitch || this.namedLayoutsService.activeLayout.id !== restorableSwitch.layoutId) {
+		const previousLayout = restorableSwitch && this.namedLayoutsService.layouts.find(layout => layout.id === restorableSwitch.previousLayoutId);
+		if (!restorableSwitch || !previousLayout) {
 			return false;
 		}
 
-		const previousLayout = this.namedLayoutsService.layouts.find(layout => layout.id === restorableSwitch.previousLayoutId);
-		if (!previousLayout) {
-			return false;
-		}
-
-		await this.namedLayoutsService.switchLayout(previousLayout);
-		return true;
+		// Whether the layout the extension switched to is still active is checked when the
+		// restore runs, so that it does not undo a switch that was queued before it
+		return !!await this.namedLayoutsService.switchLayout(previousLayout, { ifActiveLayoutId: restorableSwitch.layoutId });
 	}
 }

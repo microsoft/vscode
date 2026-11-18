@@ -298,9 +298,20 @@ export interface INamedLayoutsService {
 	createLayout(name: string): Promise<INamedLayout>;
 
 	/**
-	 * Saves the active layout and applies the given layout to this window.
+	 * Saves the active layout and applies the given layout to this window. Switches and other
+	 * changes of the layouts run one after another.
+	 *
+	 * @returns The layout that was active when the switch ran.
 	 */
-	switchLayout(layout: INamedLayout): Promise<void>;
+	switchLayout(layout: INamedLayout): Promise<INamedLayout>;
+
+	/**
+	 * Like {@link switchLayout}, but only switches if the layout with the given identifier is
+	 * active when the switch runs, so that it does not undo a switch that was queued before it.
+	 *
+	 * @returns The layout that was active when the switch ran, or `undefined` if another layout was active.
+	 */
+	switchLayout(layout: INamedLayout, options: { readonly ifActiveLayoutId: string }): Promise<INamedLayout | undefined>;
 
 	/**
 	 * Deletes the given named layout. If it is active, the default layout is applied first.
