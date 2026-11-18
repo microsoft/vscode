@@ -270,7 +270,7 @@ const modelRouterExample = [
 	'switching: first-turn      # optional: first-turn (default) or auto',
 	'routes:                    # 2 to 10 routes, or 1 that has guidance; the first is used when the router can\'t tell',
 	'  - model: [opus, sonnet]  # a model family, with a fallback',
-	'    when: Building or changing things over many steps, such as a feature or prototype, multi-file changes, a rebase with conflicts, a PR review, or a doc that needs research.',
+	'    when: Building or changing things over many steps, such as a feature or prototype, multi-file changes, a rebase with conflicts, a PR review, or a doc that needs research, including when the message also asks to find the cause first.',
 	'    examples:              # optional, up to 10',
 	'      - prototype this',
 	'      - review the PR and tell me what to change',
@@ -309,7 +309,7 @@ const modelRouterNamedRoutesExample = [
 
 const modelRouterSkillContent = `# Model router
 
-A model router is a YAML file that VS Code lists as a model in the model picker. A chat that uses it asks a decision model which route fits the request, and runs on that route's model. By default it asks on the first message it routes in a chat, and the chat stays on that route. Use this skill to create, edit, clean up or fix one.
+A model router is a YAML file that VS Code lists as a model in the model picker. A chat that uses it asks a decision model which route fits the request, and runs on that route's model. By default it asks once, on the first message after the router is chosen, and the chat stays on that route. Use this skill to create, edit, clean up or fix one.
 
 ## Where routers live
 
@@ -329,8 +329,8 @@ ${modelRouterExample}
 - A family never picks an experimental model (the check marks those \`experimental\`); write its exact id. The check shows the model each route \`matched\`, and reports a name that fits more than one family, such as \`claude\`. It stops at the first entry of a list that is available, so it does not look up the entries after it: compare those with the model list yourself.
 - \`when\` says which requests the route is for, and \`examples\` gives up to 10 of them. See "Routes that route well" below.
 - \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose the effort when it routes a request; \`off\` leaves each model's default and ignores route \`effort\`.
-- \`switching: first-turn\`, the default, picks a route and an effort on the first message it routes in a chat and does not pick again; \`auto\` also routes later messages, and moves the chat when the work clearly changes.
-- \`context-size: long\` (optional, on a route or for the whole router) runs a model on its larger context window when it has one; \`default\` uses its standard one. The check lists a model's \`contextSizes\` when it has more than one, and \`longContextCostsMore\` when the larger one is billed at a higher rate. Without the key each model keeps its own default. A chat that is on a long window stays on one, on every model that has one.
+- \`switching: first-turn\`, the default, picks a route and an effort on the first message after the router is chosen and does not pick again; \`auto\` also routes later messages, and moves the chat when the work clearly changes.
+- \`context-size: long\` (optional, on a route or for the whole router) runs a model on its larger context window when it has one; \`default\` uses its standard one. The check lists a model's \`contextSizes\` when it has more than one, and \`longContextCostsMore\` when the larger one is billed at a higher rate. Without the key each model keeps its own default. A chat the router has put on a long window stays on one, on every model that has one.
 - \`display-name\` (optional, at most 64 characters) is the name the model picker and the chat show in place of the file name.
 - \`guidance\` at the top of the file (optional) is a rule for the routing decision that applies to every request. A route's own \`guidance\` is something else: see "Named routes and guidance".
 - The keys \`subagents\`, \`phases\` and \`mid-turn\`, and \`switching: mid-turn\`, are reserved for later versions and ignored.
@@ -339,7 +339,7 @@ ${modelRouterExample}
 
 - The decision model sees the user's message and a few facts about it, never the code. So in \`when\`, describe **the work a request involves**, not just its topic: "Building or changing things over many steps, such as …" routes far better than "Planning and design". Name concrete kinds of requests, and add 2 or 3 \`examples\` in the user's own words, including short ones like "prototype this".
 - The facts the decision is given besides the message: what is attached (how many images, documents, selections and so on, and how many lines are selected), Plan mode, the custom agent the user chose (one that names its own model is not routed at all), the workspace's name and GitHub repository, how many files have uncommitted changes when there are ten or more, whether the branch has an open pull request, and each model's cost and context window. A \`when\` can refer to them, such as "Anything sent in Plan mode", "Requests with an image attached" or "Work on a tree with many changed files". Autopilot mode is told only to a router whose \`when\`, examples or top-level \`guidance\` name it.
-- The first route is used when the router can't tell which route fits the first message it routes in a chat; a later message it can't place leaves the chat on its route. Put there the model the user wants in that case: usually their strongest everyday model, not the cheapest. Short messages often start long investigations, so don't put a catch-all route for "explanations" or "questions" first.
+- The first route is used when the router can't tell which route fits that first message; a later message it can't place leaves the chat on its route. Put there the model the user wants in that case: usually their strongest everyday model, not the cheapest. Short messages often start long investigations, so don't put a catch-all route for "explanations" or "questions" first.
 - With \`switching: auto\`, put short hand-off replies in the examples of the route that should do the work, such as "fix it (after finding the cause)" or "do that and open a PR" under the building route. On their own they read like quick chores.
 - A message can ask for two kinds of work, such as "brainstorm this, then build it" or "find the cause and fix it". The decision can go either way on those, so say where they go: in the \`when\` of the route that should take them ("…, including when the message also asks to build the result"), or as a rule in the top-level \`guidance\`.
 - Keep the top-level \`guidance\` for rules that hold for every request. A line like "prefer the cheapest model" pulls almost every request to the cheapest model's route.
@@ -391,7 +391,7 @@ Quote any example or \`when\` text that contains \`: \`, such as a pasted error 
 
 Steps 2 and 3 are for a new router or a clean-up. A small edit makes only the change the user asked for. A review does step 1, reads the router for the problems under "Cleaning up an existing router", and reports them without editing.
 
-1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list, or a family of one of them, and not a model marked \`disabledByPolicy\`. The exception is a model the user asks for by id that this account doesn't have, such as a fallback for someone they share the router with: say that it could not be checked here.
+1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list, or a family of one of them, and not a model marked \`disabledByPolicy\`. The exception is a model id the user asks for so that the router also works for someone they share it with, whose account has models this one doesn't: say that it could not be checked here.
 2. Offer to look at the user's recent Copilot chats to see what work they do. Only if they agree, read the \`user.message\` events in \`{{COPILOT_SESSION_STATE}}/*/events.jsonl\` from the last few weeks that have no \`agentId\` and whose \`data.source\` is missing, empty or \`user\`; the others are subagent prompts and injected content. Take the user's request from \`data.content\`, leaving out the \`<reminder>\`, \`<attachments>\`, \`<context>\`, \`<current_datetime>\` and similar blocks the host adds. Ignore the agent's replies and tool output. List the kinds of work they do and how often, and how they phrase short requests and hand-offs.
 3. Make sure every kind of work the user does often is named in some route's \`when\` or examples. Write the examples in their style, but never copy file paths, names, links or other details from their messages into the router.
 4. Write or edit the file with your normal file tools.
