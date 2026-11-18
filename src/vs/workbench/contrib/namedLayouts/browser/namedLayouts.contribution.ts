@@ -17,7 +17,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -82,12 +82,10 @@ const SWITCH_LAYOUT_COMMAND_ID = 'workbench.action.switchLayout';
 const namedLayoutsIcon = registerIcon('named-layouts-icon', Codicon.layout, localize('namedLayoutsIcon', "Icon of the layout control in the title bar while named layouts are enabled."));
 
 /**
- * Groups of the layouts menu. The layouts of each extension follow the other layouts in
- * a group titled with the name of the extension.
+ * Groups of the layouts menu.
  */
 const enum NamedLayoutsMenuGroup {
 	Layouts = '0_layouts',
-	ExtensionLayoutsPrefix = '0_layouts_extension_',
 	/** The visibility of the side bars and the panel. */
 	Parts = '1_parts',
 	State = '1_state',
@@ -172,20 +170,34 @@ function isDeletable(layout: INamedLayout): boolean {
 	return layout.id !== DEFAULT_NAMED_LAYOUT_ID && !layout.contribution;
 }
 
+/**
+ * The name under which the given layout is shown. A layout that an extension contributes
+ * is shown with the name of its extension if another layout has the same name.
+ */
+function getLayoutLabel(namedLayoutsService: INamedLayoutsService, layout: INamedLayout): string {
+	const contribution = layout.contribution;
+	const name = layout.name.toLowerCase();
+	if (contribution && namedLayoutsService.layouts.some(other => other.id !== layout.id && other.name.toLowerCase() === name)) {
+		return localize({ key: 'contributedLayoutLabel', comment: ['{0} is the name of a layout, {1} the name of the extension that contributes it'] }, "{0} - {1}", layout.name, contribution.extensionName);
+	}
+	return layout.name;
+}
+
 async function setLayoutLocked(namedLayoutsService: INamedLayoutsService, layout: INamedLayout, locked: boolean): Promise<void> {
 	await namedLayoutsService.setLayoutLocked(layout, locked);
-	status(locked ? localize('layoutLocked', "Locked layout {0}", layout.name) : localize('layoutUnlocked', "Unlocked layout {0}", layout.name));
+	const label = getLayoutLabel(namedLayoutsService, layout);
+	status(locked ? localize('layoutLocked', "Locked layout {0}", label) : localize('layoutUnlocked', "Unlocked layout {0}", label));
 }
 
 async function revertLayout(namedLayoutsService: INamedLayoutsService): Promise<void> {
-	const layout = namedLayoutsService.activeLayout;
+	const label = getLayoutLabel(namedLayoutsService, namedLayoutsService.activeLayout);
 	await namedLayoutsService.revertLayout();
-	status(localize('layoutReverted', "Reverted the changes to layout {0}", layout.name));
+	status(localize('layoutReverted', "Reverted the changes to layout {0}", label));
 }
 
 async function confirmAndDeleteLayout(namedLayoutsService: INamedLayoutsService, dialogService: IDialogService, layout: INamedLayout): Promise<void> {
 	const { confirmed } = await dialogService.confirm({
-		message: localize('deleteLayout.confirm', "Are you sure you want to delete the layout '{0}'?", layout.name),
+		message: localize('deleteLayout.confirm', "Are you sure you want to delete the layout '{0}'?", getLayoutLabel(namedLayoutsService, layout)),
 		detail: layout.id === namedLayoutsService.activeLayout.id ? localize('deleteLayout.confirmActive', "The layout is active in this window. The default layout will be restored.") : undefined,
 		primaryButton: localize({ key: 'deleteLayout.delete', comment: ['&& denotes a mnemonic'] }, "&&Delete")
 	});
@@ -194,8 +206,8 @@ async function confirmAndDeleteLayout(namedLayoutsService: INamedLayoutsService,
 	}
 }
 
-function getLayoutMenuLabel(layout: INamedLayout): string {
-	return layout.locked ? localize('lockedLayoutLabel', "{0} (Locked)", layout.name) : layout.name;
+function getLayoutMenuLabel(layout: INamedLayout, label: string): string {
+	return layout.locked ? localize('lockedLayoutLabel', "{0} (Locked)", label) : label;
 }
 
 /**
@@ -252,7 +264,8 @@ class NamedLayoutsMenuContribution extends Disposable implements IWorkbenchContr
 		this.activeLayoutModified.set(this.namedLayoutsService.isActiveLayoutModified);
 
 		// The title of the button is its hover and accessible name
-		const title = activeLayout.locked ? localize('activeLockedLayoutTitle', "Layout: {0} (Locked)", activeLayout.name) : localize('activeLayoutTitle', "Layout: {0}", activeLayout.name);
+		const label = getLayoutLabel(this.namedLayoutsService, activeLayout);
+		const title = activeLayout.locked ? localize('activeLockedLayoutTitle', "Layout: {0} (Locked)", label) : localize('activeLayoutTitle', "Layout: {0}", label);
 		if (title !== this.layoutControlTitle) {
 			this.layoutControlTitle = title;
 			this.layoutControlEntry.value = MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
@@ -269,39 +282,26 @@ class NamedLayoutsMenuContribution extends Disposable implements IWorkbenchContr
 		// The commands of the previous entries must be unregistered before they are registered again
 		this.layoutEntries.clear();
 		const store = new DisposableStore();
-		const extensionGroups = new Map<string, string>();
 		this.namedLayoutsService.layouts.forEach((layout, index) => {
-			let group: string = NamedLayoutsMenuGroup.Layouts;
-			const contribution = layout.contribution;
-			if (contribution) {
-				let extensionGroup = extensionGroups.get(contribution.extensionId);
-				if (!extensionGroup) {
-					// Pad the index, groups are sorted by their identifier
-					extensionGroup = `${NamedLayoutsMenuGroup.ExtensionLayoutsPrefix}${String(extensionGroups.size).padStart(4, '0')}`;
-					extensionGroups.set(contribution.extensionId, extensionGroup);
-					store.add(MenuRegistry.appendMenuGroup(MenuId.NamedLayoutsSubmenu, { group: extensionGroup, title: contribution.extensionName }));
-				}
-				group = extensionGroup;
-			}
-			store.add(this.registerLayoutEntry(layout, group, index));
+			store.add(this.registerLayoutEntry(layout, getLayoutLabel(this.namedLayoutsService, layout), index));
 		});
 		this.layoutEntries.value = store;
 	}
 
-	private registerLayoutEntry(layout: INamedLayout, group: string, order: number): IDisposable {
+	private registerLayoutEntry(layout: INamedLayout, label: string, order: number): IDisposable {
 		const namedLayoutsService = this.namedLayoutsService;
 		return registerAction2(class SwitchToLayoutAction extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.action.switchToLayout.${layout.id}`,
-					title: getLayoutMenuLabel(layout),
+					title: getLayoutMenuLabel(layout, label),
 					metadata: {
-						description: localize2('switchToLayout.description', "Switch to the layout {0}", layout.name),
+						description: localize2('switchToLayout.description', "Switch to the layout {0}", label),
 					},
 					toggled: ActiveNamedLayoutContext.isEqualTo(layout.id),
 					menu: {
 						id: MenuId.NamedLayoutsSubmenu,
-						group,
+						group: NamedLayoutsMenuGroup.Layouts,
 						order,
 						when: NamedLayoutsEnabledContext
 					}
@@ -325,23 +325,24 @@ interface ILayoutSwitcherQuickPickItem extends IQuickPickItem {
 	readonly layout?: INamedLayout;
 }
 
-function getLayoutAriaLabel(layout: INamedLayout, active: boolean): string | undefined {
+function getLayoutAriaLabel(layout: INamedLayout, label: string, active: boolean): string | undefined {
 	if (active) {
-		return layout.locked ? localize('activeLockedLayoutAriaLabel', "{0} (Active, Locked)", layout.name) : localize('activeLayoutAriaLabel', "{0} (Active)", layout.name);
+		return layout.locked ? localize('activeLockedLayoutAriaLabel', "{0} (Active, Locked)", label) : localize('activeLayoutAriaLabel', "{0} (Active)", label);
 	}
-	return layout.locked ? localize('lockedLayoutAriaLabel', "{0} (Locked)", layout.name) : undefined;
+	return layout.locked ? localize('lockedLayoutAriaLabel', "{0} (Locked)", label) : undefined;
 }
 
-function toQuickPickItems(layouts: readonly INamedLayout[], activeLayout: INamedLayout): INamedLayoutQuickPickItem[] {
+function toQuickPickItems(namedLayoutsService: INamedLayoutsService, layouts: readonly INamedLayout[]): INamedLayoutQuickPickItem[] {
 	return layouts.map(layout => {
-		const active = layout.id === activeLayout.id;
+		const active = layout.id === namedLayoutsService.activeLayout.id;
+		const label = getLayoutLabel(namedLayoutsService, layout);
 		return {
 			layout,
-			label: layout.name,
+			label,
 			// A check mark marks the active layout, the other layouts keep its space so that the labels align
 			iconClass: ThemeIcon.asClassName(active ? Codicon.check : Codicon.blank),
 			description: layout.locked ? `$(${Codicon.lock.id})` : undefined,
-			ariaLabel: getLayoutAriaLabel(layout, active)
+			ariaLabel: getLayoutAriaLabel(layout, label, active)
 		};
 	});
 }
@@ -438,22 +439,10 @@ registerAction2(class SwitchLayoutAction extends Action2 {
 			return buttons;
 		};
 		const updateItems = () => {
-			const layoutItems = toQuickPickItems(namedLayoutsService.layouts, namedLayoutsService.activeLayout)
+			const layoutItems = toQuickPickItems(namedLayoutsService, namedLayoutsService.layouts)
 				.map(item => ({ ...item, buttons: getButtons(item.layout) }));
 
-			// Layouts contributed by extensions are grouped by extension
-			const items: (ILayoutSwitcherQuickPickItem | IQuickPickSeparator)[] = [];
-			let extensionId: string | undefined;
-			for (const item of layoutItems) {
-				const contribution = item.layout.contribution;
-				if (contribution && contribution.extensionId !== extensionId) {
-					extensionId = contribution.extensionId;
-					items.push({ type: 'separator', label: contribution.extensionName });
-				}
-				items.push(item);
-			}
-
-			picker.items = [...items, { type: 'separator' }, newLayoutItem];
+			picker.items = [...layoutItems, { type: 'separator' }, newLayoutItem];
 			picker.activeItems = layoutItems.filter(item => item.layout.id === namedLayoutsService.activeLayout.id);
 		};
 		updateItems();
@@ -518,7 +507,7 @@ registerAction2(class DeleteLayoutAction extends Action2 {
 			return;
 		}
 
-		const pick = await quickInputService.pick(toQuickPickItems(namedLayouts, namedLayoutsService.activeLayout), {
+		const pick = await quickInputService.pick(toQuickPickItems(namedLayoutsService, namedLayouts), {
 			placeHolder: localize('deleteLayout.placeholder', "Select a layout to delete")
 		});
 		if (pick) {
@@ -552,7 +541,8 @@ registerAction2(class ResetLayoutAction extends Action2 {
 			return;
 		}
 
-		const pick = await quickInputService.pick(toQuickPickItems(resettableLayouts, namedLayoutsService.activeLayout).map(item => ({ ...item, description: item.layout.contribution?.extensionName })), {
+		// All layouts are of extensions, the description names the extension
+		const pick = await quickInputService.pick(toQuickPickItems(namedLayoutsService, resettableLayouts).map(item => ({ ...item, label: item.layout.name, description: item.layout.contribution?.extensionName })), {
 			placeHolder: localize('resetLayout.placeholder', "Select a layout to reset")
 		});
 		if (pick) {
@@ -636,8 +626,9 @@ registerAction2(class ResetActiveLayoutAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const namedLayoutsService = accessor.get(INamedLayoutsService);
 		const activeLayout = namedLayoutsService.activeLayout;
+		const label = getLayoutLabel(namedLayoutsService, activeLayout);
 		await namedLayoutsService.resetLayout(activeLayout);
-		status(localize('layoutReset', "Reset layout {0}", activeLayout.name));
+		status(localize('layoutReset', "Reset layout {0}", label));
 	}
 });
 

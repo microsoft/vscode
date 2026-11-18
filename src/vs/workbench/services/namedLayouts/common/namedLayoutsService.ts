@@ -204,14 +204,14 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	get layouts(): readonly INamedLayout[] {
 		const namedLayouts = this.storedLayouts
 			.filter(layout => !layout.contribution)
-			.map(({ id }) => this.getLayout(id))
+			.map(({ id }) => this.getLayout(id));
+		const contributedLayouts = [...this.contributedLayouts.keys()].map(id => this.getLayout(id));
+		const layouts = [...namedLayouts, ...contributedLayouts]
 			.filter((layout): layout is INamedLayout => !!layout)
-			.sort((a, b) => a.name.localeCompare(b.name));
-		const contributedLayouts = [...this.contributedLayouts.keys()]
-			.map(id => this.getLayout(id))
-			.filter((layout): layout is INamedLayout => !!layout)
-			.sort((a, b) => (a.contribution?.extensionName ?? '').localeCompare(b.contribution?.extensionName ?? '') || a.name.localeCompare(b.name));
-		return [this.defaultLayout, ...namedLayouts, ...contributedLayouts];
+			.sort((a, b) => a.name.localeCompare(b.name)
+				|| Number(!!a.contribution) - Number(!!b.contribution)
+				|| (a.contribution?.extensionName ?? '').localeCompare(b.contribution?.extensionName ?? ''));
+		return [this.defaultLayout, ...layouts];
 	}
 
 	get activeLayout(): INamedLayout {

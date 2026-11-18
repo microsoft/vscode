@@ -269,8 +269,8 @@ export interface INamedLayoutsService {
 	readonly onDidChangeActiveLayoutModified: Event<void>;
 
 	/**
-	 * The default layout followed by all named layouts sorted by name and the
-	 * layouts contributed by extensions sorted by extension and name.
+	 * The default layout followed by all other layouts sorted by name. Of layouts with the same
+	 * name, those of the user come first, followed by those of extensions sorted by extension.
 	 */
 	readonly layouts: readonly INamedLayout[];
 

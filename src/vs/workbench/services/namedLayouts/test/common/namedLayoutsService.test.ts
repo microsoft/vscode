@@ -209,6 +209,23 @@ suite('NamedLayoutsService', () => {
 		assert.deepStrictEqual({ userValue, describesDefaultValue }, { userValue: 'userValue', describesDefaultValue: false });
 	});
 
+	test('layouts of the user and of extensions are sorted by name, those of the user first if their names are the same', async () => {
+		const testObject = createService(new TestParticipant());
+		await testObject.createLayout('Debug');
+		await testObject.createLayout('Agentic');
+		const contribute = (extensionName: string, label: string): IContributedNamedLayout => ({ extensionId: `publisher.${extensionName.toLowerCase()}`, extensionName, id: label.toLowerCase(), label, definition: {} });
+		testObject.setContributedLayouts([contribute('Second', 'Agentic'), contribute('First', 'Zen'), contribute('First', 'Agentic')]);
+
+		assert.deepStrictEqual(testObject.layouts.map(layout => `${layout.name}${layout.contribution ? ` (${layout.contribution.extensionName})` : ''}`), [
+			'Default',
+			'Agentic',
+			'Agentic (First)',
+			'Agentic (Second)',
+			'Debug',
+			'Zen (First)'
+		]);
+	});
+
 	test('restores the settings of the active named layout, including changes saved with the storage', async () => {
 		const first = createService(new TestParticipant());
 		await first.createLayout('Debug');
