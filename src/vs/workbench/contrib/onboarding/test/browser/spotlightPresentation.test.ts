@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import { IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -279,31 +280,39 @@ suite('SpotlightPresentation', () => {
 	}
 
 
-	for (const closeButton of [false, true]) {
-		test(`logs the close button experiment trigger in every arm and ends the tour from the shown button (closeButton: ${closeButton})`, async () => {
-			const container = createContainer();
-			const telemetry = new TestExperimentTriggerTelemetryService();
-			const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const configuration = new TestConfigurationService({ [SPOTLIGHT_CLOSE_BUTTON_CONFIG]: closeButton });
-			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, configuration, telemetry));
-			createTarget(container, 'test.closeButton');
-			const step = (id: string): ISpotlightStep => ({ id, targetId: 'test.closeButton', title: id, description: 'Highlights the target.' });
-			let whileShown: { triggers: string[]; closeButtons: number; endTour: boolean } | undefined;
-			const result = await presentation.run(createScenario('test.closeButton', step('first'), step('second')), {
-				targetWindow: mainWindow, onAbort: Event.None,
-				onDidShow: () => {
-					const close = container.querySelector<HTMLElement>('.spotlight-callout-close');
-					const endTour = [...container.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === 'End Tour' && button.style.display !== 'none');
-					whileShown = { triggers: [...telemetry.triggers], closeButtons: container.querySelectorAll('.spotlight-callout-close').length, endTour: !!endTour };
-					(close ?? endTour)!.click();
-				},
+	for (const source of ['assignedDefault', 'explicitValue'] as const) {
+		for (const closeButton of [false, true]) {
+			test(`logs the close button experiment trigger only for an assigned default and ends the tour from the shown button (${source}: ${closeButton})`, async () => {
+				const container = createContainer();
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				// The test service reports every value as a user value; an experiment assigns the default instead.
+				const configuration = new class extends TestConfigurationService {
+					override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+						const inspected = super.inspect<T>(key, overrides);
+						return source === 'assignedDefault' ? { value: inspected.value, defaultValue: inspected.value } : inspected;
+					}
+				}({ [SPOTLIGHT_CLOSE_BUTTON_CONFIG]: closeButton });
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys, configuration, telemetry));
+				createTarget(container, 'test.closeButton');
+				const step = (id: string): ISpotlightStep => ({ id, targetId: 'test.closeButton', title: id, description: 'Highlights the target.' });
+				let whileShown: { triggers: string[]; closeButtons: number; endTour: boolean } | undefined;
+				const result = await presentation.run(createScenario('test.closeButton', step('first'), step('second')), {
+					targetWindow: mainWindow, onAbort: Event.None,
+					onDidShow: () => {
+						const close = container.querySelector<HTMLElement>('.spotlight-callout-close');
+						const endTour = [...container.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === 'End Tour' && button.style.display !== 'none');
+						whileShown = { triggers: [...telemetry.triggers], closeButtons: container.querySelectorAll('.spotlight-callout-close').length, endTour: !!endTour };
+						(close ?? endTour)!.click();
+					},
+				});
+				assert.deepStrictEqual({ whileShown, outcome: result.outcome, dismissReason: result.dismissReason }, {
+					whileShown: { triggers: source === 'assignedDefault' ? [`config.${SPOTLIGHT_CLOSE_BUTTON_CONFIG}`] : [], closeButtons: closeButton ? 1 : 0, endTour: !closeButton },
+					outcome: OnboardingOutcome.Skipped,
+					dismissReason: OnboardingDismissReason.SkipButton,
+				});
 			});
-			assert.deepStrictEqual({ whileShown, outcome: result.outcome, dismissReason: result.dismissReason }, {
-				whileShown: { triggers: [`config.${SPOTLIGHT_CLOSE_BUTTON_CONFIG}`], closeButtons: closeButton ? 1 : 0, endTour: !closeButton },
-				outcome: OnboardingOutcome.Skipped,
-				dismissReason: OnboardingDismissReason.SkipButton,
-			});
-		});
+		}
 	}
 
 	test('resolves a target within the prepared instance scope', async () => {

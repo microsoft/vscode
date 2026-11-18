@@ -160,9 +160,18 @@
 	cursor: pointer;
 }
 
-.spotlight-callout-header > .spotlight-callout-close.codicon[class*='codicon-'] {
+/* Out-ranks the workbench's codicon size and color without matching on a class substring. */
+.spotlight-overlay .spotlight-callout-header > .spotlight-callout-close.codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-icon-foreground);
+}
+
+/*
+ * The close button's hover renders in the callout, above the spotlight. Positioned there, its width
+ * would shrink to the space left before the callout's edge; keep it as wide as its content instead.
+ */
+.spotlight-callout > .context-view {
+	min-width: max-content;
 }
 
 .spotlight-callout-header > .spotlight-callout-close:hover {

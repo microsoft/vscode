@@ -62,7 +62,7 @@ export interface ISpotlightStep {
 	/**
 	 * Localized label of the button that ends the tour, replacing End Tour. Keeps the button on the last step.
 	 * With {@link SPOTLIGHT_CLOSE_BUTTON_CONFIG}, the footer button only shows for such a label, for steps
-	 * where ending the tour is a choice such as "Got It".
+	 * where ending the tour is a choice such as "Continue in Folder", and those steps show no close button.
 	 */
 	readonly endTourLabel?: string;
 

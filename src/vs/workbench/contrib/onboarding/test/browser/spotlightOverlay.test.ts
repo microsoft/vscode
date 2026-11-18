@@ -529,27 +529,31 @@ suite('SpotlightOverlay', () => {
 			return (Array.from(footer.getElementsByClassName('monaco-button')) as HTMLElement[]).filter(button => button.style.display !== 'none').map(button => button.textContent);
 		}
 
-		test('replaces End Tour, which then only shows for a custom label, and ends the tour', () => {
+		test('replaces End Tour, which then only shows for a custom label, where the close button hides, and ends the tour', () => {
 			const container = createTokenContainer();
 			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
 			const target = createTarget(container, 0, 0, 50, 50);
 			const reasons: OnboardingDismissReason[] = [];
 			disposables.add(overlay.onDidSkip(reason => reasons.push(reason)));
 			const before = container.getElementsByClassName('spotlight-callout-close').length;
+			const shown = () => ({ footer: visibleFooterLabels(container), close: mainWindow.getComputedStyle(getCloseButton(container)).display !== 'none' });
 
 			overlay.setTitleCloseButton(true);
 			overlay.show(target, content());
-			const withoutLabel = visibleFooterLabels(container);
-			overlay.show(target, content({ endTourLabel: 'Later' }));
-			const withLabel = visibleFooterLabels(container);
+			const withoutLabel = shown();
+			overlay.show(target, content({ endTourLabel: 'Continue in Folder' }));
+			const withLabel = shown();
+			overlay.show(target, content());
+			const afterLabel = shown();
 			const close = getCloseButton(container);
 			close.click();
 			close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
 
-			assert.deepStrictEqual({ before, withoutLabel, withLabel, ariaLabel: close.getAttribute('aria-label'), reasons }, {
+			assert.deepStrictEqual({ before, withoutLabel, withLabel, afterLabel, ariaLabel: close.getAttribute('aria-label'), reasons }, {
 				before: 0,
-				withoutLabel: ['Back', 'Next'],
-				withLabel: ['Later', 'Back', 'Next'],
+				withoutLabel: { footer: ['Back', 'Next'], close: true },
+				withLabel: { footer: ['Continue in Folder', 'Back', 'Next'], close: false },
+				afterLabel: { footer: ['Back', 'Next'], close: true },
 				ariaLabel: 'End Tour',
 				reasons: [OnboardingDismissReason.SkipButton, OnboardingDismissReason.EscapeKey],
 			});

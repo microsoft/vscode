@@ -7,7 +7,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -430,8 +430,12 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			}));
 		}
 
-		// Every experiment arm shows this step; the setting only changes how its callout ends the tour.
-		logSettingExperimentTrigger(this.telemetryService, SPOTLIGHT_CLOSE_BUTTON_CONFIG);
+		// Every experiment arm shows this step, and only an assigned default changes how its callout ends the tour:
+		// a value the user, workspace, policy or memory sets wins over it.
+		const closeButtonSetting = this.configurationService.inspect<boolean>(SPOTLIGHT_CLOSE_BUTTON_CONFIG);
+		if (!isConfigured(closeButtonSetting) && closeButtonSetting.policyValue === undefined && closeButtonSetting.memoryValue === undefined) {
+			logSettingExperimentTrigger(this.telemetryService, SPOTLIGHT_CLOSE_BUTTON_CONFIG);
+		}
 		overlay.show(target.element, content, {
 			placement: step.placement,
 			allowTargetInteraction: step.allowTargetInteraction,
