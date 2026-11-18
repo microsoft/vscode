@@ -3184,6 +3184,11 @@ export class CopilotAgentSession extends Disposable {
 		return this._earlierFusionTurnId(event) !== undefined;
 	}
 
+	/** A start whose unattributed input already streamed a row into the active turn completes there, so the row cannot stay running. */
+	private _shouldDropEarlierFusionToolStart(event: SessionEventPayload<'tool.execution_start'>): boolean {
+		return !this._streamingToolCalls.get(event.data.toolCallId)?.started && this._shouldDropEarlierFusionEvent(event);
+	}
+
 	private _updateSubagentModel(parentToolCallId: string, model: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void {
 		if (!model) {
 			return;
@@ -11502,7 +11507,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		const handleToolStart = (e: SessionEventPayload<'tool.execution_start'>, replacementFailure?: string): void => {
-			if (this._shouldDropEarlierFusionEvent(e) || (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start'))) {
+			if (this._shouldDropEarlierFusionToolStart(e) || (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start'))) {
 				return;
 			}
 			const held = replacementFailure === undefined ? this._holdClientToolCall(e.data.toolName, e.data.toolCallId, e.agentId) : undefined;
@@ -12039,7 +12044,7 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring committed Fusion tool completion already surfaced: ${e.data.toolCallId}`);
 				const completion = this._provisionalFusionTaskCompletions.get(e.data.toolCallId);
 				this._provisionalFusionTaskCompletions.delete(e.data.toolCallId);
-				if (completion && !this._shouldDropLateRootTurnEvent('tool.execution_complete', true)) {
+				if (completion && !this._shouldDropEarlierFusionEvent(e) && !this._shouldDropLateRootTurnEvent('tool.execution_complete', true)) {
 					// The committed phase's review follows in `session.task_complete`.
 					this._pendingTaskCompletion = { ...completion, turnId: this._turnId };
 				}
@@ -12051,7 +12056,7 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onProvisionalFusionEvent(e => {
 			if (e.type === 'tool.execution_complete') {
 				handleMeteredToolUsage(e);
-			} else if (this._shouldDropEarlierFusionEvent(e)) {
+			} else if (e.type === 'tool.execution_start' ? this._shouldDropEarlierFusionToolStart(e) : this._shouldDropEarlierFusionEvent(e)) {
 				return;
 			}
 			if (e.type === 'assistant.message') {
@@ -12557,7 +12562,9 @@ export class CopilotAgentSession extends Disposable {
 			// present at runtime. Forward the per-category snapshots on `_meta` so the client can keep the
 			// account quota UI current. Mirrors the extension-host CLI path, which feeds these into its quota service.
 			const quotaSnapshots = normalizeQuotaSnapshots((e.data as unknown as Record<string, unknown>).quotaSnapshots);
-			const turn = isUnmappedSubagent ? this._currentTurn.value : this._owningRootTurn(parentToolCallId);
+			// A late Fusion call from an earlier turn is reported against that turn and excluded from the active turn's usage.
+			const earlierFusionTurnId = parentToolCallId || isUnmappedSubagent ? undefined : this._earlierFusionTurnId(e);
+			const turn = earlierFusionTurnId !== undefined ? undefined : isUnmappedSubagent ? this._currentTurn.value : this._owningRootTurn(parentToolCallId);
 
 			if (typeof e.data.model === 'string' && e.data.model) {
 				this._lastSeenModelId = e.data.model;
@@ -12604,6 +12611,12 @@ export class CopilotAgentSession extends Disposable {
 			if (turn && !e.agentId && !parentToolCallId && fusion?.phaseId && e.data.apiCallId && e.data.interactionType !== 'conversation-compaction'
 				&& this._fusionEventTurnIds.get(`fusion:${fusion.fusionId}`) === turn.id) {
 				this._emitModelCallCompleted(turn.id, e.data.apiCallId);
+			}
+			if (earlierFusionTurnId !== undefined) {
+				if (fusion?.phaseId && e.data.apiCallId && e.data.interactionType !== 'conversation-compaction') {
+					this._emitModelCallCompleted(earlierFusionTurnId, e.data.apiCallId);
+				}
+				return;
 			}
 			const directUsage = isUnmappedSubagent ? undefined : this._directUsageFor(parentToolCallId, true);
 			directUsage?.add(eventContext.model, eventContext, copilotUsage?.totalNanoAiu);
