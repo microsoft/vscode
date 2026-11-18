@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { beforeEach, describe, expect, suite, test, vi } from 'vitest';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { isLinux } from '../../../../util/vs/base/common/platform';
+import { dirname } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { ICAPIClientService } from '../../../endpoint/common/capiClient';
 import { MockFileSystemService } from '../../../filesystem/node/test/mockFileSystemService';
 import { RepoContext } from '../../../git/common/gitService';
+import { RepositoryRootLookup } from '../../../git/common/repositoryRootLookup';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { RemoteContentExclusion } from '../remoteContentExclusion';
@@ -43,6 +46,15 @@ suite('RemoteContentExclusion', () => {
 			mockGitService.getRepositoryFetchUrlsCallCount++;
 			const root = byLongestRoot.find(candidate => uri.path === candidate || uri.path.startsWith(candidate + '/'));
 			return Promise.resolve(root ? { rootUri: URI.file(root), remoteFetchUrls: [remoteFor(root)] } : undefined);
+		});
+	}
+
+	/** Finds each file's repository with `roots`. Like GitServiceImpl, a failed lookup means no repository. */
+	function routeThroughLookup(roots: RepositoryRootLookup, remotesOf: (root: URI) => string[] = root => [remoteFor(root.path)]): void {
+		mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation(async (uri: URI) => {
+			mockGitService.getRepositoryFetchUrlsCallCount++;
+			const root = await roots.get(dirname(uri)).catch(() => undefined);
+			return root ? { rootUri: root, remoteFetchUrls: remotesOf(root) } : undefined;
 		});
 	}
 
@@ -589,6 +601,87 @@ suite('RemoteContentExclusion', () => {
 			const afterOpen = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
 
 			expect({ beforeOpen, afterOpen }).toEqual({ beforeOpen: false, afterOpen: true });
+		});
+
+		test('applies a repository rule to a new file when its folder becomes a repository with no open event', async () => {
+			respondWithRules({ [repoRoot]: { paths: ['*'] } });
+			let isRepository = false;
+			const roots = new RepositoryRootLookup(async () => isRepository ? URI.file(repoRoot) : undefined);
+			routeThroughLookup(roots);
+
+			const beforeInit = await remoteContentExclusion.isIgnored(URI.file('/workspace/my-repo/src/earlier.ts'), CancellationToken.None);
+
+			// The user runs `git init`, but the Git extension doesn't open the repository.
+			isRepository = true;
+			const afterInit = await remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			expect({ beforeInit, afterInit }).toEqual({ beforeInit: false, afterInit: true });
+		});
+
+		test('applies a repository rule to a new file when its folder becomes a repository during a lookup', async () => {
+			respondWithRules({ [repoRoot]: { paths: ['*'] } });
+			let isRepository = false;
+			const finishLookups = new DeferredPromise<void>();
+			const roots = new RepositoryRootLookup(async () => {
+				// Like git, a lookup sees the folder as it is when the lookup starts.
+				const root = isRepository ? URI.file(repoRoot) : undefined;
+				await finishLookups.p;
+				return root;
+			});
+			routeThroughLookup(roots);
+
+			const beforeInit = remoteContentExclusion.isIgnored(URI.file('/workspace/my-repo/src/earlier.ts'), CancellationToken.None);
+
+			// The user runs `git init` during that lookup, but the Git extension doesn't open the repository.
+			isRepository = true;
+			const afterInit = remoteContentExclusion.isIgnored(file, CancellationToken.None);
+
+			// Both checks ask before the first lookup finishes.
+			const askedBeforeFinish = mockGitService.getRepositoryFetchUrlsCallCount;
+			finishLookups.complete();
+
+			expect({ askedBeforeFinish, beforeInit: await beforeInit, afterInit: await afterInit })
+				.toEqual({ askedBeforeFinish: 2, beforeInit: false, afterInit: true });
+		});
+
+		test('applies a repository rule to the other new files in a folder when the lookup they share fails', async () => {
+			respondWithRules({ [repoRoot]: { paths: ['*'] } });
+			const folder = URI.file('/workspace/my-repo/src');
+			let hasFailed = false;
+			const roots = new RepositoryRootLookup(async lookedUp => {
+				if (lookedUp.path === folder.path && !hasFailed) {
+					hasFailed = true;
+					throw new Error('spawn EAGAIN');
+				}
+				return URI.file(repoRoot);
+			});
+			routeThroughLookup(roots);
+			// Every slot is busy, so the files in the folder share a lookup that waits.
+			const others = Array.from({ length: 5 }, (_, i) => roots.get(URI.file(`/busy/folder${i}`)));
+
+			const verdicts = await Promise.all(Array.from({ length: 40 }, (_, i) =>
+				remoteContentExclusion.isIgnored(URI.file(`/workspace/my-repo/src/new${i}.ts`), CancellationToken.None)));
+			await Promise.all(others);
+
+			expect(verdicts.filter(ignored => ignored).length).toBe(39);
+		});
+
+		test('applies a nested repository rule to a new file when that repository appears with no open event', async () => {
+			const outerRoot = '/workspace/outer';
+			const nestedRoot = '/workspace/outer/nested';
+			respondWithRules({ [nestedRoot]: { paths: ['*'] } });
+			let nestedExists = false;
+			const roots = new RepositoryRootLookup(async () => URI.file(nestedExists ? nestedRoot : outerRoot));
+			// The outer repository has no remote, so RemoteContentExclusion does not cache it.
+			routeThroughLookup(roots, root => root.path === nestedRoot ? [remoteFor(nestedRoot)] : []);
+
+			const beforeInit = await remoteContentExclusion.isIgnored(URI.file('/workspace/outer/nested/src/earlier.ts'), CancellationToken.None);
+
+			// The user runs `git init`, but the Git extension doesn't open the repository.
+			nestedExists = true;
+			const afterInit = await remoteContentExclusion.isIgnored(URI.file('/workspace/outer/nested/src/secret.ts'), CancellationToken.None);
+
+			expect({ beforeInit, afterInit }).toEqual({ beforeInit: false, afterInit: true });
 		});
 
 		test('does not cache a repository that resolved without a usable remote', async () => {
