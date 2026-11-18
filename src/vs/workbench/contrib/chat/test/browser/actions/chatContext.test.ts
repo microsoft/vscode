@@ -11,6 +11,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -181,7 +182,7 @@ suite('ChatContext', () => {
 			}();
 			let focused = 0;
 			const widget = upcastPartial<IChatWidget>({ domNode: mainWindow.document.body, focusInput: () => { focused++; } });
-			return { pick: new DesktopScreenshotContextValuePick(host, service), service, telemetry, widget, focusCount: () => focused };
+			return { pick: new DesktopScreenshotContextValuePick(host, service, new TestConfigurationService()), service, telemetry, widget, focusCount: () => focused };
 		}
 
 		test('attaches what the host captures where the screenshot tool is not supported, as on the web', async () => {

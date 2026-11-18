@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { excludeOwnWindowSources, getScreenWindowId, IScreenWindow, orderAppWindows } from '../../common/appWindows.js';
+import { excludeOwnWindowSources, findOwnWindowShowingArea, getScreenWindowId, getSelectableWindows, IScreenWindow, orderAppWindows } from '../../common/appWindows.js';
 
 suite('excludeOwnWindowSources', () => {
 
@@ -37,7 +37,7 @@ suite('orderAppWindows', () => {
 	const EDITOR_PID = 4;
 
 	function screenWindow(id: number, pid: number, options: { readonly layer?: number; readonly alpha?: number; readonly height?: number; readonly onScreen?: boolean; readonly onSpace?: boolean; readonly untitled?: boolean } = {}): IScreenWindow {
-		return { id, pid, layer: options.layer ?? 0, alpha: options.alpha ?? 1, bounds: { x: id, y: 0, width: 800, height: options.height ?? 600 }, onScreen: options.onScreen ?? true, onSpace: options.onSpace ?? true, title: options.untitled ? undefined : 'Window', appPath: undefined };
+		return { id, pid, layer: options.layer ?? 0, alpha: options.alpha ?? 1, bounds: { x: id, y: 0, width: 800, height: options.height ?? 600 }, onScreen: options.onScreen ?? true, onSpace: options.onSpace ?? true, title: options.untitled ? undefined : 'Window', appName: undefined, appPath: undefined };
 	}
 
 	function order(sources: readonly string[], windows: readonly IScreenWindow[], frontmostPid: number | undefined, recentPids: readonly number[] = []) {
@@ -109,6 +109,63 @@ suite('orderAppWindows', () => {
 			spacesUnknown: ['off screen 20'],
 			spacesUnknownOnlyVSCodeUsed: [],
 			spacesUnknownWindowOnScreen: ['window:50:0 50'],
+		});
+	});
+});
+
+suite('selectable windows', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const OWN_PID = 1;
+	const BROWSER_PID = 2;
+
+	function screenWindow(id: number, pid: number, bounds: { x: number; y: number; width: number; height: number }, options: { readonly layer?: number; readonly onScreen?: boolean; readonly title?: string; readonly appName?: string } = {}): IScreenWindow {
+		return { id, pid, layer: options.layer ?? 0, alpha: 1, bounds, onScreen: options.onScreen ?? true, onSpace: true, title: options.title, appName: options.appName, appPath: undefined };
+	}
+
+	test('keeps the windows that the screen shows and that a capture can take, front to back, also those of VS Code', () => {
+		const windows = getSelectableWindows([
+			screenWindow(10, BROWSER_PID, { x: 0, y: 0, width: 800, height: 600 }, { title: 'Preview', appName: 'Browser' }),
+			screenWindow(20, BROWSER_PID, { x: 0, y: 0, width: 800, height: 40 }, { appName: 'Browser' }),
+			screenWindow(30, BROWSER_PID, { x: 0, y: 0, width: 800, height: 600 }, { appName: 'Browser', layer: 8 }),
+			screenWindow(40, OWN_PID, { x: 100, y: 100, width: 800, height: 600 }, { title: 'app.ts', appName: 'Code' }),
+			screenWindow(50, BROWSER_PID, { x: 0, y: 0, width: 800, height: 600 }, { appName: 'Browser', onScreen: false }),
+			screenWindow(60, BROWSER_PID, { x: 0, y: 0, width: 800, height: 600 }, { appName: 'Browser' }),
+		], OWN_PID);
+
+		assert.deepStrictEqual(windows.map(window => `${window.id} ${window.appName}: ${window.name}${window.own ? ' (own)' : ''}`), [
+			'10 Browser: Preview',
+			'40 Code: app.ts (own)',
+			'60 Browser: Browser',
+		]);
+	});
+
+	test('finds the window of VS Code that alone shows an area, of all the windows that the screen shows', () => {
+		const windows = [
+			// The overlay that lets the user select, a panel of VS Code.
+			screenWindow(5, OWN_PID, { x: 0, y: 0, width: 2000, height: 1500 }, { layer: 1000 }),
+			// A small panel that another app floats above windows.
+			screenWindow(8, BROWSER_PID, { x: 600, y: 100, width: 80, height: 80 }, { layer: 3 }),
+			screenWindow(10, BROWSER_PID, { x: 0, y: 0, width: 400, height: 300 }, { appName: 'Browser' }),
+			screenWindow(20, OWN_PID, { x: 0, y: 0, width: 1000, height: 800 }, { appName: 'Code' }),
+		];
+		const find = (area: { x: number; y: number; width: number; height: number }) => findOwnWindowShowingArea(area, windows, OWN_PID)?.id;
+
+		assert.deepStrictEqual({
+			onlyVSCode: find({ x: 500, y: 400, width: 200, height: 100 }),
+			underFloatingPanel: find({ x: 550, y: 50, width: 200, height: 200 }),
+			partlyBehindBrowser: find({ x: 300, y: 200, width: 200, height: 200 }),
+			partlyOutsideVSCode: find({ x: 900, y: 700, width: 200, height: 200 }),
+			browser: find({ x: 10, y: 10, width: 100, height: 100 }),
+			desktop: find({ x: 1100, y: 900, width: 50, height: 50 }),
+		}, {
+			onlyVSCode: 20,
+			underFloatingPanel: undefined,
+			partlyBehindBrowser: undefined,
+			partlyOutsideVSCode: undefined,
+			browser: undefined,
+			desktop: undefined,
 		});
 	});
 });

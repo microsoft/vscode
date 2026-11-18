@@ -32,7 +32,7 @@ export const enum ScreenshotToolEntryPoint {
 }
 
 /** What a screenshot shows; `none` when it was cancelled or failed before anything was captured. */
-export type ScreenshotToolMode = 'window' | 'area' | 'page' | 'fullPage' | 'appWindow' | 'none';
+export type ScreenshotToolMode = 'window' | 'area' | 'page' | 'fullPage' | 'appWindow' | 'screen' | 'none';
 
 export type ScreenshotToolOutcome = 'attached' | 'cancelled' | 'failed';
 

@@ -27,6 +27,8 @@ export interface IScreenWindow {
 	readonly onSpace: boolean | undefined;
 	/** The title of the window, which macOS only tells with the Screen Recording permission. */
 	readonly title: string | undefined;
+	/** The name of the window's application. */
+	readonly appName: string | undefined;
 	/** The path of the bundle of the window's application, which has its icon, or `undefined` when it has none. */
 	readonly appPath: string | undefined;
 }
@@ -37,7 +39,10 @@ export interface IScreenWindows {
 	readonly frontmostPid: number | undefined;
 	/** The processes of the visible applications, from the one in front to the one used longest ago. */
 	readonly recentPids: readonly number[];
-	/** The windows, front to back, including those that the screen doesn't show. */
+	/**
+	 * The windows, front to back: normal windows, including those that the screen doesn't show, and the windows above
+	 * them that the screen shows, such as panels, menus and the menu bar.
+	 */
 	readonly windows: readonly IScreenWindow[];
 }
 
@@ -109,6 +114,48 @@ function getOffScreenWindows(screen: IScreenWindows, ownPid: number, noneOnScree
 		return noneOnScreen && screen.recentPids.includes(recent.pid) ? [recent] : [];
 	}
 	return windows;
+}
+
+/** A window that the screen shows, which the user can select to capture, see {@link getSelectableWindows}. */
+export interface ISelectableWindow {
+	readonly id: number;
+	/** Where the window is, in the coordinates of Electron's `screen`. */
+	readonly bounds: IRectangle;
+	/** The name of the window's application, or else the title of the window. */
+	readonly appName: string;
+	/** The title of the window, or else the name of its application. */
+	readonly name: string;
+	/** Whether it is a window of VS Code, which VS Code captures without the Screen Recording permission. */
+	readonly own: boolean;
+}
+
+/** Returns the windows that the screen shows and that a capture can take, front to back, also those of VS Code. */
+export function getSelectableWindows(windows: readonly IScreenWindow[], ownPid: number): ISelectableWindow[] {
+	return windows
+		.filter(window => window.onScreen && isCapturedWindow(window))
+		.map(window => {
+			const title = window.title?.trim() ?? '';
+			const appName = window.appName?.trim() || title;
+			return { id: window.id, bounds: window.bounds, appName, name: title || appName, own: window.pid === ownPid };
+		});
+}
+
+/**
+ * Returns the window of VS Code that alone shows an area of the screen, so that capturing the area needs no permission:
+ * the front window there, of all those that the screen shows, when it is a normal window that contains all of the area.
+ * The panels of VS Code, such as the overlay that lets the user select the area, are not part of what it captures.
+ */
+export function findOwnWindowShowingArea(area: IRectangle, windows: readonly IScreenWindow[], ownPid: number): IScreenWindow | undefined {
+	const front = windows.find(window => window.onScreen && window.alpha > 0 && intersects(window.bounds, area) && (window.pid !== ownPid || window.layer === 0));
+	return front?.pid === ownPid && contains(front.bounds, area) ? front : undefined;
+}
+
+function intersects(a: IRectangle, b: IRectangle): boolean {
+	return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+function contains(outer: IRectangle, inner: IRectangle): boolean {
+	return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.width <= outer.x + outer.width && inner.y + inner.height <= outer.y + outer.height;
 }
 
 /** The desktop media source id of a window of macOS, which `getUserMedia` captures even when desktop media sources leave it out. */

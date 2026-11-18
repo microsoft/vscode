@@ -173,6 +173,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getAppWindows(): Promise<INativeAppWindows> { return { kind: 'windows', windows: [] }; }
 	async captureAppWindow(): Promise<VSBuffer | undefined> { return undefined; }
 	async endAppWindowCaptureFeedback(): Promise<void> { }
+	async captureScreenSelection(): Promise<undefined> { return undefined; }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }

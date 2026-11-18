@@ -7,6 +7,7 @@ import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { $, getComputedStyle, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { Color } from '../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { readImageDimensions } from '../../../../base/common/image.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -16,9 +17,13 @@ import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INativeAppWindow, INativeAppWindows, INativeHostService } from '../../../../platform/native/common/native.js';
+import { INativeAppWindow, INativeAppWindows, INativeHostService, INativeScreenSelection, INativeScreenSelectionTarget } from '../../../../platform/native/common/native.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
+import { editorWidgetBackground, editorWidgetBorder, editorWidgetForeground } from '../../../../platform/theme/common/colors/editorColors.js';
+import { buttonBackground, buttonForeground } from '../../../../platform/theme/common/colors/inputColors.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IScreenshotToolImage } from '../browser/screenshotTool.js';
 
 export const IAppWindowScreenshotService = createDecorator<IAppWindowScreenshotService>('appWindowScreenshotService');
@@ -40,6 +45,14 @@ export interface IAppWindowScreenshotOptions {
 	/** Lets the user pick the window in a list, instead of capturing the frontmost window of another app. */
 	readonly pick?: boolean;
 }
+
+/** How {@link IAppWindowScreenshotService.select} ended, and what the user selected. */
+export type AppWindowScreenshotSelection =
+	| { readonly kind: 'captured'; readonly target: INativeScreenSelectionTarget; readonly image: IScreenshotToolImage }
+	| { readonly kind: 'cancelled' }
+	/** macOS needs the Screen Recording permission to capture what the user selected, see {@link IAppWindowScreenshotService.requestPermission}. */
+	| { readonly kind: 'permissionRequired'; readonly target: INativeScreenSelectionTarget }
+	| { readonly kind: 'failed'; readonly target: INativeScreenSelectionTarget | undefined };
 
 /** Whether capturing the windows of other apps has the permission that it needs. */
 export type AppWindowScreenshotPermission =
@@ -81,6 +94,16 @@ export interface IAppWindowScreenshotService {
 	 * {@link endCaptureFeedback}, which the caller must call however the capture ended.
 	 */
 	capture(options?: IAppWindowScreenshotOptions): Promise<AppWindowScreenshotResult>;
+
+	/**
+	 * Lets the user select what to capture on screen, where the platform can: a window of any app, VS Code included, an
+	 * area or a display. Resolves `undefined` where the platform can't, so that the caller lets the user pick a window in
+	 * a list instead. Capturing what only VS Code shows needs no permission, unlike other captures.
+	 *
+	 * Like with {@link capture}, what the user selected turns into its screenshot until {@link endCaptureFeedback},
+	 * which the caller must call however the selection ended.
+	 */
+	select(): Promise<AppWindowScreenshotSelection | undefined>;
 
 	/**
 	 * Ends the feedback of {@link capture}. Given the screenshot and the element that it goes to, the screenshot flies
@@ -151,6 +174,7 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CAPTURED_STORAGE_KEY, this._store)(() => this._onDidChangeHasCaptured.fire()));
@@ -249,6 +273,46 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 			this.logService.error('[AppWindowScreenshot] Capturing a window failed:', error);
 			return { kind: 'failed', target, window };
 		}
+	}
+
+	async select(): Promise<AppWindowScreenshotSelection | undefined> {
+		const theme = this.themeService.getColorTheme();
+		const color = (id: string, fallback: string) => {
+			const value = theme.getColor(id);
+			return value ? Color.Format.CSS.formatHexA(value) : fallback;
+		};
+		let result: INativeScreenSelection | undefined;
+		try {
+			result = await this.nativeHostService.captureScreenSelection({
+				reduceMotion: this.accessibilityService.isMotionReduced(),
+				colors: {
+					highlight: color(focusBorder, '#0078d4'),
+					labelBackground: color(buttonBackground, '#0078d4'),
+					labelForeground: color(buttonForeground, '#ffffff'),
+					hintBackground: color(editorWidgetBackground, '#252526'),
+					hintForeground: color(editorWidgetForeground, '#cccccc'),
+					hintBorder: color(editorWidgetBorder, 'transparent'),
+				},
+			});
+		} catch (error) {
+			this.logService.error('[AppWindowScreenshot] Selecting what to capture failed:', error);
+			return { kind: 'failed', target: undefined };
+		}
+		if (!result) {
+			return undefined;
+		}
+		this.feedback = { revealed: result.kind === 'captured' };
+		if (result.kind !== 'captured') {
+			return result;
+		}
+		const size = readImageDimensions(result.image);
+		if (!size) {
+			return { kind: 'failed', target: result.target };
+		}
+		if (!this.hasCaptured) {
+			this.storageService.store(CAPTURED_STORAGE_KEY, true, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		}
+		return { kind: 'captured', target: result.target, image: { dataUrl: `data:image/png;base64,${encodeBase64(result.image)}`, width: size.width, height: size.height } };
 	}
 
 	async endCaptureFeedback(destination?: { readonly element: HTMLElement; readonly image: IScreenshotToolImage }): Promise<void> {

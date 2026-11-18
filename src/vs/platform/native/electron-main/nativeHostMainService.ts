@@ -27,10 +27,10 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindow, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
-import { excludeOwnWindowSources, getScreenWindowId, getWindowSourceId, OrderedAppWindow, orderAppWindows } from '../common/appWindows.js';
-import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions, IAppWindowCaptureOverlay } from './appWindowCaptureFeedback.js';
-import { captureMacWindow, getMacScreenWindows } from './macScreenWindows.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindow, INativeAppWindows, INativeHostOptions, INativeScreenSelection, INativeScreenSelectionColors, INativeScreenSelectionTarget, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { excludeOwnWindowSources, findOwnWindowShowingArea, getScreenWindowId, getSelectableWindows, getWindowSourceId, IScreenWindow, OrderedAppWindow, orderAppWindows } from '../common/appWindows.js';
+import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions, IAppWindowCaptureOverlay, ScreenSelection } from './appWindowCaptureFeedback.js';
+import { captureMacScreenArea, captureMacWindow, getMacScreenWindows } from './macScreenWindows.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -1010,6 +1010,68 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			destination = { ...screenshot.destination, x: content.x + screenshot.destination.x, y: content.y + screenshot.destination.y };
 		}
 		await this.appWindowCaptureFeedback?.end(screenshot && { image: screenshot.image, destination, radius: screenshot.radius });
+	}
+
+	async captureScreenSelection(windowId: number | undefined, options: { readonly reduceMotion: boolean; readonly colors: INativeScreenSelectionColors }): Promise<INativeScreenSelection | undefined> {
+		if (!isMacintosh) {
+			return undefined;
+		}
+		const permission = systemPreferences.getMediaAccessStatus('screen') === 'granted';
+		// Where windows are needs no permission, unlike their titles.
+		const screenWindows = getMacScreenWindows(this.logService).then(screen => screen?.windows ?? []);
+		this.appWindowCaptureFeedback ??= this._register(new AppWindowCaptureFeedback(this.logService));
+		const choice = await this.appWindowCaptureFeedback.select(screenWindows.then(windows => getSelectableWindows(windows, process.pid)), options);
+		if (!choice) {
+			return { kind: 'cancelled' };
+		}
+		const { selection, overlay } = choice;
+		const target: INativeScreenSelectionTarget = selection.kind === 'window' ? { kind: 'window', name: selection.window.name, own: selection.window.own } : { kind: selection.kind };
+		let image: Buffer | 'permissionRequired' | undefined;
+		try {
+			image = await this.captureScreenSelectionImage(selection, await screenWindows, permission, overlay);
+		} catch (error) {
+			this.logService.error('[AppWindows] Capturing what the user selected failed:', error);
+		}
+		if (!image || image === 'permissionRequired') {
+			void overlay.dim();
+			return image ? { kind: 'permissionRequired', target } : { kind: 'failed', target };
+		}
+		await overlay.reveal(image);
+		return { kind: 'captured', target, image: VSBuffer.wrap(image) };
+	}
+
+	/**
+	 * Captures what the user selected. Captures what only a window of VS Code shows without the Screen Recording
+	 * permission, which other captures need.
+	 */
+	private async captureScreenSelectionImage(selection: ScreenSelection, windows: readonly IScreenWindow[], permission: boolean, overlay: IAppWindowCaptureOverlay): Promise<Buffer | 'permissionRequired' | undefined> {
+		const findOwnWindow = (id: number) => BrowserWindow.getAllWindows().find(window => !window.isDestroyed() && getScreenWindowId(window.getMediaSourceId()) === id);
+		if (selection.kind === 'window') {
+			if (permission) {
+				return captureMacWindow(selection.window.id, this.logService);
+			}
+			const window = selection.window.own ? findOwnWindow(selection.window.id) : undefined;
+			return window ? (await window.webContents.capturePage()).toPNG() : 'permissionRequired';
+		}
+		if (permission) {
+			// The selection flashes above the area while it is captured.
+			return overlay.hideFromCapture(() => captureMacScreenArea(selection.rect, this.logService));
+		}
+		const shown = findOwnWindowShowingArea(selection.rect, windows, process.pid);
+		const window = shown && findOwnWindow(shown.id);
+		if (!window) {
+			return 'permissionRequired';
+		}
+		// A page only captures its own content, which a native title bar leaves out.
+		const content = window.getContentBounds();
+		const x = Math.round(selection.rect.x - content.x);
+		const y = Math.round(selection.rect.y - content.y);
+		const width = Math.round(selection.rect.width);
+		const height = Math.round(selection.rect.height);
+		if (x < 0 || y < 0 || x + width > content.width || y + height > content.height) {
+			return 'permissionRequired';
+		}
+		return (await window.webContents.capturePage({ x, y, width, height })).toPNG();
 	}
 
 	async isAdmin(): Promise<boolean> {

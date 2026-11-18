@@ -5,12 +5,15 @@
 
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { getScreenshotToolImageData, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolMode, ScreenshotToolOutcome } from '../../../screenshotTool/browser/screenshotTool.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IChatContextPickService } from '../attachments/chatContextPickService.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { IChatWidget } from '../chat.js';
@@ -20,8 +23,17 @@ export class DesktopScreenshotContextValuePick extends ScreenshotContextValuePic
 	constructor(
 		@IHostService hostService: IHostService,
 		@IScreenshotToolService private readonly _screenshotToolService: IScreenshotToolService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super(hostService);
+	}
+
+	override async isEnabled(widget: IChatWidget): Promise<boolean> {
+		// On macOS, the Screenshot... item of app window screenshots takes its place, as it captures the windows of VS Code too.
+		if (this._screenshotToolService.isSupported && isMacintosh && this._configurationService.getValue<boolean>(ChatConfiguration.AppWindowScreenshotsEnabled)) {
+			return false;
+		}
+		return super.isEnabled(widget);
 	}
 
 	override async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {

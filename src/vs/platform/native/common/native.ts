@@ -248,6 +248,37 @@ export type INativeAppWindows =
 	/** Only the system can list the windows, in a picker that it shows when the user asks to capture a window. */
 	| { readonly kind: 'systemPicker' };
 
+/** The colors of the overlay of {@link ICommonNativeHostService.captureScreenSelection}, as CSS colors of the theme. */
+export interface INativeScreenSelectionColors {
+	/** The border of what a click captures, or of the area that the user drags. */
+	readonly highlight: string;
+	/** The label of what a click captures, or the size of the area that the user drags. */
+	readonly labelBackground: string;
+	readonly labelForeground: string;
+	/** The instructions at the bottom of each display. */
+	readonly hintBackground: string;
+	readonly hintForeground: string;
+	readonly hintBorder: string;
+}
+
+/** What the user selected with {@link ICommonNativeHostService.captureScreenSelection}. */
+export type INativeScreenSelectionTarget =
+	/** A window, named by its title, or else by its application, and whether it is a window of VS Code. */
+	| { readonly kind: 'window'; readonly name: string; readonly own: boolean }
+	/** An area that the user dragged. */
+	| { readonly kind: 'area' }
+	/** A display, where the user clicked outside the windows. */
+	| { readonly kind: 'screen' };
+
+/** How {@link ICommonNativeHostService.captureScreenSelection} ended. */
+export type INativeScreenSelection =
+	/** The screenshot, as a PNG. */
+	| { readonly kind: 'captured'; readonly target: INativeScreenSelectionTarget; readonly image: VSBuffer }
+	| { readonly kind: 'cancelled' }
+	/** Capturing what the user selected needs the Screen Recording permission of macOS, which is missing. */
+	| { readonly kind: 'permissionRequired'; readonly target: INativeScreenSelectionTarget }
+	| { readonly kind: 'failed'; readonly target: INativeScreenSelectionTarget };
+
 export interface INativeSystemWideKeybinding {
 
 	/**
@@ -480,6 +511,20 @@ export interface ICommonNativeHostService {
 	 * the flash fades. Resolves once the screenshot covers the destination, or once the feedback is gone.
 	 */
 	endAppWindowCaptureFeedback(screenshot?: { readonly image?: string; readonly destination?: IRectangle; readonly radius?: number }, options?: INativeHostOptions): Promise<void>;
+
+	/**
+	 * Lets the user select what to capture, above every window on every display, where the platform can: macOS can,
+	 * elsewhere this resolves `undefined`. A click captures the window under the pointer, also a window of VS Code, or
+	 * else the display; a drag captures an area of the display. Enter captures what a click would, Tab moves between the
+	 * windows, and Escape cancels, as does switching to another application.
+	 *
+	 * Capturing a window of VS Code, or an area that only it shows, needs no permission. Other captures need the Screen
+	 * Recording permission on macOS, which this doesn't ask for: without it, it resolves `permissionRequired`.
+	 *
+	 * What the user selected flashes, then turns into its screenshot, which stays above it until
+	 * {@link endAppWindowCaptureFeedback}, as with the feedback of {@link captureAppWindow}.
+	 */
+	captureScreenSelection(options: { readonly reduceMotion: boolean; readonly colors: INativeScreenSelectionColors }): Promise<INativeScreenSelection | undefined>;
 
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;

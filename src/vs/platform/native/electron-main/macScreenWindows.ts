@@ -10,18 +10,20 @@ import { join } from '../../../base/common/path.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { IScreenWindow, IScreenWindows } from '../common/appWindows.js';
+import { IRectangle } from '../../window/common/window.js';
 
 /**
- * Lists the normal windows of macOS with Core Graphics, front to back, including those on other Spaces, from JavaScript
- * for Automation. Unlike their titles, which need the Screen Recording permission, where windows are is not private.
- * It also tells the path of each window's application, and which windows are on a Space, through a private API of
- * macOS, `CGSCopySpacesForWindows`: when that fails, it leaves this out. It prints them as JSON.
+ * Lists the normal windows of macOS with Core Graphics, front to back, including those on other Spaces, and the windows
+ * above them that the screen shows, such as panels and the menu bar, from JavaScript for Automation. Unlike their
+ * titles, which need the Screen Recording permission, where windows are is not private.
+ * It also tells the name and the path of each window's application, and which windows are on a Space, through a private
+ * API of macOS, `CGSCopySpacesForWindows`: when that fails, it leaves this out. It prints them as JSON.
  */
 const SCRIPT = `ObjC.import('AppKit');
 ObjC.import('CoreGraphics');
 function run() {
 	const frontmost = $.NSWorkspace.sharedWorkspace.frontmostApplication;
-	const windows = (ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionAll | $.kCGWindowListExcludeDesktopElements, $.kCGNullWindowID))) || []).filter(window => window.kCGWindowLayer === 0);
+	const windows = (ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionAll | $.kCGWindowListExcludeDesktopElements, $.kCGNullWindowID))) || []).filter(window => window.kCGWindowLayer === 0 || (window.kCGWindowLayer > 0 && window.kCGWindowIsOnscreen));
 	const onSpace = getOnSpace(windows);
 	const appPaths = new Map();
 	return JSON.stringify({
@@ -35,6 +37,7 @@ function run() {
 			onScreen: !!window.kCGWindowIsOnscreen,
 			onSpace: onSpace && onSpace.get(window.kCGWindowNumber),
 			title: window.kCGWindowName || undefined,
+			appName: window.kCGWindowOwnerName || undefined,
 			appPath: getAppPath(appPaths, window.kCGWindowOwnerPID),
 		})),
 	});
@@ -103,15 +106,32 @@ async function getRecentPids(): Promise<number[]> {
  * stream, a single screenshot doesn't make macOS mark the window as shared, and it also captures windows on other
  * Spaces. Returns `undefined` when the capture failed.
  */
-export async function captureMacWindow(windowId: number, logService: ILogService): Promise<Buffer | undefined> {
+export function captureMacWindow(windowId: number, logService: ILogService): Promise<Buffer | undefined> {
+	return runScreencapture([`-l${windowId}`, '-o'], logService);
+}
+
+/**
+ * Captures an area of the screen, in the coordinates of Electron's `screen`, as a PNG at the resolution of its display,
+ * with the system's `screencapture`. Windows whose content is protected, such as the overlay that lets the user select
+ * the area, don't show in it. Returns `undefined` when the capture failed.
+ */
+export function captureMacScreenArea(area: IRectangle, logService: ILogService): Promise<Buffer | undefined> {
+	const x = Math.floor(area.x);
+	const y = Math.floor(area.y);
+	const width = Math.max(1, Math.ceil(area.x + area.width) - x);
+	const height = Math.max(1, Math.ceil(area.y + area.height) - y);
+	return runScreencapture([`-R${x},${y},${width},${height}`], logService);
+}
+
+async function runScreencapture(args: readonly string[], logService: ILogService): Promise<Buffer | undefined> {
 	const file = join(tmpdir(), `vscode-window-${generateUuid()}.png`);
 	try {
 		await new Promise<void>((resolve, reject) => {
-			execFile('/usr/sbin/screencapture', [`-l${windowId}`, '-o', '-x', '-tpng', file], { timeout: CAPTURE_TIMEOUT }, error => error ? reject(error) : resolve());
+			execFile('/usr/sbin/screencapture', [...args, '-x', '-tpng', file], { timeout: CAPTURE_TIMEOUT }, error => error ? reject(error) : resolve());
 		});
 		return await fs.promises.readFile(file);
 	} catch (error) {
-		logService.error('[AppWindows] Capturing the window failed:', error);
+		logService.error('[AppWindows] Capturing the screen failed:', error);
 		return undefined;
 	} finally {
 		await fs.promises.rm(file, { force: true });
@@ -146,7 +166,8 @@ function isScreenWindow(value: unknown): value is IScreenWindow {
 	const bounds = window.bounds as Partial<Record<keyof IScreenWindow['bounds'], unknown>> | undefined;
 	return typeof window.id === 'number' && typeof window.pid === 'number' && typeof window.layer === 'number' && typeof window.alpha === 'number'
 		&& typeof window.onScreen === 'boolean' && (window.onSpace === undefined || typeof window.onSpace === 'boolean')
-		&& (window.title === undefined || typeof window.title === 'string') && (window.appPath === undefined || typeof window.appPath === 'string')
+		&& (window.title === undefined || typeof window.title === 'string') && (window.appName === undefined || typeof window.appName === 'string')
+		&& (window.appPath === undefined || typeof window.appPath === 'string')
 		&& typeof bounds === 'object' && bounds !== null
 		&& typeof bounds.x === 'number' && typeof bounds.y === 'number' && typeof bounds.width === 'number' && typeof bounds.height === 'number';
 }

@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -22,6 +23,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsMacNativeContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
@@ -32,7 +34,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { getScreenshotToolImageData, IScreenshotToolImage, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolOutcome } from '../../../screenshotTool/browser/screenshotTool.js';
+import { getScreenshotToolImageData, IScreenshotToolImage, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolMode, ScreenshotToolOutcome } from '../../../screenshotTool/browser/screenshotTool.js';
 import { AppWindowScreenshotPermission, AppWindowScreenshotResult, getAppWindowLabel, IAppWindowScreenshotService } from '../../../screenshotTool/electron-browser/appWindowScreenshot.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../browser/attachments/chatContextPickService.js';
@@ -48,6 +50,7 @@ import { AppWindowScreenshotSetupDialog } from './chatAppWindowScreenshotSetup.j
 
 const ATTACH_APP_WINDOW_SCREENSHOT_TITLE = localize2('chat.attachAppWindowScreenshot', "Attach Screenshot of App Window");
 const PICK_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.pickAppWindowScreenshot';
+const ATTACH_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.attachScreenshot';
 
 /** How long a capture waits for the chat input to load its session before it gives up attaching the screenshot. */
 const VIEW_MODEL_TIMEOUT = 10000;
@@ -64,7 +67,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			markdownDescription: localize('chat.appWindowScreenshots.enabled', "Controls whether chat can attach a screenshot of the window of another app, such as the browser or simulator that runs the app that you are building. **Attach Screenshot of App Window** captures the window that you are using or just left, and you can mark up the screenshot before you send it. After you use it, a chat tip offers to enable its keybinding in all apps."),
+			markdownDescription: localize('chat.appWindowScreenshots.enabled', "Controls whether chat can attach a screenshot of the window of another app, such as the browser or simulator that runs the app that you are building. **Attach Screenshot of App Window** captures the window that you are using or just left, and you can mark up the screenshot before you send it. After you use it, a chat tip offers to enable its keybinding in all apps. On macOS, **Attach Screenshot...** lets you select a window of any app, VS Code included, or an area of the screen."),
 		},
 	},
 });
@@ -84,7 +87,7 @@ type AppWindowScreenshotClassification = {
 	owner: 'Giuspepe';
 	comment: 'Reports how attaching a screenshot of the window of another app to chat ended, to learn how the window is found and why captures fail.';
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What started the capture: a command, such as from its keybinding, or the Add Context item.' };
-	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the window was found: the frontmost window of another app, picked by the user in a list or in the system picker, or none when the setup showed instead.' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the window was found: the frontmost window of another app, picked by the user in a list or in the system picker, selected by the user on screen, or none when the setup showed instead.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How it ended: captured, cancelled, no window of another app, missing Screen Recording permission (the setup showed), or failed.' };
 	permission: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether capturing had the permission that it needs when it started: granted, not granted or restricted on macOS, or not required on other platforms.' };
 	inBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether VS Code was in the background when the capture started, as with a system-wide keybinding.' };
@@ -94,6 +97,8 @@ interface IAppWindowScreenshotRequest {
 	readonly source: AppWindowScreenshotSource;
 	/** Lets the user pick the window in a list. */
 	readonly pick?: boolean;
+	/** Lets the user select what to capture on screen, a window of VS Code too, or else pick the window in a list. */
+	readonly select?: boolean;
 	/** The session of the chat to attach the screenshot to, instead of the chat that had focus last. */
 	readonly sessionResource?: URI;
 }
@@ -111,6 +116,8 @@ function isAttachAppWindowScreenshotArgs(args: unknown): args is IAttachAppWindo
 interface IAppWindowScreenshot {
 	readonly entry: IChatRequestVariableEntry;
 	readonly image: IScreenshotToolImage;
+	/** The name of the window, when the screenshot is of a window. */
+	readonly windowName: string | undefined;
 }
 
 /**
@@ -137,10 +144,41 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 	// A system-wide keybinding runs the command while another app is in front.
 	const inBackground = !hostService.hasFocus;
 	const permission = await appWindowScreenshotService.getPermission();
-	const log = (target: string, result: string, outcome: ScreenshotToolOutcome) => {
-		screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.ChatAppWindow, outcome, mode: outcome === 'attached' ? 'appWindow' : 'none', durationMs: stopWatch.elapsed() });
+	const log = (target: string, result: string, outcome: ScreenshotToolOutcome, mode: ScreenshotToolMode = outcome === 'attached' ? 'appWindow' : 'none') => {
+		screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.ChatAppWindow, outcome, mode, durationMs: stopWatch.elapsed() });
 		telemetryService.publicLog2<AppWindowScreenshotEvent, AppWindowScreenshotClassification>('screenshotTool.appWindow', { source: request.source, target, result, permission, inBackground });
 	};
+
+	// Capturing what VS Code alone shows needs no permission, so the setup only shows for what needs it.
+	const selection = request.select ? await appWindowScreenshotService.select() : undefined;
+	if (selection?.kind === 'captured') {
+		const { target, image } = selection;
+		const name = target.kind === 'window' ? target.name : localize('appWindowScreenshot.screenshot', "Screenshot");
+		const { data, mimeType } = getScreenshotToolImageData(image);
+		const entry: IChatRequestVariableEntry = {
+			id: generateUuid(),
+			kind: 'image',
+			name,
+			fullName: target.kind === 'window' ? localize('appWindowScreenshot.fullName', "Screenshot of {0}", name) : name,
+			value: data.buffer,
+			mimeType,
+		};
+		screenshotToolService.registerEditableAttachment(entry, { original: image, annotationState: undefined });
+		log('selected', selection.kind, 'attached', target.kind === 'window' ? (target.own ? 'window' : 'appWindow') : target.kind);
+		return { entry, image, windowName: target.kind === 'window' ? name : undefined };
+	}
+	if (selection) {
+		void appWindowScreenshotService.endCaptureFeedback();
+		log('selected', selection.kind, selection.kind === 'cancelled' ? 'cancelled' : 'failed');
+		if (selection.kind === 'permissionRequired') {
+			const current = await appWindowScreenshotService.getPermission();
+			// The setup comes to the front, as the selection took the keyboard from VS Code.
+			await instantiationService.invokeFunction(showAppWindowScreenshotSetup, current === 'restricted' ? 'restricted' : 'notGranted', true);
+		} else if (selection.kind === 'failed') {
+			notificationService.error(localize('appWindowScreenshot.selectionFailed', "The screenshot could not be captured."));
+		}
+		return undefined;
+	}
 
 	if (permission === 'notGranted' || permission === 'restricted') {
 		log('none', 'permissionRequired', 'cancelled');
@@ -148,7 +186,8 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 		return undefined;
 	}
 
-	const result: AppWindowScreenshotResult = await appWindowScreenshotService.capture({ pick: request.pick });
+	// Where the user can't select on screen, they pick the window in a list.
+	const result: AppWindowScreenshotResult = await appWindowScreenshotService.capture({ pick: request.pick || request.select });
 	if (result.kind === 'captured') {
 		const label = getAppWindowLabel(result.window);
 		const { data, mimeType } = getScreenshotToolImageData(result.image);
@@ -162,7 +201,7 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 		};
 		screenshotToolService.registerEditableAttachment(entry, { original: result.image, annotationState: undefined });
 		log(result.target, result.kind, 'attached');
-		return { entry, image: result.image };
+		return { entry, image: result.image, windowName: label };
 	}
 
 	void appWindowScreenshotService.endCaptureFeedback();
@@ -233,7 +272,8 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 	if (!contextKeyService.contextMatchesRules(AppWindowScreenshotsEnabled)) {
 		return;
 	}
-	const inBackground = !hostService.hasFocus;
+	// VS Code comes to the front to attach, also after the user selected on screen, which took the keyboard from it.
+	const inBackground = !hostService.hasFocus || !!request.select;
 	const chatInUse = request.sessionResource ? chatWidgetService.getWidgetBySessionResource(request.sessionResource) : chatWidgetService.lastFocusedWidget;
 	if (chatInUse && !chatInUse.attachmentCapabilities.supportsImageAttachments) {
 		notificationService.info(localize('appWindowScreenshot.noImages', "This chat does not accept images."));
@@ -243,9 +283,9 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 
 	// Captures before VS Code comes to the front, which would change which window is in front.
 	const screenshot = await instantiationService.invokeFunction(captureAppWindowScreenshot, request);
-	// Quick Chat can't be revealed like other chats, and the list of windows to pick from takes its place, so it opens
-	// again, also when the user cancelled picking a window.
-	if (chatInUse && isQuickChat(chatInUse) && (screenshot || request.pick)) {
+	// Quick Chat can't be revealed like other chats, and the list of windows to pick from, or what lets the user select
+	// on screen, takes its place, so it opens again, also when the user cancelled.
+	if (chatInUse && isQuickChat(chatInUse) && (screenshot || request.pick || request.select)) {
 		quickChatService.open();
 	}
 	if (!screenshot) {
@@ -296,7 +336,9 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 		}
 		await focused;
 		widget.focusInput();
-		status(localize('appWindowScreenshot.attached', "Attached a screenshot of {0}.", screenshot.entry.name));
+		status(screenshot.windowName
+			? localize('appWindowScreenshot.attached', "Attached a screenshot of {0}.", screenshot.windowName)
+			: localize('appWindowScreenshot.attachedArea', "Attached a screenshot."));
 	} finally {
 		void appWindowScreenshotService.endCaptureFeedback();
 	}
@@ -344,13 +386,37 @@ class PickAppWindowScreenshotAction extends Action2 {
 	}
 }
 
-/** The Add Context item, which lets the user pick the window to capture, as Pick App Window to Screenshot does. */
+class AttachScreenshotAction extends Action2 {
+
+	constructor() {
+		super({
+			id: ATTACH_SCREENSHOT_COMMAND_ID,
+			title: localize2('chat.attachScreenshot', "Attach Screenshot..."),
+			metadata: {
+				description: localize2('chat.attachScreenshot.description', "Lets you select what to attach a screenshot of to chat: a window of any app, VS Code included, or an area of the screen."),
+			},
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(AppWindowScreenshotsEnabled, IsMacNativeContext),
+		});
+	}
+
+	run(accessor: ServicesAccessor, args?: unknown): Promise<void> {
+		return attachAppWindowScreenshot(accessor, { source: 'command', select: true, sessionResource: isAttachAppWindowScreenshotArgs(args) ? args.sessionResource : undefined });
+	}
+}
+
+/**
+ * The Add Context item. On macOS, it lets the user select what to capture on screen, as Attach Screenshot does, which
+ * also captures the windows of VS Code. Elsewhere, it lets the user pick the window of another app in a list, as Pick
+ * App Window to Screenshot does.
+ */
 class AppWindowScreenshotContextValuePick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
 	readonly icon = Codicon.deviceCamera;
-	readonly label = localize('chatContext.appWindowScreenshot', "Screenshot App Window...");
-	readonly commandId = PICK_APP_WINDOW_SCREENSHOT_COMMAND_ID;
+	readonly label = isMacintosh ? localize('chatContext.screenshot', "Screenshot...") : localize('chatContext.appWindowScreenshot', "Screenshot App Window...");
+	readonly commandId = isMacintosh ? ATTACH_SCREENSHOT_COMMAND_ID : PICK_APP_WINDOW_SCREENSHOT_COMMAND_ID;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -364,7 +430,7 @@ class AppWindowScreenshotContextValuePick implements IChatContextValueItem {
 
 	/** Attaches the screenshot to this chat itself, so that it shrinks into its attachment, and returns nothing to attach. */
 	async asAttachment(widget: IChatWidget): Promise<undefined> {
-		await this.instantiationService.invokeFunction(attachAppWindowScreenshot, { source: 'addContext', pick: true, sessionResource: widget.viewModel?.sessionResource });
+		await this.instantiationService.invokeFunction(attachAppWindowScreenshot, { source: 'addContext', select: isMacintosh, pick: !isMacintosh, sessionResource: widget.viewModel?.sessionResource });
 		return undefined;
 	}
 }
@@ -441,5 +507,6 @@ class AppWindowScreenshotHintContribution extends Disposable implements IChatWid
 
 registerAction2(AttachAppWindowScreenshotAction);
 registerAction2(PickAppWindowScreenshotAction);
+registerAction2(AttachScreenshotAction);
 registerWorkbenchContribution2(AppWindowScreenshotContribution.ID, AppWindowScreenshotContribution, WorkbenchPhase.AfterRestored);
 ChatWidget.CONTRIBS.push(AppWindowScreenshotHintContribution);
