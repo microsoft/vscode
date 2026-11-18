@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, McpSkillOrigin, PermissionRequest, SessionEventPayload, SkillInvokedData } from '@microsoft/copilot-sdk';
 import { assertNever } from '../../../../base/common/assert.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -29,7 +29,7 @@ import { COMPUTER_USE_ACTIVATION_TOOL_NAME } from './copilotComputerUseActivatio
 // =============================================================================
 // Copilot CLI built-in tool interfaces
 //
-// The Copilot CLI (via @github/copilot-sdk) exposes these built-in tools. Tool names
+// The Copilot CLI (via @microsoft/copilot-sdk) exposes these built-in tools. Tool names
 // and parameter shapes are not typed in the SDK -- they come from the CLI server
 // as plain strings. These interfaces are derived from observing the CLI's actual
 // tool events and the Copilot Chat extension's CLI display table.

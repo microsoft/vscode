@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SectionOverride } from '@github/copilot-sdk';
+import type { SectionOverride } from '@microsoft/copilot-sdk';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../../../../browserView/common/browserChatToolReferenceNames.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';

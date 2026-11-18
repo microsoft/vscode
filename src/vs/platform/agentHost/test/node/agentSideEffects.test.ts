@@ -691,6 +691,180 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	for (const outcome of ['resolve', 'reject'] as const) {
+		test(`hands the pending turn-start checkpoint to an opted-in provider (${outcome})`, async () => {
+			const workingDirectory = URI.file('/wd');
+			setupSession(workingDirectory.toString());
+			Object.assign(agent.chats, { awaitsTurnStartCheckpoint: true });
+			const capture = new DeferredPromise<void>();
+			const captureError = new Error('checkpoint failed');
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: () => capture.p,
+			});
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			const turnStarted = chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z');
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+
+			const context = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			const pending = context instanceof URI ? undefined : context?.turnStartCheckpoint;
+			let settled = false;
+			const result = pending?.then(() => {
+				settled = true;
+				return 'resolved';
+			}, error => {
+				settled = true;
+				return error;
+			});
+			await timeout(0);
+			const whileCapturing = { sends: agent.sendMessageCalls.length, sameCapture: pending === capture.p, settled };
+			if (outcome === 'resolve') {
+				capture.complete();
+			} else {
+				capture.error(captureError);
+			}
+
+			assert.deepStrictEqual({ whileCapturing, result: await result, settled }, {
+				whileCapturing: { sends: 1, sameCapture: true, settled: false },
+				result: outcome === 'resolve' ? 'resolved' : captureError,
+				settled: true,
+			});
+		});
+	}
+
+	test('discards a pending turn-start checkpoint when an opted-in turn is cancelled after dispatch', async () => {
+		const workingDirectory = URI.file('/wd');
+		setupSession(workingDirectory.toString());
+		Object.assign(agent.chats, { awaitsTurnStartCheckpoint: true });
+		const capture = new DeferredPromise<void>();
+		const discarded = new DeferredPromise<void>();
+		const order: string[] = [];
+		const discards: { session: string; chat: string; turnId: string }[] = [];
+		const sequencer = new SequencerByKey<string>();
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent,
+			agents: agentList,
+			sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, {
+			...NULL_CHECKPOINT_SERVICE,
+			captureTurnStartCheckpoint: session => sequencer.queue(session.toString(), async () => {
+				order.push('capture:start');
+				await capture.p;
+				order.push('capture:end');
+			}),
+			discardTurnStartCheckpoint: (session, chat, turnId) => sequencer.queue(session.toString(), async () => {
+				order.push('discard');
+				discards.push({ session: session.toString(), chat: chat.toString(), turnId });
+				discarded.complete();
+			}),
+		});
+		disposables.add(localSideEffects.registerProgressListener(agent));
+
+		const turnStarted = chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z');
+		stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+		localSideEffects.handleAction(defaultChatUri, turnStarted);
+		await waitForSendMessageCalls(1);
+		stateManager.dispatchClientAction(defaultChatUri, {
+			type: ActionType.ChatTurnCancelled,
+			turnId: 'turn-1',
+			duration: 0,
+		}, { clientId: 'test', clientSeq: 1 });
+		await timeout(0);
+		const whileCapturing = { order: [...order], sends: agent.sendMessageCalls.length };
+		capture.complete();
+		await discarded.p;
+
+		assert.deepStrictEqual({ whileCapturing, order, discards }, {
+			whileCapturing: { order: ['capture:start'], sends: 1 },
+			order: ['capture:start', 'capture:end', 'discard'],
+			discards: [{ session: sessionUri.toString(), chat: defaultChatUri, turnId: 'turn-1' }],
+		});
+	});
+
+	for (const first of ['checkpoint', 'workingDirectory'] as const) {
+		test(`overlaps turn-start capture with folder preparation and waits for both (${first} first)`, async () => {
+			const workingDirectory = URI.file('/wd');
+			setupSession(workingDirectory.toString());
+			const capture = new DeferredPromise<void>();
+			const preparation = new DeferredPromise<void>();
+			const captures: (readonly URI[] | undefined)[] = [];
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async ({ onResolved }) => {
+					onResolved?.([workingDirectory]);
+					await preparation.p;
+					return [workingDirectory];
+				},
+			}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async (_session, _chat, _turnId, directories) => {
+					captures.push(directories);
+					await capture.p;
+				},
+			});
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			const turnStarted = chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z');
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await timeout(0);
+			const whilePreparing = { captures: captures.length, sends: agent.sendMessageCalls.length };
+			const [earlier, later] = first === 'checkpoint' ? [capture, preparation] : [preparation, capture];
+			earlier.complete();
+			await timeout(0);
+			const whileOnePending = agent.sendMessageCalls.length;
+			later.complete();
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ whilePreparing, whileOnePending, captures }, {
+				whilePreparing: { captures: 1, sends: 0 },
+				whileOnePending: 0,
+				captures: [[workingDirectory]],
+			});
+		});
+	}
+
+	test('preserves folder preparation failures and discards an early checkpoint', async () => {
+		setupSession(URI.file('/wd').toString());
+		let discarded = 0;
+		const localSideEffects = createTestSideEffects(disposables, stateManager, {
+			getAgent: () => agent,
+			agents: agentList,
+			sessionDataService: createNullSessionDataService(),
+			resolveWorkingDirectoryBeforeSend: async ({ onResolved }) => {
+				onResolved?.([URI.file('/wd')]);
+				throw new Error('base-branch persistence failed');
+			},
+		}, undefined, NullTelemetryService, new FakeChangesetService(), undefined, {
+			...NULL_CHECKPOINT_SERVICE,
+			captureTurnStartCheckpoint: async () => { },
+			discardTurnStartCheckpoint: async () => { discarded++; },
+		});
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+		const turnStarted = chatTurnStarted('turn-1', 'hello', '2025-01-01T00:00:00.000Z');
+		stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+		localSideEffects.handleAction(defaultChatUri, turnStarted);
+		await waitForState(stateManager, () => envelopes.some(envelope => envelope.action.type === ActionType.ChatError) || undefined);
+
+		const error = envelopes.find(envelope => envelope.action.type === ActionType.ChatError)?.action;
+		assert.deepStrictEqual({ discarded, sends: agent.sendMessageCalls.length, error: error?.type === ActionType.ChatError ? error.part.error.message : undefined }, {
+			discarded: 1,
+			sends: 0,
+			error: 'base-branch persistence failed',
+		});
+	});
+
 	test('discards a concurrently started turn-start checkpoint when the turn is cancelled before dispatch', async () => {
 		const workingDirectory = URI.file('/wd');
 		setupSession(workingDirectory.toString());

@@ -58,6 +58,7 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../.
 import { IOnboardingScenario, OnboardingOutcome } from '../../../../../../onboarding/common/onboardingScenario.js';
 import { TestHostService, TestLayoutService } from '../../../../../../../test/browser/workbenchTestServices.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
+import { NullTelemetryService } from '../../../../../../../../platform/telemetry/common/telemetryUtils.js';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -705,7 +706,7 @@ suite('TabbedModelPicker', () => {
 			const layout = new class extends TestLayoutService {
 				override getContainer() { return document.body; }
 			}();
-			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService));
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), contextKeyService, new TestConfigurationService(), NullTelemetryService));
 			const scenario: IOnboardingScenario<ISpotlightPayload> = {
 				id: 'test.compareModels',
 				trigger: { kind: 'auto' },

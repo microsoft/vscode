@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AssistantMessageToolRequest, JsonValue, SessionEvent } from '@github/copilot-sdk';
+import type { AssistantMessageToolRequest, JsonValue, SessionEvent } from '@microsoft/copilot-sdk';
 import { open } from 'fs/promises';
 import { createInterface } from 'readline';
 import { getErrorMessage } from '../../../../base/common/errors.js';
@@ -37,7 +37,7 @@ function recoverEvent(value: JsonValue): SessionEvent | undefined {
 		return undefined;
 	}
 	const envelope = { id: event.id, timestamp: event.timestamp, parentId: event.parentId, agentId: event.agentId };
-	const parentToolCallId = string(data.parentToolCallId);
+	const legacyAttribution = { parentToolCallId: string(data.parentToolCallId) };
 	switch (event.type) {
 		case 'user.message':
 			if (typeof data.content === 'string') {
@@ -73,12 +73,12 @@ function recoverEvent(value: JsonValue): SessionEvent | undefined {
 			}
 			return {
 				...envelope, type: event.type,
-				data: { content: data.content, messageId: data.messageId, reasoningText: string(data.reasoningText), parentToolCallId, toolRequests },
+				data: { content: data.content, messageId: data.messageId, reasoningText: string(data.reasoningText), ...legacyAttribution, toolRequests },
 			};
 		}
 		case 'tool.execution_start':
 			if (typeof data.toolCallId === 'string' && typeof data.toolName === 'string') {
-				return { ...envelope, type: event.type, data: { toolCallId: data.toolCallId, toolName: data.toolName, arguments: data.arguments, parentToolCallId } };
+				return { ...envelope, type: event.type, data: { toolCallId: data.toolCallId, toolName: data.toolName, arguments: data.arguments, ...legacyAttribution } };
 			}
 			break;
 		case 'tool.execution_complete': {
@@ -92,7 +92,7 @@ function recoverEvent(value: JsonValue): SessionEvent | undefined {
 			return {
 				...envelope, type: event.type,
 				data: {
-					toolCallId: data.toolCallId, success: data.success, parentToolCallId,
+					toolCallId: data.toolCallId, success: data.success, ...legacyAttribution,
 					result: result && typeof result.content === 'string' ? { content: result.content, detailedContent: string(result.detailedContent) } : undefined,
 					error: error && typeof error.message === 'string' ? { message: error.message, code: string(error.code) } : undefined,
 				},
