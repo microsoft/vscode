@@ -118,6 +118,16 @@ export type IconPathDto =
 	| { light: UriComponents; dark: UriComponents }
 	| ThemeIcon;
 
+export interface IWorkspaceFolderLocationDto {
+	uri: UriComponents;
+	name: string;
+}
+
+export interface IWorkspaceFolderLocationsDto {
+	folder: UriComponents;
+	locations: IWorkspaceFolderLocationDto[];
+}
+
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
 }
@@ -2018,6 +2028,8 @@ export interface ResourceTrustRequestOptionsDto {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
+	/** Starts resolving, and keeping current, the locations of the workspace folders. */
+	$getWorkspaceFolderLocations(): void;
 	$startFileSearch(includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
@@ -2653,6 +2665,7 @@ export interface ExtHostTreeViewsShape {
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null, trusted: boolean): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
+	$acceptWorkspaceFolderLocations(data: IWorkspaceFolderLocationsDto[]): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
 	$onDidChangeWorkspaceTrustedFolders(): void;

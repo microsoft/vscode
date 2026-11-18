@@ -9,6 +9,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBoxNative } from '../../../../base/browser/ui/selectBox/selectBoxNative.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -190,7 +191,6 @@ class ScheduledChatCalendar extends Disposable {
 
 export async function pickScheduledChatTime(quickInputService: IQuickInputService, anchor?: HTMLElement, onSendNow?: () => Promise<void>): Promise<Date | undefined> {
 	const now = new Date();
-	const formatTime = (date: Date) => date.toLocaleString(undefined, { timeZoneName: 'short' });
 	const choices = [
 		{ minutes: 5, label: localize('sendLater.fiveMinutes', "In 5 Minutes") },
 		{ minutes: 10, label: localize('sendLater.tenMinutes', "In 10 Minutes") },
@@ -225,12 +225,35 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 		return picked?.date;
 	}
 
+	return pickDateTime(quickInputService, {
+		title: localize('sendLater.customTitle', "Send Later - Date and Time"),
+		confirmLabel: localize('sendLater.schedule', "Schedule"),
+		hint: localize('sendLater.calendarHint', "Pick a day in the calendar and a time from the dropdown. Times use this device's time zone. The local agent host sends when available."),
+		summary: date => localize('sendLater.summary', "Send {0}", date.toLocaleString(undefined, { timeZoneName: 'short' })),
+		anchor,
+	});
+}
+
+interface IDateTimePickerOptions {
+	readonly title: string;
+	readonly confirmLabel: string;
+	readonly hint: string;
+	readonly summary: (date: Date) => string;
+	readonly initialValue?: Date;
+	readonly anchor?: HTMLElement;
+}
+
+/** Opens the shared calendar and time picker without the Send Later presets. */
+export async function pickDateTime(quickInputService: IQuickInputService, options: IDateTimePickerOptions, token = CancellationToken.None): Promise<Date | undefined> {
+	if (token.isCancellationRequested) {
+		return undefined;
+	}
 	const disposables = new DisposableStore();
 	try {
 		const picker = disposables.add(quickInputService.createQuickWidget());
-		picker.title = localize('sendLater.customTitle', "Send Later - Date and Time");
-		picker.anchor = anchor;
-		picker.anchorPosition = anchor ? 'above' : undefined;
+		picker.title = options.title;
+		picker.anchor = options.anchor;
+		picker.anchorPosition = options.anchor ? 'above' : undefined;
 		const form = $('.scheduled-chat-time-picker');
 		picker.widget = form;
 		// Buttons blur themselves on Escape, which would close the picker without restoring focus to the invoking control.
@@ -242,7 +265,7 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 		}, true));
 
 		const fields = append(form, $('.scheduled-chat-time-fields'));
-		const initial = new Date((Math.floor(Date.now() / 900_000) + 1) * 900_000);
+		const initial = options.initialValue ?? new Date((Math.floor(Date.now() / 900_000) + 1) * 900_000);
 		const calendar = disposables.add(new ScheduledChatCalendar(fields, startOfDay(initial), startOfDay(new Date())));
 
 		const timeColumn = append(fields, $('.scheduled-chat-time-column'));
@@ -256,7 +279,7 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 				value: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
 			};
 		});
-		let timeIndex = initial.getHours() * 4 + initial.getMinutes() / 15;
+		let timeIndex = initial.getMinutes() % 15 === 0 ? initial.getHours() * 4 + initial.getMinutes() / 15 : times.length;
 		const timeSelect = disposables.add(new SelectBoxNative([
 			...times,
 			{ text: localize('sendLater.exactTime', "Exact Time...") },
@@ -268,23 +291,28 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 		const exactInput = disposables.add(new InputBox(exactLabel, undefined, {
 			type: 'time', ariaLabel: localize('sendLater.exactTimeLabel', "Exact time"), inputBoxStyles: defaultInputBoxStyles,
 		}));
-		exactInput.value = times[timeIndex].value;
-		exactLabel.hidden = true;
+		exactInput.value = `${initial.getHours().toString().padStart(2, '0')}:${initial.getMinutes().toString().padStart(2, '0')}`;
+		exactLabel.hidden = timeIndex < times.length;
 
 		const summary = append(form, $('.scheduled-chat-time-summary', { role: 'status' }));
-		append(form, $('.scheduled-chat-time-hint', undefined, localize('sendLater.calendarHint', "Pick a day in the calendar and a time from the dropdown. Times use this device's time zone. The local agent host sends when available.")));
+		append(form, $('.scheduled-chat-time-hint', undefined, options.hint));
 		const actions = append(form, $('.scheduled-chat-time-actions'));
 		const scheduleButton = disposables.add(new Button(actions, defaultButtonStyles));
-		scheduleButton.label = localize('sendLater.schedule', "Schedule");
+		scheduleButton.label = options.confirmLabel;
 		const cancelButton = disposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
 		cancelButton.label = localize('sendLater.cancel', "Cancel");
-		const selectedDate = () => parseScheduledChatTime(`${localDate(calendar.value)} ${timeIndex < times.length ? times[timeIndex].value : exactInput.value}`);
+		const selectedDate = () => {
+			const date = parseScheduledChatTime(`${localDate(calendar.value)} ${timeIndex < times.length ? times[timeIndex].value : exactInput.value}`);
+			return date && date.getTime() === new Date(initial.getFullYear(), initial.getMonth(), initial.getDate(), initial.getHours(), initial.getMinutes()).getTime()
+				? initial
+				: date;
+		};
 		const update = () => {
 			const date = selectedDate();
 			const valid = !!date && date.getTime() > Date.now();
 			scheduleButton.enabled = valid;
 			summary.textContent = valid
-				? localize('sendLater.summary', "Send {0}", formatTime(date))
+				? options.summary(date)
 				: localize('sendLater.invalidTime', "Choose a valid future date and time.");
 		};
 		disposables.add(calendar.onDidSelect(update));
@@ -301,6 +329,7 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 
 		return await new Promise<Date | undefined>(resolve => {
 			disposables.add(picker.onDidHide(() => resolve(undefined)));
+			disposables.add(token.onCancellationRequested(() => picker.hide()));
 			disposables.add(cancelButton.onDidClick(() => picker.hide()));
 			disposables.add(scheduleButton.onDidClick(() => {
 				update();

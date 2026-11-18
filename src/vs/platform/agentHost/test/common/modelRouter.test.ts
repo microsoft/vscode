@@ -118,7 +118,8 @@ suite('modelRouter', () => {
 				sameName: check('routes:\n  - name: one\n    model: a\n    when: A.\n  - name: one\n    model: b\n    when: B.'),
 				sameModel: check('routes:\n  - model: a\n    when: A.\n  - model: a\n    when: B.\n    effort: low'),
 				badName: check('routes:\n  - name: Bug_Fix\n    model: a\n    when: A.\n  - model: b\n    when: B.'),
-				switching: check(`switching: auto\n${guided}`),
+				// A chat that moves to another route gets that route's guidance, so the two go together.
+				autoSwitching: check(`switching: auto\n${guided}`),
 				longGuidance: check(`${guided} ${'x'.repeat(4000)}`),
 				// The preview format, which this build no longer reads.
 				playbooks: check('playbooks:\n  one:\n    when: A.\n    main: a'),
@@ -129,7 +130,7 @@ suite('modelRouter', () => {
 				sameName: ['The name `one` is already route 1\'s; each name belongs to one route.'],
 				sameModel: ['`a` is already in route 1; each model belongs to one route, unless the routes have a `name`.'],
 				badName: ['Route 1\'s `name` is lowercase letters, digits and single hyphens, like `bug-fix`.'],
-				switching: ['A route\'s `guidance` is given to a chat when it starts and kept for that chat, so `switching: auto` can\'t be used with it.'],
+				autoSwitching: [],
 				longGuidance: ['Route 1\'s `guidance` is too long: at most 4000 characters.'],
 				playbooks: ['Write `playbooks` as `routes`: a list where each route has `model` and `when`, and can have a `name` and `guidance`.'],
 				roles: ['`roles` are no longer read. To have a custom agent used, name it in a route\'s `guidance`.'],

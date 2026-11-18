@@ -149,6 +149,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private _contentTopInset = 0;
 	private _contentBottomInset = 0;
 
+	private readonly headerSpansContentInset: IEditorGroupViewOptions['headerSpansContentInset'];
+
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
 
@@ -188,6 +190,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IModelService private readonly modelService: IModelService
 	) {
 		super(themeService);
+
+		this.headerSpansContentInset = options?.headerSpansContentInset;
 
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
@@ -2338,14 +2342,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		const contentWidth = Math.max(0, width - this._contentLeftInset - this._contentRightInset);
-		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
-		this.titleContainer.style.setProperty('--title-border-bottom-left', `${this._contentLeftInset}px`);
+		const headerSpansContentInset = (this._contentLeftInset > 0 || this._contentRightInset > 0) && this.headerSpansContentInset?.(this.activeEditor ?? undefined) === true;
+		const headerWidth = headerSpansContentInset ? width : contentWidth;
+		const headerLeft = headerSpansContentInset ? 0 : this._contentLeftInset;
+		this.titleContainer.classList.toggle('header-spans-content-inset', headerSpansContentInset);
+		this.titleContainer.style.setProperty('--title-border-bottom-width', `${headerWidth}px`);
+		this.titleContainer.style.setProperty('--title-border-bottom-left', `${headerLeft}px`);
 
-		// Keep tabs full-width while the header and editor pane follow the content inset.
+		// Keep tabs full-width while the editor pane follows the content inset, and the
+		// header does too unless it spans the inset.
 		const titleControlSize = this.titleProvidedByEditor ? new Dimension(width, 0) : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		}, contentWidth, this._contentLeftInset);
+		}, headerWidth, headerLeft);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;

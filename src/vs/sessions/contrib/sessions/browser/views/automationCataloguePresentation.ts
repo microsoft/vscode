@@ -8,8 +8,18 @@ import { localize } from '../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostEntry, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import type { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { type IAutomationDescriptor, type IAutomationRun, isAutomationVisible } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+
+export function getAutomationsViewContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], showOthers: boolean) {
+	const hiddenIds = new Set(automations
+		.filter(automation => !isAutomationVisible(automation, showOthers))
+		.map(automation => automation.id));
+	return {
+		automations: automations.filter(automation => !hiddenIds.has(automation.id)),
+		runs: runs.filter(run => !hiddenIds.has(run.automationId)),
+	};
+}
 
 export function getAutomationOwnershipGroups(automations: readonly IAutomationDescriptor[]) {
 	return [
@@ -20,7 +30,8 @@ export function getAutomationOwnershipGroups(automations: readonly IAutomationDe
 			description: localize('automations.repositoryOwnedDescription', "These automations are visible to anyone with repository access, and can be edited by anyone with write access."),
 			automations: automations.filter(automation => automation.ownership === 'repository'),
 		},
-	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'));
+	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'))
+		.map(group => ({ ...group, automations: group.automations.sort((a, b) => Number(b.enabled) - Number(a.enabled)) }));
 }
 
 export function getVisibleAutomations(automations: readonly IAutomationDescriptor[], sendLaterEnabled: boolean): readonly IAutomationDescriptor[] {
@@ -29,7 +40,7 @@ export function getVisibleAutomations(automations: readonly IAutomationDescripto
 }
 
 export function hasEmptyAutomationSection(automations: readonly IAutomationDescriptor[]): boolean {
-	return automations.length === 0 || getAutomationOwnershipGroups(automations.filter(automation => automation.enabled))
+	return automations.length === 0 || getAutomationOwnershipGroups(automations)
 		.some(group => group.automations.length === 0);
 }
 

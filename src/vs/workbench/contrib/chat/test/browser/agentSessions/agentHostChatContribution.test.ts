@@ -561,7 +561,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			fromSeq: 0,
 		};
 	}
-	unsubscribe(_resource: URI): void { }
+	override unsubscribe(_resource: URI): void { }
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
@@ -8172,6 +8172,20 @@ suite('AgentHostChatContribution', () => {
 				windowDefault: folders.getDefaultFolder()?.path,
 			}, { carried: '/workspace/b', windowDefault: '/workspace/a' });
 		}));
+
+		test('with worktree support, the folder picker sits where the multi-root folder picker does, and stays shown, disabled, once the session starts', () => {
+			const folderItems = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
+				.filter((i): i is IMenuItem => isIMenuItem(i) && i.group === 'navigation' && i.command.id === OpenAgentHostFolderPickerAction.ID);
+			const worktree = folderItems.find(i => !!i.when?.keys().includes(`config.${ChatConfiguration.EditorWindowEnableWorktree}`));
+			const multiRoot = folderItems.find(i => i !== worktree);
+
+			assert.deepStrictEqual({
+				order: worktree?.order,
+				multiRootOrder: multiRoot?.order,
+				hiddenOnceStarted: !!worktree?.when?.keys().includes(ChatContextKeys.chatSessionIsEmpty.key),
+				disabledOnceStarted: !!worktree?.command.precondition?.keys().includes(ChatContextKeys.chatSessionIsEmpty.key),
+			}, { order: 1.1, multiRootOrder: 1.1, hiddenOnceStarted: false, disabledOnceStarted: true });
+		});
 
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
 			const item = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)

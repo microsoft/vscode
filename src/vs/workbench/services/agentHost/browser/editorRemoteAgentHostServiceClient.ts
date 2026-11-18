@@ -37,6 +37,7 @@ import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomat
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import type { OtlpExportLogsParams } from '../../../../platform/agentHost/common/state/protocol/channels-otlp/notifications.js';
 import type { InitializeResult } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -280,6 +281,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	get onDidAction(): Event<ActionEnvelope> {
 		return this._protocolClient?.onDidAction ?? Event.None;
+	}
+
+	get onDidReceiveOtlpLogs(): Event<OtlpExportLogsParams> {
+		return this._protocolClient?.onDidReceiveOtlpLogs ?? Event.None;
+	}
+
+	async subscribeStateless(resource: URI): Promise<void> {
+		await this._requireClient().subscribeStateless(resource);
+	}
+
+	unsubscribe(resource: URI): void {
+		this._protocolClient?.unsubscribe(resource);
 	}
 
 	get onMcpNotification(): Event<IMcpNotification> {
