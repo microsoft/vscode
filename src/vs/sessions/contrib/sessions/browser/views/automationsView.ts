@@ -3276,6 +3276,10 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 			this.showingIntroduction = true;
 			try {
 				const outcome = await onboardingService.runScenario(AUTOMATIONS_TOUR_ID);
+				if (outcome === OnboardingOutcome.Aborted) {
+					onboardingService.reset(AUTOMATIONS_TOUR_ID);
+					return;
+				}
 				if (outcome === OnboardingOutcome.Skipped || outcome === OnboardingOutcome.Dismissed) {
 					return;
 				}

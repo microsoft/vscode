@@ -5,6 +5,7 @@
 
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame, setParentFlowTo } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -264,18 +265,18 @@ export class SpotlightOverlay extends Disposable {
 				});
 				this._stepListeners.add(toDisposable(() => targetWindow.clearTimeout(handle)));
 			};
-			if (!advanceOnly && options.onDidActivateTarget) {
-				this._stepListeners.add(options.onDidActivateTarget(advanceAfterActivation));
-			} else {
-				this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
-					if (advanceOnly) {
+			if (advanceOnly) {
+				for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
+					this._stepListeners.add(addDisposableListener(target, eventType, event => {
 						event.preventDefault();
 						event.stopImmediatePropagation();
 						this._onDidClickNext.fire('target');
-						return;
-					}
-					advanceAfterActivation();
-				}, true));
+					}, true));
+				}
+			} else if (options.onDidActivateTarget) {
+				this._stepListeners.add(options.onDidActivateTarget(advanceAfterActivation));
+			} else {
+				this._stepListeners.add(addDisposableListener(target, EventType.CLICK, advanceAfterActivation, true));
 			}
 		}
 		if (advanceOnly) {

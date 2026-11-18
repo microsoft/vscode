@@ -1414,13 +1414,18 @@ suite('AutomationsCardsWidget', () => {
 			disposables.add(toDisposable(() => execute.restore()));
 			const introduction = new DeferredPromise<OnboardingOutcome>();
 			const tours: string[] = [];
+			const resets: string[] = [];
 			let eligible = true;
 			instantiationService.stub(IOnboardingScenarioService, {
 				shouldShowNudge: () => eligible,
 				runScenario: (id: string) => {
 					tours.push(id);
 					eligible = false;
-					return introduction.p;
+					return tours.length === 1 ? introduction.p : Promise.resolve(OnboardingOutcome.Completed);
+				},
+				reset: (id: string) => {
+					resets.push(id);
+					eligible = true;
 				},
 			});
 			const invoke = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
@@ -1429,14 +1434,16 @@ suite('AutomationsCardsWidget', () => {
 			const whileShowing = { prompts: dialogService.prompts.length, commands: execute.callCount };
 			await introduction.complete(outcome);
 			await firstClick;
-			const afterDismissal = { prompts: dialogService.prompts.length, commands: execute.callCount };
+			const afterDismissal = { prompts: dialogService.prompts.length, commands: execute.callCount, eligible };
 			await invoke();
 
-			const continues = outcome === OnboardingOutcome.Completed || outcome === OnboardingOutcome.Aborted;
-			assert.deepStrictEqual({ tours, whileShowing, afterDismissal, prompts: dialogService.prompts.length, commands: execute.args }, {
-				tours: [AUTOMATIONS_TOUR_ID],
+			const continues = outcome === OnboardingOutcome.Completed;
+			const aborted = outcome === OnboardingOutcome.Aborted;
+			assert.deepStrictEqual({ tours, resets, whileShowing, afterDismissal, prompts: dialogService.prompts.length, commands: execute.args }, {
+				tours: aborted ? [AUTOMATIONS_TOUR_ID, AUTOMATIONS_TOUR_ID] : [AUTOMATIONS_TOUR_ID],
+				resets: aborted ? [AUTOMATIONS_TOUR_ID] : [],
 				whileShowing: { prompts: 0, commands: 0 },
-				afterDismissal: { prompts: continues ? 1 : 0, commands: continues ? 1 : 0 },
+				afterDismissal: { prompts: continues ? 1 : 0, commands: continues ? 1 : 0, eligible: aborted },
 				prompts: continues ? 2 : 1,
 				commands: Array.from({ length: continues ? 2 : 1 }, () => ['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }]),
 			});
