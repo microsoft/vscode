@@ -480,6 +480,10 @@ export class ChatPillsRow extends Disposable {
 			const { scrollLeft } = this._scrollable.getScrollPosition();
 			this._scrollable.setScrollPosition({ scrollLeft: scrollLeft - event.translationX });
 		}));
+		this._register(addDisposableListener(this.content, TouchEventType.Contextmenu, event => {
+			EventHelper.stop(event, true);
+			this._onDidRequestContextMenu.fire(isHTMLElement(event.initialTarget) ? event.initialTarget : this.content);
+		}));
 
 		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, entries => {
 			if (entries.some(entry => entry.target !== this.content)) {

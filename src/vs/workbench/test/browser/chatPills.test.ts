@@ -1139,6 +1139,40 @@ suite('ChatPills', () => {
 		});
 	}
 
+	function dispatchTouch(target: HTMLElement, type: 'touchstart' | 'touchmove' | 'touchend', pageX: number) {
+		const touch = { identifier: 1, target, pageX, pageY: 10 };
+		const list = (items: readonly typeof touch[]) => Object.assign([...items], { item: (index: number) => items[index] ?? null });
+		const activeTouches = list(type === 'touchend' ? [] : [touch]);
+		target.dispatchEvent(Object.assign(new mainWindow.Event(type, { bubbles: true, cancelable: true }), {
+			touches: activeTouches,
+			targetTouches: activeTouches,
+			changedTouches: list([touch]),
+		}));
+	}
+
+	for (const empty of [false, true]) {
+		test(`long presses request the pill menu for an ${empty ? 'empty' : 'occupied'} row`, () => {
+			const touchDevice = sinon.stub(Gesture, 'isTouchDevice').returns(true);
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+			store.add(toDisposable(() => touchDevice.restore()));
+			store.add(toDisposable(() => clock.restore()));
+			const harness = createResponsiveRow(false);
+			if (empty) {
+				harness.pills.set([], undefined);
+				harness.row.setEmpty(true, 'Configure Session Status Pills');
+			}
+			const target = empty ? harness.row.content : harness.widget.getPillElements()[0];
+			const anchors: HTMLElement[] = [];
+			store.add(harness.row.onDidRequestContextMenu(anchor => anchors.push(anchor)));
+
+			dispatchTouch(target, 'touchstart', 100);
+			clock.tick(1000);
+			dispatchTouch(target, 'touchend', 100);
+
+			assert.deepStrictEqual(anchors, [target]);
+		});
+	}
+
 	for (const { compact, width } of [
 		{ compact: false, width: 320 },
 		{ compact: false, width: 390 },
@@ -1156,29 +1190,19 @@ suite('ChatPills', () => {
 			let activations = 0;
 			harness.actions[0].run = async () => { activations++; };
 			const button = harness.widget.getPillElements()[0];
-			const dispatchTouch = (type: 'touchstart' | 'touchmove' | 'touchend', pageX: number) => {
-				const touch = { identifier: 1, target: button, pageX, pageY: 10 };
-				const list = (items: readonly typeof touch[]) => Object.assign([...items], { item: (index: number) => items[index] ?? null });
-				const activeTouches = list(type === 'touchend' ? [] : [touch]);
-				button.dispatchEvent(Object.assign(new mainWindow.Event(type, { bubbles: true, cancelable: true }), {
-					touches: activeTouches,
-					targetTouches: activeTouches,
-					changedTouches: list([touch]),
-				}));
-			};
 			const maximumScrollLeft = harness.row.content.scrollWidth - harness.row.content.clientWidth;
 
-			dispatchTouch('touchstart', 200);
-			dispatchTouch('touchmove', 120);
+			dispatchTouch(button, 'touchstart', 200);
+			dispatchTouch(button, 'touchmove', 120);
 			const forward = harness.row.content.scrollLeft;
-			dispatchTouch('touchend', 120);
-			dispatchTouch('touchstart', 120);
-			dispatchTouch('touchmove', 300);
+			dispatchTouch(button, 'touchend', 120);
+			dispatchTouch(button, 'touchstart', 120);
+			dispatchTouch(button, 'touchmove', 300);
 			const backward = harness.row.content.scrollLeft;
-			dispatchTouch('touchend', 300);
+			dispatchTouch(button, 'touchend', 300);
 			const activatedBySwipe = activations;
-			dispatchTouch('touchstart', 200);
-			dispatchTouch('touchend', 200);
+			dispatchTouch(button, 'touchstart', 200);
+			dispatchTouch(button, 'touchend', 200);
 
 			assert.deepStrictEqual({
 				overflows: maximumScrollLeft > 0,
