@@ -18,7 +18,6 @@ import {
 	CanvasesEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostBrowserUseEnabledSettingId,
-	AgentHostComputerUseEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
@@ -52,7 +51,6 @@ import {
 	AgentHostCodexEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
 	AgentHostBrowserUseEnabledConfigKey,
-	AgentHostComputerUseEnabledConfigKey,
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
@@ -64,6 +62,7 @@ import {
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatProviders.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
+import { computerUseConfigurationProperties } from './computerUseConfiguration.js';
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
@@ -346,14 +345,7 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostGitHubMcpServerEnabledConfigKey },
 		},
-		[AgentHostComputerUseEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local and remote Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications on the machine running the agent host. For remote sessions, this is the remote machine, not your client. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat, or when the agent asks. Each application still requires your approval. Changes take effect after a restart."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'startup' },
-			agentHost: { key: AgentHostComputerUseEnabledConfigKey },
-		},
+		...computerUseConfigurationProperties,
 		[AgentHostBrowserUseEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.browserUse.enabled', "When enabled, local Copilot agent sessions offer GitHub's Browser Use plugin, which can operate pages in Google Chrome or Microsoft Edge through the [GitHub Copilot browser extension](https://chromewebstore.google.com/detail/github-copilot/hblomdgalaelcilcdepgohfcogjiijhe). Turn it on with `/plugin enable browser-use` in a Copilot chat, then run `/browser-use:doctor` to check your setup. Requires Node.js 22 or later on your `PATH`. Changes take effect after a restart."),

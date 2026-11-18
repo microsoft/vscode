@@ -14,6 +14,7 @@ import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValue
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { AgentHostArtifactIntegrationsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault, AgentHostComputerUseEnabledConfigKey, AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostComputerUseEnabledSettingId } from '../../common/agentService.js';
+import { computerUseConfigurationProperties } from '../../common/computerUseConfiguration.js';
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 import { ArtifactIntegrationsSettingId } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
@@ -54,6 +55,7 @@ suite('AgentHostConfigurationSync', () => {
 		properties: {
 			...artifactToolsConfigurationProperties,
 			...chatMoveConfigurationProperties,
+			...computerUseConfigurationProperties,
 			[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
@@ -112,32 +114,12 @@ suite('AgentHostConfigurationSync', () => {
 		assert.strictEqual(getGlobalConfigurationValue(configurationService, ALL_HOSTS_SETTING), false);
 	});
 
-	test('mirrors Computer Use opt-in and opt-out to local and remote hosts', async () => {
-		const configurationsBeforeImport = new Set(registry.getConfigurations());
-		const excludedPropertiesBeforeImport = { ...registry.getExcludedConfigurationProperties() };
-		const policyConfigurationsBeforeImport = new Map(registry.getPolicyConfigurations());
-		try {
-			await import('../../common/agentHostStarter.config.contribution.js');
-			const results = [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.RemoteExtensionHost, AgentHostConfigurationSyncTarget.Remote].map(target =>
-				[false, true].map(enabled => resolveAgentHostConfigurationSyncPatch(createConfigurationService({
-					[AgentHostComputerUseEnabledSettingId]: { userValue: enabled, workspaceValue: !enabled },
-				}), target)[AgentHostComputerUseEnabledConfigKey]));
-			assert.deepStrictEqual(results, [[false, true], [false, true], [false, true]]);
-		} finally {
-			registry.deregisterConfigurations(registry.getConfigurations().filter(configuration => !configurationsBeforeImport.has(configuration)));
-			const excludedProperties = registry.getExcludedConfigurationProperties();
-			for (const key of Object.keys(excludedProperties)) {
-				if (excludedPropertiesBeforeImport[key] === undefined) {
-					delete excludedProperties[key];
-				}
-			}
-			Object.assign(excludedProperties, excludedPropertiesBeforeImport);
-			const policyConfigurations = registry.getPolicyConfigurations();
-			policyConfigurations.clear();
-			for (const [key, value] of policyConfigurationsBeforeImport) {
-				policyConfigurations.set(key, value);
-			}
-		}
+	test('mirrors Computer Use opt-in and opt-out to local and remote hosts', () => {
+		const results = [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.RemoteExtensionHost, AgentHostConfigurationSyncTarget.Remote].map(target =>
+			[false, true].map(enabled => resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+				[AgentHostComputerUseEnabledSettingId]: { userValue: enabled, workspaceValue: !enabled },
+			}), target)[AgentHostComputerUseEnabledConfigKey]));
+		assert.deepStrictEqual(results, [[false, true], [false, true], [false, true]]);
 	});
 
 	for (const target of [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.Remote]) {
