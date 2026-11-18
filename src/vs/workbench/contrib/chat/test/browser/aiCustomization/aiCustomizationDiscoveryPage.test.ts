@@ -38,7 +38,7 @@ import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../b
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
-import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/chatPluginActions.js';
+import { AddPluginMarketplaceAction, MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/chatPluginActions.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationItem } from '../../../common/customizationHarnessService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallOrigin, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
@@ -333,6 +333,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				await action.run();
 				sourceMenu?.onHide?.(false);
 				sourceMenu = undefined;
+				return action.label;
 			},
 			selectSource: async (id: string | undefined) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
@@ -451,6 +452,16 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
+	test('Add Customization offers direct marketplace addition even without the Plugins section', async () => {
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Agents]);
+		const label = await fixture.selectAddCustomization('addMarketplace');
+		assert.deepStrictEqual({ label, commands: fixture.commands, creationEvents: fixture.creationEvents }, {
+			label: 'Add Marketplace',
+			commands: [{ id: AddPluginMarketplaceAction.ID, args: [] }],
+			creationEvents: [],
+		});
+	});
+
 	test('title and menu buttons use the expected casing', () => {
 		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Agents]);
 		const title = fixture.container.querySelector<HTMLElement>('.customization-discovery-title');
@@ -469,7 +480,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			title: 'Browse customizations',
 			buttons: [
 				{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
-				{ label: 'All Sources', small: true, hasChevron: true, hasPopup: 'menu' },
+				{ label: 'All Marketplaces', small: true, hasChevron: true, hasPopup: 'menu' },
 			],
 		});
 	});
@@ -662,7 +673,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		};
 		assert.deepStrictEqual({
 			connector: getResultVerification('copilot-connector'),
-			accessibility: fixture.page.getAccessibilityContent().includes('copilot-connector\nMCP server · Copilot Connectors · Verified by GitHub'),
+			accessibility: fixture.page.getAccessibilityContent().includes('copilot-connector\nMCP server · Marketplace: Copilot Connectors · Verified by GitHub'),
 		}, {
 			connector: { visible: true, label: 'Verified by GitHub', hidden: null, afterDetail: true },
 			accessibility: true,
@@ -1816,15 +1827,15 @@ suite('AICustomizationDiscoveryPage', () => {
 				label: '1 alternative customization',
 				hasChevron: true,
 				connectedRows: [
-					'atlassian-connectorMCP server · Copilot ConnectorsConnect',
-					'1 alternative customizationatlassian-mcpMCP server · GitHub FeedInstall',
+					'atlassian-connectorMCP server · Marketplace: Copilot ConnectorsConnect',
+					'1 alternative customizationatlassian-mcpMCP server · Marketplace: GitHub FeedInstall',
 				],
 			},
 			expandedOrder: ['atlassian-connector', 'atlassian-mcp', 'atlassian-public-first', 'atlassian-public-last'],
 			expanded: 'true',
 			expandedLabel: '1 alternative customization',
 			hasExpandedChevron: true,
-			expandedAlternativeContent: '1 alternative customizationatlassian-mcpMCP server · GitHub FeedInstall',
+			expandedAlternativeContent: '1 alternative customizationatlassian-mcpMCP server · Marketplace: GitHub FeedInstall',
 		});
 	});
 
@@ -2660,7 +2671,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			repairs: fixture.repairs,
 			actionsAfter: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
 		}, {
-			before: { detail: 'Skill · GitHub Feed · Missing files', actions: ['Repair', 'Uninstall'] },
+			before: { detail: 'Skill · Marketplace: GitHub Feed · Missing files', actions: ['Repair', 'Uninstall'] },
 			navigation: {
 				ariaLabel: 'View details for Repair mail skill',
 				openedDetails: ['repair-mail'],
@@ -2707,8 +2718,8 @@ suite('AICustomizationDiscoveryPage', () => {
 			cancelAriaLabel: cancel.getAttribute('aria-label'),
 			cancellations: fixture.cancellations,
 		}, {
-			disconnected: { detail: 'MCP server · Copilot Connectors · Disconnected', actions: ['Reconnect', 'Disconnect'] },
-			repairingDetail: 'MCP server · Copilot Connectors · Reconnecting',
+			disconnected: { detail: 'MCP server · Marketplace: Copilot Connectors · Disconnected', actions: ['Reconnect', 'Disconnect'] },
+			repairingDetail: 'MCP server · Marketplace: Copilot Connectors · Reconnecting',
 			cancelAriaLabel: 'Cancel reconnecting Mail',
 			cancellations: ['mail'],
 		});
@@ -2791,7 +2802,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, {
 			requests: 0,
 			name: 'Retired recorded skill',
-			detail: 'Skill · retired · Missing files',
+			detail: 'Skill · Marketplace: retired · Missing files',
 			actions: ['Repair', 'Uninstall'],
 		});
 	});
@@ -2812,7 +2823,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
 			action: fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')?.textContent,
 			disabled: fixture.container.querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button')?.getAttribute('aria-disabled'),
-		}, { detail: 'Skill · GitHub Feed · Could not verify installation', action: 'Uninstall', disabled: 'false' });
+		}, { detail: 'Skill · Marketplace: GitHub Feed · Could not verify installation', action: 'Uninstall', disabled: 'false' });
 	});
 
 	test('explains unresolved plugin identity and disables uninstall until inventory recovers', async () => {
@@ -2837,7 +2848,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ unresolved, recovered: button()?.getAttribute('aria-disabled') }, {
 			unresolved: {
-				detail: `Plugin · GitHub Feed · ${message}`,
+				detail: `Plugin · Marketplace: GitHub Feed · ${message}`,
 				action: 'Uninstall',
 				disabled: 'true',
 				label: `Uninstall Token Pacman Plugin. ${message}`,
@@ -3005,18 +3016,38 @@ suite('AICustomizationDiscoveryPage', () => {
 			items: [resource('review', { sourceId: configuredMarketplaceSourceId, mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, description: 'Review code', originLabel: 'owner/catalog' })],
 		});
 		await timeout(0);
-		const availableAccessible = fixture.page.getAccessibilityContent().includes('review\nPlugin · owner/catalog\nReview code');
+		const availableAccessible = fixture.page.getAccessibilityContent().includes('review\nPlugin · Marketplace: owner/catalog\nReview code');
+		const availableDetail = fixture.container.querySelector('.customization-discovery-result-detail')?.textContent;
 		await fixture.selectSource(configuredMarketplaceSourceId);
 		await fixture.requests[1].result.complete({ items: [] });
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => request.options.sourceIds),
 			source: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
+			availableDetail,
 			availableAccessible,
 			accessible: fixture.page.getAccessibilityContent().includes('owner/catalog'),
 		}, {
 			requests: [undefined, [configuredMarketplaceSourceId]],
 			source: 'owner/catalog',
+			availableDetail: 'Plugin · Marketplace: owner/catalog',
 			availableAccessible: true,
+			accessible: true,
+		});
+	});
+
+	test('Browse cards identify their marketplace separately from their customization type', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('figma', { originLabel: 'Figma' })],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			detail: fixture.container.querySelector('.customization-discovery-card-metadata')?.textContent,
+			accessible: fixture.page.getAccessibilityContent().includes('figma\nMCP server · Marketplace: GitHub Feed · Figma'),
+		}, {
+			detail: 'MCP server · Marketplace: GitHub Feed · Figma',
 			accessible: true,
 		});
 	});
@@ -3071,8 +3102,8 @@ suite('AICustomizationDiscoveryPage', () => {
 				{ query: undefined, sourceIds: undefined },
 			],
 			configuredPluginSource: 'owner/catalog',
-			generalMcpSource: 'All Sources',
-			generalPluginSource: 'All Sources',
+			generalMcpSource: 'All Marketplaces',
+			generalPluginSource: 'All Marketplaces',
 		});
 	});
 
@@ -3405,16 +3436,16 @@ suite('AICustomizationDiscoveryPage', () => {
 			disabledSelectable: fixture.getSourceActions().some(action => action.id === 'customizationDiscovery.source.copilotConnectors'),
 			content: fixture.page.getAccessibilityContent().match(/^(?:connector|public|stale)-mail$/gm),
 		}, {
-			labels: ['All Sources', 'owner/catalog', 'anthropics/claude-code', 'GitHub Feed', 'Copilot Connectors', 'Configure Marketplaces'],
+			labels: ['All Marketplaces', 'owner/catalog', 'anthropics/claude-code', 'GitHub Feed', 'Copilot Connectors', 'Manage Marketplaces'],
 			selected: { label: 'Copilot Connectors', cancelled: true, content: ['connector-mail'] },
 			selections: [undefined, ['copilotConnectors'], undefined],
-			finalLabel: 'All Sources',
+			finalLabel: 'All Marketplaces',
 			disabledSelectable: false,
 			content: ['public-mail'],
 		});
 	});
 
-	test('Configure Marketplaces opens the marketplace management quick pick', async () => {
+	test('Manage Marketplaces opens the marketplace management quick pick', async () => {
 		const fixture = createPage(['agentFinder']);
 		await fixture.configureMarketplaces();
 		assert.deepStrictEqual(fixture.commands, [{
@@ -3854,8 +3885,8 @@ suite('AICustomizationDiscoveryPage', () => {
 			accessible: fixture.page.getAccessibilityContent().match(/^.*Other Feed.*$/gm),
 		}, {
 			tags: [['Editorial', undefined, null], ['Other Feed', 'Managed by your GitHub Team', 'Provided by your GitHub Team.']],
-			sourceMenu: ['All Sources', 'GitHub Feed', 'Other Feed (Managed by GitHub Team)', 'Configure Marketplaces'],
-			accessible: ['Other Feed (Managed by GitHub Team)', 'View all customizations from Other Feed.', 'MCP server · Other Feed · Available'],
+			sourceMenu: ['All Marketplaces', 'GitHub Feed', 'Other Feed (Managed by GitHub Team)', 'Manage Marketplaces'],
+			accessible: ['Other Feed (Managed by GitHub Team)', 'View all customizations from Other Feed.', 'MCP server · Marketplace: Other Feed · Available'],
 		});
 	});
 
@@ -4051,7 +4082,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		);
 	});
 
-	test('final All Sources Browse snapshots discard stale cached results', async () => {
+	test('final All Marketplaces Browse snapshots discard stale cached results', async () => {
 		const fixture = createPage(['agentFinder']);
 		fixture.page.setVisible(true);
 		fixture.requests[0].onProgress?.({
@@ -4267,7 +4298,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			content: fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm),
 		}, {
 			browseMode: true,
-			source: 'All Sources',
+			source: 'All Marketplaces',
 			content: ['all-featured'],
 		});
 	});
