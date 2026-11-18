@@ -686,13 +686,14 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		this.application.set(getSessionApplication(id, label), undefined);
 	}
 
-	addSession(resource: URI, title: string): void {
+	addSession(resource: URI, title: string, sessionStatus: IObservable<SessionStatus> = this.sessionStatus): void {
 		this.additionalSessions.set(resource.toString(), upcastPartial<ISession>({
 			...this.session,
 			resource,
 			sessionId: resource.path,
 			title: constObservable(title),
 			isRead: constObservable(true),
+			status: sessionStatus,
 		}));
 	}
 
@@ -798,6 +799,14 @@ suite('AutomationsCardsWidget', () => {
 	function isMarkAllReadVisible(widget: AutomationsCardsWidget): boolean {
 		const button = widget.element.querySelector<HTMLElement>('.automations-mark-all-read');
 		return !!button && button.style.display !== 'none';
+	}
+
+	function createHistoryRuns(sessionsManagementService: FakeSessionsManagementService, count: number): IAutomationRun[] {
+		return Array.from({ length: count }, (_, index) => {
+			const resource = URI.parse(`vscode-chat-session://test/history-${index}`);
+			sessionsManagementService.addSession(resource, `History ${index}`);
+			return run({ id: `history-${index}`, sessionResource: resource, startedAt: new Date(Date.now() - index * 86_400_000).toISOString() });
+		});
 	}
 
 	function setup(
@@ -2589,6 +2598,115 @@ suite('AutomationsCardsWidget', () => {
 			pending: ['Cloud review'], running: ['Daily review', 'Cloud review'],
 			completed: ['Daily review', 'Cloud review'], cloudFocusPreserved: true, cloudRowPreserved: true,
 		});
+	});
+
+	test('history reveals twenty more entries at a time after resolving and deduplicating sessions', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 33);
+		automationService.setRuns([
+			run({ id: 'unresolved', sessionResource: URI.parse('vscode-chat-session://test/missing') }),
+			...history,
+			{ ...history[0], id: 'same-chat-older-run' },
+		]);
+		const button = widget.element.querySelector<HTMLElement>('.automations-history-show-more')!;
+		const snapshot = () => ({
+			titles: [...widget.element.querySelectorAll('.automations-run-session-list .monaco-highlighted-label')].map(label => label.textContent),
+			showMore: button.style.display !== 'none',
+			label: button.getAttribute('aria-label'),
+			focused: document.activeElement?.closest('.automations-run-session-list')?.querySelector('.monaco-list-row.focused .monaco-highlighted-label')?.textContent,
+		});
+		const initial = snapshot();
+		button.focus();
+		dispatchKeydown(button, { key: 'Enter', keyCode: 13 });
+		const secondPage = snapshot();
+		button.focus();
+		dispatchKeydown(button, { key: ' ', keyCode: 32 });
+		assert.deepStrictEqual({ initial, secondPage, lastPage: snapshot() }, {
+			initial: {
+				titles: Array.from({ length: 10 }, (_, index) => `History ${index}`),
+				showMore: true, label: 'Show more run history, 23 remaining', focused: undefined,
+			},
+			secondPage: {
+				titles: Array.from({ length: 30 }, (_, index) => `History ${index}`),
+				showMore: true, label: 'Show more run history, 3 remaining', focused: 'History 10',
+			},
+			lastPage: {
+				titles: Array.from({ length: 33 }, (_, index) => `History ${index}`),
+				showMore: false, label: 'Show more run history, 0 remaining', focused: 'History 30',
+			},
+		});
+	});
+
+	test('history keeps older active sessions visible and reveals twenty hidden entries around them', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 42);
+		const activeStatus = observableValue('historyStatus', SessionStatus.InProgress);
+		for (let index = 10; index < 20; index++) {
+			sessionsManagementService.addSession(history[index].sessionResource!, `History ${index}`, activeStatus);
+		}
+		automationService.setRuns(history);
+		const rows = () => widget.element.querySelectorAll('.automations-run-session-list .monaco-list-row').length;
+		const running = rows();
+		activeStatus.set(SessionStatus.NeedsInput, undefined);
+		const needsInput = rows();
+		activeStatus.set(SessionStatus.Completed, undefined);
+		const collapsedAfterCompletion = rows();
+		activeStatus.set(SessionStatus.NeedsInput, undefined);
+		widget.element.querySelector<HTMLElement>('.automations-history-show-more')!.click();
+		const expanded = rows();
+		activeStatus.set(SessionStatus.Completed, undefined);
+		const completed = rows();
+		assert.deepStrictEqual({ running, needsInput, collapsedAfterCompletion, expanded, completed }, {
+			running: 20, needsInput: 20, collapsedAfterCompletion: 10, expanded: 40, completed: 40,
+		});
+	});
+
+	test('history pagination preserves bulk mark-read and resets for a new view', async () => {
+		const { automationService, sessionsManagementService, widget, instantiationService } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 20);
+		automationService.setRuns([...history, run({ startedAt: new Date(Date.now() - 21 * 86_400_000).toISOString() })]);
+		const hiddenUnread = {
+			rows: widget.element.querySelectorAll('.automations-run-session-list .monaco-list-row').length,
+			markAllRead: isMarkAllReadVisible(widget),
+		};
+		widget.element.querySelector<HTMLElement>('.automations-mark-all-read')!.click();
+		await sessionsManagementService.markAllReadCompleted.p;
+		await timeout(0);
+		widget.element.querySelector<HTMLElement>('.automations-history-show-more')!.click();
+		const expanded = widget.element.querySelectorAll('.automations-run-session-list .monaco-list-row').length;
+		widget.dispose();
+		widget.element.remove();
+		const reopened = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
+		assert.deepStrictEqual({
+			hiddenUnread, expanded,
+			markedRead: sessionsManagementService.isRead.get(),
+			markedCount: sessionsManagementService.markAllReadSessionCount,
+			reopened: reopened.element.querySelectorAll('.automations-run-session-list .monaco-list-row').length,
+		}, { hiddenUnread: { rows: 10, markAllRead: true }, expanded: 21, markedRead: true, markedCount: 1, reopened: 10 });
+	});
+
+	test('history pagination reveals external rows and preserves focus during catalogue updates', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const history = createHistoryRuns(sessionsManagementService, 10);
+		const external = run({
+			id: 'external', sessionResource: undefined, startedAt: new Date(Date.now() - 11 * 86_400_000).toISOString(),
+			externalResource: URI.parse('https://github.com/owner/repo/tasks/history'),
+		});
+		automationService.setRuns([...history, external]);
+		const externalRows = () => widget.element.querySelectorAll('.automations-temporary-run').length;
+		const initial = externalRows();
+		widget.element.querySelector<HTMLElement>('.automations-history-show-more')!.click();
+		const expanded = { rows: externalRows(), focused: widget.element.querySelector('.automations-temporary-run')?.contains(document.activeElement) };
+		const focusedAction = document.activeElement;
+		automationService.setRuns([{ ...external, id: 'newest', startedAt: new Date().toISOString() }, ...history, external]);
+		assert.deepStrictEqual({
+			initial, expanded,
+			afterUpdate: { rows: externalRows(), focusPreserved: document.activeElement === focusedAction },
+		}, { initial: 0, expanded: { rows: 1, focused: true }, afterUpdate: { rows: 2, focusPreserved: true } });
 	});
 
 	test('mixed history interleaves cloud rows and contiguous native lists and merges lists after removal', () => {
