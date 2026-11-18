@@ -89,7 +89,7 @@
 		{
 			"name": "nap.nap-focus",
 			"version": "0.4.2",
-			"sha256": "6abd14b68444d2026a1e9b0e2fc391ead84413aa9494b00e174a693fecb12315",
+			"sha256": "a738beb46497593c23f369dbd148d484950c2a3663458bc3b84a61187a2eba16",
 			"vsix": "build/builtin/nap-focus-0.4.2.vsix",
 			"metadata": {
 				"id": "de6577f2-e7d0-5a0d-a169-309bedbfc364",
