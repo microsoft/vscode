@@ -430,13 +430,34 @@ export class OpenAgentSessionCustomizationsAction extends Action2 {
 			id: 'agentSession.openCustomizations',
 			title: localize2('openSessionCustomizations', "Open Customizations"),
 			icon: Codicon.extensions,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate(), ContextKeyExpr.not('sessionItem.isMultiSelection')),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate()),
 			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: 'navigation',
 				order: 6,
 				when: ChatContextKeys.enabled,
-			}, {
+			}],
+		});
+	}
+
+	run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
+		return openAgentSessionCustomizations(accessor, context);
+	}
+}
+
+/**
+ * Open Customizations for the shared sessions list. It is a separate command
+ * because its enablement must follow the shared list's own selection key, not
+ * the legacy Chat view key that the shared list can inherit from its parent.
+ */
+export class OpenSessionsListItemCustomizationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.openCustomizations.sessionsList',
+			title: localize2('openSessionCustomizations', "Open Customizations"),
+			icon: Codicon.extensions,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('sessionItem.isMultiSelection')),
+			menu: [{
 				// The Agents window registers its own entry on this menu.
 				id: MenuId.SessionItemContextMenu,
 				group: 'navigation',
@@ -446,13 +467,17 @@ export class OpenAgentSessionCustomizationsAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
-		const sessions = Array.isArray(context) ? context as readonly { readonly resource: URI }[] : isMarshalledAgentSessionContext(context) ? context.sessions ?? [context.session] : context ? [context as IAgentSession] : [];
-		if (sessions.length !== 1) {
-			throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
-		}
-		await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
+	run(accessor: ServicesAccessor, context?: readonly { readonly resource: URI }[]): Promise<void> {
+		return openAgentSessionCustomizations(accessor, context);
 	}
+}
+
+async function openAgentSessionCustomizations(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
+	const sessions = Array.isArray(context) ? context as readonly { readonly resource: URI }[] : isMarshalledAgentSessionContext(context) ? context.sessions ?? [context.session] : context ? [context as IAgentSession] : [];
+	if (sessions.length !== 1) {
+		throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
+	}
+	await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
 }
 
 abstract class BaseAgentSessionAction extends Action2 {

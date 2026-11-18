@@ -35,7 +35,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, RenameAgentSessionAction, RestoreAgentSessionAction, ShowAgentSessionsSidebar, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, OpenSessionsListItemCustomizationsAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, RenameAgentSessionAction, RestoreAgentSessionAction, ShowAgentSessionsSidebar, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
@@ -115,7 +115,7 @@ suite('AgentSessionsActions', () => {
 	});
 
 	test('contributes the Chat view session actions to the shared sessions list menu in the right group order and window', () => {
-		for (const action of [OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenAgentSessionCustomizationsAction, MarkAllAgentSessionsReadAction]) {
+		for (const action of [OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenSessionsListItemCustomizationsAction, MarkAllAgentSessionsReadAction]) {
 			disposables.add(registerAction2(action));
 		}
 		// Menus render the navigation group first.
@@ -139,7 +139,7 @@ suite('AgentSessionsActions', () => {
 				'navigation@2.1: workbench.action.chat.openSessionInEditorGroup',
 				'navigation@2.2: workbench.action.chat.openSessionInNewEditorGroup',
 				'navigation@2.3: workbench.action.chat.openSessionInNewWindow',
-				'navigation@6: agentSession.openCustomizations',
+				'navigation@6: agentSession.openCustomizations.sessionsList',
 				'1_state@5: workbench.action.chat.markAllAgentSessionsRead',
 				'4_manage@2.5: workbench.action.chat.openAgentHostSettings',
 				'4_manage@2.6: workbench.action.chat.openAgentSessionSettings',
@@ -149,7 +149,7 @@ suite('AgentSessionsActions', () => {
 				'navigation@2.1: workbench.action.chat.openSessionInEditorGroup',
 				'navigation@2.2: workbench.action.chat.openSessionInNewEditorGroup',
 				'navigation@2.3: workbench.action.chat.openSessionInNewWindow',
-				'navigation@6: agentSession.openCustomizations',
+				'navigation@6: agentSession.openCustomizations.sessionsList',
 				'1_state@5: workbench.action.chat.markAllAgentSessionsRead',
 			],
 			// The Agents window registers its own entries for these actions.
@@ -158,14 +158,23 @@ suite('AgentSessionsActions', () => {
 	});
 
 	test('disables single-session actions while the shared sessions list has several rows selected', () => {
-		disposables.add(registerAction2(OpenAgentSessionCustomizationsAction));
-		for (const id of ['agentSession.openCustomizations', 'workbench.action.chat.openAgentSessionSettings']) {
+		disposables.add(registerAction2(OpenSessionsListItemCustomizationsAction));
+		for (const id of ['agentSession.openCustomizations.sessionsList', 'workbench.action.chat.openAgentSessionSettings']) {
 			const precondition = MenuRegistry.getMenuItems(MenuId.SessionItemContextMenu).filter(isIMenuItem).find(item => item.command.id === id)?.command.precondition;
-			const enabled = (multiSelection: boolean) => !!precondition?.evaluate({
-				getValue: <T>(key: string) => ({ [ChatContextKeys.enabled.key]: true, [AGENT_HOST_ENABLED_CONTEXT_KEY.key]: true, 'sessionItem.isMultiSelection': multiSelection } as Record<string, boolean>)[key] as T | undefined,
+			// The legacy Chat view key can be inherited as stale from a parent context.
+			const enabled = (multiSelection: boolean, staleLegacyMultiSelection: boolean) => !!precondition?.evaluate({
+				getValue: <T>(key: string) => ({ [ChatContextKeys.enabled.key]: true, [AGENT_HOST_ENABLED_CONTEXT_KEY.key]: true, 'sessionItem.isMultiSelection': multiSelection, [ChatContextKeys.hasMultipleAgentSessionsSelected.key]: staleLegacyMultiSelection } as Record<string, boolean>)[key] as T | undefined,
 			});
-			assert.deepStrictEqual({ id, single: enabled(false), multiple: enabled(true) }, { id, single: true, multiple: false });
+			assert.deepStrictEqual({ id, single: enabled(false, false), singleWithStaleLegacy: enabled(false, true), multiple: enabled(true, false) }, { id, single: true, singleWithStaleLegacy: true, multiple: false });
 		}
+	});
+
+	test('keeps disabling the Chat view Open Customizations action for several legacy rows', () => {
+		const precondition = new OpenAgentSessionCustomizationsAction().desc.precondition;
+		const enabled = (legacyMultiSelection: boolean) => !!precondition?.evaluate({
+			getValue: <T>(key: string) => ({ [ChatContextKeys.enabled.key]: true, [ChatContextKeys.hasMultipleAgentSessionsSelected.key]: legacyMultiSelection } as Record<string, boolean>)[key] as T | undefined,
+		});
+		assert.deepStrictEqual({ single: enabled(false), multiple: enabled(true) }, { single: true, multiple: false });
 	});
 
 	test('runs the Chat view open actions on rows of the shared sessions list', async () => {
