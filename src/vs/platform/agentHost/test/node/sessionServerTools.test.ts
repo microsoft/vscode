@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { AgentHostSessionModelOptions } from '../../common/agentHostSchema.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
@@ -100,6 +101,7 @@ suite('SessionServerTools', () => {
 			getWorktreeRoots: overrides?.getWorktreeRoots ?? (async () => []),
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
+			getModelsForCredentials: overrides?.getModelsForCredentials ?? (async () => []),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
 			restoreChat: overrides?.restoreChat ?? (async () => { }),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
@@ -2350,6 +2352,62 @@ suite('SessionServerTools', () => {
 				offIndependent: await createdModels('independent', requests, 'off'),
 				offCurrentSession: await createdModels('currentSession', requests, 'off'),
 			}, { independent: expected, currentSession: expected, offIndependent: expectedOff, offCurrentSession: expectedOff });
+		});
+
+		test('a caller with credentials resolves models in its own catalog, read only when needed', async () => {
+			const credentials: IAgentHostCredentialSource = { getCredential: () => undefined };
+			const sharedOnly: IAgentModelInfo = { ...other, id: 'gpt-shared-only', name: 'GPT Shared Only' };
+			const reads: string[] = [];
+			const { accessor, models } = recordingAccessor({
+				getCredentialSource: () => credentials,
+				getModels: () => { reads.push('shared'); return [sharedOnly]; },
+				getModelsForCredentials: async source => { reads.push(source === credentials ? 'scoped' : 'other'); return [configured]; },
+			});
+			await applyCreateSessionTool(accessor, { relationship: 'independent', prompt: 'p', title: 'T' }, source);
+			await applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-configured', prompt: 'p', title: 'T' }, source);
+			await assert.rejects(
+				applyCreateSessionTool(accessor, { relationship: 'independent', model: 'gpt-shared-only', prompt: 'p', title: 'T' }, source),
+				{ message: 'Invalid create_session input: model must match an available model id or name.' },
+			);
+			assert.deepStrictEqual({ reads, models }, {
+				reads: ['scoped', 'scoped'],
+				models: [inherited, inherited],
+			});
+		});
+
+		test('a caller with credentials reads no catalog for mistakes found without one', async () => {
+			const reads: string[] = [];
+			let depth = 0;
+			let quickChat = false;
+			const { accessor, calls } = recordingAccessor({
+				getCredentialSource: () => ({ getCredential: () => undefined }),
+				getModelsForCredentials: async () => { reads.push('scoped'); return [configured]; },
+				getSessionSpawnDepth: () => depth,
+				getSession: async () => ({ ...sessionMeta('s1', SessionStatus.InProgress, workspace), ...(quickChat ? { _meta: withSessionWorkspaceless(undefined, true) } : {}) }),
+			});
+			const messages: string[] = [];
+			const attempt = async (request: Record<string, unknown>) => {
+				try {
+					await applyCreateSessionTool(accessor, { prompt: 'p', title: 'T', ...request }, source);
+					messages.push('created');
+				} catch (error) {
+					messages.push(error instanceof Error ? error.message : String(error));
+				}
+			};
+			await attempt({ model: 'gpt-configured', worktree: true });
+			quickChat = true;
+			await attempt({ workspace: workspace.toString(), model: 'gpt-configured' });
+			depth = 3;
+			await attempt({ relationship: 'independent', model: 'gpt-configured' });
+			assert.deepStrictEqual({ messages, reads, calls }, {
+				messages: [
+					'Invalid create_session input: worktree requires workspace.',
+					'Invalid create_session input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.',
+					'Refusing to create a session: recursion limit reached (max spawn depth 3). This session was itself created 3 level(s) deep.',
+				],
+				reads: [],
+				calls: [],
+			});
 		});
 
 		test('the retired create_chat keeps its model resolution', async () => {

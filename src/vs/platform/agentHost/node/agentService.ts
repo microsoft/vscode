@@ -2366,6 +2366,10 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				return models;
 			},
+			getModelsForCredentials: async credentials => {
+				const catalogs = await Promise.all(this._providerService.getProviders().map(provider => provider.getModelsForCredentials?.(credentials) ?? []));
+				return catalogs.flat();
+			},
 			getCreationDefaults: (source, sourceTurnId) => this._getServerToolCreationDefaults(source, sourceTurnId),
 			restoreChat: async (session, chat, credentials) => {
 				if (credentials && !this._isSessionRestored(session.toString())) {

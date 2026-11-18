@@ -444,6 +444,11 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getWorktreeRoots: (workspace: URI) => Promise<readonly URI[]>;
 	readonly createSession: (config: IAgentCreateSessionConfig) => Promise<URI>;
 	readonly getModels: () => readonly IAgentModelInfo[];
+	/**
+	 * The models of every provider as a caller with `credentials` sees them: each provider's credential-scoped catalog,
+	 * none for a provider without one. Never the shared catalogs, which belong to the host's own account.
+	 */
+	readonly getModelsForCredentials: (credentials: IAgentHostCredentialSource) => Promise<readonly IAgentModelInfo[]>;
 	readonly getCreationDefaults: (source: URI, sourceTurnId?: string) => ISessionCreationDefaults | undefined;
 	/** Restores the target session and chat before deciding whether a message must be queued. */
 	readonly restoreChat: (session: URI, chat: URI, credentials?: IAgentHostCredentialSource) => Promise<void>;
@@ -839,12 +844,14 @@ function getCreateSessionRelationship(rawArgs: unknown, supportsChatWorkingDirec
 /**
  * Validates and resolves create-session arguments against current sessions and models.
  *
+ * @param models The catalog to resolve `model` in. `undefined` checks every other argument and leaves `model`
+ * unresolved, so mistakes are found before the catalog is read.
  * @param supportsChatWorkingDirectories Whether the current session's provider
  * supports multiple working directories. When `false`, a current-session chat
  * shares the session's workspace, so `workspace` and `worktree` are rejected for
  * it and the relationship is required.
  */
-export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], models: readonly IAgentModelInfo[], currentProvider?: AgentProvider, supportsChatWorkingDirectories = true): IResolvedCreateSessionArgs {
+export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], models: readonly IAgentModelInfo[] | undefined, currentProvider?: AgentProvider, supportsChatWorkingDirectories = true): IResolvedCreateSessionArgs {
 	const args = (rawArgs ?? {}) as ICreateSessionArgs;
 	const relationship = getCreateSessionRelationship(args, supportsChatWorkingDirectories);
 	const prompt = getRequiredString(args.prompt, 'prompt', SessionServerToolName.CreateSession);
@@ -853,7 +860,7 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	const workspace = getOptionalString(args.workspace, 'workspace', SessionServerToolName.CreateSession);
 	const modelName = getOptionalString(args.model, 'model', SessionServerToolName.CreateSession);
 	const worktree = getOptionalBoolean(args.worktree, 'worktree', SessionServerToolName.CreateSession);
-	const model = resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
+	const model = models === undefined ? undefined : resolveModel(modelName, models, relationship === 'currentSession' ? currentProvider : undefined);
 	if (relationship === 'currentSession') {
 		if (!supportsChatWorkingDirectories) {
 			if (workspace !== undefined) {
@@ -907,6 +914,15 @@ export function getCreateSessionArgs(rawArgs: unknown, sessions: readonly IAgent
  */
 function resolveCreatedModelSelection(args: IResolvedCreateSessionArgs, inherited: ModelSelection | undefined, modelOptions: boolean): ModelSelection | undefined {
 	return args.model === undefined || (modelOptions && inherited?.id === args.model.id) ? inherited : { id: args.model.id };
+}
+
+/**
+ * Reads the catalog `create_session` resolves and checks models against, at most once: the caller's own when it has
+ * credentials. Reading it can start model discovery for those credentials, so it is read only when a call needs it.
+ */
+function createSessionModelReader(accessor: ISessionServerToolAccessor, credentials: IAgentHostCredentialSource | undefined): () => Promise<readonly IAgentModelInfo[]> {
+	let models: Promise<readonly IAgentModelInfo[]> | undefined;
+	return () => models ??= credentials ? accessor.getModelsForCredentials(credentials) : Promise.resolve(accessor.getModels());
 }
 
 /** Decodes the {@link SessionStatus} bit-flags into readable names for the agent. */
@@ -1184,16 +1200,26 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const harnessProvider = resolveCreateSessionHarness(accessor, rawArgs, currentSession, supportsChatWorkingDirectories);
 	// The agent a current-session chat is created on: the requested harness, else the session's (never the calling chat's).
 	const currentProvider = harnessProvider ?? sessionProvider;
-	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider, supportsChatWorkingDirectories);
+	// Every argument that needs no model catalog is checked first, so a mistake there neither waits for catalog discovery nor is hidden by its failure.
+	const unresolvedArgs = getCreateSessionArgs(rawArgs, sessions, undefined, currentProvider, supportsChatWorkingDirectories);
+	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
+	if (unresolvedArgs.relationship === 'independent') {
+		if (enforceSpawnDepthLimit && parentDepth >= maxSessionSpawnDepth) {
+			throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
+		}
+	} else if (currentSession && unresolvedArgs.workspace !== undefined && isChatWorkspacelessInSession(await accessor.getSession(currentSession), source)) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.`);
+	}
+	const getModels = createSessionModelReader(accessor, credentials);
+	const args = (rawArgs as ICreateSessionArgs | undefined)?.model === undefined
+		? unresolvedArgs
+		: getCreateSessionArgs(rawArgs, sessions, await getModels(), currentProvider, supportsChatWorkingDirectories);
 	if (args.relationship === 'currentSession') {
 		if (!currentSession) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" requires an invoking session.`);
 		}
 		if (args.model !== undefined && args.model.provider !== currentProvider) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${args.model.id}" belongs to provider "${args.model.provider}", but relationship "currentSession" targets provider "${currentProvider}".`);
-		}
-		if (args.workspace !== undefined && isChatWorkspacelessInSession(await accessor.getSession(currentSession), source)) {
-			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.`);
 		}
 		// The calling chat's model is inherited only by a chat of the same agent.
 		const model = resolveCreatedModelSelection(args, currentProvider === defaults?.provider ? defaults?.model : undefined, modelOptions);
@@ -1218,10 +1244,6 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		return { relationship: args.relationship, ...result };
 	}
 
-	const parentDepth = currentSession ? accessor.getSessionSpawnDepth(currentSession) : 0;
-	if (enforceSpawnDepthLimit && parentDepth >= maxSessionSpawnDepth) {
-		throw new Error(`Refusing to create a session: recursion limit reached (max spawn depth ${maxSessionSpawnDepth}). This session was itself created ${parentDepth} level(s) deep.`);
-	}
 	let workspace = args.workspace;
 	if (workspace !== undefined && args.worktree === false) {
 		const [primaryRoot, ...linkedRoots] = await accessor.getWorktreeRoots(workspace);

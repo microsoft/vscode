@@ -413,7 +413,7 @@ A `currentSession` chat without `workspace` shares the current session's complet
 
 All of the above applies only when the session's provider advertises the `multipleWorkingDirectories` capability. Copilot, Claude, and Codex always advertise it. Without it, the session is offered the shared-workspace variant of `create_session`: `relationship` is required, every `currentSession` chat shares the session's workspace, and `workspace` and `worktree` are rejected for `currentSession` and remain valid only for `independent` sessions.
 
-The new chat's model selection is resolved before anything is created. A chat on the calling chat's agent inherits that chat's complete selection, including its reasoning effort and context size, when `model` is omitted; an explicit `model` starts from its own defaults. While `chat.agentHost.sessionModelOptions` is `inline` or `tool`, a `model` that names the calling chat's model is inherited the same way.
+The new chat's model selection is resolved before anything is created. A chat on the calling chat's agent inherits that chat's complete selection, including its reasoning effort and context size, when `model` is omitted; an explicit `model` starts from its own defaults. While `chat.agentHost.sessionModelOptions` is `inline` or `tool`, a `model` that names the calling chat's model is inherited the same way. `model` is resolved in the catalog the calling chat uses: the credential-scoped catalog for a caller with credentials, never the host's shared one. Reading that catalog can start model discovery, so it is read only when a call needs it, after every check that doesn't.
 
 ---
 
