@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent, SessionEventPayload } from '@github/copilot-sdk';
+import type { SessionEvent, SessionEventPayload } from '@microsoft/copilot-sdk';
 import { getDurationString } from '../../../../base/common/date.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hasKey, isObject } from '../../../../base/common/types.js';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotClient, CopilotSession, CurrentToolMetadata, MessageOptions, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, CurrentToolMetadata, MessageOptions, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@microsoft/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
@@ -454,7 +454,7 @@ class MockCopilotSession {
 	/** Push an event through to all registered handlers of the given type. */
 	fire<K extends SessionEventType>(type: K, data: SessionEventPayload<K>['data'], overrides?: Partial<Omit<SessionEventPayload<K>, 'type' | 'data'>>): void {
 		const event = { type, data, id: 'evt-1', timestamp: new Date().toISOString(), parentId: null, ...overrides } as SessionEventPayload<K>;
-		this._accumulateUsageMetrics(type, data);
+		this._accumulateUsageMetrics(type, data, overrides?.agentId);
 		const set = this._handlers.get(type);
 		if (set) {
 			for (const handler of set) {
@@ -488,7 +488,7 @@ class MockCopilotSession {
 	 * `assistant.usage` (including sub-agent calls) and `session.compaction_complete`
 	 * into the session-wide total that `usage.getMetrics` reports.
 	 */
-	private _accumulateUsageMetrics(type: SessionEventType, data: unknown): void {
+	private _accumulateUsageMetrics(type: SessionEventType, data: unknown, agentId: string | undefined): void {
 		if (type === 'session.model_change') {
 			const modelChange = data as { newModel?: string };
 			if (modelChange.newModel) {
@@ -497,7 +497,7 @@ class MockCopilotSession {
 		}
 		if (type === 'assistant.usage') {
 			const usage = data as { model?: string; cacheExpiresAt?: string; parentToolCallId?: string };
-			if (!usage.parentToolCallId && usage.model) {
+			if (!agentId && !usage.parentToolCallId && usage.model) {
 				this.usageMetricsResult.currentModel = usage.model;
 				if (usage.cacheExpiresAt) {
 					this.usageMetricsResult.modelMetrics[usage.model] = { cacheExpiresAt: usage.cacheExpiresAt };
@@ -725,8 +725,8 @@ class MockCopilotSession {
 				this.eventLogReadRequests.push(params);
 				await this.eventLogReadGate;
 				const messages = params.agentScope === 'primary' ? this.messages.filter(event => {
-					const parentToolCallId = event.type === 'assistant.message' || event.type === 'tool.execution_start' || event.type === 'tool.execution_complete'
-						? event.data.parentToolCallId : undefined;
+					const data: typeof event.data & { readonly parentToolCallId?: unknown } = event.data;
+					const parentToolCallId = data.parentToolCallId;
 					return event.type.startsWith('subagent.') || (!event.agentId && parentToolCallId === undefined);
 				}) : this.messages;
 				const filteredMessages = params.types && params.types !== '*' ? messages.filter(event => params.types!.includes(event.type)) : messages;
@@ -1025,22 +1025,22 @@ class MockCopilotSession {
 		},
 		options: {
 			update: async (params: Parameters<CopilotSession['rpc']['options']['update']>[0]) => {
-				if (params.contextTier !== undefined) {
-					this.modelOperations.push(`contextTier:${params.contextTier}`);
+				if (params.inference?.contextTier !== undefined) {
+					this.modelOperations.push(`contextTier:${params.inference?.contextTier}`);
 					return { success: this.contextTierUpdateSuccess };
 				}
-				if (params.imageGeneration !== undefined) {
-					this.imageGenerationOptionsUpdates.push(params.imageGeneration);
-					if (params.imageGeneration.enabled !== undefined) {
-						this.imageGenerationUpdates.push(params.imageGeneration.enabled);
+				if (params.tools?.imageGeneration !== undefined) {
+					this.imageGenerationOptionsUpdates.push(params.tools?.imageGeneration);
+					if (params.tools?.imageGeneration.enabled !== undefined) {
+						this.imageGenerationUpdates.push(params.tools?.imageGeneration.enabled);
 					}
 					this.onImageGenerationUpdate?.();
 					await this.imageGenerationUpdateGate;
 					return { success: this.imageGenerationUpdateSuccess };
 				}
-				if (params.sandboxConfig !== undefined) {
+				if (params.permissions?.sandbox !== undefined) {
 					this.operationLog.push('options.update:sandbox');
-					this.sandboxConfigUpdates.push(params.sandboxConfig);
+					this.sandboxConfigUpdates.push(params.permissions?.sandbox);
 					if (this.sandboxConfigUpdateGate) {
 						await this.sandboxConfigUpdateGate;
 					}
@@ -1048,12 +1048,12 @@ class MockCopilotSession {
 						throw this.sandboxConfigUpdateError;
 					}
 				}
-				if (params.isExperimentalMode !== undefined) {
-					this.experimentalModeUpdates.push(params.isExperimentalMode);
+				if (params.experiments?.enableExperimentalMode !== undefined) {
+					this.experimentalModeUpdates.push(params.experiments?.enableExperimentalMode);
 				}
-				if (params.shell !== undefined) {
+				if (params.tools?.shell !== undefined) {
 					this.operationLog.push('options.update:shell');
-					this.shellInitScriptUpdates.push(params.shell.initScripts);
+					this.shellInitScriptUpdates.push(params.tools?.shell.initScripts);
 					return { success: this.shellInitScriptUpdateSuccess };
 				}
 				if (params.workingDirectory !== undefined) {
@@ -1066,7 +1066,7 @@ class MockCopilotSession {
 					}
 					return { success: this.workingDirectoryOptionUpdateSuccess };
 				}
-				return { success: params.sandboxConfig !== undefined ? this.sandboxConfigUpdateSuccess : this.experimentalModeUpdateSuccess };
+				return { success: params.permissions?.sandbox !== undefined ? this.sandboxConfigUpdateSuccess : this.experimentalModeUpdateSuccess };
 			},
 		},
 		sandbox: {
@@ -3132,7 +3132,7 @@ suite('CopilotAgentSession', () => {
 				toolName: 'bash',
 				arguments: { command: 'npm test', description: 'Run bg', mode: 'async' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-bg', partialOutput: 'tick 1\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-bg', text: 'tick 1\n', sequence: 0, stream: 'stdout' });
 			mockSession.backgroundTasks = [shell('bg')];
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-bg',
@@ -3140,12 +3140,12 @@ suite('CopilotAgentSession', () => {
 				result: { content: '<command started in background with shellId: bg>' },
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
-			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-bg', partialOutput: 'tick 1\ntick 2\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-bg', text: 'tick 2\n', sequence: 1, stream: 'stdout' });
 			mockSession.fire('system.notification', {
 				content: '<system_notification>\nShell command completed\n</system_notification>',
 				kind: { type: 'shell_completed', shellId: 'bg', exitCode: 0, description: 'npm test' },
 			} as SessionEventPayload<'system.notification'>['data']);
-			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-bg', partialOutput: 'tick 1\ntick 2\ntick 3\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-bg', text: 'tick 3\n', sequence: 2, stream: 'stdout' });
 
 			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
 			assert.deepStrictEqual({
@@ -3170,7 +3170,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('appends shell output chunks for an attached shell instead of its rolling snapshots', async () => {
+		test('appends complete shell output chunks for an attached shell', async () => {
 			const { session, mockSession, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			session.resetTurnState('turn-chunks');
 			const terminal = defaultNonPtyShellTerminalUri('tc-chunks');
@@ -3181,7 +3181,6 @@ suite('CopilotAgentSession', () => {
 				arguments: { command: 'npm run serve', description: 'Serve', mode: 'async' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 			mockSession.fire('tool.shell_output', { toolCallId: 'tc-chunks', text: 'listening\n', sequence: 0 } as SessionEventPayload<'tool.shell_output'>['data']);
-			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-chunks', partialOutput: 'listening\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
 			mockSession.backgroundTasks = [shell('chunks')];
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-chunks',
@@ -3190,8 +3189,6 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
 			mockSession.fire('tool.shell_output', { toolCallId: 'tc-chunks', text: logLine, sequence: 1, stream: 'stderr' } as SessionEventPayload<'tool.shell_output'>['data']);
-			// Once output spills to a file, a snapshot carries only the output's last 128 characters.
-			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-chunks', partialOutput: logLine.slice(-128) } as SessionEventPayload<'tool.execution_partial_result'>['data']);
 			mockSession.fire('system.notification', {
 				content: '<system_notification>\nShell command completed\n</system_notification>',
 				kind: { type: 'shell_completed', shellId: 'chunks', exitCode: 0, description: 'npm run serve' },
@@ -11625,8 +11622,7 @@ suite('CopilotAgentSession', () => {
 			inputTokens: 50,
 			outputTokens: 5,
 			cacheExpiresAt: '2026-07-24T12:10:00.000Z',
-			parentToolCallId: 'subagent-tool-call',
-		});
+		}, { agentId: 'child-agent' });
 		await timeout(0);
 
 		const promptCaches = dispatchedActions
@@ -13321,9 +13317,12 @@ suite('CopilotAgentSession', () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		session.resetTurnState('root');
 		for (let index = 0; index <= 256; index++) {
+			mockSession.fire('subagent.started', {
+				toolCallId: `child-${index}`, agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Usage retention',
+			}, { agentId: `agent-${index}` });
 			mockSession.fire('assistant.usage', {
-				model: 'gpt-5.5', inputTokens: index, parentToolCallId: `child-${index}`,
-			} as SessionEventPayload<'assistant.usage'>['data'], { id: `child-usage-${index}` });
+				model: 'gpt-5.5', inputTokens: index,
+			} as SessionEventPayload<'assistant.usage'>['data'], { id: `child-usage-${index}`, agentId: `agent-${index}` });
 		}
 		await timeout(0);
 		const evicted = session.getTurnTokenUsage('evicted-turn', 'child-0');
@@ -13470,17 +13469,19 @@ suite('CopilotAgentSession', () => {
 		assert.strictEqual(meta?.directCopilotUsage, undefined);
 	});
 
-	test('routes legacy parentToolCallId usage to the child direct bucket', async () => {
+	test('routes envelope-attributed usage to the child direct bucket', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		session.resetTurnState('turn-root');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-legacy', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Usage attribution',
+		}, { agentId: 'agent-child' });
 		mockSession.fire('assistant.usage', {
 			model: 'gpt-5.5',
 			inputTokens: 9,
 			outputTokens: 3,
-			parentToolCallId: 'tc-legacy',
 			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
-		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-child' });
 
 		const childUsage = signals.find((signal): signal is IAgentActionSignal =>
 			signal.kind === 'action'
@@ -13506,7 +13507,7 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(rootMeta?.copilotUsage, { totalNanoAiu: 400_000_000 });
 	});
 
-	test('does not fold an old background child legacy usage into a newly active root', async () => {
+	test('does not fold an old background child usage into a newly active root', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		session.resetTurnState('turn-old-root');
@@ -13529,9 +13530,8 @@ suite('CopilotAgentSession', () => {
 			model: 'gpt-5.5',
 			inputTokens: 100,
 			outputTokens: 20,
-			parentToolCallId: 'tc-legacy-bg',
 			copilotUsage: { totalNanoAiu: 400_000_000, tokenDetails: [] },
-		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		} as unknown as SessionEventPayload<'assistant.usage'>['data'], { agentId: 'agent-legacy-bg' });
 
 		const newRootUsages = signals.filter((signal): signal is IAgentActionSignal =>
 			signal.kind === 'action'
@@ -15929,7 +15929,7 @@ suite('CopilotAgentSession', () => {
 				const update = rig.mockSession.rpc.options.update;
 				const listener = stub(rig.mockSession.rpc.options, 'update').callsFake(async params => {
 					const result = await update(params);
-					if (params.sandboxConfig) {
+					if (params.permissions?.sandbox) {
 						changed.complete();
 					}
 					return result;
@@ -16079,7 +16079,7 @@ suite('CopilotAgentSession', () => {
 			const update = rig.mockSession.rpc.options.update;
 			const listener = stub(rig.mockSession.rpc.options, 'update').callsFake(async params => {
 				const result = await update(params);
-				if (params.sandboxConfig) {
+				if (params.permissions?.sandbox) {
 					applied.complete();
 				}
 				return result;
@@ -16890,7 +16890,7 @@ suite('CopilotAgentSession', () => {
 							value.sandboxConfigUpdateGate = release.p;
 							const update = value.rpc.options.update;
 							value.rpc.options.update = async params => {
-								if (params.sandboxConfig === undefined) {
+								if (params.permissions?.sandbox === undefined) {
 									return update(params);
 								}
 								activeUpdates++;
@@ -23025,10 +23025,7 @@ Use the attached image as context.
 					toolName: 'bash',
 					arguments: { command: `command-${i + 1}` },
 				} as SessionEventPayload<'tool.execution_start'>['data']);
-				mockSession.fire('tool.execution_partial_result', {
-					toolCallId,
-					partialOutput: output,
-				} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+				mockSession.fire('tool.shell_output', { toolCallId, text: output, sequence: 0, stream: 'stdout' });
 				mockSession.fire('tool.execution_complete', {
 					toolCallId,
 					success: true,
@@ -23163,7 +23160,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation'), []);
 		});
 
-		test('tool partial results stream into an output-only terminal channel', async () => {
+		test('shell output chunks stream into an output-only terminal channel', async () => {
 			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			session.resetTurnState('turn-stream');
 
@@ -23173,14 +23170,8 @@ Use the attached image as context.
 				toolName: 'bash',
 				arguments: { command: 'print ticks', description: 'Print ticks' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-stream',
-				partialOutput: 'tick 1\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-stream',
-				partialOutput: 'tick 1\ntick 2\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-stream', text: 'tick 1\n', sequence: 0, stream: 'stdout' });
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-stream', text: 'tick 2\n', sequence: 1, stream: 'stdout' });
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-stream',
 				success: true,
@@ -23191,8 +23182,7 @@ Use the attached image as context.
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
 
-			// The first partial result creates the channel and attaches the
-			// terminal block once; later partials only append channel data.
+			// The first chunk attaches the terminal block; subsequent chunks only append data.
 			assert.deepStrictEqual(getActions(signals)
 				.filter(action => action.type === ActionType.ChatToolCallContentChanged)
 				.map(action => ({
@@ -23238,7 +23228,7 @@ Use the attached image as context.
 			]);
 		});
 
-		test('truncated shell output streams through marker, rolling-tail, and completion transitions', async () => {
+		test('truncated shell output retains ordered chunks and persists the full completion artifact', async () => {
 			const database = new TestSessionDatabase();
 			const output = VSBuffer.fromString('complete output beyond the preview');
 			await database.createTurn('turn-truncated-stream');
@@ -23254,26 +23244,11 @@ Use the attached image as context.
 				toolName: 'bash',
 				arguments: { command: 'yes' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-rewrite',
-				partialOutput: 'line 1\nline 498\nline 499\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-rewrite',
-				partialOutput: 'line 1\nline 498\nline 499\n<output too long - dropped 42 lines from the end>\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-rewrite',
-				partialOutput: 'line 1\nline 498\nline 499\n<output too long - dropped 99 lines from the end>\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-rewrite',
-				partialOutput: 'line 498\nline 499\nline 500\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-rewrite',
-				partialOutput: 'line 499\nline 500\nline 501\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-rewrite', text: 'line 1\nline 498\nline 499\n', sequence: 0, stream: 'stdout' });
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-rewrite', text: 'line 500\n', sequence: 1, stream: 'stdout' });
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-rewrite', text: 'line 500\n', sequence: 1, stream: 'stdout' });
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-rewrite', text: 'line 1\nline 498\nline 499\n', sequence: 0, stream: 'stdout' });
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-rewrite', text: 'line 501\n', sequence: 2, stream: 'stdout' });
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-rewrite',
 				success: true,
@@ -23304,7 +23279,6 @@ Use the attached image as context.
 			}, {
 				data: [
 					{ uri: terminalUri, data: 'line 1\nline 498\nline 499\n' },
-					{ uri: terminalUri, data: '<output too long - dropped 42 lines from the end>\n' },
 					{ uri: terminalUri, data: 'line 500\n' },
 					{ uri: terminalUri, data: 'line 501\n' },
 				],
@@ -23331,10 +23305,7 @@ Use the attached image as context.
 				toolName: 'bash',
 				arguments: { command: 'large command' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-truncated-no-artifact',
-				partialOutput: 'streamed output\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-truncated-no-artifact', text: 'streamed output\n', sequence: 0, stream: 'stdout' });
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-truncated-no-artifact',
 				success: true,
@@ -23425,7 +23396,7 @@ Use the attached image as context.
 			});
 			session.resetTurnState('cancel-output');
 			mockSession.fire('tool.execution_start', { toolCallId: 'cancelled-output', toolName: 'bash', arguments: { command: 'build' } });
-			mockSession.fire('tool.execution_partial_result', { toolCallId: 'cancelled-output', partialOutput: 'partial output' });
+			mockSession.fire('tool.shell_output', { toolCallId: 'cancelled-output', text: 'partial output', sequence: 0, stream: 'stdout' });
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'cancelled-output',
 				success: true,
@@ -23556,10 +23527,7 @@ Use the attached image as context.
 				toolName: 'bash',
 				arguments: { command: 'boom' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-err',
-				partialOutput: 'boom\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-err', text: 'boom\n', sequence: 0, stream: 'stdout' });
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-err',
 				success: false,
@@ -23570,10 +23538,7 @@ Use the attached image as context.
 				toolName: 'bash',
 				arguments: { command: 'fine' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-ok',
-				partialOutput: 'fine\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-ok', text: 'fine\n', sequence: 0, stream: 'stdout' });
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-ok',
 				success: true,
@@ -23609,10 +23574,7 @@ Use the attached image as context.
 				toolName: 'bash',
 				arguments: { command: 'eci hi' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-exit-fallback',
-				partialOutput: '/bin/bash: eci: command not found\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-exit-fallback', text: '/bin/bash: eci: command not found\n', sequence: 0, stream: 'stdout' });
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-exit-fallback',
 				success: true,
@@ -23656,10 +23618,7 @@ Use the attached image as context.
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
 
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-background',
-				partialOutput: 'late output\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-background', text: 'late output\n', sequence: 0, stream: 'stdout' });
 			mockSession.fire('system.notification', {
 				content: '<system_notification>Shell command completed</system_notification>',
 				kind: { type: 'shell_completed', shellId: 'shell-bg', exitCode: 7, description: 'long-running-command' },
@@ -23688,10 +23647,7 @@ Use the attached image as context.
 				toolName: 'bash',
 				arguments: { command: 'long-running-command' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-background-stream',
-				partialOutput: 'started\n',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-background-stream', text: 'started\n', sequence: 0, stream: 'stdout' });
 			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-background-stream',
 				success: true,
@@ -23740,10 +23696,7 @@ Use the attached image as context.
 		test('tool partial results for untracked tools are ignored', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-untracked',
-				partialOutput: 'orphaned output',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-untracked', text: 'orphaned output', sequence: 0, stream: 'stdout' });
 
 			assert.deepStrictEqual(getActions(signals), []);
 		});
@@ -23756,10 +23709,7 @@ Use the attached image as context.
 				toolName: 'grep',
 				arguments: { pattern: 'needle' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
-			mockSession.fire('tool.execution_partial_result', {
-				toolCallId: 'tc-non-shell',
-				partialOutput: 'unexpected partial output',
-			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-non-shell', text: 'unexpected partial output', sequence: 0, stream: 'stdout' });
 
 			assert.deepStrictEqual(getActions(signals)
 				.filter(action => action.type === ActionType.ChatToolCallContentChanged), []);
@@ -26173,7 +26123,7 @@ Use the attached image as context.
 			mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
 			const fusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
 			mockSession.fire('tool.execution_start', { toolCallId: 'spans-steering', toolName: 'bash', arguments: { command: 'git branch' }, fusion }, { ephemeral: true });
-			mockSession.fire('tool.execution_partial_result', { toolCallId: 'spans-steering', partialOutput: 'main\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'spans-steering', text: 'main\n', sequence: 0, stream: 'stdout' });
 
 			await session.sendSteering({ id: 'steer-1', message: { text: 'use the other branch', origin: { kind: MessageKind.User } } });
 			const beforeSteering = signals.length;
@@ -30450,10 +30400,14 @@ Use the attached image as context.
 
 		function clientToolConfiguration(toolSearchActive = false, hostToolNames: ReadonlySet<string> = new Set(), withheldToolNames: ReadonlySet<string> = new Set()): ICopilotClientToolConfiguration {
 			const sessionConfig: ICopilotClientToolConfiguration['sessionConfig'] = {
-				toolSearch: { enabled: toolSearchActive },
-				excludedTools: [],
+				tools: {
+					search: { enabled: toolSearchActive },
+					excludedTools: [],
+				},
 				systemMessage: { mode: 'append' },
-				customAgents: [],
+				agents: {
+					definitions: [],
+				},
 			};
 			return {
 				toolSearchActive, hostToolNames, withheldToolNames, sessionConfig,
@@ -30471,10 +30425,10 @@ Use the attached image as context.
 				resolve: (_definitions, tools = []) => ({ sessionConfig: desired, tools: [...tools] }),
 			});
 			const changes: ICopilotClientToolConfiguration['sessionConfig'][] = [
-				{ ...desired, toolSearch: { enabled: false, deferThreshold: 2 } },
-				{ ...desired, excludedTools: ['builtin:unavailable'] },
+				{ ...desired, tools: { ...desired.tools, search: { enabled: false, deferThreshold: 2 } } },
+				{ ...desired, tools: { ...desired.tools, excludedTools: ['builtin:unavailable'] } },
 				{ ...desired, systemMessage: { mode: 'append', content: 'Updated initialization' } },
-				{ ...desired, customAgents: [{ name: 'updated', prompt: 'Updated agent prompt' }] },
+				{ ...desired, agents: { ...desired.agents, definitions: [{ name: 'updated', prompt: 'Updated agent prompt' }] } },
 			];
 			const mismatches = changes.map(change => {
 				desired = change;
