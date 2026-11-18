@@ -5029,6 +5029,7 @@ suite('NewChatWidget', () => {
 				accessibilityService: { status: () => { } },
 				instantiationService,
 				sessionsService: { openSession: async (resource: URI, options?: IOpenSessionOptions) => { opened.push({ resource, options }); } },
+				sessionsManagementService: { onDidReplaceSession: Event.None },
 				_isShown: () => true,
 				_register: <T extends IDisposable>(value: T) => disposables.add(value),
 			};
@@ -7223,32 +7224,41 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		test('opens the session of an Alt+Enter send through its host, not in the main window', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('opens the session of an Alt+Enter send through its host, not in the main window, as it is after its replacements, without announcing it again', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IHoverService, NullHoverService);
 			instantiationService.stub(IOpenerService, {});
 			const changed = disposables.add(new Emitter<void>());
+			const replaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 			const status = observableValue<BackgroundSendStatus | undefined>('status', undefined);
-			const sent = upcastPartial<ISession>({ sessionId: 'sent', resource: URI.parse('test-session:/sent') });
+			const session = (sessionId: string) => upcastPartial<ISession>({ sessionId, resource: URI.parse(`test-session:/${sessionId}`) });
 			const opened: ISession[] = [];
+			const announcements: string[] = [];
 			const harness = {
 				_draftHost: host(upcastPartial<INewSessionDraftSlot>({ id: 'slot' }), opened),
 				_backgroundSendStatus: status,
 				_newChatInput: { onDidChangeInput: changed.event, hasInput: false },
-				accessibilityService: { status: () => { } },
+				accessibilityService: { status: (message: string) => announcements.push(message) },
 				instantiationService,
 				sessionsService: { openSession: async () => assert.fail('A hosted composer must not open sessions in the main window') },
+				sessionsManagementService: { onDidReplaceSession: replaced.event },
 				_isShown: () => true,
 				_register: <T extends IDisposable>(value: T) => disposables.add(value),
 			};
 			const container = $('div');
 			const render = Reflect.get(NewChatWidget.prototype, '_renderBackgroundSendStatus') as (this: typeof harness, container: HTMLElement) => void;
 			render.call(harness, container);
-			status.set({ kind: 'sent', session: sent }, undefined);
+			status.set({ kind: 'sent', session: session('untitled') }, undefined);
+			const link = container.querySelector('a')!;
+			container.querySelector('a')!.click();
+			replaced.fire({ from: session('other'), to: session('unrelated') });
+			replaced.fire({ from: session('untitled'), to: session('committed') });
 			container.querySelector('a')!.click();
 			await timeout(0);
 
-			assert.deepStrictEqual({ confirmation: container.textContent, opened: opened.map(session => session.sessionId) }, { confirmation: 'Message sentOpen Session', opened: ['sent'] });
+			assert.deepStrictEqual({ confirmation: container.textContent, opened: opened.map(session => session.sessionId), sameLink: container.querySelector('a') === link, href: link.getAttribute('href'), announcements }, {
+				confirmation: 'Message sentOpen Session', opened: ['untitled', 'committed'], sameLink: true, href: 'test-session:/committed', announcements: ['Message sent'],
+			});
 		}));
 	});
 
@@ -7264,6 +7274,7 @@ suite('NewChatWidget', () => {
 			_newChatInput: { onDidChangeInput: Event.None, hasInput: false },
 			accessibilityService: { status: () => { } },
 			instantiationService,
+			sessionsManagementService: { onDidReplaceSession: Event.None },
 			_isShown: (reader: IReader) => shown.read(reader),
 			_register: <T extends IDisposable>(value: T) => disposables.add(value),
 		};

@@ -3383,10 +3383,11 @@ export class NewChatWidget extends Disposable {
 				reader.store.add(disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), 5000));
 				return;
 			}
-			const sentSession = status.session;
+			let sentSession = status.session;
 			const draftHost = this._draftHost;
-			reader.store.add(this.instantiationService.createInstance(Link, statusElement, {
-				label: localize('newSession.openSentSession', "Open Session"),
+			const linkLabel = localize('newSession.openSentSession', "Open Session");
+			const link = reader.store.add(this.instantiationService.createInstance(Link, statusElement, {
+				label: linkLabel,
 				href: sentSession.resource.toString(),
 			}, {
 				opener: () => {
@@ -3396,6 +3397,14 @@ export class NewChatWidget extends Disposable {
 						: this.sessionsService.openSession(sentSession.resource, { source: this._backgroundSend ? 'inbox' : 'link', forceMainChat: true });
 					void opened.catch(onUnexpectedError);
 				},
+			}));
+			// It opens the session as it is now: one whose message was sent can be replaced, such as by the session its provider
+			// commits under another identity, which retires the session it replaces.
+			reader.store.add(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+				if (from.sessionId === sentSession.sessionId) {
+					sentSession = to;
+					link.link = { label: linkLabel, href: to.resource.toString() };
+				}
 			}));
 			// It expires only while it can be seen. It waits while hovered or focused, and while the composer is hidden, such
 			// as the Agents Launcher once the user switched away before the message was sent.
