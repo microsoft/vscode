@@ -1305,7 +1305,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const connectionIds = [...this._connectionWorkspaces]
 				.filter(([, workspace]) => workspace === key)
 				.map(([connectionId]) => connectionId);
-			await Promise.all(connectionIds.map(connectionId => this.disconnect(connectionId)));
+			// Other clients' relays are closed on their behalf, so they learn it rather than wait for their requests to time out.
+			for (const connectionId of connectionIds) {
+				this._closeConnection(connectionId);
+			}
 			await removeDevContainerEnvironment(environmentId, this._getEnvironmentCacheDirectory(environmentId), args => this._runDocker(args));
 		} catch (error) {
 			this._removedEnvironments.delete(key);
@@ -1403,6 +1406,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		this._connectionTokenSources.get(connectionId)?.cancel();
 		this._connectionStores.deleteAndDispose(connectionId);
 		this._connections.deleteAndDispose(connectionId);
+	}
+
+	/** Disconnects a relay, which `_disconnect` does silently, and reports that it closed. */
+	private _closeConnection(connectionId: string): void {
+		const connected = this._connections.has(connectionId);
+		this._disconnect(connectionId);
+		if (connected) {
+			this._onDidRelayClose.fire(connectionId);
+			this._onDidCloseConnection.fire(connectionId);
+		}
 	}
 
 	override dispose(): void {
