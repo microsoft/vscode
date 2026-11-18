@@ -2711,6 +2711,43 @@ suite('AgentHostChatContribution', () => {
 				});
 			});
 		}
+		test('Copilot app task completion shows its summary as response text through the live handler, restored history and reconnect', async () => {
+			const { startRequest, fire } = await openWireSession();
+			const { turnId, progress, finish } = await startRequest();
+			const summary = 'Fixed the parser.\n\n- **Tests:** `npm test` passes';
+			const input = JSON.stringify({ summary });
+			const content = [{ type: ToolResultContentType.Text as const, text: summary }];
+			const shape = (parts: readonly IChatProgress[]) => parts.flatMap(part => part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized'
+				? [`tool: ${textOf(part.pastTenseMessage ?? part.invocationMessage)} (${part.presentation ?? 'shown'}${IChatToolInvocation.resultDetails(part) ? ', raw details' : ''})`]
+				: part.kind === 'markdownContent' ? [part.content.value] : []);
+			fire(chatToolCallStart(turnId, 'done', 'task_complete', 'task_complete'));
+			fire(chatToolCallReady(turnId, 'done', 'Running task_complete', { toolInput: input, confirmed: ToolCallConfirmationReason.NotNeeded }));
+			const running = shape(progress);
+			fire(chatToolCallComplete(turnId, 'done', { success: true, pastTenseMessage: 'Tool finished', content }));
+			await finish();
+			const message = { text: 'Hello', origin: { kind: MessageKind.User as const } };
+			const responseParts = [{
+				kind: ResponsePartKind.ToolCall as const,
+				toolCall: {
+					status: ToolCallStatus.Completed as const, toolCallId: 'done', toolName: 'task_complete', displayName: 'task_complete',
+					invocationMessage: 'Running task_complete', toolInput: input, confirmed: ToolCallConfirmationReason.NotNeeded,
+					success: true, pastTenseMessage: 'Tool finished', content,
+				},
+			}];
+			const restored = await openWireSession({ chat: { turns: [{ id: 'restored-turn', state: TurnState.Complete, usage: undefined, message, responseParts }] } });
+			const reconnected = await openWireSession({ chat: { activeTurn: { id: 'active-turn', startedAt: '2026-09-30T12:00:00.000Z', usage: undefined, message, responseParts } } });
+			const response = restored.chatSession.history.find(item => item.type === 'response');
+			const shown = ['tool: Task complete (hidden)', `\n\n**Task completed:**\n\n${summary}`];
+			assert.deepStrictEqual({
+				running,
+				live: shape(progress),
+				restored: response?.type === 'response' ? shape(response.parts) : undefined,
+				reconnected: shape(reconnected.chatSession.progressObs?.get() ?? []),
+			}, {
+				running: ['tool: Marking task complete (shown)'],
+				live: shown, restored: shown, reconnected: shown,
+			});
+		});
 		test('explicit VS Code search metadata keeps its messages even when the tool has a Copilot app alias', async () => {
 			const { startRequest, fire } = await openWireSession();
 			const { turnId, progress, finish } = await startRequest();
