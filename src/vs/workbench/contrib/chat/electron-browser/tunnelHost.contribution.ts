@@ -15,15 +15,17 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IsSessionsWindowContext, RemoteNameContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
-import { getRemoteConnectionsToggleFailure, getRemoteTunnelAccessState, RemoteConnectionsFailureReason, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
+import { getRemoteConnectionsToggleFailure, getRemoteTunnelAccessState, RemoteConnectionsCompactMenuSettingId, RemoteConnectionsFailureReason, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
 
 export const TUNNEL_HOST_SHARING_KEY = 'tunnelHostSharing';
 export const TUNNEL_HOST_SHARING_CONTEXT = new RawContextKey<boolean>(TUNNEL_HOST_SHARING_KEY, false);
@@ -193,3 +195,19 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 });
 
 registerWorkbenchContribution2(TunnelHostContribution.ID, TunnelHostContribution, WorkbenchPhase.AfterRestored);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chatSidebar',
+	title: localize('chatConfigurationTitle', "Chat"),
+	type: 'object',
+	properties: {
+		[RemoteConnectionsCompactMenuSettingId]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('chat.remoteConnections.compactMenu', "Controls whether the Remote Connections menu shows each connection method on a single line, with its explanation on hover."),
+		},
+	},
+});
