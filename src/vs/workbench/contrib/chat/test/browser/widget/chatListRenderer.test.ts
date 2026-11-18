@@ -117,6 +117,7 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { MockChatWidgetService } from './mockChatWidget.js';
+import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
@@ -2638,6 +2639,75 @@ suite('ChatListRenderer', () => {
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node, createRenderer };
 	}
+
+	test('transcript notice precedes the first Agent Host response without duplicating on rerender or later turns', () => {
+		const chatWidgetService = new class extends MockChatWidgetService {
+			override getWidgetBySessionResource() { return widget; }
+		}();
+		const { disposables, instantiationService, model, viewModel, request, container, renderer, template, node } = createPersistentProgressRenderer({
+			sessionResource: URI.from({ scheme: 'agent-host-copilotcli', path: '/notice-placement' }),
+			chatWidgetService,
+		});
+		const inputUri = URI.parse('test:notice-input');
+		const widget = new class extends mock<IChatWidget>() {
+			override readonly transcriptDomNode = container;
+			override readonly input = new class extends mock<ChatInputPart>() {
+				override readonly inputUri = inputUri;
+			}();
+		}();
+		const notification: IChatInputNotification = {
+			id: 'sandbox-certificate',
+			placement: 'transcript',
+			inputUri,
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Sandbox trusted CA is not installed (optional)',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+		};
+		instantiationService.stub(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
+			override readonly onDidChange = Event.None;
+			override getActiveNotification(filter?: (notification: IChatInputNotification) => boolean) {
+				return !filter || filter(notification) ? notification : undefined;
+			}
+			override announceRendered() { }
+		}());
+		instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+			override getChangesForRequest() { return undefined; }
+		}());
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('First reply') });
+		request.response!.complete();
+		const readFirstResponse = () => {
+			const notices = template.rowContainer.querySelectorAll('.chat-input-notification-widget');
+			return {
+				notices: Array.from(notices, notice => notice.textContent),
+				beforeContent: !!notices[0] && !!(notices[0].compareDocumentPosition(template.value) & Node.DOCUMENT_POSITION_FOLLOWING),
+				response: template.value.querySelector('.chat-markdown-part')?.textContent?.trim(),
+			};
+		};
+		renderer.renderElement(node, 1, template);
+		const firstRender = readFirstResponse();
+		renderer.renderElement(node, 1, template);
+		const rerender = readFirstResponse();
+
+		const nextRequest = model.addRequest({ text: 'Again', parts: [] }, { variables: [] }, 0);
+		model.acceptResponseProgress(nextRequest, { kind: 'markdownContent', content: new MarkdownString('Second reply') });
+		nextRequest.response!.complete();
+		const nextResponse = viewModel.getItems().find(item => isResponseVM(item) && item.requestId === nextRequest.id);
+		assert.ok(nextResponse);
+		const nextTemplate = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(nextTemplate)));
+		renderer.renderElement({ ...node, element: nextResponse }, 3, nextTemplate);
+		const expectedFirstResponse = { notices: [notification.message], beforeContent: true, response: 'First reply' };
+		assert.deepStrictEqual({
+			firstRender,
+			rerender,
+			secondResponse: nextTemplate.value.querySelector('.chat-markdown-part')?.textContent?.trim(),
+			secondNotices: nextTemplate.rowContainer.querySelectorAll('.chat-input-notification-widget').length,
+			totalNotices: container.querySelectorAll('.chat-input-notification-widget').length,
+		}, { firstRender: expectedFirstResponse, rerender: expectedFirstResponse, secondResponse: 'Second reply', secondNotices: 0, totalNotices: 1 });
+	});
 
 	suite('deferred row height updates', () => {
 		async function createHeightFixture() {

@@ -6327,7 +6327,7 @@ export class CopilotAgentSession extends Disposable {
 			chatUri: this._chatChannelUri,
 			launchOwner: this.launchOwner,
 			reportManagedSettingsActivity: activity => this._setManagedSettingsActivity(activity),
-			getLaunchSandboxConfig: isResume => this._sandbox.getLaunchConfig(isResume),
+			getLaunchSandboxConfig: (isResume, requestExtensions) => this._sandbox.getLaunchConfig(isResume, requestExtensions ? this._copilotHomeService.home : undefined),
 			applyLaunchSandbox: (session, isResume) => this._sandbox.applyLaunchConfig(session, isResume),
 			handlePermissionRequest: this._guarded((request: PermissionRequest, invocation?: Parameters<PermissionHandler>[1]) => {
 				const recorder = this._currentTurn.value?.timingRecorder;

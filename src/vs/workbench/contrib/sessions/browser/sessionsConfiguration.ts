@@ -24,7 +24,7 @@ export const sessionsListConfigurationProperties = {
 	[SESSIONS_LIST_INBOX_ENABLED_SETTING]: {
 		type: 'boolean',
 		tags: ['experimental'],
-		description: localize('sessions.list.inboxEnabled', "Uses Inbox Mode as the default Sessions list grouping when no grouping has been chosen. Inbox Mode is always available in the Grouping menu. Explicit grouping choices are preserved."),
+		description: localize('sessions.list.inboxEnabled', "Shows a toggle on the Sessions list to open Inbox Mode. Turning the toggle off restores the previous grouping. Disabling this setting also leaves Inbox Mode."),
 		default: false,
 	},
 	[SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING]: {

@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { $, append } from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -18,16 +21,17 @@ import { EditorPartModalVisibleContext } from '../../../../../workbench/common/c
 import { Memento } from '../../../../../workbench/common/memento.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
 import { onboardingPresentationRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingPresentation.js';
 import { OnboardingDismissReason, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
-import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { AutomationsTourContribution } from '../../browser/automationsTourContribution.js';
 import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../browser/tours/automationsTour.js';
@@ -37,68 +41,136 @@ suite('AutomationsTour', () => {
 
 	teardown(() => Memento.clear(StorageScope.APPLICATION));
 
-	test('a previously shown checklist tour suppresses the automatic introduction', async () => {
-		const storage = disposables.add(new InMemoryStorageService());
+	for (const previousTourId of ['sessions.getStarted.showMe.automation', AUTOMATIONS_TOUR_ID]) {
+		test(`a previously shown tour suppresses the click introduction after restart: ${previousTourId}`, async () => {
+			const storage = disposables.add(new InMemoryStorageService());
+			const configuration = new TestConfigurationService();
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const context = disposables.add(new ContextKeyService(configuration));
+			ChatContextKeys.enabled.bindTo(context).set(true);
+			ChatAutomationsEnabledContext.bindTo(context).set(true);
+			const intro = createAutomationsTour();
+			const runs: string[] = [];
+			const kind = 'automations-introduction-test';
+			disposables.add(onboardingPresentationRegistry.register({
+				kind,
+				run: async scenario => {
+					runs.push(scenario.id);
+					return { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 1 };
+				},
+			}));
+			disposables.add(onboardingScenarioRegistry.register({
+				id: 'sessions.getStarted.showMe.automation',
+				repeatable: true,
+				trigger: { kind: 'command', commandId: 'sessions.getStarted.showMe.automation' },
+				presentation: { kind, payload: undefined },
+			}));
+			disposables.add(onboardingScenarioRegistry.register({ ...intro, presentation: { ...intro.presentation, kind } }));
+			const createService = () => disposables.add(new OnboardingScenarioService(
+				storage, context, configuration, disposables.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(),
+				new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(),
+				new class extends mock<IDialogService>() { override readonly hasDialog = false; override readonly onDidShowDialog = Event.None; }(),
+			));
+			const service = createService();
+			service.start();
+			await service.runScenario(previousTourId);
+			service.dispose();
+			Memento.clear(StorageScope.APPLICATION);
+			const restarted = createService();
+			restarted.start();
+			await timeout(0);
+
+			assert.deepStrictEqual({ runs, introduced: restarted.hasBeenShown(AUTOMATIONS_TOUR_ID), eligible: restarted.shouldShowNudge(AUTOMATIONS_TOUR_ID) }, {
+				runs: [previousTourId], introduced: true, eligible: false,
+			});
+		});
+	}
+
+	test('waits for activation without consuming the introduction when the view is available', async () => {
 		const configuration = new TestConfigurationService();
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const context = disposables.add(new ContextKeyService(configuration));
 		ChatContextKeys.enabled.bindTo(context).set(true);
 		ChatAutomationsEnabledContext.bindTo(context).set(true);
-		const visible = observableValue('automationsVisible', false);
-		const intro = createAutomationsTour(visible);
+		disposables.add(new AutomationsTourContribution());
 		const runs: string[] = [];
-		const kind = 'automations-introduction-test';
 		disposables.add(onboardingPresentationRegistry.register({
-			kind,
+			kind: 'spotlight',
 			run: async scenario => {
 				runs.push(scenario.id);
 				return { outcome: OnboardingOutcome.Completed, shown: true, dismissReason: OnboardingDismissReason.Completed, lastStepIndex: 0, stepCount: 1 };
 			},
 		}));
-		const legacyTourId = 'sessions.getStarted.showMe.automation';
-		disposables.add(onboardingScenarioRegistry.register({
-			id: legacyTourId,
-			repeatable: true,
-			trigger: { kind: 'command', commandId: legacyTourId },
-			presentation: { kind, payload: undefined },
-		}));
-		disposables.add(onboardingScenarioRegistry.register({ ...intro, presentation: { ...intro.presentation, kind } }));
 		const service = disposables.add(new OnboardingScenarioService(
-			storage, context, configuration, disposables.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(),
+			disposables.add(new InMemoryStorageService()), context, configuration, disposables.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(),
 			new class extends mock<ITelemetryService>() { override publicLog2(): void { } }(),
 			new class extends mock<IDialogService>() { override readonly hasDialog = false; override readonly onDidShowDialog = Event.None; }(),
 		));
 		service.start();
-		await service.runScenario(legacyTourId);
-		visible.set(true, undefined);
 		await timeout(0);
+		const beforeClick = { runs: [...runs], seen: service.hasBeenShown(AUTOMATIONS_TOUR_ID), eligible: service.shouldShowNudge(AUTOMATIONS_TOUR_ID) };
+		await configuration.setUserConfiguration('onboarding.enabled', false);
+		const disabled = service.shouldShowNudge(AUTOMATIONS_TOUR_ID);
+		await configuration.setUserConfiguration('onboarding.enabled', true);
+		await service.runScenario(AUTOMATIONS_TOUR_ID);
 
-		assert.deepStrictEqual({ runs, introduced: service.hasBeenShown(AUTOMATIONS_TOUR_ID) }, {
-			runs: [legacyTourId], introduced: true,
+		assert.deepStrictEqual({ beforeClick, disabled, runs, eligible: service.shouldShowNudge(AUTOMATIONS_TOUR_ID) }, {
+			beforeClick: { runs: [], seen: false, eligible: true }, disabled: false, runs: [AUTOMATIONS_TOUR_ID], eligible: false,
 		});
 	});
 
-	test('is eligible only while Automations is open, including a restored opening', () => {
-		const automations = upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID });
-		const activeCustomView = observableValue<ICustomViewDescriptor | undefined>('activeCustomView', automations);
-		const contribution = disposables.add(new AutomationsTourContribution(new class extends mock<ICustomViewService>() {
-			override readonly activeCustomView = activeCustomView;
-		}()));
-		const scenario = onboardingScenarioRegistry.getScenario(AUTOMATIONS_TOUR_ID)!;
-		const triggered = () => scenario.trigger.kind === 'observable' && scenario.trigger.signal.get();
-		const restored = triggered();
-		activeCustomView.set(undefined, undefined);
-		const hidden = triggered();
-		activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: 'other' }), undefined);
-		const otherView = triggered();
-		activeCustomView.set(automations, undefined);
-		const reopened = triggered();
-		contribution.dispose();
+	for (const dismiss of ['gotIt', 'escape', 'targetClick', 'targetEnter'] as const) {
+		test(`ending the presentation via ${dismiss} restores focus without re-entering the target action`, async () => {
+			const container = append(mainWindow.document.body, $('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const button = disposables.add(new Button(container, {}));
+			button.label = 'Create with Agent';
+			disposables.add(markOnboardingTarget(button.element, 'sessions.automations.create'));
+			let activations = 0;
+			disposables.add(button.onDidClick(() => activations++));
+			button.focus();
+			const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const layout = new class extends TestLayoutService {
+				override getContainer() { return mainWindow.document.body; }
+			}();
+			const presentation = disposables.add(new SpotlightPresentation(layout, new TestHostService(), context));
+			const shown = new DeferredPromise<void>();
+			const result = presentation.run(createAutomationsTour(), {
+				targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); },
+			});
+			await shown.p;
+			const callout = mainWindow.document.querySelector<HTMLElement>('.spotlight-callout')!;
+			const next = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === 'Got It')!;
+			const beforeDismissal = {
+				role: callout.getAttribute('role'),
+				focused: mainWindow.document.activeElement === next,
+			};
+			switch (dismiss) {
+				case 'gotIt': next.click(); break;
+				case 'escape': next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true })); break;
+				case 'targetClick': button.element.click(); break;
+				case 'targetEnter':
+					next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+					for (const type of ['keydown', 'keyup']) {
+						button.element.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+					}
+					break;
+			}
+			const outcome = (await result).outcome;
+			const afterDismissal = {
+				activations, restored: mainWindow.document.activeElement === button.element,
+				remaining: !!mainWindow.document.querySelector('.spotlight-callout'),
+			};
+			button.element.click();
 
-		assert.deepStrictEqual({ restored, hidden, otherView, reopened, unregistered: !onboardingScenarioRegistry.getScenario(AUTOMATIONS_TOUR_ID) }, {
-			restored: true, hidden: false, otherView: false, reopened: true, unregistered: true,
+			assert.deepStrictEqual({ beforeDismissal, outcome, afterDismissal, subsequentActivations: activations }, {
+				beforeDismissal: { role: 'dialog', focused: true },
+				outcome: dismiss === 'escape' ? OnboardingOutcome.Skipped : OnboardingOutcome.Completed,
+				afterDismissal: { activations: 0, restored: true, remaining: false },
+				subsequentActivations: 1,
+			});
 		});
-	});
+	}
 
 	test('suppresses the introduction when AI or Automations is disabled, signed out, or blocked', () => {
 		const configuration = new TestConfigurationService();
@@ -114,7 +186,7 @@ suite('AutomationsTour', () => {
 			NewSessionOnboardingHandoffContext.bindTo(context),
 			SessionsWelcomeVisibleContext.bindTo(context),
 		];
-		const scenario = createAutomationsTour(observableValue('visible', true));
+		const scenario = createAutomationsTour();
 		const eligible = () => context.contextMatchesRules(scenario.when);
 		const initial = eligible();
 		enabled.set(false);
