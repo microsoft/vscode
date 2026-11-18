@@ -7,8 +7,10 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { createModelRouterModelMeta, IModelRouterRouteSummary } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
@@ -51,6 +53,24 @@ suite('AgentHostLanguageModelProvider', () => {
 			{ keys: undefined, default: 'high', readOnly: true, managed: undefined },
 		]);
 	});
+	test('a model router\'s row carries its file and its routes, and a host that lists no routes still gets a router row', async () => {
+		const provider = createProvider();
+		const file = URI.file('/routers/daily.model-router.yaml');
+		// As it arrives over the wire.
+		const meta = (routes?: readonly IModelRouterRouteSummary[]) => JSON.parse(JSON.stringify(createModelRouterModelMeta('A router.', file, routes)));
+		provider.updateModels([
+			makeModel('model-router:daily', meta([{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 }, { model: 'Claude Haiku 5.5' }])),
+			makeModel('model-router:from-another-host', meta()),
+			makeModel('not-a-router'),
+		]);
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(({ metadata }) => [metadata.id, metadata.detailsResource && URI.revive(metadata.detailsResource).path, metadata.modelRouterRoutes]), [
+			['model-router:daily', file.path, [{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 }, { model: 'Claude Haiku 5.5' }]],
+			['model-router:from-another-host', file.path, []],
+			['not-a-router', undefined, undefined],
+		]);
+	});
+
 	test('announces the first models, even none, and later only models that changed', () => {
 		const provider = createProvider();
 		let changes = 0;
