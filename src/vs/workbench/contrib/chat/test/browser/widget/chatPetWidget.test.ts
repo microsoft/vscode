@@ -39,7 +39,7 @@ import '../../../browser/widget/media/chat.css';
 import { drawChatPetComposite, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetFixedOrientationDecoration } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
 import { ChatPetJumpGameRetry, IChatPetJumpGameOptions } from '../../../browser/widget/chatPetJumpGame.js';
-import { addChatPetJumpGameLiteCapsule, createChatPetJumpGameLiteShapeAtlas, getChatPetJumpGameLiteRenderInfo, IChatPetJumpGameLiteColors, renderChatPetJumpGameLiteShapes } from '../../../browser/widget/chatPetJumpGameLiteShapes.js';
+import { addChatPetJumpGameLiteCapsule, createChatPetJumpGameLiteShapeAtlas, getChatPetJumpGameLiteRenderInfo, insetChatPetJumpGameLiteAtlasFrames, IChatPetJumpGameLiteColors, renderChatPetJumpGameLiteShapes } from '../../../browser/widget/chatPetJumpGameLiteShapes.js';
 import { ChatPetJumpGameRendererKind, IChatPetJumpGameRenderer } from '../../../browser/widget/chatPetJumpGameRenderer.js';
 import { createChatPetJumpGameWebGpuRenderer } from '../../../browser/widget/chatPetJumpGameWebGpuRenderer.js';
 import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowMaximumFallSpeed, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
@@ -609,24 +609,29 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('uses outer half-disc and one-pixel half-ring atlas frames', () => {
+	test('uses an outer half-disc atlas frame', () => {
 		const atlas = createChatPetJumpGameLiteShapeAtlas();
-		const alpha = (frame: number, x: number, y: number) => atlas[(y * 48 + frame * 16 + x) * 4 + 3];
+		const alpha = (frame: number, x: number, y: number) => atlas[(y * 32 + frame * 16 + x) * 4 + 3];
 		assert.deepStrictEqual({
 			discOuter: alpha(1, 2, 7),
 			discSeam: alpha(1, 7, 7),
 			discInner: alpha(1, 8, 7),
-			ringCoverage: alpha(2, 0, 7) + alpha(2, 1, 7),
-			ringInner: alpha(2, 2, 7),
-			ringHiddenHalf: alpha(2, 15, 7),
 		}, {
 			discOuter: 255,
 			discSeam: 255,
 			discInner: 0,
-			ringCoverage: 255,
-			ringInner: 0,
-			ringHiddenHalf: 0,
 		});
+	});
+
+	test('insets Babylon Lite atlas UVs to texel centers for linear sampling', () => {
+		const frames = insetChatPetJumpGameLiteAtlasFrames([
+			{ uvMin: [0, 0] as const, uvMax: [16 / 67, 1] as const },
+			{ uvMin: [17 / 67, 0] as const, uvMax: [33 / 67, 1] as const },
+		], [67, 16]);
+		assert.deepStrictEqual(frames, [
+			{ uvMin: [0.5 / 67, 0.5 / 16], uvMax: [15.5 / 67, 15.5 / 16] },
+			{ uvMin: [17 / 67 + 0.5 / 67, 0.5 / 16], uvMax: [33 / 67 - 0.5 / 67, 15.5 / 16] },
+		]);
 	});
 
 	test('ignores offscreen Babylon Lite shapes in the render hash', () => {
@@ -659,30 +664,62 @@ suite('ChatPetWidget', () => {
 			integrityForeground: [1, 1, 1, 1],
 			border: [0, 0, 0, 1],
 		};
-		const borderSprites: { width: number; height: number; angle: number; frame: number }[] = [];
+		const borderSprites: { x: number; y: number; width: number; height: number; alpha: number; angle: number; frame: number }[] = [];
 		renderChatPetJumpGameLiteShapes({
 			width: 320,
 			height: 200,
 			anchor: 160,
 			cameraHeight: 0,
 			petSize: 32,
-			platforms: [{ id: 1, left: 20, width: 80, height: 160, kind: 'crumbling', collapseProgress: 0, fallDistance: 0 }],
-			walls: [{ id: -1, left: 200, width: 8, bottom: 0, top: 160 }],
-		}, colors, (_x, _y, width, height, color, angle, frame) => {
+			platforms: [{ id: 1, left: 20, width: 80, height: 160, kind: 'crumbling', collapseProgress: 0, fallDistance: 64 }],
+			walls: [{ id: -1, left: 200, width: 16, bottom: 0, top: 160 }],
+		}, colors, (x, y, width, height, color, angle, frame) => {
 			if (color[0] === 0 && color[1] === 0 && color[2] === 0) {
-				borderSprites.push({ width, height, angle, frame });
+				borderSprites.push({ x, y, width, height, alpha: color[3], angle, frame });
 			}
 		});
-		assert.deepStrictEqual(borderSprites, [
-			{ width: 84, height: 1, angle: 0, frame: 0 },
-			{ width: 84, height: 1, angle: 0, frame: 0 },
-			{ width: 6, height: 6, angle: 0, frame: 2 },
-			{ width: 6, height: 6, angle: Math.PI, frame: 2 },
-			{ width: 1, height: 152, angle: 0, frame: 0 },
-			{ width: 1, height: 152, angle: 0, frame: 0 },
-			{ width: 8, height: 8, angle: Math.PI / 2, frame: 2 },
-			{ width: 8, height: 8, angle: -Math.PI / 2, frame: 2 },
-		]);
+		const overlaps = borderSprites.some((first, index) => borderSprites.slice(index + 1).some(second =>
+			Math.min(first.x + first.width / 2, second.x + second.width / 2) - Math.max(first.x - first.width / 2, second.x - second.width / 2) > 1e-10 &&
+			Math.min(first.y + first.height / 2, second.y + second.height / 2) - Math.max(first.y - first.height / 2, second.y - second.height / 2) > 1e-10
+		));
+		const leftCap = borderSprites.filter(sprite => sprite.x < 18);
+		const radialThicknesses: number[] = [];
+		for (let index = 1; index < 180; index++) {
+			const angle = -Math.PI / 2 + Math.PI * index / 180;
+			const coveredRadii: number[] = [];
+			for (let radius = 0; radius <= 3; radius += 0.01) {
+				const sampleX = 18 - Math.cos(angle) * radius;
+				const sampleY = 64 + Math.sin(angle) * radius;
+				if (leftCap.some(sprite =>
+					Math.abs(sampleX - sprite.x) <= sprite.width / 2 + 1e-10 &&
+					Math.abs(sampleY - sprite.y) <= sprite.height / 2 + 1e-10
+				)) {
+					coveredRadii.push(radius);
+				}
+			}
+			if (coveredRadii.length) {
+				radialThicknesses.push(Math.max(...coveredRadii) - Math.min(...coveredRadii));
+			}
+		}
+		assert.deepStrictEqual({
+			count: borderSprites.length,
+			allOnePixel: borderSprites.every(sprite => Math.min(sprite.width, sprite.height) <= 1),
+			allRectangles: borderSprites.every(sprite => sprite.frame === 0),
+			allAxisAligned: borderSprites.every(sprite => sprite.angle === 0),
+			translucentPlatform: borderSprites.filter(sprite => sprite.x < 150).every(sprite => sprite.alpha === 0.5),
+			overlaps,
+			allRaysCovered: radialThicknesses.length === 179,
+			radialThicknessWithinTolerance: Math.min(...radialThicknesses) >= 0.85 && Math.max(...radialThicknesses) <= 1.15,
+		}, {
+			count: 356,
+			allOnePixel: true,
+			allRectangles: true,
+			allAxisAligned: true,
+			translucentPlatform: true,
+			overlaps: false,
+			allRaysCovered: true,
+			radialThicknessWithinTolerance: true,
+		});
 	});
 
 	for (const width of [320, 800]) {

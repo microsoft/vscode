@@ -23,6 +23,21 @@ export interface IChatPetJumpGameLiteRenderInfo {
 	readonly right: number;
 }
 
+export interface IChatPetJumpGameLiteAtlasFrame {
+	readonly uvMin: readonly [number, number];
+	readonly uvMax: readonly [number, number];
+}
+
+export function insetChatPetJumpGameLiteAtlasFrames<T extends IChatPetJumpGameLiteAtlasFrame>(frames: readonly T[], textureSize: readonly [number, number]): T[] {
+	const insetX = 0.5 / textureSize[0];
+	const insetY = 0.5 / textureSize[1];
+	return frames.map(frame => ({
+		...frame,
+		uvMin: [frame.uvMin[0] + insetX, frame.uvMin[1] + insetY],
+		uvMax: [frame.uvMax[0] - insetX, frame.uvMax[1] - insetY],
+	}));
+}
+
 export function addChatPetJumpGameLiteCapsule(addSprite: ChatPetJumpGameLiteSpriteCallback, x: number, y: number, width: number, height: number, vertical = false): void {
 	if (width <= 0 || height <= 0) {
 		return;
@@ -53,18 +68,15 @@ export function addChatPetJumpGameLiteCapsule(addSprite: ChatPetJumpGameLiteSpri
 }
 
 export function createChatPetJumpGameLiteShapeAtlas(): Uint8Array {
-	const pixels = new Uint8Array(48 * 16 * 4);
+	const pixels = new Uint8Array(32 * 16 * 4);
 	for (let y = 0; y < 16; y++) {
-		for (let x = 0; x < 48; x++) {
-			const pixel = (y * 48 + x) * 4;
+		for (let x = 0; x < 32; x++) {
+			const pixel = (y * 32 + x) * 4;
 			const localX = x % 16;
 			const distance = Math.hypot(localX - 7.5, y - 7.5);
 			const circleAlpha = Math.max(0, Math.min(1, 8 - distance));
-			const alpha = x < 16
-				? 255
-				: x < 32
-					? Math.round((localX <= 7.5 ? circleAlpha : 0) * 255)
-					: Math.round((localX <= 7.5 ? Math.max(0, circleAlpha - Math.max(0, Math.min(1, 7 - distance))) : 0) * 255);
+			const halfDiscAlpha = localX <= 7.5 ? circleAlpha : 0;
+			const alpha = x < 16 ? 255 : Math.round(halfDiscAlpha * 255);
 			pixels[pixel] = 255;
 			pixels[pixel + 1] = 255;
 			pixels[pixel + 2] = 255;
@@ -122,6 +134,26 @@ export function renderChatPetJumpGameLiteShapes(state: IChatPetJumpGameRenderSta
 			addSprite(spriteX, spriteY, spriteWidth, spriteHeight, color, angle, frame);
 		}, x, y, width, height, vertical);
 	};
+	const addHalfCapsuleBorder = (x: number, y: number, diameter: number, directionX: number, directionY: number, color: ChatPetJumpGameLiteColor) => {
+		// Non-overlapping strips keep translucent borders uniformly one pixel thick without filling the capsule interior.
+		const radius = diameter / 2;
+		const innerRadius = Math.max(0, radius - 1);
+		const stripThickness = 0.125;
+		for (let crossStart = -radius; crossStart < radius; crossStart += stripThickness) {
+			const crossEnd = Math.min(radius, crossStart + stripThickness);
+			const cross = (crossStart + crossEnd) / 2;
+			const outerExtent = Math.sqrt(Math.max(0, radius * radius - cross * cross));
+			const innerExtent = Math.sqrt(Math.max(0, innerRadius * innerRadius - cross * cross));
+			const length = outerExtent - innerExtent;
+			const outwardOffset = innerExtent + length / 2;
+			const thickness = crossEnd - crossStart;
+			if (directionX) {
+				addSprite(x + directionX * outwardOffset, y + cross, length, thickness, color, 0, 0);
+			} else {
+				addSprite(x + cross, y + directionY * outwardOffset, thickness, length, color, 0, 0);
+			}
+		}
+	};
 	const addCapsuleBorder = (x: number, y: number, width: number, height: number, color: ChatPetJumpGameLiteColor, vertical = false) => {
 		const diameter = Math.min(width, height);
 		if (vertical || height > width) {
@@ -130,16 +162,16 @@ export function renderChatPetJumpGameLiteShapes(state: IChatPetJumpGameRenderSta
 				addSprite(x - width / 2 + 0.5, y, 1, edgeHeight, color, 0, 0);
 				addSprite(x + width / 2 - 0.5, y, 1, edgeHeight, color, 0, 0);
 			}
-			addSprite(x, y - edgeHeight / 2, diameter, diameter, color, Math.PI / 2, 2);
-			addSprite(x, y + edgeHeight / 2, diameter, diameter, color, -Math.PI / 2, 2);
+			addHalfCapsuleBorder(x, y - edgeHeight / 2, diameter, 0, -1, color);
+			addHalfCapsuleBorder(x, y + edgeHeight / 2, diameter, 0, 1, color);
 		} else {
 			const edgeWidth = Math.max(0, width - diameter);
 			if (edgeWidth > 0) {
 				addSprite(x, y - height / 2 + 0.5, edgeWidth, 1, color, 0, 0);
 				addSprite(x, y + height / 2 - 0.5, edgeWidth, 1, color, 0, 0);
 			}
-			addSprite(x - edgeWidth / 2, y, diameter, diameter, color, 0, 2);
-			addSprite(x + edgeWidth / 2, y, diameter, diameter, color, Math.PI, 2);
+			addHalfCapsuleBorder(x - edgeWidth / 2, y, diameter, -1, 0, color);
+			addHalfCapsuleBorder(x + edgeWidth / 2, y, diameter, 1, 0, color);
 		}
 	};
 	for (const platform of state.platforms) {

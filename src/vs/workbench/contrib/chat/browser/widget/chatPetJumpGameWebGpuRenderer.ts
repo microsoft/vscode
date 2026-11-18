@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { createChatPetJumpGameLiteShapeAtlas, getChatPetJumpGameLiteRenderInfo, IChatPetJumpGameLiteColors, renderChatPetJumpGameLiteShapes } from './chatPetJumpGameLiteShapes.js';
+import { createChatPetJumpGameLiteShapeAtlas, getChatPetJumpGameLiteRenderInfo, insetChatPetJumpGameLiteAtlasFrames, IChatPetJumpGameLiteColors, renderChatPetJumpGameLiteShapes } from './chatPetJumpGameLiteShapes.js';
 import type { IChatPetJumpGameRenderer, IChatPetJumpGameRenderState } from './chatPetJumpGameRenderer.js';
 
 type LiteWebGpuModule = typeof import('../../../../../base/browser/babylonLite/lite-webgpu.js');
@@ -64,11 +64,14 @@ export async function createChatPetJumpGameWebGpuRenderer(
 		lite = await loadLiteWebGpu(runtimeUri);
 		engine = await lite.createEngine(canvas, { alphaMode: 'premultiplied', msaaSamples: 1 });
 		const atlasPixels = createChatPetJumpGameLiteShapeAtlas();
-		atlas = lite.createSpriteAtlasFromFrames(engine, [
-			{ pixels: atlasPixels, width: 16, height: 16, srcStrideBytes: 48 * 4 },
-			{ pixels: atlasPixels, width: 16, height: 16, srcX: 16, srcStrideBytes: 48 * 4 },
-			{ pixels: atlasPixels, width: 16, height: 16, srcX: 32, srcStrideBytes: 48 * 4 },
+		const packedAtlas = lite.createSpriteAtlasFromFrames(engine, [
+			{ pixels: atlasPixels, width: 16, height: 16, srcStrideBytes: 32 * 4 },
+			{ pixels: atlasPixels, width: 16, height: 16, srcX: 16, srcStrideBytes: 32 * 4 },
 		], { paddingPx: 1, sampling: 'linear' });
+		atlas = {
+			...packedAtlas,
+			frames: insetChatPetJumpGameLiteAtlasFrames(packedAtlas.frames, packedAtlas.textureSizePx),
+		};
 		const layer = lite.createSprite2DLayer(atlas, { capacity: 4096, pivot: [0.5, 0.5] });
 		spriteRenderer = lite.createSpriteRenderer(engine, {
 			layers: [layer],
