@@ -23,7 +23,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { EditorsOrder, GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
+import { EditorCloseContext, EditorsOrder, GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
 import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
@@ -856,8 +856,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		};
 		const trackGroup = (group: IEditorGroup) => {
 			const store = new DisposableStore();
-			// Before the tab disposes, which its chat goes with
-			store.add(group.onWillCloseEditor(({ editor }) => {
+			// Before the tab disposes, which its chat goes with. A tab that moves to another of its groups stays open: it keeps its
+			// chat, its draft and when it was active
+			store.add(group.onWillCloseEditor(({ editor, context }) => {
+				if (context === EditorCloseContext.MOVE) {
+					return;
+				}
 				if (this._chats.get(editor) && !this._chats.get(editor)?.isComposer) {
 					this._closingChatTabs.set(editor, { focused: this._layoutService.hasFocus(Parts.CHAT_PART) });
 				}
@@ -867,7 +871,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				updateActive();
 				this._hideIfEmpty();
 			}));
-			store.add(group.onDidCloseEditor(({ editor }) => {
+			store.add(group.onDidCloseEditor(({ editor, context }) => {
+				if (context === EditorCloseContext.MOVE) {
+					updateActive();
+					return;
+				}
 				const kept = this._closingComposerInputs.get(editor);
 				if (kept) {
 					this._closingComposerInputs.delete(editor);

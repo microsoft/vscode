@@ -18,7 +18,7 @@ import { IChatViewHostService, IChatViewHostShownSession } from '../../../../cha
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { parse, stringify } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
-import { EditorInputWithOptions, EditorsOrder, IEditorPane, IVisibleEditorPane } from '../../../../../common/editor.js';
+import { EditorCloseContext, EditorInputWithOptions, EditorsOrder, IEditorPane, IVisibleEditorPane } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { GroupsOrder, IContentPart, ICreateEditorPartOptions, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -66,9 +66,9 @@ class FakeGroup {
 	activeEditor: EditorInput | null = null;
 	readonly onDidActiveEditorChangeEmitter = new Emitter<void>();
 	readonly onDidActiveEditorChange = this.onDidActiveEditorChangeEmitter.event;
-	readonly onWillCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput }>();
+	readonly onWillCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput; readonly context?: EditorCloseContext }>();
 	readonly onWillCloseEditor = this.onWillCloseEditorEmitter.event;
-	readonly onDidCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput }>();
+	readonly onDidCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput; readonly context?: EditorCloseContext }>();
 	readonly onDidCloseEditor = this.onDidCloseEditorEmitter.event;
 	get isEmpty() { return this.editors.length === 0; }
 	contains(editor: EditorInput) { return this.editors.includes(editor); }
@@ -90,17 +90,22 @@ class FakeGroup {
 	getEditors(order: EditorsOrder): readonly EditorInput[] {
 		return order === EditorsOrder.MOST_RECENTLY_ACTIVE ? this.mru : this.editors;
 	}
-	/** Closes `editor`, which disposes before the group tells it closed, as in a real group. */
-	async closeEditor(editor: EditorInput): Promise<boolean> {
-		this.onWillCloseEditorEmitter.fire({ editor });
+	/**
+	 * Closes `editor`, which disposes before the group tells it closed, as in a real group; not as it moves to another group,
+	 * where it stays open.
+	 */
+	async closeEditor(editor: EditorInput, context?: EditorCloseContext): Promise<boolean> {
+		this.onWillCloseEditorEmitter.fire({ editor, context });
 		this.editors = this.editors.filter(candidate => candidate !== editor);
 		this.mru = this.mru.filter(candidate => candidate !== editor);
 		// As a real group: the most recently active one shows next
 		if (this.activeEditor === editor) {
 			this.activeEditor = this.mru[0] ?? null;
 		}
-		editor.dispose();
-		this.onDidCloseEditorEmitter.fire({ editor });
+		if (context !== EditorCloseContext.MOVE) {
+			editor.dispose();
+		}
+		this.onDidCloseEditorEmitter.fire({ editor, context });
 		this.onDidActiveEditorChangeEmitter.fire();
 		return true;
 	}
@@ -161,6 +166,12 @@ class FakePart {
 			this.activeGroup = group;
 			this.onDidChangeActiveGroupEmitter.fire(group);
 		}
+	}
+	/** Moves `editor` from `source` to `target` as a real group does: it opens and activates there before it closes in `source`. */
+	async moveEditor(editor: EditorInput, source: FakeGroup, target: FakeGroup): Promise<void> {
+		target.open(editor);
+		this.activate(target);
+		await source.closeEditor(editor, EditorCloseContext.MOVE);
 	}
 	enforcePartOptions(options: unknown): IDisposable {
 		this.options = options;
@@ -1247,7 +1258,7 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('in Single, Close All keeps the draft of the composer used last for the next to take first, also across groups side by side, and also when a chat shows in front of it', async () => {
+	test('in Single, Close All keeps the draft of the composer used last for the next to take first, also across groups side by side, when a chat shows in front of it, or after it moved to another group', async () => {
 		/** D shows in the first group; E, kept from before, comes back with a composer beside it; then `then` goes on from there. */
 		const run = async (then: (fixture: ReturnType<typeof createService>) => Promise<void>) => {
 			const d = createChatWindowComposerResource();
@@ -1285,9 +1296,16 @@ suite('AgentsChatPartService', () => {
 				await service.openComposer(undefined, { sideBySide: true });
 				await service.openChat(session, chatA);
 			}),
+			// The user goes back to D and moves it beside E: it stays the composer used last, and its draft is kept once
+			movedD: await run(async ({ service, part }) => {
+				await service.openComposer(undefined, { sideBySide: true });
+				part.activate(part.groups[0]);
+				await part.moveEditor(part.groups[0].activeEditor!, part.groups[0], part.groups[1]);
+			}),
 		}, {
 			backToD: { groups: [1, 1], next: ['D', 'E', ''] },
 			chatInFrontOfD: { groups: [2, 1], next: ['E', 'D', ''] },
+			movedD: { groups: [0, 2], next: ['D', 'E', ''] },
 		});
 	});
 
