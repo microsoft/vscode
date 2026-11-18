@@ -33,7 +33,7 @@ suite('ExtensionEditor', () => {
 
 	const manifest: IExtensionManifest = { name: 'extension', publisher: 'pub', version: '1.0.0', engines: { vscode: '*' } };
 
-/**
+	/**
 	 * Creates an editor, with what its actions and widgets use to show extensions that aren't installed, which shows the
 	 * actions that `getMenuActions` returns for the context menu of extensions in its Manage action, and which learns from
 	 * `extensionUsesAuth` whether extensions use authentication.
