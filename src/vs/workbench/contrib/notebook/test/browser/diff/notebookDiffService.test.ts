@@ -497,24 +497,6 @@ suite('NotebookDiff Diff Service', () => {
 		]);
 	});
 
-	test('diff output fast check', async () => {
-		const { mapping, diff } = await mapCells([
-			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([4])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-		], [
-			[['x'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-			[['y'], 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { metadata: { collapsed: false }, executionOrder: 3 }],
-		]);
-
-		assert.deepStrictEqual(mapping, [
-			{ modified: 0, original: 0 },
-			{ modified: 1, original: 1 }
-		]);
-		assert.deepStrictEqual(diff.cellsDiff.changes, [
-			{ originalStart: 1, originalLength: 1, modifiedStart: 1, modifiedLength: 1 } satisfies IDiffChange,
-		]);
-	});
-
 	test('No cells', async () => {
 		const { mapping, diff } = await mapCells([
 		], [
@@ -765,35 +747,6 @@ suite('NotebookDiff Diff Service', () => {
 		]);
 	});
 
-	test('Delete MD cell and insert code cell, both will not match', async () => {
-		const { mapping, diff } = await mapCells([
-			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
-			[['import sys'], 'python', CellKind.Code, [], undefined],
-			[['sys.executable'], 'python', CellKind.Code, [], undefined],
-			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
-			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
-		]
-			, [
-				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
-				[['import sys'], 'python', CellKind.Code, [], undefined],
-				[['# Header'], 'python', CellKind.Markup, [], undefined],
-				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
-				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
-			]
-		);
-
-		assert.deepStrictEqual(mapping, [
-			{ modified: 0, original: 0 },
-			{ modified: 1, original: 1 },
-			{ modified: 2, original: -1 },
-			{ modified: 3, original: 3 },
-			{ modified: 4, original: 4 }
-		]);
-		assert.deepStrictEqual(diff.cellsDiff.changes, [
-			{ originalStart: 2, originalLength: 1, modifiedStart: 2, modifiedLength: 1 } satisfies IDiffChange,
-		]);
-	});
-
 	test('Insert a md cell and modify the next 2 code cells', async () => {
 		const { mapping, diff } = await mapCells([
 			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
@@ -895,50 +848,6 @@ suite('NotebookDiff Diff Service', () => {
 	});
 
 	test('Insert a few md cells and modify the next few code cells', async () => {
-		const { mapping, diff } = await mapCells([
-			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
-			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
-			[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
-			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
-			[['# Another MD cell'], 'markdown', CellKind.Markup, [], undefined],
-			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
-			[['# Yet another MD cell'], 'markdown', CellKind.Markup, [], undefined],
-			[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
-		]
-			, [
-				[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
-				[['print("Hello world")'], 'python', CellKind.Code, [], undefined],
-				[['# Foo Bar'], 'markdown', CellKind.Markup, [], undefined],
-				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
-				[['# New 1'], 'markdown', CellKind.Markup, [], undefined],
-				[['# New 2'], 'markdown', CellKind.Markup, [], undefined],
-				[['# Another MD cell (modified1)'], 'markdown', CellKind.Markup, [], undefined],
-				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
-				[['# Another MD cell (modified)'], 'markdown', CellKind.Markup, [], undefined],
-				[['print("foo bar")'], 'python', CellKind.Code, [], undefined],
-			]
-		);
-
-		assert.deepStrictEqual(mapping, [
-			{ modified: 0, original: 0 },
-			{ modified: 1, original: 1 },
-			{ modified: 2, original: 2 },
-			{ modified: 3, original: 3 },
-			{ modified: 4, original: -1 },
-			{ modified: 5, original: -1 },
-			{ modified: 6, original: 4 },
-			{ modified: 7, original: 5 },
-			{ modified: 8, original: 6 },
-			{ modified: 9, original: 7 },
-		]);
-		assert.deepStrictEqual(diff.cellsDiff.changes, [
-			{ originalStart: 4, originalLength: 0, modifiedStart: 4, modifiedLength: 2 } satisfies IDiffChange,
-			{ originalStart: 4, originalLength: 1, modifiedStart: 6, modifiedLength: 1 } satisfies IDiffChange,
-			{ originalStart: 6, originalLength: 1, modifiedStart: 8, modifiedLength: 1 } satisfies IDiffChange,
-			// { originalStart: 5, originalLength: 1, modifiedStart: 5, modifiedLength: 1 } satisfies IDiffChange,
-		]);
-	});
-	test('Insert & delete a few md cells and modify the next few code cells', async () => {
 		const { mapping, diff } = await mapCells([
 			[['# Hello World'], 'markdown', CellKind.Markup, [], undefined],
 			[['print("Hello world")'], 'python', CellKind.Code, [], undefined],

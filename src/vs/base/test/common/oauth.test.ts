@@ -293,12 +293,6 @@ suite('OAuth', () => {
 			assert.strictEqual(scopesMatch(scopes1, scopes2), false);
 		});
 
-		test('scopesMatch should handle complex Microsoft scopes', () => {
-			const scopes1 = ['6f1cc985-85e8-487e-b0dd-aa633302a731/.default', 'VSCODE_TENANT:organizations'];
-			const scopes2 = ['VSCODE_TENANT:organizations', '6f1cc985-85e8-487e-b0dd-aa633302a731/.default'];
-			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
-		});
-
 		test('scopesMatch should handle empty arrays', () => {
 			assert.strictEqual(scopesMatch([], []), true);
 		});

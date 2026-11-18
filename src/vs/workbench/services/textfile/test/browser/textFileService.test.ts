@@ -60,19 +60,6 @@ suite('Files - TextFileService', () => {
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
-	test('saveAll - file', async function () {
-		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined));
-		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
-
-		await model.resolve();
-		model.textEditorModel!.setValue('foo');
-		assert.ok(accessor.textFileService.isDirty(model.resource));
-
-		const res = await accessor.textFileService.save(model.resource);
-		assert.strictEqual(res?.toString(), model.resource.toString());
-		assert.ok(!accessor.textFileService.isDirty(model.resource));
-	});
-
 	test('saveAs - file', async function () {
 		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined));
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);

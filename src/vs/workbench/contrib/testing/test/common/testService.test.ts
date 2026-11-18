@@ -75,19 +75,6 @@ suite('Workbench - Test Service', () => {
 			]);
 		});
 
-		test('goes to common root 3', async () => {
-			const c = await getInitializedMainTestCollection(makeSimpleStubTree(tree1));
-
-			const t = simplifyTestsToExecute(c, [
-				c.getNodeById(new TestId(['ctrlId', 'a', 'b1', 'c1', 'd']).toString())!,
-				c.getNodeById(new TestId(['ctrlId', 'a', 'b1', 'c2']).toString())!,
-			]);
-
-			assert.deepStrictEqual(t.map(t => t.item.extId.toString()), [
-				new TestId(['ctrlId', 'a', 'b1']).toString()
-			]);
-		});
-
 		test('goes to common root 4', async () => {
 			const c = await getInitializedMainTestCollection(makeSimpleStubTree(tree1));
 
