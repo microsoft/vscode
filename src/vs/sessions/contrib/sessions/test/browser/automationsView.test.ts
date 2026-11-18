@@ -62,6 +62,9 @@ import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderC
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
+import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -76,6 +79,7 @@ import { buildAutomationsAccessibleContent } from '../../browser/views/automatio
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
+import { AUTOMATIONS_TOUR_ID, createAutomationsTour } from '../../../onboardingTours/browser/tours/automationsTour.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -854,6 +858,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IAutomationRunner, runner);
 		stubSessionsService(instantiationService, sessionsService);
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(IOnboardingScenarioService, { shouldShowNudge: () => false });
 		instantiationService.stub(ISessionDraftsService, { enabled: constObservable(false) });
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
@@ -1398,6 +1403,45 @@ suite('AutomationsCardsWidget', () => {
 			],
 		});
 	});
+
+	for (const outcome of [OnboardingOutcome.Completed, OnboardingOutcome.Skipped, OnboardingOutcome.Dismissed, OnboardingOutcome.Aborted]) {
+		test(`Create with Agent explains before touching the draft and handles ${outcome}`, async () => {
+			const { commandService, dialogService, instantiationService } = setup();
+			disposables.add(onboardingScenarioRegistry.register(createAutomationsTour()));
+			instantiationService.stub(INewSessionComposerService, { hasDraftInput: true });
+			dialogService.promptButtonIndex = 0;
+			const execute = stub(commandService, 'executeCommand').resolves();
+			disposables.add(toDisposable(() => execute.restore()));
+			const introduction = new DeferredPromise<OnboardingOutcome>();
+			const tours: string[] = [];
+			let eligible = true;
+			instantiationService.stub(IOnboardingScenarioService, {
+				shouldShowNudge: () => eligible,
+				runScenario: (id: string) => {
+					tours.push(id);
+					eligible = false;
+					return introduction.p;
+				},
+			});
+			const invoke = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
+			const firstClick = invoke();
+			await invoke();
+			const whileShowing = { prompts: dialogService.prompts.length, commands: execute.callCount };
+			await introduction.complete(outcome);
+			await firstClick;
+			const afterDismissal = { prompts: dialogService.prompts.length, commands: execute.callCount };
+			await invoke();
+
+			const continues = outcome === OnboardingOutcome.Completed || outcome === OnboardingOutcome.Aborted;
+			assert.deepStrictEqual({ tours, whileShowing, afterDismissal, prompts: dialogService.prompts.length, commands: execute.args }, {
+				tours: [AUTOMATIONS_TOUR_ID],
+				whileShowing: { prompts: 0, commands: 0 },
+				afterDismissal: { prompts: continues ? 1 : 0, commands: continues ? 1 : 0 },
+				prompts: continues ? 2 : 1,
+				commands: Array.from({ length: continues ? 2 : 1 }, () => ['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }]),
+			});
+		});
+	}
 
 	for (const content of ['empty', 'text', 'attachment', 'mounted'] as const) {
 		for (const choice of ['cancel', 'replace', 'view'] as const) {
@@ -6282,6 +6326,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.startsWith('Create with Agent')), [
 			'Create with Agent opens a new session with /automate prefilled and the input focused. It is the only creation button in the empty state. Once an automation exists, Create with Agent moves to the view header and is followed by a secondary Create Manually split button. Activate Create Manually to open the automation dialog, or use its adjacent More Actions dropdown to import an automation. Use Left Arrow and Right Arrow to move between header actions and the parts of the split button. Press Enter or Space to activate a control. Create Manually remains available while chat is not ready.',
 		]);
+		assert.ok(provider.provideContent().includes('Activate Got It or the highlighted button to continue to the new session draft, or press Escape to dismiss it and stay in Automations.'));
 		assert.ok(provider.provideContent().includes('Existing attachments are kept. Choose View Draft to return to the new session page without changing the draft, or Cancel to stay in Automations.'));
 	});
 
