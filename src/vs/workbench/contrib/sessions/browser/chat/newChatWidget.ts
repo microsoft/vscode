@@ -3589,17 +3589,32 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
+	/** The environment that runs a provider's sessions, also before the Environment picker lists it. */
+	private _getProviderEnvironment(providerId: string): ISessionCreationEnvironment | undefined {
+		const environment = this._environments.get().find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
+		if (environment) {
+			return environment;
+		}
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		return provider && getRemoteSessionCreationEnvironment(provider);
+	}
+
+	/** Starts in the environment of a provider's sessions, as choosing it in the Environment picker does. */
+	selectEnvironment(providerId: string): WorkspaceSelectionResult {
+		const environment = this._environment.get() && this._getProviderEnvironment(providerId);
+		if (!environment) {
+			return 'notReady';
+		}
+		this._selectEnvironment(environment).catch(onUnexpectedError);
+		return 'applied';
+	}
+
 	private _reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions): void {
 		const providerId = options.providerId;
 		if (!providerId || !this._environment.get()) {
 			return;
 		}
-		const environments = this._environments.get();
-		let environment = environments.find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
-		if (!environment) {
-			const provider = this.sessionsProvidersService.getProvider(providerId);
-			environment = provider && getRemoteSessionCreationEnvironment(provider);
-		}
+		const environment = this._getProviderEnvironment(providerId);
 		if (environment) {
 			this._pickedEnvironment.set(options.preferDevContainer
 				? { ...environment, id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }
