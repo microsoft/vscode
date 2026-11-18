@@ -45,15 +45,6 @@ suite('Agent Host Session Artifacts', () => {
 		]);
 	});
 
-	test('keeps the category a host lists an entry under', () => {
-		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
-			{ id: 'card', type: SessionArtifactType.Resource, label: 'Card', isArtifact: true, uri: 'airlock:/decisions/1', category: 'Questions' },
-			{ id: 'docs', type: SessionArtifactType.Website, label: 'Docs', isArtifact: true, link: 'https://example.com/docs' },
-		]));
-
-		assert.deepStrictEqual(result.entries.map(({ artifact }) => [artifact.id, artifact.category]), [['docs', undefined], ['card', 'Questions']]);
-	});
-
 	test('maps persisted Windows file paths without interpreting the drive as a URI scheme', () => {
 		const fileUri = URI.file('C:/Users/test/.copilot/session-state/sdk-session/files/report.md');
 		const authority = 'remote-host';

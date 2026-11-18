@@ -455,13 +455,10 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
  * the order they arrive in, which is newest first, so each section opens on
  * what the session recorded last. Websites the browsers pill already lists are
  * left out, so the same page is offered once across the pills, unless an
- * integration presents them. An entry with a category is listed in a section
- * named by it, after those of the kinds, in the order of their newest entries;
- * images keep their own sections, where they open in the image carousel.
+ * integration presents them.
  */
 export function buildSessionArtifactSections(artifacts: readonly ISessionArtifactPresentation[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: GitHubResourceDetailsResolver, reader?: IReader, commitHoverCache?: ChatPillHoverCache): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
-	const entriesByCategory = new Map<string, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const generatedImages = new Map(artifacts.flatMap(artifact => artifact.generatedImageMimeType
 		? [[artifactValueKey(artifact), artifact] as const]
@@ -493,12 +490,6 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 			continue;
 		}
 		seen.add(artifactValueKey(artifact));
-		if (artifact.category) {
-			const entries = entriesByCategory.get(artifact.category) ?? [];
-			entries.push(entry);
-			entriesByCategory.set(artifact.category, entries);
-			continue;
-		}
 		const entries = entriesByKind.get(artifact.kind) ?? [];
 		entries.push(entry);
 		entriesByKind.set(artifact.kind, entries);
@@ -557,9 +548,6 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		if (entries?.length) {
 			sections.push({ title, entries });
 		}
-	}
-	for (const [title, entries] of entriesByCategory) {
-		sections.push({ title, entries });
 	}
 	return sections;
 }
