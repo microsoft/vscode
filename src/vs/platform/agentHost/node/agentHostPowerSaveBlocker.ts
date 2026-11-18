@@ -20,6 +20,15 @@ interface IAgentHostPowerBackend {
 	readonly killOnDispose: boolean;
 }
 
+interface ILinuxPowerSupply {
+	readonly type: string;
+	readonly scope?: string;
+	readonly online?: string;
+	readonly status?: string;
+}
+
+const linePowerSupplyTypes = new Set(['Mains', 'USB', 'USB_C', 'USB_PD', 'USB_PD_DRP', 'Wireless', 'UPS']);
+
 const nativePowerBackend: IAgentHostPowerBackend = {
 	start: startNativePowerSaveBlocker,
 	isOnBatteryPower: async () => !isWindows && isOnBatteryPower(),
@@ -108,7 +117,7 @@ export function startNativePowerSaveBlocker(allowOnBattery: boolean): ChildProce
 	if (isLinux) {
 		// --no-ask-password requires systemd 257. Piped stdin already prevents its
 		// interactive polkit agent from starting. cat exits when our stdin closes.
-		return spawn('systemd-inhibit', ['--what=idle', '--mode=block', '--who=VS Code Agent Host', '--why=An agent is working', '/bin/cat'], { stdio: ['pipe', 'ignore', 'pipe'] });
+		return spawn('systemd-inhibit', ['--what=idle', '--mode=block', '--who=VS Code Agent Host', '--why=An agent is working', 'cat'], { stdio: ['pipe', 'ignore', 'pipe'] });
 	}
 	if (isWindows) {
 		const systemRoot = process.env['SystemRoot'];
@@ -136,31 +145,61 @@ async function isOnBatteryPower(): Promise<boolean> {
 	}
 	if (isLinux) {
 		const supplies = '/sys/class/power_supply';
+		const powerSupplies: ILinuxPowerSupply[] = [];
 		for (const entry of await readdir(supplies)) {
 			const path = join(supplies, entry);
-			if ((await readFile(join(path, 'type'), 'utf8')).trim() !== 'Battery') {
+			const type = await readOptionalFile(join(path, 'type'));
+			if (!type) {
 				continue;
 			}
-			try {
-				if ((await readFile(join(path, 'scope'), 'utf8')).trim() === 'Device') {
-					continue;
-				}
-			} catch (error) {
-				if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-					throw error;
-				}
+			const scope = await readOptionalFile(join(path, 'scope'));
+			if (scope === 'Device') {
+				continue;
 			}
-			const status = (await readFile(join(path, 'status'), 'utf8')).trim();
-			if (status === 'Discharging') {
-				return true;
-			}
-			if (status !== 'Charging' && status !== 'Full' && status !== 'Not charging') {
-				throw new Error(`Unknown battery status: ${status}`);
+			if (linePowerSupplyTypes.has(type)) {
+				powerSupplies.push({ type, scope, online: await readOptionalFile(join(path, 'online')) });
+			} else if (type === 'Battery') {
+				powerSupplies.push({ type, scope, status: await readOptionalFile(join(path, 'status')) });
 			}
 		}
-		return false;
+		return isOnBatteryPowerFromLinuxSupplies(powerSupplies);
 	}
 	throw new Error('Power source detection is not supported on this platform');
+}
+
+async function readOptionalFile(path: string): Promise<string | undefined> {
+	try {
+		return (await readFile(path, 'utf8')).trim();
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
+export function isOnBatteryPowerFromLinuxSupplies(supplies: readonly ILinuxPowerSupply[]): boolean {
+	let hasOfflineLinePower = false;
+	let hasDischargingBattery = false;
+	for (const supply of supplies) {
+		if (supply.scope === 'Device') {
+			continue;
+		}
+		if (linePowerSupplyTypes.has(supply.type)) {
+			if (supply.online === '1') {
+				return false;
+			}
+			if (supply.online === '0') {
+				hasOfflineLinePower = true;
+			}
+		} else if (supply.type === 'Battery' && supply.status === 'Discharging') {
+			hasDischargingBattery = true;
+		}
+	}
+	if (hasOfflineLinePower || hasDischargingBattery) {
+		return true;
+	}
+	throw new Error('Power source is unknown');
 }
 
 // Keep the native call on one thread. ES_SYSTEM_REQUIRED inhibits idle system

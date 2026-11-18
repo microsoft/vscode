@@ -12,7 +12,7 @@ import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostPowerSaveBlocker, startNativePowerSaveBlocker } from '../../node/agentHostPowerSaveBlocker.js';
+import { AgentHostPowerSaveBlocker, isOnBatteryPowerFromLinuxSupplies, startNativePowerSaveBlocker } from '../../node/agentHostPowerSaveBlocker.js';
 
 async function runNativeHelper(waitForReady: boolean): Promise<{ code: number | null; stdout: string; stderr: string }> {
 	const child = startNativePowerSaveBlocker(true);
@@ -136,6 +136,27 @@ suite('AgentHostPowerSaveBlocker', () => {
 			await timeout(30_000);
 			assert.strictEqual(children.length, 2);
 		});
+	});
+
+	test('Linux power detection trusts line-power readings and treats unconfirmed power conservatively', () => {
+		assert.strictEqual(isOnBatteryPowerFromLinuxSupplies([
+			{ type: 'Mains', online: '1' },
+			{ type: 'Battery', status: 'Discharging' },
+		]), false);
+		assert.strictEqual(isOnBatteryPowerFromLinuxSupplies([
+			{ type: 'USB_C', online: '0' },
+			{ type: 'Battery', status: 'Full' },
+		]), true);
+		assert.strictEqual(isOnBatteryPowerFromLinuxSupplies([
+			{ type: 'Battery', status: 'Discharging' },
+		]), true);
+		assert.throws(() => isOnBatteryPowerFromLinuxSupplies([
+			{ type: 'Battery', status: 'Full' },
+		]), /Power source is unknown/);
+		assert.throws(() => isOnBatteryPowerFromLinuxSupplies([
+			{ type: 'Battery', scope: 'Device', status: 'Discharging' },
+		]), /Power source is unknown/);
+		assert.throws(() => isOnBatteryPowerFromLinuxSupplies([]), /Power source is unknown/);
 	});
 
 	test('a failed or unexpectedly exited helper logs and is retried while work continues', async () => {

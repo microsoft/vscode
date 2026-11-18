@@ -35,6 +35,7 @@ import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingEnvVar } from '../common/ahpJsonlLogger.js';
 import { AgentHostWakeNetworkMonitor } from '../common/agentHostWakeNetworkMonitor.js';
+import { AgentHostElectronPowerSaveBlocker } from './agentHostPowerSaveBlocker.js';
 
 /** The distributed notification macOS posts when it changes which apps it trusts for Accessibility. */
 const MacAccessibilityTrustChangedNotification = 'com.apple.accessibility.api';
@@ -249,6 +250,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 
 			const store = new DisposableStore();
 			store.add(exitDiagnostics);
+			const powerSaveBlocker = store.add(new AgentHostElectronPowerSaveBlocker(this._logService));
+			store.add(utilityProcess.onMessage(message => powerSaveBlocker.handleMessage(message)));
 			this._managementService = managementService;
 			store.add(toDisposable(() => {
 				if (this._managementService === managementService) {
