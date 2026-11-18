@@ -27,7 +27,7 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { DesktopEditorHeaderLayoutContext, HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
@@ -699,14 +699,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							ContextKeyExpr.or(
 								HasDockedDetailsContext,
 								toggleMultiDiffEditorFileListContext,
-								// With the editor header layout, the Changes tab also keeps the toggle while a
-								// session switch replaces the Changes editor, matching the changeset picker in
-								// the header.
-								ContextKeyExpr.and(
-									DesktopEditorHeaderLayoutContext,
-									ContextKeyExpr.or(
-										ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-										DesktopChangesEditorTransitionContext))))
+								// The Changes tab also keeps the toggle while a session switch replaces the
+								// Changes editor, matching the changeset picker in the header.
+								ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+								DesktopChangesEditorTransitionContext))
 					}
 				});
 			}
