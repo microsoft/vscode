@@ -101,7 +101,7 @@ export const sessionsListConfigurationProperties = {
 		type: 'boolean',
 		tags: ['experimental', 'advanced'],
 		description: localize('sessions.list.indentItems', "Controls whether sessions and other rows in the sessions list are indented below their section header to show the list's hierarchy."),
-		default: false,
+		default: true,
 		experiment: { mode: 'auto' }
 	},
 	[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
