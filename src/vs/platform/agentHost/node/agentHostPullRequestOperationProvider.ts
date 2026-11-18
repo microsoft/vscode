@@ -26,6 +26,7 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../common/meta/agentPullRequestOperationMeta.js';
 import { persistSessionMetadataValues, SESSION_ARTIFACTS_KEY } from './shared/persistSessionMetadata.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 export class AgentHostPullRequestOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -42,6 +43,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostTelemetryReporter private readonly _telemetryReporter: AgentHostTelemetryReporter,
 	) {
 		super();
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => this._lastAdvertisedOperations.delete(sessionKey)));
@@ -275,12 +277,25 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 		});
 		// The pull request belongs to the folder it was created from.
 		const folder = resolveGitHubStateFolder(this._stateManager, event.ownerUri);
-		await artifacts.mutate(collection => collection.addOrPromoteArtifact({
+		const { artifact, outcome } = await artifacts.mutate(collection => collection.addOrPromoteArtifact({
 			type: SessionArtifactType.PullRequest,
 			label: event.pullRequestTitle ?? '',
 			isArtifact: true,
 			link: event.pullRequestUrl,
 		}, generateUuid));
+		this._telemetryReporter.artifactRecorded({
+			provider: this._stateManager.getSessionSummary(sessionKey)?.provider,
+			session: sessionKey,
+			chat,
+			turnId: undefined,
+			toolCallId: undefined,
+			source: 'createPullRequestAction',
+			kind: artifact.type,
+			isArtifact: true,
+			outcome,
+			isGitHub: artifact.isGitHub === true,
+			batchSize: 1,
+		});
 
 		const gitHubState = readFolderGitHubState(this._stateManager.getSessionState(sessionKey)?._meta, folder.folderKey);
 		await this._gitStateService.setSessionGitHubState(event.ownerUri, withMostRecentRelatedSessionPullRequest(gitHubState, event.pullRequestUrl, event.branchName));

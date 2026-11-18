@@ -745,6 +745,16 @@ Four events from `node/copilot/copilotComputerUseTelemetry.ts` track Computer Us
 - `agentHost.computerUsePluginInstall` is reported for each download of the plugin, with the result, the HTTP status of a refused download, the duration, the pinned version and the build.
 - `agentHost.computerUseSetup` is reported when a macOS permission setup becomes ready or ends, also when Computer Use is turned off while it waits. It has the reason, the permissions missing at its start and at its end, how many times the plugin asked and the duration.
 
+#### Artifact telemetry
+
+Recording, promoting and removing artifacts and references is reported without labels, links or URIs:
+
+- `agentHost.artifactRecorded` is reported once per entry an `add_artifact_or_reference` call or the Create Pull Request action records, after the change is persisted. It has the entry's kind, the classification that was requested, and the `outcome` from `SessionArtifactCollection.addOrPromoteArtifact`: `added`, `promoted`, `modeUpdated` or `alreadyRecorded`. An existing artifact is never downgraded, so a reference request can report `alreadyRecorded` for an artifact. Tool calls carry their `toolCallId`, to join with `agentHost.toolInvoked`, and the client and account of their turn.
+- `agentHost.artifactRemoved` is reported for each entry removed by `remove_artifact_or_reference` (`initiator` `agentTool`) or by the user through `vscode/removeSessionArtifact` (`user`). The protocol handler reads the entry before removing it. User removal comes from an open session, whose state is loaded.
+- `agentHost.sessionSummary` adds what the session had recorded across its chats when the summary was sent: artifact and reference counts, by pull request and issue, and the session's own pull requests by how they were recorded. Own pull requests are those of `getSessionRelatedPullRequestUrls` across the session's folders, compared by `getPullRequestUrlKey`. Use these rather than a pull request count that includes references, which grows when an agent records a pull request as a reference. The counts are absent when the session's state is no longer loaded, such as on deletion.
+
+Sessions started from a pull request record that pull request when the session is created, which is not reported as a recording.
+
 #### Session pre-warming
 
 Behind the `chat.agentHost.experimental.prewarmSessions` setting, an idle provisional draft can launch its SDK session and start its MCP servers before the first send (`IAgentChats.warmChat`). `AgentHostSessionPrewarmer` (`node/agentHostSessionPrewarmer.ts`) decides when: the provider must support warming, the draft must have an active client and resolved customization enablement, and every launch folder, including additional multi-root folders, must be trusted. A missing trust configuration counts as untrusted; workspace-less drafts skip the trust check because their scratch folder has no workspace content. Ephemeral and imported drafts never warm. The experiment trigger is logged only after these gates, in both arms.

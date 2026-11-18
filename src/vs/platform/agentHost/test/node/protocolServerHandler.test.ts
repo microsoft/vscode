@@ -56,6 +56,7 @@ import { CapturingTelemetryService } from '../../../telemetry/test/common/testTe
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -2710,6 +2711,30 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 20, result: null },
 			calls: [{ session: 'copilotcli:/session-1', artifactId: 'artifact-1' }],
 		});
+	});
+
+	test('reports the entry a user removed, as it was before removal', async () => {
+		stateManager.createSession(makeSessionSummary());
+		stateManager.setSessionMeta(sessionUri, withSessionArtifacts(undefined, [
+			{ id: 'artifact-1', type: SessionArtifactType.PullRequest, label: 'Fix', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true },
+		]));
+		const transport = connectClient('client-remove-artifact-telemetry');
+		const removed = waitForResponse(transport, 20);
+		const unknown = waitForResponse(transport, 21);
+		transport.simulateMessage(request(20, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'artifact-1' }));
+		transport.simulateMessage(request(21, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'missing' }));
+		await Promise.all([removed, unknown]);
+
+		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.artifactRemoved').map(event => event.data), [{
+			provider: 'copilot',
+			agentSessionId: 'test-session',
+			turnId: undefined,
+			toolCallId: undefined,
+			initiator: 'user',
+			kind: SessionArtifactType.PullRequest,
+			category: 'artifact',
+			isGitHub: true,
+		}]);
 	});
 
 	test('rejects invalid artifact removal extension params before routing', async () => {
