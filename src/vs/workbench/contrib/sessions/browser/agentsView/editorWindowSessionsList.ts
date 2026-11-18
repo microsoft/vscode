@@ -3,37 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
-import { localize } from '../../../../../nls.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
-import { Extensions as ViewExtensions, IViewContainerDescriptor, IViewDescriptor, IViewsRegistry, ViewContainerLocation, WindowEnablement } from '../../../../common/views.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { CHAT_OPEN_ACTION_ID } from '../../../chat/browser/actions/chatActions.js';
-import { ChatViewOpenKeybindings } from '../../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 import { SessionsGrouping } from '../views/sessionsList.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
-import { EditorWindowSessionsContext, ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
-import { AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from './agentsView.js';
-import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
+import { EditorWindowSessionsContext, ISessionsViewOptions, SessionsView } from '../views/sessionsView.js';
 
 /** The editor window's Sessions view groups only by time, environment or worktree, by time until one is chosen. */
 export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree], default: SessionsGrouping.Date };
-
-const SESSIONS_VIEW_TITLE = localize('editorWindowSessionsList.title', "Sessions");
 
 /** The services of the Sessions view, which its constructor takes after its options. */
 type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
@@ -68,179 +53,60 @@ export function createEditorWindowSessionsScope(owner: object, workspaceContextS
 }
 
 /**
- * Registers the Sessions view in `container`, and beside it the view that shows how to sign in or set up chat while it needs
- * that, which the Chat view offered before the Sessions view replaced it.
+ * The sessions list of an editor window, which the Chat view shows: the window marked as showing it
+ * ({@link EditorWindowSessionsContext}), the settings of the list, and, once the view of `viewId` or the chat part first shows,
+ * the actions of the list and of the sessions it shows, and `registerMore` of the caller, such as the actions of the chat part,
+ * which this does not know. `viewId` is the view whose first show registers them: the Sessions view, or the view that embeds
+ * it, such as the Chat view. All is undone with this.
  */
-export function registerEditorWindowSessionsViews(container: IViewContainerDescriptor, scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title'): IDisposable {
-	const store = new DisposableStore();
-	const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-	const common = {
-		name: container.title,
-		containerIcon: container.icon,
-		containerTitle: container.title.value,
-		singleViewPaneContainerTitle: SESSIONS_VIEW_TITLE,
-		canToggleVisibility: false,
-		canMoveView: false,
-		windowEnablement: WindowEnablement.Editor,
-	};
-	const views: IViewDescriptor[] = [
-		{ ...common, id: SessionsViewId, ctorDescriptor: new SyncDescriptor(createEditorWindowSessionsView(scoped, header)), when: AgentsViewWhen },
-		{ ...common, id: AGENTS_VIEW_SETUP_VIEW_ID, ctorDescriptor: new SyncDescriptor(AgentsViewSetupPane), when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup) },
-	];
-	viewsRegistry.registerViews(views, container);
-	store.add(toDisposable(() => viewsRegistry.deregisterViews(views, container)));
-	store.add(viewsRegistry.registerViewWelcomeContent(AGENTS_VIEW_SETUP_VIEW_ID, {
-		content: localize('editorWindowSessionsList.setup', "Sign in to see your agent sessions and start new ones.\n[Sign In](command:workbench.action.chat.triggerSetup)"),
-	}));
-	return store;
-}
+export class EditorWindowSessionsList extends Disposable {
 
-/**
- * What the sessions lists of a window share, however many hold them: the window marked as showing them
- * ({@link EditorWindowSessionsContext}), their settings, and, once one first shows, their actions and those of the sessions they
- * show. Registered with the first holder and disposed with the last.
- */
-let sharedSessionsList: { holders: number; readonly store: DisposableStore; actionsRegistered: boolean } | undefined;
-
-function holdSharedSessionsList(instantiationService: IInstantiationService): IDisposable {
-	if (!sharedSessionsList) {
-		const store = new DisposableStore();
-		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-		EditorWindowSessionsContext.bindTo(contextKeyService).set(true);
-		store.add(toDisposable(() => EditorWindowSessionsContext.bindTo(contextKeyService).reset()));
-		store.add(registerSessionsListConfiguration());
-		sharedSessionsList = { holders: 0, store, actionsRegistered: false };
+	constructor(
+		registerMore: () => IDisposable,
+		viewId: string,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+	) {
+		super();
+		EditorWindowSessionsContext.bindTo(this.contextKeyService).set(true);
+		this._register(toDisposable(() => EditorWindowSessionsContext.bindTo(this.contextKeyService).reset()));
+		this._register(registerSessionsListConfiguration());
+		this._register(this.registerOnFirstShown(viewId, () => {
+			this._register(registerSessionsListActions());
+			this._register(registerSessionsListReadStateMenus());
+			this._register(this.instantiationService.createInstance(SessionsArchiveActionsContribution));
+			this._register(registerMore());
+		}));
 	}
-	const shared = sharedSessionsList;
-	shared.holders++;
-	return toDisposable(() => {
-		if (--shared.holders === 0) {
-			if (sharedSessionsList === shared) {
-				sharedSessionsList = undefined;
+
+	/** Runs `register` once, as the view of `viewId` or the chat part, which shows sessions too, first shows. */
+	private registerOnFirstShown(viewId: string, register: () => void): IDisposable {
+		const firstShown = new DisposableStore();
+		const shown = () => {
+			if (!firstShown.isDisposed) {
+				firstShown.dispose();
+				register();
 			}
-			shared.store.dispose();
-		}
-	});
-}
-
-function registerSharedSessionsListActions(instantiationService: IInstantiationService): void {
-	const shared = sharedSessionsList;
-	if (!shared || shared.actionsRegistered) {
-		return;
-	}
-	shared.actionsRegistered = true;
-	shared.store.add(registerSessionsListActions());
-	shared.store.add(registerSessionsListReadStateMenus());
-	shared.store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
-}
-
-/**
- * Holds the sessions list of an editor window: its settings, the window marked as showing it ({@link EditorWindowSessionsContext}),
- * and its actions and those of the sessions it shows once the Sessions view or the chat part first shows, all shared with the
- * other holders of a window (such as the Agents view and the Chat view) until the last one goes. `registerMore` registers the
- * actions of this holder, such as of the chat part, which this does not know, as its view first shows.
- * `viewId` is the view whose first show registers them: the Sessions view, or the view that embeds it, such as the Chat view.
- */
-export function registerEditorWindowSessionsList(instantiationService: IInstantiationService, registerMore: () => IDisposable, viewId: string = SessionsViewId): IDisposable {
-	const store = new DisposableStore();
-	store.add(holdSharedSessionsList(instantiationService));
-	store.add(registerOnFirstShown(instantiationService, viewId, () => {
-		registerSharedSessionsListActions(instantiationService);
-		store.add(registerMore());
-	}));
-	return store;
-}
-
-/** Runs `register` once, as the view of `viewId` or the chat part, which shows sessions too, first shows. */
-function registerOnFirstShown(instantiationService: IInstantiationService, viewId: string, register: () => void): IDisposable {
-	const { viewsService, layoutService, lifecycleService } = instantiationService.invokeFunction(accessor => ({
-		viewsService: accessor.get(IViewsService),
-		layoutService: accessor.get(IWorkbenchLayoutService),
-		lifecycleService: accessor.get(ILifecycleService),
-	}));
-	const firstShown = new DisposableStore();
-	const shown = () => {
-		if (!firstShown.isDisposed) {
-			firstShown.dispose();
-			register();
-		}
-	};
-	firstShown.add(viewsService.onDidChangeViewVisibility(e => {
-		if (e.id === viewId && e.visible) {
-			shown();
-		}
-	}));
-	firstShown.add(layoutService.onDidChangePartVisibility(e => {
-		if (e.partId === Parts.CHAT_PART && e.visible) {
-			shown();
-		}
-	}));
-	// Either restores shown with the window, without a change of its visibility
-	void lifecycleService.when(LifecyclePhase.Restored).then(() => {
-		if (viewsService.isViewVisible(viewId) || layoutService.isVisible(Parts.CHAT_PART)) {
-			shown();
-		}
-	});
-	return firstShown;
-}
-
-/**
- * The chat part replaces the Chat view: the Chat view does not show (`ChatContextKeys.agentsViewActive`) where the Sessions
- * view or its sign-in view can show ({@link AgentsViewAvailable}), so that no state hides it without a replacement; the keys
- * that open it open the chat part; and the Secondary Side Bar, which shows the Chat view by default, does not show empty.
- */
-export function registerEditorWindowChatViewReplacement(instantiationService: IInstantiationService): IDisposable {
-	const store = new DisposableStore();
-	const { contextKeyService, layoutService, paneCompositeService, lifecycleService, extensionService } = instantiationService.invokeFunction(accessor => ({
-		contextKeyService: accessor.get(IContextKeyService),
-		layoutService: accessor.get(IWorkbenchLayoutService),
-		paneCompositeService: accessor.get(IPaneCompositePartService),
-		lifecycleService: accessor.get(ILifecycleService),
-		extensionService: accessor.get(IExtensionService),
-	}));
-
-	const active = ChatContextKeys.agentsViewActive.bindTo(contextKeyService);
-	const keys = new Set(AgentsViewAvailable.keys());
-	const update = () => active.set(contextKeyService.contextMatchesRules(AgentsViewAvailable));
-	update();
-	store.add(contextKeyService.onDidChangeContext(e => {
-		if (e.affectsSome(keys)) {
-			update();
-		}
-	}));
-	store.add(toDisposable(() => active.reset()));
-
-	store.add(KeybindingsRegistry.registerKeybindingRule({
-		...ChatViewOpenKeybindings,
-		id: CHAT_OPEN_ACTION_ID,
-		// Over the Chat view's own; not while chat is hidden or disabled, such as with AI features off
-		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.and(ChatContextKeys.agentsViewActive, AgentsViewAvailable),
-	}));
-
-	// The Secondary Side Bar shows the Chat view by default: without it, it can have nothing to show, then it does not show,
-	// also as it shows again, such as by its toggle. Its view containers are known once extensions registered theirs, which
-	// the bar of its containers waits for to hide the empty ones, as the Chat view's: it checks once the bar did.
-	const hideEmptyAuxiliaryBar = store.add(new RunOnceScheduler(() => {
-		if (layoutService.isVisible(Parts.AUXILIARYBAR_PART) && !paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length) {
-			layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-		}
-	}, 0));
-	void Promise.all([lifecycleService.when(LifecyclePhase.Restored), extensionService.whenInstalledExtensionsRegistered()]).then(() => {
-		if (store.isDisposed) {
-			return;
-		}
-		hideEmptyAuxiliaryBar.schedule();
-		store.add(layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.AUXILIARYBAR_PART && e.visible) {
-				hideEmptyAuxiliaryBar.schedule();
+		};
+		firstShown.add(this.viewsService.onDidChangeViewVisibility(e => {
+			if (e.id === viewId && e.visible) {
+				shown();
 			}
 		}));
-		store.add(paneCompositeService.onDidPaneCompositeClose(e => {
-			if (e.viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
-				hideEmptyAuxiliaryBar.schedule();
+		firstShown.add(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.CHAT_PART && e.visible) {
+				shown();
 			}
 		}));
-	});
-	return store;
+		// Either restores shown with the window, without a change of its visibility
+		void this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			if (this.viewsService.isViewVisible(viewId) || this.layoutService.isVisible(Parts.CHAT_PART)) {
+				shown();
+			}
+		});
+		return firstShown;
+	}
 }

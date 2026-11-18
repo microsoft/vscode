@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IOtlpLogRecord, OtlpLogLevelName } from '../common/otlp/otlpLogEmitter.js';
 import { withMessageReplacedTurn, withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
 import { readRuntimePluginEnablement } from '../common/meta/pluginEnablementMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
@@ -2295,6 +2296,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- MCP `mcp://` channel routing --------------------------------------
 
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void): IDisposable {
+		return this._providerService.subscribeMcpServerLogs(session, serverName, level, onRecords);
+	}
+
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
 		return this._providerService.handleMcpRequest(channel, method, params);
 	}
@@ -2331,6 +2336,12 @@ export class AgentService extends Disposable implements IAgentService {
 				return models;
 			},
 			getCreationDefaults: (source, sourceTurnId) => this._getServerToolCreationDefaults(source, sourceTurnId),
+			restoreChat: async (session, chat, credentials) => {
+				if (credentials && !this._isSessionRestored(session.toString())) {
+					credentials = await this._prepareColdRestoreCredentials(session.toString(), credentials);
+				}
+				await this._restoreSessionChat(session, chat, 'Message delivery', credentials);
+			},
 			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
 			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
 			canCreateSessions: provider => this._canCreateServerToolSessions(provider),
@@ -6975,10 +6986,10 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Restores a session and materializes one of its chats, including lazily restored peer chats. */
-	private async _restoreSessionChat(session: URI, chat: URI, operation: string): Promise<void> {
-		await this.restoreSession(session);
+	private async _restoreSessionChat(session: URI, chat: URI, operation: string, credentials?: IAgentHostCredentialSource): Promise<void> {
+		await this.restoreSession(session, undefined, credentials);
 		this._assertSessionOwnsChat(session, chat, operation);
-		await this._stateManager.resolveChatState(chat.toString());
+		await this._stateManager.resolveChatState(chat.toString(), credentials);
 	}
 
 	private _assertSessionOwnsChat(session: URI, chat: URI, operation: string): void {
@@ -14931,7 +14942,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let title = meta.summary ?? 'Session';
 		let isRead: boolean | undefined;
 		let defaultChatIsRead: boolean | undefined;
-		let isArchived: boolean | undefined;
+		let isArchived = meta.status === undefined ? undefined : isSessionStatusArchived(meta.status);
 		let persistedConfigValues: Record<string, unknown> | undefined;
 		let changes: ChangesSummary | undefined;
 		let gitMetadata: Record<string, string | undefined> | undefined;

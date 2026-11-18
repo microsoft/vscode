@@ -130,10 +130,14 @@ export function disableArtifactAutomation(
 	};
 }
 
-/** Whether an option can be turned on now. Turning an option off is always allowed. */
+/**
+ * Whether an option can be turned on now. Turning an option off is always allowed. While the resource refreshes, such as
+ * after every Autopilot change, its last known availability applies: automation only acts on current state.
+ */
 export function canEnableArtifactAutomationOption(contribution: Pick<ArtifactContributionSnapshot, 'view'>, option: ArtifactAutomationOption): boolean {
 	const available = contribution.view.automationAvailability.find(candidate => candidate.id === option.id);
-	return contribution.view.availability.kind === 'available' && available?.available === true && available.enablement?.enabled !== false
+	const availability = contribution.view.availability.kind;
+	return (availability === 'available' || availability === 'stale') && available?.available === true && available.enablement?.enabled !== false
 		&& (option.kind !== 'enum' || option.choices.some(choice => choice.value !== option.disabledValue));
 }
 

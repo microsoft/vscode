@@ -19,6 +19,7 @@ export function getNewSessionRepositoryConfigGroup(order: number, actionId: stri
  */
 export const Menus = {
 	MobileSessionsDrawerHeader: new MenuId('SessionsMobileSessionsDrawerHeader'),
+	MobileSessionsListActions: new MenuId('SessionsMobileSessionsListActions'),
 	NewSessionPlace: new MenuId('SessionsNewSessionPlace'),
 	CommandCenterSessionsHeader: new MenuId('SessionsCommandCenterSessionsHeader'),
 	CommandCenterSessionsItem: new MenuId('SessionsCommandCenterSessionsItem'),
@@ -33,7 +34,10 @@ export const Menus = {
 	SessionsViewEnvironment: new MenuId('SessionsViewEnvironment'),
 	SessionsViewSource: new MenuId('SessionsViewSource'),
 	SessionsViewHarness: new MenuId('SessionsViewHarness'),
+	SessionsViewWorktree: new MenuId('SessionsViewWorktree'),
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
+	/** When automation sessions also appear in the Sessions list, a submenu of {@link SessionsViewShow}. */
+	SessionsViewAutomations: new MenuId('SessionsViewAutomations'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	SidebarCustomizationsEntryPoint: new MenuId('SessionsSidebarCustomizationsEntryPoint'),
 	SidebarAgentHost: new MenuId('SessionsSidebarAgentHost'),
@@ -119,6 +123,14 @@ export const Menus = {
 } as const;
 
 export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarToolbar] as const;
+
+/** The groups of {@link Menus.SessionsViewShow}, top to bottom, each set apart by a separator. */
+export const SessionsViewShowGroup = {
+	/** Recent and All, for the groupings that cap their sections. */
+	Capping: '1_show',
+	/** Which sessions the list includes, in every grouping: automation sessions, done or archived sessions, and only sessions with scheduled messages. */
+	Visibility: '2_visibility',
+} as const;
 
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {

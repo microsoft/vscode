@@ -382,6 +382,12 @@ export interface ISessionsService extends ISessionGridPanes {
 
 	/** Prepare and atomically place sessions, moving existing leaves without replacing them. */
 	openSessionsAt(sessions: readonly ISession[], referenceSessionId: string | undefined, direction: SessionGridDirection, options?: IOpenSessionsOptions): Promise<void>;
+	/**
+	 * Prepare `session` and open it in the slot of `targetSessionId` (`undefined` for the new-session slot), in place of what
+	 * that slot shows, such as for a session dropped on the middle of its view. The slot keeps its place; a session the grid
+	 * shows elsewhere moves there. The session it replaces leaves the grid and can be reopened ({@link reopenLastClosedItem}).
+	 */
+	openSessionInSlot(session: ISession, targetSessionId: string | undefined, options?: IOpenSessionOptions): Promise<void>;
 	/** Open an ordered set in a balanced arrangement, retaining the included live views. */
 	openSessionsInGrid(sessions: readonly ISession[]): Promise<void>;
 	/** Opens exact chats, including multiple chats of one session, in a tiled grid. */
@@ -1748,6 +1754,40 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		};
 		if (options?.source && options.activate !== false) {
+			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, open);
+		} else {
+			await open();
+		}
+	}
+
+	async openSessionInSlot(session: ISession, targetSessionId: string | undefined, options?: IOpenSessionOptions): Promise<void> {
+		this._cancelRestore();
+		this._beginNavigation('explicit');
+		const token = this._startOpenSession();
+		const prepared = (await this.prepareGridSessions([session], token))?.[0];
+		if (!prepared || token.isCancellationRequested || !this._visibility.getSlot(targetSessionId) || !this.areGridSessionsCurrent([prepared])) {
+			return;
+		}
+		const open = async (attempt?: ISessionOpenTelemetryAttempt): Promise<void> => {
+			if (token.isCancellationRequested || !this._visibility.getSlot(targetSessionId) || !this.areGridSessionsCurrent([prepared])) {
+				return;
+			}
+			if (attempt) {
+				this.sessionOpenTelemetryService.sessionResolved(attempt, prepared.resource, prepared.providerId, this._activeGridSession()?.sessionId === prepared.sessionId, prepared.loading.get());
+			}
+			transaction(() => {
+				this._visibility.openInSlot(prepared, targetSessionId);
+				this._applyActiveChatSelection(prepared, options);
+				this._showSession(prepared, options);
+			});
+			if (!options?.preserveFocus) {
+				this._focusActivePane();
+			}
+			if (attempt) {
+				await this._waitForOpenSessionToLoad(prepared, token, attempt);
+			}
+		};
+		if (options?.source) {
 			await this.sessionOpenTelemetryService.withOpenRequest(options.source, token, open);
 		} else {
 			await open();

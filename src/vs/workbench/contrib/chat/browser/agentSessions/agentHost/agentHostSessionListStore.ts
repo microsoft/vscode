@@ -12,11 +12,11 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../../plat
 import { IAgentHostConnectionsService, IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, readSessionWorkspaceless, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { IObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, runOnChange } from '../../../../../../base/common/observable.js';
 import { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatIsArchivedChangedAction, ChatIsReadChangedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { isActionKnownToVersion } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
@@ -110,13 +110,6 @@ export class AgentHostSessionListStore extends Disposable {
 	/** Sessions already reported as having an unusable (non-local) project root. */
 	private readonly _reportedNonLocalProjects = new Set<string>();
 
-	/**
-	 * The locations the folder of a single-folder window was at since the window showed its workspace, such as a linked
-	 * checkout it moved to and back from: the same workspace, whose sessions stay listed while its folder moves. Removing a
-	 * session from the list disposes the content of its chats that are open, which turns them read-only.
-	 */
-	private readonly _folderLocations: URI[] = [];
-
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
 		private readonly _options: {
@@ -126,6 +119,12 @@ export class AgentHostSessionListStore extends Disposable {
 			readonly retainUnlistedProvider?: (provider: string) => boolean;
 			/** Retain unlisted sessions whose existence is owned by another inventory. */
 			readonly retainSession?: (session: URI) => boolean;
+			/**
+			 * Also lists a session whose project (repository root) is a folder of the window, such as one working in a
+			 * worktree of it, while true. A session without a workspace, such as a quick chat, stays unlisted: only the
+			 * Sessions list shows those.
+			 */
+			readonly matchProjectRoot?: IObservable<boolean>;
 		} = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
@@ -134,6 +133,18 @@ export class AgentHostSessionListStore extends Disposable {
 		super();
 
 		this._register(this._connection.onDidNotification(n => this._onNotification(n)));
+
+		// Matching by project narrows the list as it turns off, and widens it as it turns on, which only the host's list supplies
+		if (this._options.matchProjectRoot) {
+			this._register(runOnChange(this._options.matchProjectRoot, () => {
+				if (this._options.filterToWorkspace === false) {
+					return;
+				}
+				this._cacheValid = false;
+				this._filterEntriesToWorkspace();
+				void this.refresh(CancellationToken.None);
+			}));
+		}
 
 		// Sessions may have changed on the host while the connection was down.
 		if (this._connection.onDidReconnect) {
@@ -146,19 +157,17 @@ export class AgentHostSessionListStore extends Disposable {
 		// Re-fetch the session list whenever the set of VS Code workspace
 		// folders changes, since filtering depends on it. The agent host itself
 		// doesn't know which workspace this VS Code window has open.
-		this._trackFolderLocation();
 		const onDidChangeWorkspace = () => {
 			if (this._options.filterToWorkspace === false) {
 				return;
 			}
-			this._trackFolderLocation();
 			this._cacheValid = false;
 			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
 		};
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(onDidChangeWorkspace));
 		// Also as the window's workspace changes without its folders, such as as Save Workspace As turns a folder into a
-		// workspace file: the locations its folder had are no longer its own
+		// workspace file
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(onDidChangeWorkspace));
 	}
 
@@ -536,7 +545,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (this._options.filterToWorkspace === false) {
 			return true;
 		}
-		const inWorkspace = this._computeSessionInWorkspace(entry);
+		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary);
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
 		// nothing. Excluding one is legitimate, so only report the broken input, and
@@ -546,6 +555,35 @@ export class AgentHostSessionListStore extends Disposable {
 			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${entry.summary.project.uri}' and cannot be matched to a workspace folder`);
 		}
 		return inWorkspace;
+	}
+
+	/**
+	 * Whether the session's project is a folder of the window, while matching by project (`matchProjectRoot`). Not a session
+	 * of a multi-root workspace, which only the windows of its workspace file list, nor one without a workspace, which only
+	 * the Sessions list shows.
+	 */
+	private _matchesProjectRoot(summary: SessionSummary): boolean {
+		if (!summary.project?.uri || !this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta) || readSessionWorkspaceless(summary._meta)) {
+			return false;
+		}
+		const project = URI.parse(summary.project.uri);
+		const workspace = this._workspaceContextService.getWorkspace();
+		// Also the folder's own location while it is at another, such as a worktree of it: the window's workspace
+		return workspace.folders.some(folder => extUriBiasedIgnorePathCase.isEqual(project, folder.uri))
+			|| (!workspace.configuration && !!workspace.uri && extUriBiasedIgnorePathCase.isEqual(project, workspace.uri));
+	}
+
+	/**
+	 * While matching by project (`matchProjectRoot`), the session's first working directory, the folder it started in, which
+	 * alone matches it to a window: the folders its nested chats add later, also of other repositories, do not. `undefined`
+	 * for a session without a workspace or folder, and of a multi-root workspace, which match by all its folders as otherwise.
+	 */
+	private _firstWorkingDirectory(summary: SessionSummary): URI | undefined {
+		if (!this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta) || readSessionWorkspaceless(summary._meta)) {
+			return undefined;
+		}
+		const first = summary.workingDirectories?.[0];
+		return first ? URI.parse(first) : undefined;
 	}
 
 	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
@@ -562,36 +600,39 @@ export class AgentHostSessionListStore extends Disposable {
 			}
 			// An empty window shows every session; a single-folder (or other
 			// non-multi-root) window falls back to working-directory containment,
-			// also in the locations its folder had, as for any other session.
-			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories);
+			// or its primary location, as for any other session.
+			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders) || this._matchesPrimaryLocation(entry.summary, workingDirectories);
 		}
 		if (folders.length === 0) {
 			return true;
 		}
-		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories);
+		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesPrimaryLocation(entry.summary, workingDirectories);
 	}
 
-	private _trackFolderLocation(): void {
+	/**
+	 * Whether a session belongs to the primary location of the folder of a single-folder window while its folder is at another
+	 * location, such as a linked checkout: the sessions of the primary location stay listed, and removing one from the list
+	 * would dispose the content of its chats that are open, which turns them read-only. It does when its project, the root it
+	 * was started from, is the primary location, or when it works in it and its project is unknown or elsewhere, such as the main
+	 * worktree of a window opened on a checkout. A project only inside the primary location, such as a nested repository, is not
+	 * it, and at the primary location itself a session is listed by its working directory only.
+	 */
+	private _matchesPrimaryLocation(summary: SessionSummary, workingDirectories: readonly URI[]): boolean {
 		const workspace = this._workspaceContextService.getWorkspace();
-		if (workspace.configuration || !workspace.uri || workspace.folders.length !== 1) {
-			this._folderLocations.length = 0;
-			return;
+		const primary = workspace.uri;
+		if (workspace.configuration || !primary || workspace.folders.length !== 1 || extUriBiasedIgnorePathCase.isEqual(workspace.folders[0].uri, primary)) {
+			return false;
 		}
-		// Another workspace starts over: its folder is first at the workspace's own location
-		if (!this._folderLocations.some(location => extUriBiasedIgnorePathCase.isEqual(location, workspace.uri))) {
-			this._folderLocations.length = 0;
-			this._folderLocations.push(workspace.uri);
+		const project = summary.project?.uri ? URI.parse(summary.project.uri) : undefined;
+		if (project?.scheme === Schemas.file) {
+			if (extUriBiasedIgnorePathCase.isEqual(project, primary)) {
+				return true;
+			}
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(project, primary)) {
+				return false;
+			}
 		}
-		const location = workspace.folders[0].uri;
-		if (!this._folderLocations.some(known => extUriBiasedIgnorePathCase.isEqual(known, location))) {
-			this._folderLocations.push(location);
-		}
-	}
-
-	private _matchesAnyLocation(workingDirectories: readonly URI[]): boolean {
-		return workingDirectories.some(directory =>
-			this._folderLocations.some(location => extUriBiasedIgnorePathCase.isEqualOrParent(directory, location))
-		);
+		return workingDirectories.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, primary));
 	}
 
 	private _filterEntriesToWorkspace(): void {
@@ -626,7 +667,8 @@ export class AgentHostSessionListStore extends Disposable {
 	 * session and must not drop out of the list the moment it migrates.
 	 */
 	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
-		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const first = this._firstWorkingDirectory(summary);
+		const candidates = first ? [first] : summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		if (summary.project?.uri && readSessionMatchesByProjectRoot(summary._meta)) {
 			const project = URI.parse(summary.project.uri);
 			// A project can be a remote (e.g. `https://github.com/owner/repo`), whose

@@ -83,6 +83,18 @@ export interface ISessionTypePickerDelegate {
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
+/**
+ * Reveals the chat of a window that shows chat outside the Chat view, such as the Agents window, which shows the chat of
+ * its active session; see {@link IChatWidgetService.registerWidgetRevealer}.
+ */
+export interface IChatWidgetRevealer {
+	/**
+	 * Reveals the widget that commands that do not name one, such as Open Chat, act on, focusing its input unless
+	 * `preserveFocus` is true. `undefined` when the window has none, to reveal the last focused widget or the Chat view.
+	 */
+	revealWidget(preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
+}
+
 export interface IChatWidgetService {
 
 	readonly _serviceBrand: undefined;
@@ -123,9 +135,15 @@ export interface IChatWidgetService {
 	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean>;
 
 	/**
-	 * Reveals the last active widget, or creates a new chat if necessary.
+	 * Reveals the widget of a registered {@link IChatWidgetRevealer}, else the last active widget, or creates a new chat if
+	 * necessary.
 	 */
 	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
+	/**
+	 * Makes {@link revealWidget} reveal the widget that `revealer` reveals, before the last active widget or the Chat view.
+	 */
+	registerWidgetRevealer(revealer: IChatWidgetRevealer): IDisposable;
 
 	/**
 	 * Shows the host of the Chat view's chats ({@link IChatViewHostService}): the Chat view, or what replaces it. Resolves to the
@@ -401,6 +419,13 @@ export interface IChatWidgetViewOptions {
 	 */
 	isSessionsWindow?: boolean;
 
+	/**
+	 * Whether the input shows its session's changes as a working set: as set, also while {@link isSessionsWindow} is set,
+	 * such as for a session's chat outside the Agents window; unset, as the editor window's chat does. Never in the Agents
+	 * window.
+	 */
+	sessionWorkingSet?: boolean;
+
 	/** Checked state of a permissions picker hosted outside the chat input. */
 	readonly sandboxToggleChecked?: IObservable<boolean>;
 
@@ -559,6 +584,8 @@ export interface IChatWidget {
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	getSelectedModelRequestOptions(): Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>;
 	startEditing(requestId: string): void;
+	/** Reveals and focuses the active inline editor for a scheduler-owned request ID. */
+	revealScheduledRequest(requestId: string): void;
 	cancelEditing(): Promise<void>;
 	finishedEditing(completedEdit?: boolean): void;
 	rerunLastRequest(): Promise<void>;

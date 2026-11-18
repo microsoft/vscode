@@ -177,7 +177,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			pullRequestState: state,
 			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Artifact from Session"),
+				label: localize('sessionChatPills.removePullRequest', "Remove \"{0}\" Artifact", pullRequest?.title || ref.title || `#${ref.number}`),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
@@ -258,7 +258,7 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
 			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removeIssue', "Remove Issue Artifact from Session"),
+				label: localize('sessionChatPills.removeIssue', "Remove \"{0}\" Artifact", issue?.title || ref.title || `#${ref.number}`),
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.(recordedReferenceIds, resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
@@ -418,6 +418,14 @@ class CopyFeedbackActionCache extends Disposable {
 }
 
 /** A toolbar for session metadata, active-turn status, and background activity. */
+/** How a {@link SessionChatInputToolbar} shows its Changes pill, such as beside an input that shows the session's changes as its working set. */
+export interface ISessionChatInputToolbarChangesOptions {
+	/** Hides the Changes pill while it is `true`, such as while the input shows the session's changes as its working set. */
+	readonly hidden?: IObservable<boolean>;
+	/** Actions the context menu of the Changes pill adds, such as to show the session's changes as the working set again. */
+	readonly contextMenuActions?: () => IAction[];
+}
+
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
@@ -481,6 +489,7 @@ export class SessionChatInputToolbar extends Disposable {
 		focusFallback: (() => void) | undefined,
 		/** The session of the pane that hosts the chat, such as a chat editor's session scoped to its chat. */
 		private readonly _paneSession: IObservable<ISession | undefined> | undefined,
+		changesOptions: ISessionChatInputToolbarChangesOptions | undefined,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -804,6 +813,7 @@ export class SessionChatInputToolbar extends Disposable {
 						chatResource: target !== 'main' ? chat?.resource : undefined,
 					}, target !== 'main' ? target.mainPart.activeGroup : undefined);
 				},
+				getContextMenuPrimaryActions: () => changesOptions?.contextMenuActions?.() ?? [],
 			},
 			pullRequests: pullRequestData,
 			issues: {
@@ -824,7 +834,12 @@ export class SessionChatInputToolbar extends Disposable {
 			debugName: 'SessionChatInputToolbar.content',
 			compact,
 			enabled: pillsVisible,
-			sources: derived(reader => sources.sources.flatMap(source => source.kind === SessionChatPillKind.Artifacts ? [...integratedSources.read(reader), source] : [source])),
+			sources: derived(reader => {
+				const changesHidden = changesOptions?.hidden?.read(reader) ?? false;
+				return sources.sources
+					.filter(source => !changesHidden || source.kind !== SessionChatPillKind.Changes)
+					.flatMap(source => source.kind === SessionChatPillKind.Artifacts ? [...integratedSources.read(reader), source] : [source]);
+			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			context: this._session,
 			actionRunner,

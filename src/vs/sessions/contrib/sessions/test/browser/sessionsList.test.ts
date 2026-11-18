@@ -18,13 +18,14 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { findOnboardingTarget, markOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { extractChatReferenceDropData } from '../../../../../platform/dnd/browser/dnd.js';
-import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
+import { ExtUri, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isLinux, isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { getWorktreeFilterKey } from '../../../../../workbench/contrib/chat/common/sessionWorktreeFolders.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -243,6 +244,123 @@ suite('Sessions - SessionsList', () => {
 		assert.deepStrictEqual({ unscoped: run(false), scoped: run(true) }, {
 			unscoped: { retained: [['workspace:kept']], rows: { kept: true, hidden: false } },
 			scoped: { retained: [['workspace:hidden', 'workspace:kept']], rows: { kept: true, hidden: false } },
+		});
+	});
+
+	/** A session of the folder `root`, labelled `label`. */
+	function createFolderSession(id: string, label: string, root: string, createdAt?: Date, options?: ITestSessionOptions): ISession {
+		const { session } = createTestSession(id, { ...options, workspaceLabel: label, createdAt });
+		const uri = URI.parse(root);
+		return { ...session, workspace: constObservable({ ...session.workspace.get()!, uri, folders: [{ root: uri, workingDirectory: uri, name: label, description: undefined, gitRepository: undefined }] }) };
+	}
+
+	test('a scoped list, of a window with folders, shows no Chats section under any grouping, also empty, while an unscoped list keeps it, as the scope changes live', () => {
+		const harness = createListHarness(disposables, [createFolderSession('folder', 'repo', 'file:///work/repo')]);
+		void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, true);
+		const provider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true, environment: { id: 'local', label: 'This Computer' } });
+		harness.instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
+			override getProviders() { return [provider]; }
+			override getProvider() { return undefined; }
+		});
+		const chatsSection = (grouping: SessionsGrouping) => {
+			const scoped = observableValue('scoped', false);
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				scoped,
+				quickChatsInTimeGrouping: true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const hasChats = () => list.getTreeSnapshot().some(node => node.type === 'section' && node.id === QUICK_CHATS_SECTION_ID);
+			const steps = [hasChats()];
+			scoped.set(true, undefined);
+			steps.push(hasChats());
+			scoped.set(false, undefined);
+			steps.push(hasChats());
+			return steps.map(shown => shown ? 'chats' : '-').join(' ');
+		};
+
+		// Unscoped, scoped, unscoped again
+		assert.deepStrictEqual({
+			date: chatsSection(SessionsGrouping.Date),
+			environment: chatsSection(SessionsGrouping.Environment),
+			worktree: chatsSection(SessionsGrouping.Worktree),
+			workspace: chatsSection(SessionsGrouping.Workspace),
+			repository: chatsSection(SessionsGrouping.Repository),
+		}, {
+			date: 'chats - chats',
+			environment: '- - -',
+			worktree: 'chats - chats',
+			workspace: 'chats - chats',
+			repository: 'chats - chats',
+		});
+	});
+
+	test('a scoped list says so when it shows no session, also when the filters hide its sessions', () => {
+		const harness = createListHarness(disposables, [createFolderSession('archived', 'vscode', 'file:///work/vscode', undefined, { isArchived: true })]);
+		const container = harness.createContainer(400, 1400);
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			scoped: constObservable(true),
+			onSessionOpen: () => { },
+		}));
+		list.setExcludeArchived(true);
+		list.layout(1400, 400);
+
+		assert.deepStrictEqual({
+			sessions: list.getVisibleSessions().length,
+			rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.textContent?.trim()).filter(text => text === 'No sessions to show in this folder.'),
+		}, { sessions: 0, rows: ['No sessions to show in this folder.'] });
+	});
+
+	test('a scoped list leaves out a comparison whose sessions the providers do not list, nested in a custom group', () => {
+		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+		const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Elsewhere', createdAt: 2, parentId: work.id };
+		const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createFolderSession(id, 'other', 'file:///other', hoursAgo(2 + index)));
+		const comparison: ISessionComparison = {
+			id: 'comparison-1',
+			groupId: comparisonGroup.id,
+			title: 'Elsewhere',
+			createdAt: 1,
+			workspace: URI.parse('file:///other'),
+			prompt: 'Elsewhere',
+			participants: attempts.map((session, index) => ({
+				id: `participant-${index}`,
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				sessionResource: session.resource,
+			})),
+		};
+		// The providers list only the sessions of the window's folder; lookups still find those of other folders
+		const harness = createListHarness(disposables, [createFolderSession('here', 'repo', 'file:///work/repo', hoursAgo(1))], {
+			groups: [work, comparisonGroup],
+			memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+			comparisons: [comparison],
+		});
+		harness.managementService.unlistedSessions = attempts;
+		const render = (scoped: IObservable<boolean> | undefined) => {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				scoped,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			return {
+				sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+				comparison: !!container.querySelector('.session-comparison-group'),
+			};
+		};
+
+		assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable(true)) }, {
+			unscoped: { sessions: ['here'], comparison: true },
+			scoped: { sessions: ['here'], comparison: false },
 		});
 	});
 
@@ -3802,12 +3920,113 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		test('makes no section for a worktree whose sessions are all archived: they go to the archived section, and one unarchived makes it again', () => {
+			const sections = (isArchived: boolean) => groupSessionsForList([...worktreeSessions(), createWorktreeSession('archived-c', { workingDirectory: 'file:///work/repo.worktrees/c', repository: 'file:///work/repo' }, 1, { isArchived })], SessionsGrouping.Worktree, SessionsSorting.Updated, () => false)
+				.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) }))
+				.filter(section => section.id.endsWith('/c') || section.id === 'archived');
+
+			assert.deepStrictEqual({ whileArchived: sections(true), unarchived: sections(false) }, {
+				whileArchived: [{ id: 'archived', sessions: ['archived-c'] }],
+				unarchived: [{ id: 'worktree:file:///work/repo.worktrees/c', sessions: ['archived-c'] }],
+			});
+		});
+
 		test('puts one folder reported with different path casing in one section, where the platform ignores path case', () => {
 			const sections = groupByWorktree([
 				createWorktreeSession('upper', { workingDirectory: 'file:///c:/Work/repo' }, 1),
 				createWorktreeSession('lower', { workingDirectory: 'file:///c:/work/repo' }, 2),
 			]);
 			assert.deepStrictEqual(sections.map(section => section.sessions.map(session => session.sessionId)), isLinux ? [['upper'], ['lower']] : [['upper', 'lower']]);
+		});
+
+		test('applies a selected worktree folder only where the list offers the Worktrees filter, as an editor window does and the Agents window does not', () => {
+			const visible = (offersWorktreeFilter: boolean | undefined, select = true) => {
+				const harness = createListHarness(disposables, worktreeSessions());
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Updated,
+					offersWorktreeFilter,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				if (select) {
+					list.filters.setSelectedWorktree(getWorktreeFilterKey(URI.parse('file:///work/repo.worktrees/a'), extUriBiasedIgnorePathCase));
+				}
+				return list.getVisibleSessions().map(session => session.sessionId).sort();
+			};
+
+			assert.deepStrictEqual({ editorWindow: visible(undefined), agentsWindow: visible(false) }, {
+				// Sessions without a local folder are never hidden
+				editorWindow: ['cloud', 'feature-a', 'feature-a-2'],
+				agentsWindow: visible(false, false),
+			});
+		});
+
+		test('lists quick chats, which have no workspace, only where it is asked to, as the Agents window does and an editor window does not', () => {
+			const visible = (lists: boolean | undefined, revealed?: 'active' | 'onboarding') => {
+				const listsQuickChats = lists === undefined ? undefined : constObservable(lists);
+				const quick = createTestSession('quick', { isQuickChat: true }).session;
+				const activeSession = revealed === 'active' ? constObservable<ITestSessionWithChat>({ ...quick, activeChat: quick.mainChat }) : undefined;
+				const harness = createListHarness(disposables, [...worktreeSessions(), quick], { activeSession });
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Updated,
+					listsQuickChats,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				let revealFailed = false;
+				if (revealed === 'onboarding') {
+					try {
+						harness.store.add(list.revealSessionForOnboarding(quick));
+					} catch {
+						revealFailed = true;
+					}
+				}
+				const listed = list.getVisibleSessions().some(session => session.sessionId === 'quick');
+				return revealed === 'onboarding' ? { listed, revealFailed } : listed;
+			};
+
+			assert.deepStrictEqual({
+				byDefault: visible(undefined),
+				agentsWindow: visible(true),
+				editorWindow: visible(false),
+				// Shown in the chat or revealed for onboarding, still not one the editor window lists
+				editorWindowActive: visible(false, 'active'),
+				editorWindowOnboarding: visible(false, 'onboarding'),
+				agentsWindowActive: visible(true, 'active'),
+				agentsWindowOnboarding: visible(true, 'onboarding'),
+			}, {
+				byDefault: true, agentsWindow: true, editorWindow: false, editorWindowActive: false, agentsWindowActive: true,
+				// Its reveal fails, as for any session the list cannot show
+				editorWindowOnboarding: { listed: false, revealFailed: true },
+				agentsWindowOnboarding: { listed: true, revealFailed: false },
+			});
+		});
+
+		test('lists quick chats again, or no longer, as whether it lists them changes', async () => {
+			const harness = createListHarness(disposables, [...worktreeSessions(), createTestSession('quick', { isQuickChat: true }).session]);
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+			const listsQuickChats = observableValue('listsQuickChats', false);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Updated,
+				listsQuickChats,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			// As the list updates by itself, at the next frame
+			const listed = async () => {
+				await new Promise<void>(resolve => { disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve(), -1000)); });
+				return list.getVisibleSessions().some(session => session.sessionId === 'quick');
+			};
+			const before = await listed();
+			listsQuickChats.set(true, undefined);
+			const after = await listed();
+			listsQuickChats.set(false, undefined);
+
+			assert.deepStrictEqual({ before, after, again: await listed() }, { before: false, after: true, again: false });
 		});
 
 		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {
@@ -6282,6 +6501,34 @@ suite('Sessions - SessionsList', () => {
 				}, { description, accessible: description !== undefined, archived: false });
 			});
 		}
+
+		test('inbox rebuilds only when a session placement changes, not on every attention update', async () => {
+			const ready = createTestSession('ready');
+			const other = createTestSession('other');
+			const harness = createListHarness(disposables, [ready.session, other.session]);
+			const readyAttention: IInboxSessionAttention = { tab: InboxTab.Working, priority: InboxNotificationPriority.Next, notificationIds: ['review'], isHistoricalCompletion: false };
+			const attention = observableValue<ReadonlyMap<string, IInboxSessionAttention>>('attention', new Map([['ready', readyAttention]]));
+			harness.instantiationService.stub(ISessionAttentionService, { sessionAttention: attention, acquireSessionAttention: () => toDisposable(() => { }) });
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const list = disposables.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.setVisible(true);
+			list.layout(800, 320);
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			await nextFrame();
+			let updates = 0;
+			const update = list.update.bind(list);
+			list.update = expandAll => { updates++; update(expandAll); };
+			// A new notification identity that keeps the same section and priority.
+			attention.set(new Map([['ready', { ...readyAttention, notificationIds: ['review:newThread'] }]]), undefined);
+			await nextFrame();
+			const unchanged = updates;
+			attention.set(new Map([['ready', { ...readyAttention, tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now }]]), undefined);
+			await nextFrame();
+			assert.deepStrictEqual({ unchanged, moved: updates }, { unchanged: 0, moved: 1 });
+		});
 
 		test('inbox renders historical and explicit triage state and restores custom placement when leaving the mode', async () => {
 			const grouped = createTestSession('grouped');

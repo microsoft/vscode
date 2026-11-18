@@ -26,7 +26,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import type { ILoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ProtocolLivenessMonitor } from '../common/protocolLivenessMonitor.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey, isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -109,6 +109,7 @@ import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsServ
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
 import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from '../common/meta/agentHostGitHubEnvironmentMeta.js';
+import { parseMcpServerLogsChannel } from '../common/otlp/mcpServerLogsChannel.js';
 import {
 	buildOtlpLogsChannelUri,
 	extractLevelFromOtlpLogsUri,
@@ -117,6 +118,7 @@ import {
 	OTLP_LOGS_CHANNEL_TEMPLATE,
 	OtlpLogEmitter,
 	toResourceLogsPayload,
+	toResourceLogsPayloadBatch,
 	type IOtlpLogRecord,
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
@@ -412,6 +414,7 @@ const enum ChannelKind {
 	 * severity the client asked to receive.
 	 */
 	OtlpLogs = 'otlp-logs',
+	McpServerLogs = 'mcp-server-logs',
 }
 
 /**
@@ -428,6 +431,7 @@ const enum ChannelKind {
 type ChannelSubscription =
 	| { readonly kind: ChannelKind.State; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string; readonly active: boolean }
+	| { readonly kind: ChannelKind.McpServerLogs; readonly uri: string; readonly session: string; readonly serverName: string; readonly level: OtlpLogLevelName; readonly disposable?: IDisposable }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
 
 function projectCopilotModel(model: ModelSelection, vscode: boolean): ModelSelection {
@@ -586,6 +590,10 @@ interface IGraceClientRecord {
 function classifyChannel(channel: string): ChannelSubscription | undefined {
 	if (channel.startsWith('ahp-tcp:')) {
 		return undefined;
+	}
+	const mcpLogs = parseMcpServerLogsChannel(channel);
+	if (mcpLogs) {
+		return { kind: ChannelKind.McpServerLogs, uri: channel, ...mcpLogs };
 	}
 	if (channel.toLowerCase().startsWith(`${OTLP_CHANNEL_SCHEME}:`)) {
 		const level = extractLevelFromOtlpLogsUri(channel);
@@ -1292,6 +1300,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!sub) {
 			return undefined;
 		}
+		if (sub.kind === ChannelKind.McpServerLogs) {
+			this._tryRestoreMcpServerLogs(client, sub);
+			return undefined;
+		}
 		if (sub.kind === ChannelKind.OtlpLogs) {
 			if (!this._config.otlpLogEmitter) {
 				this._logService.warn(`[ProtocolServer] Ignoring OTLP initialSubscription ${channel}: no OTLP emitter configured.`);
@@ -1661,6 +1673,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (client.transport.relayAuthentication?.authenticated === false && !isAhpRootChannel(key)) {
 				client.pendingAuthenticationSubscriptions.add(key);
 				missing.push(sub);
+				return undefined;
+			}
+			if (classified.kind === ChannelKind.McpServerLogs) {
+				this._tryRestoreMcpServerLogs(client, classified);
 				return undefined;
 			}
 			if (classified.kind === ChannelKind.OtlpLogs) {
@@ -2035,6 +2051,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					continue;
 				}
 				this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+			} else if (sub.kind === ChannelKind.McpServerLogs && sub.disposable) {
+				client.disposables.delete(sub.disposable);
 			} else if (sub.kind === ChannelKind.ResourceWatch) {
 				this._agentService.onResourceWatchUnsubscribed(sub.uri);
 			}
@@ -2298,6 +2316,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				// OTLP-flavoured URI we don't understand (e.g. unknown
 				// level). Acknowledge as stateless so the client doesn't
 				// hang, but install nothing.
+				return {};
+			}
+			if (classified.kind === ChannelKind.McpServerLogs) {
+				this._subscribeMcpServerLogs(client, classified);
+				client.pendingAuthenticationSubscriptions.delete(classified.uri);
 				return {};
 			}
 			if (classified.kind === ChannelKind.OtlpLogs) {
@@ -4617,6 +4640,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
+		channel = parseMcpServerLogsChannel(channel)?.session ?? channel;
 		const owner = isAhpChatChannel(channel) ? this._chatOwnership.getChatOwner(channel) : undefined;
 		if (client.legacyChatUris && isAhpChatChannel(channel) && (!isShapedChatUri(channel) || (owner !== undefined && !this._isChatShownToLegacyClient(channel, owner)))) {
 			return false;
@@ -4758,6 +4782,47 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	/** Restores an MCP server logs subscription during `initialize`/`reconnect`, where failures must not fail the handshake. */
+	private _tryRestoreMcpServerLogs(client: IConnectedClient, sub: Extract<ChannelSubscription, { kind: ChannelKind.McpServerLogs }>): void {
+		try {
+			this._subscribeMcpServerLogs(client, sub);
+		} catch (error) {
+			this._logService.info(`[ProtocolServer] Dropping MCP server logs subscription ${sub.uri}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	private _subscribeMcpServerLogs(client: IConnectedClient, sub: Extract<ChannelSubscription, { kind: ChannelKind.McpServerLogs }>): void {
+		if (!this._isChannelVisible(client, sub.session)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not available to this client: ${sub.session}`);
+		}
+		const checkAuthorization = this._captureRelayAuthorization(client);
+		checkAuthorization();
+		this._removeSubscription(client, sub.uri);
+		const disposable = client.disposables.add(new DisposableStore());
+		const installed = { ...sub, disposable };
+		client.subscriptions.set(sub.uri, installed);
+		try {
+			disposable.add(this._agentService.subscribeMcpServerLogs(URI.parse(sub.session), sub.serverName, sub.level, records => {
+				if (client.subscriptions.get(sub.uri) !== installed || !this._isChannelVisible(client, sub.session)) {
+					return;
+				}
+				try {
+					checkAuthorization();
+				} catch {
+					return;
+				}
+				client.channels.send({
+					jsonrpc: '2.0',
+					method: 'otlp/exportLogs',
+					params: { channel: sub.uri, payload: toResourceLogsPayloadBatch(records) },
+				});
+			}));
+		} catch (error) {
+			this._removeSubscription(client, sub.uri);
+			throw error;
+		}
+	}
+
 	/**
 	 * Drop a subscription identified by `channel` from `client`. Handles
 	 * canonicalisation for OTLP URIs (so an `unsubscribe` with a URI
@@ -4794,6 +4859,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return;
 			}
 			this._reconcileActiveClientSubscriptions(client);
+		} else if (sub.kind === ChannelKind.McpServerLogs && sub.disposable) {
+			client.disposables.delete(sub.disposable);
 		} else if (sub.kind === ChannelKind.ResourceWatch) {
 			this._agentService.onResourceWatchUnsubscribed(sub.uri);
 		}

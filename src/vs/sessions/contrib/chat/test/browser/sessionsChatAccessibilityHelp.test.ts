@@ -72,13 +72,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 
 		assert.deepStrictEqual({
+			toggle: content.includes('show Toggle Inbox beside the Sessions list filters, or beside Sort on phone'),
+			toggleKeyboard: content.includes('Enter or Space to activate it. Its pressed state indicates Inbox Mode'),
+			restoreGrouping: content.includes('restore your previous grouping, remembered across reloads'),
 			screenReaderDefault: content.includes('auto, keeps you in the current conversation when a screen reader is attached'),
 			explicitChoices: content.includes('Set it to off to always stay, or on to always advance'),
 			settingsLink: content.includes('Settings link and Show Session button'),
 			persistentNotification: content.includes('notification stays visible until you dismiss it or choose Show Session'),
 			returnAction: content.includes('Choose Return to Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
-		}, { screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
+		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
 	});
 
 	test('defers to webview Find help while the Find input is focused', () => {
@@ -964,7 +967,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const content = provider.provideContent();
-		const pillHelp = content.split('\n').find(line => line.includes('Pull Requests Options'));
+		const pillHelp = content.split('\n').find(line => line.includes('Pull Requests Artifact Options'));
 
 		assert.deepStrictEqual({
 			keyboard: pillHelp?.includes('<keybinding:editor.action.showContextMenu>'),
@@ -1008,7 +1011,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			artifactDownload: content.includes('Files and folders from a remote device, such as one reached over SSH or a dev tunnel, offer Download... instead, as do other image rows'),
 			artifactReveal: content.includes('that are on this device offer Reveal in Finder, Reveal in File Explorer, or Open Containing Folder'),
 			draftImages: content.includes('includes all images attached to that draft'),
-			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
+			transcriptImages: content.includes('Images shown from the transcript do not offer Remove Artifact unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
 			copyActions: content.includes('its context menu offers the item\'s copy actions'),
 			persistence: content.includes('waits for persistence'),
