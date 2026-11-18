@@ -38,8 +38,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { SessionIsCreatedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { DesktopEditorHeaderLayoutContext } from '../../../../common/agentsWindowContextKeys.js';
+import { DesktopLayoutContext, SessionIsCreatedContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -465,7 +464,7 @@ suite('Changes Actions', () => {
 		});
 	});
 
-	test('with the editor header layout, the main window shows the Commit of a new session in the header row of the Changes editor', () => {
+	test('the desktop main window shows the Commit of a new session in the header row of the Changes editor', () => {
 		const operations = constObservable<readonly ISessionChangesetOperation[]>([{
 			id: AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID,
 			label: 'Commit',
@@ -489,7 +488,7 @@ suite('Changes Actions', () => {
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		disposables.add(bindChangesetOperations({ session, changes: { changesetObs: constObservable(changeset), changesetOperationsObs: operations } }, contextKeyService));
 		ActiveEditorContext.bindTo(contextKeyService).set(SessionChangesEditor.ID);
-		const editorHeaderLayout = DesktopEditorHeaderLayoutContext.bindTo(contextKeyService);
+		const desktopLayout = DesktopLayoutContext.bindTo(contextKeyService);
 		const auxiliaryWindow = IsAuxiliaryWindowContext.bindTo(contextKeyService);
 		const created = SessionIsCreatedContext.bindTo(contextKeyService);
 
@@ -501,8 +500,8 @@ suite('Changes Actions', () => {
 		};
 		const placement = () => ({ tabRow: placementIn(Menus.SessionsEditorTitle), headerRow: placementIn(Menus.SessionsEditorHeaderSecondary) });
 
-		const withoutEditorHeaderLayout = placement();
-		editorHeaderLayout.set(true);
+		const mobileLayout = placement();
+		desktopLayout.set(true);
 		const newSession = placement();
 		auxiliaryWindow.set(true);
 		const chatWindow = placement();
@@ -511,8 +510,8 @@ suite('Changes Actions', () => {
 		created.set(true);
 		const existingSession = placement();
 
-		assert.deepStrictEqual({ withoutEditorHeaderLayout, newSession, chatWindow, existingSession }, {
-			withoutEditorHeaderLayout: { tabRow: 'navigation:0', headerRow: undefined },
+		assert.deepStrictEqual({ mobileLayout, newSession, chatWindow, existingSession }, {
+			mobileLayout: { tabRow: 'navigation:0', headerRow: undefined },
 			newSession: { tabRow: undefined, headerRow: 'navigation:0' },
 			chatWindow: { tabRow: 'navigation:0', headerRow: undefined },
 			existingSession: { tabRow: 'navigation:0', headerRow: undefined },
