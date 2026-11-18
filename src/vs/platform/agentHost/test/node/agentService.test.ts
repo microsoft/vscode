@@ -9175,6 +9175,34 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('folder send starts its checkpoint before the default branch lookup finishes', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async directory => directory;
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, git));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({
+				legacyChatUris: true,
+				provider: agent.id,
+				workingDirectories: [URI.file('/workspace/repo')],
+				config: { [SessionConfigKey.Isolation]: 'folder' },
+			});
+			const captured = new DeferredPromise<void>();
+			const defaultBranch = new DeferredPromise<Branch | undefined>();
+			git.getDefaultBranch2 = () => defaultBranch.p;
+			git.captureWorkingTreeAsTree = async () => {
+				captured.complete();
+				return undefined;
+			};
+			svc.dispatchAction(buildDefaultChatUri(session), chatTurnStarted('turn-1', 'start now'), 'client', 1);
+			await captured.p;
+			const sendsWhileResolvingBase = agent.sendMessageCalls.length;
+			defaultBranch.complete({ kind: GitRefType.Head, name: 'main', ref: 'refs/heads/main' });
+			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length === 1, 'the message should reach the provider');
+
+			assert.deepStrictEqual({ sendsWhileResolvingBase, base: await getTestSessionStateStore(svc).readBaseBranchWithoutImport(session, undefined) }, { sendsWhileResolvingBase: 0, base: 'main' });
+		});
+
 		test('folder send resolves the default branch at send time rather than draft time', async () => {
 			const db = new TestSessionDatabase();
 			const git = createNoopGitService();

@@ -1612,6 +1612,8 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _failedExecutionIdlePending = false;
 	private _agentMergeTurn = false;
+	private _turnStartCheckpoint: Promise<void> | undefined;
+	private _sdkHookCallbacksMayBeSuppressed = false;
 	/** MCP servers whose tools Agent Merge turns deny because they expose GitHub. */
 	private readonly _agentMergeRestrictedMcpServerNames: ReadonlySet<string>;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
@@ -2258,6 +2260,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _assistedApprovalInstructionsSequencer = new Sequencer();
 	/** Instructions the live SDK session holds; the runtime keeps them in memory only, so each launch starts empty. */
 	private _appliedAssistedApprovalInstructions = '';
+	private _assistedApprovalRepositoryContext: Promise<void> | undefined;
 	private _shellInitScriptDisposing = false;
 	/**
 	 * Scopes this instance's script files so a disposed predecessor's queued
@@ -5173,6 +5176,7 @@ export class CopilotAgentSession extends Disposable {
 			void this._mcpServerLogs.refresh();
 			this._adoptLaunchPermissionMode(wrapper);
 			this._appliedAssistedApprovalInstructions = '';
+			this._assistedApprovalRepositoryContext = undefined;
 			this._mcpAwaitingOAuthReconnect.clear();
 			this._lastAppliedAgent = this._launchPlan.kind === 'create' ? this._launchPlan.resolvedAgentName ?? null : undefined;
 			this._registeredByokConfig = wrapper.launchByokConfig;
@@ -5214,7 +5218,10 @@ export class CopilotAgentSession extends Disposable {
 			this._appliedImageGenerationWatermark = wrapper.launchImageGenerationWatermark;
 			await this._syncImageGeneration();
 			await this._declareHostPolicyPermissionHandler(wrapper);
-			await this._applyAssistedApprovalRepositoryContext(wrapper);
+			const permissionMode = wrapper.session.permissionModeResult?.mode ?? this._launchPermissionMode;
+			if (permissionMode === undefined || permissionMode === 'assisted') {
+				await (this._assistedApprovalRepositoryContext ??= this._applyAssistedApprovalRepositoryContext(wrapper));
+			}
 			await this._syncAssistedApprovalInstructions();
 			this.refreshModelConfiguration();
 			await this._sandbox.updateDiagnostics();
@@ -6288,6 +6295,13 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private _observeSdkHookPolicy(resolved: SessionEventPayload<'session.managed_settings_resolved'>['data']): void {
+		const settings = resolved.settings;
+		// Hook processors can retain managed-only flags across policy refreshes.
+		this._sdkHookCallbacksMayBeSuppressed ||= resolved.failClosed
+			|| !!(settings && typeof settings === 'object' && !Array.isArray(settings) && settings.allowManagedHooksOnly === true);
+	}
+
 	private _createRuntimeAdapter(cancellationToken: CancellationToken, adoptLaunchConnectorReconcile: (reconcile: Promise<ICopilotConnectorServers | undefined>) => void): ICopilotSessionRuntime {
 		const handleUserInputRequest = this._guarded((request: UserInputRequest, invocation: { sessionId: string }) => {
 			const recorder = this._currentTurn.value?.timingRecorder;
@@ -6305,6 +6319,7 @@ export class CopilotAgentSession extends Disposable {
 		return {
 			cancellationToken,
 			setApprovalPolicy: (resolved, bridged) => {
+				this._observeSdkHookPolicy(resolved);
 				this._approvalPolicy.setLaunchPolicy(resolved, bridged);
 			},
 			resolveInitialPermissionMode: () => {
@@ -6316,6 +6331,7 @@ export class CopilotAgentSession extends Disposable {
 			onSessionEvent: event => {
 				if (!this._store.isDisposed) {
 					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
+						this._observeSdkHookPolicy(event.data);
 						this._approvalPolicy.observeRuntimePolicy(event.data);
 						this._computerUseActivation.observeManagedSettings(event.data.settings);
 						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
@@ -6985,13 +7001,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder, originalMessageText = prompt, messageSource?: MessageSource): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder, originalMessageText = prompt, messageSource?: MessageSource, turnStartCheckpoint?: Promise<void>): Promise<void> {
 		this._assertScopedGitHubCredential();
 		if (this._workingDirectoryMutationInProgress) {
 			throw new Error('Cannot start a turn while the working directory is changing');
 		}
 		this._resetAbortToken();
 		this._agentMergeTurn = agentMergeTurn;
+		this._turnStartCheckpoint = turnStartCheckpoint;
 		if (turnId && this._currentTurn.value?.id !== turnId) {
 			// Establish the `pending` turn for this message. Callers normally
 			// call `resetTurnState` just before `send()`; this covers the
@@ -7017,6 +7034,13 @@ export class CopilotAgentSession extends Disposable {
 			if (this._launchConnectorReconcile) {
 				const abortToken = this._abortToken;
 				await raceCancellation(this._launchConnectorReconcile, abortToken);
+				if (!this._canSendTurn(turn, abortToken)) {
+					return;
+				}
+			}
+			if (this._sdkHookCallbacksMayBeSuppressed && turnStartCheckpoint) {
+				const abortToken = this._abortToken;
+				await raceCancellation(turnStartCheckpoint, abortToken);
 				if (!this._canSendTurn(turn, abortToken)) {
 					return;
 				}
@@ -7506,6 +7530,7 @@ export class CopilotAgentSession extends Disposable {
 		const abortToken = this._abortToken;
 		this.resetTurnState(turnId, senderClientId, clientType, clientContext);
 		this._agentMergeTurn = agentMergeTurn;
+		this._turnStartCheckpoint = undefined;
 		const turn = this._currentTurn.value;
 		if (turn) {
 			turn.timingRecorder = stageRecorder;
@@ -9567,10 +9592,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Gives the Assisted permissions judge the repository of the session's working directory
-	 * as advisory context, so that the user's instructions can refer to it. The context
-	 * authorizes nothing, and the runtime holds it only for the live SDK session, so every
-	 * attached SDK session receives it again.
+	 * Applies advisory repository context once per SDK session, before Assisted permissions can be used.
+	 * Known non-Assisted launches defer discovery until Assisted mode is selected; unknown restored modes do not.
 	 */
 	private async _applyAssistedApprovalRepositoryContext(wrapper: CopilotSessionWrapper): Promise<void> {
 		const workingDirectory = this._workingDirectory;
@@ -9697,6 +9720,9 @@ export class CopilotAgentSession extends Disposable {
 				}
 				this._experimentalModeEnabled = experimentalModeEnabled;
 				this._logService.info(`[Copilot:${this.sessionId}] ${experimentalModeEnabled ? 'Enabled' : 'Disabled'} SDK experimental mode`);
+			}
+			if (mode === 'assisted') {
+				await (this._assistedApprovalRepositoryContext ??= this._applyAssistedApprovalRepositoryContext(this._wrapper));
 			}
 			if (this._lastAppliedPermissionMode === mode) {
 				this._acceptPermissionMode(mode);
@@ -10896,6 +10922,22 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput> {
+		// No tool runs before the turn-start checkpoint is captured. Subagent tools (with an
+		// `agentId`) skip the wait: the root tool call that spawned them already waited.
+		// Runtime SessionStart/UserPromptSubmit command hooks may still run concurrently with the snapshot.
+		try {
+			if (!input.agentId) {
+				await this._turnStartCheckpoint;
+			}
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to capture turn-start checkpoint: tool=${input.toolName}`);
+			const reason = 'The checkpoint of the working tree could not be captured before this turn, so tools cannot run.';
+			return {
+				permissionDecision: 'deny',
+				permissionDecisionReason: reason,
+				additionalContext: reason,
+			};
+		}
 		try {
 			const restriction = this._agentMergeTurn
 				? getAgentMergeGitHubToolRestriction(input.toolName, input.toolArgs)

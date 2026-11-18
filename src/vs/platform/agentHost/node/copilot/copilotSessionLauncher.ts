@@ -116,6 +116,7 @@ type AgentHostReasoningEffort = ReasoningEffortLevel;
 
 // Every create and resume config states both image generation options, so finalizing a session reads them without defaults.
 interface ICopilotSessionConfig extends ResumeSessionOptions {
+	lifecycleDiagnostics: { persist: boolean };
 	tools: NonNullable<ResumeSessionOptions['tools']> & { imageGeneration: { enabled: boolean; watermark: boolean } };
 }
 
@@ -1811,6 +1812,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const virtualSessionFs = plan.virtualSessionFs;
 		const config: ICopilotSessionConfig = {
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			// TODO: Remove on the next Copilot SDK bump. The bundled runtime runs an uncached Team-repository git probe on every session create (~90 ms in non-git folders); this is fixed upstream.
+			lifecycleDiagnostics: { persist: false },
 			inference: {
 				...byok,
 				// A resumed session keeps its journaled effort unless an override is configured.
