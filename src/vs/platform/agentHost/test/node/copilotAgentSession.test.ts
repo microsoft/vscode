@@ -30206,6 +30206,34 @@ Use the attached image as context.
 			const send = (session: CopilotAgentSession, checkpoint?: Promise<void>, turnId = 'turn-checkpoint') =>
 				session.send('Edit the file', undefined, turnId, undefined, undefined, AgentHostClientType.Unknown, undefined, undefined, false, undefined, undefined, undefined, checkpoint);
 
+			test('waits before dispatch when managed policy may suppress SDK hooks', async () => {
+				for (const failClosed of [false, true]) {
+					const checkpoint = new DeferredPromise<void>();
+					const { session, runtime, mockSession } = await createAgentSession(disposables);
+					const resolved = {
+						source: 'server' as const, serverManaged: true, deviceManaged: false,
+						bypassPermissionsDisabled: false, failClosed,
+						managedKeys: failClosed ? [] : ['allowManagedHooksOnly'],
+						settings: failClosed ? undefined : { allowManagedHooksOnly: true },
+					};
+					if (failClosed) {
+						runtime.setApprovalPolicy?.(resolved, {});
+					} else {
+						runtime.onSessionEvent?.({ type: 'session.managed_settings_resolved', id: 'policy', timestamp: new Date(0).toISOString(), parentId: null, ephemeral: true, data: resolved });
+					}
+					let sent = false;
+					const sending = send(session, checkpoint.p).then(() => { sent = true; });
+					await timeout(0);
+					const pending = { sent, sends: mockSession.sendRequests.length };
+					checkpoint.complete();
+					await sending;
+
+					assert.deepStrictEqual({ pending, sent, sends: mockSession.sendRequests.length }, {
+						pending: { sent: false, sends: 0 }, sent: true, sends: 1,
+					});
+				}
+			});
+
 			test('waits for the checkpoint before any pre-tool work', async () => {
 				const checkpoint = new DeferredPromise<void>();
 				const { session, runtime } = await createAgentSession(disposables);
