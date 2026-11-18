@@ -35,6 +35,7 @@ import {
 	applyCreateSessionTool,
 	applySetWorkspaceTool,
 	applyDeleteSessionTool,
+	applyGetSessionContextTool,
 	applyRenameChatTool,
 	applySendMessageTool,
 	createSessionServerToolGroup,
@@ -98,6 +99,7 @@ suite('SessionServerTools', () => {
 			createSession: overrides?.createSession ?? (async config => { overrides?.onCreate?.(config); return URI.parse('copilot:/new'); }),
 			getModels: overrides?.getModels ?? (() => [model]),
 			getCreationDefaults: overrides?.getCreationDefaults ?? (() => undefined),
+			restoreChat: overrides?.restoreChat ?? (async () => { }),
 			startPrompt: overrides?.startPrompt ?? (async (session, chat, prompt, delegation, credentials) => { overrides?.onPrompt?.(session, chat, prompt, delegation, credentials); }),
 			createChat: overrides?.createChat ?? (async (session, chat, options, credentials) => { overrides?.onCreateChat?.(session, chat, options, credentials); }),
 			prepareChatWorkingDirectory: overrides?.prepareChatWorkingDirectory ?? (async (_session, directory) => prepared(directory)),
@@ -2861,6 +2863,52 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getSendMessageArgs({ operation: 'replace', session: 'copilot:/s2', message: 'x', messageId: 'm1' }, [sessionMeta('s2', SessionStatus.Idle, workspace)], recordedDefaultChat), /expectedRevision/);
 	});
 
+	test('send_message queues concurrent messages after restoring a cold target', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const targetSession = 'copilot:/s2';
+		const targetChat = buildDefaultChatUri(targetSession);
+		const restoring = new DeferredPromise<void>();
+		const restored = new DeferredPromise<void>();
+		let restoreCalls = 0;
+		const prompts: string[] = [];
+		const accessor = createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
+			restoreChat: async () => {
+				restoreCalls++;
+				restoring.complete();
+				await restored.p;
+			},
+			onPrompt: (_session, _chat, prompt) => {
+				prompts.push(prompt);
+				stateManager.dispatchServerAction(targetChat, chatTurnStarted('active-turn', prompt));
+			},
+		});
+		const sends = ['first', 'second'].map(message => applySendMessageTool(accessor, { session: targetSession, message }, buildDefaultChatUri('copilot:/s1'), 'turn-1', stateManager));
+		await restoring.p;
+		stateManager.createSession({
+			resource: targetSession,
+			provider: 'copilot',
+			title: 'Target',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+			defaultChat: targetChat,
+		});
+		restored.complete();
+		const results = await Promise.all(sends);
+		assert.deepStrictEqual({
+			restoreCalls,
+			actions: results.map(result => JSON.parse(result).action),
+			prompts,
+			queued: stateManager.getChatState(targetChat)?.queuedMessages?.map(queued => queued.message.text),
+		}, {
+			restoreCalls: 1,
+			actions: ['started', 'queued'],
+			prompts: ['first'],
+			queued: ['second'],
+		});
+	});
+
 	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -3150,7 +3198,7 @@ suite('SessionServerTools', () => {
 		const md = (content: string): ResponsePart => ({ kind: ResponsePartKind.Markdown, id: 'm', content });
 		const toolPart = (tc: ToolCallState): ResponsePart => ({ kind: ResponsePartKind.ToolCall, toolCall: tc });
 		const turn = (id: string, user: string, parts: ResponsePart[], state = TurnState.Complete): Turn =>
-			({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
+		({ id, message: { text: user, origin: { kind: MessageKind.User } }, responseParts: parts, usage: undefined, state });
 
 		const snapshot: IChatContextSnapshot = {
 			turns: [
@@ -3188,6 +3236,69 @@ suite('SessionServerTools', () => {
 		test('transcriptLimit drops older turns and flags truncated', () => {
 			const limited = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, snapshot, 'summary', 1));
 			assert.deepStrictEqual({ turns: limited.transcript.map((t: { turn: number }) => t.turn), truncated: limited.truncated }, { turns: [2], truncated: true });
+		});
+
+		test('pages complete replies with identical introductions and different conclusions', async () => {
+			const prefix = 'Shared introduction. '.repeat(1000);
+			const answers = [`${prefix}First conclusion.`, `${prefix}Different conclusion.`];
+			const context: IChatContextSnapshot = {
+				turns: answers.map((answer, index) => turn(`answer-${index}`, 'Compare answers', [md(answer.slice(0, 9000)), md(answer.slice(9000))])),
+				hasMoreHistory: false,
+			};
+			const accessor = createAccessor({
+				listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
+				getChatContext: async () => context,
+			});
+			const excerpts = JSON.parse(await applyGetSessionContextTool(accessor, { session: 'copilot:/s1', detail: 'full' }));
+			const reconstructed: string[] = [];
+			const pages: { offset: number; length: number; truncated: boolean; next?: number }[][] = [];
+			for (const entry of excerpts.transcript as { responseTurnId: string; assistantTruncated: boolean }[]) {
+				let offset: number | undefined = 0;
+				let answer = '';
+				const responsePages: typeof pages[number] = [];
+				while (offset !== undefined) {
+					const page = JSON.parse(await applyGetSessionContextTool(accessor, {
+						session: 'copilot:/s1', responseTurnId: entry.responseTurnId, responseOffset: offset,
+					})) as { assistant: string; truncated: boolean; nextResponseOffset?: number };
+					answer += page.assistant;
+					responsePages.push({ offset, length: page.assistant.length, truncated: page.truncated, next: page.nextResponseOffset });
+					offset = page.nextResponseOffset;
+				}
+				pages.push(responsePages);
+				reconstructed.push(answer);
+			}
+			assert.deepStrictEqual({
+				excerptsIdentical: excerpts.transcript[0].assistant === excerpts.transcript[1].assistant,
+				shortened: excerpts.transcript.map((entry: { assistantTruncated: boolean }) => entry.assistantTruncated),
+				reconstructed,
+				pages,
+			}, {
+				excerptsIdentical: true,
+				shortened: [true, true],
+				reconstructed: answers,
+				pages: answers.map(answer => [
+					{ offset: 0, length: 8000, truncated: true, next: 8000 },
+					{ offset: 8000, length: 8000, truncated: true, next: 16000 },
+					{ offset: 16000, length: answer.length - 16000, truncated: false, next: undefined },
+				]),
+			});
+		});
+
+		test('response paging rejects missing turns, unavailable history, and out-of-range offsets', async () => {
+			const accessor = createAccessor({
+				listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace)],
+				getChatContext: async () => snapshot,
+			});
+			await assert.rejects(applyGetSessionContextTool(accessor, { session: 'copilot:/s1', responseTurnId: 'missing' }), /unavailable/);
+			await assert.rejects(applyGetSessionContextTool(accessor, { session: 'copilot:/s1', responseTurnId: 't1', responseOffset: 100 }), /exceeds/);
+			await assert.rejects(applyGetSessionContextTool(createAccessor({
+				listSessions: accessor.listSessions,
+				getChatContext: async () => undefined,
+			}), { session: 'copilot:/s1', responseTurnId: 't1' }), /unavailable/);
+			for (const responseOffset of [-1, 0.5, '0', null, Number.MAX_SAFE_INTEGER + 1]) {
+				assert.throws(() => getSessionContextArgs({ session: 'copilot:/s1', responseTurnId: 't1', responseOffset }, [sessionMeta('s1', SessionStatus.Idle, workspace)]), /responseOffset/);
+			}
+			assert.throws(() => getSessionContextArgs({ session: 'copilot:/s1', responseOffset: 0 }, [sessionMeta('s1', SessionStatus.Idle, workspace)]), /requires responseTurnId/);
 		});
 
 		test('returns only pending messages sent by the calling chat', () => {
@@ -3293,7 +3404,7 @@ suite('SessionServerTools', () => {
 			});
 		});
 
-		test('execute reads from the accessor; cold session returns identity + empty transcript', async () => {
+		test('execute distinguishes an unavailable transcript from an empty conversation', async () => {
 			const store = new DisposableStore();
 			const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 			const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
@@ -3302,8 +3413,10 @@ suite('SessionServerTools', () => {
 			assert.strictEqual(live.transcript.length, 2);
 
 			const cold = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => undefined }));
-			assert.deepStrictEqual(JSON.parse(await cold.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
-				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], hasMoreHistory: false, truncated: false,
+			await assert.rejects(async () => cold.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' }), /requested chat transcript is unavailable/);
+			const empty = createSessionServerToolGroup(createAccessor({ listSessions: async () => sessions, getChatContext: async () => ({ turns: [], pendingMessages: [], hasMoreHistory: false }) }));
+			assert.deepStrictEqual(JSON.parse(await empty.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.GetSessionContext, { session: 'copilot:/s1' })), {
+				session: 'copilot:/s1', openLink: 'agent-host-session://copilot/s1', detail: 'summary', transcript: [], messagesSentByMe: [], hasMoreHistory: false, truncated: false,
 			});
 			store.dispose();
 		});

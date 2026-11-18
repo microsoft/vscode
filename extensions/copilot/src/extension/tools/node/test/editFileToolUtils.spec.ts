@@ -797,6 +797,32 @@ describe('makeUriConfirmationChecker', async () => {
 		});
 	});
 
+	test('always checks Dev Container configurations despite explicit approval', async () => {
+		const workspaceFolder = URI.file('/workspace');
+		workspaceService = new TestWorkspaceService([workspaceFolder], []);
+		await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', {
+			'**/*': true,
+			'**/.devcontainer/**': true,
+			'**/.devcontainer.json': true,
+		});
+
+		const checker = makeUriConfirmationChecker(configService, resource => workspaceService.getWorkspaceFolder(resource), workspaceService.getWorkspaceFolders());
+		const files = [
+			URI.joinPath(workspaceFolder, '.devcontainer.json'),
+			URI.joinPath(workspaceFolder, '.devcontainer', 'devcontainer.json'),
+			URI.joinPath(workspaceFolder, '.devcontainer', 'python', 'devcontainer.json'),
+			URI.joinPath(workspaceFolder, 'nested', '.devcontainer', 'devcontainer.json'),
+		];
+
+		expect({
+			protectedFiles: await Promise.all(files.map(file => checker(file))),
+			ordinaryFile: await checker(URI.joinPath(workspaceFolder, '.devcontainer', 'Dockerfile')),
+		}).toEqual({
+			protectedFiles: files.map(() => ConfirmationCheckResult.Sensitive),
+			ordinaryFile: ConfirmationCheckResult.NoConfirmation,
+		});
+	});
+
 	test('pattern precedence - later patterns override earlier ones', async () => {
 		const workspaceFolder = URI.file('/workspace');
 		workspaceService = new TestWorkspaceService([workspaceFolder], []);

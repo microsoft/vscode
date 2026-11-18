@@ -23,6 +23,7 @@ import { IDefaultAccountService } from '../../../../../../../../platform/default
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
@@ -92,6 +93,7 @@ suite('ModelPickerActionItem', () => {
 		instantiationService.stub(IUpdateService, {});
 		instantiationService.stub(IUriIdentityService, {});
 		instantiationService.stub(IDefaultAccountService, {});
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 		instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IWorkspaceTrustRequestService, {});
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
@@ -511,6 +513,19 @@ suite('ModelPickerActionItem', () => {
 				label: 'Copilot Fusion',
 				hover: { markdown: `Models • Copilot Fusion Max\n\n${description} ${learnMore}`, fallback: `Models • Copilot Fusion Max\n\n${description}` },
 			},
+		});
+	});
+
+	test('a cached Auto that has not loaded yet is named Copilot Fusion in both its label and its hover', () => {
+		const auto = createModel('auto');
+		const { domNode, getHoverContents } = renderPicker({ ...auto, metadata: { ...auto.metadata, name: 'Auto' } }, { models: [] });
+		const hover = getHoverContents();
+		assert.deepStrictEqual({
+			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+			hover: isManagedHoverTooltipMarkdownString(hover) ? hover.markdownNotSupportedFallback : hover,
+		}, {
+			label: 'Copilot Fusion',
+			hover: 'Models • Copilot Fusion\n\nCopilot Fusion selects a single model or orchestrates multiple models to complete your task.',
 		});
 	});
 

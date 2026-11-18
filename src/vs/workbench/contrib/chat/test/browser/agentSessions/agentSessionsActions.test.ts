@@ -10,9 +10,11 @@ import { isMacintosh, OperatingSystem, OS } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -27,20 +29,26 @@ import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybindin
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../../../services/layout/browser/layoutService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation } from '../../../browser/agentSessions/agentSessions.js';
+import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, RenameAgentSessionAction, RestoreAgentSessionAction, ShowAgentSessionsSidebar, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
-import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../../common/chatSessionCommands.js';
+import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('AgentSessionsActions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,6 +56,59 @@ suite('AgentSessionsActions', () => {
 
 	suiteSetup(() => actionRegistration = registerAction2(RenameAgentSessionAction));
 	suiteTeardown(() => actionRegistration.dispose());
+
+	test('offers Open Customizations for one selected session and hides it when AI is disabled', () => {
+		disposables.add(registerAction2(OpenAgentSessionCustomizationsAction));
+		const item = MenuRegistry.getMenuItems(MenuId.AgentSessionsContext).filter(isIMenuItem).find(item => item.command.id === 'agentSession.openCustomizations');
+		assert.ok(item);
+		const evaluate = (enabled: boolean, multipleSelection: boolean) => {
+			const values: Record<string, boolean> = {
+				[ChatContextKeys.enabled.key]: enabled,
+				[ChatContextKeys.hasMultipleAgentSessionsSelected.key]: multipleSelection,
+			};
+			const context: IContext = { getValue: <T>(key: string) => values[key] as T | undefined };
+			return { visible: item.when?.evaluate(context), enabled: item.command.precondition?.evaluate(context) };
+		};
+		assert.deepStrictEqual({
+			group: item.group,
+			single: evaluate(true, false),
+			multiple: evaluate(true, true),
+			aiDisabled: evaluate(false, false),
+		}, {
+			group: 'navigation',
+			single: { visible: true, enabled: true },
+			multiple: { visible: true, enabled: false },
+			aiDisabled: { visible: false, enabled: false },
+		});
+	});
+
+	test('adapts explicit session contexts to the customization command without falling back to another session', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: { commandId: string; target: { sessionResource: URI } }[] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (commandId: string, target: { sessionResource: URI }) => {
+				calls.push({ commandId, target });
+				return undefined;
+			},
+		}));
+		const session = upcastPartial<IAgentSession>({ resource: URI.parse('agent-host-copilot:/selected-session') });
+		const other = upcastPartial<IAgentSession>({ resource: URI.parse('agent-host-claude:/other-session') });
+		const action = new OpenAgentSessionCustomizationsAction();
+		await instantiationService.invokeFunction(accessor => action.run(accessor, session));
+		await instantiationService.invokeFunction(accessor => action.run(accessor, {
+			$mid: MarshalledId.AgentSessionContext, session, sessions: [session],
+		}));
+		for (const sessions of [[], [session, other]]) {
+			await assert.rejects(() => instantiationService.invokeFunction(accessor => action.run(accessor, {
+				$mid: MarshalledId.AgentSessionContext, session, sessions,
+			})), /Select a single session/);
+		}
+		await assert.rejects(() => instantiationService.invokeFunction(accessor => action.run(accessor)), /Select a single session/);
+		assert.deepStrictEqual(calls, Array(2).fill({
+			commandId: AICustomizationManagementCommands.OpenEditor,
+			target: { sessionResource: session.resource },
+		}));
+	});
 
 	test('scopes read and unread shortcuts to the editor Sessions list on every platform', () => {
 		const registrations = disposables.add(new DisposableStore());
@@ -143,6 +204,41 @@ suite('AgentSessionsActions', () => {
 		}
 		assert.deepStrictEqual(calls, [true, false].flatMap(read =>
 			['first', 'second', 'second'].map(session => ({ session, read }))));
+	});
+
+	test('marks automation runs read when the sessions list shows them', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: string[] = [];
+		const createSession = (name: string) => upcastPartial<IAgentSession>({
+			resource: URI.parse(`test:/${name}`),
+			isArchived: () => false,
+			isRead: () => false,
+			setRead: () => calls.push(name),
+		});
+		const ordinary = createSession('ordinary');
+		const automation = createSession('automation');
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			model: upcastPartial<IAgentSessionsModel>({
+				sessions: [ordinary],
+				sessionsIncludingAutomationRuns: [ordinary, automation],
+			}),
+		}));
+		const context: IMarshalledAgentSessionContext = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: ordinary,
+			sessions: [ordinary],
+			showAutomationRuns: true,
+		};
+		const action = new MarkAllAgentSessionsReadAction();
+
+		await instantiationService.invokeFunction(accessor => action.run(accessor));
+		const defaultSessions = calls.splice(0);
+		await instantiationService.invokeFunction(accessor => action.run(accessor, context));
+
+		assert.deepStrictEqual({ defaultSessions, displayedSessions: calls }, {
+			defaultSessions: ['ordinary'],
+			displayedSessions: ['ordinary', 'automation'],
+		});
 	});
 
 	test('completes and restores focused or selected side chats without changing their parent', async () => {
@@ -452,5 +548,50 @@ suite('AgentSessionsActions', () => {
 		await instantiationService.invokeFunction(accessor => action.run(accessor, child));
 
 		assert.strictEqual(archiveCalls, 0);
+	});
+
+	test('Show Agent Sessions Sidebar widens the Chat view until its body fits side by side, past the chrome of its part, or maximizes it, and leaves one wide enough', async () => {
+		const run = async (partWidth: number, bodyWidth: number, applies: boolean, staleStackedBodyWidth?: number) => {
+			const calls: string[] = [];
+			let width = partWidth;
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
+				getPanelPosition: () => Position.BOTTOM,
+				getSize: () => ({ width, height: 800 }),
+				setSize: (_part, size) => { calls.push(`setSize ${size.width}`); if (applies) { width = size.width; } },
+				isAuxiliaryBarMaximized: () => false,
+				setAuxiliaryBarMaximized: maximized => { calls.push(`maximized ${maximized}`); return true; },
+				mainContainerDimension: { width: 1200, height: 800 },
+			}));
+			instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({ getViewLocationById: () => ViewContainerLocation.AuxiliaryBar }));
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true, [ChatConfiguration.ChatViewSessionsOrientation]: 'sideBySide' }));
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+				getActiveViewWithId: (<T>() => upcastPartial<ChatViewPane>({
+					// With a stale stacked width, the Chat view is laid out side by side now
+					getSessionsViewerOrientation: () => staleStackedBodyWidth === undefined ? AgentSessionsViewerOrientation.Stacked : AgentSessionsViewerOrientation.SideBySide,
+					getLastDimensions: orientation => orientation === AgentSessionsViewerOrientation.Stacked ? { width: staleStackedBodyWidth ?? bodyWidth, height: 800 } : staleStackedBodyWidth === undefined ? undefined : { width: bodyWidth, height: 800 },
+					updateConfiguredSessionsViewerOrientation: () => { },
+				}) as T) as IViewsService['getActiveViewWithId'],
+			}));
+			instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({ getPartId: () => Parts.AUXILIARYBAR_PART }));
+			await instantiationService.invokeFunction(accessor => new ShowAgentSessionsSidebar().run(accessor));
+			// The calls besides leaving the maximized state, which the action does before it widens
+			return calls.filter(call => call !== 'maximized false');
+		};
+
+		assert.deepStrictEqual({
+			// The part fits 601 but its body of 591 does not fit 600: it widens past the part's chrome of 9
+			narrowBody: await run(600, 591, true),
+			// The window cannot give the part that width
+			refused: await run(600, 591, false),
+			wideEnough: await run(700, 691, true),
+			// The chrome comes from the current layout, not from the other orientation's older one
+			staleOtherOrientation: await run(700, 691, true, 591),
+		}, {
+			narrowBody: ['setSize 609'],
+			refused: ['setSize 609', 'maximized true'],
+			wideEnough: [],
+			staleOtherOrientation: [],
+		});
 	});
 });

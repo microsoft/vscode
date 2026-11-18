@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as net from 'net';
 import type * as wsTypes from 'ws';
+import { useFakeTimers } from 'sinon';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../../base/common/network.js';
@@ -13,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { WebSocketProtocolServer } from '../../node/webSocketTransport.js';
 import { getProtocolMessageSize } from '../../common/state/sessionTransport.js';
+import { ProtocolLivenessMonitor } from '../../common/protocolLivenessMonitor.js';
 
 suite('WebSocketProtocolServer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +53,55 @@ suite('WebSocketProtocolServer', () => {
 		const text = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientId":"test","protocolVersions":["1.0.0"]}}';
 		socket.send(text);
 		assert.deepStrictEqual(await message, JSON.parse(text));
+	});
+
+	test('partial uploads keep the watchdog alive beyond its silence deadline', async () => {
+		const server = store.add(await WebSocketProtocolServer.create({ port: 0 }, new NullLogService()));
+		await server.whenListening;
+		const connection = Event.toPromise(server.onConnection);
+		const socket = await connect(`ws://127.0.0.1:${server.boundPort}/`);
+		store.add(toDisposable(() => socket.close()));
+		const accepted = store.add(await connection);
+		assert.ok(accepted.onDidReceiveData);
+
+		const clock = useFakeTimers({ now: 0, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+		store.add(toDisposable(() => clock.restore()));
+		let timedOut = false;
+		let messageCount = 0;
+		const liveness = store.add(new ProtocolLivenessMonitor({
+			pingIntervalMs: 10_000, timeoutMs: 20_000,
+			loadEstimator: { hasHighLoad: () => false },
+			canCheck: () => true,
+			onPing: () => { },
+			onTimeout: () => { timedOut = true; },
+		}));
+		store.add(accepted.onDidReceiveData(() => liveness.recordInboundTraffic()));
+		store.add(accepted.onMessage(() => messageCount++));
+		liveness.reset();
+		try {
+			for (const fragment of ['{"jsonrpc":', '"2.0",', '"id":1,', '"result":null}']) {
+				await clock.tickAsync(10_000);
+				const activity = Event.toPromise(accepted.onDidReceiveData);
+				socket.send(fragment, { fin: false });
+				await activity;
+			}
+			const duringUpload = { elapsedMs: clock.now, timedOut, messageCount };
+			const message = Event.toPromise(accepted.onMessage);
+			socket.send('', { fin: true });
+			const completedMessage = await message;
+			await clock.tickAsync(29_999);
+			const beforeDeadline = timedOut;
+			await clock.tickAsync(1);
+			assert.deepStrictEqual({ duringUpload, completedMessage, beforeDeadline, timedOut }, {
+				duringUpload: { elapsedMs: 40_000, timedOut: false, messageCount: 0 },
+				completedMessage: { jsonrpc: '2.0', id: 1, result: null },
+				beforeDeadline: false,
+				timedOut: true,
+			});
+		} finally {
+			liveness.dispose();
+			clock.restore();
+		}
 	});
 
 	for (const query of ['', `?${connectionTokenQueryName}=wrong`]) {

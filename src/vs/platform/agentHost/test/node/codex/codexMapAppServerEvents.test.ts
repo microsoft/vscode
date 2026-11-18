@@ -590,6 +590,36 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
+	test('item/commandExecution/outputDelta shows only the newest streamed output but completes with all of it', () => {
+		const state = createCodexSessionMapState();
+		const item = {
+			type: 'commandExecution', id: 'cmd_noisy',
+			command: 'build', cwd: '/tmp', processId: null,
+			source: 'agent', status: 'inProgress',
+			commandActions: [], aggregatedOutput: null,
+			exitCode: null, durationMs: null,
+		};
+		mapItemStarted(state, { item: item as never, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 });
+		const chunk = 'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT / 2);
+		let streamed: unknown;
+		for (const delta of [`BEGIN${chunk}`, chunk, `${chunk}END`]) {
+			streamed = mapCommandExecutionOutputDelta(state, { threadId: 'thr_1', turnId: 'turn_a', itemId: 'cmd_noisy', delta });
+		}
+		const completed = mapItemCompleted(state, {
+			item: { ...item, status: 'completed', aggregatedOutput: '', exitCode: 1, durationMs: 12 } as never,
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		const tail = `${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT - 3)}END`;
+		assert.deepStrictEqual({
+			streamed,
+			completedText: completed.flatMap(action => action.type === ActionType.ChatToolCallComplete ? action.result.content ?? [] : [])
+				.map(block => block.type === ToolResultContentType.Text ? block.text : block.type),
+		}, {
+			streamed: [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId: 'cmd_noisy', content: [{ type: ToolResultContentType.Text, text: tail }] }],
+			completedText: [`BEGIN${chunk.repeat(3)}END`],
+		});
+	});
+
 	test('item/completed for commandExecution falls back to streamed output when aggregated output is empty', () => {
 		const state = createCodexSessionMapState();
 		mapItemStarted(state, {

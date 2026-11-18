@@ -8,24 +8,27 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableFromEvent, runOnChange } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, registerLocalAgentHostWindowScheme } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { getVirtualWorkspaceScheme } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
+import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -53,6 +56,7 @@ import { AICustomizationManagementSection } from '../../../common/aiCustomizatio
 import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
+import { IChatViewSessionsListService } from '../../../common/chatViewSessionsListService.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -64,46 +68,65 @@ languageModelSourcePresentationRegistry.register({
 	description: localize('agentHostModelSource.chatGPT.description', "Models provided by your ChatGPT subscription"),
 });
 
-Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
-	matchSessionType: sessionType => isLocalAgentHostTarget(sessionType),
-	waitForActivation: waitForLocalAgentHostActivation,
-});
+/**
+ * Lets the chat sessions service wait for a local agent host's provider of a session type before it resolves its chats
+ * ({@link IAsyncChatSessionActivationRegistry}): created as the window starts, before the installed extensions register, which
+ * the service waits for before it asks.
+ */
+export class LocalAgentHostActivationContribution extends Disposable implements IWorkbenchContribution {
 
-async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
-	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
-	const agentHostService = accessor.get(IAgentHostService);
-	const configurationService = accessor.get(IConfigurationService);
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
-	if (!agentHostEnablementService.enabled.get()) {
-		return false;
+	static readonly ID = 'workbench.contrib.localAgentHostActivation';
+
+	constructor(
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatViewSessionsListService private readonly _chatViewSessionsListService: IChatViewSessionsListService,
+	) {
+		super();
+		this._register(Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
+			matchSessionType: sessionType => isLocalAgentHostTarget(sessionType),
+			waitForActivation: (_accessor, sessionType) => this._waitForActivation(sessionType),
+		}));
 	}
 
-	const provider = getLocalAgentHostProviderForSessionType(sessionType);
-	if (!provider) {
-		return false;
-	}
-
-	while (true) {
-		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, environmentService.isSessionsWindow).includes(provider)) {
-			return true;
-		}
-		const rootState = agentHostService.rootState.value;
-		if (rootState instanceof Error) {
+	private async _waitForActivation(sessionType: string): Promise<boolean> {
+		const agentHostService = this._agentHostService;
+		const configurationService = this._configurationService;
+		const surfacesAllAgents = this._chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
+		if (!this._agentHostEnablementService.enabled.get()) {
 			return false;
 		}
-		if (rootState) {
-			return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, environmentService.isSessionsWindow));
+
+		const provider = getLocalAgentHostProviderForSessionType(sessionType);
+		if (!provider) {
+			return false;
 		}
 
-		const changed = await Promise.race([
-			Event.toPromise(agentHostService.rootState.onDidChange).then(() => true),
-			Event.toPromise(agentHostService.onAgentHostExit).then(() => false),
-		]);
-		if (!changed) {
-			return false;
+		while (true) {
+			if (getPolicyUnavailableLocalAgentHostProviders(configurationService, surfacesAllAgents.get()).includes(provider)) {
+				return true;
+			}
+			const rootState = agentHostService.rootState.value;
+			if (rootState instanceof Error) {
+				return false;
+			}
+			if (rootState) {
+				return rootState.agents.some(agent => agent.provider === provider && shouldSurfaceLocalAgentHostProvider(agent.provider, configurationService, surfacesAllAgents.get()));
+			}
+
+			const changed = await Promise.race([
+				Event.toPromise(agentHostService.rootState.onDidChange).then(() => true),
+				Event.toPromise(agentHostService.onAgentHostExit).then(() => false),
+			]);
+			if (!changed) {
+				return false;
+			}
 		}
 	}
 }
+
+registerWorkbenchContribution2(LocalAgentHostActivationContribution.ID, LocalAgentHostActivationContribution, WorkbenchPhase.BlockStartup);
 
 function getLocalAgentHostProviderForSessionType(sessionType: string): AgentProvider | undefined {
 	if (!isLocalAgentHostTarget(sessionType) || !sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)) {
@@ -135,6 +158,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _authRecovery: AgentHostAuthenticationRecovery;
 
 	private readonly _isSessionsWindow: boolean;
+	/** Whether it registers every agent, as the Agents window does, rather than only the agents editor windows show. */
+	private readonly _surfacesAllAgents: IObservable<boolean>;
 	private readonly _isLocalAgentHost: boolean;
 	/** A remote window's canvases load through the remote, so they require remote browser proxying. */
 	private readonly _canvasPresentationAvailable: IObservable<boolean>;
@@ -162,10 +187,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IChatViewSessionsListService chatViewSessionsListService: IChatViewSessionsListService,
 	) {
 		super();
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._surfacesAllAgents = chatViewSessionsListService.surfacesAllLocalAgentHostAgents;
 		this._isLocalAgentHost = !environmentService.remoteAuthority;
 		this._canvasPresentationAvailable = this._isLocalAgentHost ? constObservable(true) : observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, this._configurationService);
 		this._connectionAuthority = environmentService.remoteAuthority ? agentHostAuthority(`vscode-remote://${environmentService.remoteAuthority}`) : LOCAL_AGENT_HOST_AUTHORITY;
@@ -201,6 +229,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._initialized = true;
 		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
 		this._register(this._agentHostFileSystemService.registerAuthority(LOCAL_AGENT_HOST_AUTHORITY, this._agentHostService));
+		// Files of an open virtual workspace that local sessions report are this window's own, so it reads them directly.
+		const virtualWorkspaceScheme = this._isLocalAgentHost ? getVirtualWorkspaceScheme(this._workspaceContextService.getWorkspace()) : undefined;
+		if (virtualWorkspaceScheme) {
+			this._register(registerLocalAgentHostWindowScheme(virtualWorkspaceScheme));
+		}
 
 		// React to root state changes (agent discovery / removal)
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -212,12 +245,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._handleRootStateChange(initialRootState);
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
+			if (!affectsAgentHostProviderPreference(e, this._surfacesAllAgents.get())) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
 			this._handleRootStateChange(current);
 		}));
+		// The agents a window surfaces change too as it starts or stops showing the sessions of the Agents window
+		this._register(runOnChange(this._surfacesAllAgents, () => this._handleRootStateChange(this._agentHostService.rootState.value)));
 	}
 
 	private _enable(): void {
@@ -264,7 +299,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private _shouldRegisterAgent(provider: AgentProvider): boolean {
-		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._surfacesAllAgents.get());
 	}
 
 	private _handleRootStateChange(rootState: RootState | Error | undefined): void {
@@ -281,7 +316,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow));
+		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._surfacesAllAgents.get()));
 		for (const [provider] of this._historyRegistrations) {
 			if (!unavailable.has(provider)) {
 				this._historyRegistrations.deleteAndDispose(provider);
@@ -329,6 +364,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			name: agentId,
 			displayName: agent.displayName,
 			description: agent.description,
+			when: this._isLocalAgentHost && !this._isSessionsWindow && agent.provider !== 'copilotcli' ? VirtualWorkspaceContext.negate().serialize() : undefined,
 			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
@@ -362,7 +398,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const modelCatalogueStatus = observableFromEvent(this, this._agentHostService.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(this._agentHostService.rootState.value, agent.provider));
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, undefined));
 
 		// Local mode IDs keep the ambient wrapping that predates connection resource mappers.
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, { clientId: ahService.clientId, resourceUris: this._isLocalAgentHost ? createAgentHostResourceUriMapper(LOCAL_AGENT_HOST_AUTHORITY) : ahService.resourceUris }, undefined,
@@ -446,7 +482,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
+		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, uri => this._agentHostService.resourceUris.fromAgentHost(uri)));
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));

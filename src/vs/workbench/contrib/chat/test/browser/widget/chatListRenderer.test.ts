@@ -6,20 +6,24 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
+import type { IManagedHoverContentOrFactory } from '../../../../../../base/browser/ui/hover/hover.js';
+import type { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
+import { Action, IAction, Separator, toAction } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { safeIntl } from '../../../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../../base/common/platform.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb, regionalLocale } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -32,7 +36,7 @@ import { agentHostAuthority, toAgentHostContentUri } from '../../../../../../pla
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IFileDialogService, ISaveDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
@@ -46,6 +50,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -59,10 +64,9 @@ import type { IChatPillEntry, IChatPillSection } from '../../../../../browser/ch
 import { sessionBackgroundShellsPillOptions, sessionSubagentsPillOptions } from '../../../browser/sessionChatPillOptions.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../../browser/sessionSubagentsPill.js';
 import { SessionBackgroundShellsControl } from '../../../browser/sessionBackgroundShellsControl.js';
-import type { IChatBackgroundShell } from '../../../common/sessionChatPills.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IQuickChatService } from '../../../browser/chat.js';
 import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -70,8 +74,13 @@ import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfir
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { ChatWidgetService } from '../../../browser/widget/chatWidgetService.js';
+import { IChatViewHostService } from '../../../browser/chatViewHost.js';
+import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
@@ -84,7 +93,7 @@ import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/wi
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatPlanReview, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
@@ -93,10 +102,10 @@ import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerial
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
 import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
-import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatRequestDynamicVariablePart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
@@ -126,11 +135,13 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { GitHubResourceDetailsResolver } from '../../../../github/browser/githubResourceDetails.js';
 import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatSelection, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
-import { IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -139,14 +150,30 @@ import { IChatEditingService, IChatEditingSession } from '../../../common/editin
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../../browser/planReviewFeedback/planReviewFeedbackService.js';
 import { AgentEditorCommentsBridge, IAgentEditorCommentsBridge } from '../../../../../services/agentEditorComments/common/agentEditorComments.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { ChatPlanReviewPart } from '../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
+import { ChatPlanReviewPart, IChatPlanReviewPartOptions } from '../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
 import { ITerminalChatService, ITerminalConfigurationService, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import '../../../../../browser/media/style.css';
+import type { IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Turns the tool confirmation carousel on, telling the renderers that observe the setting, as the configuration service does. */
+	function enableToolConfirmationCarousel(configurationService: TestConfigurationService): void {
+		configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === ChatConfiguration.ToolConfirmationCarousel }));
+	}
+
+	// Every test removes the chat list hosts it appends to the window, whose layout another file's tests would see otherwise
+	let sessionHostsBefore = 0;
+	suiteSetup(() => {
+		sessionHostsBefore = mainWindow.document.querySelectorAll('.interactive-session').length;
+	});
+	suiteTeardown(() => {
+		assert.strictEqual(mainWindow.document.querySelectorAll('.interactive-session').length, sessionHostsBefore, 'a test left a chat list host in the window');
+	});
 
 	test('recognizes anchors and their nested content as link targets', () => {
 		const anchor = mainWindow.document.createElement('a');
@@ -188,7 +215,7 @@ suite('ChatListRenderer', () => {
 
 		suite('getFinalResponseStartIndex', () => {
 			for (const serialized of [false, true]) {
-				test(`completed response folding crosses only one trailing single-tool gap (serialized=${serialized})`, async () => {
+				test(`completed response folding crosses only one trailing single-tool gap and its reasoning (serialized=${serialized})`, async () => {
 					const invocation = new ChatToolInvocation(
 						{ invocationMessage: 'Finish bookkeeping' },
 						{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -206,6 +233,10 @@ suite('ChatListRenderer', () => {
 						[thinking, markdown, tool, tool, summary],
 						[markdown, tool, markdown, tool, summary],
 						[markdown, tool, thinking, summary],
+						[tool, markdown, thinking, tool, thinking, summary],
+						[markdown, tool, thinking, tool, summary],
+						[markdown, thinking, summary],
+						[tool, thinking, summary],
 						[tool, summary],
 						[tool],
 					];
@@ -217,12 +248,38 @@ suite('ChatListRenderer', () => {
 						{ contiguous: 4, singleToolGap: 1 },
 						{ contiguous: 4, singleToolGap: 4 },
 						{ contiguous: 4, singleToolGap: 2 },
-						{ contiguous: 3, singleToolGap: 3 },
+						{ contiguous: 3, singleToolGap: 0 },
+						{ contiguous: 5, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 4 },
+						{ contiguous: 2, singleToolGap: 2 },
+						{ contiguous: 2, singleToolGap: 2 },
 						{ contiguous: 1, singleToolGap: 1 },
 						{ contiguous: undefined, singleToolGap: undefined },
 					]);
 				});
 			}
+
+			test('completed response folding does not keep an edit code block as the answer', async () => {
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Verify the edit' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'verify', undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				const editBlock = '```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/progress.ts</vscode_codeblock_uri>\nexport const enabled = true;\n```';
+				const edit = { kind: 'markdownContent', content: new MarkdownString(`${editBlock}\n\n`) } as const;
+				const standaloneEdit = { kind: 'markdownContent', content: new MarkdownString('```\n\n```'), codeblockUri: { kind: 'codeblockUri', uri: URI.file('/workspace/progress.ts'), isEdit: true, isStandalone: true } } as const;
+				const editWithAnswer = { kind: 'markdownContent', content: new MarkdownString(`${editBlock}\n\nDetailed response`) } as const;
+				const thinking = { kind: 'thinking', value: 'Reasoning' } as const;
+				const summary = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+				const cases: IChatRendererContent[][] = [
+					[tool, edit, thinking, tool, summary],
+					[tool, edit, tool, summary],
+					[tool, standaloneEdit, tool, summary],
+					[tool, editWithAnswer, thinking, tool, summary],
+				];
+				assert.deepStrictEqual(cases.map(content => getFinalResponseStartIndex(content, true)), [4, 3, 3, 1]);
+			});
 
 			test('preserves the single-tool answer boundary when session outcomes move', async () => {
 				const outcome = new ChatToolInvocation(
@@ -926,6 +983,40 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('formatChatRequestTimestamp', () => {
+		test('keeps regional timestamps consistent across request and response hovers and accessible labels', () => {
+			const timestamp = Date.now() - 60 * 60 * 1000;
+			const text = safeIntl.DateTimeFormat(regionalLocale, { hour: 'numeric', minute: '2-digit' }).value.format(timestamp);
+			const fullText = safeIntl.DateTimeFormat(regionalLocale, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).value.format(timestamp);
+			const dateTime = new Date(timestamp).toISOString();
+			const requestContainer = document.createElement('div');
+			const responseContainer = document.createElement('div');
+
+			const request = renderChatRequestTimestamp(requestContainer, timestamp);
+			const response = renderChatResponseDetails(responseContainer, 'Test model', timestamp, 83_000, true);
+			const stats = formatResponseTokenStats([{ model: 'Test model', inputTokens: 40, cachedTokens: 0, outputTokens: 12 }], timestamp);
+
+			assert.deepStrictEqual({
+				request: {
+					text: request?.element.textContent,
+					dateTime: request?.element.getAttribute('datetime'),
+					label: request?.element.ariaLabel,
+					hover: request?.hoverText,
+				},
+				response: {
+					text: response?.textContent,
+					dateTime: response?.getAttribute('datetime'),
+					label: responseContainer.ariaLabel,
+				},
+				hover: stats?.markdown.value,
+				hoverFallback: stats?.markdownNotSupportedFallback,
+			}, {
+				request: { text, dateTime, label: `Sent ${fullText}`, hover: fullText },
+				response: { text, dateTime, label: `Completed ${fullText}, Elapsed time 1m 23s, Test model` },
+				hover: `**Response details**\n\nCompleted: ${fullText}\n\nModel: Test model\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
+				hoverFallback: `Response details. Completed: ${fullText}. Model: Test model. Input tokens: 40. Output tokens: 12`,
+			});
+		});
+
 		test('formats valid persisted timestamps and rejects legacy placeholders', () => {
 			const timestamp = Date.UTC(2026, 6, 8, 23, 18, 41);
 			const formatted = formatChatRequestTimestamp(timestamp);
@@ -933,12 +1024,12 @@ suite('ChatListRenderer', () => {
 				hasText: !!formatted?.text,
 				hasFullText: !!formatted?.fullText,
 				dateTime: formatted?.dateTime,
-				invalid: formatChatRequestTimestamp(-1),
+				invalid: [undefined, 0, -1, NaN, Infinity, -Infinity].map(formatChatRequestTimestamp),
 			}, {
 				hasText: true,
 				hasFullText: true,
 				dateTime: '2026-07-08T23:18:41.000Z',
-				invalid: undefined,
+				invalid: [undefined, undefined, undefined, undefined, undefined, undefined],
 			});
 		});
 
@@ -1055,6 +1146,267 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('scheduled relative times refresh once a minute without rerendering the message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const renderAt = (remaining: number) => {
+			viewModel.setScheduledRequests([{
+				id: 'later', text: 'Scheduled message', description: 'Exact send time', attachments: [], actions: [],
+				runAt: new Date(Date.now() + remaining).toISOString(),
+			}]);
+			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+			return template.value.querySelector('.scheduled-request-from-now')!;
+		};
+		const hours = renderAt(3 * 60 * 60_000).textContent;
+		const description = renderAt(179_000);
+		const labels = [description.textContent];
+		await timeout(59_999);
+		labels.push(description.textContent);
+		await timeout(1);
+		labels.push(description.textContent);
+		await timeout(60_000);
+		labels.push(description.textContent);
+		await timeout(60_000);
+		labels.push(description.textContent);
+		assert.deepStrictEqual({
+			hours, labels, retainedElement: template.value.querySelector('.scheduled-request-from-now') === description,
+		}, {
+			hours: 'Sends in 3 hours',
+			labels: ['Sends in 3 minutes', 'Sends in 3 minutes', 'Sends in 2 minutes', 'Sends in less than a minute', 'Waiting to send'],
+			retainedElement: true,
+		});
+		disposables.dispose();
+	}));
+
+	test('scheduled editing refreshes the local day without replacing the picker anchor', () => runWithFakedTimers({ startTime: new Date(2026, 10, 16, 23, 59).getTime(), useFakeTimers: true }, async () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		viewModel.setScheduledRequests([{
+			id: 'later', text: 'Scheduled message', description: 'Exact send time', attachments: [], actions: [],
+			editing: {
+				text: 'Scheduled message', runAt: new Date(2026, 10, 17, 0, 1).toISOString(), description: 'Exact send time',
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }), save: async () => { }, cancel: () => { },
+			},
+		}]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const time = template.requestTimestampContainer.querySelector('.scheduled-request-edit-time')!;
+		const save = template.requestTimestampContainer.querySelector('.scheduled-request-save-label')!;
+		const initial = time.getAttribute('aria-label')?.replace(/\s/g, ' ');
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			initial, updated: time.getAttribute('aria-label')?.replace(/\s/g, ' '),
+			saveLabel: save.textContent?.replace(/\s/g, ' '),
+			retainedAnchor: template.requestTimestampContainer.querySelector('.scheduled-request-edit-time') === time,
+		}, {
+			initial: 'Change send time, Tomorrow at 12:01 AM', updated: 'Change send time, Today at 12:01 AM',
+			saveLabel: 'Send Today at 12:01 AM', retainedAnchor: true,
+		});
+		disposables.dispose();
+	}));
+
+	test('scheduled messages render literal content and management actions without immediate-queue controls', async () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const ran = new DeferredPromise<void>();
+		let sent = 0;
+		const send = disposables.add(new Action('sendNow', 'Send Now', ThemeIcon.asClassName(Codicon.newLine), true, async () => { sent++; ran.complete(); }));
+		viewModel.setScheduledRequests([{
+			id: 'later', text: '<b>Later</b>\nSecond line', description: 'Tomorrow at 10:00 AM',
+			attachments: ['notes.txt'], actions: [send],
+		}]);
+		const request = viewModel.getItems().find(isRequestVM)!;
+		renderer.renderElement({ ...node, element: request }, 0, template);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const scheduled = {
+			text: template.value.querySelector('.scheduled-request-text')?.textContent,
+			attachments: template.value.querySelector('.scheduled-request-attachments')?.textContent,
+			description: template.value.querySelector('.scheduled-request-description')?.textContent,
+			html: !!template.value.querySelector('b'),
+			requestActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isRequest.key),
+			pendingActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isPendingRequest.key),
+			dragHandle: template.dragHandle,
+			inlineActions: Array.from(template.rowContainer.querySelectorAll('.scheduled-request-actions .action-label')).map(action => action.getAttribute('aria-label')),
+		};
+		template.rowContainer.querySelector<HTMLElement>('.scheduled-request-actions .action-label')!.click();
+		await ran.p;
+		renderer.renderElement({ ...node, element: request }, 0, template);
+		assert.deepStrictEqual({
+			scheduled, sent,
+			recycled: {
+				hasScheduledContent: !!template.value.querySelector('.scheduled-request-text'),
+				scheduledClass: template.rowContainer.classList.contains('scheduled-request'),
+				hasScheduledToolbar: !!template.rowContainer.querySelector('.scheduled-request-actions'),
+			},
+		}, {
+			scheduled: { text: '<b>Later</b>\nSecond line', attachments: 'Attachments: notes.txt', description: 'Tomorrow at 10:00 AM', html: false, requestActions: false, pendingActions: false, dragHandle: undefined, inlineActions: ['Send Now'] },
+			sent: 1, recycled: { hasScheduledContent: false, scheduledClass: false, hasScheduledToolbar: false },
+		});
+		disposables.dispose();
+	});
+
+	test('scheduled messages support click and keyboard editing, selection, and a focus-revealed toolbar', async () => {
+		const { disposables, configurationService, viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+		configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		let edits = 0;
+		let sends = 0;
+		const edit = disposables.add(new Action('edit', 'Edit', ThemeIcon.asClassName(Codicon.edit), true, async () => { edits++; }));
+		const send = disposables.add(new Action('sendNow', 'Send Now', ThemeIcon.asClassName(Codicon.newLine), true, async () => { sends++; }));
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled message', description: 'Tomorrow', attachments: [], actions: [edit, send], editAction: edit }]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const content = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
+		const toolbar = template.rowContainer.querySelector<HTMLElement>('.scheduled-request-actions')!;
+		const resting = mainWindow.getComputedStyle(toolbar).opacity;
+		content.focus();
+		const focused = mainWindow.getComputedStyle(toolbar).opacity;
+		const selection = mainWindow.getSelection()!;
+		disposables.add(toDisposable(() => selection.removeAllRanges()));
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(content);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		content.click();
+		const afterSelection = edits;
+		selection.removeAllRanges();
+		content.click();
+		for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+			content.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+		}
+		const sendButton = toolbar.querySelector<HTMLElement>('.codicon-newline')!;
+		sendButton.focus();
+		const toolbarFocused = mainWindow.getComputedStyle(toolbar).opacity;
+		sendButton.click();
+		await timeout(0);
+		assert.deepStrictEqual({ resting, focused, toolbarFocused, afterSelection, edits, sends }, {
+			resting: '0', focused: '1', toolbarFocused: '1', afterSelection: 0, edits: 3, sends: 1,
+		});
+		disposables.dispose();
+	});
+
+	test('scheduled inline editing retains attachments and offers Cancel and a timed Send button', () => runWithFakedTimers({ startTime: new Date(2026, 10, 16, 9).getTime(), useFakeTimers: true }, async () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const saved: string[] = [];
+		let cancelled = 0;
+		let timeAnchor: HTMLElement | undefined;
+		let inlineInputRequested = false;
+		disposables.add(renderer.onDidRerender(item => { inlineInputRequested = item === template; }));
+		const editing = {
+			text: 'Original', runAt: new Date(2026, 10, 16, 11, 42).toISOString(), description: 'Exact send time',
+			selectTime: toAction({ id: 'time', label: 'Time', run: async (anchor?: HTMLElement) => { timeAnchor = anchor; editing.runAt = '2099-01-16T10:00:00Z'; } }),
+			save: async () => { saved.push(editing.text, editing.runAt); },
+			cancel: () => { cancelled++; },
+		};
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Original', description: 'Tomorrow', attachments: ['notes.txt'], actions: [], editing }]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		editing.text = 'Edited\nmessage';
+		const timeButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
+		const saveButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-save-label')!;
+		const cancelButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-cancel')!;
+		cancelButton.focus();
+		cancelButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const saveReachedByKeyboard = mainWindow.document.activeElement === saveButton;
+		saveButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const timeReachedByKeyboard = mainWindow.document.activeElement === timeButton;
+		timeButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await timeout(0);
+		saveButton.click();
+		await timeout(0);
+		cancelButton.click();
+		assert.deepStrictEqual({
+			text: editing.text, timeAnchored: timeAnchor === timeButton, inlineInputRequested, saved, cancelled,
+			hasCustomTextArea: !!template.rowContainer.querySelector('textarea'),
+			saveReachedByKeyboard, timeReachedByKeyboard, saveLabel: saveButton.textContent?.replace(/\s/g, ' '),
+			attachments: template.requestTimestampContainer.querySelector('.scheduled-request-attachments')?.textContent,
+			hoverToolbar: !!template.rowContainer.querySelector('.scheduled-request-actions'),
+		}, {
+			text: 'Edited\nmessage', timeAnchored: true, inlineInputRequested: true, hasCustomTextArea: false,
+			saved: ['Edited\nmessage', '2099-01-16T10:00:00Z'], cancelled: 1,
+			saveReachedByKeyboard: true, timeReachedByKeyboard: true, saveLabel: 'Send Today at 11:42 AM',
+			attachments: 'Attachments: notes.txt', hoverToolbar: false,
+		});
+		disposables.dispose();
+	}));
+
+	test('leaving scheduled editing restores the visible message on the reused row', () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const request = { id: 'later', text: 'Scheduled message', description: 'Tomorrow', attachments: [], actions: [] };
+		viewModel.setScheduledRequests([{
+			...request,
+			editing: {
+				text: request.text, runAt: '2099-01-15T10:00:00Z', description: request.description,
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }),
+				save: async () => { }, cancel: () => { },
+			},
+		}]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		viewModel.setScheduledRequests([request]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const content = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
+		assert.deepStrictEqual({
+			text: content.textContent, visible: mainWindow.getComputedStyle(content).display !== 'none',
+		}, { text: 'TomorrowScheduled message', visible: true });
+		disposables.dispose();
+	});
+
+	test('scheduled editor footer fits the shared inline composer at narrow and wide widths', () => {
+		const { disposables, viewModel, container, renderer, template, node } = createPersistentProgressRenderer();
+		viewModel.setScheduledRequests([{
+			id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [],
+			editing: {
+				text: 'Edited message', runAt: '2099-01-15T10:00:00Z', description: '11/12/2099, 6:44:11 PM EST',
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }), save: async () => { }, cancel: () => { },
+			},
+		}]);
+		for (const width of [900, 300, 900]) {
+			container.style.width = `${width}px`;
+			renderer.layout(width);
+			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+			const editor = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-editor')!;
+			const bounds = editor.getBoundingClientRect();
+			const buttons = [...editor.querySelectorAll<HTMLElement>('.monaco-button')];
+			const controls = buttons.map(button => button.getBoundingClientRect());
+			assert.deepStrictEqual({
+				width, visible: bounds.width > 0,
+				interactive: buttons.every(button => mainWindow.getComputedStyle(button).pointerEvents === 'auto'),
+				sameRow: controls.every(control => control.top === controls[0].top),
+				fits: controls.every(control => control.left >= bounds.left && control.right <= bounds.right),
+			}, { width, visible: true, interactive: true, sameRow: true, fits: true });
+		}
+		disposables.dispose();
+	});
+
+	test('scheduled messages do not activate disabled edits or edits disabled in settings', () => {
+		const { disposables, configurationService, viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+		let edits = 0;
+		const edit = disposables.add(new Action('edit', 'Edit', ThemeIcon.asClassName(Codicon.edit), true, async () => { edits++; }));
+		const states = [true, false].map(enabled => {
+			edit.enabled = enabled;
+			configurationService.setUserConfiguration('chat.editRequests', enabled ? 'none' : 'inline');
+			viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled', description: 'Tomorrow', attachments: [], actions: [edit], editAction: edit }]);
+			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+			const content = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
+			content.click();
+			content.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			return { clickable: content.classList.contains('clickable'), edits };
+		});
+		assert.deepStrictEqual(states, [{ clickable: false, edits: 0 }, { clickable: false, edits: 0 }]);
+		disposables.dispose();
+	});
+
+	test('scheduled message action failures are reported after its row rerenders', async () => {
+		const { disposables, instantiationService, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const failure = new DeferredPromise<void>();
+		const notified = new DeferredPromise<Parameters<INotificationService['error']>[0]>();
+		const notification = sinon.stub(instantiationService.get(INotificationService), 'error').callsFake(error => { notified.complete(error); });
+		disposables.add(toDisposable(() => notification.restore()));
+		const edit = disposables.add(new Action('edit', 'Edit', ThemeIcon.asClassName(Codicon.edit), true, () => failure.p));
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled', description: 'Tomorrow', attachments: [], actions: [edit], editAction: edit }]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		template.rowContainer.querySelector<HTMLElement>('.scheduled-request-actions .action-label')!.click();
+		renderer.renderElement(node, 0, template);
+		const error = new Error('Schedule changed');
+		failure.error(error);
+		assert.strictEqual(await notified.p, error);
+		disposables.dispose();
+	});
+
 	test('steering handoff rows render the message without queue or editing actions', () => {
 		const setup = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
 		const { disposables, configurationService, viewModel, renderer, template, node } = setup;
@@ -1075,6 +1427,41 @@ suite('ChatListRenderer', () => {
 			dragHandle: template.dragHandle,
 			edits,
 		}, { hasText: true, requestActions: false, pendingActions: false, clickable: false, dragHandle: undefined, edits: 0 });
+		disposables.dispose();
+	});
+
+	test('scheduled messages use the steering bubble alignment at narrow and wide widths', () => {
+		const { disposables, model, viewModel, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		model.addPendingRequest(request, ChatRequestQueueKind.Steering, {});
+		viewModel.setScheduledRequests([{
+			id: 'later', text: 'A scheduled message with enough text to wrap in a narrow chat pane. '.repeat(5),
+			description: 'Tomorrow at 10:00 AM', attachments: ['notes.txt'], actions: [],
+		}]);
+		const steering = viewModel.getItems().find(item => isRequestVM(item) && item.pendingKind === ChatRequestQueueKind.Steering)!;
+		const scheduled = viewModel.getItems().find(isScheduledRequestVM)!;
+		for (const width of [400, 900, 400]) {
+			container.style.width = `${width}px`;
+			renderer.layout(width);
+			renderer.renderElement({ ...node, element: steering }, 0, template);
+			const steeringBubble = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
+			const steeringBounds = steeringBubble.getBoundingClientRect();
+			const steeringStyle = mainWindow.getComputedStyle(steeringBubble);
+			const expected = {
+				right: steeringBounds.right, padding: steeringStyle.padding,
+				borderRadius: steeringStyle.borderRadius, opacity: mainWindow.getComputedStyle(template.rowContainer).opacity,
+			};
+			renderer.renderElement({ ...node, element: scheduled }, 0, template);
+			const bubble = template.value.querySelector<HTMLElement>('.rendered-markdown');
+			assert.ok(bubble, 'Scheduled messages should use the shared request bubble');
+			const bounds = bubble.getBoundingClientRect();
+			const style = mainWindow.getComputedStyle(bubble);
+			assert.deepStrictEqual({
+				right: bounds.right, padding: style.padding, borderRadius: style.borderRadius,
+				opacity: mainWindow.getComputedStyle(template.rowContainer).opacity,
+				visible: bounds.width > 0 && bounds.height > 0,
+				fits: bounds.left >= template.value.getBoundingClientRect().left && bubble.scrollWidth <= bubble.clientWidth,
+			}, { ...expected, visible: true, fits: true });
+		}
 		disposables.dispose();
 	});
 
@@ -1355,7 +1742,7 @@ suite('ChatListRenderer', () => {
 		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
 		renderer.renderElement({ element: requestViewModel, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined }, 0, template);
 
-		const widget = {
+		const widget: ChatWidget = Object.setPrototypeOf({
 			viewModel,
 			configurationService,
 			recentlyRestoredCheckpoint: false,
@@ -1401,7 +1788,7 @@ suite('ChatListRenderer', () => {
 			_onDidChangeActiveInputEditor: { fire: () => { } },
 			_register: <T extends { dispose(): void }>(disposable: T) => disposables.add(disposable),
 			telemetryService: { publicLog2: () => { } },
-		} as unknown as ChatWidget;
+		}, ChatWidget.prototype);
 		(ChatWidget.prototype as unknown as { clickedRequest(this: ChatWidget, item: IChatListItemTemplate): void }).clickedRequest.call(widget, template);
 
 		assert.deepStrictEqual({
@@ -2103,7 +2490,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; permissionLevel?: ChatPermissionLevel; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; permissionLevel?: ChatPermissionLevel; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; getWidget?: () => IChatWidget | undefined; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
@@ -2204,7 +2591,7 @@ suite('ChatListRenderer', () => {
 				override readonly inputPart = input;
 				override readonly location = ChatAgentLocation.Chat;
 			}();
-			instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+			instantiationService.stub(IChatWidgetService, new class extends MockChatWidgetService {
 				override getWidgetBySessionResource() { return widget; }
 			}());
 		}
@@ -2222,26 +2609,34 @@ suite('ChatListRenderer', () => {
 				};
 			}
 		}();
-		const renderer = disposables.add(instantiationService.createInstance(
-			ChatListItemRenderer,
-			editorOptions,
-			{ progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask, ...options.rendererOptions },
-			{
-				getListLength: () => 1,
-				onDidScroll: () => toDisposable(() => { }),
-				container,
-				currentChatMode: () => options.chatMode ?? ChatModeKind.Ask,
-				isStickyScrollEnabled: () => false,
-				refreshStickyScroll: () => { },
-				stickyScrollTopPadding: 0,
-			},
-			undefined,
-			viewModel,
-		));
-		const template = renderer.renderTemplate(container);
-		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		/** A renderer of the chat's list, of the widget `getWidget` gives, such as another widget's that shows the same chat. */
+		const createRenderer = (getWidget: (() => IChatWidget | undefined) | undefined, rendererContainer = container) => {
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer,
+				editorOptions,
+				{ progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask, ...options.rendererOptions },
+				{
+					getListLength: () => 1,
+					onDidScroll: () => toDisposable(() => { }),
+					container: rendererContainer,
+					currentChatMode: () => options.chatMode ?? ChatModeKind.Ask,
+					isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { },
+					stickyScrollTopPadding: 0,
+					getWidget,
+				},
+				undefined,
+				viewModel,
+			));
+			const template = renderer.renderTemplate(rendererContainer);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			// As the chat list binds its renderer to the chat it shows
+			renderer.updateViewModel(viewModel);
+			return { renderer, template };
+		};
+		const { renderer, template } = createRenderer(options.getWidget);
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
-		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
+		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node, createRenderer };
 	}
 
 	suite('deferred row height updates', () => {
@@ -2359,6 +2754,84 @@ suite('ChatListRenderer', () => {
 			sameComponent: true,
 			label: 'Connecting to the workspace',
 			copies: 1,
+		});
+	});
+
+	test('sticky progress does not measure unchanged subagent activity during streaming', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, request, container, renderer } = createPersistentProgressRenderer();
+		const data: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+		const subagent = createSubagentTool('background-agent', data);
+		await subagent.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, subagent);
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let measurements = 0;
+		renderer.setWorkingProgressContainer(sticky, () => {
+			measurements++;
+			return true;
+		});
+		await timeout(1);
+		const progress = sticky.querySelector('.chat-working-progress');
+		measurements = 0;
+
+		for (let i = 0; i < 40; i++) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('More progress. ') });
+			await timeout(1);
+		}
+		const unchangedMeasurements = measurements;
+		const streamingLabel = progress?.textContent?.replace(/\u00a0/g, ' ').trim();
+
+		data.isActive = false;
+		subagent.notifyToolSpecificDataChanged();
+		await timeout(1);
+		const settledLabel = progress?.textContent?.replace(/\u00a0/g, ' ').trim();
+		const sameComponent = sticky.querySelector('.chat-working-progress') === progress;
+		request.response!.complete();
+		await timeout(1);
+
+		assert.deepStrictEqual({
+			unchangedMeasurements,
+			streamingLabel,
+			settledLabel,
+			sameComponent,
+			measuredChangedStatus: measurements > 0,
+			completedCopies: sticky.querySelectorAll('.chat-working-progress').length,
+		}, {
+			unchangedMeasurements: 0,
+			streamingLabel: '1 subagent running',
+			settledLabel: 'Working',
+			sameComponent: true,
+			measuredChangedStatus: true,
+			completedCopies: 0,
+		});
+	}));
+
+	test('sticky progress measures placement once per frame while streaming renders repeat', async () => {
+		const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let outsideViewport = false;
+		let measurements = 0;
+		renderer.setWorkingProgressContainer(sticky, () => {
+			measurements++;
+			return outsideViewport;
+		});
+		renderer.renderElement(node, 0, template);
+		const nextFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
+		await nextFrame();
+		const progress = container.querySelector('.chat-working-progress');
+		measurements = 0;
+
+		outsideViewport = true;
+		for (let i = 0; i < 20; i++) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('More progress. ') });
+			renderer.renderElement(node, 0, template);
+		}
+		const beforeFrame = { measurements, sticky: progress?.parentElement === sticky };
+		await nextFrame();
+
+		assert.deepStrictEqual({ beforeFrame, measurements, sticky: progress?.parentElement === sticky }, {
+			beforeFrame: { measurements: 0, sticky: false },
+			measurements: 1,
+			sticky: true,
 		});
 	});
 
@@ -2494,8 +2967,8 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('single-tool completed response collapse', () => {
-		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
-			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
+		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean, reasonBeforeMarkdown = false, ids = ['initial-work', 'follow-up-work', 'final-bookkeeping']): Promise<void> {
+			for (const id of ids) {
 				const tool = new ChatToolInvocation(
 					{ invocationMessage: id, pastTenseMessage: id },
 					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -2504,6 +2977,9 @@ suite('ChatListRenderer', () => {
 				await tool.didExecuteTool(undefined);
 				model.acceptResponseProgress(request, serialized ? tool.toJSON() : tool);
 				if (id !== 'initial-work') {
+					if (reasonBeforeMarkdown) {
+						model.acceptResponseProgress(request, { kind: 'thinking', value: `Reasoning after ${id}`, id: `reasoning-after-${id}` });
+					}
 					model.acceptResponseProgress(request, {
 						kind: 'markdownContent',
 						content: new MarkdownString(id === 'final-bookkeeping' ? 'Task completed.' : 'Detailed answer with the full analysis.'),
@@ -2543,6 +3019,61 @@ suite('ChatListRenderer', () => {
 				}
 			}
 		}
+
+		// Conversation folds the earlier work into one section, which needs no disclosure.
+		for (const [progressVerbosity, collapsedLabel] of [[ChatProgressVerbosity.Verbose, 'Completed 3 steps'], [ChatProgressVerbosity.Compact, 'Completed 2 steps'], [ChatProgressVerbosity.Conversation, undefined]] as const) {
+			for (const initiallyComplete of [false, true]) {
+				test(`preserves the detailed answer when reasoning follows the final tool (${progressVerbosity}, restored=${initiallyComplete})`, async () => {
+					const setup = createPersistentProgressRenderer({ progressVerbosity, chatMode: ChatModeKind.Agent });
+					const { disposables, configurationService, request, renderer, template, node } = setup;
+					configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					await addCompletionResponse(setup, initiallyComplete, true);
+					if (!initiallyComplete) {
+						renderer.renderElement(node, 0, template);
+					}
+					request.response?.complete();
+					renderer.renderElement(node, 0, template);
+					await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+					await timeout(0);
+					assert.deepStrictEqual({
+						collapsedLabel: template.completedResponseDisclosure?.querySelector('summary')?.textContent,
+						visibleMarkdown: Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim()),
+					}, {
+						collapsedLabel,
+						visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'],
+					});
+					disposables.dispose();
+				});
+			}
+		}
+
+		test('waits for the closing summary to finish revealing before collapsing', async () => {
+			const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+			const { disposables, configurationService, request, renderer, template, node } = setup;
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'word');
+			const markdownParts = () => template.renderedParts?.filter(part => part instanceof ChatMarkdownContentPart) ?? [];
+			await addCompletionResponse(setup, false, true, ['initial-work', 'follow-up-work']);
+			renderer.renderElement(node, 0, template);
+			const answer = markdownParts()[0];
+			if (!answer.isRenderComplete) {
+				await Event.toPromise(answer.onDidFinishRendering);
+			}
+			await addCompletionResponse(setup, false, true, ['final-bookkeeping']);
+			renderer.renderElement(node, 0, template);
+			const summary = markdownParts()[1];
+			const revealing = markdownParts().map(part => !part.isRenderComplete);
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			const collapsedWhileRevealing = !!template.completedResponseDisclosure;
+			if (!summary.isRenderComplete) {
+				await Event.toPromise(summary.onDidFinishRendering);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ revealing, collapsedWhileRevealing, collapsed: !!template.completedResponseDisclosure }, { revealing: [false, true], collapsedWhileRevealing: false, collapsed: true });
+			disposables.dispose();
+		});
 
 		for (const permissionLevel of [ChatPermissionLevel.Default, ChatPermissionLevel.Autopilot]) {
 			for (const subagent of [false, true]) {
@@ -2763,6 +3294,71 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('inline request attachments', () => {
+		for (const fontSize of [13, 18]) {
+			test(`aligns attachment pills and slash commands with the text of a request at chat font size ${fontSize}`, () => {
+				const { container, configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+				configurePersistentProgressTypography(container, fontSize);
+				container.style.fontFamily = 'sans-serif';
+				// Rows are in the list of a chat widget, where pills take the smaller font of the chat.
+				template.rowContainer.classList.add('interactive-list');
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, true);
+				request.response?.complete();
+				const file: IChatRequestVariableEntry = { kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/src/a.ts') };
+				const text = '#attachment:a.ts /explain short wrapping text.';
+				model.addRequest({
+					text,
+					parts: [
+						new ChatRequestDynamicVariablePart(new OffsetRange(0, 16), new Range(1, 1, 1, 17), '#attachment:a.ts', file.id, undefined, file.value, undefined, undefined, true, false, undefined, true),
+						new ChatRequestTextPart(new OffsetRange(16, 17), new Range(1, 17, 1, 18), ' '),
+						new ChatRequestSlashPromptPart(new OffsetRange(17, 25), new Range(1, 18, 1, 26), 'explain'),
+						new ChatRequestTextPart(new OffsetRange(25, text.length), new Range(1, 26, 1, text.length + 1), text.slice(25)),
+					],
+				}, { variables: [file] }, 0);
+				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+				const attachment = template.value.querySelector('.chat-request-inline-attachment');
+				const label = attachment?.querySelector('.label-name');
+				const command = template.value.querySelector('.chat-resource-widget');
+				const commandText = command?.firstElementChild;
+				const paragraph = template.value.querySelector('p');
+				const bubble = template.value.querySelector<HTMLElement>('.rendered-markdown');
+				assert.ok(attachment && label && command && commandText && paragraph && bubble);
+
+				// An inline block without content sits on the baseline of the text that it is added to.
+				const baselineOf = (addProbe: (probe: HTMLElement) => void) => {
+					const probe = dom.$('span');
+					probe.style.display = 'inline-block';
+					addProbe(probe);
+					const baseline = probe.getBoundingClientRect().bottom;
+					probe.remove();
+					return baseline;
+				};
+
+				const geometry = [720, 240, 720].map(width => {
+					container.style.width = `${width}px`;
+					renderer.layout(width);
+					const attachmentBounds = attachment.getBoundingClientRect();
+					const commandBounds = command.getBoundingClientRect();
+					const textBaseline = baselineOf(probe => command.after(probe));
+					return {
+						baselineOffsets: [baselineOf(probe => label.append(probe)) - textBaseline, baselineOf(probe => commandText.append(probe)) - textBaseline],
+						boxOffsets: [attachmentBounds.top - commandBounds.top, attachmentBounds.bottom - commandBounds.bottom],
+						overflows: bubble.scrollWidth > bubble.clientWidth,
+						wraps: paragraph.getBoundingClientRect().height > fontSize * 2,
+					};
+				});
+				assert.deepStrictEqual(geometry.map(({ baselineOffsets, boxOffsets, ...rest }) => ({
+					onBaseline: baselineOffsets.every(offset => Math.abs(offset) < 0.5),
+					// A pill keeps its height in a larger font, in which a slash command is taller than it.
+					level: fontSize > 13 || boxOffsets.every(offset => Math.abs(offset) < 1),
+					...rest,
+				})), [
+					{ onBaseline: true, level: true, overflows: false, wraps: false },
+					{ onBaseline: true, level: true, overflows: false, wraps: true },
+					{ onBaseline: true, level: true, overflows: false, wraps: false },
+				], JSON.stringify(geometry));
+			});
+		}
+
 		for (const restored of [false, true]) {
 			test(`shows an image above the request as well as its pill in the text (restored=${restored})`, () => {
 				const { configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer();
@@ -2786,6 +3382,69 @@ suite('ChatListRenderer', () => {
 					inline: kinds('.rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment'),
 					links: template.value.querySelectorAll('.rendered-markdown a[data-href^="file:"]').length,
 				}, { above: ['image'], inline: ['image', 'file'], links: 0 });
+			});
+		}
+
+		for (const [inline, path, kind] of [[true, 'issues', 'issue'], [false, 'pull', 'pullRequest']] as const) {
+			test(`previews and opens the GitHub ${kind} of a request instead of editing the request (inline=${inline})`, async () => {
+				const { disposables, instantiationService, configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, inline);
+				configurationService.setUserConfiguration('chat.editRequests', 'inline');
+				instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
+				instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
+				const opened: string[] = [];
+				instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
+					open: async resource => {
+						opened.push(resource.toString());
+						return true;
+					},
+				}));
+				const previews = new Map<HTMLElement, { readonly delegate: IHoverDelegate; readonly content: IManagedHoverContentOrFactory }>();
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupManagedHover: (delegate, target, content) => {
+						previews.set(target, { delegate, content });
+						return NullHoverService.setupManagedHover(delegate, target, content);
+					},
+				});
+				const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover').returns({
+					hover: { content: () => dom.$('div') },
+					pillHover: { element: () => dom.$('div') },
+					prefetch: () => { },
+				});
+				disposables.add(toDisposable(() => createHover.restore()));
+				let editRequests = 0;
+				disposables.add(renderer.onDidClickRequest(() => editRequests++));
+				request.response?.complete();
+				const link = `https://github.com/microsoft/vscode/${path}/346788`;
+				const text = `Investigate ${link} and https://github.com/microsoft/vscode/${path}/346789`;
+				model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] }, { variables: [...getGitHubIssueOrPullRequestAttachments(text)] }, 0);
+				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+				const [pill, otherPill] = template.value.querySelectorAll<HTMLElement>('.chat-attached-context-attachment');
+				assert.ok(pill && otherPill);
+
+				const preview = previews.get(pill);
+				if (typeof preview?.content === 'function') {
+					preview.content();
+				}
+				pill.click();
+				pill.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				await timeout(0);
+				const reference = createHover.firstCall?.args[1];
+				assert.deepStrictEqual({
+					inline: !!pill.closest('.rendered-markdown .chat-request-inline-attachment'),
+					preview: { kind: reference?.kind, target: reference?.target },
+					// Moving between the pills of a request shows the next preview without waiting again.
+					sharesInstantHover: !!preview && preview.delegate === previews.get(otherPill)?.delegate && preview.delegate !== getDefaultHoverDelegate('element'),
+					opened,
+					editRequests,
+				}, {
+					inline,
+					preview: { kind, target: { owner: 'microsoft', repo: 'vscode', number: 346788 } },
+					sharesInstantHover: true,
+					opened: [link, link],
+					editRequests: 0,
+				});
 			});
 		}
 	});
@@ -6261,6 +6920,540 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	/**
+	 * Widgets that show the chat of `session`, registered in this order with a real chat widget service, whose inputs keep the
+	 * questions and plan reviews docked in them by their key, as the chat input does: the same key gets the same part, and
+	 * clearing it, or the widget showing another chat, disposes it. Each is visible, and the first is focused, as the chat
+	 * widget service makes the first widget it registers the last focused one.
+	 */
+	function createInputRequestWidgets(session: URI, names: readonly string[]) {
+		type Docked<T> = { readonly submit: T; readonly store: DisposableStore; readonly part: IChatContentPart };
+		const questions = new Map<string, Map<string, Docked<IChatQuestionCarouselOptions['onSubmit']>>>();
+		const plans = new Map<string, Map<string, Docked<IChatPlanReviewPartOptions['onSubmit']>>>();
+		const sessions = new Map<string, URI>();
+		const visible = new Map<string, boolean>();
+		const focused: string[] = [];
+		// The tool approvals in each widget's carousel, one for each tool, as the chat input keeps them
+		const toolCarousels = new Map<string, Map<string, (tool: IChatToolInvocation) => ChatToolInvocationPart>>();
+		/** Every tool approval added to or removed from a widget's carousel, in order. */
+		const toolCalls: string[] = [];
+		/** How each tool approval's carousel reveals its subagent, and the widgets revealed instead. */
+		const toolReveals = new Map<string, ((subAgentInvocationId: string) => void) | undefined>();
+		const revealed: string[] = [];
+		const onDidFocus = new Map<string, Emitter<void>>();
+		const onDidChangeViewModel = new Map<string, Emitter<IChatWidgetViewModelChangeEvent>>();
+		const onDidShow = new Map<string, Emitter<void>>();
+		const dock = <T>(docked: Map<string, Docked<T>>, key: string, submit: T): IChatContentPart => {
+			const existing = docked.get(key);
+			if (existing) {
+				return existing.part;
+			}
+			const partStore = store.add(new DisposableStore());
+			const part: IChatContentPart = { domNode: dom.$('div'), dispose: () => partStore.dispose(), hasSameContent: () => false, addDisposable: disposable => partStore.add(disposable) };
+			docked.set(key, { submit, store: partStore, part });
+			return part;
+		};
+		const undock = <T>(docked: Map<string, Docked<T>>, key: string | undefined) => {
+			for (const [candidate, entry] of [...docked]) {
+				if (key === undefined || candidate === key) {
+					entry.store.dispose();
+					docked.delete(candidate);
+				}
+			}
+		};
+		const widgets = new Map<string, IChatWidget>();
+		for (const name of names) {
+			const dockedQuestions = new Map<string, Docked<IChatQuestionCarouselOptions['onSubmit']>>();
+			const dockedPlans = new Map<string, Docked<IChatPlanReviewPartOptions['onSubmit']>>();
+			questions.set(name, dockedQuestions);
+			plans.set(name, dockedPlans);
+			sessions.set(name, session);
+			visible.set(name, true);
+			onDidFocus.set(name, store.add(new Emitter<void>()));
+			onDidChangeViewModel.set(name, store.add(new Emitter<IChatWidgetViewModelChangeEvent>()));
+			onDidShow.set(name, store.add(new Emitter<void>()));
+			const input = new class extends mock<ChatInputPart>() {
+				override get questionCarousel() { return undefined; }
+				override get hasActiveToolConfirmationCarousel() { return false; }
+				override addToolToConfirmationCarousel(...[tool, factory, , , revealSubagent]: Parameters<ChatInputPart['addToolToConfirmationCarousel']>) {
+					toolCalls.push(`${name}:add:${tool.toolCallId}`);
+					toolReveals.set(tool.toolCallId, revealSubagent);
+					const tools = toolCarousels.get(name) ?? new Map();
+					toolCarousels.set(name, tools);
+					if (!tools.has(tool.toolCallId)) {
+						tools.set(tool.toolCallId, factory);
+					}
+				}
+				override removeToolFromConfirmationCarousel(...[tool]: Parameters<ChatInputPart['removeToolFromConfirmationCarousel']>) {
+					toolCalls.push(`${name}:remove:${tool.toolCallId}`);
+					toolCarousels.get(name)?.delete(tool.toolCallId);
+				}
+				override renderQuestionCarousel(...[carousel, context, options]: Parameters<ChatInputPart['renderQuestionCarousel']>) {
+					const key = carousel.resolveId ?? `${context && isResponseVM(context.element) ? context.element.requestId : ''}_${context?.contentIndex}`;
+					return upcastPartial<ChatQuestionCarouselPart>(dock(dockedQuestions, key, options.onSubmit));
+				}
+				override clearQuestionCarousel(_responseId?: string, resolveId?: string) { undock(dockedQuestions, resolveId); }
+				override renderPlanReview(...[review, , options]: Parameters<ChatInputPart['renderPlanReview']>) {
+					return upcastPartial<ChatPlanReviewPart>(dock(dockedPlans, review.resolveId!, options.onSubmit));
+				}
+				override clearPlanReview(_responseId?: string, resolveId?: string) { undock(dockedPlans, resolveId); }
+			}();
+			widgets.set(name, new class extends mock<IChatWidget>() {
+				override get viewModel() { return upcastPartial<IChatViewModel>({ sessionResource: sessions.get(name)! }); }
+				override get visible() { return visible.get(name)!; }
+				override readonly supportsInputRequests = true;
+				override readonly domNode = dom.$('div');
+				override readonly location = ChatAgentLocation.Chat;
+				override readonly onDidFocus = onDidFocus.get(name)!.event;
+				override readonly onDidShow = onDidShow.get(name)!.event;
+				override readonly onDidHide = Event.None;
+				override readonly onDidChangeViewModel = onDidChangeViewModel.get(name)!.event;
+				override getInput() { return ''; }
+				override focusInput() { focused.push(name); }
+				override reveal() { revealed.push(name); }
+				override get inputPart() { return input; }
+				override readonly input = input;
+			}());
+		}
+		const widgetServices = workbenchInstantiationService(undefined, store);
+		widgetServices.stub(IQuickChatService, new class extends mock<IQuickChatService>() { }());
+		widgetServices.stub(IChatViewHostService, new class extends mock<IChatViewHostService>() { }());
+		const chatWidgetService = store.add(widgetServices.createInstance(ChatWidgetService));
+		for (const widget of widgets.values()) {
+			store.add(chatWidgetService.register(widget));
+		}
+		/** Which widgets dock the question or plan review of `key` in their input now. */
+		const dockedIn = (key: string) => names.filter(name => questions.get(name)!.has(key) || plans.get(name)!.has(key));
+		/** The keys of the questions and plan reviews that `name` docks in its input now. */
+		const keysIn = (name: string) => [...questions.get(name)!.keys(), ...plans.get(name)!.keys()];
+		/** How the part docked in `name`'s input submits the question or plan review of `key`. */
+		const questionIn = (name: string, key: string) => questions.get(name)!.get(key)!.submit;
+		const planIn = (name: string, key: string) => plans.get(name)!.get(key)!.submit;
+		/** `name` shows another chat: its input clears what it docked, as the chat input does. */
+		const showChat = (name: string, other: URI) => {
+			undock(questions.get(name)!, undefined);
+			undock(plans.get(name)!, undefined);
+			sessions.set(name, other);
+			// Without the chat it showed, which the chat widget service would wait on to tell the chat is shown nowhere
+			onDidChangeViewModel.get(name)!.fire({ previousSessionResource: undefined, currentSessionResource: other });
+		};
+		/** The user focuses `name`. */
+		const focus = (name: string) => onDidFocus.get(name)!.fire();
+		/** `name` is hidden, such as a chat editor whose tab is not active, while it still shows the chat. */
+		const hide = (name: string) => {
+			visible.set(name, false);
+			onDidShow.get(name)!.fire();
+		};
+		return { chatWidgetService, widgets, dockedIn, keysIn, questionIn, planIn, showChat, focus, hide, focused, toolCarousels, toolCalls, toolReveals, revealed };
+	}
+
+	/** A host of another widget's chat list, appended to the window as the workbench's are, which the test removes. */
+	function ownedHost(): HTMLElement {
+		const host = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+		store.add(toDisposable(() => host.remove()));
+		return host;
+	}
+
+	/** Renders `node` again in each of `renderers`, once what made them render it again has. */
+	async function renderAgain(node: Parameters<ChatListItemRenderer['renderElement']>[0], ...renderers: { readonly renderer: ChatListItemRenderer; readonly template: IChatListItemTemplate }[]) {
+		await timeout(0);
+		for (const { renderer, template } of renderers) {
+			renderer.renderElement(node, 0, template);
+		}
+	}
+
+	/** Whether `template` renders a pending question or plan review in its list, rather than docked in an input. */
+	const inline = (template: IChatListItemTemplate) => !!template.value.querySelector('.chat-question-carousel-container:not(.chat-question-carousel-used), .chat-plan-review:not(.chat-plan-review-used)');
+
+	test('a question docks in the widget the user focused that shows its chat, also where another widget registered first shows the same chat, which renders it in its list', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/questions' });
+		// Another widget shows the chat too, registered first, such as the Chat view's while the chat area shows the chat
+		const { chatWidgetService, widgets, dockedIn, questionIn, focus } = createInputRequestWidgets(session, ['other', 'own']);
+		const own = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('own') });
+		const other = own.createRenderer(() => widgets.get('other'), ownedHost());
+		const answered = sinon.stub(own.instantiationService.get(IChatService), 'notifyQuestionCarouselAnswer');
+		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'resolve-1');
+		own.model.acceptResponseProgress(own.request, question);
+		focus('own');
+
+		own.renderer.renderElement(own.node, 0, own.template);
+		other.renderer.renderElement(own.node, 0, other.template);
+		const shown = { docked: dockedIn('resolve-1'), inlineInOther: inline(other.template), inlineInOwn: inline(own.template) };
+		await questionIn('own', 'resolve-1')(new Map([['q1', 'Weave']]), true);
+		await renderAgain(own.node, own, other);
+
+		assert.deepStrictEqual({ shown, after: { docked: dockedIn('resolve-1'), inlineInOther: inline(other.template) }, answered: answered.args.map(([requestId, resolveId, answers]) => ({ request: requestId === own.request.id, resolveId, answers })), used: question.isUsed }, {
+			shown: { docked: ['own'], inlineInOther: true, inlineInOwn: false },
+			after: { docked: [], inlineInOther: false },
+			answered: [{ request: true, resolveId: 'resolve-1', answers: { q1: 'Weave' } }],
+			used: true,
+		});
+	});
+
+	test('a question docks in a visible widget that shows its chat, rather than a hidden one, where the widget focused last shows another chat', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/hidden' });
+		const { chatWidgetService, widgets, dockedIn, hide, showChat } = createInputRequestWidgets(session, ['elsewhere', 'hidden', 'shown']);
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('shown') });
+		showChat('elsewhere', URI.from({ scheme: 'vscode-chat-session', path: '/elsewhere' }));
+		hide('hidden');
+		model.acceptResponseProgress(request, new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'visible'));
+		renderer.renderElement(node, 0, template);
+
+		assert.deepStrictEqual({ docked: dockedIn('visible'), inline: inline(template) }, { docked: ['shown'], inline: false });
+	});
+
+	for (const kind of ['question', 'question without a resolve id', 'extension question', 'plan review'] as const) {
+		test(`a ${kind} that two widgets show docks in one only, moves as the other is focused, and settling it in either settles both`, async () => {
+			const session = URI.from({ scheme: 'vscode-chat-session', path: `/two-widgets-${kind.replace(/ /g, '-')}` });
+			const { chatWidgetService, widgets, dockedIn, keysIn, questionIn, planIn, focus } = createInputRequestWidgets(session, ['a', 'b']);
+			const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+			const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+			const questions = [{ id: 'q1', type: 'text' as const, title: 'Choose a direction' }];
+			const request: IChatQuestionCarousel | IChatPlanReview = kind === 'question' ? new ChatQuestionCarouselData(questions, true, 'key')
+				: kind === 'question without a resolve id' ? new ChatQuestionCarouselData(questions, true)
+					: kind === 'extension question' ? { kind: 'questionCarousel', questions, allowSkip: true, resolveId: 'key' }
+						: new ChatPlanReviewData('Review plan', 'Approve this plan.', [{ label: 'Implement' }], true, undefined, 'key');
+			a.model.acceptResponseProgress(a.request, request);
+			const state = () => ({ docked: keysIn('a').length ? 'a' : keysIn('b').length ? 'b' : undefined, inline: [inline(a.template) && 'a', inline(b.template) && 'b'].filter(Boolean) });
+
+			await renderAgain(a.node, a, b);
+			const first = state();
+			focus('b');
+			await renderAgain(a.node, a, b);
+			const moved = state();
+			// Stubbed only now: disposing the part rendered in a list restores every stub, as its editors' services are disposed
+			const answered = sinon.stub(a.instantiationService.get(IChatService), 'notifyQuestionCarouselAnswer');
+			const [key] = keysIn('b');
+			if (request.kind === 'planReview') {
+				planIn('b', key)({ action: 'Implement', rejected: false });
+			} else {
+				await questionIn('b', key)(new Map([['q1', 'Weave']]), true);
+			}
+			await renderAgain(a.node, a, b);
+
+			assert.deepStrictEqual({ first, moved, settled: { docked: dockedIn(key), inline: state().inline, used: request.isUsed, notified: answered.callCount } }, {
+				first: { docked: 'a', inline: ['b'] },
+				moved: { docked: 'b', inline: ['a'] },
+				settled: { docked: [], inline: [], used: true, notified: kind === 'question' || kind === 'extension question' ? 1 : 0 },
+			});
+		});
+	}
+
+	/** The chat service's answers to questions, which `answer` tells as the chat service does. */
+	function hearQuestionAnswers(chatService: IChatService) {
+		const answers = store.add(new Emitter<{ readonly requestId: string; readonly resolveId: string; readonly answers: IChatQuestionAnswers | undefined }>());
+		Reflect.set(chatService, 'onDidReceiveQuestionCarouselAnswer', answers.event);
+		return answers;
+	}
+
+	test('an extension question answered before another widget that shows the chat renders it shows as settled there', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/answered-before' });
+		const { chatWidgetService, widgets, questionIn } = createInputRequestWidgets(session, ['a', 'b']);
+		const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		hearQuestionAnswers(a.instantiationService.get(IChatService));
+		const question: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true, resolveId: 'before' };
+		a.model.acceptResponseProgress(a.request, question);
+		a.renderer.renderElement(a.node, 0, a.template);
+		await questionIn('a', 'before')(new Map([['q1', 'Weave']]), true);
+
+		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+		b.renderer.renderElement(a.node, 0, b.template);
+
+		assert.deepStrictEqual({ pending: inline(b.template), settled: !!b.template.value.querySelector('.chat-question-carousel-used') }, { pending: false, settled: true });
+	});
+
+	test('an extension question that another widget renders in its list settles there as the chat service hears its answer, its own only, while its part lives', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/heard' });
+		const { chatWidgetService, widgets } = createInputRequestWidgets(session, ['a', 'b']);
+		const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+		const answers = hearQuestionAnswers(a.instantiationService.get(IChatService));
+		const question: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true, resolveId: 'heard' };
+		a.model.acceptResponseProgress(a.request, question);
+		await renderAgain(a.node, a, b);
+		const listening = answers.hasListeners();
+
+		// Answered where the renderers do not see it, such as by voice, which marks it used and tells the chat service
+		question.isUsed = true;
+		answers.fire({ requestId: a.request.id, resolveId: 'other', answers: undefined });
+		answers.fire({ requestId: 'another-request', resolveId: 'heard', answers: undefined });
+		await timeout(0);
+		const othersHeard = inline(b.template);
+		answers.fire({ requestId: a.request.id, resolveId: 'heard', answers: { q1: 'Weave' } });
+		await timeout(0);
+
+		assert.deepStrictEqual({ listening, othersHeard, settled: inline(b.template), listeningAfter: answers.hasListeners() }, { listening: true, othersHeard: true, settled: false, listeningAfter: false });
+	});
+
+	for (const names of [['view', 'editor'], ['editor']]) {
+		test(`a pending question and plan review dock again in a widget that shows the chat again, such as a chat editor shown again, without rendering the rest of the row again (${names.length} widgets)`, async () => {
+			const session = URI.from({ scheme: 'vscode-chat-session', path: `/shown-again-${names.length}` });
+			const { chatWidgetService, widgets, dockedIn, questionIn, showChat, focus } = createInputRequestWidgets(session, names);
+			const editor = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('editor') });
+			const view = names.includes('view') ? editor.createRenderer(() => widgets.get('view'), ownedHost()) : undefined;
+			editor.model.acceptResponseProgress(editor.request, { kind: 'markdownContent', content: new MarkdownString('Here is the plan') });
+			const review = new ChatPlanReviewData('Review plan', 'Approve this plan.', [{ label: 'Implement' }], true, undefined, 'plan-again');
+			const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'question-again');
+			editor.model.acceptResponseProgress(editor.request, review);
+			editor.model.acceptResponseProgress(editor.request, question);
+			focus('editor');
+			const renderers = [editor, ...view ? [view] : []];
+			await renderAgain(editor.node, ...renderers);
+			const markdown = editor.template.value.querySelector('.rendered-markdown');
+
+			// The chat editor is hidden: its widget shows no chat, and its input lets go of what it docked, while its list keeps the row
+			showChat('editor', URI.from({ scheme: 'vscode-chat-session', path: '/none' }));
+			await renderAgain(editor.node, ...view ? [view] : []);
+			const hidden = { plan: dockedIn('plan-again'), question: dockedIn('question-again') };
+			showChat('editor', session);
+			await renderAgain(editor.node, ...renderers);
+			const shownAgain = { plan: dockedIn('plan-again'), question: dockedIn('question-again'), sameMarkdown: !!markdown && editor.template.value.querySelector('.rendered-markdown') === markdown };
+
+			// Stubbed only now: disposing the part rendered in a list restores every stub, as its editors' services are disposed
+			const answered = sinon.stub(editor.instantiationService.get(IChatService), 'notifyQuestionCarouselAnswer');
+			await questionIn('editor', 'question-again')(new Map([['q1', 'Weave']]), true);
+
+			const others = names.filter(name => name !== 'editor');
+			assert.deepStrictEqual({ hidden, shownAgain, answered: { left: dockedIn('question-again'), notified: answered.callCount, answers: question.data } }, {
+				hidden: { plan: others, question: others },
+				shownAgain: { plan: ['editor'], question: ['editor'], sameMarkdown: true },
+				answered: { left: [], notified: 1, answers: { q1: 'Weave' } },
+			});
+		});
+	}
+
+	test('a question that a widget docked for a chat it no longer shows, settled later, leaves the question of the same key of the chat it shows now', async () => {
+		const first = URI.from({ scheme: 'vscode-chat-session', path: '/first' });
+		const second = URI.from({ scheme: 'vscode-chat-session', path: '/second' });
+		const { chatWidgetService, widgets, dockedIn, showChat } = createInputRequestWidgets(first, ['a']);
+		const one = createPersistentProgressRenderer({ sessionResource: first, chatWidgetService, getWidget: () => widgets.get('a') });
+		// The host's request ids are not unique across chats: both chats ask with the same key
+		const firstQuestion = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'First?' }], true, 'same');
+		one.model.acceptResponseProgress(one.request, firstQuestion);
+		one.renderer.renderElement(one.node, 0, one.template);
+
+		showChat('a', second);
+		const two = createPersistentProgressRenderer({ sessionResource: second, chatWidgetService, getWidget: () => widgets.get('a') });
+		two.model.acceptResponseProgress(two.request, new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Second?' }], true, 'same'));
+		two.renderer.renderElement(two.node, 0, two.template);
+		firstQuestion.dismiss(undefined);
+		await firstQuestion.completion.p;
+		await timeout(0);
+
+		assert.deepStrictEqual(dockedIn('same'), ['a']);
+	});
+
+	test('a question\'s settled state is observable on its model part, as it is answered, dismissed or restored', () => {
+		const answered = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'observed');
+		const dismissed = new ChatPlanReviewData('Review plan', 'Approve this plan.', [{ label: 'Implement' }], true);
+		const restored = new ChatQuestionCarouselData([], true, 'restored', {}, true);
+		const seen: string[] = [];
+		store.add(autorun(reader => seen.push(`answered:${answered.used.read(reader)}`)));
+		store.add(autorun(reader => seen.push(`dismissed:${dismissed.used.read(reader)}`)));
+		answered.isUsed = true;
+		answered.isUsed = true;
+		dismissed.dismiss();
+
+		assert.deepStrictEqual({ seen, restored: restored.used.get(), serialized: answered.toJSON().isUsed }, {
+			seen: ['answered:false', 'dismissed:false', 'answered:true', 'dismissed:true'],
+			restored: true,
+			serialized: true,
+		});
+	});
+
+	test('a tool approval that two widgets show is in the carousel of the one that docks it only: closing the other keeps it there, and answering it focuses that one', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve-once' });
+		const { chatWidgetService, widgets, focused, toolCarousels, focus } = createInputRequestWidgets(session, ['a', 'b']);
+		const b = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('b') });
+		enableToolConfirmationCarousel(b.configurationService);
+		const a = b.createRenderer(() => widgets.get('a'), ownedHost());
+		focus('b');
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
+			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+			'approve-once', undefined, {},
+		);
+		b.model.acceptResponseProgress(b.request, tool);
+		b.renderer.renderElement(b.node, 0, b.template);
+		a.renderer.renderElement(b.node, 0, a.template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const carousels = () => [...toolCarousels].map(([name, tools]) => [name, [...tools.keys()]]);
+		const registered = carousels();
+
+		// The other widget closes
+		a.renderer.dispose();
+		const afterClose = carousels();
+		const carouselPart = b.disposables.add(toolCarousels.get('b')!.get('approve-once')!(tool));
+		[...carouselPart.domNode.querySelectorAll<HTMLElement>('.chat-buttons .monaco-button')].at(-1)?.click();
+
+		assert.deepStrictEqual({ registered, afterClose, focused }, { registered: [['b', ['approve-once']]], afterClose: [['b', ['approve-once']]], focused: ['b'] });
+	});
+
+	test('a tool approval that arrives after the widget that docks the chat\'s requests changed is in the carousel of the one that docks them now only, also a subagent\'s, and answering it focuses that one', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve-later' });
+		const { chatWidgetService, widgets, focused, toolCarousels, toolReveals, revealed, focus } = createInputRequestWidgets(session, ['a', 'b']);
+		const a = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('a') });
+		enableToolConfirmationCarousel(a.configurationService);
+		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+		// Running without needing approval yet, while a docks the chat's requests: a standalone tool and a subagent's
+		const direct = new ChatToolInvocation(
+			{ invocationMessage: 'Run the build' },
+			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+			'later-direct', undefined, {},
+		);
+		const child = new ChatToolInvocation(
+			{ invocationMessage: 'Read the file' },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read', source: ToolDataSource.Internal },
+			'later-child', 'later-agent', {},
+		);
+		a.model.acceptResponseProgress(a.request, direct);
+		a.model.acceptResponseProgress(a.request, createSubagentTool('later-agent', { kind: 'subagent', hasStarted: true, isActive: true }));
+		a.model.acceptResponseProgress(a.request, child);
+		await renderAgain(a.node, a, b);
+
+		focus('b');
+		direct.requestConfirmation({ confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } });
+		child.requestConfirmation({ confirmationMessages: { title: 'Read file?', message: 'Reads a file.' } });
+		await renderAgain(a.node, a, b);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const carousels = [...toolCarousels].map(([name, tools]) => [name, [...tools.keys()].sort()]);
+		const carouselPart = a.disposables.add(toolCarousels.get('b')!.get('later-direct')!(direct));
+		[...carouselPart.domNode.querySelectorAll<HTMLElement>('.chat-buttons .monaco-button')].at(-1)?.click();
+		// The subagent's approval reveals its response in the widget that docks it, and the subagent in it
+		toolReveals.get('later-child')?.('later-agent');
+
+		assert.deepStrictEqual({ carousels, focused, revealed }, { carousels: [['b', ['later-child', 'later-direct']]], focused: ['b'], revealed: ['b'] });
+	});
+
+	test('a question docked in a widget is removed from its input as it is settled or another widget docks it, also once its row renders another response', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/recycled-row' });
+		const { chatWidgetService, widgets, dockedIn, focus } = createInputRequestWidgets(session, ['a', 'b']);
+		const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+		const dismissed = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Dismissed?' }], true, 'dismissed');
+		const handedOff = new ChatQuestionCarouselData([{ id: 'q2', type: 'text', title: 'Handed off?' }], true, 'handed-off');
+		a.model.acceptResponseProgress(a.request, dismissed);
+		a.model.acceptResponseProgress(a.request, handedOff);
+		await renderAgain(a.node, a, b);
+		const docked = { dismissed: dockedIn('dismissed'), handedOff: dockedIn('handed-off') };
+		// The row's template is used for another item, as the list scrolls: nothing renders the questions in a's list
+		a.renderer.renderElement({ ...a.node, element: a.viewModel.getItems().find(isRequestVM)! }, 0, a.template);
+
+		dismissed.dismiss(undefined);
+		focus('b');
+		// Only b's list renders the response again, as the list renders it
+		await renderAgain(a.node, b);
+
+		assert.deepStrictEqual({ docked, after: { dismissed: dockedIn('dismissed'), handedOff: dockedIn('handed-off') } }, {
+			docked: { dismissed: ['a'], handedOff: ['a'] },
+			after: { dismissed: [], handedOff: ['b'] },
+		});
+	});
+
+	test('a question that a list without a widget of its own docked is removed from the input as it is settled, also once that list goes', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/list-gone' });
+		const { chatWidgetService, dockedIn } = createInputRequestWidgets(session, ['a']);
+		// Such as the list of an agent session's hover
+		const { model, viewModel, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService });
+		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'list-gone');
+		model.acceptResponseProgress(request, question);
+		renderer.renderElement(node, 0, template);
+		const docked = dockedIn('list-gone');
+
+		// Its row renders another item, and the list goes
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isRequestVM)! }, 0, template);
+		renderer.dispose();
+		question.dismiss(undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ docked, after: dockedIn('list-gone') }, { docked: ['a'], after: [] });
+	});
+
+	test('a preview of a chat, such as an agent session\'s hover, docks none of its questions or tool approvals in the input of the widget that shows it, and closing it leaves those the widget has', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/preview' });
+		const { chatWidgetService, widgets, dockedIn, toolCarousels, toolCalls } = createInputRequestWidgets(session, ['shown']);
+		const preview = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, rendererOptions: { renderStyle: 'compact', noHeader: true, editable: false, renderInputRequests: false } });
+		enableToolConfirmationCarousel(preview.configurationService);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
+			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+			'previewed', undefined, {},
+		);
+		// The widget that shows the chat has the approval in its carousel, as its own list put it there
+		widgets.get('shown')!.inputPart.addToolToConfirmationCarousel(tool, () => { throw new Error('not rendered'); });
+		preview.model.acceptResponseProgress(preview.request, tool);
+		preview.model.acceptResponseProgress(preview.request, new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'previewed-question'));
+		// A subagent's pending approval too
+		preview.model.acceptResponseProgress(preview.request, createSubagentTool('previewed-agent', { kind: 'subagent', hasStarted: true, isActive: true }));
+		preview.model.acceptResponseProgress(preview.request, new ChatToolInvocation(
+			{ invocationMessage: 'Read the file', confirmationMessages: { title: 'Read file?', message: 'Reads a file.' } },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read', source: ToolDataSource.Internal },
+			'previewed-child', 'previewed-agent', {},
+		));
+		preview.renderer.renderElement(preview.node, 0, preview.template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const shown = { question: dockedIn('previewed-question'), tools: [...toolCarousels.get('shown')?.keys() ?? []] };
+
+		preview.renderer.dispose();
+
+		assert.deepStrictEqual({ shown, afterClose: [...toolCarousels.get('shown')?.keys() ?? []], toolCalls }, {
+			shown: { question: [], tools: ['previewed'] },
+			afterClose: ['previewed'],
+			// The widget's own, and nothing from the preview
+			toolCalls: ['shown:add:previewed'],
+		});
+	});
+
+	for (const order of ['the widget it moves to first', 'the widget it moves from first'] as const) {
+		test(`an answer typed in a widget's list is kept as the question moves to another widget, whose copy rendered before it was typed goes (${order})`, async () => {
+			const session = URI.from({ scheme: 'vscode-chat-session', path: `/typed-${order.replace(/ /g, '-')}` });
+			const { chatWidgetService, widgets, dockedIn, focus } = createInputRequestWidgets(session, ['a', 'b', 'c']);
+			const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+			const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+			const c = a.createRenderer(() => widgets.get('c'), ownedHost());
+			const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'typed');
+			a.model.acceptResponseProgress(a.request, question);
+			await renderAgain(a.node, a, b, c);
+			// Typed in b's list, as a's input docks it: c's copy has nothing typed
+			const editor = a.instantiationService.get(ICodeEditorService).listCodeEditors().find(candidate => b.template.value.contains(candidate.getDomNode()));
+			editor!.getModel()!.setValue('Weave');
+			const typed = question.draftAnswers;
+
+			focus('c');
+			await renderAgain(a.node, ...order === 'the widget it moves to first' ? [c, a, b] : [a, b, c]);
+
+			assert.deepStrictEqual({ typed, docked: dockedIn('typed'), kept: question.draftAnswers }, { typed: { q1: 'Weave' }, docked: ['c'], kept: { q1: 'Weave' } });
+		});
+	}
+
+	for (const [kind, toolSpecificData] of [['base', undefined], ['agent feedback review', { kind: 'agentFeedbackReviewConfirmation', options: ['Reveal Selected'] }]] as const) {
+		test(`answering a tool approval (${kind}) in the carousel of one of two widgets that show the chat focuses that widget's input, not the other's`, async () => {
+			const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve' });
+			const { chatWidgetService, widgets, focused, toolCarousels, focus } = createInputRequestWidgets(session, ['other', 'own']);
+			const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('own') });
+			focus('own');
+			enableToolConfirmationCarousel(configurationService);
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
+				{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+				'approve-build', undefined, {},
+			);
+			tool.toolSpecificData = toolSpecificData;
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const carousels = [...toolCarousels].filter(([, tools]) => tools.size).map(([name]) => name);
+			const factory = toolCarousels.get('own')?.get('approve-build');
+			const carouselPart = factory && disposables.add(factory(tool));
+			// The last button, Skip or the feedback review's own Cancel, is enabled in every kind
+			const last = [...carouselPart?.domNode.querySelectorAll<HTMLElement>('.chat-buttons .monaco-button') ?? []].at(-1);
+			const specialized = last?.textContent === 'Cancel';
+			last?.click();
+
+			assert.deepStrictEqual({ carousels, specialized, focused }, { carousels: ['own'], specialized: kind !== 'base', focused: ['own'] });
+		});
+	}
+
 	test('previews can omit input requests without resolving them or docking them in another widget', async () => {
 		const { model, request, renderer, template, node, container } = createPersistentProgressRenderer({
 			rendererOptions: { readOnly: true, renderInputRequests: false }, dockPlanReview: true,
@@ -6299,11 +7492,11 @@ suite('ChatListRenderer', () => {
 			}();
 			const { model, request, renderer, template, node, configurationService } = createPersistentProgressRenderer({
 				rendererOptions: { readOnly: true, renderInputRequests: false }, collapsedTools,
-				chatWidgetService: new class extends mock<IChatWidgetService>() {
+				chatWidgetService: new class extends MockChatWidgetService {
 					override getWidgetBySessionResource() { return widget; }
 				}(),
 			});
-			configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+			enableToolConfirmationCarousel(configurationService);
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Inspect workspace?', message: 'Allow the inspection.', confirmResults: true } },
 				{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
@@ -6368,7 +7561,7 @@ suite('ChatListRenderer', () => {
 			await timeout(0);
 			const suppressed = renderInputRequests === false;
 			assert.deepStrictEqual({
-				markdown: template.value.querySelector('.chat-question-title strong')?.textContent,
+				markdown: template.value.querySelector('.chat-question-message strong')?.textContent,
 				details: template.value.querySelector('.chat-question-detailed-message')?.textContent?.trim(),
 				controls: template.value.querySelectorAll('.chat-question-carousel-container').length,
 				answered: !!question.isUsed,
@@ -7784,6 +8977,105 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	function createPersistentWorkingPart(fixture: ReturnType<typeof createPersistentProgressRenderer>, working: IChatWorkingProgress): ChatWorkingProgressContentPart {
+		const context = new class extends mock<IChatContentPartRenderContext>() {
+			override readonly element = fixture.response;
+			override readonly content = [working];
+			override readonly contentIndex = 0;
+			override readonly suppressProgressShimmer = true;
+		}();
+		return fixture.disposables.add(fixture.instantiationService.createInstance(ChatWorkingProgressContentPart, working, fixture.instantiationService.get(IMarkdownRendererService), context));
+	}
+
+	test('persistent progress rotates a generic phrase after ten seconds without a new piece', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Reviewing', 'Considering'] });
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', isActive: true, progressStep: 0 });
+		const first = part.workingLabel;
+		const other = first === 'Reviewing' ? 'Considering' : 'Reviewing';
+		await timeout(9999);
+		const beforeRotation = part.workingLabel;
+		await timeout(1);
+		const rotated = part.workingLabel;
+		await timeout(5000);
+		part.updateWorkingContent(undefined, true, false, 1);
+		const newPiece = part.workingLabel;
+		await timeout(9999);
+		const beforeNewPieceRotation = part.workingLabel;
+		await timeout(1);
+		const afterNewPieceRotation = part.workingLabel;
+		// A piece that arrives within the minimum dwell keeps the phrase, and still restarts the ten seconds.
+		await timeout(500);
+		part.updateWorkingContent(undefined, true, false, 2);
+		await timeout(9999);
+		const beforeSamePhraseRotation = part.workingLabel;
+		await timeout(1);
+		const afterSamePhraseRotation = part.workingLabel;
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true, 2);
+		await timeout(30_000);
+		const blocked = part.workingLabel;
+		part.updateWorkingContent(undefined, true, false, 2);
+		const resumed = part.workingLabel;
+		fixture.request.response?.complete();
+		await timeout(30_000);
+
+		assert.deepStrictEqual({
+			beforeRotation, rotated, newPiece, beforeNewPieceRotation, afterNewPieceRotation,
+			beforeSamePhraseRotation, afterSamePhraseRotation, blocked, resumed, afterCompletion: part.workingLabel,
+		}, {
+			beforeRotation: first, rotated: other, newPiece: first, beforeNewPieceRotation: first, afterNewPieceRotation: other,
+			beforeSamePhraseRotation: other, afterSamePhraseRotation: first, blocked: 'Waiting for your response', resumed: first, afterCompletion: first,
+		});
+	}));
+
+	test('persistent progress keeps rotating generic phrases until it reports prolonged inactivity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Reviewing', 'Considering'] });
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', isActive: true, progressStep: 0, showDelayedProgressMessage: true });
+		const first = part.workingLabel;
+		const other = first === 'Reviewing' ? 'Considering' : 'Reviewing';
+		const delayed = 'This is taking a little longer than usual';
+		await timeout(5000);
+		const labelsEveryTenSeconds: string[] = [];
+		for (let index = 0; index < 12; index++) {
+			labelsEveryTenSeconds.push(part.workingLabel);
+			await timeout(10_000);
+		}
+
+		assert.deepStrictEqual(labelsEveryTenSeconds, [first, other, first, other, first, other, first, other, first, delayed, delayed, delayed]);
+	}));
+
+	test('persistent progress wipes to a new label and reports it at once', () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced() { return false; }
+		}());
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', content: new MarkdownString('Working'), isActive: true });
+		fixture.container.appendChild(part.domNode);
+		const getWipe = (label: Element) => label.classList.contains('chat-activity-label-wipe-out') ? 'out' : label.classList.contains('chat-activity-label-wipe-in') ? 'in' : undefined;
+		const state = () => {
+			const label = part.domNode.querySelector('.progress-step');
+			assert.ok(label);
+			return { text: label.textContent?.trim(), wipe: getWipe(label), reported: part.workingLabel };
+		};
+		const endWipe = () => {
+			const label = part.domNode.querySelector('.progress-step');
+			assert.ok(label);
+			label.dispatchEvent(new AnimationEvent(dom.EventType.ANIMATION_END, { animationName: `chat-activity-label-wipe-${getWipe(label)}` }));
+		};
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'));
+		const leaving = state();
+		endWipe();
+		const arriving = state();
+		endWipe();
+
+		assert.deepStrictEqual({ leaving, arriving, settled: state() }, {
+			leaving: { text: 'Working', wipe: 'out', reported: 'Waiting for your response' },
+			arriving: { text: 'Waiting for your response', wipe: 'in', reported: 'Waiting for your response' },
+			settled: { text: 'Waiting for your response', wipe: undefined, reported: 'Waiting for your response' },
+		});
+	});
+
 	for (const incremental of [false, true]) {
 		test(`persistent progress reports provider background shells instead of inactivity (incremental=${incremental})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
@@ -8182,18 +9474,19 @@ suite('ChatListRenderer', () => {
 			override addToolToConfirmationCarousel(...args: Parameters<ChatInputPart['addToolToConfirmationCarousel']>): void {
 				factories.push(args[1]);
 			}
+			override removeToolFromConfirmationCarousel(): void { }
 		}();
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly input = input;
 			override readonly inputPart = input;
 			override readonly location = ChatAgentLocation.Chat;
 		}();
-		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+		const chatWidgetService = new class extends MockChatWidgetService {
 			override getWidgetBySessionResource() { return widget; }
 		}();
 		const { disposables, configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, chatWidgetService });
 		configurePersistentProgressTypography(container, 13);
-		configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		enableToolConfirmationCarousel(configurationService);
 		const tool = new ChatToolInvocation(
 			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
 			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
@@ -9080,6 +10373,8 @@ suite('ChatListRenderer', () => {
 
 	async function addCompletedProgressResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, finalText = 'Final review.\n\nAll checks passed.'): Promise<void> {
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'first', value: '**Checking the implementation**\nReview the current changes.' });
+		// Several tools follow this text, so it folds with the work instead of being kept as a single-tool tail.
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Checking the remaining paths.\n\nComparing the results.') });
 		for (const id of ['first', 'second']) {
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: `Read ${id} file` },
@@ -9089,7 +10384,6 @@ suite('ChatListRenderer', () => {
 			model.acceptResponseProgress(request, tool);
 			await tool.didExecuteTool(undefined);
 		}
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Checking the remaining paths.\n\nComparing the results.') });
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'second', value: '**Verifying the result**\nCheck the external reference.' });
 		const externalTool = new ChatToolInvocation(
 			{ invocationMessage: 'Read external reference' },
@@ -9202,6 +10496,80 @@ suite('ChatListRenderer', () => {
 				});
 			}
 		}
+	}
+
+	for (const withEdits of [false, true]) {
+		test(`conversation progress discloses completed steps like its sections (edits=${withEdits})`, async () => {
+			const describeDisclosure = async (verbosity: ChatProgressVerbosity) => {
+				const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: verbosity });
+				const { container, configurationService, model, request, renderer, template, node } = setup;
+				configurePersistentProgressTypography(container, 13);
+				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+				if (withEdits) {
+					model.acceptResponseProgress(request, {
+						kind: 'externalEdit', uri: URI.file('/workspace/renderer.ts'), editKind: 'edit', diff: { added: 14, removed: 3 },
+					});
+				}
+				await addCompletedProgressResponse(setup);
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				await timeout(0);
+				const disclosure = template.completedResponseDisclosure;
+				const summary = disclosure?.querySelector<HTMLElement>('summary');
+				const chevron = summary?.querySelector<HTMLElement>('.chat-collapsible-hover-chevron');
+				const label = summary?.querySelector<HTMLElement>('.monaco-button-mdlabel');
+				assert.ok(disclosure && summary && chevron && label);
+				const pointsDown = () => Math.round(new DOMMatrixReadOnly(mainWindow.getComputedStyle(chevron).transform).b) === 1;
+				const closed = {
+					order: [...summary.querySelectorAll('.chat-collapsible-hover-chevron, .monaco-button-mdlabel, .chat-edit-stats')]
+						.map(part => part === chevron ? 'chevron' : part === label ? 'label' : 'edits'),
+					chevronShownAtRest: mainWindow.getComputedStyle(chevron).opacity === '1',
+					pointsDown: pointsDown(),
+				};
+				summary.click();
+				await timeout(0);
+				const section = disclosure.querySelector<HTMLElement>(':scope > .chat-thinking-conversation');
+				if (!section) {
+					return { ...closed, pointsDownWhenOpen: pointsDown() };
+				}
+				const sectionHeader = section.querySelector<HTMLElement>(':scope > .chat-used-context-label');
+				const sectionChevron = sectionHeader?.querySelector('.monaco-button > .codicon');
+				const sectionLabel = sectionHeader?.querySelector('.monaco-button-mdlabel');
+				assert.ok(sectionHeader && sectionChevron && sectionLabel);
+				// An open chevron is placed differently from a closed one, so the section opens to compare like with like.
+				sectionHeader.querySelector<HTMLElement>('.monaco-button')?.click();
+				const offset = (part: Element, from: Element) => part.getBoundingClientRect().left - from.getBoundingClientRect().left;
+				const center = (part: Element, from: Element) => offset(part, from) + part.getBoundingClientRect().width / 2;
+				const same = (a: number, b: number) => Math.abs(a - b) < 0.05;
+				const rail = mainWindow.getComputedStyle(disclosure, '::details-content');
+				const hook = mainWindow.getComputedStyle(sectionHeader, '::after');
+				const open = {
+					pointsDownWhenOpen: pointsDown(),
+					sharesSectionGutter: same(center(chevron, summary), center(sectionChevron, section)) && same(offset(label, summary), offset(sectionLabel, section)),
+					sharesSectionChevronColor: mainWindow.getComputedStyle(chevron).color === mainWindow.getComputedStyle(sectionChevron).color,
+					stepsUnderLabel: same(offset(section, summary), offset(label, summary)),
+					railUnderChevron: same(parseFloat(rail.marginInlineStart) + parseFloat(rail.borderInlineStartWidth) / 2, center(chevron, summary)),
+					hookUnderSectionChevron: same(parseFloat(hook.left) + parseFloat(hook.borderLeftWidth) / 2, center(sectionChevron, section)),
+				};
+				container.style.width = '140px';
+				renderer.layout(140);
+				return {
+					...closed, ...open,
+					containedWhenNarrow: summary.scrollWidth <= summary.clientWidth + 1 && same(offset(label, summary), offset(sectionLabel, section)),
+				};
+			};
+
+			assert.deepStrictEqual({
+				compact: await describeDisclosure(ChatProgressVerbosity.Compact),
+				conversation: await describeDisclosure(ChatProgressVerbosity.Conversation),
+			}, {
+				compact: { order: ['label', ...(withEdits ? ['edits'] : []), 'chevron'], chevronShownAtRest: false, pointsDown: false, pointsDownWhenOpen: true },
+				conversation: {
+					order: ['chevron', 'label', ...(withEdits ? ['edits'] : [])], chevronShownAtRest: true, pointsDown: false, pointsDownWhenOpen: true,
+					sharesSectionGutter: true, sharesSectionChevronColor: true, stepsUnderLabel: true, railUnderChevron: true, hookUnderSectionChevron: true, containedWhenNarrow: true,
+				},
+			});
+		});
 	}
 
 	for (const fontSize of [13, 18]) {
@@ -10577,6 +11945,40 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
+	for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+		for (const arrayChunks of [false, true]) {
+			test(`untimed BYOK thinking stays in one block without a duration (${persistentProgress}, arrayChunks=${arrayChunks})`, async () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress, progressVerbosity: ChatProgressVerbosity.Compact });
+				const blockCounts: number[] = [];
+				for (const value of ['Consider', ' the', ' request.']) {
+					model.acceptResponseProgress(request, { kind: 'thinking', id: '', value: arrayChunks ? [value] : value });
+					renderer.renderElement(node, 0, template);
+					blockCounts.push(template.value.querySelectorAll('.chat-thinking-box').length);
+				}
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer') });
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const thinkingParts = [...new Set(template.renderedParts)].filter(part => part instanceof ChatThinkingContentPart);
+				await Promise.all(thinkingParts.map(part => part.getPendingCollapseAnimation()));
+				for (const part of thinkingParts) {
+					part.expandContent();
+				}
+
+				assert.deepStrictEqual({
+					blockCounts,
+					blocks: template.value.querySelectorAll('.chat-thinking-box').length,
+					headers: Array.from(template.value.querySelectorAll<HTMLElement>('.chat-thinking-box > .chat-used-context-label .monaco-button'), button => ({ title: button.textContent, ariaLabel: button.ariaLabel })),
+					completeText: template.value.querySelector('.chat-thinking-box')?.textContent?.includes('Consider the request.'),
+				}, {
+					blockCounts: [1, 1, 1],
+					blocks: 1,
+					headers: [{ title: 'Finished thinking', ariaLabel: 'Finished thinking' }],
+					completeText: true,
+				});
+			});
+		}
+	}
+
 	for (const value of ['Reasoning without a heading', ['First reasoning piece', 'Second reasoning piece']]) {
 		test(`late reasoning timing refreshes a finalized header and ARIA label (${typeof value})`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
@@ -10605,7 +12007,42 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	test('late reasoning timing refreshes an earlier run inside a finalized conversation group', async () => {
+	test('late Copilot reasoning timing refreshes the generated title without another duration row', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+		model.acceptResponseProgress(request, {
+			kind: 'thinking', id: 'late-timing', value: 'Reviewed search results.',
+			generatedTitle: 'Reviewed search results', reasoningTimingSource: 'provider',
+		}, false, true);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The answer') });
+		renderer.renderElement(node, 0, template);
+		await Promise.all(template.renderedParts?.flatMap(part => part instanceof ChatThinkingContentPart ? [part.getPendingCollapseAnimation()] : []) ?? []);
+		const section = template.value.querySelector('.chat-thinking-box');
+		const button = section?.querySelector<HTMLElement>('.chat-used-context-label .monaco-button');
+		const before = button?.textContent;
+
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'late-timing', value: '', reasoningTimingSource: 'provider', reasoningDurationMs: 2500 });
+		renderer.renderElement(node, 0, template);
+		button?.click();
+		request.response?.complete();
+
+		assert.deepStrictEqual({
+			before,
+			title: button?.textContent,
+			ariaLabel: button?.ariaLabel,
+			durationRows: section?.querySelectorAll('.chat-thinking-run-duration').length,
+			preservesSection: template.value.querySelector('.chat-thinking-box') === section,
+			modelTitles: request.response?.entireResponse.value.flatMap(part => part.kind === 'thinking' ? [part.generatedTitle] : []),
+		}, {
+			before: 'Reviewed search results',
+			title: 'Reviewed search results - 3s',
+			ariaLabel: 'Reviewed search results - 3s',
+			durationRows: 0,
+			preservesSection: true,
+			modelTitles: ['Reviewed search results'],
+		});
+	});
+
+	test('late reasoning timing names its row in a finalized conversation group', async () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Conversation });
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'first', value: 'First run', reasoningTimingSource: 'provider' }, false, true);
 		const tool = new ChatToolInvocation(
@@ -10621,7 +12058,7 @@ suite('ChatListRenderer', () => {
 		const section = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
 		assert.ok(section instanceof ChatThinkingContentPart);
 		section.expandContent();
-		const labels = () => Array.from(section.domNode.querySelectorAll('.chat-thinking-run-duration'), element => element.textContent);
+		const labels = () => Array.from(section.domNode.querySelectorAll('.chat-thinking-reasoning > .chat-used-context-label .monaco-button'), element => element.textContent);
 		const before = labels();
 
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'first', value: '', reasoningTimingSource: 'provider', reasoningDurationMs: 5000 });
@@ -10629,12 +12066,16 @@ suite('ChatListRenderer', () => {
 		const after = labels();
 		request.response?.complete();
 
-		assert.deepStrictEqual({ before, after }, { before: ['Thought for 12s'], after: ['Thought for 5s', 'Thought for 12s'] });
+		assert.deepStrictEqual({
+			before,
+			after,
+			durations: request.response?.entireResponse.value.flatMap(part => part.kind === 'thinking' ? [part.reasoningDurationMs] : []),
+		}, { before: ['Finished thinking', 'Thought for 12s'], after: ['Thought for 5s', 'Thought for 12s'], durations: [5000, 12_000] });
 	});
 
 	for (const progressVerbosity of [ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Conversation]) {
 		for (const boundary of ['markdown', 'tool'] as const) {
-			test(`reasoning run durations survive reload independently (${progressVerbosity}, ${boundary})`, async () => {
+			test(`reasoning timing survives reload (${progressVerbosity}, ${boundary})`, async () => {
 				const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity });
 				setup.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
 				const diagnostics: string[] = [];
@@ -10653,7 +12094,7 @@ suite('ChatListRenderer', () => {
 						sections: thinkingParts.map(part => ({ active: part.getIsActive(), activeTiming: part.hasActiveReasoningTiming(), connected: part.domNode.isConnected, text: part.domNode.textContent })),
 					}));
 					return {
-						labels: Array.from(current.template.value.querySelectorAll('.chat-used-context-label .monaco-button, .chat-thinking-run-duration'), label => label.textContent?.trim())
+						labels: Array.from(current.template.value.querySelectorAll('.chat-used-context-label .monaco-button'), label => label.textContent?.trim())
 							.filter(label => label?.startsWith('Thought for ')),
 						runs: current.request.response?.entireResponse.value.flatMap(part => part.kind === 'thinking' && part.value
 							? [{ value: part.value, duration: part.reasoningDurationMs }] : []),
@@ -10685,6 +12126,7 @@ suite('ChatListRenderer', () => {
 
 				const restored = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity, initialData: { value, serializer: new ChatSessionOperationLog() } });
 				restored.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+				// Reasoning names its time in its own header, or in its row of a conversation section with other items.
 				const expected = {
 					labels: ['Thought for 5s', 'Thought for 12s'],
 					runs: [{ value: 'First run', duration: 5000 }, { value: 'Second run', duration: 12_000 }],
@@ -10695,7 +12137,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('conversation progress collapses reasoning and tool calls into one section with its extracted heading', async () => {
+	test('conversation progress collapses reasoning and tool calls into one section named by its activity, then by what it did', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
 		store.add(toDisposable(() => clock.restore()));
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
@@ -10740,13 +12182,13 @@ suite('ChatListRenderer', () => {
 			reading,
 			thinkingAgain,
 			finished,
-			rows: [...getSection()?.querySelectorAll(':scope .chat-thinking-collapsible > *') ?? []].map(row => row.classList.contains('chat-thinking-tool-wrapper') ? 'tool' : 'reasoning'),
+			rows: [...getSection()?.querySelectorAll(':scope .chat-thinking-collapsible > *') ?? []].map(row => row.matches('.chat-thinking-tool-wrapper:not(.chat-thinking-reasoning-row)') ? 'tool' : 'reasoning'),
 			toolChains: template.value.querySelectorAll('.chat-tool-chain').length,
 		}, {
 			thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
 			reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
-			thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
-			finished: { title: 'Planning the fix', expanded: 'false', order: ['section', 'markdown', 'progress'] },
+			thinkingAgain: { title: 'Thinking: Compare the results.', expanded: 'false', order: ['section', 'progress'] },
+			finished: { title: 'Finished with 1 step', expanded: 'false', order: ['section', 'markdown', 'progress'] },
 			rows: ['reasoning', 'tool', 'reasoning'],
 			toolChains: 0,
 		});
@@ -10803,7 +12245,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({
 			sectionVisible: !!section && section.getClientRects().length > 0,
 			standaloneTools: template.value.querySelectorAll(':scope > .chat-tool-invocation-part').length,
-			rows: [...section?.querySelectorAll(':scope .chat-thinking-collapsible > *') ?? []].map(row => row.classList.contains('chat-thinking-tool-wrapper') ? 'tool' : 'reasoning'),
+			rows: [...section?.querySelectorAll(':scope .chat-thinking-collapsible > *') ?? []].map(row => row.matches('.chat-thinking-tool-wrapper:not(.chat-thinking-reasoning-row)') ? 'tool' : 'reasoning'),
 		}, {
 			sectionVisible: true,
 			standaloneTools: 0,
@@ -10830,11 +12272,59 @@ suite('ChatListRenderer', () => {
 			title: sections[0]?.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent?.trim(),
 		}, {
 			sections: 1,
-			title: 'Thinking',
+			title: 'Thinking: the results.',
 		});
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});
+
+	for (const fontSize of [13, 18]) {
+		test(`conversation headers keep their height and text line as titles gain file pills, code, and links at chat font size ${fontSize}`, () => {
+			const { instantiationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
+			instantiationService.stub(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() {
+				override register() { return Disposable.None; }
+			}());
+			configurePersistentProgressTypography(container, fontSize);
+			renderer.layout(720);
+			const headers = [
+				'Editing files',
+				new MarkdownString('Replacing 2 lines with 5 lines in [](file:///workspace/renderer.ts)'),
+				new MarkdownString('Running `git status --short`'),
+				new MarkdownString('Fetched [the guide](https://example.com/guide)'),
+				'Editing files',
+			].map((invocationMessage, index) => {
+				model.acceptResponseProgress(request, new ChatToolInvocation(
+					{ invocationMessage },
+					{ id: `tool${index}`, displayName: 'Tool', modelDescription: 'Tool', source: ToolDataSource.Internal },
+					`call${index}`, undefined, {},
+				));
+				renderer.renderElement(node, 0, template);
+				const header = template.value.querySelector<HTMLElement>(':scope > .chat-thinking-conversation > .chat-used-context-label');
+				const title = header?.querySelector('.chat-thinking-title-detail > p') ?? header?.querySelector('.monaco-button-mdlabel');
+				assert.ok(header && title);
+				const bounds = header.getBoundingClientRect();
+				return {
+					title: header.textContent,
+					filePills: header.querySelectorAll('.chat-inline-anchor-widget').length,
+					height: bounds.height,
+					baseline: getTextBaseline(title) - bounds.top,
+				};
+			});
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+
+			assert.deepStrictEqual(headers.map(({ height, baseline, ...header }) => ({
+				...header,
+				sameLine: Math.abs(height - headers[0].height) < 0.05 && Math.abs(baseline - headers[0].baseline) < 0.05,
+			})), [
+				{ title: 'Editing files', filePills: 0, sameLine: true },
+				{ title: 'Replacing 2 lines with 5 lines in renderer.ts', filePills: 1, sameLine: true },
+				{ title: 'Running git status --short', filePills: 0, sameLine: true },
+				{ title: 'Fetched the guide', filePills: 0, sameLine: true },
+				{ title: 'Editing files', filePills: 0, sameLine: true },
+			], JSON.stringify(headers));
+		});
+	}
 
 	async function createExpandedPersistentPreview(source: 'thinking' | 'tools', options: { incremental?: boolean; reducedMotion?: boolean } = {}) {
 		const setup = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
@@ -14532,6 +16022,7 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 				await timeout(2500);
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done') });
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'live-array', value: '', reasoningDurationMs: 2500 });
 				request.response!.complete();
 				renderer.renderElement(node, 0, template);
 				assert.strictEqual(template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button')?.textContent, 'Thought for 3s');
@@ -14576,7 +16067,7 @@ suite('ChatListRenderer', () => {
 			test(`coalesces working progress updates from a burst of tool activity (complete=${complete})`, async () => {
 				let progressLookups = 0;
 				const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
-				const chatWidgetService = new class extends mock<IChatWidgetService>() {
+				const chatWidgetService = new class extends MockChatWidgetService {
 					override getWidgetBySessionResource() {
 						progressLookups++;
 						return undefined;
@@ -14609,7 +16100,7 @@ suite('ChatListRenderer', () => {
 		test('drops queued progress work when the response template is recycled', async () => {
 			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
 			let progressLookups = 0;
-			const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			const chatWidgetService = new class extends MockChatWidgetService {
 				override getWidgetBySessionResource() {
 					progressLookups++;
 					return undefined;
@@ -15141,20 +16632,29 @@ suite('ChatListRenderer', () => {
 		}
 
 		for (const carousel of [true, false]) {
-			for (const selectedOption of ['save-sandbox-path', 'skip']) {
-				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, () => {
+			for (const selectedOption of ['save-session-sandbox-path', 'save-workspace-sandbox-path', 'save-sandbox-path', 'skip']) {
+				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, async () => {
 					const context = createConfirmationRenderer();
 					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					let menuActions: readonly IAction[] = [];
+					context.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+						override showContextMenu(delegate: Parameters<IContextMenuService['showContextMenu']>[0]): void {
+							assert.ok(delegate.getActions);
+							menuActions = delegate.getActions();
+						}
+					}());
 					const resource = URI.file('/outside/new.ts').toString();
 					const tool = toolCallStateToInvocation({
 						status: ToolCallStatus.PendingConfirmation,
 						toolCallId: 'sandbox-write',
 						toolName: 'apply_patch',
 						displayName: 'Apply Patch',
-						confirmationTitle: 'Add to user sandbox settings and retry?',
+						confirmationTitle: 'Allow sandbox path access and retry?',
 						invocationMessage: 'Allow read/write access to the folder.',
 						options: [
-							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'save-session-sandbox-path', label: 'Allow for This Session', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'save-workspace-sandbox-path', label: 'Allow for This Workspace', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'save-sandbox-path', label: 'Allow for This User', kind: ConfirmationOptionKind.Approve, group: 1 },
 							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
 						],
 						edits: { items: [{ after: { uri: resource, content: { uri: resource } } }] },
@@ -15163,19 +16663,32 @@ suite('ChatListRenderer', () => {
 					context.render();
 
 					const container = carousel ? context.confirmationContainer : context.template.value;
-					const buttons = Array.from(container.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button'));
-					const labels = buttons.map(button => button.textContent?.replaceAll('\u00a0', ' '));
+					const primary = container.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+					const dropdown = container.querySelector<HTMLElement>('.monaco-dropdown-button');
+					const skip = container.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button.secondary');
+					assert.ok(primary && dropdown && skip);
+					const labels = [primary, skip].map(button => button.textContent?.replaceAll('\u00a0', ' '));
 					const hasFilePreview = !!container.querySelector('.chat-modified-files-confirmation-list');
-					const button = buttons[selectedOption === 'skip' ? 1 : 0];
-					assert.ok(button);
-					button.click();
+					if (selectedOption === 'save-workspace-sandbox-path') {
+						dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+					} else {
+						dropdown.click();
+					}
+					const moreActions = menuActions.filter(action => !(action instanceof Separator));
+					if (selectedOption === 'save-workspace-sandbox-path' || selectedOption === 'save-sandbox-path') {
+						await moreActions[selectedOption === 'save-workspace-sandbox-path' ? 0 : 1].run();
+					} else {
+						(selectedOption === 'skip' ? skip : primary).click();
+					}
 
 					assert.deepStrictEqual({
 						labels,
+						moreLabels: moreActions.map(action => action.label),
 						hasFilePreview,
 						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
 					}, {
-						labels: ['Allow', 'Skip'],
+						labels: ['Allow for This Session', 'Skip'],
+						moreLabels: ['Allow for This Workspace', 'Allow for This User'],
 						hasFilePreview: true,
 						confirmed: {
 							type: ToolConfirmKind.UserAction,
@@ -15236,13 +16749,13 @@ suite('ChatListRenderer', () => {
 
 		/** Routes Explain to a side chat provider that records each question and answers when `response` completes. */
 		function stubSideChat(context: ReturnType<typeof createConfirmationRenderer>, supported: boolean) {
-			const asked: { sessionResource: string; query: string; selection: IChatSideChatSelection | undefined; sourceTurnId: string | undefined }[] = [];
+			const asked: { sessionResource: string; query: string; selection: IChatSideChatSelection | undefined; sourceTurnId: string | undefined; includeSourceContext: boolean | undefined }[] = [];
 			const response = new DeferredPromise<void>();
 			const sideChatService = context.disposables.add(new ChatSideChatService());
 			context.disposables.add(sideChatService.registerProvider({
 				canAskInSideChat: () => supported,
 				askInSideChat: (sessionResource, query, selection, options) => {
-					asked.push({ sessionResource: sessionResource.toString(), query, selection, sourceTurnId: options?.sourceTurnId });
+					asked.push({ sessionResource: sessionResource.toString(), query, selection, sourceTurnId: options?.sourceTurnId, includeSourceContext: options?.includeSourceContext });
 					return response.p;
 				},
 				observeSideChatOrigin: () => constObservable(undefined),
@@ -15308,9 +16821,10 @@ suite('ChatListRenderer', () => {
 						labels: sideChatSupported ? ['Allow Once', 'Skip', 'Explain'] : ['Allow Once', 'Skip'],
 						asked: sideChatSupported ? [{
 							sessionResource: context.model.sessionResource.toString(),
-							query: 'Explain what this terminal command will do.',
-							selection: { text: command },
+							query: `Explain what this terminal command will do. Do not run it.\n\n\`${command}\``,
+							selection: undefined,
 							sourceTurnId: context.request.id,
+							includeSourceContext: false,
 						}] : [],
 						disabledWhileAsking: sideChatSupported ? true : undefined,
 						disabledAfterAsking: sideChatSupported ? false : undefined,
@@ -15341,10 +16855,10 @@ suite('ChatListRenderer', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual({
-				explained: sideChat.asked.map(call => call.selection?.text),
+				explained: sideChat.asked.map(call => call.query),
 				state: tool.state.get().type,
 			}, {
-				explained: ['cd packages/server && npm ci'],
+				explained: ['Explain what this terminal command will do. Do not run it.\n\n`cd packages/server && npm ci`'],
 				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
 			});
 		});
@@ -15708,7 +17222,7 @@ suite('ChatListRenderer', () => {
 			context.setViewModel(context.viewModel);
 			const disabledCount = context.carousel?.pendingCount ?? 0;
 			tool.presentation = ToolInvocationPresentation.Hidden;
-			context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+			enableToolConfirmationCarousel(context.configurationService);
 			context.setViewModel(context.viewModel);
 			assert.deepStrictEqual({
 				readOnlyCount, editableCount, disabledCount, hiddenCount: context.carousel?.pendingCount ?? 0, toolState: tool.state.get().type,

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { merge, removeFromValueTree } from '../../common/configuration.js';
+import { merge, removeFromValueTree, toValuesTree } from '../../common/configuration.js';
 import { mergeChanges } from '../../common/configurationModels.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -118,6 +118,26 @@ suite('Configuration', () => {
 		removeFromValueTree(target, 'a.b.c');
 
 		assert.deepStrictEqual(target, { 'a': { 'b': { 'd': 1 } } });
+	});
+
+	test('toValuesTree: dotted key through an explicit parent does not pollute Object.prototype', () => {
+		const prototype = Object.prototype as { pollutedByValuesTree?: unknown };
+
+		try {
+			const result = toValuesTree({ 'box': {}, 'box.__proto__.pollutedByValuesTree': true, 'a': {}, 'a.b.c': 1 }, () => { });
+
+			assert.deepStrictEqual({
+				pollutedPrototype: prototype.pollutedByValuesTree,
+				pollutedObject: ({} as { pollutedByValuesTree?: unknown }).pollutedByValuesTree,
+				leaf: ((result.a as { b: { c: number } }).b.c),
+			}, {
+				pollutedPrototype: undefined,
+				pollutedObject: undefined,
+				leaf: 1,
+			});
+		} finally {
+			delete prototype.pollutedByValuesTree;
+		}
 	});
 
 });

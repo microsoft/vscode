@@ -10,10 +10,12 @@ import { Action, Separator } from '../../../../base/common/actions.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MenuItemAction } from '../../../actions/common/actions.js';
+import { NullCommandService } from '../../../commands/test/common/nullCommandService.js';
 import { ContextMenuHandler } from '../../browser/contextMenuHandler.js';
 import { IContextViewDelegate, IContextViewService } from '../../browser/contextView.js';
 import { ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
-import { MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../keybinding/test/common/mockKeybindingService.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
@@ -132,5 +134,32 @@ suite('ContextMenuHandler', () => {
 			}
 		});
 
+	});
+
+	test('shows the group titles of menu actions as headers and still selects the requested action', () => {
+		const container = appendFixed($('div'));
+		const contextViewService = upcastPartial<IContextViewService>({
+			showContextView: delegate => {
+				store.add(delegate.render(container));
+				delegate.focus?.();
+				return { close: () => delegate.onHide?.() };
+			},
+		});
+		const handler = new ContextMenuHandler(contextViewService, NullTelemetryService, new TestNotificationService(), new MockKeybindingService());
+		const action = (id: string, title: string, groupTitle: string) => new MenuItemAction({ id, title }, undefined, { groupTitle }, undefined, undefined, new MockContextKeyService(), NullCommandService);
+		const actions = [action('first', 'First', 'Recent'), new Separator(), action('second', 'Second', 'Discover More')];
+		handler.showContextMenu({
+			getAnchor: () => container,
+			getActions: () => actions,
+			autoSelectItem: 2,
+		});
+
+		assert.deepStrictEqual({
+			rows: Array.from(container.querySelectorAll('.actions-container > .action-item'), row => row.querySelector('.menu-header-title')?.textContent ?? row.querySelector('.action-label')?.textContent),
+			focused: getActiveElement()?.closest('.action-item')?.textContent,
+		}, {
+			rows: ['Recent', 'First', 'Discover More', 'Second'],
+			focused: 'Second',
+		});
 	});
 });

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { IGitHubAccountClient } from '../account/account.js';
 import { IGitHubAnonymousClient } from '../anonymous/anonymous.js';
 import { ApiRequest, ApiResponseMetadata, parseRequest } from '../client/request.js';
-import { ApiErrorResponse, CodedApiErrorResponse } from '../missionControl/missionControl.js';
 import { parse } from '../client/schema.js';
 import { GitHubAuthorizationContext, GitHubClientOptions, GitHubGraphQLError, GitHubResponseMetadata, IGitHubCredentialProvider } from '../githubTypes.js';
+import { ApiErrorResponse, CodedApiErrorResponse } from '../missionControl/missionControl.js';
 import { RequestErrorKind } from '../types.js';
 
 export const GITHUB_CHANNEL_NAME = 'github';
@@ -20,16 +21,16 @@ export const IGitHubCredentialBroker = createDecorator<IGitHubCredentialBroker>(
 /** Renderer-owned silent credentials and endpoint selection for an explicitly selected session. */
 export interface IGitHubCredentialBroker extends IGitHubCredentialProvider {
 	readonly _serviceBrand: undefined;
-	resolveClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<GitHubClientOptions>;
+	resolveClient(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<GitHubClientOptions>;
 }
 
 /** Acquires directly disposable clients; the caller selects the account, never the shared process. */
 export interface ISharedProcessGitHubService {
 	readonly _serviceBrand: undefined;
 
-	/** The signal governs acquisition, while the returned client owns its lease until disposal. */
-	acquireAnonymousClient(signal: AbortSignal): Promise<IGitHubAnonymousClient>;
-	acquireClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient>;
+	/** The token governs acquisition, while the returned client owns its lease until disposal. */
+	acquireAnonymousClient(cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient>;
+	acquireClient(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<IGitHubAccountClient>;
 }
 
 /** Client-generated lease IDs are scoped to the connection and allow release after a lost acquisition reply. */
@@ -69,7 +70,7 @@ export type SerializedGitHubError =
 	| { readonly type: 'rateLimit'; readonly retryAfterMs: number }
 	| { readonly type: 'cancelled' };
 export type SerializedMissionControlError =
-	| { readonly type: 'missionControl'; readonly statusCode: number; readonly kind: RequestErrorKind; readonly response?: ApiErrorResponse | CodedApiErrorResponse; readonly requestId?: string; readonly code?: string; readonly limitedResource?: string; readonly retryAfterSeconds?: number; readonly outcome?: 'indeterminate' }
+	| { readonly type: 'missionControl'; readonly statusCode: number; readonly kind: RequestErrorKind; readonly response?: ApiErrorResponse | CodedApiErrorResponse; readonly requestId?: string; readonly code?: string; readonly limitedResource?: string; readonly retryAfterSeconds?: number; readonly outcome?: 'indeterminate'; readonly createdTaskId?: string }
 	| { readonly type: 'mutationUncertain'; readonly kind: RequestErrorKind; readonly statusCode?: number };
 
 export type GitHubErrorResponse = readonly [metadata: { readonly type: 'error'; readonly error: SerializedGitHubError | SerializedMissionControlError }, bodyText: string | undefined];

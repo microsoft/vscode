@@ -41,6 +41,9 @@ export interface IBaseWindow extends IDisposable {
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
 
+	/** Does what a double-click on the title bar of the window does, as the system settings say. */
+	handleTitleDoubleClick(): void;
+
 	updateWindowControls(options: { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void;
 
 	matches(webContents: electron.WebContents): boolean;
@@ -144,6 +147,8 @@ export interface IWindowState {
 	y?: number;
 	mode?: WindowMode;
 	zoomLevel?: number;
+	/** Restores this window's always-on-top state independently of other windows. */
+	alwaysOnTop?: boolean;
 	readonly display?: number;
 
 	/**

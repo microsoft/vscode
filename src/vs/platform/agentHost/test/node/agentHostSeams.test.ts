@@ -502,6 +502,81 @@ suite('Agent Host provider seams', () => {
 
 	suite('AgentHostSessionTitleSignal', () => {
 
+		test('reads retained tool-chat and parent titles without hydrating their conversations', () => {
+			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
+			manager.createSession(summary());
+			const parent = buildChatUri(sessionKey, 'parent');
+			const child = buildChatUri(sessionKey, 'child');
+			let resolutions = 0;
+			for (const [chat, title, spawningChat] of [
+				[parent, 'Investigate tests', buildDefaultChatUri(sessionKey)],
+				[child, 'Check failures', parent],
+			]) {
+				manager.registerRestoredChatSummary(sessionKey, chat, {
+					storageResource: chat,
+					title,
+					origin: { kind: ChatOriginKind.Tool, chat: spawningChat, toolCallId: `spawn-${title}` },
+					resolver: async () => {
+						resolutions++;
+						return { turns: [] };
+					},
+				});
+			}
+
+			const identities = [parent, child].map(chat => {
+				const identity = signal.getChatPathIdentity(URI.parse(chat), session);
+				return { ...identity, parentSession: identity.parentSession?.toString() };
+			});
+			assert.deepStrictEqual({
+				identities,
+				states: [parent, child].map(chat => manager.getChatState(chat)),
+				resolutions,
+			}, {
+				identities: [
+					{ title: 'Investigate tests', parentSession: buildDefaultChatUri(sessionKey), parentTitle: 'Seams' },
+					{ title: 'Check failures', parentSession: parent, parentTitle: 'Investigate tests' },
+				],
+				states: [undefined, undefined],
+				resolutions: 0,
+			});
+		});
+
+		test('reads conversation titles and recorded parents independently of the session grouping', () => {
+			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
+			manager.createSession({ ...summary(), title: 'Parent' });
+			const parent = URI.parse(buildDefaultChatUri(sessionKey));
+			const child = URI.parse(buildChatUri(sessionKey, 'child'));
+			const peer = URI.parse(buildChatUri(sessionKey, 'peer'));
+			manager.addChat(sessionKey, child.toString(), child.toString(), {
+				title: 'Child', origin: { kind: ChatOriginKind.Tool, chat: parent.toString(), toolCallId: 'spawn' },
+			});
+			manager.addChat(sessionKey, peer.toString(), peer.toString(), { title: 'Peer' });
+			const owner = URI.parse(sessionKey);
+			const identity = (chat: URI) => {
+				const value = signal.getChatPathIdentity(chat, owner);
+				return { ...value, parentSession: value.parentSession?.toString() };
+			};
+			const before = [parent, child, peer].map(identity);
+			manager.dispatchServerAction(sessionKey, { type: ActionType.SessionChatUpdated, chat: parent.toString(), changes: { title: 'Renamed parent' } });
+			assert.deepStrictEqual({ before, renamed: identity(child) }, {
+				before: [{ title: 'Parent', parentSession: undefined }, { title: 'Child', parentSession: parent.toString(), parentTitle: 'Parent' }, { title: 'Peer', parentSession: undefined }],
+				renamed: { title: 'Child', parentSession: parent.toString(), parentTitle: 'Renamed parent' },
+			});
+		});
+
+		test('reads current titles and listed titles without restoring a session', () => {
+			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
+			const session = URI.parse(sessionKey);
+			const titles = [signal.getSessionTitle(session)];
+			manager.prepareSessionSummariesForListing([{ ...summary(), title: 'Listed' }]);
+			titles.push(signal.getSessionTitle(session));
+			manager.createSession({ ...summary(), title: 'Loaded' });
+			titles.push(signal.getSessionTitle(session));
+			manager.dispatchServerAction(sessionKey, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+			titles.push(signal.getSessionTitle(session));
+			assert.deepStrictEqual(titles, [undefined, 'Listed', 'Loaded', 'Renamed']);
+		});
+
 		test('centralizes the provider filter and conversation-id derivation', () => {
 			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
 			const fired: { provider: string; session: string; conversationId: string; title: string }[] = [];

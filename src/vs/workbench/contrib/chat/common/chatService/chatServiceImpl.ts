@@ -24,6 +24,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffset.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -59,7 +60,7 @@ import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessio
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
@@ -87,6 +88,7 @@ interface IRemoteSessionLoad {
 /** Input state of a restored remote session that is applied and logged once its model is published. */
 interface IRemoteSessionInputRestore {
 	readonly modelId: string | undefined;
+	readonly modelConfiguration: IStringDictionary<unknown> | undefined;
 	readonly agentUri: URI | undefined;
 	readonly historySelectedModel: string | undefined;
 	readonly storedInputState: ISerializableChatModelInputState | undefined;
@@ -151,8 +153,28 @@ class CancellableRequest implements IDisposable {
 	}
 }
 
-const EMPTY_REFERENCES: ReadonlyArray<IDynamicVariable> = Object.freeze([]);
 const EMPTY_TOOL_ENABLEMENT_MAP: ToolAndToolSetEnablementMap = ToolAndToolSetEnablementMap.fromEntries([]);
+
+function getAgentHostCompletionReferences(text: string, variables: readonly IChatRequestVariableEntry[] = []): readonly IDynamicVariable[] {
+	const positions = new PositionOffsetTransformer(text);
+	return variables.flatMap(variable => {
+		const range = variable.range;
+		if (!isAgentHostCompletionVariableEntry(variable) || !range || !Number.isInteger(range.start) || !Number.isInteger(range.endExclusive) || range.start < 0 || range.start >= range.endExclusive || range.endExclusive > text.length) {
+			return [];
+		}
+		const editorRange = positions.getRange(new OffsetRange(range.start, range.endExclusive));
+		if (editorRange.startLineNumber !== editorRange.endLineNumber) {
+			return [];
+		}
+		return [{
+			id: variable.id,
+			range: editorRange,
+			data: variable.value,
+			fullName: variable.fullName ?? variable.name,
+			_meta: variable._meta,
+		}];
+	});
+}
 
 /**
  * Preserve the picker state from `stateToApply`, only recovering a custom agent mode from
@@ -200,6 +222,11 @@ export function backfillTransferredModel(
 		return transferredState;
 	}
 	return { ...transferredState, selectedModel: historyModel };
+}
+
+/** A restored model the input reclaims once its metadata publishes, with the configuration to restore it with. */
+function restoredIntendedModel(modelId: string, configuration: IStringDictionary<unknown> | undefined): IIntendedModelSelection {
+	return { modelId, reason: ModelSelectionReason.SessionRestore, ...(configuration ? { configuration } : {}) };
 }
 
 /**
@@ -366,10 +393,9 @@ export class ChatService extends Disposable implements IChatService {
 						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) with title, storing to storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.storeSessions([model]);
 					}
-				} else if (!localSessionId && this.shouldStoreExternalSession(model) && (model.getRequests().length > 0 || hasDraftInput(model))) {
-					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests or draft input, storing metadata to storage`, undefined, undefined, this.logService);
-					// External sessions: persist metadata when there are requests, OR when the
-					// user has typed/attached unsent input we need to restore on next open.
+				} else if (!localSessionId && this.shouldStoreExternalSession(model) && (model.getRequests().length > 0 || hasDraftInput(model) || this._chatSessionStore.getMetadataForSessionSync(model.sessionResource)?.inputState)) {
+					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests, draft input or persisted input state, storing metadata to storage`, undefined, undefined, this.logService);
+					// Persist cleared drafts too, so background sends cannot restore stale input on reload.
 					await this._chatSessionStore.storeSessionsMetadataOnly([model]);
 				}
 			}
@@ -1027,28 +1053,35 @@ export class ChatService extends Disposable implements IChatService {
 	 * with the input state restored from the session and its persisted draft.
 	 */
 	private createRemoteSessionModel(sessionResource: URI, providedSession: IChatSession, location: ChatAgentLocation, sessionTypeSelectionReason: SessionTypeSelectionReason | undefined): { model: ChatModel; inputRestore: IRemoteSessionInputRestore } {
-		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
+		// The model the session continues with: its transferred draft's selection when it has one,
+		// else the last model its request history used. A draft model wins even when its metadata is
+		// not loaded yet, so a cold restore waits for it rather than settling on an earlier turn's.
+		const modelId = providedSession.transferredState?.selectedModelId
+			?? findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
 		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
 		const storedMetadata = this._chatSessionStore.getMetadataForSessionSync(sessionResource);
 		const storedPermissionLevel = storedMetadata?.permissionLevel;
 		const storedInputState = storedMetadata?.inputState;
+		// The session request history only tells us which model id was last used, not the
+		// user's per-model configuration (e.g. thinking effort, context window). Take that
+		// configuration from the transferred draft, which carries the session's current one, else
+		// from the persisted draft when it refers to the same model, so reopening the session
+		// restores the full model config and not just the bare model id. Older drafts stored the
+		// configuration as a sibling of `selectedModel` (legacy top-level field) rather than nested
+		// within it, so fall back to that for backwards compatibility.
+		const transferredModelConfiguration = providedSession.transferredState?.selectedModelId === modelId
+			? providedSession.transferredState?.selectedModelConfiguration
+			: undefined;
+		const storedModelConfiguration = storedInputState?.selectedModel?.modelConfiguration
+			?? (storedInputState as { modelConfiguration?: IStringDictionary<unknown> } | undefined)?.modelConfiguration;
+		const modelConfiguration = transferredModelConfiguration
+			?? (storedInputState?.selectedModel?.identifier === modelId ? storedModelConfiguration : undefined);
 		let initialData: ISerializedChatDataReference | undefined = undefined;
 		let historySelectedModel: string | undefined = undefined;
 		let historyDerivedModel: ISerializableChatModelInputState['selectedModel'] = undefined;
 		if ((modelId || agentUri)) {
 			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
 			const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
-			// The session request history only tells us which model id was last used, not the
-			// user's per-model configuration (e.g. thinking effort, context window). Preserve that
-			// configuration from the persisted draft when it refers to the same model, so reopening
-			// the session restores the full model config and not just the bare model id. Older drafts
-			// stored the configuration as a sibling of `selectedModel` (legacy top-level field) rather
-			// than nested within it, so fall back to that for backwards compatibility.
-			const storedModelConfiguration = storedInputState?.selectedModel?.modelConfiguration
-				?? (storedInputState as { modelConfiguration?: IStringDictionary<unknown> } | undefined)?.modelConfiguration;
-			const modelConfiguration = storedInputState?.selectedModel?.identifier === modelId
-				? storedModelConfiguration
-				: undefined;
 			// When the live model list has not loaded yet (cold restore) `lookupLanguageModel`
 			// returns undefined. Don't discard the known model: fall back to the session's saved
 			// draft model, which carries the full serialized metadata (including
@@ -1131,7 +1164,7 @@ export class ChatService extends Disposable implements IChatService {
 		// The id is known but no metadata was found for it. Record it anyway so the input reclaims
 		// the model once it publishes, rather than settling on the default.
 		if (modelId && !historySelectedModel) {
-			model.inputModel.setIntendedModel({ modelId, reason: ModelSelectionReason.SessionRestore });
+			model.inputModel.setIntendedModel(restoredIntendedModel(modelId, modelConfiguration));
 		}
 
 		// Restore permission level from metadata even when initialData was not constructed
@@ -1146,7 +1179,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		return {
 			model,
-			inputRestore: { modelId, agentUri, historySelectedModel, storedInputState, hasInitialData: !!initialData },
+			inputRestore: { modelId, modelConfiguration, agentUri, historySelectedModel, storedInputState, hasInitialData: !!initialData },
 		};
 	}
 
@@ -1154,9 +1187,9 @@ export class ChatService extends Disposable implements IChatService {
 	 * Applies the history-derived model again after the restored model is
 	 * published, and logs where the input state came from.
 	 */
-	private finishRemoteSessionInputState(model: ChatModel, providedSession: IChatSession, { modelId, agentUri, historySelectedModel, storedInputState, hasInitialData }: IRemoteSessionInputRestore): void {
+	private finishRemoteSessionInputState(model: ChatModel, providedSession: IChatSession, { modelId, modelConfiguration, agentUri, historySelectedModel, storedInputState, hasInitialData }: IRemoteSessionInputRestore): void {
 		if (modelId && !historySelectedModel) {
-			model.inputModel.setIntendedModel({ modelId, reason: ModelSelectionReason.SessionRestore });
+			model.inputModel.setIntendedModel(restoredIntendedModel(modelId, modelConfiguration));
 		}
 		logChangesToStateModel(model.inputModel, `loadRemoteSession inputState source: session=${model.sessionResource.toString()}, chatSessionType=${getChatSessionType(model.sessionResource)}, historyModelId=${modelId}, agentUri=${agentUri?.toString()}, historySelectedModel=${historySelectedModel}, transferredSelectedModel=${providedSession.transferredState?.inputState?.selectedModel?.identifier}, storedSelectedModel=${storedInputState?.selectedModel?.identifier}, finalSelectedModel=${model.inputModel.state.get()?.selectedModel?.identifier}, hasTransferredInputState=${!!providedSession.transferredState?.inputState}, hasStoredInputState=${!!storedInputState}, hasInitialData=${hasInitialData}`, model.inputModel.state.get(), undefined, this.logService);
 	}
@@ -1167,12 +1200,12 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	private createRemoteHistoryPromptParser(chatSessionType: string, location: ChatAgentLocation): RemoteHistoryPromptParser {
 		const requestParser = isAgentHostTarget(chatSessionType) ? this.instantiationService.createInstance(ChatRequestParser) : undefined;
-		return (text, agent) => {
+		return (text, agent, variableData) => {
 			if (requestParser) {
 				try {
 					const attachmentCapabilities = this.getAttachmentCapabilitiesForParser(chatSessionType, agent);
 					const parsed = requestParser.parseChatRequestWithReferences(
-						EMPTY_REFERENCES,
+						getAgentHostCompletionReferences(text, variableData?.variables),
 						EMPTY_TOOL_ENABLEMENT_MAP,
 						text,
 						location,
@@ -1233,6 +1266,8 @@ export class ChatService extends Disposable implements IChatService {
 		if (providedSession.progressObs && providedSession.interruptActiveResponseCallback) {
 			let streamingRequest = restored.lastRequest;
 			let streamingResponseCompletedAt = restored.lastResponseCompletedAt;
+			// Only the replayed turn can carry a recorded cancellation; a live turn's is applied as it happens.
+			let streamingResponseCanceled = restored.lastResponseCanceled;
 			let lastProgressLength = 0;
 			// Completion state as of the previous observation, or undefined before the
 			// first one. A session that is already complete when first observed is
@@ -1266,14 +1301,22 @@ export class ChatService extends Disposable implements IChatService {
 			};
 
 			const completeStreamingResponse = (finishedNow = false) => {
-				if (Number.isFinite(streamingResponseCompletedAt)) {
-					streamingRequest?.response?.complete(streamingResponseCompletedAt);
+				const response = streamingRequest?.response;
+				if (streamingResponseCanceled && !finishedNow) {
+					if (streamingResponseCompletedAt !== undefined && Number.isFinite(streamingResponseCompletedAt)) {
+						response?.cancel(streamingResponseCompletedAt);
+					} else {
+						response?.cancelWithoutTimestamp();
+					}
+				} else if (Number.isFinite(streamingResponseCompletedAt)) {
+					response?.complete(streamingResponseCompletedAt);
 				} else if (finishedNow) {
-					streamingRequest?.response?.complete();
+					response?.complete();
 				} else {
-					streamingRequest?.response?.completeWithoutTimestamp();
+					response?.completeWithoutTimestamp();
 				}
 				streamingResponseCompletedAt = undefined;
+				streamingResponseCanceled = false;
 			};
 			const processProgress = (progressArray: readonly IChatProgress[], isComplete: boolean) => {
 				// The first observation replays whatever the session did before it was watched.
@@ -1320,6 +1363,7 @@ export class ChatService extends Disposable implements IChatService {
 						request.response.reopen();
 						streamingRequest = request;
 						streamingResponseCompletedAt = undefined;
+						streamingResponseCanceled = false;
 						lastProgressLength = 0;
 						ensureCancellationTracking();
 						return;
@@ -1337,7 +1381,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Create a new request in the model
 					const agent = this.chatAgentService.getAgent(getChatSessionType(model.sessionResource));
-					const parsedRequest = parsePrompt(prompt, agent);
+					const parsedRequest = parsePrompt(prompt, agent, variableData);
 					streamingRequest = model.addRequest(parsedRequest,
 						variableData ?? { variables: [] },
 						0, // attempt
@@ -1641,7 +1685,7 @@ export class ChatService extends Disposable implements IChatService {
 		const notifyAccepted = () => {
 			if (isSubmission && !options?.isSystemInitiated && !options?.hideFromTranscript) {
 				this._modelsWithAcceptedRequests.add(model);
-				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession });
+				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession, modeInfo: options?.modeInfo, agentHostMessageOrigin: options?.agentHostMessageOrigin });
 				const provider = this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.agentHostProviderId;
 				if (isCopilotAgentHostProvider(provider)) {
 					// Copilot harness submissions bypass the extension's legacy usage signal, including queued sends in either window.
@@ -1839,6 +1883,10 @@ export class ChatService extends Disposable implements IChatService {
 		const attachmentCapabilities = parserContext?.attachmentCapabilities ?? this.getAttachmentCapabilitiesForParser(getChatSessionType(sessionResource), contextAgent);
 		if (attachmentCapabilities) {
 			parserContext = { ...parserContext, attachmentCapabilities };
+		}
+		const fallbackReferences = getAgentHostCompletionReferences(request, [...options?.attachedContext ?? [], ...options?.resolvedVariables ?? []]);
+		if (fallbackReferences.length) {
+			parserContext = { ...parserContext, fallbackReferences };
 		}
 
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, request, location, parserContext);
@@ -2339,9 +2387,6 @@ export class ChatService extends Disposable implements IChatService {
 				this.processNextPendingRequest(model);
 			}
 		});
-		if (options?.userSelectedModelId && !options.isSystemInitiated) {
-			this.languageModelsService.addToRecentlyUsedList(options.userSelectedModelId);
-		}
 		this._onDidSubmitRequest.fire({ chatSessionResource: model.sessionResource, message: parsedRequest, attachedContext: options?.attachedContext });
 		return {
 			responseCreatedPromise: responseCreated.p,
@@ -2860,7 +2905,9 @@ export class ChatService extends Disposable implements IChatService {
 				&& equals(local.sendOptions.agentHostMessageOrigin, agentHostMessageOrigin) && equals(local.sendOptions.metadata, metadata)) {
 				return local.kind === remote.kind ? local : { ...local, kind: remote.kind };
 			}
-			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, undefined);
+			const parsedRequest = this.parseChatRequest(sessionResource, remote.message, model.initialLocation, {
+				parserContext: { references: getAgentHostCompletionReferences(remote.message, variableData.variables) },
+			});
 			const requestModel = new ChatRequestModel({
 				session: model,
 				message: parsedRequest,

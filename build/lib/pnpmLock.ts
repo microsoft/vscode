@@ -6,7 +6,7 @@
 import fs from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
-import { workspaceMembers, separateRoots, separateRootMembers, standaloneRoots, distroRoots } from '../npm/dirs.ts';
+import { workspaceMembers, separateRoots, separateRootMembers, distroRoots } from '../npm/dirs.ts';
 
 const REPO_ROOT = path.join(import.meta.dirname, '..', '..');
 
@@ -86,8 +86,10 @@ export const snapshotDependencyKinds = ['dependencies', 'optionalDependencies'] 
  * Parses the contents of a `pnpm-lock.yaml` file.
  */
 export function parsePnpmLockfile(content: string): PnpmLockfile {
-	const { load } = require('js-yaml') as typeof import('js-yaml');
-	const lockfile = load(content) as PnpmLockfile | undefined;
+	const { loadAll } = require('js-yaml') as typeof import('js-yaml');
+	// The lockfile of the projects is the last YAML document: pnpm writes the pnpm version that
+	// `packageManager` pins in a document before it (https://pnpm.io/lockfile).
+	const lockfile = loadAll(content).at(-1) as PnpmLockfile | undefined;
 	if (!lockfile || typeof lockfile !== 'object' || !lockfile.importers) {
 		throw new Error('Not a pnpm lockfile: missing `importers`.');
 	}
@@ -132,10 +134,13 @@ function parseYamlScalar(text: string): string {
  *
  * Unlike {@link parsePnpmLockfile}, this needs no YAML parser, so that scripts can read locked
  * versions before the dependencies are installed. It reads the block layout in which pnpm writes
- * the `importers` section, and throws on anything else in the requested importer.
+ * the `importers` section of the last YAML document, and throws on anything else in the requested
+ * importer.
  */
 export function readLockfileImporter(content: string, importerId: string): PnpmLockfileImporter | undefined {
-	const lines = content.split(/\r?\n/);
+	const allLines = content.split(/\r?\n/);
+	// Skips the documents before the lockfile of the projects (see parsePnpmLockfile)
+	const lines = allLines.slice(allLines.lastIndexOf('---') + 1);
 	const start = lines.indexOf('importers:');
 	if (start === -1) {
 		throw new Error('Not a pnpm lockfile: missing `importers`.');
@@ -322,7 +327,7 @@ export function getLockfileFolder(folder: string): string | undefined {
 			return installRoot;
 		}
 	}
-	if ([...separateRoots, ...standaloneRoots, ...distroRoots].includes(normalized)) {
+	if ([...separateRoots, ...distroRoots].includes(normalized)) {
 		return normalized;
 	}
 	return undefined;
@@ -356,7 +361,7 @@ export function getLockedVersion(folder: string, packageName: string, root = REP
  * repository root, in a fixed order.
  */
 export function listLockfiles(root = REPO_ROOT): string[] {
-	return ['', ...separateRoots, ...standaloneRoots, ...distroRoots]
+	return ['', ...separateRoots, ...distroRoots]
 		.map(folder => path.posix.join(folder, 'pnpm-lock.yaml'))
 		.filter(file => fs.existsSync(path.join(root, file)));
 }

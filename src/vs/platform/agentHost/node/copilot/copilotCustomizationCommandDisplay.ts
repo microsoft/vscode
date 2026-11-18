@@ -7,7 +7,7 @@ import { appendEscapedMarkdownCodeBlockFence, appendEscapedMarkdownInlineCode, e
 import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { SYNCED_CUSTOMIZATION_DISPLAY_NAME } from '../../common/agentHostFileSystemService.js';
+import { SYNCED_CUSTOMIZATION_DISPLAY_NAME } from '../../common/agentHostCustomizationUri.js';
 import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 
 type CopilotPluginsApi = CopilotSession['rpc']['plugins'];
@@ -643,7 +643,7 @@ function formatCopilotPluginOutput(
 			plugin = pluginDisplayName(installedPlugin.name, installedPlugin.marketplace);
 		}
 		listedPluginNames.add(plugin);
-		const disabled = match.groups.disabled || installedPlugin?.enabled === false
+		const disabled = match.groups.disabled
 			? ` (${localize('copilotPlugins.disabled', "disabled")})`
 			: '';
 		output.push(`- ${appendEscapedMarkdownInlineCode(plugin)}${version ? ` — v${escapeCustomizationMarkdownText(version)}` : ''}${disabled}`);

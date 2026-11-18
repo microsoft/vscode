@@ -25,9 +25,11 @@ import { canMoveModalEditorToEditorArea } from '../../../../platform/editor/comm
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext, EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { Menus } from '../../../browser/menus.js';
-import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { CustomViewVisibleContext, EditorMaximizedContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CustomViewVisibleContext, EditorMaximizedContext } from '../../../common/agentsWindowContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -35,18 +37,19 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
-import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
-import { ChangesViewPane } from '../../changes/browser/changesView.js';
+import { CHANGES_VIEW_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { ChangesViewPane } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { CONNECTED_EDITOR_TABS_CLASS } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
+import { getModalToMainTransferVeto, showEditorTransferVeto } from '../../../../workbench/browser/parts/editor/editorTransferVeto.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
@@ -288,7 +291,7 @@ class ShowMainEditorPartAction extends Action2 {
 
 registerAction2(ShowMainEditorPartAction);
 
-class OpenModalEditorInEditorAction extends Action2 {
+export class OpenModalEditorInEditorAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openModalEditorInEditor';
 
 	constructor() {
@@ -318,6 +321,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const changesViewService = accessor.get(IChangesViewService);
+		const dialogService = accessor.get(IDialogService);
 
 		const activeEditorPart = editorGroupsService.activeModalEditorPart;
 		const activeGroup = activeEditorPart?.activeGroup;
@@ -325,6 +329,13 @@ class OpenModalEditorInEditorAction extends Action2 {
 			return;
 		}
 		if (!canMoveModalEditorToEditorArea(activeGroup.activeEditor)) {
+			return;
+		}
+
+		// Before anything changes: its editors all go into the main window, or none
+		const veto = getModalToMainTransferVeto(activeEditorPart, editorGroupsService.mainPart);
+		if (veto) {
+			showEditorTransferVeto(dialogService, veto);
 			return;
 		}
 
@@ -353,8 +364,14 @@ class OpenModalEditorInEditorAction extends Action2 {
 			}
 		}
 
-		// Move all remaining editors to the main editor part
-		await commandService.executeCommand(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
+		// Move all remaining editors to the main editor part, unless closing its only editor
+		// above closed the modal editor already, which leaves nothing to move
+		if (editorGroupsService.activeModalEditorPart === activeEditorPart) {
+			const moved = await commandService.executeCommand<boolean>(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
+			if (!moved) {
+				return; // they did not move, such as for an editor that could not go meanwhile
+			}
+		}
 
 		// Maximize
 		if (isMaximized) {
@@ -401,7 +418,6 @@ class AddFileAsContextAction extends Action2 {
 
 	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const editorService = accessor.get(IEditorService);
-		const sessionsService = accessor.get(ISessionsService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
@@ -413,8 +429,7 @@ class AddFileAsContextAction extends Action2 {
 			return;
 		}
 
-		const sessionId = sessionsService.activeSession.get()?.sessionId;
-		sessionsPartService.getSessionView(sessionId)?.attach(resources);
+		sessionsPartService.getActiveSessionView()?.attach(resources);
 	}
 }
 

@@ -11,7 +11,7 @@ import { readCopilotToolOutputDelta, withCopilotToolPreferences } from './copilo
 import { readCopilotToolPresentation, readCopilotUrlPermissionPresentation, readCopilotWritePermissionPresentation } from './copilotd/toolPresentation.js';
 
 export { copilotCliToolInputContract, isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
-export type { AgentFusionPhaseStatus, IFusionPhaseMeta, IToolCallMeta, IToolCallUiMeta, IToolSearchCandidate, ToolKind } from './vscode/agentToolCallMeta.js';
+export type { AgentFusionPhaseStatus, IFusionPhaseMeta, IToolCallMeta, IToolCallUiMeta, IToolSearchCandidate, ToolKind, ViewedResourceType } from './vscode/agentToolCallMeta.js';
 
 export interface IAgentToolOutputChunk {
 	readonly output: string;

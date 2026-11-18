@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { $, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
 import { safeSetInnerHtml, sanitizeHtml } from '../../../../base/browser/domSanitize.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { allowedMarkdownHtmlAttributes, allowedMarkdownHtmlTags } from '../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
@@ -23,7 +24,7 @@ import { generateTokensCSSForColorMap } from '../../../../editor/common/language
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { tokenizeToString } from '../../../../editor/common/languages/textToHtmlTokenizer.js';
 import * as nls from '../../../../nls.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -35,9 +36,10 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { getTelemetryLevel, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { SimpleSettingRenderer } from '../../markdown/browser/markdownSettingRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -49,6 +51,12 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../onboarding/common/onboardingTryout.js';
 import { ReleaseNotesTryouts } from './releaseNotesTryouts.js';
+import { indexReleaseNotesContent, initializeReleaseNotesTelemetry, ReleaseNotesSource, ReleaseNotesTelemetry } from './releaseNotesTelemetry.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 interface IReleaseNotesCodeBlock {
 	readonly id: string;
@@ -61,9 +69,22 @@ interface IReleaseNotesTokenization {
 	readonly codeBlocks: readonly { readonly id: string; readonly html: string }[];
 }
 
+interface IReleaseNotesTelemetryDocument extends IDisposable {
+	readonly tracker: ReleaseNotesTelemetry;
+	refresh(): void;
+}
+
+interface IHighlightsVideoOptions {
+	readonly enabled: boolean;
+	readonly onDidResolve?: (available: boolean) => void;
+	readonly onInvalid?: () => void;
+}
+
+const highlightsVideoSetting = 'update.showReleaseHighlightsVideo';
+
 export class ReleaseNotesManager extends Disposable {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
-	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
+	private readonly _releaseNotesCache = new Map<string, Promise<{ text: string; revision: string }>>();
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private readonly _currentDocument = this._register(new MutableDisposable<ReleaseNotesTryouts>());
@@ -72,9 +93,10 @@ export class ReleaseNotesManager extends Disposable {
 	private _showRequest = 0;
 	private _tokenizationRequest = 0;
 	private _codeBlocks: readonly IReleaseNotesCodeBlock[] = [];
+	private readonly _telemetryDocument = this._register(new MutableDisposable<IReleaseNotesTelemetryDocument>());
 
 	constructor(
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -88,6 +110,10 @@ export class ReleaseNotesManager extends Disposable {
 		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IHostService private readonly _hostService: IHostService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -136,20 +162,45 @@ export class ReleaseNotesManager extends Disposable {
 		return URI.parse('https://code.visualstudio.com/raw');
 	}
 
-	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
+	public async show(version: string, useCurrentFile: boolean, source: ReleaseNotesSource = 'other'): Promise<boolean> {
+		const context: { tryouts?: ReleaseNotesTryouts } = {};
+		const telemetry = useCurrentFile ? undefined : this._instantiationService.createInstance(ReleaseNotesTelemetry, version, this._productService.quality, source, {
+			now: () => performance.now(),
+			getTryout: index => context.tryouts?.getTelemetryState(index),
+		});
+		try {
+			const result = await this.showContent(version, useCurrentFile, telemetry, context);
+			telemetry?.opened(result ? 'rendered' : 'superseded');
+			if (!result) {
+				telemetry?.dispose();
+			}
+			return result;
+		} catch (error) {
+			telemetry?.opened('failed');
+			telemetry?.dispose();
+			throw error;
+		}
+	}
+
+	private async showContent(version: string, useCurrentFile: boolean, telemetry: ReleaseNotesTelemetry | undefined, context: { tryouts?: ReleaseNotesTryouts }): Promise<boolean> {
 		const request = ++this._showRequest;
 		this._pendingDocument.clear();
-		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
+		const releaseNotes = await this.loadReleaseNotes(version, useCurrentFile);
+		if (telemetry) {
+			telemetry.metadata.notesRevision = releaseNotes.revision;
+			telemetry.failureStage = 'render';
+		}
 		const base = await this.getBase(useCurrentFile);
 		if (request !== this._showRequest || this._store.isDisposed) {
 			return false;
 		}
 		const tryouts = this._instantiationService.createInstance(ReleaseNotesTryouts);
+		context.tryouts = tryouts;
 		this._pendingDocument.value = tryouts;
 		const codeBlocks: IReleaseNotesCodeBlock[] = [];
 		let html: string;
 		try {
-			html = await this.renderBody({ text: releaseNoteText, base }, tryouts, codeBlocks);
+			html = await this.renderBody({ text: releaseNotes.text, base, mediaBaseUrl: useCurrentFile ? undefined : 'https://code.visualstudio.com/assets/updates/', isPreview: useCurrentFile }, tryouts, codeBlocks, telemetry);
 		} catch (error) {
 			if (this._pendingDocument.value === tryouts) {
 				this._pendingDocument.clear();
@@ -194,6 +245,8 @@ export class ReleaseNotesManager extends Disposable {
 
 			const onDispose = () => {
 				if (this._currentReleaseNotes === input) {
+					this._telemetryDocument.value?.tracker.finish('closed');
+					this._telemetryDocument.clear();
 					this._showRequest++;
 					this._currentReleaseNotes = undefined;
 					this._codeBlocks = [];
@@ -212,14 +265,29 @@ export class ReleaseNotesManager extends Disposable {
 					return;
 				}
 				if (e.message.type === 'releaseNotesReady') {
+					this._telemetryDocument.value?.tracker.waitForPresentation();
+					if (this._telemetryDocument.value) {
+						void input.webview.postMessage({ type: 'releaseNotesTelemetryMeasure', documentId: e.message.documentId });
+					}
 					this.updateCheckboxWebview();
 					this.updateTokenization().catch(onUnexpectedError);
 				} else if (e.message.type === 'showReleaseNotes') {
-					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
+					if (typeof e.message.value === 'boolean') {
+						this._telemetryDocument.value?.tracker.checkbox(e.message.value);
+						this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
+					}
 				} else if (e.message.type === 'clickSetting') {
+					if (this._telemetryDocument.value && !this._telemetryDocument.value.tracker.setting(e.message.value.uri, e.message.value.index)) {
+						this._logService.warn('[ReleaseNotes] Rejected invalid setting engagement occurrence');
+					}
 					const x = input.webview.container.offsetLeft + e.message.value.x;
 					const y = input.webview.container.offsetTop + e.message.value.y;
 					this._simpleSettingRenderer.updateSetting(URI.parse(e.message.value.uri), x, y);
+				} else if (typeof e.message.type === 'string' && e.message.type.startsWith('releaseNotesTelemetry')) {
+					if (this._telemetryDocument.value && !this._telemetryDocument.value.tracker.receive(e.message)) {
+						this._logService.warn('[ReleaseNotes] Rejected invalid engagement message');
+					}
+					this._telemetryDocument.value?.refresh();
 				}
 			}));
 
@@ -240,8 +308,14 @@ export class ReleaseNotesManager extends Disposable {
 		}
 
 		const input = this._currentReleaseNotes;
+		this._telemetryDocument.value?.tracker.finish('replaced');
+		this._telemetryDocument.clear();
 		this._currentDocument.value = this._pendingDocument.clearAndLeak();
 		this._codeBlocks = codeBlocks;
+		if (telemetry) {
+			this.attachTelemetry(input, telemetry);
+			tryouts.onInteraction = (index, action, runId) => telemetry.tryout(index, action, runId);
+		}
 		tryouts.attach(input.webview, () => this._currentReleaseNotes === input
 			&& this._editorService.activeEditor === input && getWindow(input.webview.container).document.hasFocus());
 		input.webview.setHtml(html);
@@ -251,7 +325,56 @@ export class ReleaseNotesManager extends Disposable {
 		return true;
 	}
 
-	private async loadReleaseNotes(version: string, useCurrentFile: boolean): Promise<string> {
+	private attachTelemetry(input: WebviewInput, telemetry: ReleaseNotesTelemetry): void {
+		const store = new DisposableStore();
+		store.add(telemetry);
+		const scheduler = store.add(new RunOnceScheduler(() => refresh(), 250));
+		let wasVisible = false;
+		const refresh = () => {
+			const targetWindow = getWindow(input.webview.container);
+			const bounds = input.webview.container.getBoundingClientRect();
+			const visible = this._editorService.visibleEditorPanes.some(pane => pane.input === input)
+				&& targetWindow.document.visibilityState === 'visible' && targetWindow.document.hasFocus()
+				&& bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.right > 0
+				&& bounds.top < targetWindow.innerHeight && bounds.left < targetWindow.innerWidth;
+			const active = this._editorService.activeEditor === input
+				&& (input.webview.isFocused || input.webview.container.contains(targetWindow.document.activeElement));
+			if (visible && !wasVisible) {
+				telemetry.waitForPresentation();
+			}
+			telemetry.setVisibility(visible, active);
+			if (visible && !wasVisible) {
+				void input.webview.postMessage({ type: 'releaseNotesTelemetryMeasure', documentId: this._currentDocument.value?.documentId });
+			}
+			wasVisible = visible;
+			if (telemetry.isTracking) {
+				scheduler.schedule();
+			} else {
+				scheduler.cancel();
+			}
+		};
+		this._telemetryDocument.value = { tracker: telemetry, refresh, dispose: () => store.dispose() };
+		store.add(this._editorService.onDidActiveEditorChange(refresh));
+		store.add(this._editorService.onDidVisibleEditorsChange(refresh));
+		store.add(this._hostService.onDidChangeFocus(refresh));
+		store.add(this._hostService.onDidChangeActiveWindow(refresh));
+		store.add(input.webview.onDidFocus(refresh));
+		store.add(input.webview.onDidBlur(refresh));
+		store.add(this._configurationService.onDidChangeConfiguration(refresh));
+		store.add(this._lifecycleService.onWillShutdown(() => telemetry.finish('shutdown')));
+		const targetWindow = getWindow(input.webview.container);
+		store.add(addDisposableListener(targetWindow.document, 'visibilitychange', refresh));
+		for (const type of ['keydown', 'pointerdown', 'wheel']) {
+			store.add(addDisposableListener(input.webview.container, type, event => {
+				if (event.isTrusted) {
+					telemetry.activity();
+				}
+			}));
+		}
+		refresh();
+	}
+
+	private async loadReleaseNotes(version: string, useCurrentFile: boolean): Promise<{ text: string; revision: string }> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
 			throw new Error('not found');
@@ -327,7 +450,8 @@ export class ReleaseNotesManager extends Disposable {
 				throw new Error('Invalid release notes');
 			}
 
-			return patchKeybindings(text);
+			const revision = useCurrentFile ? '' : encodeHex(VSBuffer.wrap(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))));
+			return { text: patchKeybindings(text), revision };
 		};
 
 		// Don't cache the current file
@@ -368,10 +492,20 @@ export class ReleaseNotesManager extends Disposable {
 		return uri;
 	}
 
-	private async renderBody(fileContent: { text: string; base: URI }, tryouts: ReleaseNotesTryouts, codeBlocks: IReleaseNotesCodeBlock[]) {
+	private async renderBody(fileContent: { text: string; base: URI; mediaBaseUrl?: string; isPreview: boolean }, tryouts: ReleaseNotesTryouts, codeBlocks: IReleaseNotesCodeBlock[], telemetry?: ReleaseNotesTelemetry) {
 		const nonce = generateUuid();
 
-		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer, this._productService.quality, tryouts, codeBlocks);
+		const supported = !isWeb && !this._environmentService.isSessionsWindow;
+		const preference = this._configurationService.inspect<boolean>(highlightsVideoSetting);
+		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer, this._productService.quality, tryouts, codeBlocks, telemetry, fileContent.mediaBaseUrl, {
+			enabled: supported && this._configurationService.getValue<boolean>(highlightsVideoSetting) === true,
+			onDidResolve: available => {
+				if (available && supported && !fileContent.isPreview && !isConfigured(preference) && preference.policyValue === undefined && preference.memoryValue === undefined) {
+					logSettingExperimentTrigger(this._telemetryService, highlightsVideoSetting);
+				}
+			},
+			onInvalid: () => this._logService.warn('[ReleaseNotes] Invalid highlights video candidate'),
+		});
 
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -381,6 +515,7 @@ export class ReleaseNotesManager extends Disposable {
 		<html>
 			<head>
 				<base href="${asWebviewUri(fileContent.base).toString(true)}/" >
+				${telemetry ? `<meta name="release-notes-revision" content="${telemetry.metadata.notesRevision}"><meta name="release-notes-version" content="${telemetry.metadata.notesVersion}"><meta name="release-notes-variant" content="${telemetry.metadata.contentVariant}">` : ''}
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; style-src 'nonce-${nonce}' https://code.visualstudio.com; script-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
@@ -600,6 +735,54 @@ export class ReleaseNotesManager extends Disposable {
 						margin-bottom: 0;
 					}
 
+					.release-highlights-video {
+						border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-textSeparator-foreground));
+						margin-top: var(--vscode-spacing-size160);
+						padding-top: var(--vscode-spacing-size80);
+					}
+
+					.release-highlights-video > summary {
+						cursor: pointer;
+						border-radius: var(--vscode-cornerRadius-small);
+						padding: var(--vscode-spacing-size80) var(--vscode-spacing-size40);
+						font-weight: var(--vscode-fontWeight-semiBold);
+					}
+
+					.release-highlights-video > summary:hover {
+						background-color: var(--vscode-list-hoverBackground);
+					}
+
+					body:is(.vscode-high-contrast, .vscode-high-contrast-light) .release-highlights-video > summary:hover:not(:focus-visible) {
+						outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+						outline-offset: calc(-1 * var(--vscode-strokeThickness));
+					}
+
+					body:is(.vscode-high-contrast, .vscode-high-contrast-light) .release-highlights-video[open] > summary:not(:focus-visible) {
+						outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+						outline-offset: calc(-1 * var(--vscode-strokeThickness));
+					}
+
+					.release-highlights-video > summary:focus-visible,
+					.release-highlights-video video:focus-visible {
+						outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+						outline-offset: calc(-1 * var(--vscode-strokeThickness));
+					}
+
+					.release-highlights-video video {
+						display: block;
+						width: 100%;
+						height: auto;
+						border-radius: var(--vscode-cornerRadius-small);
+						margin-top: var(--vscode-spacing-size80);
+					}
+
+					.release-highlights-video > p {
+						color: var(--vscode-descriptionForeground);
+						font-size: var(--vscode-fontSize-label1);
+						margin-top: var(--vscode-spacing-size80);
+						overflow-wrap: anywhere;
+					}
+
 					.highlights-table {
 						width: 100%;
 						table-layout: fixed;
@@ -763,9 +946,11 @@ export class ReleaseNotesManager extends Disposable {
 					});
 
 					window.addEventListener('click', event => {
-						const href = event.target.href ?? event.target.parentElement?.href ?? event.target.parentElement?.parentElement?.href;
+						const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+						const href = link?.href;
 						if (href && (href.startsWith('${Schemas.codeSetting}'))) {
-							vscode.postMessage({ type: 'clickSetting', documentId, value: { uri: href, x: event.clientX, y: event.clientY }});
+							const occurrence = link.closest('[data-release-notes-link-index]');
+							vscode.postMessage({ type: 'clickSetting', documentId, value: { uri: href, index: occurrence ? Number(occurrence.dataset.releaseNotesLinkIndex) : undefined, x: event.clientX, y: event.clientY }});
 						}
 					});
 
@@ -773,7 +958,8 @@ export class ReleaseNotesManager extends Disposable {
 						if (event.keyCode === 13) {
 							if (event.target.children.length > 0 && event.target.children[0].href) {
 								const clientRect = event.target.getBoundingClientRect();
-								vscode.postMessage({ type: 'clickSetting', documentId, value: { uri: event.target.children[0].href, x: clientRect.right , y: clientRect.bottom }});
+								const occurrence = event.target.closest('[data-release-notes-link-index]');
+								vscode.postMessage({ type: 'clickSetting', documentId, value: { uri: event.target.children[0].href, index: occurrence ? Number(occurrence.dataset.releaseNotesLinkIndex) : undefined, x: clientRect.right , y: clientRect.bottom }});
 							}
 						}
 					});
@@ -781,6 +967,7 @@ export class ReleaseNotesManager extends Disposable {
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', documentId, value: input.checked }, '*');
 					});
+					${telemetry ? `(${initializeReleaseNotesTelemetry.toString()})(document, window, documentId, ${JSON.stringify(telemetry.manifest.regions)}, vscode, ${JSON.stringify(telemetry.manifest.tryouts.map(tryout => tryout.index))}, ${!!telemetry.manifest.highlightsVideo});` : ''}
 					vscode.postMessage({ type: 'releaseNotesReady', documentId });
 					(${initializeReleaseNotesNavigation.toString()})(document, window);
 				</script>
@@ -830,6 +1017,7 @@ export class ReleaseNotesManager extends Disposable {
  * - `STABLE` - Content shown in VS Code Stable only
  * - `INSIDERS` - Content shown in VS Code Insiders only
  * - `TRYOUTS` - Content shown only when the local Try This renderer is provided
+ * - `HIGHLIGHTS_VIDEO` - An available highlights video enabled by the local preference
  *
  * On the website, the entire block is a single HTML comment, so the
  * content is hidden by default. The website renderer would activate
@@ -849,6 +1037,7 @@ export function processConditionalBlocks(text: string, activeConditions: Readonl
 	);
 }
 
+/** Renders release notes, optionally resolving images/ media paths against mediaBaseUrl without changing links. */
 export async function renderReleaseNotesMarkdown(
 	text: string,
 	extensionService: IExtensionService,
@@ -857,12 +1046,74 @@ export async function renderReleaseNotesMarkdown(
 	quality?: string,
 	tryouts?: ReleaseNotesTryouts,
 	codeBlocks?: IReleaseNotesCodeBlock[],
+	telemetry?: ReleaseNotesTelemetry,
+	mediaBaseUrl?: string,
+	highlightsVideo?: IHighlightsVideoOptions,
 ): Promise<TrustedHTML> {
 	// Remove HTML comment markers around table of contents navigation
 	text = text
 		.toString()
 		.replace(/<!--\s*TOC\s*/gi, '')
 		.replace(/\s*Navigation End\s*-->/gi, '');
+
+	let videoAvailable = false;
+	/* eslint-disable eslint-js/no-restricted-syntax -- Inspect only authored release-note HTML in an inert document. */
+	text = text.replace(/<!--\s*%IF\s+HIGHLIGHTS_VIDEO\s*%([\s\S]*?)%ENDIF\s*%\s*-->/gi, (_match, block: string) => {
+		if (!block.trim()) {
+			return '';
+		}
+		// A document without a browsing context keeps media inert while checking both arms.
+		const candidate = mainWindow.document.implementation.createHTMLDocument().body;
+		safeSetInnerHtml(candidate, block, {
+			allowedTags: { override: ['details', 'summary', 'video', 'source', 'track', 'p', 'a'] },
+			allowedAttributes: { override: ['class', 'open', 'src', 'poster', 'title', 'aria-label', 'controls', 'preload', 'playsinline', 'crossorigin', 'kind', 'srclang', 'label', 'default', 'href'] },
+			allowedLinkProtocols: { override: [Schemas.https] },
+			allowedMediaProtocols: { override: [Schemas.https] },
+			allowRelativeMediaPaths: true,
+		});
+		if (!candidate.children.length && !candidate.textContent?.trim()) {
+			return '';
+		}
+		const video = candidate.querySelector('video');
+		const validMedia = (value: string | null | undefined) => !!value && !/[<>]/.test(value) && /^(?:https:\/\/|(?:\.\/)?images\/)/.test(value);
+		if (videoAvailable || !video || !validMedia(video.getAttribute('src') ?? video.querySelector('source')?.getAttribute('src'))) {
+			highlightsVideo?.onInvalid?.();
+			return '';
+		}
+		videoAvailable = true;
+		let disclosure = video.closest('details');
+		if (!disclosure) {
+			const content = Array.from(candidate.childNodes);
+			disclosure = $<HTMLDetailsElement>('details');
+			candidate.appendChild(disclosure);
+			disclosure.append(...content);
+		}
+		disclosure.classList.add('release-highlights-video');
+		let summary = disclosure.querySelector('summary');
+		if (!summary) {
+			summary = $('summary');
+			disclosure.prepend(summary);
+		}
+		if (!summary.textContent?.trim()) {
+			summary.textContent = nls.localize('releaseNotes.highlightsVideoSummary', "Watch release highlights");
+		}
+		if (!video.getAttribute('title')?.trim() && !video.getAttribute('aria-label')?.trim()) {
+			video.setAttribute('aria-label', nls.localize('releaseNotes.highlightsVideoLabel', "Release highlights video"));
+		}
+		disclosure.setAttribute('open', '');
+		video.setAttribute('controls', '');
+		video.setAttribute('preload', 'none');
+		video.setAttribute('playsinline', '');
+		highlightsVideo?.onDidResolve?.(true);
+		return highlightsVideo?.enabled ? disclosure.outerHTML : '';
+	});
+	/* eslint-enable eslint-js/no-restricted-syntax */
+	if (!videoAvailable) {
+		highlightsVideo?.onDidResolve?.(false);
+	}
+	if (telemetry) {
+		telemetry.metadata.highlightsVideoVariant = videoAvailable ? highlightsVideo?.enabled ? 'video' : 'text' : 'unavailable';
+	}
 
 	// Process conditional blocks based on active conditions
 	const activeConditions = new Set<string>(['IN_PRODUCT']);
@@ -885,8 +1136,8 @@ export async function renderReleaseNotesMarkdown(
 		allowedLinkProtocols: {
 			override: [Schemas.http, Schemas.https, Schemas.command, Schemas.codeSetting]
 		},
-		allowedTags: { augment: ['nav', 'svg', 'path'] },
-		allowedAttributes: { augment: ['aria-role', 'viewBox', 'fill', 'xmlns', 'd'] }
+		allowedTags: { augment: ['nav', 'svg', 'path', 'track'] },
+		allowedAttributes: { augment: ['aria-role', 'viewBox', 'fill', 'xmlns', 'd', 'open', 'preload', 'crossorigin', 'kind', 'srclang', 'label', 'default', 'aria-label'] }
 	};
 	const codeBlockIds = new WeakMap<marked.Token, string>();
 	const tryoutCodeSpans = new WeakSet<marked.Tokens.Codespan>();
@@ -918,7 +1169,7 @@ export async function renderReleaseNotesMarkdown(
 			}
 		}]
 	});
-	if (!tryouts || !tryouts.needsRender(content)) {
+	if (!mediaBaseUrl && !telemetry && (!tryouts || !tryouts.needsRender(content))) {
 		return content;
 	}
 	const tryoutSanitizerConfig = {
@@ -926,16 +1177,30 @@ export async function renderReleaseNotesMarkdown(
 		allowedTags: { override: allowedMarkdownHtmlTags, augment: [...sanitizerConfig.allowedTags.augment, 'button'] },
 		allowedAttributes: {
 			override: [...allowedMarkdownHtmlAttributes, 'name', 'id', 'class', 'role', 'tabindex', 'placeholder'],
-			augment: [...sanitizerConfig.allowedAttributes.augment, 'type', 'hidden', 'aria-label', 'aria-disabled', 'data-release-notes-tryout-id', 'data-release-notes-tryout-index'],
+			augment: [...sanitizerConfig.allowedAttributes.augment, 'type', 'hidden', 'aria-label', 'aria-disabled', 'data-release-notes-tryout-id', 'data-release-notes-tryout-index', 'data-release-notes-content-index', 'data-release-notes-link-index'],
 		},
 	};
 	const container = $('div');
 	safeSetInnerHtml(container, content.toString(), tryoutSanitizerConfig);
-	tryouts.render(container);
+	if (mediaBaseUrl) {
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- These media elements are authored in the release note Markdown.
+		for (const element of container.querySelectorAll('img, video, source, track')) {
+			for (const attribute of ['src', 'poster']) {
+				const value = element.getAttribute(attribute);
+				if (value) {
+					element.setAttribute(attribute, value.replace(/^(?:\.\/)?images\//, mediaBaseUrl));
+				}
+			}
+		}
+	}
+	tryouts?.render(container);
+	if (telemetry) {
+		telemetry.manifest = indexReleaseNotesContent(container);
+	}
 	return sanitizeHtml(container.innerHTML, tryoutSanitizerConfig);
 }
 
-/* eslint-disable no-restricted-syntax -- These serialized functions access IDs owned by the isolated release notes webview. */
+/* eslint-disable eslint-js/no-restricted-syntax -- These serialized functions access IDs owned by the isolated release notes webview. */
 export function initializeReleaseNotesNavigation(targetDocument: Document, targetWindow: Window & typeof globalThis): () => void {
 	const navigation = targetDocument.getElementById('toc-nav');
 	if (!navigation) {
@@ -1041,4 +1306,4 @@ export function applyReleaseNotesTokenization(targetDocument: Document, update: 
 		scrollingElement.scrollLeft = scrollLeft;
 	}
 }
-/* eslint-enable no-restricted-syntax */
+/* eslint-enable eslint-js/no-restricted-syntax */

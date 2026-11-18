@@ -1,5 +1,5 @@
 parameters:
-  # Condition of the steps, for example to install pnpm only when the node_modules cache missed.
+  # Condition of the steps, for example to install pnpm only when the job validates the dependencies.
   - name: condition
     type: string
     default: succeeded()

@@ -6,9 +6,10 @@
 import * as nls from '../../../../nls.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGenerationSettingId, AgentHostTitleGenerationSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { migrateLegacyImageGenerationSetting } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { migrateLegacyTitleGenerationSettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -21,7 +22,7 @@ const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessio
 export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.AgentsWindowBannerEnabled]: {
 		type: 'boolean',
-		default: false,
+		default: true,
 		scope: ConfigurationScope.APPLICATION,
 		description: nls.localize('chat.agentsWindowBanner.enabled', "Show occasional invitations to continue or manage running Agent Host chats in the Agents Window. Invitations are hidden for users who have created at least three sessions in the Agents Window and created their latest session within the past 30 days."),
 		tags: ['experimental'],
@@ -110,6 +111,15 @@ for (const key of [ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfig
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',
 	properties: {
+		[AgentHostCopilotM365EnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.copilot.m365.enabled', "Enable Microsoft 365 Copilot access and account choice for Copilot Agent Host sessions. When disabled, Microsoft sign-in continues to use GitHub Copilot only.\n\nChanging this setting requires restarting VS Code. It does not switch your active account or service; sign out and sign back in to change accounts."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			agentHost: { key: CopilotCliConfigKey.M365Enabled },
+		},
 		[ChatConfiguration.AgentsPickerInAttachContextMenu]: {
 			type: 'boolean',
 			default: false,

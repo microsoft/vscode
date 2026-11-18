@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -19,10 +20,12 @@ import { AICustomizationManagementCommands, AICustomizationManagementOpenEditorT
 import { isCustomizationDiscoveryAvailable } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
-import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
-import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus, SessionCanvasMenuGroup } from '../../../browser/agentsWindowMenus.js';
+import { getCanvasIconUri, getCanvasInstanceLabels, ICanvasContextService, ICanvasReopenTarget, ICanvasService, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
+import { getCanvasReferenceKey } from '../../../../workbench/common/canvasReference.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';
@@ -48,28 +51,33 @@ class CanvasMenuActionRegistration extends Disposable {
 	private group: string | undefined;
 	private order: number | undefined;
 	private inActivityBar = false;
+	private icon: ThemeIcon | URI;
 
 	constructor(
 		readonly commandId: string,
 		run: (accessor: ServicesAccessor) => Promise<void>,
-		private readonly menu = Menus.SessionsEditorTabsBarAddTabCanvas,
-		private readonly icon: ThemeIcon = Codicon.preview,
+		private readonly menu = AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas,
+		private readonly defaultIcon: ThemeIcon = Codicon.preview,
 	) {
 		super();
+		this.icon = defaultIcon;
 		this._register(CommandsRegistry.registerCommand(commandId, run));
 	}
 
-	update(title: string, group: string, order: number, inActivityBar = false): void {
-		const changed = this.title !== title || this.group !== group || this.order !== order;
+	/** Shows the entry with `title`, and with `icon`, a canvas's own icon, or else its default icon. */
+	update(title: string, group: string, order: number, inActivityBar = false, icon: URI | undefined = undefined): void {
+		const nextIcon = icon ?? this.defaultIcon;
+		const changed = this.title !== title || this.group !== group || this.order !== order || !isSameMenuIcon(this.icon, nextIcon);
 		if (changed) {
 			this.title = title;
 			this.group = group;
 			this.order = order;
+			this.icon = nextIcon;
 			this.menuRegistration.value = this.appendMenuItem(this.menu);
 		}
 		if (changed || this.inActivityBar !== inActivityBar) {
 			this.inActivityBar = inActivityBar;
-			this.activityBarRegistration.value = inActivityBar ? this.appendMenuItem(Menus.SessionActivityBarCanvas) : undefined;
+			this.activityBarRegistration.value = inActivityBar ? this.appendMenuItem(AgentsWindowMenus.SessionActivityBarCanvas) : undefined;
 		}
 	}
 
@@ -78,7 +86,7 @@ class CanvasMenuActionRegistration extends Disposable {
 			command: {
 				id: this.commandId,
 				title: this.title!,
-				icon: this.icon,
+				icon: URI.isUri(this.icon) ? { dark: this.icon } : this.icon,
 			},
 			group: this.group,
 			order: this.order,
@@ -86,6 +94,13 @@ class CanvasMenuActionRegistration extends Disposable {
 			when: canvasAvailableWhen,
 		});
 	}
+}
+
+/** Icons are theme icons or canvas icon data URIs, whose path holds the whole image. */
+function isSameMenuIcon(first: ThemeIcon | URI, second: ThemeIcon | URI): boolean {
+	return URI.isUri(first) || URI.isUri(second)
+		? URI.isUri(first) && URI.isUri(second) && first.path === second.path
+		: first.id === second.id;
 }
 
 /**
@@ -107,7 +122,7 @@ class KeyedMenuRegistration extends Disposable {
 	}
 }
 
-function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation', submenu = Menus.SessionsEditorTabsBarAddTabCanvas, toggled?: ContextKeyExpression): IDisposable {
+function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation', submenu = AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas, toggled?: ContextKeyExpression): IDisposable {
 	return MenuRegistry.appendMenuItem(menu, {
 		submenu,
 		title: localize('sessionCanvases.canvasSubmenu', "Canvas"),
@@ -140,7 +155,7 @@ const discoverCanvasEntries: readonly IDiscoverCanvasEntry[] = [{
 }, {
 	key: 'discover:browse',
 	commandId: DISCOVER_SESSION_CANVASES_COMMAND_ID,
-	title: localize('sessionCanvases.discoverCanvases', "Discover More Canvases"),
+	title: localize('sessionCanvases.browseCanvases', "Browse Canvases"),
 	icon: Codicon.search,
 	run: async accessor => {
 		const commandService = accessor.get(ICommandService);
@@ -167,11 +182,16 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 	store.add(autorun(reader => {
 		const definitions = registryService.availableCanvases.read(reader);
 		const definitionLabels = getSessionCanvasDefinitionLabels(definitions);
-		const targets = canvasService.reopenableCanvases.read(reader);
+		const canvases = activeCanvases.read(reader);
+		// Running lists the canvases the focused chat's canvas pill does, whether or not their tab is open, and not those
+		// of chats other windows show.
+		const owner = registryService.owner.read(reader);
+		const targets = owner
+			? canvases.filter(({ reference, canvas }) => isCanvasOwner(reference, owner) && canvas.source !== undefined && canvasService.isOwnerPresentable(reference, reader))
+			: [];
 		const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
-		const definitionInstanceIds = new Set(definitions.map(getSessionCanvasDefinitionInstanceId));
 		// Without canvases of its own, the Session Activity Bar offers the same entries as Add Tab.
-		const inActivityBar = activeCanvases.read(reader).length === 0;
+		const inActivityBar = canvases.length === 0;
 		const activeKeys = new Set<string>();
 		for (let index = 0; index < definitions.length; index++) {
 			const canvas = definitions[index];
@@ -185,24 +205,21 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 				);
 				registrations.set(key, registration);
 			}
-			registration.update(definitionLabels[index], '1_available', index, inActivityBar);
+			registration.update(definitionLabels[index], SessionCanvasMenuGroup.Available, index, inActivityBar, getCanvasIconUri(canvas.icon));
 		}
 		for (let index = 0; index < targets.length; index++) {
 			const target = targets[index];
-			if (target.canvas.instanceId && definitionInstanceIds.has(target.canvas.instanceId)) {
-				continue;
-			}
 			const key = `reopen:${getCanvasReferenceKey(target.reference)}`;
 			activeKeys.add(key);
 			let registration = registrations.get(key);
 			if (!registration) {
 				registration = new CanvasMenuActionRegistration(
 					`${REOPEN_SESSION_CANVAS_COMMAND_ID}.${++commandSequence}`,
-					() => canvasService.reopenCanvas(target.reference),
+					() => canvasService.revealCanvas(target.reference),
 				);
 				registrations.set(key, registration);
 			}
-			registration.update(targetLabels[index], '2_open', index, inActivityBar);
+			registration.update(targetLabels[index], SessionCanvasMenuGroup.Running, index, inActivityBar, target.canvas.icon);
 		}
 		if (registryService.supportsCanvases.read(reader)) {
 			for (let index = 0; index < discoverCanvasEntries.length; index++) {
@@ -210,10 +227,10 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 				activeKeys.add(entry.key);
 				let registration = registrations.get(entry.key);
 				if (!registration) {
-					registration = new CanvasMenuActionRegistration(entry.commandId, entry.run, Menus.SessionsEditorTabsBarAddTabCanvas, entry.icon);
+					registration = new CanvasMenuActionRegistration(entry.commandId, entry.run, AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas, entry.icon);
 					registrations.set(entry.key, registration);
 				}
-				registration.update(entry.title, '3_discover', index, inActivityBar);
+				registration.update(entry.title, SessionCanvasMenuGroup.Discover, index, inActivityBar);
 			}
 		}
 		for (const key of [...registrations.keys()]) {
@@ -222,10 +239,10 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 			}
 		}
 		submenuRegistration.update(activeKeys.size > 0 ? `addTab:${inActivityBar}` : undefined, () => combinedDisposable(
-			appendCanvasSubmenu(Menus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
-			appendCanvasSubmenu(Menus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
+			appendCanvasSubmenu(AgentsWindowMenus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
+			appendCanvasSubmenu(AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
 			inActivityBar
-				? appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas, SessionCanvasActivityBarToggledContext)
+				? appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, AgentsWindowMenus.SessionActivityBarCanvas, SessionCanvasActivityBarToggledContext)
 				: Disposable.None,
 		));
 	}));
@@ -238,7 +255,7 @@ function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, 
 	const activityBarRegistration = store.add(new KeyedMenuRegistration());
 	let commandSequence = 0;
 	// Match the submenu ID so persisted toolbar hiding survives single/multiple canvas transitions.
-	store.add(CommandsRegistry.registerCommand(Menus.SessionActivityBarCanvas.id, async () => {
+	store.add(CommandsRegistry.registerCommand(AgentsWindowMenus.SessionActivityBarCanvas.id, async () => {
 		const targets = activeCanvases.get();
 		if (targets.length === 1) {
 			await canvasService.revealCanvas(targets[0].reference);
@@ -257,11 +274,11 @@ function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, 
 				registration = new CanvasMenuActionRegistration(
 					`${OPEN_SESSION_CANVAS_COMMAND_ID}.reveal.${++commandSequence}`,
 					() => canvasService.revealCanvas(target.reference),
-					Menus.SessionActivityBarCanvas,
+					AgentsWindowMenus.SessionActivityBarCanvas,
 				);
 				registrations.set(key, registration);
 			}
-			registration.update(labels[index], 'navigation', index);
+			registration.update(labels[index], 'navigation', index, false, target.canvas.icon);
 		}
 		for (const key of [...registrations.keys()]) {
 			if (!activeKeys.has(key)) {
@@ -271,13 +288,13 @@ function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, 
 		if (targets.length === 1) {
 			const title = labels[0];
 			activityBarRegistration.update(`single:${title}`, () => MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
-				command: { id: Menus.SessionActivityBarCanvas.id, title, icon: Codicon.preview, toggled: SessionCanvasActivityBarToggledContext },
+				command: { id: AgentsWindowMenus.SessionActivityBarCanvas.id, title, icon: Codicon.preview, toggled: SessionCanvasActivityBarToggledContext },
 				group: SessionActivityBarGroup.SidePanel,
 				order: 4,
 				when: canvasAvailableWhen,
 			}));
 		} else {
-			activityBarRegistration.update(targets.length > 1 ? 'multiple' : undefined, () => appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas, SessionCanvasActivityBarToggledContext));
+			activityBarRegistration.update(targets.length > 1 ? 'multiple' : undefined, () => appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, AgentsWindowMenus.SessionActivityBarCanvas, SessionCanvasActivityBarToggledContext));
 		}
 	}));
 	return store;

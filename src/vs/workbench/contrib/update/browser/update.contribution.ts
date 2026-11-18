@@ -16,7 +16,7 @@ import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { PostUpdateWidgetContribution } from './postUpdateWidget.js';
 import { OutdatedBuildReminderContribution } from './outdatedBuildReminder.js';
 import { WorkbenchUnattendedRestartParticipants } from './unattendedRestartParticipants.js';
-import { UnattendedRestartExperimentTriggerContribution } from './unattendedRestartExperimentTrigger.js';
+import { UpdateExperimentsContribution } from './updateExperiments.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -24,7 +24,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
-import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
+import { PostUpdateReleaseNotesSource, ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -41,9 +41,9 @@ workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, Lifecy
 workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(PostUpdateWidgetContribution, LifecyclePhase.Restored);
 registerWorkbenchContribution2(WorkbenchUnattendedRestartParticipants.ID, WorkbenchUnattendedRestartParticipants, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(UnattendedRestartExperimentTriggerContribution.ID, UnattendedRestartExperimentTriggerContribution, WorkbenchPhase.AfterRestored);
 
 if (!isWeb) {
+	registerWorkbenchContribution2(UpdateExperimentsContribution.ID, UpdateExperimentsContribution, WorkbenchPhase.AfterRestored);
 	registerWorkbenchContribution2(OutdatedBuildReminderContribution.ID, OutdatedBuildReminderContribution, WorkbenchPhase.Eventually);
 }
 
@@ -72,14 +72,14 @@ export class ShowReleaseNotesAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, version?: string): Promise<void> {
+	async run(accessor: ServicesAccessor, version?: string, source?: symbol): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
 		const targetVersion = version ?? productService.version;
 
 		try {
-			await showReleaseNotesInEditor(instantiationService, targetVersion, false);
+			await showReleaseNotesInEditor(instantiationService, targetVersion, false, source === PostUpdateReleaseNotesSource ? 'postUpdateWidget' : 'command');
 		} catch (err) {
 			if (productService.releaseNotesUrl) {
 				await openerService.open(URI.parse(productService.releaseNotesUrl));

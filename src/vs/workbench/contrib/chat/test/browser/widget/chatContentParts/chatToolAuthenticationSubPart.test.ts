@@ -9,7 +9,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { McpAuthRequiredReason, McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IAgentHostMcpServer } from '../../../../../../../sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostMcpServer } from '../../../../../sessions/common/agentHostSessionsProvider.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';

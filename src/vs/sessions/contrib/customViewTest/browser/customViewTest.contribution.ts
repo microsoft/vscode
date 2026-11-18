@@ -16,9 +16,8 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Menus } from '../../../browser/menus.js';
-import { AbstractCustomView } from '../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { AbstractCustomView, ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 
 const TEST_CUSTOM_VIEW_ID = 'sessions.customView.test';
 
@@ -52,7 +51,7 @@ class TestCustomViewContribution extends Disposable {
 		this._register(customViewService.registerCustomView({
 			id: TEST_CUSTOM_VIEW_ID,
 			ctor: new SyncDescriptor(TestCustomView),
-			actions: { style: 'toolbar', menuId: Menus.CustomViewTest },
+			actions: { style: 'toolbar', menuId: AgentsWindowMenus.CustomViewTest },
 		}));
 	}
 }
@@ -101,7 +100,7 @@ class TestCustomViewPingAction extends Action2 {
 			id: 'sessions.customView.testView.ping',
 			title: localize2('testCustomViewPing', "Ping Test Custom View"),
 			icon: Codicon.debugAlt,
-			menu: [{ id: Menus.CustomViewTest, group: 'navigation', order: 1 }],
+			menu: [{ id: AgentsWindowMenus.CustomViewTest, group: 'navigation', order: 1 }],
 		});
 	}
 

@@ -1344,12 +1344,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private async _disposeLiveSession(session: ClaudeAgentSession): Promise<void> {
 		session.abortController.abort();
-		if (!session.isPipelineReady) {
-			// Nothing else to tear down yet.
-		} else {
-			session.abort();
+		try {
+			if (session.isPipelineReady) {
+				await session.abort();
+			}
+		} finally {
+			this._deleteSession(session);
 		}
-		this._deleteSession(session);
 	}
 
 	// #region Chat creation — the one algorithm every chat is created by
@@ -1638,13 +1639,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
-			if (target) {
-				await this._disposeLiveSession(target);
+			try {
+				if (target) {
+					await this._disposeLiveSession(target);
+				}
+			} finally {
+				this._chatBackings.delete(chatKey);
+				this._chatConfigScopes.delete(chatKey);
+				this._pruneActiveClientHandlesForChat(chat);
+				this._otelService.releaseSessionTraceContext(initialContext.resource.toString());
 			}
-			this._chatBackings.delete(chatKey);
-			this._chatConfigScopes.delete(chatKey);
-			this._pruneActiveClientHandlesForChat(chat);
-			this._otelService.releaseSessionTraceContext(initialContext.resource.toString());
 		});
 		// The Claude SDK exposes no delete-chat RPC, so the forked /
 		// fresh transcript is left on disk; without a catalog entry it is never
@@ -2456,13 +2460,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private async _abortSession(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		resolveAgentChatContext(context, chat);
-		// Cancel via the abort controller, NOT `Query.interrupt()`. Abort is a
-		// control-plane operation — it must NOT serialize through
-		// `_sessionSequencer` because an in-flight `sendMessage` task is
-		// parked on its turn deferred and would deadlock the abort behind the
-		// very turn it's trying to cancel. Calling `chat.abort()` directly
-		// rejects the in-flight deferred, which lets the queued sendMessage
-		// task complete and frees the sequencer for the next caller.
+		// Abort bypasses the send sequencer because the current send is waiting for this turn to end.
 		const sess = this._findChatByUri(chat);
 		if (!sess) {
 			return;
@@ -2471,7 +2469,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			sess.abortController.abort();
 			return;
 		}
-		sess.abort();
+		await sess.abort();
 	}
 
 	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {

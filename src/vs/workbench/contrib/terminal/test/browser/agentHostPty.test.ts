@@ -561,22 +561,22 @@ suite('AgentHostPty', () => {
 		assert.strictEqual(cwd, '/home/user/project');
 	});
 
-	test('terminal/titleChanged updates title property', async () => {
-		const conn = new MockAgentConnection();
-		disposables.add(conn);
+	test('reports the host title on start, change, and reconnect, shortening Windows shell paths', async () => {
+		const conn = disposables.add(new MockAgentConnection({ title: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }));
 		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
 
-		let changedTitle = '';
+		const titles: string[] = [];
 		disposables.add(pty.onDidChangeProperty!(e => {
 			if (e.type === 'title') {
-				changedTitle = e.value as string;
+				titles.push(e.value as string);
 			}
 		}));
 
 		await pty.start();
 		conn.fireAction(terminalUri, { type: ActionType.TerminalTitleChanged, title: 'npm test' });
+		await pty.reconnect(disposables.add(new MockAgentConnection({ title: 'zsh' })));
 
-		assert.strictEqual(changedTitle, 'npm test');
+		assert.deepStrictEqual(titles, ['pwsh', 'npm test', 'zsh']);
 	});
 
 	test('ignores actions for other terminals', async () => {

@@ -15,8 +15,8 @@ import {
 	CLOUD_SANDBOX_SESSION_SCHEME,
 	cloudSandboxEnvironmentId,
 	ICloudSandboxAgentHostService,
-	isCloudSandboxSealedToken,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { isSealedEnvironmentToken } from '../../../../../platform/github/common/missionControl/environments.js';
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxSessionPreparation } from './cloudSandboxLegacySessionPreparation.js';
@@ -69,7 +69,7 @@ export function createCloudSandboxConnectionCustomization(
 		const sealed = renew
 			? await sandboxService.refreshSealedGitHubToken(environmentId)
 			: sandboxService.getSealedGitHubToken(environmentId);
-		if (!sealed || !isCloudSandboxSealedToken(sealed)) {
+		if (!sealed || !isSealedEnvironmentToken(sealed)) {
 			throw new Error(`No sealed GitHub token is available for cloud sandbox ${address}; refusing to forward a plaintext bearer.`);
 		}
 		return { resource, scopes, token: sealed };
@@ -78,7 +78,7 @@ export function createCloudSandboxConnectionCustomization(
 		requiresWorkspaceTrust: false,
 		inputPlaceholder: provider => !userLocal && provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_INPUT_PLACEHOLDER : undefined,
 		authenticate: async (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason): Promise<IAgentHostAuthenticateRequest> => {
-			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
+			if (reason !== AuthRequiredReason.Expired && isSealedEnvironmentToken(request.token)) {
 				return request;
 			}
 			if (userLocal && (request.target || !isGitHubResource(request.resource))) {

@@ -10,12 +10,13 @@
 .chat-pet-overlay {
 	position: absolute;
 	inset: 0;
+	/* Keep the whole pet above transcript sticky scroll (13), even while resting. */
+	z-index: 14;
 	pointer-events: none;
 }
 
 .chat-pet-overlay.relocating {
 	position: fixed;
-	z-index: 14;
 }
 
 .chat-pet-overlay.relocating > .chat-pet-button {
@@ -45,7 +46,6 @@
 .chat-pet-button.dragging {
 	cursor: grabbing;
 	will-change: translate;
-	/* The tree sticky-scroll container uses 13. Keep the active drag above it. */
 	z-index: 14;
 }
 

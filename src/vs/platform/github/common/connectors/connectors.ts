@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiRequestOptions } from '../client/request.js';
 
 /** OAuth permission requested by VS Code for explicit Connector management actions. */
@@ -134,11 +135,11 @@ export interface ConnectorConnectionResult {
 /** Connector catalog and connection management for an explicitly selected GitHub grant. */
 export interface IConnectorsClient {
 	/** GET /plugins: list eligible plugins and their connection status. */
-	getCatalog(signal: AbortSignal, options?: ApiRequestOptions): Promise<ConnectorCatalog>;
+	getCatalog(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ConnectorCatalog>;
 
 	/** PUT /connectors/managed/{name}/connection: establish or refresh a connection, returning any required consent link. */
-	connect(name: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<ConnectorConnectionResult>;
+	connect(name: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ConnectorConnectionResult>;
 
 	/** DELETE /connectors/managed/{name}/connection: disconnect while leaving the connector available to reconnect. */
-	disconnect(name: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	disconnect(name: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 }

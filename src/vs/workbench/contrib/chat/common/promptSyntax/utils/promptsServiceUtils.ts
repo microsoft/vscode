@@ -27,7 +27,7 @@ export function sanitizeSlashCommandName(name: string): string {
 /**
  * Checks if a prompt file is organization-provided.
  * Organization-provided prompt files come from the built-in chat extension
- * and are located under a `/github/` path.
+ * and are cached under the extension's `globalStorage/<extension>/github/` path.
  *
  * @param uri The URI of the prompt file
  * @param extensionId The extension identifier that provides the prompt file
@@ -39,9 +39,11 @@ export function isOrganizationPromptFile(uri: URI, extensionId: ExtensionIdentif
 	if (!chatExtensionId) {
 		return false;
 	}
-	const isFromBuiltinChatExtension = ExtensionIdentifier.equals(extensionId, chatExtensionId);
-	const pathContainsGithub = uri.path.includes('/github/');
-	return isFromBuiltinChatExtension && pathContainsGithub;
+	if (!ExtensionIdentifier.equals(extensionId, chatExtensionId)) {
+		return false;
+	}
+	const path = uri.path.toLowerCase();
+	return path.includes(`/globalstorage/${chatExtensionId.toLowerCase()}/github/`);
 }
 
 /**

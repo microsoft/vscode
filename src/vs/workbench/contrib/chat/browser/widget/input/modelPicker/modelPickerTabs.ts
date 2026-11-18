@@ -10,7 +10,7 @@ import { localize } from '../../../../../../../nls.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, IProviderGroupInfo, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
-import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
+import { compareModelNames, isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
 import { getProviderIconForIdentity } from './modelProviderIcons.js';
 import { isAutoModel } from './modelPickerPresentation.js';
 import { buildSpeedVariants, collapseSpeedVariants, IModelSpeedVariants } from './modelPickerVariants.js';
@@ -157,7 +157,6 @@ export interface IModelPickerSectionsOptions {
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
 	readonly organizationDefaultModelId?: string;
-	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
 	readonly preferredSpeedVariants?: ReadonlyMap<string, string>;
@@ -243,7 +242,7 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 	}
 
 	const byName = (left: ILanguageModelChatMetadataAndIdentifier, right: ILanguageModelChatMetadataAndIdentifier) =>
-		left.metadata.name.localeCompare(right.metadata.name);
+		compareModelNames(left.metadata.name, right.metadata.name);
 	// A time-limited offer leads the shortlist.
 	const byPromoThenName = (left: ILanguageModelChatMetadataAndIdentifier, right: ILanguageModelChatMetadataAndIdentifier) =>
 		(hasPromo(right) ? 1 : 0) - (hasPromo(left) ? 1 : 0) || byName(left, right);
@@ -274,17 +273,18 @@ function buildUnavailableEntries(options: IModelPickerSectionsOptions): IModelPi
 	const present = new Set(options.models.flatMap(model => [model.identifier, model.metadata.id]));
 	const entries: IModelPickerUnavailableEntry[] = [];
 	for (const [id, entry] of Object.entries(options.controlModels)) {
-		if (!entry.featured || (!options.showUnavailable && !options.alwaysShowUnavailableModelIds?.has(id))) {
+		const outOfDate = isOutOfDate(entry, options.currentVSCodeVersion);
+		const showUpdate = present.has(id) && outOfDate;
+		if (!entry.featured || !(options.showUnavailable || options.alwaysShowUnavailableModelIds?.has(id) || showUpdate)) {
 			continue;
 		}
-		const outOfDate = isOutOfDate(entry, options.currentVSCodeVersion);
 		// A model that is here but gated needs an update; one that is missing entirely
 		// needs whatever its account is short of.
 		if (present.has(id) ? outOfDate : !entry.exists) {
 			entries.push({ id, entry, needsUpdate: outOfDate });
 		}
 	}
-	return entries.sort((left, right) => left.entry.label.localeCompare(right.entry.label));
+	return entries.sort((left, right) => compareModelNames(left.entry.label, right.entry.label));
 }
 
 /** Whether the entry names a minimum VS Code version this build does not meet. */

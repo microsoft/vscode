@@ -8,27 +8,35 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewWindowConfiguration, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, BrowserViewEvent, BrowserViewPresentation, BrowserViewStorageScope, browserZoomDefaultIndex, IBrowserViewCreateOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewWindowConfiguration, serializeBrowserViewInfo } from '../../../../../platform/browserView/common/browserView.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { reviveBrowserEditorViewState } from '../../common/browserEditorInput.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewNetworkResolver, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
 import { BrowserViewWorkbenchService } from '../../electron-browser/browserViewWorkbenchService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IUnattendedRestartService } from '../../../../services/lifecycle/common/unattendedRestart.js';
+import '../../electron-browser/features/browserTabManagementFeatures.js';
 
 suite('BrowserViewWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -39,6 +47,10 @@ suite('BrowserViewWorkbenchService', () => {
 			getNetworkStatus: ({ authority }) => ({ label: authority, connected: proxySupported[authority] !== undefined, proxySupported: proxySupported[authority] }),
 			onDidChangeNetworkStatus: Event.None,
 		};
+	}
+
+	function proxiesOf(config: IBrowserViewWindowConfiguration | undefined) {
+		return Object.fromEntries(Object.entries(config?.remoteNetworks ?? {}).map(([authority, network]) => [authority, network.proxy]));
 	}
 
 	function createService(remoteAuthority?: string, editorGroupsService?: IEditorGroupsService) {
@@ -105,7 +117,7 @@ suite('BrowserViewWorkbenchService', () => {
 		instantiationService.stub(IBrowserViewWorkbenchService, service);
 		const workspaceTrustService = instantiationService.get(IWorkspaceTrustManagementService);
 		const unattendedRestartService = instantiationService.get(IUnattendedRestartService);
-		return { service, events, creationOptions, loadedUrls, windowConfigurations, configurationService, workspaceTrustService, publishing, unattendedRestartService };
+		return { service, events, creationOptions, loadedUrls, windowConfigurations, configurationService, workspaceTrustService, publishing, unattendedRestartService, instantiationService };
 	}
 
 	function info(id: string, presentation = BrowserViewPresentation.Listed): IBrowserViewInfo {
@@ -124,7 +136,7 @@ suite('BrowserViewWorkbenchService', () => {
 	}
 
 	test('without a configured placement, opens in the active group of the window the open was requested from, not of the window that appears to have focus', async () => {
-		const group = (id: number) => upcastPartial<IEditorGroup>({ id });
+		const group = (id: number) => upcastPartial<IEditorGroup>({ id, editors: [] });
 		const focusedWindowGroup = group(1);
 		const sourceWindowGroup = group(2);
 		const explicitGroup = group(3);
@@ -150,32 +162,120 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
-	test('does not open in a locked active group of the window the open was requested from, but in an unlocked group of its part, or a new one', async () => {
-		const group = (id: number, isLocked: boolean) => upcastPartial<IEditorGroup>({ id, isLocked });
+	test('does not open in a locked active group of the window the open was requested from, but in an unlocked group of its part, or a new one, or, for a part other than the main part of its window, in that main part', async () => {
+		const group = (id: number, isLocked: boolean) => upcastPartial<IEditorGroup>({ id, isLocked, editors: [] });
 		const locked = group(1, true);
 		const unlocked = group(2, false);
 		const created = group(3, false);
 		const addedBeside: number[] = [];
-		const makeService = (groups: IEditorGroup[]) => createService(undefined, upcastPartial<IEditorGroupsService>({
-			activeGroup: group(9, false),
-			getPart: () => upcastPartial<IEditorPart>({
+		// `isWindowMainPart`: the part of the locked group is the main part of its window, else another part of it, such as one that holds terminals
+		const makeService = (groups: IEditorGroup[], isWindowMainPart = true, windowMainPartGroups = [group(4, false)]) => {
+			const windowMainPart: IEditorPart = upcastPartial<IEditorPart>({
+				activeGroup: windowMainPartGroups[0],
+				getGroups: () => windowMainPartGroups,
+				addGroup: (location: IEditorGroup | number) => { addedBeside.push((location as IEditorGroup).id); return created; },
+			});
+			const part = upcastPartial<IEditorPart>({
 				activeGroup: locked,
 				getGroups: () => groups,
 				addGroup: (location: IEditorGroup | number) => { addedBeside.push((location as IEditorGroup).id); return created; },
-			}),
-		})).service;
+			});
+			return createService(undefined, upcastPartial<IEditorGroupsService>({
+				activeGroup: group(9, false),
+				parts: isWindowMainPart ? [part] : [windowMainPart, part],
+				mainPart: isWindowMainPart ? part : windowMainPart,
+				getPart: (candidate: IEditorGroup) => windowMainPartGroups.includes(candidate) ? windowMainPart : part,
+			})).service;
+		};
 		const id = (preferred: PreferredGroup | undefined) => typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred;
 
 		assert.deepStrictEqual({
 			withUnlockedGroup: id(await makeService([locked, unlocked]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
 			onlyLockedGroups: id(await makeService([locked]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			onlyLockedGroupsOfAnotherPart: id(await makeService([locked], false).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
+			onlyLockedGroupsOfAnotherPartAndInTheMainPart: id(await makeService([locked], false, [group(5, true)]).getPreferredGroup(undefined, mainWindow.vscodeWindowId)),
 			addedBeside,
 		}, {
 			withUnlockedGroup: 2,
 			onlyLockedGroups: 3,
-			addedBeside: [1],
+			// Not split, such as a part that holds terminals: the main part of the window takes it
+			onlyLockedGroupsOfAnotherPart: 4,
+			// Nor in a locked group of that main part: a new group beside it
+			onlyLockedGroupsOfAnotherPartAndInTheMainPart: 3,
+			addedBeside: [1, 5],
 		});
 	});
+
+	test('does not open in a group of the window the open was requested from that shows only a view with its own title, such as a chat, but in the main part of that window', async () => {
+		const windowMainPartGroup = upcastPartial<IEditorGroup>({ id: 2, isLocked: false, editors: [] });
+		const chatGroup = upcastPartial<IEditorGroup>({ id: 1, isLocked: false, count: 1, editors: [], windowId: mainWindow.vscodeWindowId, activeEditorPane: upcastPartial<IEditorGroup['activeEditorPane'] & object>({ providesTitle: true }) });
+		const windowMainPart = upcastPartial<IEditorPart>({ windowId: mainWindow.vscodeWindowId, groups: [windowMainPartGroup], activeGroup: windowMainPartGroup });
+		const { service } = createService(undefined, upcastPartial<IEditorGroupsService>({
+			activeGroup: chatGroup,
+			parts: [windowMainPart],
+			mainPart: windowMainPart,
+			getPart: () => upcastPartial<IEditorPart>({ activeGroup: chatGroup }),
+		}));
+
+		const preferred = await service.getPreferredGroup(undefined, mainWindow.vscodeWindowId);
+
+		assert.strictEqual(typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred, 2);
+	});
+
+	test('opening to the side while a group that shows only a view with its own title, such as a chat, is active adds the side group beside the main part of its window, not beside the chat', async () => {
+		const windowMainPartGroup = upcastPartial<IEditorGroup>({ id: 2, isLocked: false, editors: [] });
+		const chatGroup = upcastPartial<IEditorGroup>({ id: 1, isLocked: false, count: 1, editors: [], windowId: mainWindow.vscodeWindowId, activeEditorPane: upcastPartial<IEditorGroup['activeEditorPane'] & object>({ providesTitle: true }) });
+		const windowMainPart = upcastPartial<IEditorPart>({ windowId: mainWindow.vscodeWindowId, groups: [windowMainPartGroup], activeGroup: windowMainPartGroup });
+		const addedBeside: number[] = [];
+		const { service } = createService(undefined, upcastPartial<IEditorGroupsService>({
+			activeGroup: chatGroup,
+			groups: [windowMainPartGroup, chatGroup],
+			parts: [windowMainPart],
+			mainPart: windowMainPart,
+			addGroup: (location: IEditorGroup | number) => {
+				addedBeside.push(typeof location === 'number' ? location : location.id);
+				return upcastPartial<IEditorGroup>({ id: 3, lock: () => { } });
+			},
+		}));
+
+		const preferred = await service.getPreferredGroup(SIDE_GROUP);
+
+		assert.deepStrictEqual({ preferred: typeof preferred === 'object' ? (preferred as IEditorGroup).id : preferred, addedBeside }, { preferred: 3, addedBeside: [2] });
+	});
+
+	for (const { name, savedUrl, requestedUrl } of [
+		{ name: 'uses the requested URL', savedUrl: 'http://localhost:3000/previous', requestedUrl: 'http://localhost:3000/requested' },
+		{ name: 'normalizes the requested URL', savedUrl: 'http://localhost:3000/requested', requestedUrl: 'localhost:3000/requested' },
+	]) {
+		test(`${name} when the open command reuses an unresolved restored tab`, async () => {
+			const { service, events, creationOptions, instantiationService } = createService();
+			events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+			const input = store.add(service.getOrCreateLazy({
+				id: 'restored', url: savedUrl,
+			}));
+			let openedExisting = false;
+			instantiationService.stub(IEditorService, 'openEditor', async (editor: EditorInput) => {
+				openedExisting = editor === input;
+				await input.resolve();
+				return undefined;
+			});
+
+			await instantiationService.invokeFunction(CommandsRegistry.getCommand(BrowserViewCommandId.Open)!.handler, {
+				url: requestedUrl,
+				reuseUrlFilter: 'http://localhost:3000/**',
+			});
+
+			assert.deepStrictEqual({
+				openedExisting,
+				createdUrls: creationOptions.map(options => options.initialUrl),
+				url: input.model?.url,
+			}, {
+				openedExisting: true,
+				createdUrls: ['http://localhost:3000/requested'],
+				url: 'http://localhost:3000/requested',
+			});
+		});
+	}
 
 	test('preserves restored metadata on early disposal without overriding fresh native state', async () => {
 		const { service, events } = createService();
@@ -327,7 +427,7 @@ suite('BrowserViewWorkbenchService', () => {
 		const local = store.add(service.getOrCreateLazy({ id: 'local', session: {} }));
 		const [remoteModel, , fallbackModel] = await Promise.all([remote.resolve(), workspaceless.resolve(), fallback.resolve(), local.resolve()]);
 		const automationHold = await service.acquireNetwork({ authority: 'legacy' });
-		const networkProxies = windowConfigurations.at(-1)?.networkProxies;
+		const networkProxies = proxiesOf(windowConfigurations.at(-1));
 		remote.dispose();
 		workspaceless.dispose();
 		automationHold.dispose();
@@ -536,6 +636,49 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	});
 
+	test('opens local files of a remote workspace in an isolated session on the local network', async () => {
+		const { service, events, creationOptions } = createService('ssh-remote+host');
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+
+		const local = store.add(service.getOrCreateLazy({ id: 'local', associatedResource: URI.file('/Users/me/index.html') }));
+		const remote = store.add(service.getOrCreateLazy({ id: 'remote', associatedResource: URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/home/index.html' }) }));
+		await local.resolve();
+		await remote.resolve();
+
+		assert.deepStrictEqual(creationOptions.map(options => options.session), [
+			{ scope: BrowserViewStorageScope.Ephemeral },
+			{ scope: BrowserViewStorageScope.Workspace, network: { authority: 'ssh-remote+host' } },
+		]);
+	});
+
+	test('opens local files through the open file action on the local network without an associated resource and restores their session', async () => {
+		const { service, events, creationOptions, instantiationService } = createService('ssh-remote+host');
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		instantiationService.stub(IEditorService, 'openEditor', async (editor: IResourceEditorInput) => {
+			const id = BrowserViewUri.getId(editor.resource);
+			assert.ok(id);
+			const input = store.add(service.getOrCreateLazy({ id, ...reviveBrowserEditorViewState(editor.options?.viewState) }));
+			await input.resolve();
+			const restored = store.add(service.getOrCreateLazy({ ...input.serialize(), id: 'restored' }));
+			await restored.resolve();
+			return undefined;
+		});
+
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(BrowserViewCommandId.OpenFile)!.handler, URI.file('/Users/me/index.html'));
+
+		assert.deepStrictEqual(creationOptions.map(options => ({
+			session: options.session,
+			associatedResource: options.associatedResource,
+			initialUrl: options.initialUrl,
+		})), Array(2).fill({
+			session: { scope: BrowserViewStorageScope.Ephemeral },
+			associatedResource: undefined,
+			initialUrl: 'file:///Users/me/index.html',
+		}));
+	});
+
 	function proxy(port: number): ITunnelProxyInfo {
 		return { url: `https://127.0.0.1:${port}`, host: '127.0.0.1', port, credentials: { username: 'u', password: `p${port}` }, certFingerprint: `f${port}` };
 	}
@@ -598,7 +741,7 @@ suite('BrowserViewWorkbenchService', () => {
 				void acquired.complete(proxy(1));
 			}
 			await model;
-			results[phase] = { createdBeforeReplacement, networkProxies: windowConfigurations.at(-1)?.networkProxies };
+			results[phase] = { createdBeforeReplacement, networkProxies: proxiesOf(windowConfigurations.at(-1)) };
 		}
 
 		const expected = { createdBeforeReplacement: 0, networkProxies: { 'ssh-remote+host': proxy(2) } };
@@ -628,7 +771,7 @@ suite('BrowserViewWorkbenchService', () => {
 		store.add(service.registerNetworkProxyProvider({ acquire: async () => proxy(2), release: () => { } }));
 		await timeout(0);
 
-		assert.deepStrictEqual(windowConfigurations.at(-1)?.networkProxies, { 'ssh-remote+host': proxy(2) });
+		assert.deepStrictEqual(proxiesOf(windowConfigurations.at(-1)), { 'ssh-remote+host': proxy(2) });
 	});
 
 	test('releases a proxy whose last view closed while it was published', async () => {
@@ -647,9 +790,28 @@ suite('BrowserViewWorkbenchService', () => {
 		published.complete();
 		await assert.rejects(model);
 
-		assert.deepStrictEqual({ calls, networkProxies: windowConfigurations.at(-1)?.networkProxies }, {
+		assert.deepStrictEqual({ calls, networkProxies: proxiesOf(windowConfigurations.at(-1)) }, {
 			calls: ['acquire ssh-remote+host', 'release ssh-remote+host'],
 			networkProxies: {},
+		});
+	});
+
+	test('publishes the trusted roots of each remote with its network', async () => {
+		const { service, events, windowConfigurations, instantiationService } = createService('ssh-remote+host');
+		instantiationService.stub(IWorkspaceTrustManagementService, 'getTrustedUris', () => [
+			URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/repo' }),
+			URI.file('/local'),
+		]);
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		store.add(service.registerNetworkProxyProvider({ acquire: async () => proxy(1), release: () => { } }));
+		const input = store.add(service.getOrCreateLazy({ id: 'page', url: 'http://page/' }));
+		await input.resolve();
+
+		const { remoteNetworks, trustedLocalFileRoots, trustAllLocalFiles } = windowConfigurations.at(-1)!;
+		assert.deepStrictEqual({ remoteNetworks, trustedLocalFileRoots, trustAllLocalFiles }, {
+			remoteNetworks: { 'ssh-remote+host': { proxy: proxy(1), scheme: 'vscode-remote', trustedRoots: ['/repo'], trustAllFiles: true, caseSensitive: true } },
+			trustedLocalFileRoots: [URI.file('/home/test/.copilot').fsPath, instantiationService.get(IWorkspaceContextService).getWorkspace().folders[0].uri.fsPath, URI.file('/local').fsPath],
+			trustAllLocalFiles: true,
 		});
 	});
 });

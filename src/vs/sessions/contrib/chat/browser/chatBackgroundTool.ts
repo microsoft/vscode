@@ -25,9 +25,9 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { chatBackgroundImageExtensions, ChatBackgroundImageLayout, chatBackgroundImageLayoutValues, chatBackgroundPresets as sessionsChatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset } from '../../../services/chatBackground/browser/chatBackgroundService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../common/constants.js';
+import { chatBackgroundImageExtensions, ChatBackgroundImageLayout, chatBackgroundImageLayoutValues, chatBackgroundPresets as sessionsChatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 export const SetChatBackgroundToolId = 'vscode_setChatBackground';
 export const SetChatBackgroundToolReferenceName = 'setChatBackground';

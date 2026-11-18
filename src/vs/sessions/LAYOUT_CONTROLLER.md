@@ -10,11 +10,11 @@ This document specifies how the session layout controllers manage workbench layo
 | `contrib/layout/browser/desktopLayoutController.ts` (`DesktopLayoutController`) | Non-phone Editor/Details composition and lifecycle strategies | [DESKTOP.md](DESKTOP.md) |
 | `contrib/layout/browser/mobileSessionLayoutController.ts` (`MobileLayoutController`) | Phone adaptation without auxiliary-bar automation | [mobileSessionLayoutController.md](contrib/layout/browser/mobileSessionLayoutController.md), `M1`–`M2` |
 
-The file-level `B*` companion rules describe the legacy/default base behavior. Experimental desktop ownership extends that behavior as specified here: focused-chat scope replaces multi-session suppression, and panel visibility and panel-view memory are independent rather than mutually exclusive.
+The file-level `B*` companion rules describe the legacy base behavior. Experimental desktop ownership extends that behavior as specified here: focused-chat scope replaces multi-session suppression, and panel visibility and panel-view memory are independent rather than mutually exclusive.
 
 All non-phone Agents windows use `DesktopWorkbench` with `DesktopLayoutController`. Phone windows use `MobileWorkbench` with `MobileLayoutController`. `contrib/layout/browser/sessions.layout.contribution.ts` selects the controller from the concrete workbench presentation constructed at startup.
 
-`sessions.experimental.layoutScope` is an experimental window setting with modes `session-shared` (default), `chat-shared`, and `chat`. Its effective mode is fixed at startup; changing it requires manual Reload Window without a reload notification. Boolean values are not supported. Only a window constructed with the desktop presentation can enable chat-owned layout. A startup desktop window suspends experimental layout while its runtime viewport is phone, retaining saved layout state. Returning to desktop resumes the focused owner's state. A startup phone window and disabled mode retain their existing behavior; viewport changes do not enable the experiment in a startup phone window. Terminal behavior is independent of this setting and remains unchanged in every mode.
+`sessions.experimental.layoutScope` is an experimental window setting with modes `session-shared`, `chat-shared`, and `chat` (default). Its effective mode is fixed at startup; changing it requires manual Reload Window without a reload notification. Boolean values are not supported. Only a window constructed with the desktop presentation can enable chat-owned layout. A startup desktop window suspends experimental layout while its runtime viewport is phone, retaining saved layout state. Returning to desktop resumes the focused owner's state. A startup phone window and disabled mode retain their existing behavior; viewport changes do not enable the experiment in a startup phone window. Terminal behavior is independent of this setting and remains unchanged in every mode.
 
 `DesktopLayoutController` extends `BaseLayoutController` and composes lifecycle strategies for Draft, Existing, and Quick Chat sessions. Shared tab, detail, and visibility mechanics live in coordinators rather than separate contribution controllers. Desktop policy stays in that controller, its strategies, or its coordinators rather than being injected into editor-part construction; in particular, editor-part construction must not acquire `ISessionsService`, because the Sessions service graph already depends on editor parts.
 
@@ -53,7 +53,7 @@ The layout setting does not change terminal creation, task reuse, activation, cl
 
 Chat-layout deletion and promotion affect layout records only. Terminal cleanup continues to follow the existing session archive/removal and replacement rules, including their protection, confirmation, veto, and error handling.
 
-All state flows from the `activeSession` and `activeChat` observables. Events notify part, editor, and confirmed lifecycle changes rather than supplying a parallel state model.
+All state flows from the session and chat observables of the main window's host (`ISessionHost.session` and `ISessionHost.chat`) and the grid's panes. Events notify part, editor, and confirmed lifecycle changes rather than supplying a parallel state model.
 
 ## 2. Session switches
 

@@ -26,7 +26,7 @@ import { ChatRequestQueueKind, IChatSendRequestOptions, IChatService } from '../
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { MockChatEditingSession } from '../mockChatEditingSession.js';
 import { ChatModel, ChatRequestModel, ChatResponseModelChangeReason, IChatRequestDisablement, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ChatResponseViewModel, ChatViewModel, getStickyScrollTargetItem, IChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatResponseViewModel, ChatViewModel, getStickyScrollTargetItem, IChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 
 interface ITestChatViewModelItem {
 	readonly id: string;
@@ -50,6 +50,7 @@ suite('ChatViewModel', () => {
 				{ id: 'pending-steering', pendingKind: ChatRequestQueueKind.Steering },
 				{ id: 'pending-divider-queued', kind: 'pendingDivider' },
 				{ id: 'pending-queued', pendingKind: ChatRequestQueueKind.Queued },
+				{ id: 'scheduled', kind: 'scheduledRequest' },
 			])?.id,
 			getStickyScrollTargetItem([pendingOnly])?.id,
 			getStickyScrollTargetItem(emptyItems)?.id,
@@ -102,7 +103,7 @@ suite('ChatViewModel', () => {
 			return model.addRequest({ text: id, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, id, undefined, undefined, undefined, undefined, undefined, hidden, undefined, requestHidden);
 		}
 
-		test('latest request preview excludes older exchanges, hidden turns and queued requests', () => {
+		test('latest request preview includes queued and steering requests without older or hidden turns', () => {
 			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, { latestRequestOnly: true }));
 			const snapshot = () => viewModel.getItems().map(item => isRequestVM(item) ? `request:${item.id}` : isResponseVM(item) ? `response:${item.requestId}` : item.id);
@@ -111,15 +112,23 @@ suite('ChatViewModel', () => {
 			add(model, 'latest');
 			add(model, 'hidden', true);
 			const queued = new ChatRequestModel({ session: model, message: { text: 'queued', parts: [] }, variableData: { variables: [] }, restoredId: 'queued' });
+			const steering = new ChatRequestModel({ session: model, message: { text: 'steering', parts: [] }, variableData: { variables: [] }, restoredId: 'steering' });
 			model.addPendingRequest(queued, ChatRequestQueueKind.Queued, {});
-			model.setPendingRequestHandoffs([queued]);
+			model.addPendingRequest(steering, ChatRequestQueueKind.Steering, {});
+			model.setPendingRequestHandoffs([steering]);
 			const latest = snapshot();
+			model.removePendingRequest(steering.id);
+			const duringHandoff = snapshot();
 			add(model, 'new');
 			const afterNewRequest = snapshot();
-			assert.deepStrictEqual({ empty, latest, afterNewRequest }, {
+			model.setPendingRequestHandoffs([]);
+			model.removePendingRequest(queued.id);
+			assert.deepStrictEqual({ empty, latest, duringHandoff, afterNewRequest, afterQueue: snapshot() }, {
 				empty: [],
-				latest: ['request:latest', 'response:latest'],
-				afterNewRequest: ['request:new', 'response:new'],
+				latest: ['request:latest', 'response:latest', 'pending-divider-steering', 'request:steering', 'pending-divider-queued', 'request:queued'],
+				duringHandoff: ['request:latest', 'response:latest', 'pending-divider-steering', 'request:steering', 'pending-divider-queued', 'request:queued'],
+				afterNewRequest: ['request:new', 'response:new', 'pending-divider-steering', 'request:steering', 'pending-divider-queued', 'request:queued'],
+				afterQueue: ['request:new', 'response:new'],
 			});
 		});
 
@@ -262,6 +271,31 @@ suite('ChatViewModel', () => {
 				queued: [ChatRequestQueueKind.Queued],
 				steering: [ChatRequestQueueKind.Steering],
 				none: [],
+			});
+		});
+
+		test('scheduled messages render after the immediate queue without entering it', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			model.addPendingRequest(add(model, 'queued'), ChatRequestQueueKind.Queued, {} as IChatSendRequestOptions);
+			const request = { id: 'later', text: 'Follow up', description: 'Tomorrow', attachments: [], actions: [] };
+			viewModel.setScheduledRequests([request]);
+			const first = viewModel.getItems();
+			const before = {
+				dividers: first.filter(isPendingDividerVM).map(item => item.dividerKind),
+				scheduled: first.filter(isScheduledRequestVM).map(item => item.text),
+				queued: model.getPendingRequests().map(item => item.request.id),
+			};
+			viewModel.setScheduledRequests([{ ...request, description: 'Next week' }]);
+			const updated = viewModel.getItems().find(isScheduledRequestVM)!;
+			const changed = updated.dataId !== first.find(isScheduledRequestVM)!.dataId;
+			viewModel.setScheduledRequests([]);
+			assert.deepStrictEqual({
+				before, changed, updatedDescription: updated.description,
+				remaining: viewModel.getItems().filter(isPendingDividerVM).map(item => item.dividerKind),
+			}, {
+				before: { dividers: [ChatRequestQueueKind.Queued, 'scheduled'], scheduled: ['Follow up'], queued: ['queued'] },
+				changed: true, updatedDescription: 'Next week', remaining: [ChatRequestQueueKind.Queued],
 			});
 		});
 

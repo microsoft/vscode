@@ -415,6 +415,55 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	suite('Basic rendering', () => {
+		for (const restored of [false, true]) {
+			test(`shows a failed subagent without putting its diagnostics in the pill (restored=${restored})`, async () => {
+				const invocation = new ChatToolInvocation({
+					toolSpecificData: { kind: 'subagent', description: 'Design review', chatResource: 'ahp-chat:/review', isActive: false },
+				}, { id: 'task', displayName: 'Task', modelDescription: 'Review', source: ToolDataSource.Internal }, 'failed-review', undefined, {});
+				await invocation.didExecuteTool({ content: [], toolResultError: 'Full provider diagnostics belong in the child chat' });
+				const part = createPart(restored ? invocation.toJSON() : invocation, createMockRenderContext());
+				const pill = getSubagentPill(part);
+				assert.ok(pill);
+
+				assert.deepStrictEqual({
+					failed: pill.classList.contains('chat-subagent-failed'),
+					label: pill.querySelector('.chat-subagent-pill-failure:not(.hidden)')?.textContent,
+					errorIcon: !!pill.querySelector('.codicon-error'),
+					accessibleFailure: getPillButton(pill).getAttribute('aria-label')?.includes('Subagent failed'),
+					exposedDiagnostics: pill.textContent?.includes('Full provider diagnostics'),
+				}, {
+					failed: true, label: 'Failed', errorIcon: true, accessibleFailure: true, exposedDiagnostics: false,
+				});
+			});
+		}
+
+		test('child recovery clears the failure indicator despite the original task error', async () => {
+			const invocation = new ChatToolInvocation({
+				toolSpecificData: { kind: 'subagent', description: 'Design review', chatResource: 'ahp-chat:/review', isActive: false, isError: true },
+			}, { id: 'task', displayName: 'Task', modelDescription: 'Review', source: ToolDataSource.Internal }, 'failed-review', undefined, {});
+			await invocation.didExecuteTool({ content: [], toolResultError: 'The original task failed' });
+			const part = createPart(invocation, createMockRenderContext());
+			const pill = getSubagentPill(part);
+			assert.ok(pill);
+			const snapshot = () => ({
+				failed: pill.classList.contains('chat-subagent-failed'),
+				running: pill.classList.contains('chat-subagent-running'),
+				failureHidden: pill.querySelector('.chat-subagent-pill-failure')?.classList.contains('hidden'),
+				accessibleFailure: getPillButton(pill).getAttribute('aria-label')?.includes('Subagent failed'),
+			});
+			const failed = snapshot();
+			invocation.toolSpecificData = { kind: 'subagent', description: 'Design review', chatResource: 'ahp-chat:/review', isActive: true, isError: false };
+			invocation.notifyToolSpecificDataChanged();
+			const retrying = snapshot();
+			invocation.toolSpecificData.isActive = false;
+			invocation.notifyToolSpecificDataChanged();
+			assert.deepStrictEqual({ failed, retrying, recovered: snapshot() }, {
+				failed: { failed: true, running: false, failureHidden: false, accessibleFailure: true },
+				retrying: { failed: false, running: true, failureHidden: true, accessibleFailure: false },
+				recovered: { failed: false, running: false, failureHidden: true, accessibleFailure: false },
+			});
+		});
+
 		test('expanded subagents omit their working row when the parent owns progress', () => {
 			const snapshots = [false, true].map(suppressProgressShimmer => {
 				const part = createPart(createMockToolInvocation(), { ...createMockRenderContext(), suppressProgressShimmer });
@@ -4470,6 +4519,7 @@ suite('ChatSubagentContentPart', () => {
 				startedAt: 1000,
 				duration: 5000,
 				isActive: false,
+				isError: false,
 			});
 		});
 

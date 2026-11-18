@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -27,8 +27,42 @@ import { openContextMenu } from './terminalContextMenu.js';
 import { ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ITerminalProfile, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IActionProvider } from '../../../../base/browser/ui/dropdown/dropdown.js';
+
+export class TerminalEditorDropdownWithPrimaryActionViewItem extends DropdownWithPrimaryActionViewItem {
+	readonly actionDisposables = this._register(new DisposableStore());
+	private _onDidDispose?: () => void;
+
+	constructor(
+		primaryAction: MenuItemAction,
+		dropdownAction: IAction,
+		dropdownMenuActions: readonly IAction[] | IActionProvider,
+		className: string,
+		options: IDropdownWithPrimaryActionViewItemOptions | undefined,
+		@IContextMenuService contextMenuProvider: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
+	) {
+		super(primaryAction, dropdownAction, dropdownMenuActions, className, options, contextMenuProvider, keybindingService, notificationService, contextKeyService, themeService, accessibilityService);
+	}
+
+	setOnDidDispose(fn: () => void): void {
+		this._onDidDispose = fn;
+	}
+
+	override dispose(): void {
+		this._onDidDispose?.();
+		super.dispose();
+	}
+}
 
 export class TerminalEditor extends EditorPane {
 
@@ -45,11 +79,9 @@ export class TerminalEditor extends EditorPane {
 
 	private _cancelContextMenu: boolean = false;
 
-	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
+	private readonly _newDropdowns: Set<TerminalEditorDropdownWithPrimaryActionViewItem> = new Set();
 
 	private readonly _sessionDisposables = this._register(new DisposableStore());
-
-	private readonly _disposableStore = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
@@ -71,6 +103,12 @@ export class TerminalEditor extends EditorPane {
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
+		this._register(toDisposable(() => {
+			for (const dropdown of Array.from(this._newDropdowns)) {
+				dropdown.dispose();
+			}
+			this._newDropdowns.clear();
+		}));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -113,7 +151,7 @@ export class TerminalEditor extends EditorPane {
 		this._editorInput?.terminalInstance?.focus(true);
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line ts-eslint-js/naming-convention
 	protected createEditor(parent: HTMLElement): void {
 		this._editorInstanceElement = parent;
 		this._overflowGuardElement = dom.$('.terminal-overflow-guard.terminal-editor');
@@ -155,9 +193,11 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
-		this._disposableStore.clear();
-		const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
-		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
+		for (const dropdown of this._newDropdowns) {
+			dropdown.actionDisposables.clear();
+			const actions = getTerminalActionBarArgs(TerminalLocation.Editor, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, dropdown.actionDisposables);
+			dropdown.update(actions.dropdownAction, actions.dropdownMenuActions);
+		}
 	}
 
 	layout(dimension: dom.Dimension): void {
@@ -179,11 +219,21 @@ export class TerminalEditor extends EditorPane {
 			case TerminalCommandId.CreateTerminalEditorSameGroup: {
 				if (action instanceof MenuItemAction) {
 					const location = { viewColumn: ACTIVE_GROUP };
-					this._disposableStore.clear();
-					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
-					this._newDropdown.value = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
-					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
-					return this._newDropdown.value;
+					const actionDisposables = new DisposableStore();
+					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, actionDisposables);
+					const dropdown = this._instantiationService.createInstance(
+						TerminalEditorDropdownWithPrimaryActionViewItem,
+						action,
+						actions.dropdownAction,
+						actions.dropdownMenuActions,
+						actions.className,
+						{ hoverDelegate: options.hoverDelegate }
+					);
+					dropdown.actionDisposables.add(actionDisposables);
+					dropdown.update(actions.dropdownAction, actions.dropdownMenuActions);
+					dropdown.setOnDidDispose(() => this._newDropdowns.delete(dropdown));
+					this._newDropdowns.add(dropdown);
+					return dropdown;
 				}
 			}
 		}

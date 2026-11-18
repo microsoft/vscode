@@ -31,6 +31,7 @@ interface IWorkflowJob {
 	readonly needs?: string | readonly string[];
 	readonly if?: string;
 	readonly uses?: string;
+	readonly 'runs-on'?: string | readonly string[];
 	readonly with?: Record<string, unknown>;
 	readonly env?: Record<string, unknown>;
 	readonly outputs?: Record<string, string>;
@@ -76,21 +77,33 @@ function skipOutput(test: ITestJob): string | undefined {
 	return typeof condition === 'string' ? /needs\.changes\.outputs\.(?<output>[\w-]+) == 'true'/.exec(condition)?.groups?.output : undefined;
 }
 
-async function detect(files: readonly { filename: string; previous_filename?: string; status?: string; patch?: string }[], expectedCount = files.length, failure?: Error) {
+async function detect(files: readonly { filename: string; previous_filename?: string; status?: string; patch?: string }[], expectedCount = files.length, failure?: Error, mergeGroup?: { readonly base_ref: string; readonly head_sha: string }) {
 	const outputs: Record<string, string> = {};
 	await detectChanges({
 		paginate: async (_method, parameters) => {
+			assert.ok(!mergeGroup, 'a merge group lists the files of a comparison');
 			assert.equal(parameters.per_page, 100);
 			if (failure) {
 				throw failure;
 			}
 			return files;
 		},
-		rest: { pulls: { listFiles: {} } },
+		rest: {
+			pulls: { listFiles: {} },
+			repos: {
+				compareCommitsWithBasehead: async parameters => {
+					assert.equal(parameters.basehead, `main...${mergeGroup?.head_sha}`);
+					if (failure) {
+						throw failure;
+					}
+					return { data: { files } };
+				},
+			},
+		},
 	}, {
 		repo: { owner: 'microsoft', repo: 'vscode' },
 		issue: { number: 1 },
-		payload: { pull_request: { changed_files: expectedCount } },
+		payload: mergeGroup ? { merge_group: mergeGroup } : { pull_request: { changed_files: expectedCount } },
 	}, {
 		info: () => { },
 		warning: () => { },
@@ -163,11 +176,12 @@ suite('Detect Changes', () => {
 			['build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts', ['true', 'true', 'true']],
 			['.vscode/settings.json', ['false', 'false', 'false']],
 			['.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts', ['false', 'false', 'false']],
-			['.vscode/extensions/vscode-extras/package.json', ['false', 'false', 'false']],
+			['.vscode/extensions/vscode-pr-pinger/package.json', ['false', 'false', 'false']],
 			['extensions/vscode-api-tests/testWorkspace/.vscode/settings.json', ['false', 'true', 'true']],
 			['eslint.config.js', ['false', 'false', 'false']],
 			['.eslint-plugin-local/code-no-any-casts.ts', ['false', 'false', 'false']],
 			['test/sanity/src/cli.test.ts', ['false', 'false', 'false']],
+			['.github/rulesets/main-merge-queue.json', ['false', 'false', 'false']],
 			['test/smoke/src/main.ts', ['true', 'true', 'true']],
 			['package.json', ['true', 'true', 'true']],
 		];
@@ -230,7 +244,7 @@ suite('Detect Changes', () => {
 				{ filename: '.vscode/launch.json' },
 				{ filename: '.vscode/tasks.json' },
 				{ filename: '.vscode/extensions/vscode-selfhost-test-provider/src/extension.ts' },
-				{ filename: '.vscode/extensions/vscode-extras/package-lock.json' },
+				{ filename: '.vscode/extensions/vscode-pr-pinger/package.json' },
 			]),
 			eslintConfiguration: await detect([
 				{ filename: 'eslint.config.js' },
@@ -241,7 +255,7 @@ suite('Detect Changes', () => {
 			]),
 			sanityTests: await detect([
 				{ filename: 'test/sanity/src/cli.test.ts' },
-				{ filename: 'test/sanity/pnpm-lock.yaml' },
+				{ filename: 'test/sanity/package.json' },
 			]),
 		}, {
 			workspaceConfiguration: onlyCompileAndHygiene,
@@ -293,6 +307,25 @@ suite('Detect Changes', () => {
 		assert.deepStrictEqual(coreTestOutputs.map(output => empty[output]), ['true', 'true', 'true']);
 	});
 
+	test('in the merge queue, the checks compare the merge group with where it forks from the base branch, and all run when GitHub lists only part of its files', async () => {
+		const mergeGroup = { base_ref: 'refs/heads/main', head_sha: 'h'.repeat(40) };
+		const [documentation, sources, truncated] = await Promise.all([
+			detect([{ filename: 'README.md' }], undefined, undefined, mergeGroup),
+			detect([{ filename: 'src/vs/base/common/async.ts' }], undefined, undefined, mergeGroup),
+			// GitHub lists at most 300 files of a comparison.
+			detect(Array.from({ length: 300 }, (_, i) => ({ filename: `docs/${i}.md` })), undefined, undefined, mergeGroup),
+		]);
+		assert.deepStrictEqual({
+			documentation: coreTestOutputs.map(output => documentation[output]),
+			sources: coreTestOutputs.map(output => sources[output]),
+			truncated: Object.values(truncated).every(value => value === 'true'),
+		}, {
+			documentation: ['false', 'false', 'false'],
+			sources: ['true', 'true', 'true'],
+			truncated: true,
+		});
+	});
+
 	test('the unit tests run for every built-in extension whose files the core tests read', async () => {
 		const extensions = extensionsReadByCoreTests();
 		assert.ok(extensions.has('theme-defaults'), 'the scan should find the component fixture themes');
@@ -310,14 +343,14 @@ suite('Detect Changes', () => {
 		const outputs = Object.keys(await detect([{ filename: 'README.md' }])).sort();
 		const action = load(readFileSync(path.join(repositoryRoot, '.github/actions/detect-changes/action.yml'), 'utf8')) as { readonly outputs: Record<string, unknown> };
 		assert.deepStrictEqual(Object.keys(action.outputs).sort(), outputs);
-		// The changes job also passes on the outputs of the Agent Host E2E change detection, and combines both for the
-		// Linux and macOS Electron jobs, which also run Agent Host E2E.
-		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason', 'electron-tests'];
+		// The changes job also passes on the outputs of the Agent Host E2E change detection.
+		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason'];
 		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job, and whether
-		// the macOS and Windows test jobs have planned files to run: unit tests (for the Browser ones, browser tests),
-		// node.js integration tests and Agent Host E2E suites.
+		// the test jobs have planned files to run: unit tests (for the Browser ones, browser tests), node.js
+		// integration tests and Agent Host E2E suites.
 		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'];
-		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs].sort());
+		// And the commit that a merge group forks from, for Compile & Hygiene.
+		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs, 'merge-group-base'].sort());
 	});
 
 	test('the Ripple check runs for the pull requests that change ripple, and the planning never fails Detect Changes', () => {
@@ -333,10 +366,9 @@ suite('Detect Changes', () => {
 		});
 	});
 
-	test('the macOS and Windows test jobs run only the planned files, and skip when the plan of a working ripple selects none', () => {
+	test('the test jobs run only the planned files, and skip when the plan of a working ripple selects none', () => {
 		const { jobs } = loadWorkflow();
 		const tests = testJobs();
-		const selected = (output: string) => `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`;
 		const skippedBy = (output: string) => [...tests].filter(([, test]) => skipOutput(test) === output).map(([check]) => check).sort();
 		assert.deepStrictEqual({
 			outputs: ['selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'].map(output => jobs.changes.outputs?.[output]),
@@ -345,15 +377,6 @@ suite('Detect Changes', () => {
 			skippableNodeIntegrationTests: skippedBy('selected-node-integration-tests'),
 			skippableAgentHostE2E: skippedBy('selected-agent-host-e2e'),
 			planned: [...tests].filter(([, test]) => test.job.env?.TEST_SELECTION === 'true').map(([check]) => check).sort(),
-			// The macOS Electron job also runs the extension host tests, so it skips its node.js integration tests and
-			// Agent Host E2E steps instead. Linux and Windows run the node.js integration tests in a job of their own.
-			steps: Object.fromEntries(['Linux / Electron (node.js)', 'macOS / Electron', 'Windows / Electron (node.js)'].map(check => {
-				const test = tests.get(check)!;
-				return [check, {
-					nodeIntegrationTests: resolveInput(test, test.job.env?.NODE_INTEGRATION_TESTS),
-					agentHostE2E: resolveInput(test, test.job.env?.AGENT_HOST_E2E_TESTS),
-				}];
-			})),
 		}, {
 			outputs: [
 				`\${{ steps.detect.outputs.unit-tests == 'true' && steps.ripple.outputs.selects-nothing != 'true' }}`,
@@ -361,23 +384,16 @@ suite('Detect Changes', () => {
 				`\${{ steps.detect.outputs.product-tests == 'true' && steps.ripple.outputs.selects-no-node-integration-tests != 'true' }}`,
 				`\${{ steps.detect-agent-host-e2e.outputs.affected == 'true' && steps.ripple.outputs.selects-no-agent-host-e2e != 'true' }}`,
 			],
-			skippableUnitTests: ['macOS / Electron-Unit', 'Windows / Electron-Unit'].sort(),
-			skippableBrowserUnitTests: ['macOS / Browser-Unit', 'Windows / Browser-Unit'].sort(),
-			skippableNodeIntegrationTests: ['Windows / Electron (node.js)'],
-			skippableAgentHostE2E: ['Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)'],
+			skippableUnitTests: ['Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Windows / Electron-Unit'].sort(),
+			skippableBrowserUnitTests: ['Linux / Browser-Unit', 'Windows / Browser-Unit'].sort(),
+			skippableNodeIntegrationTests: ['Linux / Electron (node.js)', 'Windows / Electron (node.js)'],
+			skippableAgentHostE2E: ['Linux / Agent-Host-E2E', 'Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)'],
 			planned: [
-				'macOS / Electron-Unit', 'macOS / Browser-Unit', 'macOS / Electron',
+				'Linux / Electron-Unit (electron)', 'Linux / Electron-Unit (node)', 'Linux / Browser-Unit', 'Linux / Electron (node.js)',
+				'Linux / Agent-Host-E2E',
 				'Windows / Electron-Unit', 'Windows / Browser-Unit', 'Windows / Electron (node.js)',
 				'Windows / Agent-Host-E2E (shard 1/3)', 'Windows / Agent-Host-E2E (shard 2/3)', 'Windows / Agent-Host-E2E (shard 3/3)',
 			].sort(),
-			steps: {
-				// Linux runs every node.js integration test, and Agent Host E2E in its own job.
-				'Linux / Electron (node.js)': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
-				'macOS / Electron': { nodeIntegrationTests: selected('selected-node-integration-tests'), agentHostE2E: selected('selected-agent-host-e2e') },
-				// Windows skips the whole job when the plan selects no node.js integration test, and runs Agent Host E2E
-				// in its own jobs.
-				'Windows / Electron (node.js)': { nodeIntegrationTests: undefined, agentHostE2E: undefined },
-			},
 		});
 	});
 
@@ -394,8 +410,9 @@ suite('Detect Changes', () => {
 		const { jobs } = loadWorkflow();
 		const tests = testJobs();
 		const declaredOutputs = Object.keys(jobs.changes.outputs ?? {});
-		// The calling jobs always run, and the jobs of their reusable workflows skip (see the test jobs in pr.yml).
-		const callsOn = (name: string) => ({ name, needs: 'changes', if: '${{ !cancelled() }}' });
+		// The calling jobs always run, and the jobs of their reusable workflows skip (see the test jobs in pr.yml), except
+		// the Windows one, which pull requests to main skip, as the merge queue runs it.
+		const callsOn = (name: string, condition = '!cancelled()') => ({ name, needs: 'changes', if: `\${{ ${condition} }}` });
 		const skipsWhenUnaffected = (output: string) => `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`;
 		assert.deepStrictEqual({
 			callers: Object.fromEntries(Object.entries(jobs).filter(([, job]) => testWorkflow.test(job.uses ?? '')).map(([id, job]) => [id, { name: job.name, needs: job.needs, if: job.if }])),
@@ -405,31 +422,23 @@ suite('Detect Changes', () => {
 			callers: {
 				'linux-rust-tests': callsOn('Linux'),
 				'linux-tests': callsOn('Linux'),
-				'macos-tests': callsOn('macOS'),
-				'windows-tests': callsOn('Windows'),
+				'windows-tests': callsOn('Windows', `!cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main')`),
 			},
 			checks: {
 				'Linux / CLI': skipsWhenUnaffected('cli'),
 				'Linux / Copilot Shim': skipsWhenUnaffected('copilot-shim'),
-				'Linux / Electron-Unit (electron)': skipsWhenUnaffected('unit-tests'),
-				'Linux / Electron-Unit (node)': skipsWhenUnaffected('unit-tests'),
-				'Linux / Electron (node.js)': skipsWhenUnaffected('product-tests'),
+				'Linux / Electron-Unit (electron)': skipsWhenUnaffected('selected-unit-tests'),
+				'Linux / Electron-Unit (node)': skipsWhenUnaffected('selected-unit-tests'),
+				'Linux / Electron (node.js)': skipsWhenUnaffected('selected-node-integration-tests'),
 				'Linux / Electron (extension host)': skipsWhenUnaffected('product-tests'),
-				'Linux / Agent-Host-E2E': skipsWhenUnaffected('agent-host-e2e'),
+				'Linux / Agent-Host-E2E': skipsWhenUnaffected('selected-agent-host-e2e'),
 				'Linux / Electron-Smoke (shard 1/3)': skipsWhenUnaffected('product-tests'),
 				'Linux / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
 				'Linux / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
-				'Linux / Browser-Unit': skipsWhenUnaffected('unit-tests'),
+				'Linux / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
 				'Linux / Browser': skipsWhenUnaffected('browser-integration'),
 				'Linux / Remote (integration)': skipsWhenUnaffected('product-tests'),
 				'Linux / Remote (smoke)': skipsWhenUnaffected('product-tests'),
-				'macOS / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
-				'macOS / Electron': skipsWhenUnaffected('electron-tests'),
-				'macOS / Electron-Smoke (shard 1/2)': skipsWhenUnaffected('product-tests'),
-				'macOS / Electron-Smoke (shard 2/2)': skipsWhenUnaffected('product-tests'),
-				'macOS / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
-				'macOS / Browser': skipsWhenUnaffected('browser-integration'),
-				'macOS / Remote': skipsWhenUnaffected('product-tests'),
 				'Windows / Electron-Unit': skipsWhenUnaffected('selected-unit-tests'),
 				'Windows / Electron (node.js)': skipsWhenUnaffected('selected-node-integration-tests'),
 				'Windows / Electron (extension host)': skipsWhenUnaffected('product-tests'),
@@ -439,6 +448,7 @@ suite('Detect Changes', () => {
 				'Windows / Electron-Smoke (shard 1/3)': skipsWhenUnaffected('product-tests'),
 				'Windows / Electron-Smoke (shard 2/3)': skipsWhenUnaffected('product-tests'),
 				'Windows / Electron-Smoke (shard 3/3)': skipsWhenUnaffected('product-tests'),
+				'Windows / Electron-Smoke (WSL)': skipsWhenUnaffected('product-tests'),
 				'Windows / Browser-Unit': skipsWhenUnaffected('selected-browser-unit-tests'),
 				'Windows / Browser (integration)': skipsWhenUnaffected('browser-integration'),
 				'Windows / Browser (smoke)': skipsWhenUnaffected('browser-integration'),
@@ -475,6 +485,25 @@ suite('Detect Changes', () => {
 			{ id: 'monaco-editor', name: 'Monaco Editor', needs: 'changes', if: skipsWhenUnaffected('monaco-editor'), uses: undefined },
 			{ id: 'telemetry', name: 'Telemetry', needs: 'changes', if: skipsWhenUnaffected('telemetry'), uses: undefined },
 		]);
+	});
+
+	test('pull requests to main skip the Windows jobs, which the merge queue runs, and the merge queue and pull requests to release branches run on dedicated runners', () => {
+		const { jobs } = loadWorkflow();
+		const runner = (os: string) => `\${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-${os}-8-core-merge-queue' || 'vscode-large-runners-${os}-8-core' }}`;
+		const runsOn = [
+			...Object.values(jobs).map(job => job['runs-on']),
+			...[...testJobs().values()].map(test => resolveInput(test, test.job['runs-on'])),
+			...Object.values(loadWorkflow('component-fixtures.yml').jobs).map(job => job['runs-on']),
+		].filter(value => value !== undefined);
+		assert.deepStrictEqual({
+			// Pull requests to release branches, which have no merge queue, run them.
+			skippedByPullRequestsToMain: Object.entries(jobs).filter(([, job]) => job.if?.includes(`(github.event_name == 'merge_group' || github.base_ref != 'main')`)).map(([id]) => id),
+			// Windows / Electron-Smoke (WSL) runs on its 1ES pool.
+			runners: [...new Set(runsOn.filter(value => typeof value === 'string'))].sort(),
+		}, {
+			skippedByPullRequestsToMain: ['windows-tests', 'copilot-windows-tests', 'chat-lib-windows-tests'],
+			runners: [runner('ubuntu'), runner('windows')].sort(),
+		});
 	});
 
 	test('PR Gate reports the result of every other job of the workflow', () => {

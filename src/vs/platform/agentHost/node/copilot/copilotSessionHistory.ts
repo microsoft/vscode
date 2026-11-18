@@ -14,6 +14,13 @@ import { ResponsePartKind, ToolCallStatus, ToolResultContentType, type ToolCallC
 import { parseSpilledShellCompletion } from './copilotNonPtyShellTerminals.js';
 import { isShellTool } from './copilotToolDisplay.js';
 
+/**
+ * Persisted event types that history reconstruction never reads. Each page is filtered as it arrives so the
+ * reconstruction does not hold them all at once: hook and permission events repeat tool arguments and results,
+ * including binary data the runtime resolves inline, and can make up most of a long session's log.
+ */
+const unusedHistoryEventTypes: ReadonlySet<string> = new Set(['system.message', 'hook.start', 'hook.end', 'permission.requested', 'permission.completed']);
+
 /** Reads a complete backward-paged snapshot from either the live or persisted SDK event log. */
 export async function readCopilotSessionEvents(readPage: (cursor: string | undefined) => ReturnType<CopilotClient['rpc']['sessions']['readPersistedEvents']>, token: CancellationToken): Promise<SessionEvent[]> {
 	const pages: SessionEvent[][] = [];
@@ -33,7 +40,7 @@ export async function readCopilotSessionEvents(readPage: (cursor: string | undef
 		if (page.hasMore && (!page.cursor || seenCursors.has(page.cursor))) {
 			throw new Error(localize('copilot.invalidHistoryCursor', "The Copilot runtime returned an invalid history cursor. Reopen the session to try again."));
 		}
-		pages.push(page.events.filter(event => event.type !== 'system.message').map(event => {
+		pages.push(page.events.filter(event => !unusedHistoryEventTypes.has(event.type)).map(event => {
 			if (event.type !== 'assistant.message') {
 				return event;
 			}

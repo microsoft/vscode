@@ -43,7 +43,7 @@ import { isUntitledSessionId } from '../../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
-import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../../common/delegationSummaryService';
 import { LocalSession, Session, SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
 import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
@@ -473,15 +473,38 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return joinPath(userDataPath, 'agentSessionData');
 	}
 
-	private async _getAgentHostOwnedSessionIds(dataDir: URI | undefined): Promise<ReadonlySet<string>> {
+	private async _getAgentHostOwnedSessionIds(dataDir: URI | undefined, sessionIds: readonly string[]): Promise<ReadonlySet<string>> {
 		if (!dataDir) {
 			return new Set();
 		}
 		try {
 			const entries = await this.fileSystem.readDirectory(dataDir);
-			return new Set(entries
+			const directories = new Set(entries
 				.filter(([, type]) => (type & FileType.Directory) !== 0)
 				.map(([name]) => name));
+			const candidates = new Set(sessionIds.map(id => id.replace(/[^a-zA-Z0-9_.-]/g, '-')).filter(id => directories.has(id)));
+			const owned = new Set<string>();
+			if (candidates.size === 0) {
+				return owned;
+			}
+			const { DatabaseSync } = await import('node:sqlite');
+			for (const id of candidates) {
+				try {
+					const db = new DatabaseSync(joinPath(dataDir, id, 'session.db').fsPath, { readOnly: true });
+					try {
+						// Match CopilotAgent's ownership check; history and checkpoint reads can create empty databases.
+						const row = db.prepare('SELECT value FROM session_metadata WHERE key = ? AND turn_id IS NULL').get('copilot.workingDirectory');
+						if (typeof row?.value === 'string' && row.value.length > 0) {
+							owned.add(id);
+						}
+					} finally {
+						db.close();
+					}
+				} catch (error) {
+					this.logService.warn(`Failed to verify Agent Host ownership for ${id}: ${error}`);
+				}
+			}
+			return owned;
 		} catch (error) {
 			this.logService.trace(`Failed to read Agent Host session data directory: ${error}`);
 			return new Set();
@@ -531,7 +554,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			// out of this list on the next refresh.
 			const agentHostDataDir = this._getAgentHostSessionDataDir();
 			const agentHostOwnedSessionIds = sessionMetadataList.length > 0
-				? await this._getAgentHostOwnedSessionIds(agentHostDataDir)
+				? await this._getAgentHostOwnedSessionIds(agentHostDataDir, sessionMetadataList.map(session => session.sessionId))
 				: new Set<string>();
 
 			let agentHostOwnedCount = 0;

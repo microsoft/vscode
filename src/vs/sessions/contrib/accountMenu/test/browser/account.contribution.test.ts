@@ -19,7 +19,7 @@ import { ChatPetAccessoryId, ChatPetAccessoryIds, ChatPetAchievementId, ChatPetA
 import { ChatPetAppearanceTarget, ChatPetVariant, IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatPetCustomizationTab } from '../../../../../workbench/contrib/chat/browser/chatPetAchievementsEditorInput.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { getChatGPTRateLimitResetHover, shouldShowAccountPanelSummary } from '../../browser/account.contribution.js';
 import { getSessionsChatPetAchievementBadges, SessionsChatPetAchievementBadges } from '../../browser/chatPetAchievementBadges.js';
 
@@ -28,7 +28,7 @@ suite('Sessions - Account Menu', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('labels the signed-out Copilot account action', () => {
-		const signIn = MenuRegistry.getMenuItems(Menus.AccountMenu)
+		const signIn = MenuRegistry.getMenuItems(AgentsWindowMenus.AccountMenu)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agenticSignIn');
 

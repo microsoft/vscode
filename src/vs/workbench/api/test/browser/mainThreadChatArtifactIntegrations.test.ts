@@ -602,14 +602,15 @@ suite('Chat artifact integration extension bridge', () => {
 			items: details.details.get().items.map(item => ({ id: item.id, actions: item.actions })),
 			direct: observation.itemActionRuns, rejected, reused,
 			prepared: prepared.map(context => context.input),
-			prompts: prompts.map(request => request.chat),
+			prompts: prompts.map(request => ({ chat: request.chat, action: request.presentation?.action, items: request.presentation?.details.flatMap(details => details.items.map(item => item.id)) })),
 			invalid: errors.filter(error => error.includes('Invalid extension details')).length,
 		}, {
 			itemActions: [{ id: 'fix', label: 'Fix', iconId: 'sparkle', actionId: 'analyze' }, { id: 'copyLink', label: 'Copy Link', iconId: 'link' }],
 			items: [{ id: 'one', actions: ['fix', 'copyLink'] }, { id: 'two', actions: ['copyLink'] }],
 			direct: ['two:copyLink'], rejected: ['rejected', 'rejected'], reused: 'rejected',
 			prepared: [input],
-			prompts: ['vendor-chat://invoking'],
+			// The list was added after the integration was created, yet the request presents the item it ran for.
+			prompts: [{ chat: 'vendor-chat://invoking', action: { label: 'Fix', iconId: 'sparkle' }, items: ['one'] }],
 			invalid: 1,
 		});
 	});

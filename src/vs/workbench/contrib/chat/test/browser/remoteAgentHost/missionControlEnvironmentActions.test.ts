@@ -77,7 +77,7 @@ function environment(id: string, name = `Host ${id}`): IMissionControlHost {
 suite('Mission Control environment picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function fixture(cached: readonly IMissionControlHost[] = [], enabled = true) {
+	function fixture(cached: readonly IMissionControlHost[] = [], enabled = true, ownEnvironmentId?: string) {
 		const quickPick = store.add(new TestEnvironmentQuickPick());
 		const instantiation = store.add(new TestInstantiationService());
 		const inventory = new DeferredPromise<readonly IMissionControlHost[]>();
@@ -87,6 +87,7 @@ suite('Mission Control environment picker', () => {
 		const service = new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly enabled = enabled;
 			override readonly hosts = hosts;
+			override readonly ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', ownEnvironmentId);
 			override get accountKey() { return accountKey; }
 			override async initialize() { }
 			override async refresh(token: CancellationToken) {

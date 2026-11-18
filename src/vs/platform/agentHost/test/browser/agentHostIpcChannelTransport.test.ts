@@ -23,12 +23,14 @@ class FakeChannel extends Disposable implements IChannel {
 	readonly frameEmitter = this._register(new Emitter<string>());
 	readonly closeEmitter = this._register(new Emitter<void>());
 	readonly calls: { command: string; arg: unknown }[] = [];
+	readonly connectCalled = new DeferredPromise<void>();
 	connectResult: Promise<void> = Promise.resolve();
 	sendResult: Promise<void> = Promise.resolve();
 
 	call<T>(command: string, arg?: unknown): Promise<T> {
 		this.calls.push({ command, arg });
 		if (command === 'connect') {
+			this.connectCalled.complete();
 			return this.connectResult as Promise<T>;
 		}
 		if (command === 'send') {
@@ -106,6 +108,65 @@ suite('AgentHostIpcChannelTransport', () => {
 		assert.strictEqual(channel.calls.find(c => c.command === 'send'), undefined);
 	});
 
+	for (const close of ['close', 'dispose'] as const) {
+		test(`rejects a pending IPC connect on ${close} without waiting for the channel`, async () => {
+			const channel = ds.add(new FakeChannel());
+			const connectResult = new DeferredPromise<void>();
+			channel.connectResult = connectResult.p;
+			const transport = ds.add(new AgentHostIpcChannelTransport(channel));
+			let closed = 0;
+			ds.add(transport.onClose(() => closed++));
+			const rejected = assert.rejects(transport.connect(), /Transport is (closed|disposed)/);
+			await channel.connectCalled.p;
+
+			if (close === 'close') {
+				channel.closeEmitter.fire();
+			} else {
+				transport.dispose();
+			}
+			await rejected;
+			await connectResult.complete();
+			await assert.rejects(transport.connect(), /Transport is (closed|disposed)/);
+			channel.closeEmitter.fire();
+			transport.dispose();
+
+			assert.deepStrictEqual({ closed, isOpen: transport.isOpen, calls: channel.calls }, {
+				closed: 1,
+				isOpen: false,
+				calls: [{ command: 'connect', arg: undefined }],
+			});
+		});
+
+		test(`rejects connect if ${close} races with successful IPC completion`, async () => {
+			const channel = ds.add(new FakeChannel());
+			const connectResult = new DeferredPromise<void>();
+			channel.connectResult = connectResult.p;
+			const transport = ds.add(new AgentHostIpcChannelTransport(channel));
+			const rejected = assert.rejects(transport.connect(), /Transport is (closed|disposed)/);
+			await channel.connectCalled.p;
+
+			connectResult.complete();
+			if (close === 'close') {
+				channel.closeEmitter.fire();
+			} else {
+				transport.dispose();
+			}
+
+			await rejected;
+			assert.strictEqual(transport.isOpen, false);
+		});
+	}
+
+	test('preserves IPC connect errors', async () => {
+		const channel = ds.add(new FakeChannel());
+		const error = new Error('IPC connection failed');
+		channel.connectResult = Promise.reject(error);
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel));
+
+		await assert.rejects(transport.connect(), error);
+		assert.strictEqual(transport.isOpen, false);
+	});
+
 	test('waits for the resolver environment before connecting', async () => {
 		const channel = ds.add(new FakeChannel());
 		const options = new DeferredPromise<IAgentHostIpcConnectionOptions>();
@@ -125,11 +186,11 @@ suite('AgentHostIpcChannelTransport', () => {
 		const channel = ds.add(new FakeChannel());
 		const options = new DeferredPromise<IAgentHostIpcConnectionOptions>();
 		const transport = ds.add(new AgentHostIpcChannelTransport(channel, undefined, AgentHostClientConnectionKind.RemoteExtensionHost, () => options.p));
-		const connecting = transport.connect();
+		const rejected = assert.rejects(transport.connect(), /Transport is disposed/);
 		transport.dispose();
+		await rejected;
 		await options.complete({ env: { GITHUB_TOKEN: 'codespace-token' } });
 
-		await assert.rejects(connecting, /Transport is disposed/);
 		assert.deepStrictEqual(channel.calls, []);
 	});
 

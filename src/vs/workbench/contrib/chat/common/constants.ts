@@ -21,6 +21,7 @@ import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/c
 import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../platform/agentHost/common/agentService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService, isTemporaryDefaultToLocalHarnessEnabled } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { localize } from '../../../../nls.js';
+import { ILocalChatAvailabilityService } from './localChatAvailability.js';
 
 export function managedPolicyRequiresAgentHostMessage(): string {
 	return localize('chat.managedPolicy.requireAgentHost', "Your organization requires the new Copilot experience. Move to Copilot to keep your conversation. If Copilot cannot start, try again or contact your administrator. Your original conversation is still available.");
@@ -49,7 +50,10 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
+	ChatViewSessionsListEnabled = 'chat.viewSessions.sessionsList.enabled',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
+	/** Desktop only: lets chat attach a screenshot of the window of another app. */
+	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
@@ -61,7 +65,6 @@ export enum ChatConfiguration {
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
-	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	OpenSessionsInEditor = 'chat.agentSessions.openInEditor',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',
@@ -79,6 +82,8 @@ export enum ChatConfiguration {
 	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
 	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
+	HtmlPreviewEnabled = 'chat.htmlPreview.enabled',
+	NativeComponentsEnabled = 'chat.nativeComponents.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
@@ -99,6 +104,7 @@ export enum ChatConfiguration {
 	SessionSyncExcludeRepositories = 'chat.sessionSync.excludeRepositories',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
+	ChatViewSessionsOpenInChatPart = 'chat.viewSessions.openInChatPart',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
@@ -124,6 +130,7 @@ export enum ChatConfiguration {
 	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 	TitleBarOpenInAgentsWindowRichHover = 'chat.titleBar.openInAgentsWindow.richHover',
+	TitleBarOpenInAgentsWindowRichHoverOnClick = 'chat.titleBar.openInAgentsWindow.richHoverOnClick',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	AgentsWindowBannerEnabled = 'chat.agentsWindowBanner.enabled',
@@ -133,6 +140,7 @@ export enum ChatConfiguration {
 	HarnessSwitchFeedbackSurveyEnabled = 'chat.harnessSwitchFeedbackSurvey.enabled',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	ChatCustomizationsLocation = 'chat.customizations.location',
 	ChatCustomizationsToggleStyle = 'chat.experimental.customizations.toggleStyle',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
@@ -161,6 +169,8 @@ export enum ChatConfiguration {
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
 	BtwTipEnabled = 'chat.btwTip.enabled',
+	AutomateTipEnabled = 'chat.automateTip.enabled',
+	SendInBackgroundTipEnabled = 'chat.sendInBackgroundTip.enabled',
 	CopilotCliCommandEnabled = 'chat.copilotCliCommand.enabled',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
@@ -468,8 +478,7 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
  * Returns the effective default session type for a new chat in the VS Code
  * editor window.
  *
- * Virtual workspaces always default to {@link localChatSessionType}. Otherwise,
- * when the agent host is enabled and either `chat.defaultToCopilotHarness` is enabled or the
+ * When the agent host is enabled and either `chat.defaultToCopilotHarness` is enabled or the
  * agent sandbox is enforced by policy, Agent Host Copilot CLI is the default. It falls back to
  * the local harness when enabled, or to the first visible non-local provider.
  */
@@ -479,20 +488,18 @@ export function getComputedDefaultSessionType(
 	workspace: IWorkspace,
 	agentHostEnabled: boolean,
 	managedSandboxEnforced = false,
-	managedPolicyRequiresAgentHost = false
+	managedPolicyRequiresAgentHost = false,
+	localChatHidden = false
 ): string {
 	if (managedPolicyRequiresAgentHost) {
 		return SessionType.AgentHostCopilot;
-	}
-	if (isVirtualWorkspace(workspace)) {
-		return localChatSessionType;
 	}
 
 	if (agentHostEnabled && isCopilotHarnessDefault(configurationService, managedSandboxEnforced)) {
 		return SessionType.AgentHostCopilot;
 	}
 
-	if (isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced)) {
+	if (isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced, localChatHidden)) {
 		return localChatSessionType;
 	}
 
@@ -517,6 +524,7 @@ export function isNewChatSessionTypeUsable(
 	agentHostEnabled = true,
 	managedSandboxEnforced = false,
 	managedPolicyRequiresAgentHost = false,
+	localChatHidden = false,
 ): boolean {
 	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return false;
@@ -525,13 +533,15 @@ export function isNewChatSessionTypeUsable(
 		return false;
 	}
 	if (sessionType === localChatSessionType) {
-		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced);
+		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced, localChatHidden);
 	}
 	if (isAgentHostTarget(sessionType)) {
 		// Remote agent hosts are per-window; require that this window registered the host's contribution.
 		return agentHostEnabled
 			&& (!isRemoteAgentHostTarget(sessionType) || !!chatSessionsService.getChatSessionContribution(sessionType))
-			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService);
+			&& !isLocalAgentHostSessionTypeDisabledByPolicy(sessionType, configurationService)
+			// Of the local harnesses, only Copilot can work on a virtual workspace's files.
+			&& (!isVirtualWorkspace(workspace) || !sessionType.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX) || sessionType === SessionType.AgentHostCopilot);
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace, managedSandboxEnforced);
 }
@@ -550,8 +560,6 @@ export function isLocalAgentHostSessionTypeDisabledByPolicy(sessionType: string,
 export type SessionTypeSelectionReason =
 	/** A caller explicitly chose the session type. */
 	| 'explicitOverride'
-	/** The session type was automatically set to Local in a virtual workspace. */
-	| 'virtualWorkspace'
 	/** The user's last usable session type was restored. */
 	| 'rememberedSelection'
 	/** The current session's usable type was preserved. */
@@ -570,6 +578,8 @@ export function getLocalFallbackSessionTypeSelectionReason(sessionType: string, 
 export interface IDefaultNewChatSessionTypeOptions {
 	readonly explicitOverride?: string;
 	readonly currentSessionType?: string;
+	/** Whether a feature hides new local chats ({@link ILocalChatAvailabilityService}), as if the setting turned them off. */
+	readonly localChatHidden?: boolean;
 }
 
 export interface IResolvedNewChatSessionType {
@@ -602,8 +612,9 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	managedPolicyRequiresAgentHost = false
 ): IResolvedNewChatSessionType {
 	// A harness disabled by policy can only show saved chats read-only, so an explicit request for
-	// it falls through to the regular resolution instead of opening an unusable new chat.
-	const explicitOverride = options?.explicitOverride && !isLocalAgentHostSessionTypeDisabledByPolicy(options.explicitOverride, configurationService) ? options.explicitOverride : undefined;
+	// it falls through to the regular resolution instead of opening an unusable new chat. So does
+	// the retired extension-host Copilot CLI, which can no longer start a chat.
+	const explicitOverride = options?.explicitOverride && options.explicitOverride !== SessionType.CopilotCLI && !isLocalAgentHostSessionTypeDisabledByPolicy(options.explicitOverride, configurationService) ? options.explicitOverride : undefined;
 	if (managedPolicyRequiresAgentHost && (!explicitOverride || explicitOverride === localChatSessionType)) {
 		return { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' };
 	}
@@ -611,24 +622,21 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 		return { sessionType: explicitOverride, selectionReason: 'explicitOverride' };
 	}
 
-	if (isVirtualWorkspace(workspace)) {
-		return { sessionType: localChatSessionType, selectionReason: 'virtualWorkspace' };
-	}
-
 	const preferCopilotHarness = agentHostEnabled && isCopilotHarnessPreferred(configurationService, managedSandboxEnforced);
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced);
+	const localChatHidden = options?.localChatHidden ?? false;
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced, localChatHidden);
 	if (remembered && (remembered !== localChatSessionType || !preferCopilotHarness)) {
 		return { sessionType: remembered, selectionReason: 'rememberedSelection' };
 	}
 
 	let resolved: IResolvedNewChatSessionType;
-	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced)) {
+	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced, false, localChatHidden)) {
 		resolved = { sessionType: options.currentSessionType, selectionReason: 'currentSession' };
 	} else if (remembered) {
 		resolved = { sessionType: remembered, selectionReason: 'rememberedSelection' };
 	} else {
 		resolved = {
-			sessionType: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced),
+			sessionType: getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced, false, localChatHidden),
 			selectionReason: 'computedDefault'
 		};
 	}
@@ -650,7 +658,9 @@ export function getDefaultNewChatSessionTypeAndReason(
 	const agentHostEnabled = agentHostEnablementService.enabled.get();
 	const managedSandboxEnforced = agentHostEnablementService.managedSandboxEnforced.get();
 
-	return getDefaultNewChatSessionTypeAndReasonFromServices(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options, managedSandboxEnforced, requiresCopilotAgentHost(accessor.get(IManagedSettingsService), configurationService));
+	const localChatHidden = options?.localChatHidden ?? accessor.get(ILocalChatAvailabilityService).hidden.get();
+
+	return getDefaultNewChatSessionTypeAndReasonFromServices(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, { ...options, localChatHidden }, managedSandboxEnforced, requiresCopilotAgentHost(accessor.get(IManagedSettingsService), configurationService));
 }
 
 function getUsableRememberedSessionType(
@@ -660,9 +670,10 @@ function getUsableRememberedSessionType(
 	workspace: IWorkspace,
 	agentHostEnabled: boolean,
 	managedSandboxEnforced = false,
+	localChatHidden = false,
 ): string | undefined {
 	const remembered = getRememberedSessionType(storageService);
-	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced) ? remembered : undefined;
+	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace, agentHostEnabled, managedSandboxEnforced, false, localChatHidden) ? remembered : undefined;
 }
 
 export function getDefaultNewChatSessionResource(
@@ -684,9 +695,11 @@ export function recordUserSelectedSessionType(
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	workspace: IWorkspace,
 	sessionType: string,
-	agentHostEnabled: boolean
+	agentHostEnabled: boolean,
+	localChatHidden = false
 ): void {
-	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled)) {
+	// The default as the picker shows it, also while a feature hides new local chats, as the setting off would
+	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, false, false, localChatHidden)) {
 		clearUserSelectedSessionType(storageService);
 	} else {
 		storeUserSelectedSessionType(storageService, sessionType);
@@ -717,7 +730,7 @@ function isCopilotHarnessPreferred(configurationService: IConfigurationService, 
  * virtual workspaces, an enterprise-mandated sandbox floor disables it: the sandbox is implemented
  * by the Agent Host, so the enterprise has declared these users governed.
  */
-export function isEditorLocalAgentEnabled(configurationService: IConfigurationService, workspace: IWorkspace, managedSandboxEnforced = false): boolean {
+export function isEditorLocalAgentEnabled(configurationService: IConfigurationService, workspace: IWorkspace, managedSandboxEnforced = false, localChatHidden = false): boolean {
 	if (isVirtualWorkspace(workspace) || isTemporaryDefaultToLocalHarnessEnabled(configurationService)) {
 		return true;
 	}
@@ -726,7 +739,8 @@ export function isEditorLocalAgentEnabled(configurationService: IConfigurationSe
 		return false;
 	}
 
-	return configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true;
+	// A feature that hides new local chats turns them off as the setting does, leaving the setting as it is
+	return !localChatHidden && (configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true);
 }
 
 export function isVisibleEditorChatSessionType(
@@ -736,13 +750,14 @@ export function isVisibleEditorChatSessionType(
 	workspace: IWorkspace,
 	managedSandboxEnforced = false,
 	agentHostEnabled = true,
-	managedPolicyRequiresAgentHost = false
+	managedPolicyRequiresAgentHost = false,
+	localChatHidden = false
 ): boolean {
 	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return true;
 	}
 	if (sessionType === localChatSessionType) {
-		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;
+		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced, localChatHidden) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;
 	}
 
 	if (sessionType === SessionType.CopilotCLI) {
@@ -779,6 +794,10 @@ export { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, getAgentHostSessionResource } from 
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
+/** Shows the Agents Launcher, a small floating composer that starts agent sessions in the background. */
+export const AGENTS_LAUNCHER_COMMAND_ID = 'workbench.action.agentsLauncher';
+/** Attaches a screenshot of the window of another app to chat. Desktop only; its keybinding can be made system-wide. */
+export const ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.attachAppWindowScreenshot';
 export { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../platform/chat/common/agentsWindowInvitation.js';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.hidden.negate(),

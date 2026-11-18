@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IPinnedCanvasService } from './pinnedCanvases.js';
+import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { PinnedCanvasService } from './pinnedCanvasService.js';
 
 // The sidebar lists pins on every platform; only windows that show canvases can add them.

@@ -16,7 +16,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { BackgroundWorkKind, TerminalClaimKind, TerminalLifecycleStatus, type BackgroundWork, type TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostBackgroundShellOutputs } from '../../../browser/agentSessions/agentHost/agentHostBackgroundShells.js';
-import type { ChatBackgroundShellOutput } from '../../../common/sessionChatPills.js';
+import type { ChatBackgroundShellOutput } from '../../../../../common/chatBackgroundShell.js';
 
 class TerminalConnection extends mock<IAgentConnection>() {
 	readonly subscribed: string[] = [];

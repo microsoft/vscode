@@ -37,7 +37,7 @@ import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeServic
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
-import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext, takePendingCopilotCLIRequestContext } from '../copilotcli/common/pendingRequestContext';
 import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';

@@ -5,6 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -17,7 +18,7 @@ import { SystemWideKeybindingsSynchronizer } from './systemWideKeybindingsSynchr
 /**
  * Watches the resolved keybindings for entries opted into `systemWide` and mirrors them to the
  * main process (which owns Electron's `globalShortcut`). The mechanism is always active for any
- * user keybinding marked `systemWide`.
+ * user keybinding marked `systemWide`, and for default ones while their `when` clause holds.
  */
 export class SystemWideKeybindingsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -32,6 +33,7 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -43,11 +45,11 @@ export class SystemWideKeybindingsContribution extends Disposable implements IWo
 			},
 			onRegistrationFailuresChanged: failed => this.reportFailures(failed),
 			logLabel: 'SystemWideKeybindings',
-		}, this.keybindingService, this.nativeHostService, this.logService));
+		}, this.keybindingService, this.nativeHostService, this.logService, this.contextKeyService));
 	}
 
 	private collectCandidates(): ISystemWideKeybindingCandidate[] {
-		const { candidates, unsupported, duplicates } = selectSystemWideKeybindings(this.keybindingService.getKeybindings());
+		const { candidates, unsupported, duplicates } = selectSystemWideKeybindings(this.keybindingService.getKeybindings(), this.contextKeyService);
 
 		for (const rejection of unsupported) {
 			this.logService.warn(`[SystemWideKeybindings] '${rejection.userSettingsLabel}' cannot be registered as a system-wide shortcut (only single key combinations are supported).`);

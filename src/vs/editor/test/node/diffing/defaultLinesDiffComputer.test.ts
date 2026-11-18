@@ -76,6 +76,13 @@ suite('DefaultLinesDiffComputer raw changes', () => {
 			});
 		});
 	}
+
+	test('move detection does not throw when a move starts in the first line of only one side', () => {
+		const original = ['\t\t\t\t// ignore', '\t\t\t}', '\t}', '\t\tthis._recommendations = [];', '\t\tthis._ignoredRecommendations = [];', '\t\t\t\t\t}'];
+		const modified = ['\t\tthis._recommendations = [];', '\t\tthis._ignoredRecommendations = [];', '', '\t\t\t\t// ignore', '\t\t\t}', '\t\t}'];
+		const diff = new DefaultLinesDiffComputer().computeDiff(original, modified, { ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: true });
+		assert.deepStrictEqual(diff.moves, []);
+	});
 });
 
 suite('myers', () => {

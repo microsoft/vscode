@@ -14,11 +14,14 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
+import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
+import { CreateIssueRequest } from '../../../../platform/github/common/core/issues.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
+import { AuthenticationSession } from '../../../services/authentication/common/authentication.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
@@ -38,7 +41,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { getIssueReporterScreenshotFile } from './issueReporterMedia.js';
 import './media/issueReporter.css';
-import { abortOnDispose } from '../../../../base/common/cancellation.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 
 const MAX_URL_LENGTH = 7500;
@@ -102,7 +105,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 	/** Bounded cache of already-uploaded attachments to avoid re-uploading on retry within a session. Uses a content hash so large data URLs aren't retained as keys. */
 	private readonly uploadCache = new LRUCache<string, import('./githubUploadService.js').IGitHubUploadResult>(32);
-	private readonly disposeSignal = abortOnDispose(this._store);
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -122,22 +125,37 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		super();
 	}
 
-	async searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]> {
-		signal = AbortSignal.any([signal, this.disposeSignal]);
-		signal.throwIfAborted();
+	async searchGitHubIssues(repo: string, title: string, cancellationToken: CancellationToken): Promise<readonly ISimilarIssue[]> {
 		const lifetime = new DisposableStore();
 		try {
-			const client = lifetime.add(await this.gitHubService.acquireAnonymousApiClient(signal));
-			const page = await client.search.issues(`repo:${repo} ${title}`, signal, {
+			cancellationToken = CancellationToken.any([cancellationToken, this._disposeToken], lifetime);
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const client = lifetime.add(await this.gitHubService.acquireAnonymousApiClient(cancellationToken));
+			const page = await client.search.issues(`repo:${repo} ${title}`, cancellationToken, {
 				caller: 'github.query',
 				deadline: Date.now() + 10_000,
 			});
 			return page.items;
 		} catch (error) {
-			if (!signal.aborted) {
+			if (!cancellationToken.isCancellationRequested) {
 				this.logService.warn('[IssueFormService] GitHub issue search failed', error);
 			}
 			throw error;
+		} finally {
+			lifetime.dispose();
+		}
+	}
+
+	async createGitHubIssue(providerId: string, session: AuthenticationSession, repository: RepositoryRef, request: CreateIssueRequest, cancellationToken: CancellationToken): Promise<string> {
+		const lifetime = new DisposableStore();
+		try {
+			cancellationToken = CancellationToken.any([cancellationToken, this._disposeToken], lifetime);
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const client = lifetime.add(await this.gitHubService.acquireAccountApiClient(providerId, session, cancellationToken));
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const issue = await client.issues.create(repository, request, cancellationToken, { caller: 'issueReporter', priority: 'mutation' });
+			CancellationToken.throwIfCanceled(cancellationToken);
+			return issue.html_url;
 		} finally {
 			lifetime.dispose();
 		}
@@ -157,210 +175,217 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		return this.openAuxIssueReporterLegacy(data);
 	}
 
-	async submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, signal: AbortSignal = this.disposeSignal): Promise<boolean> {
-		signal = AbortSignal.any([signal, this.disposeSignal]);
-		signal.throwIfAborted();
-		host.setAttachmentUploadError(undefined);
-		signal.throwIfAborted();
-		const issueTarget = resolveIssueReporterTarget(data, product);
-		if (!issueTarget?.url) {
-			this.logService.error('[IssueFormService] Invalid issue reporting destination.');
-			await this.dialogService.error(localize('invalidIssueDestination', "The selected issue destination is invalid. No issue data was sent."));
-			signal.throwIfAborted();
-			return false;
-		}
-		if (issueTarget.external) {
-			signal.throwIfAborted();
-			return this.openerService.open(issueTarget.url, { openExternal: true });
-		}
+	async submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, cancellationToken: CancellationToken = this._disposeToken): Promise<boolean> {
+		const lifetime = new DisposableStore();
+		try {
+			cancellationToken = CancellationToken.any([cancellationToken, this._disposeToken], lifetime);
+			CancellationToken.throwIfCanceled(cancellationToken);
+			host.setAttachmentUploadError(undefined);
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const issueTarget = resolveIssueReporterTarget(data, product);
+			if (!issueTarget?.url) {
+				this.logService.error('[IssueFormService] Invalid issue reporting destination.');
+				await this.dialogService.error(localize('invalidIssueDestination', "The selected issue destination is invalid. No issue data was sent."));
+				CancellationToken.throwIfCanceled(cancellationToken);
+				return false;
+			}
+			if (issueTarget.external) {
+				CancellationToken.throwIfCanceled(cancellationToken);
+				return this.openerService.open(issueTarget.url, { openExternal: true });
+			}
 
-		const attachments = host.getAttachments();
-		const gitHubDetails = issueTarget.repository;
-		const hasAttachments = attachments.length > 0;
-		if (gitHubDetails && data.getGitHubAccessToken) {
-			host.setUploading(true);
-			try {
-				signal.throwIfAborted();
-				const token = await data.getGitHubAccessToken();
-				signal.throwIfAborted();
-				data.githubAccessToken = token;
-			} catch (error) {
-				signal.throwIfAborted();
-				if (isCancellationError(error)) {
-					throw error;
+			const attachments = host.getAttachments();
+			const gitHubDetails = issueTarget.repository;
+			const hasAttachments = attachments.length > 0;
+			if (gitHubDetails && data.getGitHubAccessToken) {
+				host.setUploading(true);
+				try {
+					CancellationToken.throwIfCanceled(cancellationToken);
+					const token = await data.getGitHubAccessToken();
+					CancellationToken.throwIfCanceled(cancellationToken);
+					data.githubAccessToken = token;
+				} catch (error) {
+					CancellationToken.throwIfCanceled(cancellationToken);
+					if (isCancellationError(error)) {
+						throw error;
+					}
+					data.githubAccessToken = '';
+					this.logService.error('[IssueFormService] GitHub session lookup failed:', error);
+					if (hasAttachments) {
+						host.setAttachmentUploadError(localize('issueReporter.authenticationFailed', "Could not access your GitHub session. Try signing in again, or remove the attachments and add them on GitHub."));
+						return false;
+					}
+				} finally {
+					host.setUploading(false);
 				}
-				data.githubAccessToken = '';
-				this.logService.error('[IssueFormService] GitHub session lookup failed:', error);
-				if (hasAttachments) {
-					host.setAttachmentUploadError(localize('issueReporter.authenticationFailed', "Could not access your GitHub session. Try signing in again, or remove the attachments and add them on GitHub."));
+			}
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const githubAccessToken = data.githubAccessToken;
+			let repoId: string | undefined;
+			const resolveRepoId = async (): Promise<string | undefined> => {
+				CancellationToken.throwIfCanceled(cancellationToken);
+				if (!gitHubDetails) {
+					return undefined;
+				}
+				repoId ??= await this.githubUploadService.resolveRepositoryId(gitHubDetails.owner, gitHubDetails.repositoryName, githubAccessToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
+				return repoId;
+			};
+
+			let mediaMarkdown = '';
+			if (hasAttachments && (!githubAccessToken || !gitHubDetails)) {
+				host.setAttachmentUploadError(localize('issueReporter.attachmentsNeedAuthentication', "Attachments could not be uploaded. Sign in to GitHub, or remove the attachments and add them on GitHub."));
+				return false;
+			}
+
+			// Only attempt the Mobile Upload API when the issue target actually resolves to a
+			// GitHub repo. Otherwise we'd upload attachments to an unrelated repository (and
+			// potentially leak them) just because a GitHub token is present.
+			if (hasAttachments && githubAccessToken && gitHubDetails) {
+				host.setUploading(true);
+				let attachmentName: string | undefined;
+				try {
+					const filesToProcess: (IssueUploadFile & { attachment: IssueReporterAttachment })[] = [];
+					for (const attachment of attachments) {
+						host.setAttachmentUploadState(attachment, { destination: issueTarget.url, state: 'pending' });
+					}
+					let screenshotNumber = 0;
+					for (const attachment of attachments) {
+						CancellationToken.throwIfCanceled(cancellationToken);
+						if (attachment.kind === 'screenshot') {
+							if (!attachment.screenshot.name) {
+								screenshotNumber++;
+							}
+							const { dataUrl, name, format } = getIssueReporterScreenshotFile(attachment.screenshot, screenshotNumber);
+							attachmentName = attachment.screenshot.name ? name : localize('screenshotAttachment', "Screenshot {0}", screenshotNumber);
+							const bytes = this.dataUrlToBytes(dataUrl);
+							if (!bytes || format.kind !== 'image') {
+								throw new Error(localize('invalidScreenshotAttachment', "The screenshot could not be read."));
+							}
+							filesToProcess.push({ attachment, key: `screenshot:${name}:${hash(dataUrl)}`, name, bytes, contentType: format.mimeType });
+						} else {
+							const file = attachment.file;
+							attachmentName = file.name;
+							const fileContent = await this.fileService.readFile(URI.file(file.filePath));
+							CancellationToken.throwIfCanceled(cancellationToken);
+							const contentHash = await hashAsync(fileContent.value);
+							CancellationToken.throwIfCanceled(cancellationToken);
+							// GitHub's upload policy accepts bare MIME types, not recorder codec parameters.
+							const contentType = file.mimeType.split(';', 1)[0].trim().toLowerCase();
+							filesToProcess.push({ attachment, key: `file:${file.filePath}:${contentHash}`, name: file.name, bytes: fileContent.value.buffer, contentType });
+						}
+					}
+
+					if (filesToProcess.length > 0) {
+						const uploadResults: import('./githubUploadService.js').IGitHubUploadResult[] = [];
+						for (const file of filesToProcess) {
+							CancellationToken.throwIfCanceled(cancellationToken);
+							attachmentName = file.name;
+							const cacheKey = `${gitHubDetails.owner.toLowerCase()}/${gitHubDetails.repositoryName.toLowerCase()}:${file.key}`;
+							const cached = this.uploadCache.get(cacheKey);
+							if (cached) {
+								uploadResults.push(cached);
+								host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'done' });
+								continue;
+							}
+
+							const resolvedRepoId = await resolveRepoId();
+							if (!resolvedRepoId) {
+								throw new Error('No GitHub repository resolved for attachment upload.');
+							}
+							host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'uploading' });
+							CancellationToken.throwIfCanceled(cancellationToken);
+							const [result] = await this.githubUploadService.uploadViaMobileApi(
+								githubAccessToken, resolvedRepoId, [file]
+							);
+							CancellationToken.throwIfCanceled(cancellationToken);
+							if (!result) {
+								throw new Error(`Upload returned no result for ${file.name}.`);
+							}
+							this.uploadCache.set(cacheKey, result);
+							uploadResults.push(result);
+							host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'done' });
+						}
+
+						mediaMarkdown = `\n\n### ${localize('issueReporter.attachmentsHeading', "Attachments")}\n\n`;
+						for (let i = 0; i < uploadResults.length; i++) {
+							const file = filesToProcess[i];
+							const url = URI.parse(uploadResults[i].assetUrl).toString().replace(/\(/g, '%28').replace(/\)/g, '%29');
+							const name = escapeMarkdownSyntaxTokens(escape(file.name)).replace(/\r/g, '&#13;').replace(/\n/g, '&#10;');
+							mediaMarkdown += file.contentType.startsWith('video/')
+								? `${url}\n\n`
+								: `${file.contentType.startsWith('image/') ? '!' : ''}[${name}](${url})\n\n`;
+						}
+					}
+				} catch (err) {
+					CancellationToken.throwIfCanceled(cancellationToken);
+					if (isCancellationError(err)) {
+						throw err;
+					}
+					this.logService.error('[IssueFormService] Upload failed:', err);
+					host.setAttachmentUploadError(attachmentName
+						? localize('issueReporter.attachmentUploadFailed', "Could not upload {0}. Try again, or remove this file and attach it on GitHub.", attachmentName)
+						: localize('issueReporter.attachmentsUploadFailed', "Could not upload attachments. Try again, or remove them and attach them on GitHub."), toErrorMessage(err));
+					return false;
+				} finally {
+					host.setUploading(false);
+				}
+			}
+
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const issueBody = body + mediaMarkdown;
+
+			const baseUrl = getIssueReporterUrlWithTitle(title, issueTarget.url);
+			let previewBody = issueBody;
+			let url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
+
+			if (url.length > MAX_URL_LENGTH && githubAccessToken && gitHubDetails) {
+				const shortenedBody = await this.tryCreateBodyWithIssueDataAttachment(host, issueBody, baseUrl, gitHubDetails, data.issueSource, githubAccessToken, resolveRepoId, cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
+				if (shortenedBody) {
+					previewBody = shortenedBody;
+					url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
+				}
+			}
+
+			if (url.length > MAX_URL_LENGTH) {
+				CancellationToken.throwIfCanceled(cancellationToken);
+				const shouldWrite = await this.showClipboardDialog();
+				CancellationToken.throwIfCanceled(cancellationToken);
+				if (!shouldWrite) {
 					return false;
 				}
-			} finally {
-				host.setUploading(false);
-			}
-		}
-		signal.throwIfAborted();
-		const githubAccessToken = data.githubAccessToken;
-		let repoId: string | undefined;
-		const resolveRepoId = async (): Promise<string | undefined> => {
-			signal.throwIfAborted();
-			if (!gitHubDetails) {
-				return undefined;
-			}
-			repoId ??= await this.githubUploadService.resolveRepositoryId(gitHubDetails.owner, gitHubDetails.repositoryName, githubAccessToken);
-			signal.throwIfAborted();
-			return repoId;
-		};
-
-		let mediaMarkdown = '';
-		if (hasAttachments && (!githubAccessToken || !gitHubDetails)) {
-			host.setAttachmentUploadError(localize('issueReporter.attachmentsNeedAuthentication', "Attachments could not be uploaded. Sign in to GitHub, or remove the attachments and add them on GitHub."));
-			return false;
-		}
-
-		// Only attempt the Mobile Upload API when the issue target actually resolves to a
-		// GitHub repo. Otherwise we'd upload attachments to an unrelated repository (and
-		// potentially leak them) just because a GitHub token is present.
-		if (hasAttachments && githubAccessToken && gitHubDetails) {
-			host.setUploading(true);
-			let attachmentName: string | undefined;
-			try {
-				const filesToProcess: (IssueUploadFile & { attachment: IssueReporterAttachment })[] = [];
-				for (const attachment of attachments) {
-					host.setAttachmentUploadState(attachment, { destination: issueTarget.url, state: 'pending' });
-				}
-				let screenshotNumber = 0;
-				for (const attachment of attachments) {
-					signal.throwIfAborted();
-					if (attachment.kind === 'screenshot') {
-						screenshotNumber++;
-						attachmentName = localize('screenshotAttachment', "Screenshot {0}", screenshotNumber);
-						const { dataUrl, name, format } = getIssueReporterScreenshotFile(attachment.screenshot, screenshotNumber);
-						const bytes = this.dataUrlToBytes(dataUrl);
-						if (!bytes || format.kind !== 'image') {
-							throw new Error(localize('invalidScreenshotAttachment', "The screenshot could not be read."));
-						}
-						filesToProcess.push({ attachment, key: `screenshot:${name}:${hash(dataUrl)}`, name, bytes, contentType: format.mimeType });
-					} else {
-						const file = attachment.file;
-						attachmentName = file.name;
-						const fileContent = await this.fileService.readFile(URI.file(file.filePath));
-						signal.throwIfAborted();
-						const contentHash = await hashAsync(fileContent.value);
-						signal.throwIfAborted();
-						// GitHub's upload policy accepts bare MIME types, not recorder codec parameters.
-						const contentType = file.mimeType.split(';', 1)[0].trim().toLowerCase();
-						filesToProcess.push({ attachment, key: `file:${file.filePath}:${contentHash}`, name: file.name, bytes: fileContent.value.buffer, contentType });
+				try {
+					await this.clipboardService.writeText(issueBody);
+					CancellationToken.throwIfCanceled(cancellationToken);
+				} catch (error) {
+					CancellationToken.throwIfCanceled(cancellationToken);
+					if (isCancellationError(error)) {
+						throw error;
 					}
+					this.logService.error('Writing issue data to clipboard failed', error);
+					return false;
 				}
-
-				if (filesToProcess.length > 0) {
-					const uploadResults: import('./githubUploadService.js').IGitHubUploadResult[] = [];
-					for (const file of filesToProcess) {
-						signal.throwIfAborted();
-						attachmentName = file.name;
-						const cacheKey = `${gitHubDetails.owner.toLowerCase()}/${gitHubDetails.repositoryName.toLowerCase()}:${file.key}`;
-						const cached = this.uploadCache.get(cacheKey);
-						if (cached) {
-							uploadResults.push(cached);
-							host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'done' });
-							continue;
-						}
-
-						const resolvedRepoId = await resolveRepoId();
-						if (!resolvedRepoId) {
-							throw new Error('No GitHub repository resolved for attachment upload.');
-						}
-						host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'uploading' });
-						signal.throwIfAborted();
-						const [result] = await this.githubUploadService.uploadViaMobileApi(
-							githubAccessToken, resolvedRepoId, [file]
-						);
-						signal.throwIfAborted();
-						if (!result) {
-							throw new Error(`Upload returned no result for ${file.name}.`);
-						}
-						this.uploadCache.set(cacheKey, result);
-						uploadResults.push(result);
-						host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'done' });
-					}
-
-					mediaMarkdown = `\n\n### ${localize('issueReporter.attachmentsHeading', "Attachments")}\n\n`;
-					for (let i = 0; i < uploadResults.length; i++) {
-						const file = filesToProcess[i];
-						const url = URI.parse(uploadResults[i].assetUrl).toString().replace(/\(/g, '%28').replace(/\)/g, '%29');
-						const name = escapeMarkdownSyntaxTokens(escape(file.name)).replace(/\r/g, '&#13;').replace(/\n/g, '&#10;');
-						mediaMarkdown += file.contentType.startsWith('video/')
-							? `${url}\n\n`
-							: `${file.contentType.startsWith('image/') ? '!' : ''}[${name}](${url})\n\n`;
-					}
-				}
-			} catch (err) {
-				signal.throwIfAborted();
-				if (isCancellationError(err)) {
-					throw err;
-				}
-				this.logService.error('[IssueFormService] Upload failed:', err);
-				host.setAttachmentUploadError(attachmentName
-					? localize('issueReporter.attachmentUploadFailed', "Could not upload {0}. Try again, or remove this file and attach it on GitHub.", attachmentName)
-					: localize('issueReporter.attachmentsUploadFailed', "Could not upload attachments. Try again, or remove them and attach them on GitHub."), toErrorMessage(err));
-				return false;
-			} finally {
-				host.setUploading(false);
+				url = this.createIssuePreviewUrl(baseUrl, localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."), gitHubDetails, data.issueSource);
 			}
+
+			// Skip the trusted-domains prompt for github.com URLs the issue reporter
+			// itself generates. The auto-populated body can produce extremely long
+			// URLs that overflow the native confirmation dialog on macOS, and the
+			// destination is one we constructed ourselves so the trust check would
+			// always be a yes anyway.
+			//
+			// Pass the URL as a string (not as a URI). When `IOpenerService.open` is
+			// handed a URI, it rebuilds the href via `encodeURI(uri.toString(true))`,
+			// which double-encodes our already-percent-encoded query (`%23` becomes
+			// `%2523`, so GitHub renders `### Description` as literal `%23%23%23 Description`).
+			const uri = URI.parse(url);
+			const skipValidation = uri.scheme === 'https' && uri.authority === 'github.com';
+			CancellationToken.throwIfCanceled(cancellationToken);
+			return await this.openerService.open(url, { openExternal: true, skipValidation });
+		} finally {
+			lifetime.dispose();
 		}
-
-		signal.throwIfAborted();
-		const issueBody = body + mediaMarkdown;
-
-		const baseUrl = getIssueReporterUrlWithTitle(title, issueTarget.url);
-		let previewBody = issueBody;
-		let url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
-
-		if (url.length > MAX_URL_LENGTH && githubAccessToken && gitHubDetails) {
-			const shortenedBody = await this.tryCreateBodyWithIssueDataAttachment(host, issueBody, baseUrl, gitHubDetails, data.issueSource, githubAccessToken, resolveRepoId, signal);
-			signal.throwIfAborted();
-			if (shortenedBody) {
-				previewBody = shortenedBody;
-				url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
-			}
-		}
-
-		if (url.length > MAX_URL_LENGTH) {
-			signal.throwIfAborted();
-			const shouldWrite = await this.showClipboardDialog();
-			signal.throwIfAborted();
-			if (!shouldWrite) {
-				return false;
-			}
-			try {
-				await this.clipboardService.writeText(issueBody);
-				signal.throwIfAborted();
-			} catch (error) {
-				signal.throwIfAborted();
-				if (isCancellationError(error)) {
-					throw error;
-				}
-				this.logService.error('Writing issue data to clipboard failed', error);
-				return false;
-			}
-			url = this.createIssuePreviewUrl(baseUrl, localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."), gitHubDetails, data.issueSource);
-		}
-
-		// Skip the trusted-domains prompt for github.com URLs the issue reporter
-		// itself generates. The auto-populated body can produce extremely long
-		// URLs that overflow the native confirmation dialog on macOS, and the
-		// destination is one we constructed ourselves so the trust check would
-		// always be a yes anyway.
-		//
-		// Pass the URL as a string (not as a URI). When `IOpenerService.open` is
-		// handed a URI, it rebuilds the href via `encodeURI(uri.toString(true))`,
-		// which double-encodes our already-percent-encoded query (`%23` becomes
-		// `%2523`, so GitHub renders `### Description` as literal `%23%23%23 Description`).
-		const uri = URI.parse(url);
-		const skipValidation = uri.scheme === 'https' && uri.authority === 'github.com';
-		signal.throwIfAborted();
-		return this.openerService.open(url, { openExternal: true, skipValidation });
 	}
 
 	private async tryCreateBodyWithIssueDataAttachment(
@@ -371,9 +396,9 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		issueSource: IssueSource | undefined,
 		githubAccessToken: string,
 		resolveRepoId: () => Promise<string | undefined>,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<string | undefined> {
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const extracted = extractIssueData(issueBody);
 		if (!extracted) {
 			return undefined;
@@ -385,15 +410,15 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			if (!repoId) {
 				return undefined;
 			}
-			const result = await this.uploadIssueDataFile(githubAccessToken, repoId, extracted.fileContent, signal);
-			signal.throwIfAborted();
+			const result = await this.uploadIssueDataFile(githubAccessToken, repoId, extracted.fileContent, cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const bodyWithLink = this.createBodyWithIssueDataLink(extracted.body, result.assetUrl);
 			if (this.createIssuePreviewUrl(baseUrl, bodyWithLink, gitHubDetails, issueSource).length > MAX_URL_LENGTH) {
 				return undefined;
 			}
 			return bodyWithLink;
 		} catch (error) {
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (isCancellationError(error)) {
 				throw error;
 			}
@@ -404,8 +429,8 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		}
 	}
 
-	private async uploadIssueDataFile(githubAccessToken: string, repoId: string, fileContent: string, signal: AbortSignal): Promise<import('./githubUploadService.js').IGitHubUploadResult> {
-		signal.throwIfAborted();
+	private async uploadIssueDataFile(githubAccessToken: string, repoId: string, fileContent: string, cancellationToken: CancellationToken): Promise<import('./githubUploadService.js').IGitHubUploadResult> {
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const key = `${repoId}:${ISSUE_DATA_ATTACHMENT_NAME}:${hash(fileContent)}`;
 		const cached = this.uploadCache.get(key);
 		if (cached) {
@@ -419,7 +444,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			contentType: 'text/plain',
 		};
 		const [result] = await this.githubUploadService.uploadViaMobileApi(githubAccessToken, repoId, [file]);
-		signal.throwIfAborted();
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!result) {
 			throw new Error('Issue data upload did not return a result.');
 		}

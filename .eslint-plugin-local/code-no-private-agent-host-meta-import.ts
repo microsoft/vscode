@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as eslint from 'eslint';
-import type { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 import { posix } from 'path';
 import { createImportRuleListener } from './utils.ts';
 
@@ -21,9 +20,11 @@ function getMetadataPath(value: string): string | undefined {
 	return metadataPathPattern.exec(value)?.[1];
 }
 
-export default new class NoPrivateAgentHostMetaImport implements eslint.Rule.RuleModule {
+type Literal = Extract<ESTree.Node, { type: 'Literal' }>;
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+export default new class NoPrivateAgentHostMetaImport implements CreateRule {
+
+	readonly meta: RuleMeta = {
 		messages: {
 			privateMetadata: 'Host-specific metadata in `{{directory}}` is private. Import domain helpers and portable types from top-level `src/vs/platform/agentHost/common/meta/*.ts` modules instead.',
 		},
@@ -33,7 +34,7 @@ export default new class NoPrivateAgentHostMetaImport implements eslint.Rule.Rul
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const filename = normalizePath(context.filename);
 		const relativeFilename = posix.relative(repositoryRoot, filename);
 		const importerMetadataPath = getMetadataPath(filename);
@@ -46,7 +47,7 @@ export default new class NoPrivateAgentHostMetaImport implements eslint.Rule.Rul
 			return {};
 		}
 
-		const checkImport = (node: TSESTree.Literal, value: string): void => {
+		const checkImport = (node: Literal, value: string): void => {
 			let importedPath = value.replace(/\\/g, '/');
 			if (importedPath.startsWith('.')) {
 				importedPath = posix.join(posix.dirname(filename), importedPath);
@@ -71,7 +72,7 @@ export default new class NoPrivateAgentHostMetaImport implements eslint.Rule.Rul
 
 		return {
 			...createImportRuleListener(checkImport),
-			'ImportExpression > Literal, TSImportType > Literal, CallExpression[callee.type="Identifier"][callee.name="require"][arguments.length=1] > Literal': (node: TSESTree.Literal) => {
+			'ImportExpression > Literal, TSImportType > Literal, CallExpression[callee.type="Identifier"][callee.name="require"][arguments.length=1] > Literal': (node: Literal) => {
 				if (typeof node.value === 'string') {
 					checkImport(node, node.value);
 				}
