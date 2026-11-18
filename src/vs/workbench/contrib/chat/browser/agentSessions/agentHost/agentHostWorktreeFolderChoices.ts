@@ -22,7 +22,7 @@ import { InstantiationType, registerSingleton } from '../../../../../../platform
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, getWorktreesLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
+import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
@@ -265,7 +265,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		const newWorktreeSelected = this.isNewWorktreeSelected();
 		// The folder and a new worktree of it first, each with what it does below its name; then the worktrees
 		const workspaceGroup = { label: '', order: 0 };
-		const worktreesGroup = { label: getWorktreesLabel(), order: 1, showHeader: true };
+		const worktreesGroup = { label: localize('agentHost.folderPicker.worktrees', "Worktrees"), order: 1, showHeader: true };
 		let newWorktree: IActionWidgetDropdownAction | undefined;
 		if (this._isolation()?.worktree) {
 			newWorktree = {
