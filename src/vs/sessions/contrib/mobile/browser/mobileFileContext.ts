@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { extname } from '../../../../base/common/path.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -22,30 +23,37 @@ import { detectEncodingFromBuffer, UTF16be, UTF16le } from '../../../../workbenc
 const maxDeviceAttachmentSize = 30 * ByteSize.MB;
 
 export function getMobileFileAttachmentAccessibilityHelp(): string {
-	return localize('mobileFileAttachments.help', "In Add Context, choose Files to select photos or text files from your device. Images must be PNG, JPEG, GIF, or WebP. Each file must be at most 30 MB. Binary documents such as PDFs are not supported by this device picker. Selecting files adds them to the draft without sending it or opening an editor. Activate an attachment to preview it, or use its Remove button to detach it. Canceling the device picker returns focus to the input. To attach a workspace file instead, search for it in Add Context.");
+	return localize('mobileFileAttachments.help', "In Add Context, choose Photos for images, or Files for photos and text files from your device. Photos requests PNG, JPEG, GIF, or WebP from the system picker. Each file must be at most 30 MB. Binary documents such as PDFs are not supported by this device picker. Selecting files adds them to the draft without sending it or opening an editor. Activate an attachment to preview it, or use its Remove button to detach it. Canceling the device picker returns focus to the input. To attach a workspace file instead, search for it in Add Context.");
 }
 
 export class MobileFileContextValuePick implements IChatContextValueItem {
 	readonly type = 'valuePick';
-	readonly label = localize('mobileFileAttachments.files', "Files...");
-	readonly icon = Codicon.file;
-	readonly ordinal = 900;
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly ordinal: number;
 
 	constructor(
+		private readonly source: 'files' | 'photos',
 		private readonly pickFiles: typeof triggerUpload = triggerUpload,
 		@IChatAttachmentResolveService private readonly attachmentResolveService: IChatAttachmentResolveService,
 		@INotificationService private readonly notificationService: INotificationService,
-	) { }
+	) {
+		this.label = source === 'photos' ? localize('mobileFileAttachments.photos', "Photos...") : localize('mobileFileAttachments.files', "Files...");
+		this.icon = source === 'photos' ? Codicon.fileMedia : Codicon.file;
+		this.ordinal = source === 'photos' ? 901 : 900;
+	}
 
 	isEnabled(widget: IChatWidget): boolean {
-		return !!(widget.attachmentCapabilities.supportsFileAttachments || widget.attachmentCapabilities.supportsImageAttachments);
+		return !!(widget.attachmentCapabilities.supportsImageAttachments || (this.source === 'files' && widget.attachmentCapabilities.supportsFileAttachments));
 	}
 
 	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry[] | undefined> {
 		try {
-			const files = await this.pickFiles(widget.attachmentCapabilities.supportsFileAttachments
-				? undefined
-				: Object.keys(CHAT_ATTACHABLE_IMAGE_MIME_TYPES).map(extension => `.${extension}`).join(','));
+			const imagesOnly = this.source === 'photos' || !widget.attachmentCapabilities.supportsFileAttachments;
+			const files = await this.pickFiles(imagesOnly ? [
+				...new Set(Object.values(CHAT_ATTACHABLE_IMAGE_MIME_TYPES)),
+				...Object.keys(CHAT_ATTACHABLE_IMAGE_MIME_TYPES).map(extension => `.${extension}`),
+			].join(',') : undefined);
 			if (!files?.length) {
 				return undefined;
 			}
@@ -60,6 +68,10 @@ export class MobileFileContextValuePick implements IChatContextValueItem {
 
 					const mimeType = CHAT_ATTACHABLE_IMAGE_MIME_TYPES[extname(file.name).slice(1).toLowerCase()] || file.type || getMediaMime(file.name);
 					const isImage = !!mimeType && !!getAttachableImageExtension(mimeType);
+					if (this.source === 'photos' && !isImage) {
+						this.warnUnsupported(file.name);
+						continue;
+					}
 					if (isImage ? !widget.attachmentCapabilities.supportsImageAttachments : !widget.attachmentCapabilities.supportsFileAttachments) {
 						this.warnUnsupported(file.name);
 						continue;

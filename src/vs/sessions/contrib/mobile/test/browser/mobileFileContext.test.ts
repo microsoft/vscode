@@ -46,7 +46,7 @@ suite('MobileFileContext', () => {
 		return transfer.files;
 	}
 
-	function createFixture(files: File[] = [], pickFiles?: typeof dom.triggerUpload) {
+	function createFixture(files: File[] = [], pickFiles?: typeof dom.triggerUpload, source: 'files' | 'photos' = 'files') {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IBrowserViewWorkbenchService, {});
 		const resolver = instantiationService.createInstance(ChatAttachmentResolveService);
@@ -64,7 +64,7 @@ suite('MobileFileContext', () => {
 			attachmentCapabilities: capabilities,
 			focusInput: () => { state.focused++; },
 		});
-		const picker = new MobileFileContextValuePick(pickFiles ?? (async accept => {
+		const picker = new MobileFileContextValuePick(source, pickFiles ?? (async accept => {
 			filters.push(accept);
 			return fileList(files);
 		}), resolver, notifications);
@@ -167,19 +167,21 @@ suite('MobileFileContext', () => {
 		}, { attachments: undefined, connected: false, focused: 1, errors: [] });
 	});
 
-	test('image-only chats filter the picker and reject text without reading it', async () => {
-		const text = new File(['do not read'], 'notes.txt');
-		const readText = sinon.spy(text, 'arrayBuffer');
-		const fixture = createFixture([text, new File([Uint8Array.from(png)], 'photo.png')]);
-		fixture.capabilities.supportsFileAttachments = false;
-		const attachments = await fixture.picker.asAttachment(fixture.widget);
-		assert.deepStrictEqual({
-			filters: fixture.filters,
-			kinds: attachments?.map(entry => entry.kind),
-			textReads: readText.callCount,
-			warnings: fixture.warnings.length,
-		}, { filters: ['.png,.jpg,.jpeg,.gif,.webp'], kinds: ['image'], textReads: 0, warnings: 1 });
-	});
+	for (const supportsFiles of [false, true]) {
+		test(`Photos requests supported formats and rejects text, with file support ${supportsFiles}`, async () => {
+			const text = new File(['do not read'], 'notes.txt');
+			const readText = sinon.spy(text, 'arrayBuffer');
+			const fixture = createFixture([text, new File([Uint8Array.from(png)], 'photo.png')], undefined, 'photos');
+			fixture.capabilities.supportsFileAttachments = supportsFiles;
+			const attachments = await fixture.picker.asAttachment(fixture.widget);
+			assert.deepStrictEqual({
+				filters: fixture.filters,
+				kinds: attachments?.map(entry => entry.kind),
+				textReads: readText.callCount,
+				warnings: fixture.warnings.length,
+			}, { filters: ['image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp'], kinds: ['image'], textReads: 0, warnings: 1 });
+		});
+	}
 
 	test('capability changes while a file is being read prevent attachment', async () => {
 		const read = new DeferredPromise<ArrayBuffer>();

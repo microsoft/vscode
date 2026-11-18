@@ -17,7 +17,8 @@ class MobileAttachmentContextContribution extends Disposable {
 	) {
 		super();
 		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick, false)));
-		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(MobileFileContextValuePick, undefined)));
+		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(MobileFileContextValuePick, 'files', undefined)));
+		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(MobileFileContextValuePick, 'photos', undefined)));
 	}
 }
 
