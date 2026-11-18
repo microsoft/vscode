@@ -105,6 +105,10 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 	readonly domNode = dom.$('.chat-image-generation-batch');
 	private readonly selectedTool = dom.append(this.domNode, dom.$('.chat-image-generation-batch-tool'));
 	private readonly preview = dom.append(this.domNode, dom.$('.chat-image-generation-batch-preview'));
+	private readonly failedPreview = dom.$('.chat-image-generation-placeholder', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' },
+		dom.$('.chat-image-generation-line.chat-image-generation-failure', undefined,
+			dom.$('span.codicon.codicon-close', { 'aria-hidden': 'true' }),
+			dom.$('span', undefined, localize('chat.imageBatch.failedPreview', "Image generation failed"))));
 	private readonly footer = dom.append(this.domNode, dom.$('.chat-image-generation-batch-footer'));
 	private readonly summary = dom.append(this.footer, dom.$('.chat-image-generation-batch-summary', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }));
 	private readonly downloadAction = this._register(new Action('chat.imageBatch.download', localize('chat.imageBatch.download', "Download All Images as ZIP"), ThemeIcon.asClassName(Codicon.cloudDownload), false, () => this.downloadImages()));
@@ -475,11 +479,19 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 			item.button.element.setAttribute('aria-pressed', String(active));
 			item.button.element.tabIndex = active ? 0 : -1;
 		}
+		if (selected?.status !== 'failed') {
+			this.failedPreview.remove();
+		}
 		if (!selected?.part) {
 			if (this.previewWidget.value) {
 				this.clearPreview();
 			}
-			if (selected?.status === 'running') {
+			if (selected?.status === 'failed') {
+				this.loading.clear();
+				if (this.failedPreview.parentElement !== this.preview) {
+					this.preview.appendChild(this.failedPreview);
+				}
+			} else if (selected?.status === 'running') {
 				if (!this.loading.value) {
 					const store = this.loading.value = new DisposableStore();
 					const placeholder = dom.append(this.preview, dom.$('.chat-image-generation-placeholder', { 'aria-hidden': 'true' }));

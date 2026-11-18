@@ -52,6 +52,31 @@
 		}
 	}
 
+	.chat-image-generation-failure {
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: var(--vscode-spacing-size80);
+		padding: var(--vscode-spacing-size160);
+		background-color: color-mix(in srgb, var(--vscode-foreground) 10%, var(--vscode-chat-list-background, var(--vscode-editor-background)));
+		font-size: var(--vscode-chat-font-size-body-s);
+		color: var(--vscode-foreground);
+		text-align: center;
+		overflow-wrap: anywhere;
+
+		.codicon {
+			color: var(--vscode-errorForeground);
+		}
+
+		.hc-black &,
+		.hc-light & {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+			outline-offset: -1px;
+		}
+	}
+
 	.chat-image-generation-batch-selected {
 		margin: 0;
 		min-width: 0;
