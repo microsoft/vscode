@@ -5,7 +5,7 @@
 
 import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionChild, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionChild, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext, toAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -195,12 +195,18 @@ export class MarkAllAgentSessionsReadAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			category: AGENT_SESSIONS_CATEGORY,
 			f1: true,
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: '0_read',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession.negate() // no read state for archived sessions
-			}
+			}, {
+				// The Agents window registers its own entry on this menu.
+				id: MenuId.SessionItemContextMenu,
+				group: '1_state',
+				order: 5,
+				when: IsSessionsWindowContext.negate()
+			}]
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: IMarshalledAgentSessionContext) {
@@ -425,17 +431,23 @@ export class OpenAgentSessionCustomizationsAction extends Action2 {
 			title: localize2('openSessionCustomizations', "Open Customizations"),
 			icon: Codicon.extensions,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate()),
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionsContext,
 				group: 'navigation',
 				order: 6,
 				when: ChatContextKeys.enabled,
-			},
+			}, {
+				// The Agents window registers its own entry on this menu.
+				id: MenuId.SessionItemContextMenu,
+				group: 'navigation',
+				order: 6,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.enabled),
+			}],
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
-		const sessions = isMarshalledAgentSessionContext(context) ? context.sessions ?? [context.session] : context ? [context] : [];
+	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
+		const sessions = Array.isArray(context) ? context as readonly { readonly resource: URI }[] : isMarshalledAgentSessionContext(context) ? context.sessions ?? [context.session] : context ? [context as IAgentSession] : [];
 		if (sessions.length !== 1) {
 			throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
 		}
@@ -448,9 +460,15 @@ abstract class BaseAgentSessionAction extends Action2 {
 	protected readonly supportsChildSessions: boolean = false;
 	protected readonly supportsMultiSelection: boolean = false;
 
-	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, sessionContext?: IAgentSession | IMarshalledAgentSessionContext | readonly { readonly resource: URI }[]): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const viewsService = accessor.get(IViewsService);
+
+		// The shared sessions list menu passes the selected sessions as an array.
+		const context = toAgentSessionContext(sessionContext, resource => agentSessionsService.getSession(resource));
+		if (Array.isArray(sessionContext) && !context) {
+			return;
+		}
 
 		let sessions: IAgentSession[] = [];
 		if (isMarshalledAgentSessionContext(context)) {
@@ -1041,6 +1059,11 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 				when: IsSessionsWindowContext.negate(),
 				order: 1,
 				group: 'navigation'
+			}, {
+				id: MenuId.SessionItemContextMenu,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.enabled),
+				order: 2.1,
+				group: 'navigation'
 			}]
 		});
 	}
@@ -1080,6 +1103,11 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 				when: IsSessionsWindowContext.negate(),
 				order: 2,
 				group: 'navigation'
+			}, {
+				id: MenuId.SessionItemContextMenu,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.enabled),
+				order: 2.2,
+				group: 'navigation'
 			}]
 		});
 	}
@@ -1103,11 +1131,17 @@ export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionActio
 		super({
 			id: OpenAgentSessionInNewWindowAction.id,
 			title: localize2('chat.openSessionInNewWindow.label', "Open in New Window"),
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionsContext,
 				order: 3,
 				group: 'navigation'
-			}
+			}, {
+				// The Agents window opens a chat in a new window from the chat item menu.
+				id: MenuId.SessionItemContextMenu,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.enabled),
+				order: 2.3,
+				group: 'navigation'
+			}]
 		});
 	}
 
