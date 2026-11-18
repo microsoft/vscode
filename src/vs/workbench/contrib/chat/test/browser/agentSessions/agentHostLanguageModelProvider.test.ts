@@ -10,9 +10,9 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { createModelRouterModelMeta, IModelRouterRouteSummary } from '../../../../../../platform/agentHost/common/modelRouter.js';
+import { createModelRouterModelMeta } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, withAgentModelRouterRoutesMeta, type IAgentModelAutoTierPromotion, type IAgentModelRouterRoute } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -57,10 +57,10 @@ suite('AgentHostLanguageModelProvider', () => {
 		const provider = createProvider();
 		const file = URI.file('/routers/daily.model-router.yaml');
 		// As it arrives over the wire.
-		const meta = (routes?: readonly IModelRouterRouteSummary[]) => JSON.parse(JSON.stringify(createModelRouterModelMeta('A router.', file, routes)));
+		const meta = (routes: readonly IAgentModelRouterRoute[]) => JSON.parse(JSON.stringify(withAgentModelRouterRoutesMeta(createModelRouterModelMeta('A router.', file), routes)));
 		provider.updateModels([
 			makeModel('model-router:daily', meta([{ name: 'build', model: 'Claude Opus 5.5', effort: 'high', contextTokens: 1_000_000 }, { model: 'Claude Haiku 5.5' }])),
-			makeModel('model-router:from-another-host', meta()),
+			makeModel('model-router:from-another-host', meta([])),
 			makeModel('not-a-router'),
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);

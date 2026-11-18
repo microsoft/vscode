@@ -9,7 +9,7 @@ import type { IAgentModelInfo } from './agent.js';
 import { readAgentModelByokIdentifier } from './agentModelByokMeta.js';
 import { ContextSizeConfigKey } from './agentModelConfiguration.js';
 import { readAgentModelNoticesMeta } from './agentModelNotices.js';
-import { isAgentModelExperimental } from './meta/agentModelMeta.js';
+import { isAgentModelExperimental, type IAgentModelRouterRoute } from './meta/agentModelMeta.js';
 import { isCopilotHydraFusionModelId } from './copilotCliConfig.js';
 import { ReasoningEffortConfigKey, reasoningEffortLevels } from './reasoningEffort.js';
 import { PolicyState } from './state/protocol/channels-root/state.js';
@@ -180,23 +180,10 @@ export function isModelRouterModelId(modelId: string | undefined): boolean {
 
 const MODEL_ROUTER_DESCRIPTION_META_KEY = 'modelRouterDescription';
 const MODEL_ROUTER_URI_META_KEY = 'modelRouterUri';
-const MODEL_ROUTER_ROUTES_META_KEY = 'modelRouterRoutes';
 
-/** One route of a router, as its row in the model picker describes it. */
-export interface IModelRouterRouteSummary {
-	/** The route's name, when it has one. */
-	readonly name?: string;
-	/** The name of the model the route runs on for this account. */
-	readonly model: string;
-	/** The route's fixed effort, or `auto` when the router chooses it. Absent when the model keeps its default. */
-	readonly effort?: string;
-	/** The context window, in tokens, the router sets for the route. Absent when the model keeps its own. */
-	readonly contextTokens?: number;
-}
-
-/** The `_meta` of a router's model row: its description, its file and its routes, for the model picker. */
-export function createModelRouterModelMeta(description: string, uri: { toString(): string }, routes: readonly IModelRouterRouteSummary[] = []): Record<string, unknown> {
-	return { [MODEL_ROUTER_DESCRIPTION_META_KEY]: description, [MODEL_ROUTER_URI_META_KEY]: uri.toString(), ...(routes.length ? { [MODEL_ROUTER_ROUTES_META_KEY]: routes } : {}) };
+/** The `_meta` of a router's model row: its description and file, for the model picker. */
+export function createModelRouterModelMeta(description: string, uri: { toString(): string }): Record<string, unknown> {
+	return { [MODEL_ROUTER_DESCRIPTION_META_KEY]: description, [MODEL_ROUTER_URI_META_KEY]: uri.toString() };
 }
 
 /** A router row's file on the agent host, or `undefined` for other models. */
@@ -211,24 +198,6 @@ export function readModelRouterDescription(model: { readonly _meta?: Record<stri
 	const meta = model._meta;
 	const value = meta ? meta[MODEL_ROUTER_DESCRIPTION_META_KEY] : undefined;
 	return typeof value === 'string' ? value : undefined;
-}
-
-/** A router row's routes, in the router's order. Empty for other models, and for a router with errors. */
-export function readModelRouterRoutes(model: { readonly _meta?: Record<string, unknown> }): readonly IModelRouterRouteSummary[] {
-	const meta = model._meta;
-	const value = meta ? meta[MODEL_ROUTER_ROUTES_META_KEY] : undefined;
-	if (!Array.isArray(value)) {
-		return [];
-	}
-	return value.flatMap((entry: unknown): IModelRouterRouteSummary[] => {
-		if (!entry || typeof entry !== 'object') {
-			return [];
-		}
-		const { name, model: routeModel, effort, contextTokens } = entry as Partial<Record<keyof IModelRouterRouteSummary, unknown>>;
-		return typeof routeModel === 'string'
-			? [{ ...(typeof name === 'string' ? { name } : {}), model: routeModel, ...(typeof effort === 'string' ? { effort } : {}), ...(typeof contextTokens === 'number' ? { contextTokens } : {}) }]
-			: [];
-	});
 }
 
 /** The router name a picker model id selects, if it selects one. */
@@ -1023,7 +992,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
  * The routes of a router that this account can use, in the router's order, as its row in the
  * model picker describes them. A chat starts on the first when none clearly fits.
  */
-export function summarizeModelRouterRoutes(router: IModelRouter, models: readonly IAgentModelInfo[]): IModelRouterRouteSummary[] {
+export function summarizeModelRouterRoutes(router: IModelRouter, models: readonly IAgentModelInfo[]): IAgentModelRouterRoute[] {
 	const { routes } = resolveModelRouter(router, models);
 	// Effort is chosen along with the route, so a router with one usable route never chooses it.
 	const choosesEffort = router.effort === 'auto' && routes.length > 1;

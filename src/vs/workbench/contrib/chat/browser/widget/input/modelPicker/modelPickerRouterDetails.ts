@@ -13,7 +13,7 @@ import { basename } from '../../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { IModelRouterRouteSummary } from '../../../../../../../platform/agentHost/common/modelRouter.js';
+import { IAgentModelRouterRoute } from '../../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { getReasoningEffortLabel } from '../../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
@@ -29,7 +29,7 @@ export class ModelRouterDetails extends Disposable {
 
 	constructor(
 		card: HTMLElement,
-		routes: readonly IModelRouterRouteSummary[],
+		routes: readonly IAgentModelRouterRoute[],
 		definitionFile: URI,
 		/** Called before the file opens, so the picker can close. */
 		onWillOpenDefinitionFile: () => void,
@@ -58,7 +58,7 @@ export class ModelRouterDetails extends Disposable {
 	 * what it runs on. A chat starts on the first route when none clearly fits, so it is marked
 	 * as the default when there is more than one.
 	 */
-	private _renderRoutes(card: HTMLElement, routes: readonly IModelRouterRouteSummary[]): void {
+	private _renderRoutes(card: HTMLElement, routes: readonly IAgentModelRouterRoute[]): void {
 		const list = dom.append(renderModelCardSection(card, localize('chat.modelPicker.routes', "Routes")), dom.$('.chat-model-card-routes', { role: 'list' }));
 		routes.forEach((route, index) => {
 			const row = dom.append(list, dom.$('.chat-model-card-route', { role: 'listitem' }));
@@ -87,7 +87,7 @@ export class ModelRouterDetails extends Disposable {
 }
 
 /** The settings a router gives a route, such as "High · 1M", written as the picker's list writes a model's. */
-function getRouteSettingsLabel(route: IModelRouterRouteSummary): string | undefined {
+function getRouteSettingsLabel(route: IAgentModelRouterRoute): string | undefined {
 	const effort = route.effort === 'auto'
 		? localize('chat.modelPicker.routeEffortAuto', "Auto")
 		: route.effort ? getReasoningEffortLabel(route.effort) : undefined;

@@ -17,13 +17,13 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../../platform/agentHo
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigPropertySchema, ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelRouterRoutesMeta, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelFusionInlineChatTier, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { readModelRouterDescription, readModelRouterRoutes, readModelRouterUri } from '../../../../../../platform/agentHost/common/modelRouter.js';
+import { readModelRouterDescription, readModelRouterUri } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -252,7 +252,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	/** A model router's file and routes, which its details in the model picker show. Other models have neither. */
 	private _modelRouterDetailsFor(model: SessionModelInfo): Pick<ILanguageModelChatMetadata, 'detailsResource' | 'modelRouterRoutes'> {
 		const routerUri = readModelRouterUri(model);
-		return routerUri ? { detailsResource: this._fromAgentHost(URI.parse(routerUri)), modelRouterRoutes: readModelRouterRoutes(model) } : {};
+		return routerUri ? { detailsResource: this._fromAgentHost(URI.parse(routerUri)), modelRouterRoutes: readAgentModelRouterRoutesMeta(model) } : {};
 	}
 
 	/**

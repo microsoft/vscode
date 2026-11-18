@@ -10,7 +10,7 @@ import { URI } from '../../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IResourceEditorInput } from '../../../../../../../../platform/editor/common/editor.js';
-import { IModelRouterRouteSummary } from '../../../../../../../../platform/agentHost/common/modelRouter.js';
+import { IAgentModelRouterRoute } from '../../../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,7 +24,7 @@ suite('ModelRouterDetails', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const file = URI.file('/routers/daily.model-router.yaml');
 
-	function render(routes: readonly IModelRouterRouteSummary[]) {
+	function render(routes: readonly IAgentModelRouterRoute[]) {
 		const events: (string | IResourceEditorInput)[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.set(IHoverService, NullHoverService);
