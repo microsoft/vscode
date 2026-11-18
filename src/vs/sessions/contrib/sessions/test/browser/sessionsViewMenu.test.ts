@@ -46,6 +46,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -63,7 +64,9 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { getSessionFilterEnvironments, getSessionFilterOptions, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings, renderSessionsHeader } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { MobileSessionFilterChips } from '../../../../../workbench/contrib/sessions/browser/mobile/mobileSessionFilterChips.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
@@ -573,19 +576,45 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('inbox mode is always offered with AI enabled regardless of the default setting', async () => {
-		const { snapshot, configurationService, contextKeyService } = createMenu();
+	test('Inbox toggle is offered beside filters on desktop and phone only when enabled and supported', async () => {
+		const { snapshot, grouping, configurationService, contextKeyService } = createMenu();
 		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
-		const offered = () => snapshot(Menus.SessionsViewGrouping).some(item => item.title === 'Inbox Mode' && item.enabled);
+		const offered = () => [Menus.SidebarSessionsHeader, Menus.MobileSessionsListActions].map(menu =>
+			snapshot(menu).filter(item => item.title === 'Toggle Inbox'));
 		const initial = offered();
 		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
 		const enabled = offered();
+		const header = snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'navigation').map(item => item.title);
+		grouping.set(SessionsGrouping.Inbox);
+		const checked = offered();
+		bindSessionsViewGroupings(contextKeyService, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered);
+		const unsupported = offered();
+		bindSessionsViewGroupings(contextKeyService, DEFAULT_SESSIONS_GROUPINGS);
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
 		const hiddenAI = offered();
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
-		assert.deepStrictEqual({ initial, enabled, hiddenAI, disabled: offered() }, {
-			initial: true, enabled: true, hiddenAI: false, disabled: true,
+		assert.deepStrictEqual({ initial, enabled, checked, unsupported, hiddenAI, disabled: offered(), adjacent: header.indexOf('Toggle Inbox') + 1 === header.indexOf('Filter Sessions') }, {
+			initial: [[], []],
+			enabled: [false, false].map(checked => [{ title: 'Toggle Inbox', group: 'navigation', checked, enabled: true }]),
+			checked: [true, true].map(checked => [{ title: 'Toggle Inbox', group: 'navigation', checked, enabled: true }]),
+			unsupported: [[], []], hiddenAI: [[], []], disabled: [[], []], adjacent: true,
+		});
+	});
+
+	test('Inbox toggle is hidden on both toolbars and in the command palette while an activated chat participant remains enabled', async () => {
+		const { snapshot, configurationService, contextKeyService } = createMenu();
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		const hidden = ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService);
+		const offered = () => [Menus.SidebarSessionsHeader, Menus.MobileSessionsListActions, MenuId.CommandPalette]
+			.map(menu => snapshot(menu).some(item => item.title === 'Toggle Inbox'));
+		const visible = offered();
+		hidden.set(true);
+		const hiddenAI = offered();
+		hidden.set(false);
+		assert.deepStrictEqual({ visible, hiddenAI, visibleAgain: offered(), participantEnabled: contextKeyService.getContextKeyValue(ChatContextKeys.enabled.key) }, {
+			visible: [true, true, true], hiddenAI: [false, false, false], visibleAgain: [true, true, true], participantEnabled: true,
 		});
 	});
 
@@ -602,11 +631,76 @@ suite('Sessions - View Menu', () => {
 			editorWindow: offered(false, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
 			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
 		}, {
-			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'],
+			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment'],
 			editorWindow: ['Time', 'Environment', 'Worktree'],
 			sessionsWindowOffering: ['Time', 'Environment'],
 		});
 	});
+
+	for (const phone of [false, true]) {
+		test(`Inbox toolbar supports pointer and keyboard toggling with focus retained (${phone ? 'phone' : 'desktop'})`, async () => {
+			const { configurationService, contextKeyService, grouping } = createMenu();
+			await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => configurationService,
+				contextKeyService: () => contextKeyService,
+			}, store);
+			const container = mainWindow.document.body.appendChild($('div'));
+			store.add(toDisposable(() => container.remove()));
+			const listFocus = container.appendChild($('div', { tabIndex: 0 }));
+			const view = {
+				element: container,
+				focus: () => listFocus.focus(),
+				currentGrouping: SessionsGrouping.Repository,
+				get grouping(): SessionsGrouping { return this.currentGrouping; },
+				get nonInboxGrouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'nonInboxGrouping', this); },
+				get inboxAvailable(): boolean { return Reflect.get(SessionsView.prototype, 'inboxAvailable', this); },
+				offeredGroupings: DEFAULT_SESSIONS_GROUPINGS,
+				configurationService,
+				storageService: store.add(new InMemoryStorageService()),
+				chatEntitlementService: { sentiment: { hidden: false } },
+				groupingContextKey: grouping,
+				setGrouping: SessionsView.prototype.setGrouping,
+				toggleInbox: SessionsView.prototype.toggleInbox,
+				updateInboxAvailability: Reflect.get(SessionsView.prototype, 'updateInboxAvailability') as () => void,
+				updateHeaderLayout: () => { },
+			};
+			grouping.set(view.grouping);
+			store.add(configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
+					view.updateInboxAvailability();
+				}
+			}));
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => view);
+			instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => undefined }));
+			instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}), 'executeCommand', async (id: string) => CommandsRegistry.getCommand(id)!.handler(instantiationService));
+			instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+			if (phone) {
+				store.add(instantiationService.createInstance(MobileSessionFilterChips, container));
+			} else {
+				renderSessionsHeader(container, false, instantiationService, contextKeyService, store.add(new DisposableStore()));
+			}
+			const button = () => container.querySelector<HTMLElement>('.codicon-inbox')!;
+			const snapshot = () => ({ mode: view.grouping, pressed: button().getAttribute('aria-pressed'), focused: getActiveElement() === button() });
+			button().focus();
+			button().dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+			button().click();
+			await retry(async () => assert.strictEqual(button().getAttribute('aria-pressed'), 'true'), 10, 30);
+			const pointer = snapshot();
+			button().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			button().dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+			await retry(async () => assert.strictEqual(button().getAttribute('aria-pressed'), 'false', JSON.stringify(snapshot())), 10, 30);
+			const keyboard = snapshot();
+			await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
+			await retry(async () => assert.strictEqual(button(), null), 10, 30);
+			assert.deepStrictEqual({ pointer, keyboard, disabledFocus: getActiveElement() === listFocus }, {
+				pointer: { mode: SessionsGrouping.Inbox, pressed: 'true', focused: true },
+				keyboard: { mode: SessionsGrouping.Repository, pressed: 'false', focused: true },
+				disabledFocus: true,
+			});
+		});
+	}
 
 	test('inbox triage menu respects the mode, triage state, and disabled AI', () => {
 		const { snapshot, grouping, contextKeyService } = createMenu();
@@ -1593,7 +1687,6 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: true },
-				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			environmentShow: [
 				{ title: 'Recent', group: '1_show', checked: false },
@@ -1611,7 +1704,6 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: false },
-				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			show: [
 				{ title: 'Recent', group: '1_show', checked: false },
