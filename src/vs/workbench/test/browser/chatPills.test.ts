@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { addDisposableListener, getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
-import { EventType as TouchEventType } from '../../../base/browser/touch.js';
+import { Gesture, EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import type { IManagedHoverContent, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
@@ -1134,6 +1135,63 @@ suite('ChatPills', () => {
 				middle: { left: true, right: true, masked: true },
 				end: { left: true, right: false, masked: true },
 				resized: { left: false, right: false, masked: false },
+			});
+		});
+	}
+
+	for (const { compact, width } of [
+		{ compact: false, width: 320 },
+		{ compact: false, width: 390 },
+		{ compact: true, width: 60 },
+		{ compact: 'auto', width: 60 },
+	] as const) {
+		test(`touch swipes scroll pills without activating them at width ${width} in compact mode ${compact}`, () => {
+			const touchDevice = sinon.stub(Gesture, 'isTouchDevice').returns(true);
+			store.add(toDisposable(() => touchDevice.restore()));
+			const harness = createResponsiveRow(compact);
+			harness.row.element.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+			harness.row.element.style.setProperty('--vscode-strokeThickness', '1px');
+			harness.actions[0].label = 'Changes to Files in a Repository with a Long Name';
+			harness.resize(width);
+			let activations = 0;
+			harness.actions[0].run = async () => { activations++; };
+			const button = harness.widget.getPillElements()[0];
+			const dispatchTouch = (type: 'touchstart' | 'touchmove' | 'touchend', pageX: number) => {
+				const touch = { identifier: 1, target: button, pageX, pageY: 10 };
+				const list = (items: readonly typeof touch[]) => Object.assign([...items], { item: (index: number) => items[index] ?? null });
+				const activeTouches = list(type === 'touchend' ? [] : [touch]);
+				button.dispatchEvent(Object.assign(new mainWindow.Event(type, { bubbles: true, cancelable: true }), {
+					touches: activeTouches,
+					targetTouches: activeTouches,
+					changedTouches: list([touch]),
+				}));
+			};
+			const maximumScrollLeft = harness.row.content.scrollWidth - harness.row.content.clientWidth;
+
+			dispatchTouch('touchstart', 200);
+			dispatchTouch('touchmove', 120);
+			const forward = harness.row.content.scrollLeft;
+			dispatchTouch('touchend', 120);
+			dispatchTouch('touchstart', 120);
+			dispatchTouch('touchmove', 300);
+			const backward = harness.row.content.scrollLeft;
+			dispatchTouch('touchend', 300);
+			const activatedBySwipe = activations;
+			dispatchTouch('touchstart', 200);
+			dispatchTouch('touchend', 200);
+
+			assert.deepStrictEqual({
+				overflows: maximumScrollLeft > 0,
+				forward,
+				backward,
+				activatedBySwipe,
+				activatedByTap: activations,
+			}, {
+				overflows: true,
+				forward: Math.min(80, maximumScrollLeft),
+				backward: 0,
+				activatedBySwipe: 0,
+				activatedByTap: 1,
 			});
 		});
 	}
