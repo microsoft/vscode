@@ -56,7 +56,6 @@ export interface McpServerListViewOptions {
 interface IQueryResult {
 	model: IPagedModel<IWorkbenchMcpServer>;
 	disposables: DisposableStore;
-	showWelcomeContent?: boolean;
 	readonly onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
 }
 
@@ -220,12 +219,6 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		this.currentQuery = query;
 		const queryGeneration = ++this.queryGeneration;
 
-		if (this.mpcViewOptions.showMarketplaceWelcome && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
-			const input = { model: new PagedModel<IWorkbenchMcpServer>([]), disposables: new DisposableStore(), showWelcomeContent: true };
-			this.setInput(input);
-			return input.model;
-		}
-
 		this.setInput({ model: new PagedModel([]), disposables: new DisposableStore() }, false);
 		const input = await this.query(query.trim());
 		if (queryGeneration !== this.queryGeneration) {
@@ -268,23 +261,19 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(this.input.model);
 		}
-		this.showWelcomeContent(!!this.input.showWelcomeContent);
-		if (!this.input.showWelcomeContent) {
-			this.updateBody(undefined, announce);
-		}
+		this.showMarketplaceWelcome(this.mpcViewOptions.showMarketplaceWelcome === true && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true);
+		this.updateBody(undefined, announce);
 	}
 
-	private showWelcomeContent(show: boolean): void {
+	private showMarketplaceWelcome(show: boolean): void {
 		this.welcomeContainer?.classList.toggle('hide', !show);
-		this.listContainer?.classList.toggle('hide', show);
-		this.bodyTemplate?.messageContainer.classList.toggle('hidden', show);
 	}
 
 	private createWelcomeContent(welcomeContainer: HTMLElement): void {
 		this._register(this.instantiationService.createInstance(CustomizationMarketplaceWelcome, welcomeContainer, {
-			title: localize('mcp.welcome.title', "Find MCP Servers in Customizations"),
-			description: new MarkdownString(localize('mcp.welcome.descriptionWithLink', "Browse and install [Model Context Protocol (MCP) servers](https://code.visualstudio.com/docs/agent-customization/mcp-servers) from the Customizations marketplace.")),
-			buttonLabel: localize('mcp.welcome.openCustomizationsButton', "Browse MCP Servers"),
+			title: localize('mcp.welcome.title', "MCP Servers have moved"),
+			description: new MarkdownString(localize('mcp.welcome.description', "Browse and manage MCP servers in Customizations")),
+			buttonLabel: localize('mcp.welcome.openCustomizationsButton', "Browse"),
 			section: AICustomizationManagementSection.McpServers,
 		}));
 	}
@@ -508,7 +497,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 			{
 				id: InstalledMcpServersViewId,
 				name: localize2('mcp-installed', "MCP Servers - Installed"),
-				ctorDescriptor: new SyncDescriptor(McpServersListView, [{}]),
+				ctorDescriptor: new SyncDescriptor(McpServersListView, [{ showMarketplaceWelcome: true }]),
 				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				weight: 40,
 				order: 4,

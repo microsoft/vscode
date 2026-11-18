@@ -56,6 +56,7 @@ import { CapturingTelemetryService } from '../../../telemetry/test/common/testTe
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -96,7 +97,8 @@ import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnec
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { IAgentHostClientConnectionEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext, type IAgentHostSessionSubscribeTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
+import { buildMcpServerLogsChannelTemplate } from '../../common/otlp/mcpServerLogsChannel.js';
+import { iterateOtlpLogRecords, OtlpLogEmitter, type IOtlpLogRecord, type OtlpLogLevelName } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
@@ -272,6 +274,8 @@ class MockAgentService extends Disposable implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	/** Entries `removeSessionArtifact` removes, each for the first request only. */
+	readonly removableArtifacts = new Map<string, ISessionArtifact>();
 	readonly stopBackgroundWorkCalls: { chat: string; id: string }[] = [];
 	readonly answerShellAuthenticationCalls: { chat: string; requestId: string; answer: string | undefined }[] = [];
 	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
@@ -447,8 +451,12 @@ class MockAgentService extends Disposable implements IAgentService {
 		return URI.file('/state/sdk-session/events.jsonl');
 	}
 	getSessionPlanFile(_session: URI, _chat: URI): URI | undefined { return undefined; }
-	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+	async removeSessionArtifact(session: URI, artifactId: string): Promise<ISessionArtifact | undefined> {
 		this.removeSessionArtifactCalls.push({ session: session.toString(), artifactId });
+		// Like the serialized removal, only the first request for an entry removes it.
+		const removed = this.removableArtifacts.get(artifactId);
+		this.removableArtifacts.delete(artifactId);
+		return removed;
 	}
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		this.stopBackgroundWorkCalls.push({ chat: chat.toString(), id });
@@ -540,6 +548,12 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async disposeTerminal(): Promise<void> { }
 	async invokeChangesetOperation(_params: InvokeChangesetOperationParams, _credentials?: IAgentHostCredentialSource): Promise<{}> { return {}; }
+	readonly mcpLogSubscriptions: { session: URI; serverName: string; level: OtlpLogLevelName; onRecords: (records: readonly IOtlpLogRecord[]) => void; disposed: boolean }[] = [];
+	subscribeMcpServerLogs(session: URI, serverName: string, level: OtlpLogLevelName, onRecords: (records: readonly IOtlpLogRecord[]) => void) {
+		const subscription = { session, serverName, level, onRecords, disposed: false };
+		this.mcpLogSubscriptions.push(subscription);
+		return toDisposable(() => { subscription.disposed = true; });
+	}
 	async handleMcpRequest(_channel: string, _method: string, _params: Record<string, unknown> | undefined): Promise<unknown> { throw new Error('Method not found'); }
 
 	override dispose(): void {
@@ -2709,6 +2723,33 @@ suite('ProtocolServerHandler', () => {
 			uninitialized: false,
 			response: { jsonrpc: '2.0', id: 20, result: null },
 			calls: [{ session: 'copilotcli:/session-1', artifactId: 'artifact-1' }],
+		});
+	});
+
+	test('reports only the request that removed an entry, as the removal found it', async () => {
+		stateManager.createSession(makeSessionSummary());
+		agentService.removableArtifacts.set('artifact-1', { id: 'artifact-1', chat: defaultChatUri, type: SessionArtifactType.PullRequest, label: 'Fix', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true });
+		const transport = connectClient('client-remove-artifact-telemetry');
+		const first = waitForResponse(transport, 20);
+		const overlapping = waitForResponse(transport, 21);
+		transport.simulateMessage(request(20, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'artifact-1' }));
+		transport.simulateMessage(request(21, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'artifact-1' }));
+
+		assert.deepStrictEqual({
+			responses: await Promise.all([first, overlapping]),
+			removed: telemetryService.events.filter(event => event.eventName === 'agentHost.artifactRemoved').map(event => event.data),
+		}, {
+			responses: [{ jsonrpc: '2.0', id: 20, result: null }, { jsonrpc: '2.0', id: 21, result: null }],
+			removed: [{
+				provider: 'copilot',
+				agentSessionId: 'test-session',
+				turnId: undefined,
+				toolCallId: undefined,
+				initiator: 'user',
+				kind: SessionArtifactType.PullRequest,
+				category: 'artifact',
+				isGitHub: true,
+			}],
 		});
 	});
 
@@ -12748,6 +12789,54 @@ suite('ProtocolServerHandler', () => {
 			assert.ok(resp.error, 'response should be an error');
 			assert.strictEqual(resp.result, undefined);
 			assert.strictEqual(agentService.createSessionConfigs.length, 0, 'agent service should not have been called');
+		});
+	});
+
+	suite('MCP server logs channels', () => {
+		const records: readonly IOtlpLogRecord[] = [{ timeUnixNano: '1000', severityNumber: 5, severityText: 'debug', body: 'MCP frame' }];
+		// Clients normalize the expanded template through `URI`, which must not break the encoded segments.
+		const channel = URI.parse(buildMcpServerLogsChannelTemplate(sessionUri, 'plugin/server').replace('{level}', 'DEBUG')).toString();
+		const logs = (transport: MockProtocolTransport) => transport.sent.filter(isJsonRpcNotification).filter(message => message.method === 'otlp/exportLogs');
+
+		test('routes stateless logs only to the subscriber without a host OTLP emitter', async () => {
+			const a = connectClient('mcp-logs-a');
+			const b = connectClient('mcp-logs-b');
+			a.simulateMessage(request(2, 'subscribe', { channel }));
+			const response = await waitForResponse(a, 2);
+			const subscription = agentService.mcpLogSubscriptions[0];
+			subscription.onRecords(records);
+			assert.deepStrictEqual({
+				result: (response as { result: unknown }).result,
+				route: { session: subscription.session.toString(), serverName: subscription.serverName, level: subscription.level },
+				a: logs(a).map(message => message.method === 'otlp/exportLogs' ? { channel: message.params.channel, records: [...iterateOtlpLogRecords(message.params.payload)] } : undefined),
+				b: logs(b),
+			}, {
+				result: {}, route: { session: sessionUri, serverName: 'plugin/server', level: 'debug' },
+				a: [{ channel, records }], b: [],
+			});
+			a.simulateMessage(notification('unsubscribe', { channel }));
+			subscription.onRecords(records);
+			assert.deepStrictEqual({ disposed: subscription.disposed, count: logs(a).length }, { disposed: true, count: 1 });
+		});
+
+		test('restores initial subscriptions and disposes them on disconnect', () => {
+			const transport = connectClient('mcp-logs-initial', [channel]);
+			const subscription = agentService.mcpLogSubscriptions[0];
+			subscription.onRecords(records);
+			transport.simulateClose();
+			subscription.onRecords(records);
+			assert.deepStrictEqual({ disposed: subscription.disposed, count: logs(transport).length }, { disposed: true, count: 1 });
+		});
+
+		test('restores stateless log subscriptions on reconnect', async () => {
+			const original = connectClient('mcp-logs-reconnect', [channel]);
+			original.simulateClose();
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(2, 'reconnect', { clientId: 'mcp-logs-reconnect', lastSeenServerSeq: -1, subscriptions: [channel] }));
+			await waitForResponse(transport, 2);
+			agentService.mcpLogSubscriptions[1].onRecords(records);
+			assert.deepStrictEqual({ disposed: agentService.mcpLogSubscriptions.map(subscription => subscription.disposed), count: logs(transport).length }, { disposed: [true, false], count: 1 });
 		});
 	});
 

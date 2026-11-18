@@ -58,6 +58,7 @@ import { TestThemeService } from '../../../../../../platform/theme/test/common/t
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -561,7 +562,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			fromSeq: 0,
 		};
 	}
-	unsubscribe(_resource: URI): void { }
+	override unsubscribe(_resource: URI): void { }
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
@@ -1112,6 +1113,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		onDidChangeWorkbenchState: Event.None
 	});
 	const trustController: { result: boolean | undefined; workspaceTrusted: boolean; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string>; setUrisTrustCalls: string[][] } = { result: true, workspaceTrusted: false, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>(), setUrisTrustCalls: [] };
+	// The marketplace install provider of each registered agent listens for the MCP registry being replaced.
+	instantiationService.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+		override readonly onDidChangeMcpGalleryManifest = Event.None;
+	}());
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust(): Promise<boolean | undefined> {
 			trustController.workspaceTrustCalls++;
@@ -7115,6 +7120,33 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('sessionRemoved preserves identities through every list controller removal delta', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService));
+			const backend = URI.parse('host-session://owner/session?revision=one');
+			agentHostService.addSession({ session: backend, provider: 'copilot', startTime: 1000, modifiedTime: 2000, summary: 'A' });
+			const controllers = [0, 1].map(() => createSessionListController(disposables, instantiationService, agentHostService));
+			await Promise.all(controllers.map(controller => controller.refresh(CancellationToken.None)));
+			const resource = connections.findSessionResource(backend)!;
+			const removals: { resources: URI[]; advertised: URI | undefined }[] = [];
+			for (const controller of controllers) {
+				disposables.add(controller.onDidChangeChatSessionItems(delta => {
+					removals.push({ resources: [...(delta.removed ?? [])], advertised: connections.findSessionResource(backend) });
+				}));
+			}
+			agentHostService.fireNotification({ type: 'root/sessionRemoved', channel: 'ahp-root://', session: backend.toString() });
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				removals,
+				remainingItems: controllers.map(controller => controller.items.length),
+				advertised: connections.findSessionResource(backend),
+			}, {
+				removals: [{ resources: [resource], advertised: resource }, { resources: [resource], advertised: resource }],
+				remainingItems: [0, 0],
+				advertised: undefined,
+			});
+		});
+
 		test('refresh keeps both sessions after the backend list reorders (order not significant)', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
@@ -8145,6 +8177,20 @@ suite('AgentHostChatContribution', () => {
 				windowDefault: folders.getDefaultFolder()?.path,
 			}, { carried: '/workspace/b', windowDefault: '/workspace/a' });
 		}));
+
+		test('with worktree support, the folder picker sits where the multi-root folder picker does, and stays shown, disabled, once the session starts', () => {
+			const folderItems = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
+				.filter((i): i is IMenuItem => isIMenuItem(i) && i.group === 'navigation' && i.command.id === OpenAgentHostFolderPickerAction.ID);
+			const worktree = folderItems.find(i => !!i.when?.keys().includes(`config.${ChatConfiguration.EditorWindowEnableWorktree}`));
+			const multiRoot = folderItems.find(i => i !== worktree);
+
+			assert.deepStrictEqual({
+				order: worktree?.order,
+				multiRootOrder: multiRoot?.order,
+				hiddenOnceStarted: !!worktree?.when?.keys().includes(ChatContextKeys.chatSessionIsEmpty.key),
+				disabledOnceStarted: !!worktree?.command.precondition?.keys().includes(ChatContextKeys.chatSessionIsEmpty.key),
+			}, { order: 1.1, multiRootOrder: 1.1, hiddenOnceStarted: false, disabledOnceStarted: true });
+		});
 
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
 			const item = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)

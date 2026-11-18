@@ -19,6 +19,8 @@ import { readLocalModelRowMeta } from '../common/meta/localModelStatus.js';
 import type { IAgentMetadataSource } from '../common/meta/metadata.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
+import type { SessionArtifactAddOutcome } from '../common/sessionArtifactCollection.js';
+import type { SessionArtifactType } from '../common/sessionArtifacts.js';
 import { MessageKind, type ErrorInfo, type Message, type SessionInputRequestKind, type ToolDefinition } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getAgentHostChatId, isSubagentSession, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
@@ -952,7 +954,7 @@ export interface IAgentHostSessionSummaryTotals {
 	activeMs: number;
 }
 
-export interface IAgentHostSessionSummaryEvent extends IAgentHostEventTelemetry, IAgentHostSessionSummaryTotals {
+export interface IAgentHostSessionSummaryEvent extends IAgentHostEventTelemetry, IAgentHostSessionSummaryTotals, Partial<IAgentHostSessionArtifactCounts> {
 	schemaVersion: number;
 	provider: string;
 	agentSessionId: string;
@@ -990,6 +992,15 @@ export type IAgentHostSessionSummaryClassification = IAgentHostEventClassificati
 	missingBilledNanoAiuTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Completed root and subagent turns that made model calls but reported no AI credit usage, so they are missing from the AI credit totals.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first observed turn start to the last observed turn end or hang report in the period.' };
 	activeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Sum of root turn durations in milliseconds. Concurrent root turns in different chats each count.' };
+	artifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Artifacts of every kind recorded across the session\'s chats when the summary was sent. This and the other artifact counts are absent when the session\'s state was no longer loaded, such as after deletion.' };
+	referenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'References of every kind recorded across the session\'s chats when the summary was sent.' };
+	pullRequestArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests recorded as artifacts when the summary was sent.' };
+	pullRequestReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests recorded as references when the summary was sent.' };
+	issueArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Issues recorded as artifacts when the summary was sent.' };
+	issueReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Issues recorded as references when the summary was sent.' };
+	ownPullRequestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Distinct pull requests the host found for the session\'s own branches when the summary was sent, excluding ones a folder-isolated session started with. The baseline for whether the session\'s own pull requests were recorded.' };
+	ownPullRequestArtifactCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests in ownPullRequestCount recorded as an artifact.' };
+	ownPullRequestReferenceCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Pull requests in ownPullRequestCount recorded only as a reference. The remaining own pull requests were not recorded.' };
 	owner: 'Giuspepe';
 	comment: 'One summary per agent host session and activity period, summing the turn telemetry so per-session metrics need no event joins.';
 };
@@ -1005,7 +1016,114 @@ export interface IAgentHostSessionSummaryReport {
 	readonly createdInHostProcess: boolean;
 	readonly multipleClientTypes: boolean;
 	readonly totals: IAgentHostSessionSummaryTotals;
+	/** Absent when the session's state is no longer loaded. */
+	readonly artifacts: IAgentHostSessionArtifactCounts | undefined;
 }
+
+/**
+ * What the session had recorded when its summary was sent, counted across its
+ * chats. The own pull request counts compare what was recorded with the pull
+ * requests the host found for the session's own branches.
+ */
+export interface IAgentHostSessionArtifactCounts {
+	artifactCount: number;
+	referenceCount: number;
+	pullRequestArtifactCount: number;
+	pullRequestReferenceCount: number;
+	issueArtifactCount: number;
+	issueReferenceCount: number;
+	ownPullRequestCount: number;
+	ownPullRequestArtifactCount: number;
+	ownPullRequestReferenceCount: number;
+}
+
+/** What recorded an artifact or reference: the agent's tool, or the Create Pull Request action. */
+export type AgentHostArtifactRecordingSource = 'agentTool' | 'createPullRequestAction';
+
+/** Who removed an artifact or reference: the agent's tool, or the user from the chat. */
+export type AgentHostArtifactRemovalInitiator = 'agentTool' | 'user';
+
+export interface IAgentHostArtifactRecordedReport extends IAgentHostTurnAttributedReport {
+	readonly provider: string | undefined;
+	/** The session that owns the chat the entry was recorded in. */
+	readonly session: string;
+	/** The chat the entry was recorded in. */
+	readonly chat: string;
+	readonly turnId: string | undefined;
+	readonly toolCallId: string | undefined;
+	readonly source: AgentHostArtifactRecordingSource;
+	readonly kind: SessionArtifactType;
+	/** The classification requested; an existing artifact is never downgraded to a reference. */
+	readonly isArtifact: boolean;
+	readonly outcome: SessionArtifactAddOutcome;
+	readonly isGitHub: boolean;
+	readonly batchSize: number;
+}
+
+type IAgentHostArtifactRecordedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	turnId: string | undefined;
+	toolCallId: string | undefined;
+	source: AgentHostArtifactRecordingSource;
+	kind: SessionArtifactType;
+	category: 'artifact' | 'reference';
+	outcome: SessionArtifactAddOutcome;
+	isGitHub: boolean;
+	batchSize: number;
+};
+
+type IAgentHostArtifactRecordedClassification = IAgentHostEventClassification & {
+	owner: 'benibenj';
+	comment: 'One event per artifact or reference that an agent or the Create Pull Request action records on an agent host session, to measure what gets recorded and how it is classified.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider of the session, or unknown.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn the agent recorded the entry in; absent for the Create Pull Request action.' };
+	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call that recorded the entry, matching agentHost.toolInvoked; absent for the Create Pull Request action.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What recorded the entry: agentTool (add_artifact_or_reference) or createPullRequestAction.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the entry: pullRequest, issue, commit, website, file or resource.' };
+	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the entry was requested as an artifact or a reference. An existing artifact is never downgraded, so with outcome alreadyRecorded the stored entry can be an artifact.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What recording did: added a new entry, promoted an existing reference to an artifact, modeUpdated how the chat shows an existing entry, or alreadyRecorded.' };
+	isGitHub: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the entry is a pull request or issue on GitHub, which artifact integrations can act on.' };
+	batchSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of entries recorded by the same call.' };
+};
+
+export interface IAgentHostArtifactRemovedReport extends IAgentHostTurnAttributedReport {
+	readonly provider: string | undefined;
+	readonly session: string;
+	/** The chat the agent removed the entry from; absent when the user removed it. */
+	readonly chat: string | undefined;
+	readonly turnId: string | undefined;
+	readonly toolCallId: string | undefined;
+	readonly initiator: AgentHostArtifactRemovalInitiator;
+	readonly kind: SessionArtifactType;
+	readonly isArtifact: boolean;
+	readonly isGitHub: boolean;
+}
+
+type IAgentHostArtifactRemovedEvent = IAgentHostEventTelemetry & {
+	provider: string;
+	agentSessionId: string;
+	turnId: string | undefined;
+	toolCallId: string | undefined;
+	initiator: AgentHostArtifactRemovalInitiator;
+	kind: SessionArtifactType;
+	category: 'artifact' | 'reference';
+	isGitHub: boolean;
+};
+
+type IAgentHostArtifactRemovedClassification = IAgentHostEventClassification & {
+	owner: 'benibenj';
+	comment: 'One event per artifact or reference removed from an agent host session, to measure how often recorded entries are removed again and by whom.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host provider of the session, or unknown.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The turn the agent removed the entry in; absent when the user removed it.' };
+	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool call that removed the entry, matching agentHost.toolInvoked; absent when the user removed it.' };
+	initiator: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Who removed the entry: agentTool (remove_artifact_or_reference) or user.' };
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of the removed entry: pullRequest, issue, commit, website, file or resource.' };
+	category: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the removed entry was an artifact or a reference.' };
+	isGitHub: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the removed entry is a pull request or issue on GitHub.' };
+};
 
 type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry & {
 	mcpSourceKind?: McpServerSource;
@@ -2162,7 +2280,46 @@ export class AgentHostTelemetryReporter {
 			createdInHostProcess: report.createdInHostProcess,
 			multipleClientTypes: report.multipleClientTypes,
 			...report.totals,
+			...report.artifacts,
 		});
+	}
+
+	/** Reports an artifact or reference that was recorded, promoted, or found already recorded. */
+	artifactRecorded(report: IAgentHostArtifactRecordedReport): void {
+		this._telemetryService.publicLog2<IAgentHostArtifactRecordedEvent, IAgentHostArtifactRecordedClassification>('agentHost.artifactRecorded', {
+			...toInitiatorTelemetry(report.clientContext),
+			...this._artifactCopilotTelemetry(report),
+			provider: report.provider ?? 'unknown',
+			agentSessionId: AgentSession.id(report.session),
+			turnId: report.turnId,
+			toolCallId: report.toolCallId,
+			source: report.source,
+			kind: report.kind,
+			category: report.isArtifact ? 'artifact' : 'reference',
+			outcome: report.outcome,
+			isGitHub: report.isGitHub,
+			batchSize: report.batchSize,
+		});
+	}
+
+	artifactRemoved(report: IAgentHostArtifactRemovedReport): void {
+		this._telemetryService.publicLog2<IAgentHostArtifactRemovedEvent, IAgentHostArtifactRemovedClassification>('agentHost.artifactRemoved', {
+			...toInitiatorTelemetry(report.clientContext),
+			...this._artifactCopilotTelemetry(report),
+			provider: report.provider ?? 'unknown',
+			agentSessionId: AgentSession.id(report.session),
+			turnId: report.turnId,
+			toolCallId: report.toolCallId,
+			initiator: report.initiator,
+			kind: report.kind,
+			category: report.isArtifact ? 'artifact' : 'reference',
+			isGitHub: report.isGitHub,
+		});
+	}
+
+	/** The account of the turn that changed the entry, else the provider's current account. */
+	private _artifactCopilotTelemetry(report: IAgentHostTurnAttributedReport & { readonly provider: string | undefined }): IAgentHostCopilotSkuTelemetry {
+		return toCopilotTelemetryData(report.telemetryContext) ?? (report.provider ? this._copilotTelemetryContext(report.provider) : {});
 	}
 
 	toolInvoked(report: IAgentHostToolInvokedReport): void {

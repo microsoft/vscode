@@ -43,6 +43,7 @@ import { ChatDropdownPillActionViewItem } from '../../../../../browser/chatDropd
 import { ChatPillsWidget, type IChatPill } from '../../../../../browser/chatPills.js';
 import { sessionBackgroundShellsPillOptions, sessionSubagentsPillOptions } from '../../sessionChatPillOptions.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
+import { renderSubagentChatLinks } from './chatSubagentOpenChat.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -59,6 +60,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	protected progressIconElement: HTMLElement | undefined;
 	private readonly progressId: string | undefined;
 	private readonly progressAction: IChatContentPartRenderContext['progressMessageAction'];
+	private readonly parentSessionResource: string;
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized | { content: IMarkdownString },
@@ -78,6 +80,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		this.currentContent = progress.content;
 		this.progressId = hasKey(progress, { kind: true }) && progress.kind === 'progressMessage' ? progress.id : undefined;
 		this.progressAction = context.progressMessageAction;
+		this.parentSessionResource = context.element.sessionResource.toString();
 		this.persistentProgress = !!context.suppressProgressShimmer;
 
 		const followingContent = context.content.slice(context.contentIndex + 1);
@@ -107,6 +110,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
+		this._fileWidgetStore.add(renderSubagentChatLinks(result.element, this.parentSessionResource, this.instantiationService));
 		if (this.useShimmer) {
 			this.applyShimmer(result.element);
 		}
@@ -239,6 +243,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		result.element.classList.add('progress-step');
 		this._fileWidgetStore.clear();
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
+		this._fileWidgetStore.add(renderSubagentChatLinks(result.element, this.parentSessionResource, this.instantiationService));
 		if (this.persistentProgress && this.useShimmer) {
 			this.applyShimmer(result.element);
 		}

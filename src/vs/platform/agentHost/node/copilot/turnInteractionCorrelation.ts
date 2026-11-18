@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LRUCache } from '../../../../base/common/map.js';
-import type { SessionEventPayload } from '@github/copilot-sdk';
+import type { SessionEventPayload } from '@microsoft/copilot-sdk';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTurnInteraction } from '../../common/agent.js';
 
