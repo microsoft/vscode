@@ -1686,7 +1686,8 @@ suite('ChatPetWidget', () => {
 	 */
 	function createInputStackHarness(motionReduced: boolean, startOnLedge = false) {
 		const view = mainWindow.document.createElement('div');
-		view.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:400px;overflow:hidden';
+		// The workbench defines the size token that the jump's apex is measured in.
+		view.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:400px;overflow:hidden;--vscode-spacing-size80:8px';
 		const list = mainWindow.document.createElement('div');
 		list.style.height = '324px';
 		const inputPart = mainWindow.document.createElement('div');
@@ -1775,6 +1776,33 @@ suite('ChatPetWidget', () => {
 				jumped: !reducedMotion,
 				// The travel is timed to the jump sprite, which leaps and lands within it.
 				travelDuration: reducedMotion ? undefined : getChatPetFrameDurations('jump').reduce((total, duration) => total + duration, 0),
+				landedAt: upperSurface.getBoundingClientRect().top,
+				fellOff: false,
+			});
+		});
+	}
+
+	for (const [phase, elapsed] of [['in the air', 300], ['after landing', 500]] as const) {
+		test(`stays where it is drawn when another surface shows ${phase} during a jump, then jumps onto it`, async () => {
+			const { button, upperSurface, lowerSurface, show } = createInputStackHarness(false);
+			let jumps = 0;
+			button.addEventListener('animationstart', event => jumps += event.animationName === 'chat-pet-surface-jump' ? 1 : 0);
+			show(lowerSurface);
+			const travel = button.getAnimations().find(animation => animation.effect instanceof mainWindow.KeyframeEffect && animation.effect.getKeyframes().some(frame => frame.translate !== undefined));
+			travel!.currentTime = elapsed;
+			const drawnAt = button.getBoundingClientRect().bottom;
+			show(upperSurface);
+			const moved = Math.abs(button.getBoundingClientRect().bottom - drawnAt) > 0.5;
+			await waitForPetAnimation(() => !button.classList.contains('surface-jump'));
+
+			assert.deepStrictEqual({
+				moved,
+				jumps,
+				landedAt: button.getBoundingClientRect().bottom,
+				fellOff: button.classList.contains('throwing') || button.classList.contains('hidden'),
+			}, {
+				moved: false,
+				jumps: 2,
 				landedAt: upperSurface.getBoundingClientRect().top,
 				fellOff: false,
 			});

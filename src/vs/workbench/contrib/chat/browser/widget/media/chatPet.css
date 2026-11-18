@@ -128,22 +128,25 @@
 	animation: chat-pet-surface-jump 600ms linear;
 }
 
-/* Follows the jump sprite's frames: crouch on the old ground, leap through the stretch and airborne frames, then land. */
+/*
+ * Follows the jump sprite's frames: crouch on the old ground, leap through the stretch and airborne frames, then land.
+ * The landing offset keeps the pet heading for the same spot when its resting place rises after it left the ground.
+ */
 @keyframes chat-pet-surface-jump {
 	0%,
 	25% {
-		translate: 0 var(--chat-pet-surface-jump-distance);
+		translate: 0 calc(var(--chat-pet-surface-jump-landing, 0px) + var(--chat-pet-surface-jump-distance));
 		animation-timing-function: cubic-bezier(0.2, 0.8, 0.4, 1);
 	}
 
 	58% {
-		translate: 0 calc(-1 * var(--vscode-spacing-size80));
+		translate: 0 calc(var(--chat-pet-surface-jump-landing, 0px) - var(--vscode-spacing-size80));
 		animation-timing-function: cubic-bezier(0.6, 0, 1, 0.6);
 	}
 
 	66.667%,
 	100% {
-		translate: 0 0;
+		translate: 0 var(--chat-pet-surface-jump-landing, 0px);
 	}
 }
 

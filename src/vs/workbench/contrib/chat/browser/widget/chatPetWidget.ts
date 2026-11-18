@@ -121,6 +121,7 @@ const BLINK_MIN_DELAY = 1_400;
 const BLINK_MAX_DELAY = 3_400;
 const POSITION_EPSILON = 0.5;
 const SURFACE_JUMP_DISTANCE_PROPERTY = '--chat-pet-surface-jump-distance';
+const SURFACE_JUMP_LANDING_PROPERTY = '--chat-pet-surface-jump-landing';
 const THROW_VELOCITY_SAMPLE_DURATION = 100;
 const POINTER_VELOCITY_SAMPLE_LIMIT = 8;
 const THROW_RELEASE_GRACE_DURATION = 80;
@@ -1570,7 +1571,7 @@ export class ChatPetWidget extends Disposable {
 				this._button.element.classList.remove('entering');
 				this._rememberHostPosition();
 			} else if (event.animationName === 'chat-pet-surface-jump' && event.target === this._button.element) {
-				this._endSurfaceJump();
+				this._finishSurfaceJump();
 				this._rememberHostPosition();
 			} else if (event.animationName === 'chat-pet-exit' && !this._enabled) {
 				this._finishDisable();
@@ -3094,18 +3095,29 @@ export class ChatPetWidget extends Disposable {
 	private _jumpOntoPlatform(platform: IChatPetPlatform, groundTop: number): void {
 		const button = this._button.element;
 		const distance = groundTop - platform.top;
+		const jumping = button.classList.contains('surface-jump');
 		this._setRestingPlatform(platform);
-		if (this._motionReduced || distance <= POSITION_EPSILON || !this._isAnimationVisible(this._visual)) {
+		if (this._motionReduced || !this._isAnimationVisible(this._visual) || (!jumping && distance <= POSITION_EPSILON)) {
 			this._endSurfaceJump();
 			return;
 		}
-		// A surface that rises during a jump extends it from the same ground.
-		const jumping = button.classList.contains('surface-jump');
-		const pendingDistance = jumping ? Number.parseFloat(button.style.getPropertyValue(SURFACE_JUMP_DISTANCE_PROPERTY)) : 0;
-		button.style.setProperty(SURFACE_JUMP_DISTANCE_PROPERTY, `${pendingDistance + distance}px`);
-		if (jumping) {
+		if (!jumping) {
+			this._beginSurfaceJump(distance);
 			return;
 		}
+		// A surface that rises while the pet still crouches on the old ground extends the leap. Once the
+		// pet has left that ground, it lands where it was heading and jumps again from there, so that
+		// its drawn position never moves with its resting place.
+		const [, drawnOffset = '0'] = dom.getWindow(button).getComputedStyle(button).translate.split(' ');
+		const groundOffset = this._getSurfaceJumpOffset(SURFACE_JUMP_LANDING_PROPERTY) + this._getSurfaceJumpOffset(SURFACE_JUMP_DISTANCE_PROPERTY);
+		const property = Math.abs(Number.parseFloat(drawnOffset) - groundOffset) <= POSITION_EPSILON ? SURFACE_JUMP_DISTANCE_PROPERTY : SURFACE_JUMP_LANDING_PROPERTY;
+		button.style.setProperty(property, `${this._getSurfaceJumpOffset(property) + distance}px`);
+	}
+
+	/** Plays the jump sprite and the travel together, from `distance` below where the pet rests. */
+	private _beginSurfaceJump(distance: number): void {
+		const button = this._button.element;
+		button.style.setProperty(SURFACE_JUMP_DISTANCE_PROPERTY, `${distance}px`);
 		this._hopController.cancel();
 		// The jump sprite faces the way the pet does, not the way it last hopped.
 		delete button.dataset.hopDirection;
@@ -3114,9 +3126,25 @@ export class ChatPetWidget extends Disposable {
 		this._showTransientState('jump', false);
 	}
 
+	/** Ends a jump that has landed, jumping again when a surface rose after the pet left the ground. */
+	private _finishSurfaceJump(): void {
+		const remainingDistance = this._getSurfaceJumpOffset(SURFACE_JUMP_LANDING_PROPERTY);
+		this._endSurfaceJump();
+		if (remainingDistance > POSITION_EPSILON && this._isAnimationVisible(this._visual)) {
+			// The finished travel has to be flushed for the same class to start the next one.
+			void this._button.element.offsetWidth;
+			this._beginSurfaceJump(remainingDistance);
+		}
+	}
+
 	private _endSurfaceJump(): void {
 		this._button.element.classList.remove('surface-jump');
 		this._button.element.style.removeProperty(SURFACE_JUMP_DISTANCE_PROPERTY);
+		this._button.element.style.removeProperty(SURFACE_JUMP_LANDING_PROPERTY);
+	}
+
+	private _getSurfaceJumpOffset(property: string): number {
+		return Number.parseFloat(this._button.element.style.getPropertyValue(property)) || 0;
 	}
 
 	private _setRestingPlatform(platform: IChatPetPlatform): void {
