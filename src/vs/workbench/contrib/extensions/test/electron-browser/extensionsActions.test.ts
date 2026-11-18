@@ -45,7 +45,7 @@ import { IProgressService } from '../../../../../platform/progress/common/progre
 import { ProgressService } from '../../../../services/progress/browser/progressService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestEnvironmentService, TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
@@ -79,6 +79,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ExtensionsInput } from '../../common/extensionsInput.js';
+import { Renderer as ExtensionListRenderer } from '../../browser/extensionsList.js';
 
 let instantiationService: TestInstantiationService;
 let editors: ExtensionsInput[];
@@ -191,6 +192,71 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 }
 
 
+suite('ExtensionListRenderer', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	setup(() => setupTest(disposables));
+
+	for (const legacy of [false, true]) {
+		test(`list deprecation styling refreshes on rollout changes ${legacy ? 'with' : 'without'} legacy fallback`, async () => {
+			const configuration = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+			instantiationService.stub(IExtensionRecommendationsService, {
+				onDidChangeRecommendations: Event.None,
+				getAllRecommendationsWithReason: () => ({})
+			});
+			instantiationService.stub(IExtensionService, 'onDidChangeExtensionsStatus', Event.None);
+			instantiationService.stub(IExtensionService, 'getExtensionsStatus', () => ({}));
+			instantiationService.stub(IHoverService, {
+				setupManagedHover: () => ({ show: () => { }, hide: () => { }, update: () => { }, dispose: () => { } })
+			});
+			instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
+				malicious: [], search: [], deprecated: legacy ? { 'pub.deprecated': { additionalInfo: 'Legacy advice' } } : {}
+			});
+			let gallery = aGalleryExtension('deprecated', { deprecationInfo: { source: 'marketplace' } });
+			instantiationService.stub(IExtensionGalleryService, instantiationService.get(IExtensionGalleryService), 'query', async () => aPage(gallery));
+			const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+			const [extension] = (await workbenchService.queryGallery(CancellationToken.None)).firstPage;
+			const renderer = instantiationService.createInstance(ExtensionListRenderer,
+				{ onFocus: Event.None, onBlur: Event.None, filters: {} },
+				{ hoverOptions: { position: () => HoverPosition.RIGHT } });
+			const data = renderer.renderTemplate(document.createElement('div'));
+			disposables.add(toDisposable(() => renderer.disposeTemplate(data)));
+			const status = data.actionbar.viewItems.map(item => item.action).find(action => action instanceof ExtensionsActions.ExtensionStatusAction);
+			assert.ok(status instanceof ExtensionsActions.ExtensionStatusAction);
+			const readState = async () => {
+				await status.recomputeStatus();
+				return { deprecated: data.element.classList.contains('deprecated'), warning: status.status.length > 0 };
+			};
+			renderer.renderElement(extension, 0, data);
+			const states = [await readState()];
+			for (const enabled of [false, true]) {
+				await configuration.setUserConfiguration(MarketplaceDeprecationConfigKey, enabled);
+				configuration.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([MarketplaceDeprecationConfigKey]),
+					change: { keys: [MarketplaceDeprecationConfigKey], overrides: [] },
+					affectsConfiguration: key => key === MarketplaceDeprecationConfigKey
+				});
+				states.push(await readState());
+			}
+			editors.push(disposables.add(new ExtensionsInput(extension)));
+			gallery = { ...gallery, deprecationInfo: undefined };
+			await workbenchService.queryGallery(CancellationToken.None);
+			states.push(await readState());
+			renderer.renderPlaceholder(0, data);
+			states.push(await readState());
+			assert.deepStrictEqual(states, [
+				{ deprecated: true, warning: true },
+				{ deprecated: legacy, warning: legacy },
+				{ deprecated: true, warning: true },
+				{ deprecated: legacy, warning: legacy },
+				{ deprecated: false, warning: false }
+			]);
+		});
+	}
+});
+
 suite('ExtensionsActions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -210,9 +276,8 @@ suite('ExtensionsActions', () => {
 		disposables.add(instantiationService.createInstance(ExtensionStatusWidget, container, status));
 		const publisherMessage = '**Publisher advice** [unsafe](command:extension.open?%5B%22other.extension%22%5D) <b>HTML</b>';
 		const replacement = { id: 'pub.replacement', displayName: 'Replacement [safe] <https://example.test>' };
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', {
-			deprecationInfo: { source: 'marketplace', extension: replacement, additionalInfo: publisherMessage }
-		}), undefined);
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated'), undefined);
+		extension.setMarketplaceDeprecationInfo({ source: 'marketplace', extension: replacement, additionalInfo: publisherMessage });
 		status.extension = extension;
 		await status.recomputeStatus();
 
@@ -274,12 +339,17 @@ suite('ExtensionsActions', () => {
 			instantiationService.stubPromise(IExtensionsWorkbenchService, 'open', undefined);
 			const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion }));
 			disposables.add(instantiationService.createInstance(ExtensionContainers, [action]));
-			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', { hasPreReleaseVersion: true }), undefined);
+			const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+			let gallery = aGalleryExtension('deprecated', { hasPreReleaseVersion: true });
+			instantiationService.stub(IExtensionGalleryService, instantiationService.get(IExtensionGalleryService), 'query', async () => aPage(gallery));
+			const [extension] = (await workbenchService.queryGallery(CancellationToken.None)).firstPage;
+			editors.push(disposables.add(new ExtensionsInput(extension)));
 			const initiallyEnabled = Event.toPromise(Event.filter(action.onDidChange, e => e.enabled === true));
 			action.extension = extension;
 			await initiallyEnabled;
 
-			extension.setMarketplaceDeprecationInfo({ source: 'marketplace', additionalInfo: 'Retired' });
+			gallery = { ...gallery, deprecationInfo: { source: 'marketplace', additionalInfo: 'Retired' } };
+			await workbenchService.queryGallery(CancellationToken.None);
 			const updated = Event.toPromise(Event.filter(action.onDidChange, e => e.enabled === true));
 			action.update();
 			await updated;
@@ -380,10 +450,10 @@ suite('ExtensionsActions', () => {
 		];
 		for (const deprecation of cases) {
 			const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
-			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', {
-				deprecationInfo: deprecation.source === 'marketplace' ? deprecation : undefined
-			}), undefined);
-			if (deprecation.source !== 'marketplace') {
+			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated'), undefined);
+			if (deprecation.source === 'marketplace') {
+				extension.setMarketplaceDeprecationInfo(deprecation);
+			} else {
 				extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { [extension.identifier.id]: deprecation } });
 			}
 			action.extension = extension;
