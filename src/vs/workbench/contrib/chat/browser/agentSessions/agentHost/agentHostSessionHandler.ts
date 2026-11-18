@@ -5,7 +5,7 @@
 
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageReplacedTurn, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, readAgentMessageRoundTripMetadata } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { withoutAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
-import { readUsageInfoMeta, readAgentContextUsage, readChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
+import { readUsageInfoMeta, readAgentContextUsage, readChatUsage, type IAgentChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -3008,14 +3008,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._chatService.consumePendingRequest(sessionResource, action.queuedMessageId, action.turnId);
 			}
 		}));
+		const readHostChatUsage = () => {
+			const state = sessionSub.value;
+			return state && !(state instanceof Error) ? readChatUsage(state, chatURI) : undefined;
+		};
 		void this._acquireOrWaitForSession(sessionResource, disposables).then(model => {
 			if (!model || disposables.isDisposed) {
 				return;
 			}
 			let previousUsage: ReturnType<typeof readChatUsage>;
 			const updateSessionCost = () => {
-				const state = sessionSub.value;
-				const usage = state && !(state instanceof Error) ? readChatUsage(state, chatURI) : undefined;
+				const usage = readHostChatUsage();
 				if (usage && !equals(previousUsage, usage)) {
 					previousUsage = usage;
 					model.setSessionCost(chatUsageToSessionCost(usage));
@@ -3053,8 +3056,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 		disposables.add(chatSub.onDidChange(refreshHistory));
+		// The host replaces a chat's turns by clearing them and loading the new list, for example after it
+		// reloads the chat from storage or takes it over from another process. Reloaded turns can have other
+		// ids than the ones this window sent, so finished requests the new list lacks are removed rather than
+		// shown beside their reloaded copies.
+		let replacingTurns = false;
 		disposables.add(chatSub.onDidApplyAction(envelope => {
-			if (envelope.action.type === ActionType.ChatTurnsLoaded) {
+			const action = envelope.action;
+			const replaced = replacingTurns;
+			replacingTurns = !envelope.origin && action.type === ActionType.ChatTruncated && action.turnId === undefined;
+			if (action.type === ActionType.ChatTurnsLoaded) {
+				if (replaced) {
+					this._removeRequestsMissingFromHost(sessionResource, this._getSessionState(sessionStr, chatURI), readHostChatUsage)
+						.catch(error => this._logService.error('[AgentHost] Failed to remove requests the host replaced', error));
+				}
 				historyRefreshPending = true;
 				refreshHistory();
 			}
@@ -3185,6 +3200,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(reference);
 		disposableTimeout(() => holder.clear(), AgentHostSessionHandler.QUEUED_TURN_HANDOFF_MS, store);
 		holder.value = store;
+	}
+
+	/**
+	 * Removes the chat's finished requests that the host's replaced turns no longer have. A request that is
+	 * still running is kept: the host keeps its turn too.
+	 */
+	private async _removeRequestsMissingFromHost(sessionResource: URI, state: ISessionWithDefaultChat | undefined, readHostChatUsage: () => IAgentChatUsage | undefined): Promise<void> {
+		const model = this._chatService.getSession(sessionResource);
+		if (!model || !state) {
+			return;
+		}
+		const turnIds = new Set(state.turns.map(turn => turn.id));
+		const missing = model.getRequests().filter(request => !turnIds.has(request.id) && request.response?.isComplete);
+		if (!missing.length) {
+			return;
+		}
+		await Promise.all(missing.map(request => this._chatService.removeRequest(sessionResource, request.id)));
+		// Removing a request clears the chat's aggregate billing, but replacing its turns leaves the host's billing unchanged.
+		const usage = readHostChatUsage();
+		if (usage) {
+			model.setSessionCost(chatUsageToSessionCost(usage));
+		}
 	}
 
 	private _watchForMcpAuthentication(backendSession: URI, sessionResource: URI, chatURI: string): void {

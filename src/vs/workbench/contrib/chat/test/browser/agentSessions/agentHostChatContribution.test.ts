@@ -1181,6 +1181,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		removePendingRequest(sessionResource: URI, requestId: string) {
 			this.removePendingRequestCalls.push({ sessionResource, requestId });
 		},
+		async removeRequest(sessionResource: URI, requestId: string) {
+			const model = chatModels.get(sessionResource.toString());
+			if (model instanceof ChatModel) {
+				model.removeRequest(requestId);
+			}
+		},
 		consumePendingRequestCalls: [] as { sessionResource: URI; pendingRequestId: string; requestId: string }[],
 		consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string) {
 			this.consumePendingRequestCalls.push({ sessionResource, pendingRequestId, requestId });
@@ -21771,6 +21777,53 @@ suite('AgentHostChatContribution', () => {
 				}, serverSeq: 1, origin: undefined
 			});
 			assert.deepStrictEqual(updates.map(history => history.filter(item => item.type === 'request').map(item => item.prompt)), [['Later message']]);
+		});
+
+		test('replaced turns remove the finished requests the host no longer has and keep its billing, and loaded older turns remove none', async () => {
+			const { sessionHandler, agentHostService, chatService, instantiationService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'replaced-history');
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/replaced-history' });
+			const chat = buildDefaultChatUri(backend.toString());
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'History', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready,
+				_meta: { 'vscode.chatUsage': { [chat]: { totalNanoAiu: 2_500_000_000, aiCreditsStatus: 'complete' } } },
+			});
+			const session = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+			disposables.add(session);
+			const model = disposables.add(instantiationService.createInstance(
+				ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true },
+			));
+			for (const [id, isComplete] of [['kept', true], ['sent-live', true], ['sent-after', true], ['unfinished', false]] as const) {
+				const request = model.addRequest({ text: id, parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, id);
+				if (isComplete) {
+					request.response?.complete();
+				}
+			}
+			const billed = Event.toPromise(Event.filter(model.onDidChange, event => event.kind === 'setSessionCost'));
+			chatService.setSession(resource, model);
+			await billed;
+			const turn = (id: string, text: string): Turn => ({ id, state: TurnState.Complete, message: { text, origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined });
+			let serverSeq = 0;
+			const fire = (action: AgentHostChatAction, origin?: { clientId: string; clientSeq: number }) => agentHostService.fireAction({ channel: chat, action, serverSeq: ++serverSeq, origin });
+
+			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('older', 'Older message')] });
+			fire({ type: ActionType.ChatTruncated }, { clientId: 'client', clientSeq: 1 });
+			fire({ type: ActionType.ChatTurnsLoaded, turns: [] });
+			await timeout(0);
+			const beforeReplacement = model.getRequests().map(request => request.id);
+			fire({ type: ActionType.ChatTruncated });
+			fire({ type: ActionType.ChatTurnsLoaded, turns: [turn('kept', 'Kept message'), turn('reloaded', 'Sent live')] });
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeReplacement, requests: model.getRequests().map(request => request.id), cost: model.sessionCostInfo }, {
+				beforeReplacement: ['kept', 'sent-live', 'sent-after', 'unfinished'],
+				requests: ['kept', 'unfinished'],
+				cost: { credits: 2.5, status: 'complete' },
+			});
 		});
 
 		test('preserves independent default chat titles and renames without cloud customization', async () => {
