@@ -1252,13 +1252,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
 	display: flex;
 	align-items: center;
-	text-align: center;
+}
+
+.chat-dnd-overlay .attach-context-overlay-text .overlay-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .chat-dnd-overlay .attach-context-overlay-text .codicon {

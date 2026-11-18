@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../common/devContainerAgentHost.js';
+import type { DevContainerAgentHostSource, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../common/devContainerAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 
 export class MockDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
@@ -27,7 +27,7 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 	readonly connects: IDevContainerAgentHostConfig[] = [];
 	readonly disconnects: string[] = [];
 	readonly stops: string[] = [];
-	readonly removes: string[] = [];
+	readonly removes: DevContainerAgentHostSource[] = [];
 	readonly sent: IRelayMessage[] = [];
 	connectResult: Promise<IDevContainerAgentHostConnectResult> | undefined;
 
@@ -49,8 +49,8 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 		return true;
 	}
 
-	async removeContainer(workspaceFolder: string): Promise<boolean> {
-		this.removes.push(workspaceFolder);
+	async removeContainer(source: DevContainerAgentHostSource): Promise<boolean> {
+		this.removes.push(source);
 		return true;
 	}
 

@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { readAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
+import { readAgentModelRouterRoutesMeta } from '../../common/meta/agentModelMeta.js';
 import { parseModelRouter, readModelRouterDescription } from '../../common/modelRouter.js';
 import { CopilotAgent } from '../../node/copilot/copilotAgent.js';
 
@@ -78,9 +79,9 @@ suite('CopilotAgent.askDecisions', () => {
 		];
 		const models: IAgentModelInfo[] = [{ provider: 'copilotcli', id: 'a', name: 'A', supportsVision: true }, { provider: 'copilotcli', id: 'b', name: 'B', supportsVision: true }];
 		const rows = withRows.call({ id: 'copilotcli', _modelRouterCatalog: { value: { snapshot: { files } } } }, models).slice(2);
-		assert.deepStrictEqual(rows.map(row => [row.id, readModelRouterDescription(row) !== undefined, readAgentModelNoticesMeta(row).rowWarning]), [
-			['model-router:good', true, undefined],
-			['model-router:bad', true, 'bad.model-router.yaml has errors: Add `version: 1`.'],
+		assert.deepStrictEqual(rows.map(row => [row.id, readModelRouterDescription(row) !== undefined, readAgentModelNoticesMeta(row).rowWarning, readAgentModelRouterRoutesMeta(row).map(route => route.model)]), [
+			['model-router:good', true, undefined, ['A', 'B']],
+			['model-router:bad', true, 'bad.model-router.yaml has errors: Add `version: 1`.', []],
 		]);
 		assert.strictEqual(withRows.call({ id: 'copilotcli', _modelRouterCatalog: { value: { snapshot: { files: [] } } } }, models), models, 'unchanged without routers');
 	});

@@ -41,12 +41,13 @@
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
 }
 
-/* The tools stay centered between two equal sides, the second of which ends with Done. */
+/* The tools stay centered between two equal sides, the second of which ends with Cancel and Done. */
 .screenshot-annotation-editor .annotation-mark-up-header-start,
 .screenshot-annotation-editor .annotation-mark-up-header-end {
 	flex: 1 1 0;
 	display: flex;
 	justify-content: flex-end;
+	gap: var(--vscode-spacing-size80);
 }
 
 /* The tools sit in the header, between its two sides. */

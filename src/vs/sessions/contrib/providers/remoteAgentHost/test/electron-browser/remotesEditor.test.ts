@@ -46,6 +46,7 @@ import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly environmentsEnabled = observableValue(this, false);
+	readonly canCreateDevContainer = observableValue(this, false);
 	readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
 	async signInToTunnels(): Promise<void> { }
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
@@ -68,6 +69,8 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	async setSharedAsGitHubEnvironment(): Promise<void> { }
 	async deleteTunnel(): Promise<void> { }
 	async deleteSSHHost(): Promise<void> { }
+	async createDevContainer(): Promise<void> { }
+	async deleteDevContainer(): Promise<void> { }
 	async remove(): Promise<void> { }
 	setHidden(): void { }
 
