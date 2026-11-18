@@ -88,19 +88,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 
 		if ((<INavigatorWithKeyboard>navigator).keyboard && (<INavigatorWithKeyboard>navigator).keyboard.addEventListener) {
 			(<INavigatorWithKeyboard>navigator).keyboard.addEventListener!('layoutchange', () => {
-				if (this._getConfiguredKeyboardLayout()) {
-					// The keyboard layout is set explicitly in settings, don't override it
-					return;
-				}
-
-				// Update user keyboard map settings
-				this._getBrowserKeyMapping().then((mapping: IKeyboardMapping | null) => {
-					if (this.isKeyMappingActive(mapping)) {
-						return;
-					}
-
-					this.setLayoutFromBrowserAPI();
-				});
+				this._onBrowserLayoutChange();
 			});
 		}
 
@@ -295,6 +283,40 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 		}
 
 		this.setLayoutFromBrowserAPI();
+	}
+
+	protected _onBrowserLayoutChange(): Promise<void> {
+		if (this._isConfiguredKeyboardLayoutKept()) {
+			// The keyboard layout is set explicitly in settings, don't override it
+			return Promise.resolve();
+		}
+
+		// Update user keyboard map settings
+		return this._getBrowserKeyMapping().then((mapping: IKeyboardMapping | null) => {
+			if (this.isKeyMappingActive(mapping)) {
+				return;
+			}
+
+			this.setLayoutFromBrowserAPI();
+		});
+	}
+
+	/**
+	 * Whether the layout configured in `keyboard.layout` must not be overridden
+	 * by auto-detection: while the layouts are loading (it is applied once they
+	 * are loaded) and afterwards only if it matches a known layout.
+	 */
+	private _isConfiguredKeyboardLayoutKept(): boolean {
+		const layout = this._getConfiguredKeyboardLayout();
+		if (!layout) {
+			return false;
+		}
+
+		if (!this._initialized) {
+			return true;
+		}
+
+		return this.keymapInfos.some(keymapInfo => getKeyboardLayoutId(keymapInfo.layout) === layout);
 	}
 
 	private _getConfiguredKeyboardLayout(): string | undefined {

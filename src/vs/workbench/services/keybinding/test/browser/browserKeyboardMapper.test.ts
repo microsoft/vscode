@@ -174,8 +174,18 @@ class TestLoadingKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase 
 		super(configurationService);
 	}
 
+	browserAPIDetections = 0;
+
 	loadKeymapInfos(): void {
 		this._onKeymapInfosLoaded(KeyboardLayoutContribution.INSTANCE.layoutInfos);
+	}
+
+	override setLayoutFromBrowserAPI(): void {
+		this.browserAPIDetections++;
+	}
+
+	simulateBrowserLayoutChange(): Promise<void> {
+		return this._onBrowserLayoutChange();
 	}
 }
 
@@ -216,5 +226,40 @@ suite('keyboard layout loader with keyboard.layout setting', () => {
 		assert.strictEqual(instance.setKeyboardLayout('com.example.unknown'), false);
 		assert.strictEqual(instance.setKeyboardLayout('com.apple.keylayout.German'), true);
 		assert.strictEqual(getKeyboardLayoutId(instance.activeKeyboardLayout!), 'com.apple.keylayout.German');
+	});
+
+	test('ignores browser layout changes while a known keyboard layout is configured', async () => {
+		const { instance } = createFactory('com.apple.keylayout.German');
+		instance.loadKeymapInfos();
+		assert.strictEqual(instance.browserAPIDetections, 0);
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 0);
+		assert.strictEqual(getKeyboardLayoutId(instance.activeKeyboardLayout!), 'com.apple.keylayout.German');
+	});
+
+	test('ignores browser layout changes before layouts are loaded while a keyboard layout is configured', async () => {
+		const { instance } = createFactory('com.example.unknown');
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 0);
+	});
+
+	test('auto-detects on browser layout changes when the configured keyboard layout is unknown', async () => {
+		const { instance } = createFactory('com.example.unknown');
+		instance.loadKeymapInfos();
+		assert.strictEqual(instance.browserAPIDetections, 1);
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 2);
+	});
+
+	test('auto-detects on browser layout changes when no keyboard layout is configured', async () => {
+		const { instance } = createFactory('autodetect');
+		instance.loadKeymapInfos();
+		assert.strictEqual(instance.browserAPIDetections, 1);
+
+		await instance.simulateBrowserLayoutChange();
+		assert.strictEqual(instance.browserAPIDetections, 2);
 	});
 });
