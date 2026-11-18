@@ -60,7 +60,10 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IVoiceInputModeService, VoiceInputMode } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ICopilotConnectorsService } from '../../../../../workbench/contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../../../../workbench/contrib/chat/common/customizationMarketplaceInstallService.js';
+import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -761,6 +764,21 @@ export async function renderNewChatWidget(context: ComponentFixtureContext, opti
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
+				override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
+				override readonly local = [];
+			}());
+			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+				override readonly plugins = constObservable([]);
+			}());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+			}());
+			reg.defineInstance(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
+				override readonly onDidChange = Event.None;
+				override readonly onDidChangeAccount = Event.None;
+				override readonly connectionStateKnown = true;
+				override readonly connectedMcpServers = [];
 			}());
 			reg.defineInstance(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
