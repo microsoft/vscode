@@ -5,7 +5,7 @@
 
 import type { IOtlpLogRecord, OtlpLogLevelName } from '../../common/otlp/otlpLogEmitter.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type CopilotSession, type GitHubTelemetryNotification, type NetworkAuthenticateBasicRequest, type NetworkAuthenticateBasicResult, type NetworkConfig, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type CopilotSession, type GitHubTelemetryNotification, type NetworkAuthenticateBasicRequest, type NetworkAuthenticateBasicResult, type NetworkConfig, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@microsoft/copilot-sdk';
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -1968,7 +1968,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private _resolveCopilotSdkLogLevel(configured: CopilotSdkLogLevelSetting): NonNullable<CopilotClientOptions['logLevel']> {
+	private _resolveCopilotSdkLogLevel(configured: CopilotSdkLogLevelSetting): NonNullable<NonNullable<CopilotClientOptions['observability']>['logLevel']> {
 		return configured === 'trace' || this._logService.getLevel() === LogLevel.Trace ? 'all' : 'info';
 	}
 
@@ -5261,32 +5261,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// extension host uses VS Code's proxy configuration. The runtime process belongs to this agent host, so its
 				// shared background traffic uses them too.
 				network: this._createRuntimeNetworkConfig(),
-				useLoggedInUser: false,
+				mode: scoped?.kind === 'storage' ? 'empty' : 'coding-agent',
+				github: {
+					useLoggedInUser: false,
+					token: gitHubToken,
+					onTelemetry: notification => { void this._routeGitHubTelemetry(notification).catch(err => this._logService.trace(`[Copilot] GitHub telemetry routing failed: ${err instanceof Error ? err.message : String(err)}`)); },
+				},
 				...(!scoped && this._accountService.authenticationOptions ? { entra: this._accountService.authenticationOptions } : {}),
-				gitHubToken,
-				...(scoped ? {
-					baseDirectory: env['COPILOT_HOME'],
-				} : {}),
-				...(scoped?.kind === 'storage' ? { mode: 'empty' as const } : {}),
 				...(scoped?.kind === 'virtual' ? { sessionFs: createCopilotVirtualSessionFsConfig(scoped.workspace, COPILOT_VIRTUAL_SESSION_STATE_PATH) } : {}),
-				connection: RuntimeConnection.forStdio({ path: runtimePath }),
-				env,
+				runtime: RuntimeConnection.forSpawnedStdio({
+					path: runtimePath,
+					env,
+					...(scoped ? { baseDirectory: env['COPILOT_HOME'] } : {}),
+				}),
 				clientInfo: {
 					applicationName: 'vscode-agent-host',
 					applicationVersion: this._productService.version,
 				},
-				telemetry,
-				installationConfirmationHandler: this._customizationInstallations.confirmationHandler,
-				...(builtinPluginDirectories.length ? { builtinPluginDirectories } : {}),
-				logLevel: copilotSdkLogLevelAtStartup,
+				observability: {
+					telemetry,
+					logLevel: copilotSdkLogLevelAtStartup,
+					onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
+				},
+				installations: { confirmationHandler: this._customizationInstallations.confirmationHandler },
+				...(builtinPluginDirectories.length ? { plugins: { builtinDirectories: builtinPluginDirectories } } : {}),
 				...(extensionBootstrapPath && extensionSdkPath ? {
-					extensionLaunchProvider: {
-						resolve: request => this._resolveExtensionLaunch(request.modulePath, request.source, extensionBootstrapPath),
+					extensions: {
+						launchProvider: {
+							resolve: request => this._resolveExtensionLaunch(request.modulePath, request.source, extensionBootstrapPath),
+						},
 					},
 				} : {}),
-				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
-				onGitHubTelemetry: notification => { void this._routeGitHubTelemetry(notification).catch(err => this._logService.trace(`[Copilot] GitHub telemetry routing failed: ${err instanceof Error ? err.message : String(err)}`)); },
-				...(localModelRequestHandler ? { requestHandler: localModelRequestHandler } : {}),
+				...(localModelRequestHandler ? { models: { requestHandler: localModelRequestHandler } } : {}),
 			};
 			const client = this._createCopilotClient(clientOptions);
 			try {
