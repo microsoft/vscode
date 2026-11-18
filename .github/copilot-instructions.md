@@ -89,6 +89,11 @@ We use tabs, not spaces.
 - Do not export `types` or `functions` unless you need to share it across multiple components
 - Do not introduce new `types` or `values` to the global namespace
 
+### Cancellation
+
+- Prefer `CancellationToken` and `CancellationTokenSource` for internal asynchronous operations; pass tokens through internal APIs.
+- Convert to/from `AbortSignal` only at native or third-party API boundaries. Reuse shared adapters, keep them alive for the complete operation (including response-body reads), and dispose their subscriptions afterward.
+
 ### Comments
 
 - Use JSDoc style comments for `functions`, `interfaces`, `enums`, and `classes`

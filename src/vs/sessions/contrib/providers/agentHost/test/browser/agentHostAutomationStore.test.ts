@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AutomationDisableConditionKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { safeIntl } from '../../../../../../base/common/date.js';
@@ -20,11 +21,13 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { nextAutomationCronOccurrence } from '../../../../../../platform/agentHost/common/automationCron.js';
-import { withAgentHostAutomationHistoryState } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationCatalogSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageAttachmentKind, MessageKind, type Message, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { AUTOMATION_CATALOG_URI, StateComponents, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -53,6 +56,7 @@ class TestAutomationConnection {
 	private _catalogError: Error | undefined;
 	private _catalogAvailable: boolean;
 	private _serverSeq = 0;
+	private readonly _realSubscription: AutomationCatalogSubscription | undefined;
 
 	readonly initializeResult;
 	readonly runRequests: string[] = [];
@@ -64,7 +68,9 @@ class TestAutomationConnection {
 	runAdmissionBarrier: Promise<void> | undefined;
 	suppressCreatePublication = false;
 	suppressUpdatePublication = false;
+	publishUpdateThroughSnapshot = false;
 	updateError: Error | undefined;
+	beforeUpdate: (() => void) | undefined;
 	readonly createRequested = new DeferredPromise<void>();
 	readonly updateRequested = new DeferredPromise<void>();
 	readonly historyDeletes: { resource: string; deleteHistory: boolean; sessions: string[]; requestId?: string }[] = [];
@@ -116,7 +122,7 @@ class TestAutomationConnection {
 		this.historyDeletionAcknowledged.complete();
 	}
 
-	constructor(catalogAvailable = true) {
+	constructor(catalogAvailable = true, useRealSubscription = false) {
 		this._catalogAvailable = catalogAvailable;
 		this.initializeResult = observableValue<InitializeResult | undefined>(this, {
 			protocolVersion: '1',
@@ -125,6 +131,10 @@ class TestAutomationConnection {
 			automations: { create: {}, runCancellation: {} },
 			_meta: getAgentHostExtensionInitializeResultMeta(),
 		});
+		this._realSubscription = useRealSubscription ? new AutomationCatalogSubscription('test-client', () => { }) : undefined;
+		if (catalogAvailable) {
+			this._realSubscription?.handleSnapshot(this._catalog, this._serverSeq);
+		}
 	}
 
 	setFirstAutomationSessionConfig(config: Record<string, unknown>): void {
@@ -151,6 +161,12 @@ class TestAutomationConnection {
 	): IReference<IAgentSubscription<AutomationState>> {
 		assert.strictEqual(kind, StateComponents.AutomationCatalog);
 		this.subscribedChannel = resource.toString();
+		if (this._realSubscription) {
+			return {
+				object: this._realSubscription,
+				dispose: () => { },
+			};
+		}
 		const connection = this;
 		return {
 			object: {
@@ -159,7 +175,7 @@ class TestAutomationConnection {
 				onDidChange: this._onDidCatalogChange.event,
 				onDidError: this._onDidCatalogError.event,
 				onWillApplyAction: Event.None,
-				onDidApplyAction: Event.None,
+				onDidApplyAction: this._onDidAction.event,
 			},
 			dispose: () => { },
 		};
@@ -194,14 +210,20 @@ class TestAutomationConnection {
 				modifiedAt: timestamp,
 			};
 			this._catalog = { entries: [...this._catalog.entries, automation] };
-			this._onDidCatalogChange.fire(this._catalog);
-			this._onDidAction.fire({
+			const envelope: ActionEnvelope = {
 				channel: AUTOMATION_CATALOG_URI,
 				action: { type: ActionType.AutomationSet, automation },
 				serverSeq: ++this._serverSeq,
 				origin: undefined,
-			});
+			};
+			if (this._realSubscription) {
+				this._realSubscription.receiveEnvelope(envelope);
+			} else {
+				this._onDidCatalogChange.fire(this._catalog);
+				this._onDidAction.fire(envelope);
+			}
 		} else if (action.type === ActionType.AutomationUpdateRequested) {
+			this.beforeUpdate?.();
 			void this.updateRequested.complete();
 			if (this.updateError) {
 				throw this.updateError;
@@ -213,7 +235,11 @@ class TestAutomationConnection {
 			if (!current) {
 				throw new Error(`Missing Automation: ${action.resource}`);
 			}
+			const previousCatalog = this._catalog;
 			const definition = { ...current.definition, ...action.changes };
+			if (isAutomationAfterDateExpired(definition.disableConditions)) {
+				definition.enabled = false;
+			}
 			const operations = [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run];
 			const automation = {
 				...current,
@@ -224,13 +250,22 @@ class TestAutomationConnection {
 			this._catalog = {
 				entries: this._catalog.entries.map(candidate => candidate.resource === automation.resource ? automation : candidate),
 			};
-			this._onDidCatalogChange.fire(this._catalog);
-			this._onDidAction.fire({
+			const envelope: ActionEnvelope = {
 				channel: AUTOMATION_CATALOG_URI,
 				action: { type: ActionType.AutomationSet, automation },
 				serverSeq: ++this._serverSeq,
 				origin: undefined,
-			});
+			};
+			if (this._realSubscription && this.publishUpdateThroughSnapshot) {
+				this._realSubscription.beginSnapshotRefresh();
+				this._realSubscription.receiveEnvelope(envelope);
+				this._realSubscription.handleSnapshot(previousCatalog, envelope.serverSeq - 1);
+			} else if (this._realSubscription) {
+				this._realSubscription.receiveEnvelope(envelope);
+			} else {
+				this._onDidCatalogChange.fire(this._catalog);
+				this._onDidAction.fire(envelope);
+			}
 		} else if (action.type === ActionType.AutomationRemoved) {
 			this._catalog = {
 				...this._catalog,
@@ -304,6 +339,22 @@ class TestAutomationConnection {
 			],
 		};
 		this._onDidCatalogChange.fire(this._catalog);
+		this._onDidAction.fire({
+			channel: AUTOMATION_CATALOG_URI,
+			action: { type: ActionType.AutomationSet, automation },
+			serverSeq: ++this._serverSeq,
+			origin: undefined,
+		});
+	}
+
+	rejectUpdate(resource: string): void {
+		this._onDidAction.fire({
+			channel: AUTOMATION_CATALOG_URI,
+			action: { type: ActionType.AutomationUpdateRequested, resource, changes: { enabled: true } },
+			serverSeq: ++this._serverSeq,
+			origin: undefined,
+			rejectionReason: 'Update rejected',
+		});
 	}
 
 	completeRun(resource: string): void {
@@ -327,6 +378,7 @@ class TestAutomationConnection {
 	}
 
 	dispose(): void {
+		this._realSubscription?.dispose();
 		this._onDidAction.dispose();
 		this._onDidCatalogChange.dispose();
 		this._onDidCatalogError.dispose();
@@ -405,6 +457,204 @@ suite('AgentHostAutomationStore', () => {
 			enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
 		};
 	}
+
+	for (const { name, resourceUris, toClient } of agentHostConnectionKinds) {
+		test(`one-time captured request round-trips through ${name} without losing attachments or metadata`, async () => {
+			const { store } = reconnectable(true, activeClientService, {
+				toHost: resource => resourceUris.toAgentHost(resource),
+				fromHost: resource => resourceUris.fromAgentHost(resource),
+				resourceSchemeForProvider: provider => provider,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
+			store.setConnection(connection);
+			const file = URI.file('/workspace/file.ts');
+			const request: Message = {
+				text: 'Captured request',
+				origin: { kind: MessageKind.Automation },
+				attachments: [
+					{ type: MessageAttachmentKind.Resource, label: 'file', uri: toClient(file).toString() },
+					{ type: MessageAttachmentKind.Simple, label: 'selection', modelRepresentation: 'immutable selection' },
+					{ type: MessageAttachmentKind.EmbeddedResource, label: 'image', data: 'aGVsbG8=', contentType: 'image/png' },
+				],
+				_meta: { capturedContext: { selection: 'context' } },
+			};
+			const schedule = { interval: 'once' as const, runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+			const created = await store.createAutomation({ ...createOptions(), prompt: request.text, request, purpose: 'scheduledChat', schedule });
+			const updated = await store.updateAutomation(created.id, { name: 'Renamed' });
+			const dispatchCount = connection.dispatched.length;
+			const disableConditions = [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' }] as const;
+			await assert.rejects(store.createAutomation({ ...createOptions(), schedule, disableConditions }), /One-time automations do not support end dates/);
+			await assert.rejects(store.updateAutomation(created.id, { disableConditions }), /One-time automations do not support end dates/);
+			assert.strictEqual(connection.dispatched.length, dispatchCount);
+			const create = connection.dispatched[0].action;
+			assert.ok(create.type === ActionType.AutomationCreateRequested);
+			assert.deepStrictEqual({
+				supported: store.supportsOneTimeAutomation.get(),
+				schedule: updated.schedule,
+				purpose: updated.purpose,
+				request: updated.request,
+				hostAttachment: create.definition.message.attachments?.[0],
+			}, {
+				supported: true, schedule, purpose: 'scheduledChat', request,
+				hostAttachment: { type: MessageAttachmentKind.Resource, label: 'file', uri: file.toString() },
+			});
+		});
+	}
+
+	for (const { name, resourceUris, toClient } of agentHostConnectionKinds) {
+		test(`follow-up maps exact advertised opaque conversation identity through ${name}`, async () => {
+			const conversation = { sessionResource: URI.parse('client-session:/opaque'), chatResource: URI.parse('client-session:/opaque#second') };
+			const backend = { session: URI.parse('vendor-session:/unrelated-owner'), chat: URI.parse('ahp-chat:/arbitrary-conversation') };
+			const { store } = reconnectable(true, activeClientService, {
+				supportsExistingChatAutomation: true,
+				toHost: resource => resourceUris.toAgentHost(resource),
+				fromHost: resource => resourceUris.fromAgentHost(resource),
+				resourceSchemeForProvider: provider => provider,
+				resolveBackendSession: resource => resource.toString() === conversation.sessionResource.toString() ? backend.session : undefined,
+				resolveBackendChat: resource => resource.toString() === conversation.chatResource.toString() ? backend.chat : undefined,
+				conversationFromHost: (session, chat) => session.toString() === backend.session.toString() && chat.toString() === backend.chat.toString() ? conversation : undefined,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			const initializeResult = connection.initializeResult.get()!;
+			connection.initializeResult.set({ ...initializeResult, automations: { create: {}, oneTime: {}, customizations: {} }, _meta: { ...initializeResult._meta, [AgentHostScheduledChatExistingConversationCapabilityMetaKey]: true } }, undefined);
+			store.setConnection(connection);
+			const request: Message = {
+				text: 'Review changes', origin: { kind: MessageKind.Automation },
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: toClient(URI.file('/workspace/file.ts')).toString(), label: 'file' }],
+			};
+			const created = await store.createAutomation({
+				...createOptions(), conversation, purpose: 'scheduledChat', request,
+				sessionTemplate: { modelId: 'old-model', config: { autoApprove: 'all' } },
+				schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			});
+			const action = connection.dispatched[0].action;
+			assert.ok(action.type === ActionType.AutomationCreateRequested);
+			assert.deepStrictEqual({
+				supported: store.supportsExistingChatAutomation.get(), projected: created.conversation, template: created.sessionTemplate,
+				target: getAgentHostScheduledChat(action.definition)?.conversation, model: action.definition.session.model, config: action.definition.session.config,
+				customizations: action.definition.session.customizations, request: created.request,
+			}, {
+				supported: true, projected: conversation, template: undefined,
+				target: { session: backend.session.toString(), chat: backend.chat.toString() },
+				model: undefined, config: undefined, customizations: undefined, request,
+			});
+			const run = 'ahp-automation-run:/followup';
+			const queuedAt = '2027-01-01T10:00:01.000Z';
+			const delivery = (lifecycle: AutomationRunSummary['lifecycle']) => {
+				connection.setAutomation({
+					resource: action.resource, definition: action.definition, operations: [AutomationOperation.Remove],
+					createdAt: created.createdAt, modifiedAt: created.updatedAt, _meta: withAgentHostOneTimeRun(undefined, run),
+					runs: [{
+						resource: run, automation: action.resource, origin: { kind: AutomationRunOriginKind.Manual }, sessionCount: 0,
+						lifecycle,
+					}],
+				});
+				const automation = store.getAutomation(created.id);
+				return { dispatchedAt: automation?.oneTimeDispatchedAt, rejectedAt: automation?.oneTimeDispatchRejectedAt };
+			};
+			assert.deepStrictEqual([
+				delivery({ status: AutomationRunStatus.Completed, createdAt: created.createdAt, startedAt: queuedAt, completedAt: queuedAt }),
+				delivery({ status: AutomationRunStatus.Failed, createdAt: created.createdAt, startedAt: queuedAt, completedAt: queuedAt, error: { errorType: 'targetUnavailable', message: 'Target deleted' } }),
+			], [
+				{ dispatchedAt: queuedAt, rejectedAt: undefined },
+				{ dispatchedAt: undefined, rejectedAt: undefined },
+			]);
+		});
+	}
+
+	test('follow-up requires both an eligible local provider and explicit host capability', async () => {
+		for (const eligible of [false, true]) {
+			const { store } = reconnectable(true, activeClientService, {
+				supportsExistingChatAutomation: eligible,
+				toHost: resource => resource, fromHost: resource => resource, resourceSchemeForProvider: provider => provider,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			const initializeResult = connection.initializeResult.get()!;
+			connection.initializeResult.set({
+				...initializeResult,
+				automations: { create: {}, oneTime: {} },
+				_meta: { ...initializeResult._meta, ...(!eligible ? { [AgentHostScheduledChatExistingConversationCapabilityMetaKey]: true } : {}) },
+			}, undefined);
+			store.setConnection(connection);
+			await assert.rejects(store.createAutomation({
+				...createOptions(), purpose: 'scheduledChat',
+				conversation: { sessionResource: URI.parse('client:/session'), chatResource: URI.parse('client:/session#peer') },
+				schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			}), /does not support scheduling/);
+			assert.deepStrictEqual({ supported: store.supportsExistingChatAutomation.get(), dispatches: connection.dispatched.length }, { supported: false, dispatches: 0 });
+		}
+	});
+	test('one-time delivery state is derived from the run', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
+		const { store } = reconnectable();
+		store.setConnection(connection);
+		const created = await store.createAutomation({
+			...createOptions(), purpose: 'scheduledChat',
+			schedule: { ...createOptions().schedule, interval: 'once', runAt: '2027-01-01T10:00:00.000Z' },
+		});
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		const run = 'ahp-automation-run:/once';
+		const at = '2027-01-01T10:00:01.000Z';
+		const project = (lifecycle: AutomationRunSummary['lifecycle'], primarySession?: string) => {
+			connection.setAutomation({
+				resource: create.resource, definition: create.definition, operations: [AutomationOperation.Remove], _meta: withAgentHostOneTimeRun(undefined, run),
+				createdAt: created.createdAt, modifiedAt: created.updatedAt,
+				runs: [{ resource: run, automation: create.resource, origin: { kind: AutomationRunOriginKind.Manual }, lifecycle, sessionCount: primarySession ? 1 : 0, ...(primarySession ? { primarySession } : {}) }],
+			});
+			const descriptor = store.getAutomation(created.id)!;
+			return { run: descriptor.oneTimeRunId === store.runs.get()[0]?.id, dispatchedAt: descriptor.oneTimeDispatchedAt, rejectedAt: descriptor.oneTimeDispatchRejectedAt };
+		};
+		const error = { errorType: 'failed', message: 'Failed' };
+		assert.deepStrictEqual([
+			project({ status: AutomationRunStatus.Running, createdAt: at, startedAt: at }),
+			project({ status: AutomationRunStatus.Running, createdAt: at, startedAt: at }, 'ahp-session:/once'),
+			project({ status: AutomationRunStatus.Failed, createdAt: at, startedAt: at, completedAt: at, error }),
+			project({ status: AutomationRunStatus.Failed, createdAt: at, startedAt: at, completedAt: at, error }, 'ahp-session:/once'),
+		], [
+			{ run: true, dispatchedAt: undefined, rejectedAt: undefined },
+			{ run: true, dispatchedAt: at, rejectedAt: undefined },
+			{ run: true, dispatchedAt: undefined, rejectedAt: at },
+			{ run: true, dispatchedAt: undefined, rejectedAt: undefined },
+		]);
+	});
+
+	test('one-time scheduling requires an explicit capability and rejects client-dependent attachments', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const options = { ...createOptions(), schedule: { ...createOptions().schedule, interval: 'once' as const, runAt: '2027-01-01T10:00:00.000Z' } };
+		await assert.rejects(store.createAutomation(options), /does not support one-time/);
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
+		await assert.rejects(store.createAutomation({
+			...options,
+			request: { text: options.prompt, origin: { kind: MessageKind.Automation }, attachments: [{ type: MessageAttachmentKind.Resource, label: 'unsaved', uri: 'untitled:/buffer' }] },
+		}), /cannot be saved/);
+		assert.deepStrictEqual(connection.dispatched, []);
+	});
+
+	test('one-time creation retries use the same host identity and project the handoff receipt', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
+		const first = reconnectable().store;
+		first.setConnection(connection);
+		const creationId = 'c70b090b-6474-4081-a4b8-a7eb09e7054e';
+		const allocated: { id: string; dispatched: number }[] = [];
+		const options = {
+			...createOptions(), creationId, purpose: 'scheduledChat' as const,
+			onWillCreate: (id: string) => allocated.push({ id, dispatched: connection.dispatched.length }),
+			schedule: { ...createOptions().schedule, interval: 'once' as const, runAt: '2027-01-01T10:00:00.000Z' },
+		};
+		const created = await first.createAutomation(options);
+		first.dispose();
+		const second = reconnectable().store;
+		second.setConnection(connection);
+		const retry = await second.createAutomation(options);
+		assert.deepStrictEqual({ id: retry.id, receipt: retry.creationId, allocated, resources: connection.dispatched.map(entry => entry.action.type === ActionType.AutomationCreateRequested ? entry.action.resource : undefined) },
+			{ id: created.id, receipt: creationId, allocated: [{ id: created.id, dispatched: 0 }, { id: created.id, dispatched: 1 }], resources: [`ahp-automation:/scheduled-chat-${creationId}`, `ahp-automation:/scheduled-chat-${creationId}`] });
+	});
 
 	function customizationConnection() {
 		const connection = disposables.add(new TestAutomationConnection());
@@ -986,6 +1236,149 @@ suite('AgentHostAutomationStore', () => {
 			states: ['unavailable', 'loading', 'unavailable', 'ready', 'unavailable'],
 			actions: [], requests: [],
 		});
+
+	});
+
+	test('re-enabling an expired final date waits for the host-normalized response', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const created = await store.createAutomation({
+			...createOptions(), enabled: false,
+			disableConditions: [
+				{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' },
+			],
+		});
+		connection.suppressUpdatePublication = true;
+		let settled = false;
+		const pending = store.updateAutomation(created.id, { enabled: true }).then(result => { settled = true; return result; });
+		await timeout(0);
+		assert.strictEqual(settled, false);
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		connection.setAutomation({
+			resource: 'ahp-automation:/unrelated', definition: create.definition, runs: [],
+			operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: created.createdAt, modifiedAt: created.updatedAt,
+		});
+		await timeout(0);
+		assert.strictEqual(settled, false);
+		connection.setAutomation({
+			resource: create.resource, definition: create.definition, runs: [],
+			operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: created.createdAt, modifiedAt: new Date().toISOString(),
+		});
+		const updated = await pending;
+		assert.deepStrictEqual([updated.enabled, updated.disableConditions], [false, created.disableConditions]);
+	});
+
+	test('update resolves when a refreshed subscription snapshot replays the accepted result', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection(true, true));
+		store.setConnection(connection);
+		const created = await store.createAutomation(createOptions());
+		connection.publishUpdateThroughSnapshot = true;
+		const updated = await store.updateAutomation(created.id, { name: 'Updated through snapshot' });
+		assert.deepStrictEqual({
+			name: updated.name,
+			publishedActions: connection.dispatched.map(dispatch => dispatch.action.type),
+		}, {
+			name: 'Updated through snapshot',
+			publishedActions: [ActionType.AutomationCreateRequested, ActionType.AutomationUpdateRequested],
+		});
+	});
+
+	for (const withEndDate of [false, true]) {
+		test(`preserves remote run-count automations with end date=${withEndDate} across edits and manual runs`, async () => {
+			const { store } = reconnectable();
+			const connection = disposables.add(new TestAutomationConnection());
+			store.setConnection(connection);
+			const created = await store.createAutomation(createOptions());
+			const create = connection.dispatched[0].action;
+			assert.ok(create.type === ActionType.AutomationCreateRequested);
+			const cap = { kind: AutomationDisableConditionKind.AfterRuns, max: 5 } as const;
+			const date = { kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T00:00:00Z' } as const;
+			const conditions = withEndDate ? [date, cap] : [cap];
+			connection.setAutomation({
+				resource: create.resource, definition: { ...create.definition, disableConditions: conditions },
+				runCount: 2, runs: [], operations: [AutomationOperation.Update, AutomationOperation.Run],
+				createdAt: created.createdAt, modifiedAt: created.updatedAt,
+			});
+			const projected = store.getAutomation(created.id)!;
+			const listed = store.automations.get().map(automation => automation.id);
+			const updated = await store.updateAutomationIfUnchanged(created.id, { name: 'Renamed' }, projected);
+			const unrelatedUpdate = connection.dispatched[1].action;
+			assert.ok(unrelatedUpdate.type === ActionType.AutomationUpdateRequested);
+			const updatedDate = { ...date, date: '2099-02-01T00:00:00Z' };
+			const replaced = await store.updateAutomation(created.id, { disableConditions: [updatedDate] });
+			const cleared = await store.updateAutomation(created.id, { disableConditions: [] });
+			const run = await store.runAutomation(created.id);
+			assert.deepStrictEqual({
+				listed,
+				projected: projected.disableConditions,
+				updated: updated.kind,
+				unrelatedConditions: unrelatedUpdate.changes.disableConditions,
+				replaced: replaced.disableConditions,
+				cleared: cleared.disableConditions,
+				run: run.kind,
+				requests: connection.runRequests,
+			}, {
+				listed: [created.id], projected: conditions, updated: 'updated', unrelatedConditions: undefined,
+				replaced: [cap, updatedDate],
+				cleared: [cap], run: 'dispatched', requests: [create.resource],
+			});
+			await assert.rejects(store.updateAutomation(created.id, { disableConditions: [{ ...cap, max: 10 }] }), /must remain unchanged/);
+			await assert.rejects(store.createAutomation({ ...createOptions(), disableConditions: [cap] }), /must remain unchanged/);
+		});
+	}
+
+	test('accepts host-normalized disabled state for an exhausted remote run cap', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const created = await store.createAutomation({ ...createOptions(), enabled: false });
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		const entry: AutomationEntry = {
+			resource: create.resource,
+			definition: { ...create.definition, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 1 }] },
+			runCount: 1, runs: [], operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: created.createdAt, modifiedAt: created.updatedAt,
+		};
+		connection.setAutomation(entry);
+		connection.suppressUpdatePublication = true;
+		const pending = store.updateAutomation(created.id, { enabled: true });
+		await timeout(0);
+		connection.setAutomation({ ...entry, modifiedAt: new Date().toISOString() });
+		const updated = await pending;
+		assert.deepStrictEqual({ enabled: updated.enabled, conditions: updated.disableConditions }, {
+			enabled: false, conditions: entry.definition.disableConditions,
+		});
+	});
+
+	test('unrelated catalogue changes cannot hide rejection of an expired-date re-enable', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const created = await store.createAutomation({
+			...createOptions(), enabled: false,
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
+		});
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		connection.suppressUpdatePublication = true;
+		const pending = store.updateAutomation(created.id, { enabled: true });
+		const rejected = assert.rejects(pending);
+		await timeout(0);
+		connection.setAutomation({
+			resource: 'ahp-automation:/unrelated', definition: create.definition, runs: [],
+			operations: [AutomationOperation.Update, AutomationOperation.Run],
+			createdAt: created.createdAt, modifiedAt: created.updatedAt,
+		});
+		await timeout(0);
+		connection.rejectUpdate(create.resource);
+		await rejected;
+		assert.strictEqual(store.getAutomation(created.id)?.enabled, false);
 	});
 
 	test('capability removal and feature disablement revoke operations immediately', async () => {
@@ -2268,6 +2661,17 @@ suite('AgentHostAutomationStore', () => {
 						schedule: projected ?? { interval: 'cron', cronExpression: expression, cronTimeZone: timeZone, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 						triggers,
 					});
+					for (const disableConditions of [
+						[{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }],
+						[],
+					]) {
+						const updated = await store.updateAutomation(id, { disableConditions });
+						const update = connection.dispatched.at(-1)?.action;
+						assert.deepStrictEqual({
+							triggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+							conditions: updated.disableConditions,
+						}, { triggers, conditions: disableConditions });
+					}
 				} else {
 					// Saving replaces every trigger, so anything the editor cannot faithfully rewrite must stay read-only.
 					const automation = store.getAutomation(id)!;

@@ -55,10 +55,19 @@ export interface IAuxiliaryWindowOpenOptions {
 	readonly disableFullscreen?: boolean;
 	readonly frameless?: boolean;
 	readonly transparent?: boolean;
+	/** Whether the window has no native shadow, such as a transparent window whose content draws its own. Desktop only. */
+	readonly noShadow?: boolean;
 	readonly notResizable?: boolean;
 	readonly disableMaximize?: boolean;
 	readonly noBackgroundThrottling?: boolean;
 	readonly backgroundColor?: string;
+	/**
+	 * Whether the window floats as a utility panel: on macOS a non-activating panel that also shows over full-screen
+	 * spaces, elsewhere a window without a taskbar entry. Desktop only.
+	 */
+	readonly panel?: boolean;
+	/** The opacity the window starts with, from 0 (transparent) to 1 (opaque). Desktop only, and not on Linux. */
+	readonly opacity?: number;
 }
 
 export interface IAuxiliaryWindowService {
@@ -398,9 +407,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined,
 			options?.frameless ? 'window-frameless=yes' : undefined,
 			options?.transparent ? 'window-transparent=yes' : undefined,
+			options?.noShadow ? 'window-no-shadow=yes' : undefined,
 			options?.notResizable ? 'window-not-resizable=yes' : undefined,
 			options?.disableMaximize ? 'window-disable-maximize=yes' : undefined,
 			options?.noBackgroundThrottling ? 'window-no-background-throttling=yes' : undefined,
+			options?.panel ? 'window-panel=yes' : undefined,
+			typeof options?.opacity === 'number' ? `window-opacity=${options.opacity}` : undefined,
 			options?.backgroundColor && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(options.backgroundColor) ? `window-background-color=${options.backgroundColor}` : undefined,
 		]);
 

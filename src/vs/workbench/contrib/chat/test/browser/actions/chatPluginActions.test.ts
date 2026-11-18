@@ -18,6 +18,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../../platfor
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IInputBox, IPickOptions, IQuickInputButton, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AddPluginMarketplaceAction, InstallFromSourceAction, ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
@@ -25,7 +26,7 @@ import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCu
 import { getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -66,7 +67,19 @@ suite('InstallFromSourceAction', () => {
 		const localInstalls: string[] = [];
 		const validations: string[] = [];
 		const notifications: Parameters<INotificationService['error']>[0][] = [];
+		const progress: { options: Parameters<IProgressService['withProgress']>[0]; active: boolean }[] = [];
 		const commands: { id: string; args: unknown[] }[] = [];
+		instantiationService.stub(IProgressService, new class extends mock<IProgressService>() {
+			override async withProgress<R>(options: Parameters<IProgressService['withProgress']>[0], task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
+				const entry = { options, active: true };
+				progress.push(entry);
+				try {
+					return await task({ report() { } });
+				} finally {
+					entry.active = false;
+				}
+			}
+		}());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
 				commands.push({ id, args });
@@ -106,8 +119,66 @@ suite('InstallFromSourceAction', () => {
 			}
 		}());
 		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: options.skipReveal ?? true }));
-		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, notifications, commands, session, activeSessionResource, harnesses };
+		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, notifications, progress, commands, session, activeSessionResource, harnesses };
 	}
+
+	test('shows progress throughout a provider-owned source installation before revealing the plugin', async () => {
+		const installation = new DeferredPromise<void>();
+		const fixture = createFixture({ installFromSource: () => installation.p }, undefined, { skipReveal: false });
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({ progress: fixture.progress, commands: fixture.commands }, {
+			progress: [{
+				options: { location: ProgressLocation.Notification, title: 'Installing plugin from source...', cancellable: false },
+				active: true,
+			}],
+			commands: [],
+		});
+
+		await installation.complete();
+		assert.deepStrictEqual({ installed: await fixture.result, active: fixture.progress.map(entry => entry.active), commands: fixture.commands.map(command => command.id) }, {
+			installed: true,
+			active: [false],
+			commands: [AICustomizationManagementCommands.OpenEditor],
+		});
+	});
+
+	test('closes provider installation progress on failure and allows retrying', async () => {
+		const installation = new DeferredPromise<void>();
+		let attempts = 0;
+		const fixture = createFixture({
+			installFromSource: async () => {
+				if (++attempts === 1) {
+					await installation.p;
+				}
+			},
+		});
+		const shown = Event.toPromise(fixture.showEmitter.event);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+		await installation.error(new Error('Cannot install plugin'));
+		await shown;
+		const failureState = {
+			active: fixture.progress.map(entry => entry.active),
+			notifications: [...fixture.notifications],
+			enabled: fixture.inputBox.enabled,
+			busy: fixture.inputBox.busy,
+		};
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({ failureState, installed: await fixture.result, attempts, active: fixture.progress.map(entry => entry.active) }, {
+			failureState: {
+				active: [false],
+				notifications: ['Failed to install plugin: Cannot install plugin'],
+				enabled: true,
+				busy: false,
+			},
+			installed: true,
+			attempts: 2,
+			active: [false, false],
+		});
+	});
 
 	test('reveals the installed plugin in Chat Customizations for the installing session', async () => {
 		const installedUri = URI.file('/plugins/example');
@@ -855,6 +926,40 @@ suite('ManagePluginMarketplacesAction', () => {
 		});
 	});
 
+	test('labels provider marketplaces from a GitHub Team, deferring to the organization label', async () => {
+		const marketplace = (name: string, overrides: Partial<ICustomizationMarketplaceInfo>): ICustomizationMarketplaceInfo =>
+		({ name, source: `GitHub: owner/${name}`, isDefault: false, managed: false, available: true, ...overrides });
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
+			list: async () => [
+				marketplace('team', { team: true }),
+				marketplace('team-unavailable', { team: true, available: false }),
+				marketplace('team-and-managed', { team: true, managed: true }),
+				marketplace('user', {}),
+			],
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => { throw new Error('Unexpected remove'); },
+			refresh: async () => [],
+		};
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+		}, false, provider);
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(fixture.quickInputService.picks[0]
+			.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace' && pick.id !== 'browseMarketplaces')
+			.map(pick => [pick.id, pick.description, pick.buttons?.map(button => button.tooltip)]), [
+			['team', 'Managed by GitHub Team', ['Remove Marketplace']],
+			['team-unavailable', 'Managed by GitHub Team, Unavailable', ['Remove Marketplace']],
+			['team-and-managed', 'Managed by Organization', undefined],
+			['user', undefined, ['Remove Marketplace']],
+		]);
+	});
+
 	test('returns to the provider marketplace list from the marketplace actions', async () => {
 		let listCalls = 0;
 		const provider: ICustomizationMarketplaceManagementProvider = {
@@ -969,7 +1074,7 @@ suite('ManagePluginMarketplacesAction', () => {
 
 	test('keeps the provider input busy and shows errors inline for correction and retry', async () => {
 		const pending = new DeferredPromise<void>();
-		const addCalls: { session: URI; source: string }[] = [];
+		const addCalls: { session: URI | undefined; source: string }[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
 			onDidChangeMarketplaces: Event.None,

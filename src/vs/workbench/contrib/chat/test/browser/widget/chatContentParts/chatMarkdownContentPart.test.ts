@@ -66,12 +66,22 @@ import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatLayoutService } from '../../../../common/widget/chatLayoutService.js';
 import { ChatLayoutService } from '../../../../browser/widget/chatLayoutService.js';
 import { MarkedKatexSupport } from '../../../../../markdown/browser/markedKatexSupport.js';
-import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { messageAttachmentsToVariableData, rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { MessageAttachmentKind, type MessageAttachment } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { agentHostConnectionKinds } from '../../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
+import { ChatRequestParser } from '../../../../common/requestParser/chatRequestParser.js';
+import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
+import { IChatSlashCommandService } from '../../../../common/participants/chatSlashCommands.js';
+import { IChatVariablesService } from '../../../../common/attachments/chatVariables.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ToolAndToolSetEnablementMap } from '../../../../common/tools/languageModelToolsService.js';
+import { getInlineRequestAttachments } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { ChatHtmlPreviewPart, isHtmlPreviewCodeBlock } from '../../../../browser/widget/chatContentParts/chatHtmlPreviewPart.js';
+import { chatNativeComponentsRenderer } from '../../../../browser/widget/chatContentParts/chatNativeComponentsPart.js';
 import { createHtmlPreviewDocument } from '../../../../browser/widget/chatContentParts/chatHtmlPreviewDocument.js';
 import { ChatHtmlPreviewAccessibleView, ChatHtmlPreviewEditorInput } from '../../../../browser/widget/chatContentParts/chatHtmlPreviewEditorInput.js';
 import { IOverlayWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, WebviewInitInfo } from '../../../../../webview/browser/webview.js';
@@ -306,10 +316,10 @@ suite('ChatMarkdownContentPart', () => {
 			const text = `/${name}`;
 			const part = new ChatRequestSlashPromptPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), name);
 			const markdown = decorationsRenderer.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), { text, parts: [part] });
-			const rendered = disposables.add(renderer.render(new MarkdownString(markdown)));
+			const rendered = disposables.add(renderer.render(markdown));
 			const anchor = rendered.element.querySelector('a');
 			const href = anchor?.getAttribute('data-href');
-			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: new MarkdownString(markdown) }, rendered.element));
+			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: markdown }, rendered.element));
 			return {
 				text: rendered.element.textContent,
 				decorationCount: rendered.element.querySelectorAll('.chat-resource-widget').length,
@@ -318,6 +328,59 @@ suite('ChatMarkdownContentPart', () => {
 		});
 		assert.deepStrictEqual(actual, names.map(name => ({ text: `/${name}`, decorationCount: 1, href: `http://_vscodedecoration_?${JSON.stringify({ title: name })}` })));
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`opens sent skill references through resource widgets by click and keyboard (${kind.name})`, async () => {
+			const text = '/review and /review /compact';
+			const hostResources = [URI.file('/workspace/review (one)/SKILL.md'), URI.parse('custom-skill:/review?view=with%20spaces&bare&vscodeLinkType=opaque#details')];
+			const attachments: MessageAttachment[] = hostResources.map((uri, index) => ({
+				type: MessageAttachmentKind.Resource, uri: uri.toString(), label: '/review', displayKind: 'skill',
+				range: { start: { line: 0, character: index * 12 }, end: { line: 0, character: index * 12 + 7 } },
+				...(index === 0 ? { _meta: { uri: 'file:///wrong/SKILL.md' } } : {}),
+			}));
+			attachments.push({
+				type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', _meta: { command: 'compact' },
+				range: { start: { line: 0, character: 20 }, end: { line: 0, character: 28 } },
+			});
+			const variables = messageAttachmentsToVariableData(attachments, 'test', text, kind.resourceUris)!.variables;
+			const parser = new ChatRequestParser(
+				upcastPartial<IChatAgentService>({ getDefaultAgent: () => undefined }),
+				upcastPartial<IChatVariablesService>({}),
+				upcastPartial<IChatSlashCommandService>({ getCommands: () => [] }),
+				upcastPartial<IPromptsService>({ hasPromptSlashCommand: () => false, isValidSlashCommandName: () => false }),
+			);
+			const parsed = parser.parseChatRequestWithReferences(variables.map(variable => ({
+				id: variable.id, data: variable.value, _meta: variable._meta,
+				range: new Range(1, variable.range!.start + 1, 1, variable.range!.endExclusive + 1),
+			})), ToolAndToolSetEnablementMap.fromEntries([]), text);
+			const inlineAttachments = getInlineRequestAttachments(parsed.parts, variables, text);
+			const decorations = disposables.add(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
+			const markdown = decorations.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), parsed, new Set(inlineAttachments.keys()));
+			const opens: string[] = [];
+			instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+				override async open(resource: URI | string): Promise<boolean> {
+					opens.push(resource.toString());
+					return true;
+				}
+			}());
+			renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const rendered = disposables.add(renderer.render(markdown));
+			disposables.add(decorations.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: markdown }, rendered.element));
+			const anchors = rendered.element.querySelectorAll<HTMLAnchorElement>('.chat-inline-anchor-widget');
+			assert.strictEqual(anchors.length, 2);
+			anchors[0].click();
+			anchors[1].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+			anchors[0].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 32, bubbles: true, cancelable: true }));
+			await timeout(0);
+			const resources = [kind.toClient(hostResources[0]), kind.resourceUris.fromAgentHost(hostResources[1])].map(uri => uri.toString());
+			assert.deepStrictEqual({
+				opens,
+				labels: Array.from(anchors, anchor => anchor.textContent),
+				commandDecorations: rendered.element.querySelectorAll('.chat-resource-widget').length,
+				inlineAttachments: inlineAttachments.size,
+			}, { opens: [resources[0], resources[1], resources[0]], labels: ['/review', '/review'], commandDecorations: 1, inlineAttachments: 0 });
+		});
+	}
 
 	test('decorates a response with 1000 ordinary links and one preview link in a single anchor scan', () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -1943,6 +2006,316 @@ suite('ChatMarkdownContentPart', () => {
 				resourceUrls: ['data:image/png;base64,AAAA'], unsafeAttributes: 0, label: 'Report',
 				style: 'padding: 12px', svg: '0 0 100 100', rectangle: '50', details: true, authorStyle: '.card { color: red }',
 			});
+		});
+	});
+
+	suite('Native components', () => {
+		const visual = [
+			'<Columns>',
+			'  <Metric label="Full build" value="12.4 s" />',
+			'  <Metric label="Incremental build" value="1.8 s" tone="positive" />',
+			'</Columns>',
+			'<Disclosure summary="Method"><Text>Median of five runs.</Text></Disclosure>',
+		].join('\n');
+		const fenced = (text = visual, fence = '```', info = 'vscode-ui') => `${fence}${info}\n${text}\n${fence}`;
+		const options: IChatMarkdownContentPartOptions = { nativeComponents: chatNativeComponentsRenderer };
+		let contextMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+
+		setup(() => {
+			contextMenu = undefined;
+			instantiationService.stub(IContextMenuService, {
+				showContextMenu: delegate => { contextMenu = delegate; },
+				onDidHideContextMenu: Event.None,
+			});
+		});
+
+		const root = (part: ChatMarkdownContentPart) => part.domNode.querySelector<HTMLElement>('.chat-native-components');
+
+		/** What a block shows: its visual, its source, or the source with the reason it is not a visual. */
+		function shown(part: ChatMarkdownContentPart) {
+			const element = root(part);
+			return element && {
+				visual: !element.querySelector<HTMLElement>('.chat-native-components-visual')!.hidden,
+				source: !element.querySelector<HTMLElement>('.chat-native-components-source')!.hidden,
+				notice: element.querySelector('.chat-native-components-notice')?.textContent,
+				expanded: Array.from(element.querySelectorAll('details'), details => details.open),
+			};
+		}
+
+		/** Returns the context menu that was requested since the last call, if any. */
+		function takeContextMenu() {
+			const delegate = contextMenu;
+			contextMenu = undefined;
+			return delegate;
+		}
+
+		function openContextMenu(part: ChatMarkdownContentPart): readonly IAction[] {
+			root(part)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			return takeContextMenu()?.getActions?.() ?? [];
+		}
+
+		/** Expands or collapses the disclosure as a user would, without waiting for the event the browser queues. */
+		function toggleDisclosure(part: ChatMarkdownContentPart, open: boolean): void {
+			const details = root(part)!.querySelector('details')!;
+			details.open = open;
+			details.dispatchEvent(new mainWindow.Event('toggle'));
+		}
+
+		function attach(part: ChatMarkdownContentPart): ChatMarkdownContentPart {
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			return part;
+		}
+
+		test('renders a closed response fence as a labelled visual between its prose, with the source one action away', () => {
+			const part = createMarkdownPart(`Before.\n\n${fenced()}\n\nAfter.`, undefined, false, false, options);
+			const element = root(part)!;
+			assert.deepStrictEqual({
+				shown: shown(part),
+				group: [element.getAttribute('role'), element.getAttribute('aria-label'), element.tabIndex],
+				values: Array.from(element.querySelectorAll('.chat-native-metric-value'), value => value.textContent),
+				prose: Array.from(part.domNode.querySelectorAll('p'), paragraph => paragraph.textContent),
+				permanentControls: element.querySelectorAll('button, .monaco-toolbar, .monaco-action-bar').length,
+				frames: element.querySelectorAll('iframe, webview').length + renderedCodeBlockOutputs.length,
+				source: renderedCodeBlocks.map(block => ({ language: block.languageId, text: block.text })),
+				codeblocks: part.codeblocks.map(block => block.languageId),
+				menu: openContextMenu(part).map(action => `${action.label}${action.checked ? ' (checked)' : ''}`),
+			}, {
+				shown: { visual: true, source: false, notice: undefined, expanded: [false] },
+				group: ['group', 'Visual for code block 1', 0],
+				values: ['12.4 s', '1.8 s'],
+				prose: ['Before.', 'After.'],
+				permanentControls: 0,
+				frames: 0,
+				source: [{ language: 'xml', text: visual }],
+				codeblocks: ['vscode-ui'],
+				menu: ['Show Source'],
+			});
+		});
+
+		test('leaves other code, requests, open fences, filtered responses and annotated files as code', () => {
+			const request = {
+				...createRenderContext(),
+				element: upcastPartial<IChatRequestViewModel>({
+					id: 'request',
+					sessionResource: URI.parse('chat-session://test/session1'),
+					message: { text: fenced(), parts: [] },
+					contentReferences: [],
+				}),
+			};
+			const filtered = createRenderContext();
+			Object.assign(filtered.element, { errorDetails: { responseIsFiltered: true, message: 'Filtered' } });
+			const cases = [
+				{ markdown: fenced(visual, '```', 'xml'), context: createRenderContext(), options },
+				{ markdown: fenced(visual, '```', 'jsx'), context: createRenderContext(), options },
+				{ markdown: fenced(), context: createRenderContext(), options: {} },
+				{ markdown: fenced(), context: request, options },
+				{ markdown: `\`\`\`vscode-ui\n${visual}`, context: createRenderContext(false), options },
+				{ markdown: `\`\`\`vscode-ui\n${visual}`, context: createRenderContext(), options },
+				{ markdown: fenced(visual, '````').slice(0, -1), context: createRenderContext(), options },
+				{ markdown: fenced(), context: filtered, options },
+				{ markdown: fenced(`${visual}\n<vscode_codeblock_uri>file:///report.xml</vscode_codeblock_uri>`), context: createRenderContext(), options },
+			];
+			assert.deepStrictEqual(cases.map(testCase => {
+				const part = createMarkdownPart(testCase.markdown, testCase.context, true, false, testCase.options);
+				return { visual: !!root(part), codeblocks: part.codeblocks.length };
+			}), cases.map(() => ({ visual: false, codeblocks: 1 })));
+		});
+
+		test('renders a block once its fence closes, in tilde and longer fences and inside a list item or a block quote too, while the response still streams', () => {
+			const streaming = () => createRenderContext(false);
+			assert.deepStrictEqual([
+				`Intro.\n\n\`\`\`vscode-ui\n${visual}`,
+				`Intro.\n\n${fenced()}\n\nStill writ`,
+				fenced(visual, '~~~~'),
+				fenced(visual, '````', 'VSCODE-UI v1'),
+				`- Results\n\n${fenced().replace(/^/gm, '  ')}`,
+				fenced().replace(/^/gm, '> '),
+			].map(markdown => shown(createMarkdownPart(markdown, streaming(), true, false, options))?.visual ?? false), [false, true, true, true, true, true]);
+		});
+
+		test('keeps the vscode-ui and html-preview fences independent of each other', () => {
+			const both = `${fenced()}\n\n\`\`\`html-preview\n<p>Report</p>\n\`\`\``;
+			const render = (rendererOptions: IChatMarkdownContentPartOptions) => {
+				const part = createMarkdownPart(both, undefined, false, false, rendererOptions);
+				return { visual: !!root(part), preview: !!part.domNode.querySelector('.chat-html-preview'), codeblocks: part.codeblocks.length };
+			};
+			assert.deepStrictEqual([render({}), render(options)], [
+				{ visual: false, preview: false, codeblocks: 2 },
+				{ visual: true, preview: false, codeblocks: 2 },
+			]);
+		});
+
+		test('shows the source and a readable reason for a block that is not valid, as an ordinary code block', () => {
+			const invalid = '<Metric label="Full build" value="12.4 s" />\n<Chart type="pie" />';
+			const part = attach(createMarkdownPart(fenced(invalid), undefined, false, false, options));
+			const unsupported = createMarkdownPart(fenced(visual, '```', 'vscode-ui v2'), undefined, false, false, options);
+			const element = root(part)!;
+			part.codeblocks[0].focus();
+			assert.deepStrictEqual({
+				shown: shown(part),
+				unsupported: shown(unsupported),
+				group: [element.getAttribute('role'), element.getAttribute('aria-label'), element.tabIndex],
+				menu: openContextMenu(part).length,
+				sourceFocused: element.querySelector('.chat-native-components-source')!.contains(mainWindow.document.activeElement),
+				source: renderedCodeBlocks.map(block => block.text),
+			}, {
+				shown: {
+					visual: false, source: true, expanded: [],
+					notice: 'This block could not be shown as a visual, so its source is shown instead. Line 2: Unknown component "Chart". Available here: Stack, Columns, Text, Metric, Badge, Table, BarChart, Disclosure.',
+				},
+				unsupported: {
+					visual: false, source: true, expanded: [],
+					notice: 'This block could not be shown as a visual, so its source is shown instead. The block uses schema version 2, but this version of VS Code supports version 1.',
+				},
+				group: [null, null, -1],
+				menu: 0,
+				sourceFocused: true,
+				source: [invalid, visual],
+			});
+		});
+
+		test('toggles the source from the context menu with the pointer or the keyboard, moving focus to what is shown', async () => {
+			const part = attach(createMarkdownPart(fenced(), undefined, false, false, options));
+			let heightChanges = 0;
+			disposables.add(part.onDidChangeHeight(() => heightChanges++));
+			part.codeblocks[0].focus();
+			const visualFocused = mainWindow.document.activeElement === root(part) && part.codeblocks[0].isFocused;
+			mainWindow.document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+			const keyboardMenu = takeContextMenu()?.getActions?.().map(action => action.label);
+
+			await openContextMenu(part)[0].run();
+			const inSource = { ...shown(part), checked: openContextMenu(part)[0].checked, focused: root(part)!.querySelector('.chat-native-components-source')!.contains(mainWindow.document.activeElement) };
+			await openContextMenu(part)[0].run();
+			assert.deepStrictEqual({
+				visualFocused, keyboardMenu, inSource,
+				inVisual: { ...shown(part), checked: openContextMenu(part)[0].checked, focused: mainWindow.document.activeElement === root(part) },
+				heightChanges,
+			}, {
+				visualFocused: true,
+				keyboardMenu: ['Show Source'],
+				inSource: { visual: false, source: true, notice: undefined, expanded: [false], checked: true, focused: true },
+				inVisual: { visual: true, source: false, notice: undefined, expanded: [false], checked: false, focused: true },
+				heightChanges: 2,
+			});
+		});
+
+		test('keeps the visual, its expanded details and its tables intact while the rest of the response streams', () => {
+			const table = '<Table><Column>Target</Column><Row><Cell>Full</Cell></Row></Table>';
+			const block = fenced(`${visual}\n${table}`);
+			const markdownTable = '| Target |\n| --- |\n| Full |';
+			const part = createMarkdownPart(`${block}\n\n${markdownTable}`, createRenderContext(false), true, false, options);
+			const element = root(part)!;
+			toggleDisclosure(part, true);
+			const updates = ['\n\nExplan', '\n\nExplanation.'].map(suffix => part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(`${block}\n\n${markdownTable}${suffix}`) }));
+			assert.deepStrictEqual({
+				updates,
+				samePart: root(part) === element && part.domNode.contains(element),
+				shown: shown(part),
+				sourceRenders: renderedCodeBlocks.length,
+				ownTable: element.querySelector('table')!.parentElement!.className,
+				markdownTableWrappers: Array.from(part.domNode.querySelectorAll('.rendered-markdown-table-scroll-wrapper'), wrapper => element.contains(wrapper) ? 'inside the visual' : 'outside the visual'),
+				prose: part.domNode.querySelector('p')?.textContent,
+			}, {
+				updates: [true, true],
+				samePart: true,
+				shown: { visual: true, source: false, notice: undefined, expanded: [true] },
+				sourceRenders: 1,
+				ownTable: 'chat-native-table-scroll',
+				markdownTableWrappers: ['outside the visual'],
+				prose: 'Explanation.',
+			});
+		});
+
+		test('restores the source toggle and expanded details when a recycled row is rendered again', async () => {
+			const context = createRenderContext();
+			const part = createMarkdownPart(fenced(), context, false, false, options);
+			let heightChanges = 0;
+			disposables.add(part.onDidChangeHeight(() => heightChanges++));
+			toggleDisclosure(part, true);
+			await openContextMenu(part)[0].run();
+			part.dispose();
+
+			const restored = createMarkdownPart(fenced(), context, false, false, options);
+			const restoredInSource = shown(restored);
+			await openContextMenu(restored)[0].run();
+			const other = createRenderContext();
+			Object.assign(other.element, { id: 'another-response' });
+			assert.deepStrictEqual({
+				heightChanges,
+				restoredInSource,
+				restoredInVisual: shown(restored),
+				otherResponse: shown(createMarkdownPart(fenced(), other, false, false, options)),
+				rememberedBlocks: outputStateCache.size,
+			}, {
+				heightChanges: 2,
+				restoredInSource: { visual: false, source: true, notice: undefined, expanded: [true] },
+				restoredInVisual: { visual: true, source: false, notice: undefined, expanded: [true] },
+				otherResponse: { visual: true, source: false, notice: undefined, expanded: [false] },
+				rememberedBlocks: 1,
+			});
+		});
+
+		test('follows the view state that another part of the same block changed, when it is shown again', async () => {
+			const context = createRenderContext();
+			const retained = createMarkdownPart(fenced(), context, false, false, options);
+			const replacement = createMarkdownPart(fenced(), context, false, false, options);
+			let heightChanges = 0;
+			disposables.add(retained.onDidChangeHeight(() => heightChanges++));
+			toggleDisclosure(replacement, true);
+			await openContextMenu(replacement)[0].run();
+			const stale = shown(retained);
+			retained.onDidRemount();
+			const synchronized = shown(retained);
+			retained.onDidRemount();
+			assert.deepStrictEqual({ stale, synchronized, heightChanges }, {
+				stale: { visual: true, source: false, notice: undefined, expanded: [false] },
+				synchronized: { visual: false, source: true, notice: undefined, expanded: [true] },
+				heightChanges: 1,
+			});
+		});
+
+		test('toggles a disclosure with Enter on its own summary, before chat takes the key for Edit Request', () => {
+			const nested = '<Disclosure summary="Outer"><Disclosure summary="Inner"><Text>Nested.</Text></Disclosure></Disclosure>';
+			const part = attach(createMarkdownPart(fenced(`${visual}\n${nested}`), undefined, false, false, options));
+			const [method, , inner] = Array.from(root(part)!.querySelectorAll('details'));
+			// Stands for the keybinding service, which listens above the visual. In a chat it runs Edit Request
+			// on Enter wherever no text input has focus, and has nothing bound to Space.
+			const reachedKeybindings: string[] = [];
+			disposables.add(addDisposableListener(part.domNode, 'keydown', event => reachedKeybindings.push(`${event.key === ' ' ? 'Space' : event.key} on ${(event.target as Element).tagName}`)));
+			const press = (target: Element, key: string, keyCode: number) => {
+				target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+				return shown(part)!.expanded;
+			};
+			assert.deepStrictEqual({
+				enterOnSummary: press(method.querySelector('summary')!, 'Enter', 13),
+				enterOnNestedSummary: press(inner.querySelector('summary')!, 'Enter', 13),
+				enterAgain: press(method.querySelector('summary')!, 'Enter', 13),
+				spaceIsLeftToTheBrowser: press(method.querySelector('summary')!, ' ', 32),
+				enterElsewhere: press(method.querySelector('.chat-native-text')!, 'Enter', 13),
+				reachedKeybindings,
+			}, {
+				enterOnSummary: [true, false, false],
+				enterOnNestedSummary: [true, false, true],
+				enterAgain: [false, false, true],
+				spaceIsLeftToTheBrowser: [false, false, true],
+				enterElsewhere: [false, false, true],
+				reachedKeybindings: ['Space on SUMMARY', 'Enter on DIV'],
+			});
+		});
+
+		test('stops reacting to its visual once disposed', () => {
+			const part = attach(createMarkdownPart(fenced(), undefined, false, false, options));
+			const element = root(part)!;
+			let heightChanges = 0;
+			disposables.add(part.onDidChangeHeight(() => heightChanges++));
+			part.dispose();
+			element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			element.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+			const details = element.querySelector('details')!;
+			details.open = true;
+			details.dispatchEvent(new mainWindow.Event('toggle'));
+			assert.deepStrictEqual({ menu: takeContextMenu(), heightChanges, rememberedBlocks: outputStateCache.size }, { menu: undefined, heightChanges: 0, rememberedBlocks: 0 });
 		});
 	});
 

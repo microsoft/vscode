@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { scopesMatch } from '../../../../base/common/oauth.js';
@@ -28,8 +29,8 @@ export class RemoteGitHubCredentialProvider extends Disposable implements IGitHu
 		this._register(channel.listen<unknown>('onDidChangeToken')(change => this._onDidChangeToken.fire(parseCredentialChange(change))));
 	}
 
-	async resolveClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<GitHubClientOptions> {
-		const options = await this.call('resolveClient', authorization, signal, parseClientOptions);
+	async resolveClient(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<GitHubClientOptions> {
+		const options = await this.call('resolveClient', authorization, cancellationToken, parseClientOptions);
 
 		const resolved = options.authorization;
 		if (resolved.providerId !== authorization.providerId
@@ -55,35 +56,38 @@ export class RemoteGitHubCredentialProvider extends Disposable implements IGitHu
 		};
 	}
 
-	async getToken(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<string | undefined> {
+	async getToken(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<string | undefined> {
 		const lifetime = new DisposableStore();
-		const controller = new AbortController();
+		const controller = lifetime.add(new CancellationTokenSource());
+		const combinedToken = CancellationToken.any([cancellationToken, controller.token], lifetime);
+		let cancellationError: GitHubRequestError | undefined;
 		lifetime.add(this.onDidChangeToken(change => {
 			if (change.providerId === authorization.providerId && (!change.sessionIds || change.sessionIds.includes(authorization.sessionId))) {
-				controller.abort(new GitHubRequestError('GitHub token changed during credential resolution', 'authentication'));
+				if (!combinedToken.isCancellationRequested) {
+					cancellationError = new GitHubRequestError('GitHub token changed during credential resolution', 'authentication');
+					controller.cancel();
+				}
 			}
 		}));
 
 		try {
-			return await this.call('getToken', authorization, AbortSignal.any([signal, controller.signal]), parse.optional(parse.nonEmptyString));
+			return await this.call('getToken', authorization, combinedToken, parse.optional(parse.nonEmptyString));
+		} catch (error) {
+			throw isCancellationError(error) ? cancellationError ?? error : error;
 		} finally {
 			lifetime.dispose();
 		}
 	}
 
-	private async call<T>(command: string, authorization: GitHubAuthorizationContext, signal: AbortSignal, parser: parse.Parser<T>): Promise<T> {
-		const lifetime = new DisposableStore();
+	private async call<T>(command: string, authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken, parser: parse.Parser<T>): Promise<T> {
 		try {
-			signal.throwIfAborted();
-			const token = CancellationToken.fromAbortSignal(signal, lifetime);
-			const response = await this.channel.call(command, authorization, token);
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
+			const response = await this.channel.call(command, authorization, cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return parseClientResponse(response, parser);
 		} catch (error) {
-			signal.throwIfAborted();
+			CancellationToken.throwIfCanceled(cancellationToken);
 			throw error;
-		} finally {
-			lifetime.dispose();
 		}
 	}
 }

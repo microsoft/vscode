@@ -17,7 +17,7 @@ import * as os from 'os';
 import { writeSync } from 'fs';
 import { getHeapStatistics } from 'node:v8';
 import * as inspector from 'inspector';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, AgentHostMainProcessConnectionContext, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, IAgentHostEndpointMetadata } from '../common/agentHostEndpointRegistry.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -351,7 +351,8 @@ async function startAgentHost(): Promise<void> {
 					return;
 				}
 				const clientId = connection.ctx;
-				if (typeof clientId !== 'string' || !clientId) {
+				// The main process serves no client channel: a lookup trying it first would wait for an IPC timeout.
+				if (typeof clientId !== 'string' || !clientId || clientId === AgentHostMainProcessConnectionContext) {
 					return;
 				}
 				const connectionStore = new DisposableStore();

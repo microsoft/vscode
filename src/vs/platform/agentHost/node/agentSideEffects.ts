@@ -36,6 +36,7 @@ import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
 import { isModelRouterModelId, modelRouterNameFromModelId } from '../common/modelRouter.js';
 import { modelRouterWorkspaceSituation, summarizeModelRouterAttachments, type IModelRouterSituation } from '../common/modelRouterSituation.js';
+import { readAgentChatInputResponseMeta } from '../common/meta/agentChatInputResponseMeta.js';
 import { readAgentPermissionResponseMeta } from '../common/meta/agentPermissionResponseMeta.js';
 import { readMcpServerSource, type McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 
@@ -1950,7 +1951,7 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatInputCompleted must be handled on an AHP chat channel: ${channel}`);
 				}
 				const agent = this._options.getAgent(sessionChannel, chatChannel);
-				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers);
+				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers, readAgentChatInputResponseMeta(action));
 				break;
 			}
 			case ActionType.ChatTurnCancelled: {

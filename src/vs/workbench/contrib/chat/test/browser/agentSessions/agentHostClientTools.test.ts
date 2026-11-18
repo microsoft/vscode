@@ -102,6 +102,7 @@ import { ContributionEnablementState, IEnablementModel } from '../../../common/e
 import { AgentHostMcpServerDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -143,15 +144,15 @@ suite('AgentHostClientTools', () => {
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: mcpOptions?.remoteAuthority });
-		let promptListings = 0;
+		const promptListings: string[] = [];
 		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeSlashCommands = Event.None;
 			override readonly onDidChangeSkills = Event.None;
 			override readonly onDidChangeInstructions = Event.None;
 			override getDisabledPromptFiles() { return new ResourceSet(); }
-			override async listPromptFilesForStorage() {
-				promptListings++;
+			override async listPromptFilesForStorage(type: string, storage: string) {
+				promptListings.push(`${type}:${storage}`);
 				return [];
 			}
 		}());
@@ -184,7 +185,7 @@ suite('AgentHostClientTools', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
-		return { service, fileService, getPromptListings: () => promptListings };
+		return { service, fileService, getPromptListings: () => promptListings.length, promptListings };
 	}
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
@@ -270,6 +271,15 @@ suite('AgentHostClientTools', () => {
 			watchesAfterDispose: 0,
 		});
 	}));
+
+	test('lists each kind of customization once when it resolves a scope', async () => {
+		const { service, promptListings } = createActiveClientService();
+		const scope = service.acquireScope('agent-host-claude', [URI.file('/repo')]);
+		await scope.whenResolved();
+		scope.dispose();
+
+		assert.deepStrictEqual(promptListings.filter((listing, index) => promptListings.indexOf(listing) !== index), []);
+	});
 
 	test('isolates additional tools to one session and moves them with the session resource', () => {
 		const tool: IToolData = {
@@ -1166,7 +1176,7 @@ suite('AgentHostClientTools', () => {
 			});
 			instantiationService.stub(IConfigurationService, configService);
 			instantiationService.stub(IOutputService, { getChannel: () => undefined });
-			instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
+			instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => (testIWorkspace({ id: '', folders: [] })), getWorkspaceFolder: () => null });
 			instantiationService.stub(IChatEditingService, {
 				registerEditingSessionProvider: () => toDisposable(() => { }),
 			});

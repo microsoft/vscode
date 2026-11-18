@@ -108,7 +108,7 @@ export function createLocalModelTurnExecutionMeta(execution: ILocalTurnExecution
  * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
  */
 export interface UsageInfoMeta {
-	/** Per-turn credit cost reported by the backend. */
+	/** Model multiplier reported by the backend, not measured AI credits. */
 	cost?: number;
 	/** The concrete model selected by Copilot Auto and the routing explanation. */
 	autoModeResolved?: IAutoModeResolvedInfo;
@@ -310,6 +310,7 @@ function readModelRoutedInfo(value: unknown): IModelRoutedInfo | undefined {
 		chosenModel: raw.chosenModel,
 		...(typeof raw.routerLabel === 'string' ? { routerLabel: raw.routerLabel } : {}),
 		...(typeof routeName === 'string' ? { routeName } : {}),
+		...(typeof raw.routeReference === 'string' ? { routeReference: raw.routeReference } : {}),
 		...(typeof raw.preference === 'string' ? { preference: raw.preference } : {}),
 		...(typeof raw.effort === 'string' ? { effort: raw.effort } : {}),
 		...(raw.contextSize === 'default' || raw.contextSize === 'long' ? { contextSize: raw.contextSize } : {}),

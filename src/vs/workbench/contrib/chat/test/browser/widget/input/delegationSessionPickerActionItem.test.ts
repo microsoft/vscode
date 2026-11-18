@@ -10,7 +10,7 @@ import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -46,6 +46,7 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { CopilotHarnessIntroductionMode } from '../../../../common/constants.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint } from '../../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
+import { ILocalChatAvailabilityService } from '../../../../common/localChatAvailability.js';
 
 class TestDelegationSessionPickerActionItem extends DelegationSessionPickerActionItem {
 	override getTooltip(): string {
@@ -139,6 +140,7 @@ suite('DelegationSessionPickerActionItem', () => {
 			managedSandboxEnforced: constObservable(false),
 			managedSandboxAllowsBypass: constObservable(false),
 		});
+		instantiationService.stub(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		instantiationService.stub(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 			override getLanguageModelIds() { return []; }
 		}());

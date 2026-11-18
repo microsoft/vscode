@@ -14,6 +14,7 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { cloudSandboxAddress } from '../../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { ExtensionRemoteAgentHostsService, IExtensionRemoteAgentHostsService } from '../../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
@@ -114,6 +115,8 @@ suite('RemotesModel', () => {
 		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IConfigurationService, configuration);
+		const extensionHosts = store.add(new ExtensionRemoteAgentHostsService(storage));
+		instantiationService.stub(IExtensionRemoteAgentHostsService, extensionHosts);
 		instantiationService.stub(IDialogService, new class extends TestDialogService {
 			override async confirm(confirmation: IConfirmation) {
 				confirmations.push(confirmation);
@@ -197,6 +200,8 @@ suite('RemotesModel', () => {
 			shareable: observableValue<ReadonlySet<string>>(store, new Set()),
 			shares: observableValue<ReadonlyMap<string, IRemoteGitHubEnvironmentShare>>(store, new Map()),
 			environmentIds: observableValue<ReadonlySet<string>>(store, new Set()),
+			// Result of the keep-sharing prompt on disconnect: `false` means the user cancelled the disconnect.
+			disconnectConfirmed: true,
 			// Records how many removals had happened, to verify that sharing stops first.
 			events: [] as string[],
 		};
@@ -204,6 +209,10 @@ suite('RemotesModel', () => {
 			shareable: sharing.shareable,
 			shares: sharing.shares,
 			environmentIds: sharing.environmentIds,
+			confirmDisconnect: async (address, name) => {
+				sharing.events.push(`confirm disconnect ${address} (${name})`);
+				return sharing.disconnectConfirmed;
+			},
 			setShared: async (address, shared) => {
 				sharing.events.push(`${shared ? 'share' : 'unshare'} ${address} after ${removals.length + sshDisconnects.length + deletedTunnels.length} removals`);
 				const shares = new Map(sharing.shares.get());
@@ -332,7 +341,7 @@ suite('RemotesModel', () => {
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing,
+			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing, extensionHosts,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -353,6 +362,27 @@ suite('RemotesModel', () => {
 			{ kind: 'wsl', name: 'Ubuntu', canRemove: true },
 			{ kind: 'tunnel', name: 'Laptop', canRemove: false },
 		]);
+	});
+
+	test('lists extension remotes while registered, connects user-disconnected ones and refuses to remove them', async () => {
+		const { model, extensionHosts, reconnects } = setup();
+		const registration = extensionHosts.registerHost({ extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner', name: 'Runner Jobs', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
+		extensionHosts.setDisconnected('127.0.0.1:8445', true);
+		const extensionRemotes = () => model.remotes.get().filter(remote => remote.kind === 'extension')
+			.map(({ id, name, detail, contributedBy, canRemove, connectionStatus }) => ({ id, name, detail, contributedBy, canRemove, status: connectionStatus.kind }));
+		const registered = extensionRemotes();
+		const removal = await model.remove('127.0.0.1:8445').then(() => 'removed', (error: Error) => error.message);
+		await model.setConnected('127.0.0.1:8445', true);
+		const disconnected = [...extensionHosts.disconnectedAddresses.get()];
+		registration.dispose();
+
+		assert.deepStrictEqual({ registered, removal, disconnected, reconnects, unregistered: extensionRemotes() }, {
+			registered: [{ id: '127.0.0.1:8445', name: 'Runner Jobs', detail: '127.0.0.1:8445', contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' }, canRemove: false, status: 'disconnected' }],
+			removal: 'This remote cannot be removed. Only registered remotes that support removal can be removed.',
+			disconnected: [],
+			reconnects: ['127.0.0.1:8445'],
+			unregistered: [],
+		});
 	});
 
 	test('reads service-owned error metadata even when opened midway through a retry', async () => {
@@ -796,7 +826,7 @@ suite('RemotesModel', () => {
 			partial, failures, remaining: [...refreshing],
 			started: updates.filter(update => update.refreshing).map(update => update.kind).sort(),
 			finished: updates.filter(update => !update.refreshing).map(update => update.kind).sort(),
-		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: [...remoteKinds].sort(), finished: [...remoteKinds].sort() });
+		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: remoteKinds.filter(kind => kind !== 'extension').sort(), finished: remoteKinds.filter(kind => kind !== 'extension').sort() });
 	});
 
 	test('tunnel progress spans authentication and reports missing-scope failure before other discovery finishes', async () => {
@@ -1462,7 +1492,7 @@ suite('RemotesModel', () => {
 	}
 
 	test('environment connections prefer provider hooks and retain inventory on disconnect', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, environmentConnections, connectionChanges, addEnvironmentProvider } = setup();
+		const { model, configuration, environmentAvailable, environmentHosts, environmentConnections, connectionChanges, addEnvironmentProvider, sharing } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		environmentHosts.set([{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' }], undefined);
@@ -1471,8 +1501,8 @@ suite('RemotesModel', () => {
 		addEnvironmentProvider('desktop');
 		await model.setConnected(id, true);
 		await model.setConnected(id, false);
-		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id) }, {
-			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true,
+		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id), sharingEvents: sharing.events }, {
+			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true, sharingEvents: [],
 		});
 	});
 
@@ -1554,6 +1584,22 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual({ events: sharing.events.slice(ids.length), shares: [...sharing.shares.get().keys()] }, {
 			events: ['unshare ssh:removed after 0 removals', 'unshare wsl:Ubuntu after 1 removals', 'unshare tunnel:laptop after 2 removals'],
 			shares: [],
+		});
+	});
+
+	test('disconnecting asks whether to keep sharing as a GitHub environment and can be cancelled', async () => {
+		const { model, sharing, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		await model.setConnected('ssh:build', true);
+		sharing.disconnectConfirmed = false;
+		await model.setConnected('ssh:build', false);
+		const cancelled = model.remotes.get().find(remote => remote.id === 'ssh:build')?.connectionStatus.kind;
+		sharing.disconnectConfirmed = true;
+		await model.setConnected('ssh:build', false);
+		assert.deepStrictEqual({ cancelled, events: sharing.events, connectionChanges }, {
+			cancelled: 'connected',
+			events: ['confirm disconnect ssh:build (build)', 'confirm disconnect ssh:build (build)'],
+			connectionChanges: [{ id: 'ssh:build', connected: true }, { id: 'ssh:build', connected: false }],
 		});
 	});
 

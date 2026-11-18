@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatWindowSessionDropTarget.css';
-import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, getWindowId } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, getWindowId, isHTMLElement } from '../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { InputDropTargetHints, isInputDropTarget, isPassThroughToInputDrag, PASS_THROUGH_MODIFIER_LABEL, registerPassThroughDropTarget } from '../../../../workbench/browser/dnd.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag, SessionsDataTransfers } from '../../../../workbench/contrib/sessions/browser/dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../workbench/contrib/sessions/browser/dnd.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 
@@ -21,7 +22,8 @@ import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/bro
  * Makes the chat of a chat window take the chats and sessions dragged onto it, such as a session of the sessions list or
  * the tab of a chat of the main window: it opens each in the chat window, as a tab beside the chat. While the drag is
  * over it, an overlay shows where it opens, and keeps the drag from scrolling what is under it. A chat that is archived or
- * gone is not taken. What is dropped on an input, such as to attach it as context, stays the input's.
+ * gone is not taken. What is dropped on an input, such as to attach it as context, stays the input's, as does what is
+ * dropped on the chat around such an input while the key that lets drags through is held.
  */
 export class ChatWindowSessionDropTarget extends Themable {
 
@@ -42,6 +44,8 @@ export class ChatWindowSessionDropTarget extends Themable {
 	) {
 		super(themeService);
 
+		// While the key is held, the drags let through reach the chat under the overlay, which attaches them, as in a chat editor
+		this._register(registerPassThroughDropTarget(this._element, e => isPassThroughToInputDrag(e, this._element)));
 		this._register(addDisposableListener(this._element, EventType.DRAG_ENTER, e => this._onDragEnter(e)));
 	}
 
@@ -72,7 +76,9 @@ export class ChatWindowSessionDropTarget extends Themable {
 	}
 
 	private _onDragEnter(e: DragEvent): void {
-		if (isChatReferenceInputDrop(e)) {
+		// An input under the drag that takes it, such as a chat input that attaches the dragged chat, takes it here, and so
+		// does the chat around such an input while the key that lets drags through is held.
+		if ((isHTMLElement(e.target) && isInputDropTarget(e.target, e)) || isPassThroughToInputDrag(e, this._element)) {
 			this._hideOverlay();
 			return;
 		}
@@ -93,7 +99,6 @@ export class ChatWindowSessionDropTarget extends Themable {
 		overlay.style.top = `${bounds.top}px`;
 		overlay.style.width = `${bounds.width}px`;
 		overlay.style.height = `${bounds.height}px`;
-		overlay.style.clipPath = getChatReferenceDropClipPath(this._element, e);
 		const indicator = $('.chat-window-session-drop-overlay-indicator');
 		indicator.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
 		const border = this.getColor(activeContrastBorder);
@@ -104,9 +109,18 @@ export class ChatWindowSessionDropTarget extends Themable {
 		overlay.appendChild(indicator);
 		this._element.appendChild(overlay);
 		store.add(toDisposable(() => overlay.remove()));
+		const inputHints = store.add(new InputDropTargetHints(this._element, overlay, PASS_THROUGH_MODIFIER_LABEL));
+		inputHints.update(e);
 		store.add(addDisposableListener(getWindow(this._element), EventType.DRAG_END, () => this._hideOverlay()));
 		store.add(new DragAndDropObserver(overlay, {
 			onDragOver: ev => {
+				// An input that takes the drag takes it once the drag moves over it, and so does the chat around it while the
+				// key that lets drags through is held: the overlay, which covers them until then, goes away.
+				if ((isHTMLElement(ev.target) && isInputDropTarget(ev.target, ev, this._element)) || isPassThroughToInputDrag(ev, this._element)) {
+					this._hideOverlay();
+					return;
+				}
+				inputHints.update(ev);
 				if (ev.dataTransfer) {
 					ev.dataTransfer.dropEffect = 'move';
 				}

@@ -111,13 +111,23 @@
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
 	background-color: var(--vscode-list-hoverBackground) !important;
 	color: var(--vscode-list-hoverForeground);
-	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
-	outline-offset: -2px;
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
-/* Hover changes the focused row without moving DOM focus, including while a combobox owns it. */
-.action-widget .monaco-list.mouse-navigation .monaco-list-row.action.focused:not(.option-disabled),
-.action-widget .monaco-list:not(.keyboard-navigation):not(:focus-visible) .monaco-list-row.action.focused:not(.option-disabled) {
+/* Pointer navigation uses the dashed hover boundary. */
+.action-widget .monaco-list.mouse-navigation .monaco-list-row.action.focused:is(:hover, .hovered):not(.option-disabled) {
+	outline-style: dashed;
+	outline-color: var(--vscode-contrastActiveBorder, transparent);
+}
+
+.action-widget .monaco-list.mouse-navigation .monaco-list-row.action.focused:is([aria-expanded='true'], [aria-pressed='true']):not(.option-disabled) {
+	outline-style: solid;
+}
+
+/* Before either modality is observed, keep the solid focus boundary. This includes
+ * filtered popups whose combobox owns DOM focus while the first row is highlighted. */
+.action-widget .monaco-list:not(.keyboard-navigation):not(.mouse-navigation):not(:focus-visible) .monaco-list-row.action.focused:not(.option-disabled) {
 	outline-color: var(--vscode-contrastActiveBorder, transparent);
 }
 
