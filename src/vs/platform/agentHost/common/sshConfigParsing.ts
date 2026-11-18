@@ -11,11 +11,20 @@ export function stripSSHComment(s: string): string {
 	return idx !== -1 ? s.substring(0, idx).trim() : s;
 }
 
+/** GitHub's SSH endpoints only serve Git operations and cannot host shell connections. */
+const gitOnlySSHHosts = new Set(['github.com', 'ssh.github.com']);
+
+function isGitOnlySSHHost(host: string): boolean {
+	return gitOnlySSHHosts.has(host.toLowerCase());
+}
+
 /**
- * Extract Host aliases from SSH config content (without following Includes).
+ * Extract connectable Host aliases from SSH config content (without following Includes).
+ * Patterns and aliases for Git-only endpoints such as GitHub, by name or HostName, are skipped.
  */
 export function parseSSHConfigHostEntries(content: string): string[] {
-	const hosts: string[] = [];
+	const blocks: { hosts: string[]; hostName?: string }[] = [];
+	let block: { hosts: string[]; hostName?: string } | undefined;
 	for (const line of content.split('\n')) {
 		const trimmed = line.trim();
 		if (!trimmed || trimmed.startsWith('#')) {
@@ -23,15 +32,27 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 		}
 		const hostMatch = trimmed.match(/^Host\s+(.+)$/i);
 		if (hostMatch) {
+			block = { hosts: [] };
+			blocks.push(block);
 			const hostValue = stripSSHComment(hostMatch[1]);
 			for (const h of hostValue.split(/\s+/)) {
-				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!')) {
-					hosts.push(h);
+				if (!h.includes('*') && !h.includes('?') && !h.startsWith('!') && !isGitOnlySSHHost(h)) {
+					block.hosts.push(h);
 				}
 			}
+			continue;
+		}
+		if (/^Match\s/i.test(trimmed)) {
+			block = undefined;
+			continue;
+		}
+		const hostNameMatch = trimmed.match(/^HostName(?:\s*=\s*|\s+)"?([^"\s]+)/i);
+		if (block && hostNameMatch) {
+			// OpenSSH uses the first value obtained for a keyword.
+			block.hostName ??= hostNameMatch[1];
 		}
 	}
-	return hosts;
+	return blocks.flatMap(block => block.hostName !== undefined && isGitOnlySSHHost(block.hostName) ? [] : block.hosts);
 }
 
 /** Parses Include arguments with OpenSSH quoting, escapes and comments; undefined indicates invalid quotes or an empty path. */

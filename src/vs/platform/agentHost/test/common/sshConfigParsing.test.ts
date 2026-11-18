@@ -118,6 +118,30 @@ suite('SSH Config Parsing', () => {
 
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver']);
 		});
+
+		test('skips GitHub hosts by alias or HostName', () => {
+			const config = [
+				'Host GitHub.com ssh.github.com myserver',
+				'	HostName 10.0.0.1',
+				'',
+				'Host github-work',
+				'	HostName=GitHub.com',
+				'',
+				'Host github-443',
+				'	HostName "ssh.github.com"',
+				'	HostName 10.0.0.2',
+				'',
+				'Host first-wins',
+				'	HostName 10.0.0.3',
+				'	HostName github.com',
+				'',
+				'Host match-scoped',
+				'Match user git',
+				'	HostName github.com',
+			].join('\n');
+
+			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver', 'first-wins', 'match-scoped']);
+		});
 	});
 
 	suite('parseSSHConfigIncludePaths', () => {
