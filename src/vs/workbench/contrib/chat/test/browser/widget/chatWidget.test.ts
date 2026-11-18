@@ -61,7 +61,7 @@ import { ChatRequestVariableSet, ChatSessionReferenceVariableId } from '../../..
 import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
-import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatQuestionCarousel, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -78,7 +78,7 @@ import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
-import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
+import { ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
@@ -3282,6 +3282,30 @@ suite('ChatWidget - acceptInput submission', () => {
 			await sending;
 			assert.deepStrictEqual({ beforeCancellation, operations, message: fixture.chatService.sendRequest.lastCall.args[1], queue: fixture.chatService.sendRequest.lastCall.args[2]?.queue }, {
 				beforeCancellation: ['cancel'], operations: ['cancel', 'cancelled', 'send'], message, queue: undefined,
+			});
+		});
+	}
+
+	for (const { name, questionAnswered, source, cancels } of [
+		{ name: 'is queued behind an unanswered question', questionAnswered: false, source: undefined, cancels: false },
+		{ name: 'cancels the request after its question was answered', questionAnswered: true, source: undefined, cancels: true },
+		{ name: 'cancels the request behind an unanswered MCP form', questionAnswered: false, source: { type: 'mcp', label: 'Server', serverLabel: undefined, instructions: undefined, collectionId: 'collection', definitionId: 'definition' } satisfies ToolDataSource, cancels: true },
+	]) {
+		test(`a message sent while the request needs input ${name}`, async () => {
+			const fixture = createSubmissionWidget();
+			fixture.original.hasActiveRequest.set(true, undefined);
+			fixture.original.requestNeedsInput.set({ title: 'Chat', detail: 'Answer questions to continue...' }, undefined);
+			const question: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [{ id: 'name', type: 'text', title: 'Name?' }], allowSkip: true, isUsed: questionAnswered, source };
+			Object.defineProperty(fixture.original.model, 'lastRequest', {
+				value: upcastPartial<IChatRequestModel>({ response: upcastPartial<IChatResponseModel>({ response: upcastPartial<IChatResponseModel['response']>({ value: [question] }) }) }),
+			});
+			await fixture.widget.acceptInput('Also run the tests');
+			assert.deepStrictEqual({
+				cancellations: fixture.chatService.cancelCurrentRequestForSession.callCount,
+				queue: fixture.chatService.sendRequest.lastCall.args[2]?.queue,
+			}, {
+				cancellations: cancels ? 1 : 0,
+				queue: ChatRequestQueueKind.Queued,
 			});
 		});
 	}

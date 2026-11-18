@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MessageOptions, MessageSource, SessionEvent } from '@github/copilot-sdk';
+import type { MessageOptions, MessageSource, SessionEvent } from '@microsoft/copilot-sdk';
 import type { AgentMessageProvenance } from '../../common/agentMessageProvenance.js';
 import { MessageKind } from '../../common/state/sessionState.js';
 

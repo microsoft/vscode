@@ -7,6 +7,7 @@ import './media/chatCustomizationMigrationNotice.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -168,7 +169,8 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 			if (options?.discoveryEnabled?.read(reader) === false) {
 				return;
 			}
-			void this.refresh(currentContext, cancelOnDispose(reader.store));
+			const token = cancelOnDispose(reader.store);
+			reader.store.add(disposableTimeout(() => void this.refresh(currentContext, token), 0));
 		}));
 		this._register(autorun(reader => {
 			const hint = this.migrationHint.read(reader);

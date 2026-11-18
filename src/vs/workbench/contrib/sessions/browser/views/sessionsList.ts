@@ -183,7 +183,7 @@ function setSessionGroupDepth(container: HTMLElement, depth: number): void {
 }
 
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
-/** The session context menu group that changes where a session is listed: Pin, then the group membership actions. */
+/** The session context menu group that changes where a session is listed: Pin, the group membership actions, then Move to Session.... */
 export const SessionItemOrganizeMenuGroup = '2_organize';
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const SessionGroupToolbarMenuId = new MenuId('SessionGroupToolbar');
@@ -3267,10 +3267,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			let hasNonCloudWorkspace = false;
 			for (const session of element.sessions) {
 				for (const folder of session.workspace.read(reader)?.folders ?? []) {
-					if (folder.gitRepository?.gitHubInfo.read(reader) !== undefined) {
+					// Reading `gitHubInfo` keeps the session's live pull request models alive, so stop once one repository is found.
+					if (!hasGitHub && folder.gitRepository?.gitHubInfo.read(reader) !== undefined) {
 						hasGitHub = true;
 					}
 					hasNonCloudWorkspace ||= folder.root.scheme !== GITHUB_REMOTE_FILE_SCHEME;
+				}
+				if (hasGitHub && hasNonCloudWorkspace) {
+					break;
 				}
 			}
 			hasGitHubRepository.set(hasGitHub);

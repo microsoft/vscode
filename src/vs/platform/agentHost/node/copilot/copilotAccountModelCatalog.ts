@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession } from '@microsoft/copilot-sdk';
 import { isObject } from '../../../../base/common/types.js';
 
 type ModelCatalog = Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>;
