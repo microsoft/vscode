@@ -500,7 +500,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		return this._configService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.WorkspaceEnableCodeSearch, this._experimentationService);
 	}
 
-	public isExternalIngestEnabled(): boolean | 'force' {
+	public isExternalIngestEnabled(): boolean {
 		if (!this.canExternalIngestBeEnabled()) {
 			return false;
 		}
@@ -572,15 +572,6 @@ export class CodeSearchChunkSearch extends Disposable {
 				externalIngestState: this.isExternalIngestEnabled() && this._externalIngestIndex.hasValue ? this._externalIngestIndex.value.getState() : undefined,
 			}
 			: {};
-
-		if (this.isExternalIngestEnabled() === 'force') {
-			return {
-				status: 'loaded',
-				repos: [],
-				hasPromptedForExternalIngest,
-				...externalIngest,
-			};
-		}
 
 		const trackedRepos = this._repoTracker.getAllTrackedRepos();
 		if (trackedRepos.some(repo => repo.status === TrackedRepoStatus.Resolving)) {
@@ -975,10 +966,6 @@ export class CodeSearchChunkSearch extends Disposable {
 		this._logService.trace(`RepoTracker.TriggerRemoteIndexing(${triggerReason}).started`);
 
 		await this.initialize();
-
-		if (this.isExternalIngestEnabled() === 'force') {
-			return raceCancellationError(this._externalIngestIndex.value.doIngest(telemetryInfo, onProgress, token), token);
-		}
 
 		// External ingest covers content without a GitHub remote. It must not block remote indexing of GitHub repos.
 		await this._repoTracker.initialize();
