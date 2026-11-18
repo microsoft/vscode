@@ -164,6 +164,8 @@ interface IPendingWorktreePlacement {
 	readonly sessionId: string | undefined;
 	/** The draft shown as it was requested, which never takes it. */
 	readonly previousSessionId: string | undefined;
+	/** Whether it was reported that the draft cannot work in a new worktree. */
+	readonly unavailableReported?: boolean;
 }
 
 /**
@@ -1792,7 +1794,8 @@ export class NewChatWidget extends Disposable {
 	 * choice, as soon as its agent's configuration of it is known; it cannot be sent before. Another draft, such as the one
 	 * shown while the creation runs, takes nothing. A new draft of the same folder that replaces the installed one, such as
 	 * of an agent that connected since, takes it instead; any other draft cancels it. An agent that cannot work in a new
-	 * worktree is reported, and the draft stays in its folder.
+	 * worktree, such as of a folder that is no Git repository, is reported once, and the draft is not sent in its folder:
+	 * it waits for a new worktree, until the user picks a workspace.
 	 */
 	private _applyRequestedWorktreePlacement(): void {
 		let placement = this._pendingWorktreePlacement.get();
@@ -1811,9 +1814,9 @@ export class NewChatWidget extends Disposable {
 		if (this._newWorktree?.isAvailable()) {
 			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._newWorktree.setSelected(true);
-		} else if (!this._newWorktree || this._newWorktree.isResolved()) {
-			this._pendingWorktreePlacement.set(undefined, undefined);
-			this._warnNewWorktreeUnavailable();
+		} else if ((!this._newWorktree || this._newWorktree.isResolved()) && !placement.unavailableReported) {
+			this._pendingWorktreePlacement.set({ ...placement, unavailableReported: true }, undefined);
+			this.notificationService.warn(localize('newChatWidget.requestedWorktreeUnavailable', "This new chat cannot work in a new worktree of this folder, so it cannot be sent. Pick another workspace to send it."));
 		}
 	}
 
