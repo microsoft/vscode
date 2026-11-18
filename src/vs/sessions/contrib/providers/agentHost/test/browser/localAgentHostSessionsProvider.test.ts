@@ -79,7 +79,8 @@ import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/co
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/services/sessions/common/session.js';
+import { CanvasOpenFailedError } from '../../../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../../workbench/services/sessions/common/session.js';
 import { readSessionChangesStats } from '../../../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../../../workbench/contrib/sessions/common/github/sessionGitHubReferences.js';
 import { ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -1367,6 +1368,88 @@ suite('LocalAgentHostSessionsProvider', () => {
 			{ sessionType: 'copilotcli', supportsCanvases: true },
 			{ sessionType: CODEX_AGENT_PROVIDER_ID, supportsCanvases: false },
 		]);
+	});
+
+	suite('createCanvasDraft', () => {
+		const canvas: ISessionCanvasDefinition = { canvasId: 'plan', extensionId: 'user:agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: 'Plans.', requiresInput: false };
+
+		/** A provider whose agents list Codex before Copilot, and whose host advertises each draft's default chat and announces the session a canvas starts. */
+		function setup(open: (session: URI) => AgentCanvasOpenResult) {
+			agentHost.setAgents([
+				{ provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [], capabilities: {} },
+				{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} },
+			]);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+			// The fake host runs its create hook once, so each draft re-arms it for the next one.
+			const advertiseDefaultChat = (uri: URI) => {
+				agentHost.onCreateSession = advertiseDefaultChat;
+				agentHost.setSessionState(AgentSession.id(uri), AgentSession.provider(uri)!, {
+					provider: AgentSession.provider(uri)!, title: '', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Creating,
+					activeClients: [], chats: [], defaultChat: buildDefaultChatUri(uri),
+				});
+			};
+			agentHost.onCreateSession = advertiseDefaultChat;
+			agentHost.openSessionCanvas = async (session, request, chat) => {
+				agentHost.canvasOpenRequests.push({ session, chat, request });
+				const result = open(session);
+				if (result.kind === 'opened') {
+					fireSessionAdded(agentHost, AgentSession.id(session), { title: '', workspaceless: true });
+				}
+				return result;
+			};
+			return provider;
+		}
+
+		test('lists the canvases of a new Copilot quick chat, opens one in it, and lists the session under the canvas name', async () => {
+			const provider = setup(() => ({ kind: 'opened' }));
+			agentHost.canvasDefinitions = [{ canvasId: 'plan', extensionId: 'user:agent-plan', extensionSource: 'user', displayName: 'Agent Plan', description: 'Plans.', requiresInput: false, actionCount: 0 }];
+
+			const draft = provider.createCanvasDraft();
+			const canvases = await draft.canvases;
+			const listedBeforeOpen = provider.getSessions().length;
+			const committed = await draft.open(canvas, 'plan-instance');
+			draft.dispose();
+
+			const backend = agentHost.createdSessionUris.at(-1)!;
+			assert.deepStrictEqual({
+				canvases: canvases?.map(definition => definition.canvasId),
+				listedBeforeOpen,
+				created: agentHost.createSessionConfigs.map(config => config.workingDirectory),
+				opened: agentHost.canvasOpenRequests.map(open => ({ session: open.session.toString(), chat: open.chat.toString(), request: open.request })),
+				committed: { rawId: AgentSession.id(committed.resource), sessionType: committed.sessionType, title: committed.title.get() },
+				listed: provider.getSessions().map(session => session.sessionId),
+				titles: agentHost.dispatchedActions.filter(dispatched => dispatched.action.type === ActionType.SessionTitleChanged).map(dispatched => ({ channel: dispatched.channel, action: dispatched.action })),
+			}, {
+				canvases: ['plan'],
+				listedBeforeOpen: 0,
+				created: [undefined],
+				opened: [{ session: backend.toString(), chat: buildDefaultChatUri(backend), request: { canvasId: 'plan', extensionId: 'user:agent-plan', instanceId: 'plan-instance' } }],
+				committed: { rawId: AgentSession.id(backend), sessionType: 'copilotcli', title: 'Agent Plan' },
+				listed: [committed.sessionId],
+				titles: [{ channel: backend.toString(), action: { type: ActionType.SessionTitleChanged, title: 'Agent Plan' } }],
+			});
+		});
+
+		test('deletes the new session when its canvas does not open, or when it is disposed before one opens', async () => {
+			const provider = setup(() => ({ kind: 'failed', failure: 'unavailable' }));
+
+			const abandoned = provider.createCanvasDraft();
+			await abandoned.canvases;
+			abandoned.dispose();
+			const error = await provider.createCanvasDraft().open(canvas, 'plan-instance').then(() => undefined, (error: Error) => error);
+
+			assert.deepStrictEqual({
+				failed: error instanceof CanvasOpenFailedError,
+				disposed: agentHost.disposedSessions.map(session => session.toString()),
+				listed: provider.getSessions().length,
+			}, {
+				failed: true,
+				disposed: agentHost.createdSessionUris.map(session => session.toString()),
+				listed: 0,
+			});
+		});
 	});
 
 	test('reports no session types before rootState hydrates', () => {
