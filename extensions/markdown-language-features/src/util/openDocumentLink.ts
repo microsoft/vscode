@@ -92,11 +92,17 @@ export class MdLinkOpener {
 
 		switch (resolved.kind) {
 			case 'external': {
-				const hashIndex = linkText.indexOf('#');
-				if (hashIndex !== -1) {
-					uri = uri.with({ fragment: linkText.slice(hashIndex + 1) });
+				// Pass the original link text as a string to avoid
+				// double-encoding of percent-encoded fragment characters.
+				// When the opener service receives a string whose parsed URI
+				// matches the resolved external URI it uses the string AS IS,
+				// preserving sequences like %2D instead of re-encoding them
+				// to %252D (which breaks text-fragment highlighting).
+				if (uri.scheme === 'http' || uri.scheme === 'https') {
+					await vscode.commands.executeCommand('vscode.open', linkText);
+				} else {
+					await openExternal(uri);
 				}
-				await openExternal(uri);
 				return;
 			}
 

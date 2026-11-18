@@ -171,6 +171,16 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 	});
 
 	vscode.commands.registerCommand('vscodeMarkdownLanguageservice.open', (uri, args) => {
+		// For external HTTP(S) URIs, convert to a string before passing to
+		// vscode.open so that the opener service's preserveOriginalString path
+		// is used, avoiding double-encoding of percent-encoded fragment
+		// characters (e.g. %2D → %252D).
+		if (typeof uri !== 'string') {
+			const vsUri = vscode.Uri.from(uri);
+			if (vsUri.scheme === 'http' || vsUri.scheme === 'https') {
+				return vscode.commands.executeCommand('vscode.open', vsUri.toString(), args);
+			}
+		}
 		return vscode.commands.executeCommand('vscode.open', uri, args);
 	});
 
