@@ -104,7 +104,6 @@ suite('AgentHostSkillCompletionProvider', () => {
 		return disposables.add(new AgentHostSkillCompletionProvider(
 			() => agent,
 			async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) }),
-			undefined,
 			createSessionDataService(database),
 		));
 	}

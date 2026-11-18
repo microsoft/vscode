@@ -143,6 +143,7 @@ export class AgentHostCompletions extends Disposable implements IAgentHostComple
 			chat: isAhpChatChannel(params.channel)
 				? (this._stateManager.getChatOwner(params.channel) !== undefined ? params.channel : undefined)
 				: this._stateManager.getDefaultChat(params.channel),
+			customizations: this._stateManager.getSessionState(params.channel)?.customizations,
 		};
 		const settled = await Promise.allSettled(
 			matching.map(p => p.provideCompletionItems(params, context, token)),
