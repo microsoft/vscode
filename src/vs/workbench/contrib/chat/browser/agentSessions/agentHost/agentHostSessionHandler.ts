@@ -99,7 +99,6 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { isVirtualResource } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -160,7 +159,7 @@ import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agen
 import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
-import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
+import { IAgentHostNewSessionFolderService, computeWorkingDirectories, filterHostAddressableWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostEditReview } from './agentHostEditReview.js';
 import { ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
@@ -8091,8 +8090,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
 	private _resolveRequestedWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
 		const primary = this._resolveRequestedWorkingDirectory(sessionResource);
+		const addressableFolders = filterHostAddressableWorkingDirectories(
+			this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
+			this._config.connection,
+			this._config.provider,
+			this._environmentService.isSessionsWindow,
+			this._logService,
+		) ?? [];
 		return this._hostAddressableWorkingDirectories(
-			computeWorkingDirectories(primary, this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri), this._getRootState(), this._config.provider)
+			computeWorkingDirectories(primary, addressableFolders, this._getRootState(), this._config.provider)
 		);
 	}
 
@@ -8110,23 +8116,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Drop directories the host cannot address unless the local provider can read them back from this client. */
 	private _hostAddressableWorkingDirectories(directories: readonly URI[] | undefined): readonly URI[] | undefined {
-		const defaultDirectory = this._config.connection.initializeResult.get()?.defaultDirectory;
-		if (!directories?.length || !defaultDirectory) {
-			return directories;
-		}
-		const hostScheme = URI.isUri(defaultDirectory) ? URI.revive(defaultDirectory).scheme : URI.parse(defaultDirectory).scheme;
-		const supportsVirtualWorkingDirectories = !this._environmentService.isSessionsWindow
-			&& this._config.connection.clientConnectionKind === AgentHostClientConnectionKind.Local
-			&& this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
-		const addressable = directories.filter(directory => {
-			const hostDirectory = this._config.connection.resourceUris.toAgentHost(directory);
-			return hostDirectory.scheme === hostScheme || (supportsVirtualWorkingDirectories && isVirtualResource(hostDirectory));
-		});
-		if (addressable.length === directories.length) {
-			return directories;
-		}
-		this._logService.warn(`[AgentHost] Host addresses '${hostScheme}' working directories; dropping ${directories.length - addressable.length} that it cannot use.`);
-		return addressable.length > 0 ? addressable : undefined;
+		return filterHostAddressableWorkingDirectories(
+			directories,
+			this._config.connection,
+			this._config.provider,
+			this._environmentService.isSessionsWindow,
+			this._logService,
+		);
 	}
 
 	/**

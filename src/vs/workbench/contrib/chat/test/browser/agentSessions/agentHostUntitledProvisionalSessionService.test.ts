@@ -2938,6 +2938,29 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			nonAdvertising: [folderB.toString()],
 		});
 	});
+
+	test('drops virtual folders from provisional session creation for non-copilot provider', async () => {
+		const folderLocal = URI.file('/repoLocal');
+		const folderVirtual = URI.from({ scheme: 'abap', path: '/sap/bc/adt' });
+		workspaceFolders = [folderLocal, folderVirtual];
+
+		agentHost.rootStateAgents = [agentInfo('claude', true)];
+		agentHost.initializeResult.set({
+			protocolVersion: '0.9.0',
+			serverSeq: 0,
+			snapshots: [],
+			defaultDirectory: '/repoLocal',
+			_meta: { 'vscode.agentHost': true },
+		}, undefined);
+
+		const untitled = untitledChatUri('claude-virtual');
+		await provisional.getOrCreate(untitled, 'claude', folderLocal);
+
+		assert.deepStrictEqual(
+			agentHost.createCalls[0].workingDirectories?.map(d => d.toString()),
+			[folderLocal.toString()]
+		);
+	});
 });
 
 /** Minimal {@link AgentInfo} for capability-gating tests. */

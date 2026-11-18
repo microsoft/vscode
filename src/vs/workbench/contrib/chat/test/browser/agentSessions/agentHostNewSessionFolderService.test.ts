@@ -7,14 +7,18 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ExtUri, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import type { AgentInfo, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { AgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { AgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, filterHostAddressableWorkingDirectories } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 
 suite('AgentHostNewSessionFolderService', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -303,6 +307,51 @@ suite('computeWorkingDirectories', () => {
 			retainsSecondaryOrder: [folderA.toString(), folderC.toString(), folderB.toString()],
 			removesStaleAndAddsMissing: [folderA.toString(), folderC.toString()],
 			deduplicates: [folderA.toString(), folderB.toString(), folderC.toString()],
+		});
+	});
+
+	suite('filterHostAddressableWorkingDirectories', () => {
+		const virtualFolder = URI.from({ scheme: 'abap', path: '/sap/bc/adt' });
+		const fileFolder = URI.file('/repo/local');
+		const localConnection: Pick<IAgentConnection, 'initializeResult'> & Partial<Pick<IAgentConnection, 'clientConnectionKind' | 'resourceUris'>> = {
+			clientConnectionKind: AgentHostClientConnectionKind.Local,
+			initializeResult: constObservable<InitializeResult | undefined>({ defaultDirectory: '/repo/local' } as InitializeResult),
+		};
+
+		test('returns undefined/empty unchanged', () => {
+			assert.strictEqual(filterHostAddressableWorkingDirectories(undefined, localConnection, 'claude', false), undefined);
+			assert.deepStrictEqual(filterHostAddressableWorkingDirectories([], localConnection, 'claude', false), []);
+		});
+
+		test('returns directories unchanged if defaultDirectory is missing', () => {
+			const connWithoutDefault: Pick<IAgentConnection, 'initializeResult'> & Partial<Pick<IAgentConnection, 'clientConnectionKind' | 'resourceUris'>> = {
+				clientConnectionKind: AgentHostClientConnectionKind.Local,
+				initializeResult: constObservable<InitializeResult | undefined>(undefined),
+			};
+			assert.deepStrictEqual(
+				filterHostAddressableWorkingDirectories([fileFolder, virtualFolder], connWithoutDefault, 'claude', false),
+				[fileFolder, virtualFolder]
+			);
+		});
+
+		test('filters out virtual folders for non-copilot provider (e.g. claude)', () => {
+			const result = filterHostAddressableWorkingDirectories([fileFolder, virtualFolder], localConnection, 'claude', false);
+			assert.deepStrictEqual(result, [fileFolder]);
+		});
+
+		test('returns undefined when all directories are filtered out', () => {
+			const result = filterHostAddressableWorkingDirectories([virtualFolder], localConnection, 'claude', false);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('retains virtual folders for local copilot CLI outside sessions window', () => {
+			const result = filterHostAddressableWorkingDirectories([fileFolder, virtualFolder], localConnection, COPILOT_CLI_AGENT_PROVIDER_ID, false);
+			assert.deepStrictEqual(result, [fileFolder, virtualFolder]);
+		});
+
+		test('filters out virtual folders for copilot CLI inside sessions window', () => {
+			const result = filterHostAddressableWorkingDirectories([fileFolder, virtualFolder], localConnection, COPILOT_CLI_AGENT_PROVIDER_ID, true);
+			assert.deepStrictEqual(result, [fileFolder]);
 		});
 	});
 });

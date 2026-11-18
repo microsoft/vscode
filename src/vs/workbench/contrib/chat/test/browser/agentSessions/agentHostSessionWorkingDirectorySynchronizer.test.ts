@@ -395,4 +395,20 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
 		]);
 	});
+
+	test('does not dispatch working directory set for virtual folders on non-copilot provider', async () => {
+		const virtualFolder = URI.from({ scheme: 'abap', path: '/sap/bc/adt' });
+		const synchronizer = createSynchronizer(true, [retained, virtualFolder]);
+		const subscription = createSubscription();
+		const connection = new TestConnection(subscription, 'claude');
+		connection.initializeResult.set({ protocolVersion: '0.7.0', defaultDirectory: '/workspace/primary' } as InitializeResult, undefined);
+		disposables.add(synchronizer.register({ session, provider: 'claude', connection, subscription }));
+
+		await synchronizer.reconcile(session, CancellationToken.None);
+
+		// only 'stale' is removed; 'virtualFolder' is dropped by addressable filter and never set
+		assert.deepStrictEqual(connection.dispatched, [
+			{ type: ActionType.SessionWorkingDirectoryRemoved, directory: stale.toString() },
+		]);
+	});
 });
