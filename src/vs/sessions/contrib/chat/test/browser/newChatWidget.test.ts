@@ -7262,7 +7262,7 @@ suite('NewChatWidget', () => {
 		}));
 	});
 
-	test('a sent message\'s status reserves its height and expires after eight seconds of being seen, pausing for hover, focus and a hidden composer; a starting session\'s waits for its end', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('a sent message\'s status reserves its height and expires after eight seconds of being seen, pausing for hover, also by a pointer that rested on it as it was starting, focus and a hidden composer; a starting session\'s waits for its end', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IOpenerService, {});
@@ -7313,9 +7313,17 @@ suite('NewChatWidget', () => {
 		await timeout(3999);
 		const beforeResumedTimeout = host.textContent;
 		await timeout(1);
-		assert.deepStrictEqual({ startingAfterAMinute, beforeTimeout, afterTimeout, hovered, focused, hidden, beforeResumedTimeout, afterResumedTimeout: host.textContent, status: status.get(), preservesHeight: reservedHeight > 0 && shownHeight === reservedHeight && host.firstElementChild!.getBoundingClientRect().height === reservedHeight }, {
+		const afterResumedTimeout = host.textContent;
+		status.set({ kind: 'starting' }, undefined);
+		confirmation.dispatchEvent(new MouseEvent('mouseenter'));
+		status.set(sent('rested on'), undefined);
+		await timeout(8000);
+		const restedOn = host.textContent;
+		confirmation.dispatchEvent(new MouseEvent('mouseleave'));
+		await timeout(8000);
+		assert.deepStrictEqual({ startingAfterAMinute, beforeTimeout, afterTimeout, hovered, focused, hidden, beforeResumedTimeout, afterResumedTimeout, restedOn, afterRest: host.textContent, status: status.get(), preservesHeight: reservedHeight > 0 && shownHeight === reservedHeight && host.firstElementChild!.getBoundingClientRect().height === reservedHeight }, {
 			startingAfterAMinute: 'Starting session', beforeTimeout: 'Message sentOpen Session', afterTimeout: '', hovered: 'Message sentOpen Session', focused: 'Message sentOpen Session',
-			hidden: 'Message sentOpen Session', beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', status: undefined, preservesHeight: true,
+			hidden: 'Message sentOpen Session', beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', restedOn: 'Message sentOpen Session', afterRest: '', status: undefined, preservesHeight: true,
 		});
 	}));
 

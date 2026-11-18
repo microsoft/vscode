@@ -3354,6 +3354,10 @@ export class NewChatWidget extends Disposable {
 
 	private _renderBackgroundSendStatus(container: HTMLElement): void {
 		const statusElement = dom.append(container, dom.$('.new-session-send-status'));
+		// Followed across its states, so that a pointer that already rests on it as its message is sent pauses its expiry.
+		const hovered = observableValue(this, false);
+		this._register(dom.addDisposableListener(statusElement, dom.EventType.MOUSE_ENTER, () => hovered.set(true, undefined)));
+		this._register(dom.addDisposableListener(statusElement, dom.EventType.MOUSE_LEAVE, () => hovered.set(false, undefined)));
 		this._register(autorun(reader => {
 			const status = this._backgroundSendStatus.read(reader);
 			dom.clearNode(statusElement);
@@ -3411,11 +3415,11 @@ export class NewChatWidget extends Disposable {
 			const dismissal = reader.store.add(new MutableDisposable<IDisposable>());
 			let remaining = 8000;
 			let startedAt = Date.now();
-			let hovered = false;
+			let pointerRests = false;
 			let focused = false;
 			let hidden = false;
 			const updateDismissal = () => {
-				if (hovered || focused || hidden) {
+				if (pointerRests || focused || hidden) {
 					if (dismissal.value) {
 						remaining -= Date.now() - startedAt;
 						dismissal.clear();
@@ -3425,12 +3429,11 @@ export class NewChatWidget extends Disposable {
 					dismissal.value = disposableTimeout(() => this._backgroundSendStatus.set(undefined, undefined), Math.max(0, remaining));
 				}
 			};
-			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.MOUSE_ENTER, () => { hovered = true; updateDismissal(); }));
-			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.MOUSE_LEAVE, () => { hovered = false; updateDismissal(); }));
 			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.FOCUS_IN, () => { focused = true; updateDismissal(); }));
 			reader.store.add(dom.addDisposableListener(statusElement, dom.EventType.FOCUS_OUT, () => { focused = false; updateDismissal(); }));
-			reader.store.add(autorun(visibilityReader => {
-				hidden = !this._isShown(visibilityReader);
+			reader.store.add(autorun(stateReader => {
+				pointerRests = hovered.read(stateReader);
+				hidden = !this._isShown(stateReader);
 				updateDismissal();
 			}));
 		}));
