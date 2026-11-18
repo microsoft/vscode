@@ -4954,9 +4954,9 @@ suite('MultiEditorTabsControl', () => {
 		}());
 
 		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
-		const press = (button: EditorAddTabControl) => {
+		const press = (button: EditorAddTabControl, clientX?: number) => {
 			const bounds = button.element.getBoundingClientRect();
-			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
+			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: clientX ?? bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
 		};
 		const open = (button: EditorAddTabControl) => {
 			press(button);
@@ -4978,6 +4978,14 @@ suite('MultiEditorTabsControl', () => {
 		press(button);
 		await timeout(0);
 		const menuOpen = !!shownMenu;
+		// Also on the part of the visible button outside the control, as with the negative margin of the Connected tab style
+		const label = button.element.querySelector<HTMLElement>('.action-label')!;
+		label.style.marginInlineStart = '-5px';
+		const labelLeft = label.getBoundingClientRect().left;
+		press(button);
+		press(button, labelLeft + 1);
+		await timeout(0);
+		const menuOpenAfterEdgePress = !!shownMenu;
 
 		assert.deepStrictEqual({
 			initially,
@@ -4985,12 +4993,16 @@ suite('MultiEditorTabsControl', () => {
 			inAnotherButton: open(createButton()),
 			executed,
 			menuOpen,
+			pressedOutsideControl: labelLeft + 1 < button.element.getBoundingClientRect().left,
+			menuOpenAfterEdgePress,
 		}, {
 			initially: ['test.newTabButton.first', 'test.newTabButton.second'],
 			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
 			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
-			executed: ['test.newTabButton.second', 'test.newTabButton.second'],
+			executed: ['test.newTabButton.second', 'test.newTabButton.second', 'test.newTabButton.second'],
 			menuOpen: false,
+			pressedOutsideControl: true,
+			menuOpenAfterEdgePress: false,
 		});
 	});
 
