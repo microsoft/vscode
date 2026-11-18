@@ -18,7 +18,7 @@ import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, latestChangedValue, observableFromEventOpts, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -306,7 +306,6 @@ export class SCMViewService implements ISCMViewService {
 		this._activeRepositoryPinnedObs = observableValue<ISCMRepository | undefined>(this, undefined);
 		this._activeRepositoryObs = latestChangedValue(this, [this._activeEditorRepositoryObs, this._focusedRepositoryObs]);
 
-		const onDidChangeRepositories = observableSignalFromEvent(this, this.onDidChangeRepositories);
 		this.activeRepository = derivedOpts<{ repository: ISCMRepository; pinned: boolean } | undefined>({
 			owner: this,
 			equalsFn: (r1, r2) => r1?.repository.id === r2?.repository.id && r1?.pinned === r2?.pinned
@@ -316,14 +315,6 @@ export class SCMViewService implements ISCMViewService {
 
 			const repository = activeRepositoryPinned ?? activeRepository;
 			const pinned = !!activeRepositoryPinned;
-
-			// A hidden repository is not shown, for example while its provider swaps the repository of a workspace
-			// folder: the only shown repository is the active one instead
-			if (repository?.provider.isHidden.read(reader)) {
-				onDidChangeRepositories.read(reader);
-				const repositories = this.repositories;
-				return repositories.length === 1 ? { repository: repositories[0], pinned: false } : undefined;
-			}
 
 			return repository ? { repository, pinned } : undefined;
 		});
