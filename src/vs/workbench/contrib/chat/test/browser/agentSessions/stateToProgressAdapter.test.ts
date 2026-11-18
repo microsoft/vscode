@@ -1689,6 +1689,25 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('names an Auto pick the client does not list by its runtime catalog name', () => {
+			const turn = createTurn({
+				usage: {
+					model: 'experiment-model-x',
+					_meta: { autoModeResolved: { chosenModel: 'experiment-model-x', chosenModelName: 'Experiment Model X' } },
+				},
+			});
+			const lookup = makeLookup('agent-host-copilot:', {});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'experiment-model-x', name: 'Experiment Model X' } },
+			]);
+		});
+
 		test('drops a routing part that never resolved from restored history', () => {
 			const turn = createTurn({ message: message('first'), usage: { model: 'auto' } });
 			const lookup = makeLookup('agent-host-copilot:', { 'auto': 'Auto' }, 'auto');

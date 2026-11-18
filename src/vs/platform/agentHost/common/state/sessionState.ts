@@ -296,6 +296,11 @@ export interface IModelRoutedInfo {
 
 export interface IAutoModeResolvedInfo {
 	readonly chosenModel: string;
+	/**
+	 * Display name of {@link chosenModel} from the runtime's model catalog, for a
+	 * model the client's own model list does not include. Absent when unknown.
+	 */
+	readonly chosenModelName?: string;
 	readonly reasoningBucket?: 'low' | 'medium' | 'high';
 	readonly categoryScores?: Readonly<Record<string, number | undefined>>;
 	readonly predictedLabel?: string;
