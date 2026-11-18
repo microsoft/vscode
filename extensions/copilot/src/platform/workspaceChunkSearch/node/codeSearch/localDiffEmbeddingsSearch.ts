@@ -1,0 +1,98 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { shouldInclude } from '../../../../util/common/glob';
+import { TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
+import { coalesce } from '../../../../util/vs/base/common/arrays';
+import { Limiter, raceCancellationError } from '../../../../util/vs/base/common/async';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { ResourceMap } from '../../../../util/vs/base/common/map';
+import { URI } from '../../../../util/vs/base/common/uri';
+import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { FileChunkAndScore, FileChunkWithEmbedding } from '../../../chunking/common/chunk';
+import { ComputeBatchInfo, EmbeddingsComputeQos, IChunkingEndpointClient } from '../../../chunking/common/chunkingEndpointClient';
+import { EmbeddingType, rankEmbeddings } from '../../../embeddings/common/embeddingsComputer';
+import { ILogService } from '../../../log/common/logService';
+import { WorkspaceChunkQueryWithEmbeddings, WorkspaceChunkSearchOptions } from '../../common/workspaceChunkSearch';
+import { FileRepresentation, IWorkspaceFileIndex } from '../workspaceFileIndex';
+
+/**
+ * Searches files that differ from what the remote code search index has indexed.
+ *
+ * Chunks and embeddings come from the Copilot chunks endpoint and are ranked locally. They are cached in memory
+ * per file content version, so repeated searches only recompute files that changed again.
+ */
+export class LocalDiffEmbeddingsSearch {
+
+	/**
+	 * Maximum number of changed files we compute embeddings for in a single search.
+	 */
+	public static readonly maxFileCount = 300;
+
+	private static readonly maxParallelFileOps = 50;
+
+	private readonly _cache = new ResourceMap<{ readonly contentVersionId: string; readonly chunks: readonly FileChunkWithEmbedding[] }>();
+
+	constructor(
+		private readonly _embeddingType: EmbeddingType,
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@IChunkingEndpointClient private readonly _chunkingEndpointClient: IChunkingEndpointClient,
+		@ILogService private readonly _logService: ILogService,
+		@IWorkspaceFileIndex private readonly _workspaceFileIndex: IWorkspaceFileIndex,
+	) { }
+
+	/**
+	 * @returns The top chunks from {@linkcode files}, or `undefined` if the files could not be searched.
+	 */
+	async search(files: readonly URI[], query: WorkspaceChunkQueryWithEmbeddings, maxResults: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<FileChunkAndScore[] | undefined> {
+		const includedFiles = files.filter(uri => shouldInclude(uri, options.globPatterns));
+		if (!includedFiles.length) {
+			return [];
+		}
+
+		if (includedFiles.length > LocalDiffEmbeddingsSearch.maxFileCount) {
+			this._logService.debug(`LocalDiffEmbeddingsSearch: ${includedFiles.length} changed files exceeds limit of ${LocalDiffEmbeddingsSearch.maxFileCount}`);
+			return undefined;
+		}
+
+		const authToken = (await raceCancellationError(this._authService.getGitHubSession('any', { silent: true }), token))?.accessToken;
+		if (!authToken) {
+			this._logService.debug('LocalDiffEmbeddingsSearch: no GitHub session');
+			return undefined;
+		}
+
+		const queryEmbedding = query.resolveQueryEmbeddings(token);
+		const batchInfo = new ComputeBatchInfo();
+		const limiter = new Limiter<readonly FileChunkWithEmbedding[] | undefined>(LocalDiffEmbeddingsSearch.maxParallelFileOps);
+		try {
+			const perFileChunks = await raceCancellationError(Promise.all(includedFiles.map(uri => limiter.queue(async () => {
+				const file = await this._workspaceFileIndex.tryLoad(uri);
+				return file ? this.getChunksAndEmbeddings(authToken, file, batchInfo, telemetryInfo, token) : undefined;
+			}))), token);
+
+			const chunks = coalesce(perFileChunks).flat();
+			return rankEmbeddings(await raceCancellationError(queryEmbedding, token), chunks.map(x => [x.chunk, x.embedding] as const), maxResults)
+				.map((x): FileChunkAndScore => ({ chunk: x.value, distance: x.distance }));
+		} finally {
+			limiter.dispose();
+		}
+	}
+
+	private async getChunksAndEmbeddings(authToken: string, file: FileRepresentation, batchInfo: ComputeBatchInfo, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<readonly FileChunkWithEmbedding[] | undefined> {
+		const contentVersionId = await file.getFastContentVersionId();
+		const cached = this._cache.get(file.uri);
+		if (cached?.contentVersionId === contentVersionId) {
+			return cached.chunks;
+		}
+
+		// Reuse embeddings for chunks that did not change since the last computation
+		const previousChunks = new Map(cached?.chunks.flatMap(x => x.chunkHash ? [[x.chunkHash, x] as const] : []));
+		const chunks = await this._chunkingEndpointClient.computeChunksAndEmbeddings(authToken, this._embeddingType, file, batchInfo, EmbeddingsComputeQos.Batch, previousChunks, telemetryInfo.callTracker.add('LocalDiffEmbeddingsSearch::getChunksAndEmbeddings'), token);
+		if (chunks) {
+			this._cache.set(file.uri, { contentVersionId, chunks });
+		}
+		return chunks;
+	}
+}
