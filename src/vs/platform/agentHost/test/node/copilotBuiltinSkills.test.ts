@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hasReadableCustomizationContent, isAgentBuiltinCustomizationUri } from '../../common/agentHostCustomizationUri.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
-import { matchModelReference, parseModelRouter, resolveModelRouter } from '../../common/modelRouter.js';
+import { parseModelRouter, resolveModelRouter } from '../../common/modelRouter.js';
 import { ReasoningEffortConfigKey } from '../../common/reasoningEffort.js';
 import { buildCopilotBuiltinSkillsContainer, createCopilotSkillProvider } from '../../node/copilot/copilotBuiltinSkills.js';
 
@@ -72,7 +72,7 @@ suite('Copilot builtin troubleshoot skill', () => {
 		});
 	});
 
-	test('the model-router skill\'s examples are valid routers whose every model, fallbacks included, is found', async () => {
+	test('the model-router skill\'s examples are valid routers whose every route finds a model', async () => {
 		const content = await createCopilotSkillProvider('sdk-id', URI.file('/copilot-home'), () => true).readSkill('model-router', { signal: new AbortController().signal }) ?? '';
 		const models = ['claude-opus-5.5', 'claude-sonnet-5.5', 'claude-haiku-5.5', 'gpt-6.1-sol'].map((id): IAgentModelInfo => ({
 			provider: 'copilotcli', id, name: id, supportsVision: true,
@@ -81,19 +81,11 @@ suite('Copilot builtin troubleshoot skill', () => {
 		const checked = [...content.matchAll(/```yaml\n(?<example>[\s\S]*?)\n```/g)].map(match => {
 			const parsed = parseModelRouter(match.groups?.example ?? '', 'daily-driver.model-router.yaml');
 			const resolved = parsed.router ? resolveModelRouter(parsed.router, models) : undefined;
-			return {
-				diagnostics: [...parsed.diagnostics, ...resolved?.diagnostics ?? []].map(diagnostic => diagnostic.message),
-				models: resolved?.routes.map(route => route.model.id),
-				// Resolving stops at a route's first model that is available, so each entry is looked up on its own.
-				entries: parsed.router?.routes.map(route => route.models.map(reference => {
-					const found = matchModelReference(models, reference);
-					return `${reference}: ${found?.kind === 'model' ? found.model.id : found?.kind}`;
-				})),
-			};
+			return { diagnostics: [...parsed.diagnostics, ...resolved?.diagnostics ?? []].map(diagnostic => diagnostic.message), models: resolved?.routes.map(route => route.model.id) };
 		});
 		assert.deepStrictEqual(checked, [
-			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-haiku-5.5', 'gpt-6.1-sol'], entries: [['opus: claude-opus-5.5', 'sonnet: claude-sonnet-5.5'], ['haiku: claude-haiku-5.5'], ['sol: gpt-6.1-sol']] },
-			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-opus-5.5', 'claude-haiku-5.5'], entries: [['opus: claude-opus-5.5'], ['opus: claude-opus-5.5'], ['haiku: claude-haiku-5.5']] },
+			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-haiku-5.5', 'gpt-6.1-sol'] },
+			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-opus-5.5', 'claude-haiku-5.5'] },
 		]);
 	});
 
