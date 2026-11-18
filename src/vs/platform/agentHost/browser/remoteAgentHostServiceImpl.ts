@@ -1188,7 +1188,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 export class EditorWindowRemoteAgentHostService extends RemoteAgentHostService {
 
-	/** Editor windows dial only the hosts their workspace lists; user-level hosts belong to the Agents window. */
+	/** Editor windows dial the WebSocket hosts their workspace lists; the user's belong to the Agents window. */
 	protected override get webSocketEntriesSettingId(): string {
 		return WorkspaceRemoteAgentHostsSettingId;
 	}
