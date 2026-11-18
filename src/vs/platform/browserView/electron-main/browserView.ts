@@ -773,6 +773,11 @@ export class BrowserView extends Disposable {
 		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 
+	/** Whether the view was last asked to be shown with {@link setVisible}. */
+	isVisible(): boolean {
+		return this._wantsVisibility;
+	}
+
 	/**
 	 * Set the visibility of this view
 	 */
