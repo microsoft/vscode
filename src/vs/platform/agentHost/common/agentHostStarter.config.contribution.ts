@@ -280,7 +280,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview', 'advanced', 'experimental'],
-			included: false,
 			agentHost: { key: ModelRouterEnabledConfigKey },
 		},
 		[AgentHostOverlapProviderPreparationSettingId]: {
