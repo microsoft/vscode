@@ -125,12 +125,10 @@ export class Extension implements IExtension {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IProductService private readonly productService: IProductService
 	) {
 		this._local = local;
 		this._blockingInfo = _gallery?.blockingInfo;
-		this._marketplaceDeprecationInfo = _gallery?.deprecationInfo;
 		if (local && _gallery && local.manifest.version === _gallery.version) {
 			this._installedBlockingInfo = _gallery.blockingInfo;
 		}
@@ -383,9 +381,7 @@ export class Extension implements IExtension {
 		if (this._legacyDeprecationInfo?.extension?.autoMigrate) {
 			return this._legacyDeprecationInfo;
 		}
-		return this.configurationService.getValue<boolean>(MarketplaceDeprecationConfigKey)
-			? this._marketplaceDeprecationInfo ?? this._legacyDeprecationInfo
-			: this._legacyDeprecationInfo;
+		return this._marketplaceDeprecationInfo ?? this._legacyDeprecationInfo;
 	}
 
 	setMarketplaceDeprecationInfo(info: IDeprecationInfo | undefined): boolean {
@@ -687,6 +683,7 @@ class Extensions extends Disposable {
 		private readonly stateProvider: IExtensionStateProvider<ExtensionState>,
 		private readonly runtimeStateProvider: IExtensionStateProvider<ExtensionRuntimeState | undefined>,
 		private readonly isWorkspaceServer: boolean,
+		private readonly updateMarketplaceDeprecationInfo: (extension: Extension, info: IDeprecationInfo | undefined) => boolean,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IWorkbenchExtensionManagementService private readonly workbenchExtensionManagementService: IWorkbenchExtensionManagementService,
@@ -758,7 +755,7 @@ class Extensions extends Disposable {
 		const metadataChanged = new Set<Extension>();
 		for (const [extension, gallery] of this.mapInstalledExtensionWithGalleryExtension(galleryExtensions)) {
 			const blockingInfoChanged = extension.setBlockingInfo(gallery.blockingInfo);
-			const deprecationInfoChanged = extension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);
+			const deprecationInfoChanged = this.updateMarketplaceDeprecationInfo(extension, gallery.deprecationInfo);
 			if (blockingInfoChanged || deprecationInfoChanged) {
 				metadataChanged.add(extension);
 			}
@@ -823,7 +820,7 @@ class Extensions extends Disposable {
 					queriedIds.push(extension.identifier.id);
 					const gallery = queryResult.find(g => areSameExtensions(g.identifier, extension.identifier));
 					if (gallery) {
-						extension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);
+						this.updateMarketplaceDeprecationInfo(extension, gallery.deprecationInfo);
 						extension.gallery = gallery;
 					} else {
 						extension.missingFromGallery = true;
@@ -921,6 +918,7 @@ class Extensions extends Disposable {
 		if (source && !URI.isUri(source)) {
 			const extension = this.installed.find(e => areSameExtensions(e.identifier, source.identifier))
 				?? this.instantiationService.createInstance(Extension, this.stateProvider, this.runtimeStateProvider, this.server, undefined, source, undefined);
+			this.updateMarketplaceDeprecationInfo(extension, source.deprecationInfo);
 			this.installing.push(extension);
 			this._onChange.fire({ extension });
 		}
@@ -999,7 +997,7 @@ class Extensions extends Disposable {
 					extension.local = local;
 					if (!extension.gallery) {
 						if (gallery) {
-							extension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);
+							this.updateMarketplaceDeprecationInfo(extension, gallery.deprecationInfo);
 						}
 						extension.gallery = gallery;
 					}
@@ -1039,7 +1037,7 @@ class Extensions extends Disposable {
 		for (const extension of extensions) {
 			const compatible = galleryExtensions.find(e => areSameExtensions(e.identifier, extension.identifier));
 			if (compatible) {
-				extension.setMarketplaceDeprecationInfo(compatible.deprecationInfo);
+				this.updateMarketplaceDeprecationInfo(extension, compatible.deprecationInfo);
 				extension.gallery = compatible;
 				this._onChange.fire({ extension });
 			}
@@ -1102,6 +1100,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private readonly remoteExtensions: Extensions | null = null;
 	private readonly webExtensions: Extensions | null = null;
 	private readonly extensionsServers: Extensions[] = [];
+	// Track observations without retaining discarded gallery search models.
+	private readonly marketplaceDeprecationReferences = new WeakMap<Extension, WeakRef<Extension>>();
+	private readonly marketplaceDeprecationObservations = new Map<WeakRef<Extension>, IDeprecationInfo | undefined>();
+	private readonly marketplaceDeprecationRegistry = new FinalizationRegistry<WeakRef<Extension>>(reference => this.marketplaceDeprecationObservations.delete(reference));
 
 	private updatesCheckDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
@@ -1163,8 +1165,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		super();
 
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
+		this._register(toDisposable(() => {
+			for (const reference of this.marketplaceDeprecationObservations.keys()) {
+				this.marketplaceDeprecationRegistry.unregister(reference);
+			}
+			this.marketplaceDeprecationObservations.clear();
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(MarketplaceDeprecationConfigKey)) {
+				const enabled = this.configurationService.getValue<boolean>(MarketplaceDeprecationConfigKey);
+				for (const [reference, info] of this.marketplaceDeprecationObservations) {
+					const extension = reference.deref();
+					if (extension) {
+						extension.setMarketplaceDeprecationInfo(enabled ? info : undefined);
+					}
+				}
 				this._onChange.fire(undefined);
 			}
 		}));
@@ -1173,7 +1188,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				extensionManagementServerService.localExtensionManagementServer,
 				ext => this.getExtensionState(ext),
 				ext => this.getRuntimeState(ext),
-				!extensionManagementServerService.remoteExtensionManagementServer
+				!extensionManagementServerService.remoteExtensionManagementServer,
+				(extension, info) => this.updateMarketplaceDeprecationInfo(extension, info)
 			));
 			this._register(this.localExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
 			this._register(this.localExtensions.onReset(e => this.reset()));
@@ -1184,7 +1200,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				extensionManagementServerService.remoteExtensionManagementServer,
 				ext => this.getExtensionState(ext),
 				ext => this.getRuntimeState(ext),
-				true
+				true,
+				(extension, info) => this.updateMarketplaceDeprecationInfo(extension, info)
 			));
 			this._register(this.remoteExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
 			this._register(this.remoteExtensions.onReset(e => this.reset()));
@@ -1195,7 +1212,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				extensionManagementServerService.webExtensionManagementServer,
 				ext => this.getExtensionState(ext),
 				ext => this.getRuntimeState(ext),
-				!(extensionManagementServerService.remoteExtensionManagementServer || extensionManagementServerService.localExtensionManagementServer)
+				!(extensionManagementServerService.remoteExtensionManagementServer || extensionManagementServerService.localExtensionManagementServer),
+				(extension, info) => this.updateMarketplaceDeprecationInfo(extension, info)
 			));
 			this._register(this.webExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
 			this._register(this.webExtensions.onReset(e => this.reset()));
@@ -1212,6 +1230,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		urlService.registerHandler(this);
 
 		this.whenInitialized = this.initialize();
+	}
+
+	private updateMarketplaceDeprecationInfo(extension: Extension, info: IDeprecationInfo | undefined): boolean {
+		let reference = this.marketplaceDeprecationReferences.get(extension);
+		if (!reference) {
+			reference = new WeakRef(extension);
+			this.marketplaceDeprecationReferences.set(extension, reference);
+			this.marketplaceDeprecationRegistry.register(extension, reference, reference);
+		}
+		this.marketplaceDeprecationObservations.set(reference, info);
+		return extension.setMarketplaceDeprecationInfo(this.configurationService.getValue<boolean>(MarketplaceDeprecationConfigKey) ? info : undefined);
 	}
 
 	private async initialize(): Promise<void> {
@@ -1788,19 +1817,21 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {
 		let extension = this.getInstalledExtensionMatchingGallery(gallery);
 		if (!extension) {
-			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
-			(<Extension>extension).setExtensionsControlManifest(extensionsControlManifest);
+			const galleryExtension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
+			this.updateMarketplaceDeprecationInfo(galleryExtension, gallery.deprecationInfo);
+			galleryExtension.setExtensionsControlManifest(extensionsControlManifest);
+			extension = galleryExtension;
 			// Refresh extension-wide metadata without replacing the editor's selected version or assets.
 			for (const input of this.editorService.editors) {
 				if (input instanceof ExtensionsInput && input.extension instanceof Extension && !input.extension.local && areSameExtensions(input.extension.identifier, gallery.identifier)) {
-					if (input.extension.setMarketplaceDeprecationInfo(gallery.deprecationInfo)) {
+					if (this.updateMarketplaceDeprecationInfo(input.extension, gallery.deprecationInfo)) {
 						this._onChange.fire(input.extension);
 					}
 				}
 			}
 		} else {
 			const installedExtension = extension as Extension;
-			const deprecationInfoChanged = installedExtension.setMarketplaceDeprecationInfo(gallery.deprecationInfo);
+			const deprecationInfoChanged = this.updateMarketplaceDeprecationInfo(installedExtension, gallery.deprecationInfo);
 			const blockingInfoChanged = extension.version === gallery.version && installedExtension.setBlockingInfo(gallery.blockingInfo);
 			const installedBlockingInfoChanged = extension.version === gallery.version && installedExtension.setInstalledBlockingInfo(gallery.blockingInfo);
 			if (deprecationInfoChanged || blockingInfoChanged || installedBlockingInfoChanged) {
@@ -2846,8 +2877,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 
 			if (!extension && gallery) {
-				extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
-				(<Extension>extension).setExtensionsControlManifest(await this.extensionManagementService.getExtensionsControlManifest());
+				const galleryExtension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
+				this.updateMarketplaceDeprecationInfo(galleryExtension, gallery.deprecationInfo);
+				galleryExtension.setExtensionsControlManifest(await this.extensionManagementService.getExtensionsControlManifest());
+				extension = galleryExtension;
 			}
 
 			if (extension?.isMalicious) {
