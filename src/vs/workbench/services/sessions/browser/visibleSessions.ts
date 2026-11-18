@@ -967,6 +967,52 @@ export class VisibleSessions extends Disposable {
 	}
 
 	/**
+	 * Show `session` in the slot of `targetSessionId` (`undefined` for the empty slot) in place of what that slot shows, and
+	 * make it active, such as for a session dropped on the middle of that slot's view. The slot keeps its place in the grid;
+	 * a session the grid shows elsewhere moves there from its own slot, keeping its stickiness. The session that held the
+	 * slot leaves the grid with its stickiness, and is reported as replaced so it can be reopened. No-op when the slot is not
+	 * visible or already shows `session`.
+	 */
+	openInSlot(session: ISession, targetSessionId: string | undefined): void {
+		const id = session.sessionId;
+		if (!this._visibleList.length && targetSessionId === undefined) {
+			this._visibleList.push(undefined);
+		}
+		if (id === targetSessionId || !this._visibleList.includes(targetSessionId)) {
+			return;
+		}
+
+		const currentIdx = this._visibleList.indexOf(id);
+		if (currentIdx >= 0) {
+			this._visibleList.splice(currentIdx, 1);
+		}
+		const idx = this._visibleList.indexOf(targetSessionId);
+		this._visibleList.splice(idx, 1, id);
+		this.transferGridSlot(targetSessionId, id);
+
+		const replaced = targetSessionId !== undefined ? this._wrappers.get(targetSessionId)?.session : undefined;
+		const replacedSticky = this._isStickySlot(targetSessionId);
+		if (targetSessionId !== undefined) {
+			this._stickyIds.delete(targetSessionId);
+			this._wrappers.deleteAndDispose(targetSessionId);
+		}
+		if (!this._isStickySlot(id)) {
+			this._mostRecentNonStickySlot = id;
+		} else if (this._mostRecentNonStickySlot === targetSessionId) {
+			this._mostRecentNonStickySlot = this._findLastNonSticky();
+		}
+		if (replaced) {
+			this._onSlotReplaced(replaced, idx, replacedSticky, id);
+		}
+
+		const wrapper = this._getOrCreateVisibleSession(session);
+		transaction((tsx) => {
+			this._setActiveSession(wrapper, false, tsx);
+			this._refresh(tsx);
+		});
+	}
+
+	/**
 	 * Toggle a session's stickiness in the grid. The session keeps its grid
 	 * slot when toggled.
 	 * - If the session is not currently visible, it is appended at the end as

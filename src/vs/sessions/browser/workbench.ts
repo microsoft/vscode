@@ -71,7 +71,7 @@ import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from '../../work
 import { IContextKey, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { IsPhoneLayoutContext, DesktopLayoutContext, SessionActivityBarSizeContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
 import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
-import { CustomViewVisibleContext, EditorMaximizedContext } from '../common/agentsWindowContextKeys.js';
+import { CustomViewVisibleContext, DesktopEditorHeaderLayoutContext, EditorMaximizedContext } from '../common/agentsWindowContextKeys.js';
 import { SessionsLayoutPolicy, ViewportClass } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
 import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, getSessionsPartFrameInset, getSidePaneFrameInset } from '../../workbench/browser/parts/sessions/agentsPartCard.js';
@@ -86,7 +86,7 @@ import { ICustomViewService, ICustomViewDescriptor } from '../../workbench/contr
 import { ICustomViewGridPartService } from '../services/customView/browser/customViewGridPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../workbench/contrib/sessions/common/layoutConstants.js';
-import { DetailsPosition, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+import { DetailsPosition, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSIONS_EDITOR_HEADER_LAYOUT_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 import { observableConfigValue } from '../../platform/observable/common/platformObservableUtils.js';
 import { logSettingExperimentTrigger } from '../../platform/telemetry/common/experimentTrigger.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
@@ -224,6 +224,11 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 
 	/** The concrete Agents workbench presentation selected at startup. */
 	readonly agentWorkbenchLayout: AgentWorkbenchLayout;
+	/**
+	 * Whether the desktop editor header layout is enabled. Fixed at startup from
+	 * `sessions.experimental.editorHeaderLayout`; always `false` outside the desktop layout.
+	 */
+	readonly desktopEditorHeaderLayout: boolean;
 	readonly chatLayoutPresentation: ChatLayoutPresentation;
 
 	/** The current viewport class, optionally fixed by the composing entry point. */
@@ -355,6 +360,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
+	readonly onDidChangeAuxiliaryBarMaximizeHidden = Event.None;
 
 	private readonly _onDidChangeAuxiliaryBarFloating = this._register(new Emitter<boolean>());
 	readonly onDidChangeAuxiliaryBarFloating = this._onDidChangeAuxiliaryBarFloating.event;
@@ -485,6 +491,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private readonly maximized = new Set<number>();
 	protected readonly layoutPolicy = this._register(this.createLayoutPolicy());
 	chatLayoutPresentation!: ChatLayoutPresentation;
+	desktopEditorHeaderLayout = false;
 	get viewportClass(): IObservable<ViewportClass> {
 		return this.layoutPolicy.viewportClass;
 	}
@@ -637,6 +644,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				updatePanelSpacing();
 				this._register(sizeService.onDidChangeSizes(updatePanelSpacing));
 				this.chatLayoutPresentation = this._register(new ChatLayoutPresentation(configurationService, this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop, this.layoutPolicy.isPhoneLayout));
+				this.desktopEditorHeaderLayout = this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && configurationService.getValue<boolean>(SESSIONS_EDITOR_HEADER_LAYOUT_SETTING) === true;
 				const hostService = accessor.get(IHostService);
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
@@ -680,6 +688,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				}));
 
 				DesktopLayoutContext.bindTo(contextKeyService).set(this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop);
+				DesktopEditorHeaderLayoutContext.bindTo(contextKeyService).set(this.desktopEditorHeaderLayout);
 				this.logWindowLayout(accessor.get(ITelemetryService));
 
 				// Virtual keyboard tracking (visualViewport): publishes the
@@ -3019,6 +3028,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return Position.LEFT; // Always left in this layout
 	}
 
+	setChatPartAnchor(): void {
+		// This layout has no chat part
+	}
+
+	getChatPartPosition(): Position.LEFT {
+		return Position.LEFT;
+	}
+
 	getDetailsPosition(): DetailsPosition {
 		return this._detailsPosition === 'left' || this._detailsPosition === 'top' || this._detailsPosition === 'bottom' ? this._detailsPosition : 'right';
 	}
@@ -3277,6 +3294,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return this.workbenchGrid.isViewMaximized(this.panelPartView);
 	}
 
+	readonly onDidChangeChatPartVisibility: Event<boolean> = Event.None;
+
+	hasChatPart(): boolean {
+		return false;
+	}
+
+	isEditorHiddenByChat(): boolean {
+		return false;
+	}
+
+	setEditorHiddenByChat(_hidden: boolean): void { }
+
 	toggleMaximizedAuxiliaryBar(): void {
 		// No-op: Maximize not supported in this layout
 	}
@@ -3286,6 +3315,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	isAuxiliaryBarMaximized(): boolean {
+		return false; // Maximize not supported
+	}
+
+	hideAuxiliaryBarMaximize(): IDisposable {
+		return Disposable.None; // Maximize not supported
+	}
+
+	isAuxiliaryBarMaximizeHidden(): boolean {
 		return false; // Maximize not supported
 	}
 

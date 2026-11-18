@@ -20,8 +20,8 @@ export interface MockLlmServer {
 
 /**
  * Checks only the latest user message so scenario tags from earlier turns cannot match.
- * The runtime may append user items that contain only `<system_reminder>` blocks (for
- * example, when deferred tools are available) after the prompt; those are skipped.
+ * The runtime may append text-only user items that contain only `<system_reminder>` blocks
+ * (for example, when deferred tools are available) after the prompt; those are skipped.
  */
 export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): boolean {
 	if (!body || typeof body !== 'object') {
@@ -38,9 +38,10 @@ export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): b
 		if (!item || typeof item !== 'object' || (item as Record<string, unknown>).role !== 'user') {
 			continue;
 		}
-		const text = getMessageText((item as Record<string, unknown>).content);
+		const content = (item as Record<string, unknown>).content;
+		const text = getMessageText(content);
 		const withoutReminders = text.replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, '');
-		if (withoutReminders !== text && !withoutReminders.trim()) {
+		if (isTextOnly(content) && withoutReminders !== text && !withoutReminders.trim()) {
 			continue;
 		}
 		return text.includes(scenarioTag);
@@ -59,6 +60,13 @@ function getMessageText(content: unknown): string {
 		const text = part && typeof part === 'object' ? (part as Record<string, unknown>).text : undefined;
 		return typeof text === 'string' ? text : '';
 	}).join('');
+}
+
+function isTextOnly(content: unknown): boolean {
+	return typeof content === 'string' || (Array.isArray(content) && content.every((part: unknown) => {
+		const record = part && typeof part === 'object' ? part as Record<string, unknown> : undefined;
+		return (record?.type === 'input_text' || record?.type === 'text') && typeof record.text === 'string';
+	}));
 }
 
 /**

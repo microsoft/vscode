@@ -30,6 +30,7 @@ import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { readRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { readCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
+import { readCustomizationTeamProvided } from '../../../../../../platform/agentHost/common/meta/customizationTeamMeta.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
@@ -143,6 +144,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			// A plugin the runtime installed states what the organization requires with its activation.
 			organizationControl: readCustomizationOrganizationMeta(customization)
 				?? (runtime?.managedDesiredEnabled !== undefined ? { requiredEnabled: runtime.managedDesiredEnabled } : undefined),
+			...(readCustomizationTeamProvided(customization) ? { teamProvided: true } : {}),
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,

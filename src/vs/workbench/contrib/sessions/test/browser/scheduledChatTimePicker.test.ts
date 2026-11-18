@@ -6,13 +6,14 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
-import { pickScheduledChatTime } from '../../browser/scheduledChatTimePicker.js';
+import { pickDateTime, pickScheduledChatTime } from '../../browser/scheduledChatTimePicker.js';
 
 suite('Scheduled chat time picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,12 +21,14 @@ suite('Scheduled chat time picker', () => {
 	const fixedNow = new Date(2030, 4, 15, 12, 0).getTime();
 	const timedTest = (name: string, fn: () => Promise<void>) => test(name, () => runWithFakedTimers({ startTime: fixedNow }, fn));
 
-	function create(preset?: string) {
+	function create(preset?: string, onSendNow?: () => Promise<void>, dateTime?: { initialValue?: Date; token?: CancellationToken }) {
 		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
 		const shown = new DeferredPromise<void>();
 		const container = document.body.appendChild($('div'));
 		store.add(toDisposable(() => container.remove()));
 		let choices: readonly IQuickPickItem[] = [];
+		let menu: readonly QuickPickInput<IQuickPickItem>[] = [];
+		let activeItem: IQuickPickItem | undefined;
 		let focusedAtHide: Element | null | undefined;
 		const picker = upcastPartial<IQuickWidget>({
 			onDidHide: onDidHide.event,
@@ -44,6 +47,8 @@ suite('Scheduled chat time picker', () => {
 			override pick<T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>, options: IPickOptions<T> & { canPickMany: false }): Promise<T | undefined>;
 			override pick<T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>, options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
 			override async pick<T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>, options?: IPickOptions<T>): Promise<T | T[] | undefined> {
+				menu = await items;
+				activeItem = await options?.activeItem;
 				const picks = (await items).filter((item): item is T => item.type !== 'separator');
 				choices = picks;
 				const item = preset ? picks.find(item => item.label === preset) : picks.at(-1);
@@ -51,7 +56,10 @@ suite('Scheduled chat time picker', () => {
 			}
 			override createQuickWidget() { return picker; }
 		};
-		const result = pickScheduledChatTime(quickInput);
+		const result = dateTime ? pickDateTime(quickInput, {
+			title: 'End Date', confirmLabel: 'Select', hint: 'Device time zone',
+			summary: date => `Ends ${date.toLocaleString()}`, initialValue: dateTime.initialValue,
+		}, dateTime.token) : pickScheduledChatTime(quickInput, undefined, onSendNow);
 		const ready = async () => {
 			await shown.p;
 			const query = (selector: string) => container.querySelector<HTMLElement>(selector)!;
@@ -73,7 +81,7 @@ suite('Scheduled chat time picker', () => {
 				},
 			};
 		};
-		return { result, ready, picker, get choices() { return choices; }, get focusedAtHide() { return focusedAtHide; } };
+		return { result, ready, picker, get choices() { return choices; }, get menu() { return menu; }, get activeItem() { return activeItem; }, get focusedAtHide() { return focusedAtHide; } };
 	}
 
 	function today(offsetDays = 0, hours = 0, minutes = 0): Date {
@@ -93,6 +101,41 @@ suite('Scheduled chat time picker', () => {
 			hasDescriptions: false,
 			date: today(1, 9).getTime(),
 		});
+	});
+
+	timedTest('Send Now is separated from future times and is not initially focused', async () => {
+		let sends = 0;
+		const fixture = create('Send Now', async () => { sends++; });
+		const result = await fixture.result;
+		assert.deepStrictEqual({
+			result, sends,
+			firstItems: fixture.menu.slice(0, 3).map(item => item.type === 'separator' ? 'separator' : item.label),
+			activeItem: fixture.activeItem?.label,
+		}, {
+			result: undefined, sends: 1,
+			firstItems: ['Send Now', 'separator', 'In 5 Minutes'],
+			activeItem: 'In 5 Minutes',
+		});
+	});
+
+	timedTest('selecting a future time or dismissing the picker does not send now', async () => {
+		let sends = 0;
+		const sendNow = async () => { sends++; };
+		const future = create('In 1 Hour', sendNow);
+		const cancelled = create('dismiss', sendNow);
+		assert.deepStrictEqual({
+			future: (await future.result)?.getTime(),
+			cancelled: await cancelled.result,
+			sends,
+		}, { future: fixedNow + 3_600_000, cancelled: undefined, sends: 0 });
+	});
+
+	timedTest('Send Now waits for dispatch and propagates failures', async () => {
+		const dispatched = new DeferredPromise<void>();
+		const fixture = create('Send Now', () => dispatched.p);
+		const rejected = assert.rejects(fixture.result, /Dispatch failed/);
+		await dispatched.error(new Error('Dispatch failed'));
+		await rejected;
 	});
 
 	timedTest('calendar clicks and quarter-hour dropdown schedule a local time without text input', async () => {
@@ -192,5 +235,44 @@ suite('Scheduled chat time picker', () => {
 		await fixture.ready();
 		fixture.picker.hide();
 		assert.strictEqual(await fixture.result, undefined);
+	});
+
+	timedTest('direct calendar reopens the saved date and exact time without losing timestamp precision', async () => {
+		const initialValue = new Date(2031, 0, 21, 17, 24, 37, 123);
+		const fixture = create(undefined, undefined, { initialValue });
+		const { day, time, exact, schedule } = await fixture.ready();
+		const before = {
+			title: fixture.picker.title, label: schedule.textContent, selected: day(21).getAttribute('aria-selected'),
+			time: time.selectedIndex, exact: exact.value, presets: fixture.choices.length,
+		};
+		schedule.click();
+		assert.deepStrictEqual({ before, result: (await fixture.result)?.toISOString() }, {
+			before: { title: 'End Date', label: 'Select', selected: 'true', time: 96, exact: '17:24', presets: 0 },
+			result: initialValue.toISOString(),
+		});
+	});
+
+	timedTest('direct calendar changes use local wall time and cancellation leaves no selected value', async () => {
+		const initialValue = new Date(2031, 0, 21, 17, 24);
+		const fixture = create(undefined, undefined, { initialValue });
+		const { nextMonth, day, selectTime, schedule } = await fixture.ready();
+		nextMonth.click();
+		day(15).click();
+		selectTime(38);
+		schedule.click();
+		const cancelled = create(undefined, undefined, { initialValue });
+		const { cancel } = await cancelled.ready();
+		cancel.click();
+		assert.deepStrictEqual({ selected: (await fixture.result)?.toISOString(), cancelled: await cancelled.result }, {
+			selected: new Date(2031, 1, 15, 9, 30).toISOString(), cancelled: undefined,
+		});
+	});
+
+	timedTest('disposing the owner cancels the shared calendar and removes its widget', async () => {
+		const cancellation = store.add(new CancellationTokenSource());
+		const fixture = create(undefined, undefined, { token: cancellation.token });
+		const { schedule } = await fixture.ready();
+		cancellation.cancel();
+		assert.deepStrictEqual({ result: await fixture.result, removed: !schedule.isConnected }, { result: undefined, removed: true });
 	});
 });

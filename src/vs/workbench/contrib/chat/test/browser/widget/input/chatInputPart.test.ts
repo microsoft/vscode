@@ -74,12 +74,12 @@ import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFil
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const busy of [false, true]) {
-		test(`send dropdown shares the queue control and routes actions with busy=${busy}`, async () => {
+	for (const { busy, extra, hasText = true } of [{ busy: false, extra: false }, { busy: true, extra: false }, { busy: false, extra: true }, { busy: false, extra: false, hasText: false }]) {
+		test(`send dropdown shares the queue control and routes actions with busy=${busy}, extra=${extra}, hasText=${hasText}`, async () => {
 			const instantiationService = workbenchInstantiationService(undefined, store);
 			const config = new TestConfigurationService({ [ChatConfiguration.RequestQueueingDefaultAction]: 'queue' });
 			const contextKeyService = store.add(new ContextKeyService(config));
-			ChatContextKeys.inputHasText.bindTo(contextKeyService).set(true);
+			ChatContextKeys.inputHasText.bindTo(contextKeyService).set(hasText);
 			instantiationService.stub(IConfigurationService, config);
 			instantiationService.stub(IContextKeyService, contextKeyService);
 			instantiationService.stub(IChatWidgetService, { lastFocusedWidget: undefined });
@@ -110,8 +110,11 @@ suite('ChatInputPart', () => {
 					};
 				},
 			});
-			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock } }));
-			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUpCompact }, undefined, { shouldForwardArgs: true }, undefined, undefined);
+			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock, precondition: ChatContextKeys.inputHasText } }));
+			if (extra) {
+				store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.other', title: 'Other' } }));
+			}
+			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUpCompact, precondition: ChatContextKeys.inputHasText }, undefined, { shouldForwardArgs: true }, undefined, undefined);
 			const queue = store.add(new Action('test.queue', 'Queue'));
 			const item = store.add(instantiationService.createInstance(ChatQueuePickerActionItem, busy ? queue : send, busy ? {} : { primaryAction: instantiationService.createInstance(MenuEntryActionViewItem, send, {}) }));
 			const context = { widget: upcastPartial<IChatWidget>({}) };
@@ -135,6 +138,10 @@ suite('ChatInputPart', () => {
 			dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
 			const primaryFocused = mainWindow.document.activeElement === primary;
 			dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			if (!hasText) {
+				dropdown.click();
+				dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			}
 			selectLast?.();
 			await timeout(0);
 			assert.deepStrictEqual({
@@ -142,18 +149,26 @@ suite('ChatInputPart', () => {
 				circularSend: !!container.querySelector('.chat-submit-button'),
 				nestedButtons: container.querySelectorAll('[role="button"] [role="button"]').length,
 				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon, primaryIcon,
+				primaryOpacity: primaryStyle.opacity,
+				dropdownOpacity: mainWindow.getComputedStyle(dropdown).opacity,
+				dropdownPointerEvents: mainWindow.getComputedStyle(dropdown).pointerEvents,
+				dropdownDisabled: dropdown.getAttribute('aria-disabled') === 'true',
 			}, {
 				sharedControl: true, circularSend: false, nestedButtons: 0,
 				dropdownFocused: true, primaryFocused: true,
-				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : ['Send Later...'],
-				sendLaterIcon: { id: Codicon.clock.id, hidden: false },
+				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : extra ? ['Other', 'Send Later...'] : [],
+				sendLaterIcon: busy || extra ? { id: Codicon.clock.id, hidden: false } : undefined,
 				primaryIcon: { fontSize: busy ? '16px' : '12px', fontWeight: '400' },
-				calls: [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }],
+				calls: hasText ? [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }] : [],
+				primaryOpacity: hasText ? '1' : '0.4',
+				dropdownOpacity: hasText ? '1' : '0.4',
+				dropdownPointerEvents: hasText ? 'auto' : 'none',
+				dropdownDisabled: !hasText,
 			});
 			if (busy) {
 				ChatContextKeys.inputHasText.bindTo(contextKeyService).set(false);
 				dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-				assert.deepStrictEqual(enabled, [true, false, false, true]);
+				assert.deepStrictEqual(enabled, [true, false, false, false]);
 			}
 		});
 	}
@@ -735,7 +750,7 @@ suite('ChatInputPart', () => {
 		}, { input: false, hostSubmit: true });
 	});
 
-	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow) {
+	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow, sessionWorkingSet?: boolean) {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -770,7 +785,8 @@ suite('ChatInputPart', () => {
 		const keptChanges = new Lazy(() => store.add(instantiationService.createInstance(ChatSessionWorkingSetKeptChanges)));
 		let inputFocusCalls = 0;
 		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
-			options: { renderWorkingSet: true, isSessionsWindow, menus: { telemetrySource: 'test' } },
+			// A session's chat asks for the working set without rendering the editing session's
+			options: { renderWorkingSet: !sessionWorkingSet, isSessionsWindow, sessionWorkingSet, menus: { telemetrySource: 'test' } },
 			configurationService,
 			environmentService: upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: inAgentsWindow }),
 			instantiationService,
@@ -938,6 +954,35 @@ suite('ChatInputPart', () => {
 			}, { supported: false, visible: false, workingSet: false, keptChangesCreated: false });
 		});
 	}
+
+	test('its sessionWorkingSet option decides whether it shows the working set, also against where it renders the working set and whether it is a sessions window\'s chat; unset, as it renders it outside one', () => {
+		const supported = (isSessionsWindow: boolean, sessionWorkingSet: boolean | undefined) => createWorkingSetInput(isSessionsWindow, undefined, false, sessionWorkingSet).inputPart.supportsSessionWorkingSet;
+
+		assert.deepStrictEqual({
+			declined: supported(false, false),
+			asked: supported(true, true),
+			editorWindowDefault: supported(false, undefined),
+			sessionsWindowChatDefault: supported(true, undefined),
+		}, { declined: false, asked: true, editorWindowDefault: true, sessionsWindowChatDefault: false });
+	});
+
+	test('shows the working set of a session\'s chat that asks for it outside the Agents window, and never in it', async () => {
+		const shown = async (inAgentsWindow: boolean) => {
+			const harness = createWorkingSetInput(true, undefined, inAgentsWindow, true);
+			store.add(harness.inputPart.registerSessionFileChanges(constObservable([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))])));
+			await harness.setEnabled(true);
+			harness.inputPart.renderChatEditingSessionState(null);
+			return {
+				supported: harness.inputPart.supportsSessionWorkingSet,
+				workingSet: !!harness.container.querySelector('.chat-session-working-set') && harness.container.style.display !== 'none',
+			};
+		};
+
+		assert.deepStrictEqual({ editorWindow: await shown(false), agentsWindow: await shown(true) }, {
+			editorWindow: { supported: true, workingSet: true },
+			agentsWindow: { supported: false, workingSet: false },
+		});
+	});
 
 	test('leaves metadata-backed providers on their existing working-set presentation', async () => {
 		const { inputPart, container, sessionResource, setEnabled, setSessionChanges } = createWorkingSetInput(false, URI.parse('copilot-cloud-agent:/session'));

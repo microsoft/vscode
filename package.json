@@ -2,12 +2,12 @@
   "name": "code-oss-dev",
   "version": "1.148.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "e63abfb6f251b4e4da3c8567e9fdd48599f55fc5",
+  "distro": "5b9d95f81d1ded8b53ffe9a5ecdcd6649efc06e2",
   "nativeBuild": {
     "runtime": "electron",
-    "target": "43.8.9",
+    "target": "43.8.10",
     "disturl": "https://electronjs.org/headers",
-    "msBuildId": "16012121",
+    "msBuildId": "16052126",
     "buildFromSource": true
   },
   "author": {

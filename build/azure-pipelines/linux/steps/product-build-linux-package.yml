@@ -138,8 +138,19 @@ steps:
       displayName: Login to Container Registry
 
     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, true) }}:
+      - task: Npm@1
+        displayName: Download openssl prebuilt for snap
+        inputs:
+          command: custom
+          customCommand: pack @vscode-internal/openssl-prebuilt@0.0.11
+          customRegistry: useFeed
+          customFeed: "Monaco/openssl-prebuilt"
+          workingDir: $(Build.ArtifactStagingDirectory)
+
       - script: |
           set -e
+          mkdir -p .build/linux/snap/openssl
+          tar -xzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=3 --directory=.build/linux/snap/openssl package/x64-linux/lib/libcrypto.a package/x64-linux/lib/libssl.a
           pnpm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
           sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64@sha256:ab4a88c4d85e0d7a85acabba59543f7143f575bab2c0b2b07f5b77d4a7e491ff /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
 
