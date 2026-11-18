@@ -255,7 +255,8 @@ export class CopilotFusionProgress {
 				this._patterns.set(d.fusionId, d.pattern);
 				// The runtime's workflow hint (e.g. "Using Single: ...") is not shown; the milestone only names the HydraFusion model.
 				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', d.syntheticModel);
-				this._activity = localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
+				const streamsAsOrdinaryTurn = d.pattern === 'single' && Array.isArray(d.phasePlan) && d.phasePlan.length === 0;
+				this._activity = streamsAsOrdinaryTurn ? undefined : localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
 			}
 			case 'assistant.fusion_phase_started': {
