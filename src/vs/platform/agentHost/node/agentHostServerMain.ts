@@ -47,6 +47,7 @@ import { createCodexProviderConfiguration } from './codex/codexProviderConfigura
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { registerConfiguredAcpAgents } from './acp/acpAgentRegistration.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
@@ -281,6 +282,8 @@ async function main(): Promise<void> {
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(() => registerCodexIfEnabled()));
 		}
+		// ACP agents need no SDK: each `chat.agentHost.acpAgents` entry names a user-installed command.
+		disposables.add(registerConfiguredAcpAgents(providerService, agentConfigurationService, instantiationService, logService));
 	}
 
 	// Surface agent-SDK download progress to clients as generic `progress`

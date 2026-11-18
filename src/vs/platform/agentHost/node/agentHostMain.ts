@@ -25,6 +25,7 @@ import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentMo
 import { AgentService } from './agentService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService, seedMultipleChatProvidersFromEnvironment } from './agentConfigurationService.js';
+import { registerConfiguredAcpAgents } from './acp/acpAgentRegistration.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
@@ -267,6 +268,8 @@ async function startAgentHost(): Promise<void> {
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
+		// ACP agents need no SDK: each `chat.agentHost.acpAgents` entry names a user-installed command.
+		disposables.add(registerConfiguredAcpAgents(providerService, agentConfigurationService, instantiationService, logService));
 		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
