@@ -215,7 +215,7 @@ function withCreateSessionHarness(definition: IAgentServerToolDefinition, availa
 
 const createSessionWithSharedWorkspaceDescription = 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.';
 
-/** Introduces the list of models in `create_session`'s `model` description. */
+/** Introduces the list of models in `create_session`'s `model` description and in `list_models`' result. */
 const createSessionModelCatalogHeading = 'Available models by agent:';
 
 /** `inputSchema` with {@link text} appended to its `model` description; unchanged without a `model` property. */
@@ -229,11 +229,15 @@ function withModelDescriptionText(inputSchema: ToolDefinition['inputSchema'], te
 }
 
 /**
- * `create_session` with the ways it offers models: with a {@link catalog}, a `model` description that lists the
- * models and their options once the agent loads the tool through tool search.
+ * `create_session` with the ways it offers models: a pointer to `list_models` while the session offers it, and with
+ * a {@link catalog}, a `model` description that lists the models and their options once the agent loads the tool
+ * through tool search.
  */
-function withCreateSessionModelDiscovery(definition: IAgentServerToolDefinition, catalog: string | undefined): IAgentServerToolDefinition {
-	return catalog === undefined ? definition : { ...definition, deferredInputSchema: withModelDescriptionText(definition.inputSchema, `\n\n${createSessionModelCatalogHeading}\n${catalog}`) };
+function withCreateSessionModelDiscovery(definition: IAgentServerToolDefinition, offersListModels: boolean, catalog: string | undefined): IAgentServerToolDefinition {
+	const offered = offersListModels
+		? { ...definition, inputSchema: withModelDescriptionText(definition.inputSchema, ` Call \`${SessionServerToolName.ListModels}\` to see the models and the options each accepts.`) }
+		: definition;
+	return catalog === undefined ? offered : { ...offered, deferredInputSchema: withModelDescriptionText(offered.inputSchema, `\n\n${createSessionModelCatalogHeading}\n${catalog}`) };
 }
 
 /** The sentences of `list_sessions` and `get_current_session` that describe a session's `chats`, by tool. */
@@ -367,6 +371,14 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Create delegated work and start it with an initial prompt.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
+		deferLoading: true,
+	},
+	{
+		name: SessionServerToolName.ListModels,
+		title: 'List Models',
+		description: 'List the models you can pass as `create_session`\'s `model`, grouped by agent, with the `reasoningEffort` values and `contextTier` each accepts. Pass a listed id as `model`.',
+		inputSchema: { type: 'object', properties: {} },
+		annotations: { readOnlyHint: true },
 		deferLoading: true,
 	},
 	{
@@ -2405,6 +2417,11 @@ function getSessionToolDisplay(toolName: string, args: unknown, result?: IServer
 				displayName: localize('toolName.listSessions', "List Sessions"),
 				invocationMessage: localize('toolInvoke.listSessions', "List sessions"),
 			};
+		case SessionServerToolName.ListModels:
+			return {
+				displayName: localize('toolName.listModels', "List Models"),
+				invocationMessage: localize('toolInvoke.listModels', "List models"),
+			};
 		case SessionServerToolName.CreateSession: {
 			// Without arguments (e.g. only the tool name is known) the relationship is unknown.
 			const relationship = args === undefined ? undefined : (args as ICreateSessionArgs).relationship ?? 'currentSession';
@@ -2531,9 +2548,12 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		legacyToolNames: new Map([[SessionServerToolName.CreateChat, SessionServerToolName.CreateChat]]),
 		materializeDefinitions: true,
 		isEnabled(toolName: string, sessionUri?: ProtocolURI): boolean {
+			if (toolName === SessionServerToolName.ListModels) {
+				return accessor?.getSessionModelOptions() === 'tool';
+			}
 			return toolName !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'utility';
 		},
-		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
+		getDefinitionForSession(definition, sessionUri, offeredToolNames): IAgentServerToolDefinition {
 			// Mentions `move_session` only while it is offered (`chatMoves.enabled`): with moves off, these read as before.
 			// Also only where its session's agent can move chats, as `move_session` itself.
 			// Mentions `harness` only while a chat of this session may use another agent: with that off, these read as before.
@@ -2565,7 +2585,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				const catalog = accessor?.getSessionModelOptions() === 'inline' && !accessor.usesCredentialScopedModels(session)
 					? formatCreateSessionModelChoices(getOfferedModels(accessor, accessor.getModels()))
 					: undefined;
-				return withCreateSessionModelDiscovery(offered, catalog);
+				return withCreateSessionModelDiscovery(offered, offeredToolNames.has(SessionServerToolName.ListModels), catalog);
 			}
 			if (definition.name !== SessionServerToolName.RenameChat) {
 				return definition;
@@ -2617,6 +2637,11 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 						const metadata = await accessor.getSession(currentSession);
 						return serializeCurrentSession(currentSession, metadata ? [metadata] : []);
 					}
+				case SessionServerToolName.ListModels: {
+					const models = await createSessionModelReader(accessor, accessor.getCredentialSource(URI.parse(currentChannel)))();
+					const catalog = formatCreateSessionModelChoices(getOfferedModels(accessor, models));
+					return catalog === undefined ? 'No models are available right now.' : `${createSessionModelCatalogHeading}\n${catalog}`;
+				}
 				case SessionServerToolName.SetWorkspace: {
 					return applySetWorkspaceTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
 				}

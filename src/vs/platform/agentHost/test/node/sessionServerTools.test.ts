@@ -72,6 +72,8 @@ suite('SessionServerTools', () => {
 
 	const workspace = URI.parse('file:///workspace/app');
 	const model: IAgentModelInfo = { provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', supportsVision: false };
+	/** The session tools offered by default: `list_models` only with `sessionModelOptions: tool`. */
+	const defaultSessionToolNames = sessionServerToolDefinitions.map(tool => tool.name).filter(name => name !== SessionServerToolName.ListModels);
 
 	/** Defaults to read; tests that care about unread clear the `IsRead` bit. */
 	/** A session's recorded default chat: the default-shaped chat VS Code mints. */
@@ -145,7 +147,7 @@ suite('SessionServerTools', () => {
 	}
 
 	test('definitions and confirmation', () => {
-		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.RenameChat, SessionServerToolName.ArchiveChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
+		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.ListModels, SessionServerToolName.RenameChat, SessionServerToolName.ArchiveChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up/);
 		const archiveDescription = sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ArchiveChat)?.description ?? '';
@@ -366,7 +368,7 @@ suite('SessionServerTools', () => {
 				SessionServerToolName.GetSessionContext,
 				SessionServerToolName.DeleteSession,
 			],
-			enabledTools: sessionServerToolDefinitions.map(tool => tool.name),
+			enabledTools: defaultSessionToolNames,
 		});
 		stateManager.dispose();
 	});
@@ -542,7 +544,7 @@ suite('SessionServerTools', () => {
 			advertisedTools,
 			restoredTools: host.getDefinitionsForSession(session).map(tool => tool.name),
 		}, {
-			advertisedTools: sessionServerToolDefinitions.filter(tool => tool.name !== SessionServerToolName.SetWorkspace).map(tool => tool.name),
+			advertisedTools: defaultSessionToolNames.filter(name => name !== SessionServerToolName.SetWorkspace),
 			restoredTools: sessionServerToolDefinitions.filter(tool => tool.name !== SessionServerToolName.SetWorkspace).map(tool => tool.name),
 		});
 		stateManager.dispose();
@@ -688,7 +690,7 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual({
 			afterUnchanged, afterRefresh, publications,
 			tools: stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name),
-		}, { afterUnchanged: 0, afterRefresh: 2, publications: 3, tools: sessionServerToolDefinitions.map(tool => tool.name) });
+		}, { afterUnchanged: 0, afterRefresh: 2, publications: 3, tools: defaultSessionToolNames });
 	});
 
 	test('re-advertise updates dynamic groups while materialized session tools stay fixed', () => {
@@ -2572,7 +2574,7 @@ suite('SessionServerTools', () => {
 			});
 		});
 
-		test('with inline model options, create_session lists the models where it loads on demand', () => {
+		test('with inline model options, create_session lists the models where it loads on demand, and with tool it offers list_models', () => {
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const session = 'copilot:/s1';
 			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
@@ -2593,25 +2595,43 @@ suite('SessionServerTools', () => {
 				const definitions = host.getDefinitionsForSession(session);
 				const createSession = definitions.find(tool => tool.name === SessionServerToolName.CreateSession);
 				return {
+					listModels: definitions.some(tool => tool.name === SessionServerToolName.ListModels),
 					model: modelDescription(createSession?.inputSchema),
 					deferredModel: modelDescription(createSession?.deferredInputSchema),
 				};
 			};
 			const off = offer('off');
-			const result = { off, inline: offer('inline'), scopedInline: offer('inline', true) };
+			const result = { off, inline: offer('inline'), scopedInline: offer('inline', true), tool: offer('tool') };
 			offer('inline');
 			host.advertise(session);
 			const published = stateManager.getSessionState(session)?.serverTools?.find(tool => tool.name === SessionServerToolName.CreateSession);
+			// The session's tools are now fixed without list_models, so create_session can't point to it.
+			const materializedTool = offer('tool');
 
-			assert.deepStrictEqual({ ...result, published: published && { deferred: Object.keys(published).includes('deferredInputSchema'), model: modelDescription(published.inputSchema) } }, {
-				off: { model: createSessionModelDescription, deferredModel: undefined },
+			assert.deepStrictEqual({ ...result, materializedTool, published: published && { deferred: Object.keys(published).includes('deferredInputSchema'), model: modelDescription(published.inputSchema) } }, {
+				off: { listModels: false, model: createSessionModelDescription, deferredModel: undefined },
 				inline: {
+					listModels: false,
 					model: createSessionModelOptionsDescription,
 					deferredModel: `${createSessionModelOptionsDescription}\n\nAvailable models by agent:\nclaude:\n- claude-opus (Claude Opus): reasoningEffort low|medium|high|max\ncopilot:\n- auto (Auto)\n- gpt-configured (GPT Configured): reasoningEffort low|medium|high|xhigh, default medium; contextTier long_context\n- gpt-locked (GPT Locked)\n- ${routerModel.id} (Daily)`,
 				},
-				scopedInline: { model: createSessionModelOptionsDescription, deferredModel: undefined },
+				scopedInline: { listModels: false, model: createSessionModelOptionsDescription, deferredModel: undefined },
+				tool: { listModels: true, model: `${createSessionModelOptionsDescription} Call \`list_models\` to see the models and the options each accepts.`, deferredModel: undefined },
+				materializedTool: { listModels: false, model: createSessionModelOptionsDescription, deferredModel: undefined },
 				published: { deferred: false, model: createSessionModelOptionsDescription },
 			});
+		});
+
+		test('list_models lists the calling chat\'s catalog', async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const group = createSessionServerToolGroup(createAccessor({
+				getSessionModelOptions: () => 'tool',
+				getCredentialSource: () => ({ getCredential: () => undefined }),
+				getModels: () => [other],
+				getModelsForCredentials: async () => [configured, claudeModel],
+			}));
+			const result = await group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.ListModels, {});
+			assert.strictEqual(result, 'Available models by agent:\nclaude:\n- claude-opus (Claude Opus): reasoningEffort low|medium|high|max\ncopilot:\n- gpt-configured (GPT Configured): reasoningEffort low|medium|high|xhigh, default medium; contextTier long_context');
 		});
 	});
 
