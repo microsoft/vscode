@@ -50,6 +50,9 @@ import '../../../../workbench/contrib/chat/browser/aiCustomization/copilotCanvas
 import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { revealChatRequest } from '../../../../workbench/contrib/chat/browser/chatRequestNavigation.js';
+import { whenChatWidgetForSession } from '../browser/chatWidgetUtils.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
 export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {
@@ -105,6 +108,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
@@ -305,6 +309,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
 		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
+		const turnId = parseOpenSessionLinkTurnId(sessionLink);
+		const widget = turnId ? await whenChatWidgetForSession(this.chatWidgetService, chatResource) : undefined;
+		if (widget && turnId) {
+			revealChatRequest(widget, turnId);
+		}
 	}
 
 	private waitForSessionLinkAvailable(backendSession: URI, token: CancellationToken, timeoutMs = 15_000, connectionAuthority?: string): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {

@@ -56,6 +56,7 @@ function stripLeadingCommentsAndWhitespace(sql: string): string {
 export interface SessionStoreSqlParams {
 	readonly action?: 'query' | 'reindex';
 	readonly query?: string;
+	readonly source?: 'local' | 'cloud';
 	readonly force?: boolean;
 	readonly description: string;
 	/** Originating /chronicle slash command (e.g. 'tips', 'cost-tips', 'search', 'improve'). Used for telemetry attribution only. */
@@ -63,7 +64,7 @@ export interface SessionStoreSqlParams {
 }
 
 /** Model description when cloud sync is enabled — uses DuckDB SQL syntax. */
-const CLOUD_MODEL_DESCRIPTION = `Query the cloud session store containing ALL past coding sessions across devices and agents. Uses DuckDB syntax (NOT SQLite). SQL queries are read-only — only SELECT and WITH are allowed. Use \`now() - INTERVAL '1 day'\` for date math (NOT \`datetime('now', '-1 day')\` — that's SQLite-only), \`ILIKE\` for text search (no FTS5/MATCH).
+const CLOUD_MODEL_DESCRIPTION = `Query the cloud session store containing ALL past coding sessions across devices and agents. Uses DuckDB syntax (NOT SQLite). SQL queries are read-only — only SELECT and WITH are allowed. Use \`now() - INTERVAL '1 day'\` for date math (NOT \`datetime('now', '-1 day')\` — that's SQLite-only), \`ILIKE\` for text search (no FTS5/MATCH). The privacy-minimal \`request_index\` is local-only; query it with \`source: "local"\`.
 
 Tables: \`sessions\`, \`turns\`, \`session_files\`, \`session_refs\`, \`checkpoints\`, \`events\`, \`tool_requests\`. For column details and query patterns, use the **chronicle** skill.
 
@@ -99,10 +100,10 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 			case 'reindex':
 				return this._invokeReindex(options.input.force ?? false, subcommand ?? 'reindex', token);
 			default:
-				return this._invokeQuery(options.input.query ?? '', subcommand, token);
+				return this._invokeQuery(options.input.query ?? '', subcommand, options.input.source, token);
 		}
 	}
-	private async _invokeQuery(rawQuery: string, subcommand: SessionStoreSqlParams['subcommand'], token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	private async _invokeQuery(rawQuery: string, subcommand: SessionStoreSqlParams['subcommand'], requestedSource: SessionStoreSqlParams['source'], token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		// Strip trailing semicolons — models often append them
 		const sql = rawQuery.trim().replace(/;+\s*$/, '');
 
@@ -141,15 +142,19 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 		// Determine query target based on consent
 		const hasCloud = this._indexingPreference.hasCloudConsent();
 		const startTime = Date.now();
-		let source = hasCloud ? 'cloud' : 'local';
-		let target: 'local' | 'cloud' = hasCloud ? 'cloud' : 'local';
+		const initialTarget: 'local' | 'cloud' = requestedSource ?? (hasCloud ? 'cloud' : 'local');
+		let source: 'local' | 'cloud' | 'local_fallback' = initialTarget;
+		let target = initialTarget;
 		let fallback = false;
 
 		try {
+			if (requestedSource === 'cloud' && !hasCloud) {
+				throw new Error('Cloud session sync is not enabled.');
+			}
 			let rows: Record<string, unknown>[];
 			let truncated = false;
 
-			if (hasCloud) {
+			if (target === 'cloud') {
 				// Cloud is enabled — model receives DuckDB description via alternativeDefinition
 				const client = new CloudSessionStoreClient(this._tokenManager, this._authService, this._fetcherService);
 				const cloudResult = await client.executeQuery(sql);
@@ -162,6 +167,10 @@ class SessionStoreSqlTool implements ICopilotTool<SessionStoreSqlParams> {
 					)]);
 				} else if (!cloudResult) {
 					// Auth/network failure — fall back to local
+					if (requestedSource === 'cloud') {
+						this._sendTelemetry({ command: 'query', subcommand, target: 'cloud', rowCount: 0, durationMs: Date.now() - startTime, success: false, error: 'cloud_unavailable' });
+						return new LanguageModelToolResult([new LanguageModelTextPart('Error: The cloud session store is unavailable.')]);
+					}
 					source = 'local_fallback';
 					target = 'local';
 					fallback = true;

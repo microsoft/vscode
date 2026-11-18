@@ -427,6 +427,19 @@ declare module 'vscode' {
 		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
 
 		export const onDidDisposeChatSession: Event<string>;
+
+		/**
+		 * Fires after a user request is admitted to an Agent Host chat.
+		 *
+		 * The event deliberately contains only the plain request text and a
+		 * canonical deep link that identifies the exact request.
+		 */
+		export const onDidSendChatRequest: Event<ChatRequestSubmittedEvent>;
+	}
+
+	export interface ChatRequestSubmittedEvent {
+		readonly text: string;
+		readonly location: Uri;
 	}
 
 	export namespace window {

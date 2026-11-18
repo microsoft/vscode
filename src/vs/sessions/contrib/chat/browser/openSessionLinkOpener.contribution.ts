@@ -10,7 +10,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -21,6 +21,9 @@ import { ISession, SessionStatus } from '../../../services/sessions/common/sessi
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getSessionSummaryHoverData } from '../../sessions/browser/sessionHoverContent.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { revealChatRequest } from '../../../../workbench/contrib/chat/browser/chatRequestNavigation.js';
+import { whenChatWidgetForSession } from './chatWidgetUtils.js';
 
 /**
  * Handles `agent-host-session://` links (surfaced by the `create_session` /
@@ -47,6 +50,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@ILabelService labelService: ILabelService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -105,6 +109,11 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 			}
 		} else {
 			await this._sessionsService.openChat(session, chatResource, { source: 'link' });
+		}
+		const turnId = parseOpenSessionLinkTurnId(resource);
+		const widget = turnId ? await whenChatWidgetForSession(this._chatWidgetService, chatResource) : undefined;
+		if (widget && turnId) {
+			revealChatRequest(widget, turnId);
 		}
 		return true;
 	}

@@ -277,7 +277,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
 	builder.define(IToolResultContentRenderer, new SyncDescriptor(ToolResultContentRenderer));
 
-	// Chronicle session store — tracks sessions, turns, files, and refs for /standup
+	// Chronicle session store — tracks sessions, turns, files, refs, and live requests.
+	// A remote workspace host stores this remotely; client retention requires a UI-host relay, not Settings Sync.
 	const sessionStoreDbPath = extensionContext.globalStorageUri
 		? path.join(extensionContext.globalStorageUri.fsPath, 'session-store.db')
 		: path.join(os.tmpdir(), 'copilot-session-store.db');

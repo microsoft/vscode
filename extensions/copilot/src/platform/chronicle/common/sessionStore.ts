@@ -89,6 +89,12 @@ export interface RefRow {
 	created_at?: string;
 }
 
+/** A privacy-minimal live request search entry. */
+export interface RequestRow {
+	text: string;
+	location: string;
+}
+
 /**
  * A single FTS5 search result.
  */
@@ -97,6 +103,7 @@ export interface SearchResult {
 	source_type: string;
 	content: string;
 	rank: number;
+	location?: string;
 }
 
 // ── Service interface ───────────────────────────────────────────────────────────
@@ -124,11 +131,17 @@ export interface ISessionStore {
 	/** Record a reference (commit, PR, issue) for a session. */
 	insertRef(ref: RefRow): void;
 
+	/** Insert or replace a privacy-minimal live request entry. */
+	insertRequest(request: RequestRow): void;
+
 	/** Index a workspace artifact for full-text search. Upserts by file path. */
 	indexWorkspaceArtifact(sessionId: string, filePath: string, content: string): void;
 
 	/** Delete a session and all associated data (turns, checkpoints, files, refs, search index). */
 	deleteSession(sessionId: string): void;
+
+	/** Clear all indexed data. */
+	clear(): void;
 
 	// ── Queries ─────────────────────────────────────────────────────────
 
@@ -147,11 +160,14 @@ export interface ISessionStore {
 	/** Get all refs for a session. */
 	getRefs(sessionId: string): RefRow[];
 
+	/** Get all live request entries. */
+	getRequests(): RequestRow[];
+
 	/** Get the highest turn_index for a session, or -1 if none. */
 	getMaxTurnIndex(sessionId: string): number;
 
 	/** Get basic stats about the store. */
-	getStats(): { sessions: number; turns: number; checkpoints: number; files: number; refs: number };
+	getStats(): { sessions: number; turns: number; checkpoints: number; files: number; refs: number; requests: number };
 
 	/**
 	 * Execute a read-only SQL query.

@@ -14,7 +14,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, isDefaultChatLinkId, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -31,6 +31,7 @@ import { getAgentChangesSummary } from '../agentSessionsModel.js';
 import { shouldRevealSessionEditor } from '../agentSessionsOpener.js';
 import { ISessionSummaryHoverData } from '../sessionSummaryHover.js';
 import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
+import { revealChatRequest } from '../../chatRequestNavigation.js';
 
 /**
  * Editor-window counterpart to the Agents window's
@@ -135,12 +136,20 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 				...options?.editorOptions,
 				revealIfOpened: shouldRevealSessionEditor(this._chatWidgetService, clientResource),
 			});
+			const turnId = parseOpenSessionLinkTurnId(resource);
+			if (widget && turnId) {
+				revealChatRequest(widget, turnId);
+			}
 			return !!widget;
 		}
 		const widget = await this._chatWidgetService.openSession(clientResource, openToSide ? SIDE_GROUP : ChatViewPaneTarget, {
 			...options?.editorOptions,
 			revealIfOpened: !openToSide
 		});
+		const turnId = parseOpenSessionLinkTurnId(resource);
+		if (widget && turnId) {
+			revealChatRequest(widget, turnId);
+		}
 		return !!widget;
 	}
 

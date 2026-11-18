@@ -1765,6 +1765,11 @@ export interface IChatSessionContextDto {
 	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string }>;
 }
 
+export interface IChatRequestSubmittedDto {
+	readonly text: string;
+	readonly location: UriComponents;
+}
+
 export interface IChatAgentInvokeResult extends IChatAgentResult {
 	/** Error callstack for telemetry only. Stripped at the RPC boundary — never persisted or sent to the model. */
 	errorCallstack?: string;
@@ -1788,6 +1793,7 @@ export interface ExtHostChatAgentsShape2 {
 	$provideSourceFolders(handle: number, sessionResource: UriComponents, type: string, token: CancellationToken): Promise<IChatSessionCustomizationSourceFolderDto[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
+	$onDidSubmitChatRequest(event: IChatRequestSubmittedDto): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
 	$onDidChangeCustomAgents(): void;
 	$onDidChangeInstructions(): void;

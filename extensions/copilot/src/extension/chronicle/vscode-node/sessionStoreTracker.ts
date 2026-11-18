@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { type FileRow, type RefRow, type SessionRow, type TurnRow, ISessionStore } from '../../../platform/chronicle/common/sessionStore';
+import { type FileRow, type RefRow, type RequestRow, type SessionRow, type TurnRow, ISessionStore } from '../../../platform/chronicle/common/sessionStore';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName } from '../../../platform/otel/common/genAiAttributes';
 import { type ICompletedSpanData, IOTelService } from '../../../platform/otel/common/otelService';
@@ -45,6 +45,7 @@ interface WriteBuffer {
 	files: FileRow[];
 	refs: RefRow[];
 	turns: TurnRow[];
+	requests: Map<string, RequestRow>;
 }
 
 /**
@@ -66,6 +67,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		files: [],
 		refs: [],
 		turns: [],
+		requests: new Map(),
 	};
 
 	/** Flush timer handle. */
@@ -89,6 +91,8 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+
+		this._register(vscode.commands.registerCommand('github.copilot.chronicle.clear', () => this._clearIndex()));
 
 		// Only set up span listener and flush timer when the feature is enabled.
 		// Uses autorun to react if the setting changes at runtime.
@@ -132,6 +136,11 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			// Listen to completed OTel spans for tool calls and session activity
 			spanListenerStore.add(this._otelService.onDidCompleteSpan(span => {
 				queueMicrotask(() => this._handleSpan(span));
+			}));
+
+			spanListenerStore.add(vscode.chat.onDidSendChatRequest(event => {
+				const request = { text: event.text, location: event.location.toString() };
+				this._buffer.requests.set(request.location, request);
 			}));
 
 			// Flush and clean up on session disposal
@@ -420,8 +429,8 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 	// ── Flush: batch all buffered writes into one transaction ────────────
 
 	private _flush(): void {
-		const { sessions, files, refs, turns } = this._buffer;
-		const totalOps = sessions.size + files.length + refs.length + turns.length;
+		const { sessions, files, refs, turns, requests } = this._buffer;
+		const totalOps = sessions.size + files.length + refs.length + turns.length + requests.size;
 		if (totalOps === 0) {
 			return;
 		}
@@ -431,10 +440,12 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		const filesToFlush = [...files];
 		const refsToFlush = [...refs];
 		const turnsToFlush = [...turns];
+		const requestsToFlush = [...requests.values()];
 		sessions.clear();
 		files.length = 0;
 		refs.length = 0;
 		turns.length = 0;
+		requests.clear();
 
 		try {
 			this._sessionStore.runInTransaction(() => {
@@ -449,6 +460,9 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				}
 				for (const turn of turnsToFlush) {
 					this._sessionStore.insertTurn(turn);
+				}
+				for (const request of requestsToFlush) {
+					this._sessionStore.insertRequest(request);
 				}
 			});
 
@@ -469,7 +483,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			// filesystem). Re-queue the swapped-out operations so the next flush
 			// retries them instead of silently dropping the writes. Writes that
 			// arrived during this flush take precedence on a per-session basis.
-			this._requeueFailedFlush(sessionsToFlush, filesToFlush, refsToFlush, turnsToFlush);
+			this._requeueFailedFlush(sessionsToFlush, filesToFlush, refsToFlush, turnsToFlush, requestsToFlush);
 
 			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.localStore', {
 				operation: 'flush',
@@ -484,7 +498,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 	 * retried on the next flush. Sessions are only restored when no newer upsert
 	 * for the same session has been buffered since the flush started.
 	 */
-	private _requeueFailedFlush(sessions: SessionRow[], files: FileRow[], refs: RefRow[], turns: TurnRow[]): void {
+	private _requeueFailedFlush(sessions: SessionRow[], files: FileRow[], refs: RefRow[], turns: TurnRow[], requests: RequestRow[]): void {
 		for (const session of sessions) {
 			if (!this._buffer.sessions.has(session.id)) {
 				this._buffer.sessions.set(session.id, session);
@@ -494,5 +508,28 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 		this._buffer.files = files.concat(this._buffer.files);
 		this._buffer.refs = refs.concat(this._buffer.refs);
 		this._buffer.turns = turns.concat(this._buffer.turns);
+		for (const request of requests) {
+			if (!this._buffer.requests.has(request.location)) {
+				this._buffer.requests.set(request.location, request);
+			}
+		}
+	}
+
+	private async _clearIndex(): Promise<void> {
+		const clear = vscode.l10n.t('Clear');
+		const choice = await vscode.window.showWarningMessage(
+			vscode.l10n.t('Clear all locally indexed Copilot session history and request links? This cannot be undone.'),
+			{ modal: true },
+			clear,
+		);
+		if (choice !== clear) {
+			return;
+		}
+		this._buffer.sessions.clear();
+		this._buffer.files.length = 0;
+		this._buffer.refs.length = 0;
+		this._buffer.turns.length = 0;
+		this._buffer.requests.clear();
+		this._sessionStore.clear();
 	}
 }

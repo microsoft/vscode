@@ -174,6 +174,7 @@
 	"copilot.agent.compact.description": "Free up context by compacting the conversation history. Optionally include extra instructions for compaction.",
 	"github.copilot.command.sessionSync.deleteSessions": "Delete Session Sync Data",
 	"github.copilot.command.chronicle.reindex": "Reindex Sessions",
+	"github.copilot.command.chronicle.clear": "Clear Local Session Index",
 	"github.copilot.config.sessionSearch.enabled": "Enable session search and /chronicle commands. This is a team-internal setting.",
 	"github.copilot.config.sessionSearch.localIndex.enabled": "Enable local session tracking. When enabled, Copilot tracks session data locally for /chronicle commands.",
 	"github.copilot.config.localIndex.enabled": "Enable local session tracking. When enabled, session data is tracked locally for /chronicle commands.",

@@ -50,6 +50,8 @@ import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemPro
 import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildOpenSessionLinkUri } from '../../../platform/agentHost/common/openSessionLink.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -140,6 +142,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -165,6 +168,22 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}));
 		this._register(this._chatService.onDidReceiveQuestionCarouselAnswer(e => {
 			this._proxy.$handleQuestionCarouselAnswer(e.requestId, e.resolveId, e.answers);
+		}));
+		this._register(this._chatService.onDidSubmitUserRequest(event => {
+			if (isUntitledChatSession(event.chatSessionResource)) {
+				return;
+			}
+			const identity = this._agentHostConnectionsService.resolveSessionResourceIdentity(event.chatSessionResource);
+			if (!identity) {
+				return;
+			}
+			const location = buildOpenSessionLinkUri(
+				identity.backendSession,
+				event.chatSessionResource.fragment || undefined,
+				event.requestId,
+				identity.connectionAuthority,
+			);
+			this._proxy.$onDidSubmitChatRequest({ text: event.requestText, location: URI.parse(location).toJSON() });
 		}));
 		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => {
 			this._acceptActiveChatSession(this._chatWidgetService.lastFocusedWidget);

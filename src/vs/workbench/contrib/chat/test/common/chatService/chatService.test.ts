@@ -664,6 +664,43 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(accepted, [true, false, false]);
 	});
 
+	test('user submission events use stable request IDs and exclude retries and hidden requests', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const submitted: { resource: string; requestId: string; text: string }[] = [];
+		testDisposables.add(service.onDidSubmitUserRequest(event => submitted.push({
+			resource: event.chatSessionResource.toString(),
+			requestId: event.requestId,
+			text: event.requestText,
+		})));
+
+		const empty = await service.sendRequest(model.sessionResource, '');
+		assert.ok(ChatSendResult.isRejected(empty));
+		const first = await service.sendRequest(model.sessionResource, 'first request');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		const firstId = model.getRequests()[0].id;
+		await service.resendRequest(model.getRequests()[0]);
+		for (const options of [{ isSystemInitiated: true }, { hideFromTranscript: true }]) {
+			const sent = await service.sendRequest(model.sessionResource, 'excluded request', options);
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+		const queued = await service.sendRequest(model.sessionResource, 'queued request', {
+			queue: ChatRequestQueueKind.Queued,
+			pauseQueue: true,
+		});
+		assert.ok(ChatSendResult.isQueued(queued));
+		service.processPendingRequests(model.sessionResource);
+		await timeout(10);
+		const queuedRequestId = model.getRequests().at(-1)!.id;
+
+		assert.deepStrictEqual(submitted, [
+			{ resource: model.sessionResource.toString(), requestId: firstId, text: 'first request' },
+			{ resource: model.sessionResource.toString(), requestId: queuedRequestId, text: 'queued request' },
+		]);
+	});
+
 	async function createSurveySession(sessionType: string, provider?: string) {
 		const sessions = new MockChatSessionsService();
 		sessions.setContributions([{ type: sessionType, name: 'Test', displayName: 'Test', description: '', agentHostProviderId: provider }]);
@@ -6368,6 +6405,39 @@ suite('ChatService', () => {
 				{ id: 'turn-1', message: 'hello' },
 				{ id: 'turn-2', message: 'server request' },
 			]);
+		});
+
+		test('replaces a queued request link with the provider turn id when it is consumed', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const submitted: { requestId: string; text: string }[] = [];
+			testDisposables.add(testService.onDidSubmitUserRequest(event => submitted.push({
+				requestId: event.requestId,
+				text: event.requestText,
+			})));
+			const result = await testService.sendRequest(resource, 'queued request', {
+				queue: ChatRequestQueueKind.Queued,
+				pauseQueue: true,
+			});
+			assert.ok(ChatSendResult.isQueued(result));
+			const queuedId = ref.object.getPendingRequests()[0].request.id;
+
+			onDidStartServerRequest.fire({
+				id: 'server-turn-1',
+				prompt: 'queued request',
+				queuedMessageId: queuedId,
+			});
+
+			assert.deepStrictEqual(submitted, [{ requestId: 'server-turn-1', text: 'queued request' }]);
 		});
 
 		test('hides a live workspace-continuation request while keeping its response boundary and provider output', async () => {

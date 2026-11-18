@@ -20130,6 +20130,11 @@ suite('AgentHostChatContribution', () => {
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-queue-removal' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
+			const started: { id: string; queuedMessageId: string | undefined }[] = [];
+			disposables.add(chatSession.onDidStartServerRequest!(request => started.push({
+				id: request.id,
+				queuedMessageId: request.queuedMessageId,
+			})));
 
 			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			agentHostService.dispatchedActions.length = 0;
@@ -20168,6 +20173,7 @@ suite('AgentHostChatContribution', () => {
 			// The handler should have removed the consumed queued request from the chat model.
 			const removedQueueIds = chatService.removePendingRequestCalls.filter(c => c.requestId === 'q-1');
 			assert.strictEqual(removedQueueIds.length, 1, 'consumed queued message should be removed from chat model');
+			assert.deepStrictEqual(started, [{ id: 'server-turn-q', queuedMessageId: 'q-1' }]);
 		}));
 
 		test('a server-initiated turn names the removed notice turn it replaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

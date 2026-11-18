@@ -27,6 +27,7 @@ import { ISessionSummaryHoverService } from '../../../../browser/agentSessions/s
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatRequestOriginKind, ChatRequestOriginService } from '../../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { IChatRequestViewModel, IChatViewModel } from '../../../../common/model/chatViewModel.js';
 
 suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -86,6 +87,52 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			});
 		}
 	}
+
+	test('reveals the linked request and falls back to the open chat when it is missing', async () => {
+		let opener: IOpener | undefined;
+		const revealed: string[] = [];
+		const request = upcastPartial<IChatRequestViewModel>({ id: 'request-1', message: upcastPartial({}) });
+		const widget = upcastPartial<IChatWidget>({
+			viewModel: upcastPartial<IChatViewModel>({ getItems: () => [request] }),
+			reveal: item => { revealed.push(`reveal:${item.id}`); },
+			focus: item => { revealed.push(`focus:${item.id}`); },
+		});
+		const backend = URI.parse('ahp-session:/session');
+		const client = URI.parse('agent-host-copilotcli:/session');
+		store.add(new AgentHostOpenSessionLinkOpenerContribution(
+			new class extends mock<IOpenerService>() {
+				override registerOpener(value: IOpener): IDisposable { opener = value; return Disposable.None; }
+			}(),
+			new class extends mock<IChatWidgetService>() {
+				override async openSession(): Promise<IChatWidget | undefined> { return widget; }
+			}(),
+			new class extends mock<IChatSessionsService>() {
+				override async activateChatSessionItemProvider(): Promise<void> { }
+			}(),
+			store.add(new ChatRequestOriginService()),
+			new class extends mock<ILinkPresentationService>() {
+				override registerLinkPresentationProvider(): IDisposable { return Disposable.None; }
+			}(),
+			new NullLogService(),
+			new class extends mock<ISessionSummaryHoverService>() {
+				override registerProvider(): IDisposable { return Disposable.None; }
+			}(),
+			new class extends mock<IPathService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override findSessionResource(): URI | undefined { return client; }
+				override resolveSessionResource() { return undefined; }
+			}(),
+			new TestConfigurationService(),
+		));
+
+		const exact = await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, 'peer-chat', 'request-1', 'local')));
+		const missing = await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, 'peer-chat', 'missing-request', 'local')));
+		assert.deepStrictEqual({ exact, missing, revealed }, {
+			exact: true,
+			missing: true,
+			revealed: ['reveal:request-1', 'focus:request-1'],
+		});
+	});
 
 	test('opens session links in an editor when chat.agentSessions.openInEditor is enabled, revealing an existing editor like a file', async () => {
 		const backend = URI.parse('ahp-session:/session');

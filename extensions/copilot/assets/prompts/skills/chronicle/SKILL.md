@@ -231,7 +231,7 @@ When the user asks to search, find, or look up past sessions by keyword (e.g. `/
 
 **Search strategy**
 
-1. Search across session summaries, conversation turns (user messages AND assistant responses), and any other indexed content (checkpoints, file paths, refs like PR/issue/commit). The user's query may match a topic, a file path, or a PR/issue number — cover all three.
+1. Search the local privacy-minimal `request_index` for exact Agent Host requests, then search session summaries, conversation turns (user messages AND assistant responses), and other indexed content (checkpoints, file paths, refs like PR/issue/commit). Return request matches separately with their `text` and canonical `location` link.
 2. For each matching session, gather enough metadata to label it: `s.id`, `s.repository`, `s.branch`, `s.summary`, `s.updated_at`, plus a short snippet that shows *why* it matched (e.g. `substr(user_message, 1, 160)` on cloud, or the matched `file_path` / `ref_value`).
 3. Present results grouped by repository, ordered by most recently updated.
 
@@ -244,6 +244,7 @@ Schema essentials (full schema is in the **Database Schema** section below — r
 - The `sessions` table primary key is `id` (NOT `session_id`). Every other table uses `session_id` as the FK back to `sessions.id`. Always project `s.id` from `sessions`.
 - Don't invent names: there is no `started_at` (use `created_at`/`updated_at`), no `workspace` (use `cwd` locally; cloud has none), no `title` (use `summary`), no `content`/`messages` (use `turns.user_message`/`turns.assistant_response`, or on cloud `events.user_content`/`events.assistant_content`).
 - **Local SQLite**: prefer the FTS5 `search_index` table (`WHERE search_index MATCH '<query>'`) for body content — `search_index` already has a `session_id` column, so select it directly (`SELECT session_id, content FROM search_index WHERE search_index MATCH ...`). Do **not** join `search_index.rowid` to `turns.rowid`; they are unrelated and you will pull in unrelated sessions. File paths and refs aren't in the FTS index — combine with `LIKE` on `session_files.file_path` and `session_refs.ref_value`.
+- **Exact Agent Host requests**: use `action: "query", source: "local"` and search `search_index` with `source_type = 'request'`, joining `request_index.location = search_index.source_id`. Project `request_index.text` and `request_index.location`; this data is local-only and is never synced to cloud storage.
 - **Cloud DuckDB**: no FTS5 — use `ILIKE '%<query>%'` across the text columns of `sessions`, `turns`, `checkpoints`, `session_files`, `session_refs`.
 
 Escape single quotes in the user's query by doubling them (`it's` → `it''s`). For multi-word FTS5 queries, quote the whole phrase: `MATCH '"apply patch"'`.
@@ -278,6 +279,7 @@ _other-owner/other-repo_
 ```
 
 Rules:
+- Render Agent Host request matches as `[request text](location)` links before session-grouped results; the location opens the originating chat and reveals the exact request.
 - Always render one session per line — never join multiple session ids with commas.
 - The label is `summary` if non-null; otherwise the snippet; otherwise a usable fallback like the matched file path. If even those are empty, skip the session rather than show "no summary".
 - Include `· matched in <match_kind>` (turn / file / ref / checkpoint / meta) when you can — helps the user see why each session matched.
@@ -308,6 +310,7 @@ When the user asks to delete session data or clear their history:
 
 - Guide them to run the **Delete Session Sync Data** command from the Command Palette (`github.copilot.sessionSync.deleteSessions`).
 - This command lets them choose which sessions to delete from both local storage and the cloud.
+- To clear every local Chronicle row, including exact request links, use **Clear Local Session Index** (`github.copilot.chronicle.clear`). This affects only this extension host's local index.
 - The tool itself does NOT support deletion — this is intentional to prevent accidental data loss.
 
 ## Query Guidelines
@@ -320,6 +323,7 @@ When using `action: "query"`:
 - Query **session_files** for file paths and tool usage patterns
 - Query **session_refs** for PR/issue/commit links
 - Join tables using session_id for complete analysis
+- Use `source: "local"` when querying `request_index`, even when cloud sync is enabled; `request_index` is never cloud-synced
 - Always filter on **updated_at** (not created_at) for time ranges
 - Always JOIN sessions with turns to get session content — do not rely on sessions.summary alone
 
@@ -341,6 +345,7 @@ The tool's description dynamically changes based on the active backend. **Always
 - **session_files**: session_id, file_path, tool_name, turn_index, first_seen_at
 - **session_refs**: session_id, ref_type (commit/pr/issue), ref_value, turn_index, created_at
 - **search_index**: FTS5 virtual table (local only). Columns: `content`, `session_id`, `source_type` (`turn`/`assistant`/`checkpoint`/etc.), `source_id`. Use `WHERE search_index MATCH 'query'` for full-text search and project `session_id` directly — **do NOT** join `search_index.rowid` to `turns.rowid` (the rowids are independent and the join will match the wrong rows). Use `snippet(search_index, 0, '[', ']', '…', 12)` or `substr(content, 1, 160)` for a snippet.
+- **request_index**: privacy-minimal Agent Host request index (local only). Columns: `text`, `location`. `location` is a canonical `agent-host-session://` URI with chat and turn identifiers. It is the only request context persisted by this index and is not cloud-synced.
 
 ### Cloud-only tables
 

@@ -7,7 +7,7 @@ import * as l10n from '@vscode/l10n';
 import { mkdirSync, rmSync } from 'fs';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname } from 'path';
-import type { CheckpointRow, FileRow, ISessionStore, RefRow, SearchResult, SessionRow, SessionStoreOptions, TurnRow } from '../common/sessionStore';
+import type { CheckpointRow, FileRow, ISessionStore, RefRow, RequestRow, SearchResult, SessionRow, SessionStoreOptions, TurnRow } from '../common/sessionStore';
 
 /**
  * SQLite authorizer action codes that are safe for read-only access.
@@ -41,7 +41,7 @@ type DatabaseWithAuthorizer = DatabaseSync & {
 };
 
 /** Schema version — bump when altering tables so existing DBs get migrated. */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /**
  * Substrings (matched case-insensitively) that identify a corrupt or otherwise
@@ -66,8 +66,8 @@ function errorMessageIncludes(err: unknown, markers: readonly string[]): boolean
 /**
  * Session store backed by SQLite + FTS5.
  *
- * Schema is identical to the copilot-agent-runtime SessionStore so that
- * tooling and queries are portable across CLI and VS Code surfaces.
+ * Core schema matches the copilot-agent-runtime SessionStore so shared tooling
+ * stays portable. The local-only request index is a VS Code client addition.
  * The store is populated incrementally by live hooks — no background indexing.
  */
 export class SessionStore implements ISessionStore {
@@ -247,6 +247,11 @@ export class SessionStore implements ISessionStore {
 				turn_index INTEGER,
 				created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
 				UNIQUE(session_id, ref_type, ref_value)
+			);
+
+			CREATE TABLE IF NOT EXISTS request_index (
+				location TEXT PRIMARY KEY,
+				text TEXT NOT NULL
 			);
 
 			CREATE INDEX IF NOT EXISTS idx_sessions_repo ON sessions(repository);
@@ -447,6 +452,27 @@ export class SessionStore implements ISessionStore {
 		);
 	}
 
+	/**
+	 * Insert a live request and index its text for full-text search.
+	 */
+	insertRequest(request: RequestRow): void {
+		const db = this.ensureDb();
+		db.prepare(
+			`INSERT INTO request_index (location, text) VALUES (?, ?)
+			 ON CONFLICT(location) DO UPDATE SET text = excluded.text`,
+		).run(request.location, request.text);
+
+		db.prepare('DELETE FROM search_index WHERE source_id = ?').run(request.location);
+		if (request.text.trim()) {
+			db.prepare('INSERT INTO search_index (content, session_id, source_type, source_id) VALUES (?, ?, ?, ?)').run(
+				request.text,
+				'',
+				'request',
+				request.location,
+			);
+		}
+	}
+
 	// ── Query Methods ───────────────────────────────────────────────────
 
 	/**
@@ -474,11 +500,35 @@ export class SessionStore implements ISessionStore {
 		const db = this.ensureDb();
 		this.runInTransaction(() => {
 			db.prepare('DELETE FROM search_index WHERE session_id = ?').run(sessionId);
+			const requests = db.prepare('SELECT location FROM request_index').all() as { location: string }[];
+			for (const request of requests) {
+				if (!this.requestLocationMatchesSession(request.location, sessionId)) {
+					continue;
+				}
+				db.prepare('DELETE FROM search_index WHERE source_id = ?').run(request.location);
+				db.prepare('DELETE FROM request_index WHERE location = ?').run(request.location);
+			}
 			db.prepare('DELETE FROM session_refs WHERE session_id = ?').run(sessionId);
 			db.prepare('DELETE FROM session_files WHERE session_id = ?').run(sessionId);
 			db.prepare('DELETE FROM checkpoints WHERE session_id = ?').run(sessionId);
 			db.prepare('DELETE FROM turns WHERE session_id = ?').run(sessionId);
 			db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
+		});
+	}
+
+	/**
+	 * Clear the complete local Chronicle index, including live request entries.
+	 */
+	clear(): void {
+		const db = this.ensureDb();
+		this.runInTransaction(() => {
+			db.prepare('DELETE FROM search_index').run();
+			db.prepare('DELETE FROM request_index').run();
+			db.prepare('DELETE FROM session_refs').run();
+			db.prepare('DELETE FROM session_files').run();
+			db.prepare('DELETE FROM checkpoints').run();
+			db.prepare('DELETE FROM turns').run();
+			db.prepare('DELETE FROM sessions').run();
 		});
 	}
 
@@ -492,7 +542,7 @@ export class SessionStore implements ISessionStore {
 	search(query: string, limit: number = 20): SearchResult[] {
 		const db = this.ensureDb();
 		const stmt = db.prepare(`
-			SELECT content, session_id, source_type, bm25(search_index) AS rank
+			SELECT content, session_id, source_type, CASE WHEN source_type = 'request' THEN source_id END AS location, bm25(search_index) AS rank
 			FROM search_index
 			WHERE search_index MATCH ?
 			ORDER BY rank
@@ -533,6 +583,14 @@ export class SessionStore implements ISessionStore {
 	getRefs(sessionId: string): RefRow[] {
 		const db = this.ensureDb();
 		return db.prepare('SELECT * FROM session_refs WHERE session_id = ?').all(sessionId) as unknown as RefRow[];
+	}
+
+	/**
+	 * Get all live request search entries.
+	 */
+	getRequests(): RequestRow[] {
+		const db = this.ensureDb();
+		return db.prepare('SELECT text, location FROM request_index ORDER BY rowid').all() as unknown as RequestRow[];
 	}
 
 	/**
@@ -590,7 +648,7 @@ export class SessionStore implements ISessionStore {
 	/**
 	 * Get basic stats about the store.
 	 */
-	getStats(): { sessions: number; turns: number; checkpoints: number; files: number; refs: number } {
+	getStats(): { sessions: number; turns: number; checkpoints: number; files: number; refs: number; requests: number } {
 		const db = this.ensureDb();
 		const count = (table: string) =>
 			(db.prepare(`SELECT COUNT(*) as c FROM ${table}`).get() as unknown as { c: number }).c;
@@ -600,6 +658,7 @@ export class SessionStore implements ISessionStore {
 			checkpoints: count('checkpoints'),
 			files: count('session_files'),
 			refs: count('session_refs'),
+			requests: count('request_index'),
 		};
 	}
 
@@ -643,6 +702,30 @@ export class SessionStore implements ISessionStore {
 		if (this.db) {
 			this.db.close();
 			this.db = null;
+		}
+	}
+
+	private requestLocationMatchesSession(location: string, sessionId: string): boolean {
+		try {
+			const link = new URL(location);
+			if (link.protocol !== 'agent-host-session:') {
+				return false;
+			}
+			const backend = link.searchParams.get('session');
+			const sessionIdentity = backend ?? link.pathname.slice(1);
+			const rawId = backend
+				? new URL(sessionIdentity).pathname.replace(/^\//, '')
+				: decodeURIComponent(sessionIdentity);
+			if (sessionId === rawId) {
+				return true;
+			}
+			try {
+				return new URL(sessionId).pathname.replace(/^\//, '') === rawId;
+			} catch {
+				return false;
+			}
+		} catch {
+			return false;
 		}
 	}
 }

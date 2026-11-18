@@ -395,6 +395,7 @@ interface IStartServerRequestOptions {
 	readonly timestamp?: number;
 	readonly isTerminalRequest?: boolean;
 	readonly resume?: boolean;
+	readonly queuedMessageId?: string;
 	readonly replacesRequestId?: string;
 	readonly origin?: IChatSessionServerRequest['origin'];
 }
@@ -989,6 +990,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			timestamp: options?.timestamp,
 			isTerminalRequest: options?.isTerminalRequest,
 			resume: options?.resume,
+			queuedMessageId: options?.queuedMessageId,
 			...(options?.replacesRequestId ? { replacesRequestId: options.replacesRequestId } : {}),
 			origin: options?.origin,
 		});
@@ -2959,13 +2961,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.info(`[AgentHost] Server-initiated turn detected: ${activeTurn.id}`);
 
 			// Determine which queued message was consumed by diffing queue state
+			let consumedQueuedMessageId: string | undefined;
+			const removedQueuedMessageIds: string[] = [];
+			const chatModel = this._chatService.getSession(sessionResource);
 			if (previousQueuedIds) {
 				for (const prevId of previousQueuedIds) {
 					if (!currentQueuedIds.has(prevId)) {
-						this._chatService.removePendingRequest(sessionResource, prevId);
+						const pending = chatModel?.getPendingRequests().find(request => request.request.id === prevId);
+						if (!consumedQueuedMessageId && (!pending || pending.request.message.text === activeTurn.message.text)) {
+							consumedQueuedMessageId = prevId;
+						}
+						removedQueuedMessageIds.push(prevId);
 					}
 				}
 			}
+			consumedQueuedMessageId ??= removedQueuedMessageIds.length === 1 ? removedQueuedMessageIds[0] : undefined;
 			previousQueuedIds = currentQueuedIds;
 			previousTurnIds = currentTurnIds;
 
@@ -2990,10 +3000,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					timestamp: parseTimestamp(activeTurn.startedAt),
 					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
 					resume: resumedTurn,
+					queuedMessageId: consumedQueuedMessageId,
 					replacesRequestId: replacedTurnId !== undefined && !currentTurnIds.has(replacedTurnId) ? replacedTurnId : undefined,
 					origin: messageToRequestOrigin(backendSession, activeTurn.message, this._config.agentId, this._config.connectionAuthority),
 				},
 			);
+			for (const id of removedQueuedMessageIds) {
+				this._chatService.removePendingRequest(sessionResource, id);
+			}
 
 			// Set up turn progress tracking — reuse the same state-to-progress
 			// translation as _handleTurn, but pipe output to progressObs/isCompleteObs

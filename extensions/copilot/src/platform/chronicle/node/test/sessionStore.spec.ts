@@ -50,6 +50,7 @@ describe('SessionStore', () => {
 		expect(stats.checkpoints).toBe(0);
 		expect(stats.files).toBe(0);
 		expect(stats.refs).toBe(0);
+		expect(stats.requests).toBe(0);
 	});
 
 	it('upserts a session', () => {
@@ -152,6 +153,53 @@ describe('SessionStore', () => {
 
 		const refs = store.getRefs('session-1');
 		expect(refs).toHaveLength(1);
+	});
+
+	it('stores and searches a privacy-minimal request by canonical location', () => {
+		const request = {
+			text: 'Find every Agent Host request',
+			location: 'agent-host-session://copilotcli/session?connectionAuthority=local&turn=request-1',
+		};
+
+		store.insertRequest(request);
+		store.insertRequest(request);
+
+		expect(store.getRequests()).toEqual([request]);
+		const [result] = store.search('Agent Host');
+		expect({ content: result.content, sourceType: result.source_type, location: result.location }).toEqual({
+			content: request.text,
+			sourceType: 'request',
+			location: request.location,
+		});
+	});
+
+	it('clears request entries with the rest of the local index', () => {
+		store.insertTurn({ session_id: 'session-1', turn_index: 0, user_message: 'hello' });
+		store.insertRequest({ text: 'hello', location: 'agent-host-session://copilotcli/session?turn=request-1' });
+
+		store.clear();
+
+		expect(store.getStats()).toEqual({ sessions: 0, turns: 0, checkpoints: 0, files: 0, refs: 0, requests: 0 });
+		expect(store.search('hello')).toEqual([]);
+	});
+
+	it('deletes request entries owned by a deleted session', () => {
+		store.insertRequest({
+			text: 'delete this request',
+			location: 'agent-host-session://copilotcli/session-1?turn=request-1',
+		});
+		store.insertRequest({
+			text: 'keep this request',
+			location: 'agent-host-session://copilotcli/session-2?turn=request-2',
+		});
+
+		store.deleteSession('session-1');
+
+		expect(store.getRequests()).toEqual([{
+			text: 'keep this request',
+			location: 'agent-host-session://copilotcli/session-2?turn=request-2',
+		}]);
+		expect(store.search('delete')).toEqual([]);
 	});
 
 	it('inserts and retrieves checkpoints', () => {
@@ -375,6 +423,17 @@ describe('SessionStore (on-disk resilience)', () => {
 
 		// WAL mode creates the -wal sidecar file once a write has occurred.
 		expect(existsSync(dbPath + '-wal')).toBe(true);
+	});
+
+	it('migrates a version 3 database to the request index schema', () => {
+		const legacy = new DatabaseSync(dbPath);
+		legacy.exec('CREATE TABLE schema_version (version INTEGER NOT NULL); INSERT INTO schema_version (version) VALUES (3);');
+		legacy.close();
+
+		store = new SessionStore(dbPath);
+		expect(store.getRequests()).toEqual([]);
+		const version = store.executeReadOnlyFallback('SELECT version FROM schema_version');
+		expect(version).toEqual([{ version: 4 }]);
 	});
 
 	it('recreates a corrupt database file on open', () => {

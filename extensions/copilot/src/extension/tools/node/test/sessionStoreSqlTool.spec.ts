@@ -34,15 +34,18 @@ function createMockStore(): ISessionStore {
 		insertCheckpoint: () => { },
 		insertFile: () => { },
 		insertRef: () => { },
+		insertRequest: () => { },
 		indexWorkspaceArtifact: () => { },
 		deleteSession: () => { },
+		clear: () => { },
 		search: () => [],
 		getSession: () => undefined,
 		getTurns: () => [],
 		getFiles: () => [],
 		getRefs: () => [],
+		getRequests: () => [],
 		getMaxTurnIndex: () => -1,
-		getStats: () => ({ sessions: 5, turns: 20, checkpoints: 0, files: 10, refs: 3 }),
+		getStats: () => ({ sessions: 5, turns: 20, checkpoints: 0, files: 10, refs: 3, requests: 0 }),
 		executeReadOnly: vi.fn(() => [{ id: 'local-1', summary: 'test' }]),
 		executeReadOnlyFallback: vi.fn(() => [{ id: 'local-1', summary: 'test' }]),
 		runInTransaction: (fn: () => void) => fn(),
@@ -337,6 +340,43 @@ describe('SessionStoreSqlTool', () => {
 			const text = extractText(result);
 			expect(text).toContain('Results: 1 rows');
 			expect(text).toContain('source: local');
+		});
+
+		it('keeps request searches local even when cloud sync is enabled', async () => {
+			const services = createMockServices();
+			vi.mocked(services.configService.getNonExtensionConfig).mockReturnValue(true);
+			const { tool, store, tokenManager } = createToolInstance(services);
+
+			await tool.invoke(
+				makeOptions({
+					query: 'SELECT text, location FROM request_index',
+					source: 'local',
+					description: 'Search request index',
+				}),
+				CancellationToken.None,
+			);
+
+			expect(store.executeReadOnly).toHaveBeenCalledExactlyOnceWith('SELECT text, location FROM request_index');
+			expect(tokenManager.getCopilotToken).not.toHaveBeenCalled();
+		});
+
+		it('does not expose local request data from an explicit cloud query failure', async () => {
+			const services = createMockServices();
+			vi.mocked(services.configService.getNonExtensionConfig).mockReturnValue(true);
+			vi.mocked(services.tokenManager.getCopilotToken).mockRejectedValue(new Error('Cloud unavailable'));
+			const { tool, store } = createToolInstance(services);
+
+			const result = await tool.invoke(
+				makeOptions({
+					query: 'SELECT text, location FROM request_index',
+					source: 'cloud',
+					description: 'Search cloud requests',
+				}),
+				CancellationToken.None,
+			);
+
+			expect(extractText(result)).toContain('cloud session store is unavailable');
+			expect(store.executeReadOnly).not.toHaveBeenCalled();
 		});
 
 		it('routes model-supplied SQL through executeReadOnly (never executeReadOnlyFallback)', async () => {

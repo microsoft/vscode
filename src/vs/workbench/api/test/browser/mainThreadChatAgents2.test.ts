@@ -35,7 +35,9 @@ import { ExtensionHostKind } from '../../../services/extensions/common/extension
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatAgents2 } from '../../browser/mainThreadChatAgents2.js';
-import { IChatUsageDto, IExtensionChatAgentMetadata } from '../../common/extHost.protocol.js';
+import { IChatRequestSubmittedDto, IChatUsageDto, IExtensionChatAgentMetadata } from '../../common/extHost.protocol.js';
+import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 
 suite('MainThreadChatAgents2', function () {
 
@@ -48,11 +50,13 @@ suite('MainThreadChatAgents2', function () {
 	let agentImpl: IChatAgentImplementation;
 	let warnings: string[];
 	let resolveInvoke: (result: unknown) => void;
+	let submittedRequests: IChatRequestSubmittedDto[];
 
 	setup(async function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
 		warnings = [];
+		submittedRequests = [];
 
 		// `$invokeAgent` is kept pending so the `_pendingProgress` entry registered at
 		// the start of `invoke` stays alive while we route a usage chunk through it.
@@ -61,6 +65,7 @@ suite('MainThreadChatAgents2', function () {
 			$acceptActiveChatSession: () => { },
 			$invokeAgent: () => invokePromise,
 			$onDidChangePlugins: () => { },
+			$onDidSubmitChatRequest: (event: IChatRequestSubmittedDto) => submittedRequests.push(event),
 		};
 		const extHostContext = new class implements IExtHostContext {
 			remoteAuthority = '';
@@ -112,6 +117,14 @@ suite('MainThreadChatAgents2', function () {
 			override readonly plugins = observableValue('plugins', []);
 		});
 		instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() { });
+		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResourceIdentity(resource: URI) {
+				return resource.scheme.startsWith('agent-host-') ? {
+					backendSession: URI.from({ scheme: 'copilotcli', path: resource.path }),
+					connectionAuthority: 'remote-host',
+				} : undefined;
+			}
+		});
 
 		mainThread = disposables.add(instantiationService.createInstance(MainThreadChatAgents2, extHostContext));
 
@@ -127,6 +140,42 @@ suite('MainThreadChatAgents2', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards only text and a canonical Agent Host request link', () => {
+		mockChatService.fireDidSubmitUserRequest({
+			chatSessionResource: URI.parse('agent-host-copilotcli:/session#chat-2'),
+			requestId: 'request-1',
+			requestText: 'plain request',
+		});
+
+		const [submitted] = submittedRequests;
+		const location = URI.revive(submitted.location);
+		assert.deepStrictEqual({
+			keys: Object.keys(submitted).sort(),
+			text: submitted.text,
+			session: parseOpenSessionLinkUri(location)?.toString(),
+			chat: parseOpenSessionLinkChatId(location),
+			turn: parseOpenSessionLinkTurnId(location),
+			authority: parseOpenSessionLinkConnectionAuthority(location),
+		}, {
+			keys: ['location', 'text'],
+			text: 'plain request',
+			session: 'copilotcli:/session',
+			chat: 'chat-2',
+			turn: 'request-1',
+			authority: 'remote-host',
+		});
+	});
+
+	test('does not forward a request from an unmaterialized Agent Host session', () => {
+		mockChatService.fireDidSubmitUserRequest({
+			chatSessionResource: URI.parse('agent-host-copilotcli:/untitled-1'),
+			requestId: 'request-1',
+			requestText: 'unstable request',
+		});
+
+		assert.deepStrictEqual(submittedRequests, []);
+	});
 
 	function addSession(resource: URI, requests: { id: string; response?: { setUsage: sinon.SinonSpy } }[]): void {
 		mockChatService.addSession({

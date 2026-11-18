@@ -1174,7 +1174,7 @@
         "toolReferenceName": "sessionStoreSql",
         "when": "github.copilot.sessionSearch.enabled",
         "userDescription": "Query your Copilot session history using SQL",
-        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
+        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`, `request_index`. `request_index` contains only `text` and `location`; its entries are never synced to cloud storage. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
         "tags": [],
         "canBeReferencedInPrompt": false,
         "inputSchema": {
@@ -1191,6 +1191,14 @@
             "query": {
               "type": "string",
               "description": "A single read-only SQL query to execute. Required when action is 'query'. Supports SELECT, WITH, JOINs, aggregations, and FTS5 MATCH. Only one statement per call — do not combine multiple queries with semicolons."
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "local",
+                "cloud"
+              ],
+              "description": "Query target. Use 'local' to search the privacy-minimal, non-synced request index."
             },
             "force": {
               "type": "boolean",
@@ -2892,6 +2900,11 @@
         "title": "%github.copilot.command.chronicle.reindex%",
         "category": "Chat",
         "enablement": "github.copilot.sessionSearch.enabled"
+      },
+      {
+        "command": "github.copilot.chronicle.clear",
+        "title": "%github.copilot.command.chronicle.clear%",
+        "category": "Chat"
       },
       {
         "command": "github.copilot.nes.captureExpected.start",

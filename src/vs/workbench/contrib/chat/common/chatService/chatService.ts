@@ -2147,6 +2147,13 @@ export interface IChatRequestSubmittedEvent {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 }
 
+/** A user request that was admitted to a chat model and has a stable request ID. */
+export interface IChatUserRequestSubmittedEvent {
+	readonly chatSessionResource: URI;
+	readonly requestId: string;
+	readonly requestText: string;
+}
+
 /** A new submission accepted for sending or queuing, not a retry or a queue drain. */
 export interface IChatRequestAcceptedEvent {
 	readonly chatSessionResource: URI;
@@ -2160,6 +2167,7 @@ export interface IChatService {
 	transferredSessionResource: URI | undefined;
 
 	readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
+	readonly onDidSubmitUserRequest: Event<IChatUserRequestSubmittedEvent>;
 	readonly onDidAcceptRequest: Event<IChatRequestAcceptedEvent>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
