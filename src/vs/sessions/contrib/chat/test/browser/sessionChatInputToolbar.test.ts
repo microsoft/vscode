@@ -17,6 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
@@ -1013,6 +1014,67 @@ suite('SessionChatInputToolbar', () => {
 			openedWhileLoading: 3,
 		});
 	});
+
+	test('opens nothing for a wait for the changeset that a newer open, a switch of chat or disposal ends, and leaves no observer of it', () => runWithFakedTimers({}, async () => {
+		const { instantiationService } = createServices();
+		const file = URI.file('/repo/changed.ts');
+		const change = upcastPartial<ISessionFileChange>({ originalUri: URI.parse('git:/repo/changed.ts'), modifiedUri: file, insertions: 1, deletions: 0 });
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const loading = observableValue('loading', true);
+		const createChat = (resource: string) => upcastPartial<IChat>({
+			resource: URI.parse(resource),
+			workspace,
+			changesets: constObservable([upcastPartial<ISessionChangeset>({ id: SESSION_CHANGES_CHANGESET_ID, isLoadingChanges: loading, changes: constObservable([change]) })]),
+			changes: constObservable([change]),
+		});
+		const chat = createChat('chat:main');
+		const other = createChat('chat:other');
+		const session = upcastPartial<ITestSessionWithChat>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([chat, other]),
+			mainChat: constObservable(chat),
+			workspace,
+		});
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ parent: undefined }));
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			getContainer: window => window.document.body,
+			revealEditorPartExplicitly: () => { },
+		}));
+		stubSessionsHostLayout(instantiationService);
+		const opened: (string | undefined)[] = [];
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+			openChangesEditor: async (_resource, options) => {
+				opened.push(options?.viewState?.revealData?.resource.modified?.toString());
+				return undefined;
+			},
+		}));
+		const toolbar = instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined);
+		toolbar.setSession(session, chat);
+
+		// A newer open ends the wait of the first, which opens nothing once its changeset loads
+		const superseded = toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [file]);
+		await toolbar.openChangesEditor(BRANCH_CHANGES_CHANGESET_ID);
+		await superseded;
+		// A switch of chat while it waits: it opens nothing in the chat the toolbar no longer shows
+		const switched = toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [file]);
+		toolbar.setSession(session, other);
+		loading.set(false, undefined);
+		await switched;
+		// A changeset that never loads: past the timeout, it opens at what the changeset has and stops observing it
+		toolbar.setSession(session, chat);
+		loading.set(true, undefined);
+		await toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [file]);
+		// Disposed while it waits: it opens nothing and leaves no observer of the changeset
+		const disposed = toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [file]);
+		toolbar.dispose();
+		await disposed;
+		loading.set(false, undefined);
+
+		assert.deepStrictEqual(opened, [undefined, 'file:///repo/changed.ts']);
+	}));
 
 	for (const activation of ['click', 'Enter', 'Space'] as const) {
 		test(`shows, labels and opens Session Changes in a cloud sandbox worktree with ${activation}`, () => {

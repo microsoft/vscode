@@ -5,14 +5,15 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
-import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { groupBy } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -454,6 +455,8 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _pullRequestCopyActions = this._register(new CopyFeedbackActionCache());
 	private readonly _issueCopyActions = this._register(new CopyFeedbackActionCache());
 	private readonly _activityBarOpenerCheck = this._register(new MutableDisposable());
+	/** Ends the wait of the last {@link openChangesEditor} for its changeset to load: a newer one, or disposal, cancels it. */
+	private readonly _pendingChangesOpen = this._register(new MutableDisposable());
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
 	private readonly _session: IObservable<ISession | undefined> = derived(reader => {
@@ -801,11 +804,14 @@ export class SessionChatInputToolbar extends Disposable {
 				: localize('sessionChatPills.allChanges', "All Changes");
 		});
 		this.openChangesEditor = async (changesetId, files, options) => {
+			// A newer open supersedes one still waiting for its changeset
+			this._pendingChangesOpen.clear();
 			const session = this._session.get();
 			if (!session || this._debugData.get()) {
 				return;
 			}
-			const chat = options?.sessionWide ? session.mainChat.get() : this._chat.get();
+			const reflectedChat = this._chat.get();
+			const chat = options?.sessionWide ? session.mainChat.get() : reflectedChat;
 			const workspace = chat?.workspace?.get() ?? session.workspace.get();
 			const target = getEditorTarget(chatWindowService, this._sessionHost);
 			if (!target) {
@@ -816,7 +822,37 @@ export class SessionChatInputToolbar extends Disposable {
 			// The editor scrolls to a change by its diff's resources, which only the changeset knows once it has loaded
 			const changeset = files?.length ? (chat ?? session.mainChat.get())?.changesets.get()?.find(candidate => candidate.id === id) : undefined;
 			if (changeset?.isLoadingChanges.get()) {
-				await raceTimeout(waitForState(changeset.isLoadingChanges, loading => !loading), CHANGES_LOAD_TIMEOUT);
+				const wait = new DisposableStore();
+				const cancellation = wait.add(new CancellationTokenSource());
+				// Past the timeout, it opens without scrolling to the file; superseded or disposed, it opens nothing
+				wait.add(disposableTimeout(() => cancellation.cancel(), CHANGES_LOAD_TIMEOUT));
+				let superseded = false;
+				const pending = toDisposable(() => {
+					superseded = true;
+					// Cancelling also ends the wait's listener of the cancellation, also once the wait completed
+					cancellation.cancel();
+					wait.dispose();
+				});
+				this._pendingChangesOpen.value = pending;
+				try {
+					await waitForState(changeset.isLoadingChanges, loading => !loading, undefined, cancellation.token);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						throw error;
+					}
+				}
+				if (superseded) {
+					return;
+				}
+				if (this._pendingChangesOpen.value === pending) {
+					this._pendingChangesOpen.clear();
+				} else {
+					pending.dispose();
+				}
+				// Not where the chat no longer shows, nor in a window that no longer shows its editors
+				if (this._session.get() !== session || this._chat.get() !== reflectedChat || getEditorTarget(chatWindowService, this._sessionHost) !== target) {
+					return;
+				}
 			}
 			const changes = changeset?.changes.get();
 			const change = changes && coalesce(files?.map(file => changes.find(candidate => isChangesFileResource(candidate, file))) ?? []).at(0);
@@ -893,6 +929,8 @@ export class SessionChatInputToolbar extends Disposable {
 	 * open-changes action. Clears any explicit {@link setSession} override.
 	 */
 	setChat(chat: IChat | undefined): void {
+		// What it opens for the chat it showed no longer applies
+		this._pendingChangesOpen.clear();
 		this.setDebugData(undefined);
 		this._sessionOverride.set('unset', undefined);
 		this._chat.set(chat, undefined);
@@ -904,6 +942,7 @@ export class SessionChatInputToolbar extends Disposable {
 	 * both.
 	 */
 	setSession(session: ISession | undefined, chat: IChat | undefined): void {
+		this._pendingChangesOpen.clear();
 		this.setDebugData(undefined);
 		this._sessionOverride.set(session, undefined);
 		this._chat.set(chat, undefined);
