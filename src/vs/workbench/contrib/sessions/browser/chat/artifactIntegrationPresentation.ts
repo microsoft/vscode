@@ -283,7 +283,7 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 			this.updateLabel();
 			this.updateAriaLabel();
 			const description = this.mainDescription();
-			if (description !== this.getLabelText()) {
+			if (description !== this.getFullLabel()) {
 				this.button!.element.setAttribute('aria-description', description);
 			} else {
 				this.button!.element.removeAttribute('aria-description');
@@ -301,6 +301,11 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	}
 
 	protected override getLabelText(): string {
+		return getArtifactMainContribution(this.presentation.snapshot.get())?.view.main?.pillLabel ?? this.getFullLabel();
+	}
+
+	/** The label that dropdown rows show, which names the artifact for screen readers where the pill shows a shorter one. */
+	private getFullLabel(): string {
 		const snapshot = this.presentation.snapshot.get();
 		return getArtifactMainContribution(snapshot)?.view.main?.label ?? this.presentation.baseEntry?.label ?? snapshot.artifact.label;
 	}
@@ -311,7 +316,7 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	}
 
 	private mainDescription(): string {
-		return getArtifactMainContribution(this.presentation.snapshot.get())?.view.main?.description ?? this.getLabelText();
+		return getArtifactMainContribution(this.presentation.snapshot.get())?.view.main?.description ?? this.getFullLabel();
 	}
 
 	/**
@@ -335,7 +340,7 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	}
 
 	protected override getAriaLabel(): string {
-		return getArtifactOpenAriaLabel(this.getLabelText());
+		return getArtifactOpenAriaLabel(this.getFullLabel());
 	}
 
 	protected override updateTooltip(): void { }

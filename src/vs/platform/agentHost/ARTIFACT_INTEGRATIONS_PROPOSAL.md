@@ -499,6 +499,10 @@ interface ArtifactPartPresentation {
 	readonly detailsId: string;
 }
 
+interface ArtifactMainPresentation extends ArtifactPartPresentation {
+	readonly pillLabel?: string;
+}
+
 interface ArtifactSectionPresentation extends ArtifactPartPresentation {
 	readonly id: string;
 }
@@ -511,7 +515,7 @@ interface ArtifactActionView {
 
 interface ArtifactContributionView {
 	readonly availability: ArtifactAvailability;
-	readonly main?: ArtifactPartPresentation;
+	readonly main?: ArtifactMainPresentation;
 	readonly groupId?: string;
 	readonly group?: {
 		readonly icon: ArtifactIcon;
@@ -532,7 +536,7 @@ interface ArtifactContributionView {
 
 The main integration decides, per artifact, whether the artifact gets a pill of its own. An artifact whose main integration assigns a `groupId` is presented in a dedicated pill; without one, the artifact is listed in the client's ordinary pill for its kind, such as Artifacts, alongside unintegrated records, with the integration's icon and label. References are always listed in the References pill with the other references, whatever their `groupId`. Activating such a row opens the artifact's details, a row action opens the resource, and an artifact that is its pill's only entry renders as its full integration pill. The ID can follow the resource's state, but changing it moves the artifact between pills, so integrations should keep it stable.
 
-When several recorded artifacts share a `groupId`, including artifacts of different integrations, the client may present them as one group whose members keep their own segmented controls in a list. References never join a group. The main integration names such a group with a fixed, registration-level `groupLabel`, such as "Pull Requests", taken from the group's first artifact; each artifact's optional `group` supplies the icon the group shows and a priority, so a group of pull requests shows a failing pull request's icon over an open one's. Only the main integration's `groupId` and `group` are consulted, and priorities are compared only among the group's artifacts; the client picks the highest priority and keeps the earlier artifact on ties. Without a `groupLabel` or `group`, the client falls back to the integration label and the first artifact's main icon. Grouping is presentation only: it never merges bindings, consent, runs, or details.
+When several recorded artifacts share a `groupId`, including artifacts of different integrations, the client may present them as one group whose members keep their own segmented controls in a list. References never join a group. The main integration names such a group with a fixed, registration-level `groupLabel`, such as "Pull Requests", taken from the group's first artifact; each artifact's optional `group` supplies the icon the group shows and a priority, so a group of pull requests shows a failing pull request's icon over an open one's. Only the main integration's `groupId` and `group` are consulted, and priorities are compared only among the group's artifacts; the client picks the highest priority and keeps the earlier artifact on ties. Without a `groupLabel` or `group`, the client falls back to the integration label and the first artifact's main icon. Grouping is presentation only: it never merges bindings, consent, runs, or details. An artifact that shows as a pill of its own, alone in its group, pinned out of it or the only entry of its kind's pill, shows its main presentation's optional `pillLabel`, such as "Papercut #7", in place of the label that dropdown rows show; the label still names it for screen readers.
 
 Each contribution exposes its binding's canonical `resourceKey`, the match key that identifies aliases of the same resource. When the main integration binds several recorded artifacts or references to the same resource, such as several scorecard links of one experiment step, the client shows them once, keeping the first artifact among them, else the first reference. An artifact with a pill of its own stands in only for its aliases among the other artifacts with pills of their own: its pill's filters can hide it and its pins are kept apart, so a reference to its resource stays listed in the References pill. Like grouping, this is presentation only: each record keeps its own binding, consent, runs, and recorded label. A record with enabled Autopilot rules or activity remains visible, since only its own entry reaches its controls, and a dedicated pill stays pinned while any alias it hides is pinned; unpinning it clears every such pin.
 

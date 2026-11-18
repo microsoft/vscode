@@ -2570,6 +2570,7 @@ suite('Sessions - Actions', () => {
 				{ id: local.providerId, environment: { id: 'local', label: 'This Computer' } },
 			].map(provider => upcastPartial<ISessionsProvider>(provider));
 			const selections: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
+			const environments: string[] = [];
 			instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 			instantiationService.stub(ISessionsProvidersService, {
 				getProvider: <T extends ISessionsProvider>(providerId: string) => providers.find(provider => provider.id === providerId) as T | undefined,
@@ -2591,6 +2592,10 @@ suite('Sessions - Actions', () => {
 						selections.push({ folder, options });
 						return 'applied';
 					},
+					selectEnvironment: providerId => {
+						environments.push(providerId);
+						return 'applied';
+					},
 				}),
 			});
 			instantiationService.stub(ICommandService, new TestCommandService());
@@ -2603,19 +2608,26 @@ suite('Sessions - Actions', () => {
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { sessions: [session] });
 			await run(NEW_SESSION_FOR_WORKSPACE_ACTION_ID, { environment, sessions: [session] });
 
-			assert.deepStrictEqual(selections, available
-				? Array.from({ length: 5 }, () => ({
-					folder: creationTarget.folderUri,
-					options: { providerId: creationTarget.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
-				}))
-				: [{
-					folder: localFolder,
-					options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
-				}]);
+			// Without a creation target, the environment section still starts in its environment.
+			assert.deepStrictEqual({ selections, environments }, available
+				? {
+					selections: Array.from({ length: 5 }, () => ({
+						folder: creationTarget.folderUri,
+						options: { providerId: creationTarget.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+					})),
+					environments: [],
+				}
+				: {
+					selections: [{
+						folder: localFolder,
+						options: { providerId: local.providerId, selectionOrigin: WorkspaceSelectionOrigin.User },
+					}],
+					environments: [session.providerId],
+				});
 		});
 	}
 
-	test('New Session never starts like a session that only names its repository by URL without a creation target', async () => {
+	test('New Session never starts like a session that only names its repository by URL without a creation target, but in its environment', async () => {
 		const sandboxRoot = URI.parse('https://github.com/microsoft/vscode');
 		const sandbox = (title: string) => {
 			const { session } = createTestSession(title, { providerId: 'sandbox-provider', environment: 'cloud' });
@@ -2648,6 +2660,10 @@ suite('Sessions - Actions', () => {
 					selections.push(`${options?.providerId} ${folder.toString()}`);
 					return 'applied';
 				},
+				selectEnvironment: providerId => {
+					selections.push(`environment of ${providerId}`);
+					return 'applied';
+				},
 			}),
 			focusNewSessionSlot: () => { },
 		}));
@@ -2658,8 +2674,10 @@ suite('Sessions - Actions', () => {
 		await run({ repository: { owner: 'microsoft', name: 'vscode' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 		// A workspace section starts like its first session that it can start like.
 		await run({ sessions: [sandbox('sandbox'), local] });
+		// An environment section of only such sessions, such as an extension's host of jobs, starts in its environment.
+		await run({ environment: { id: 'cloud', label: 'Cloud' }, sessions: [sandbox('sandbox-1'), sandbox('sandbox-2')] });
 
-		assert.deepStrictEqual({ opened, selections }, { opened: 2, selections: ['local-provider file:///local'] });
+		assert.deepStrictEqual({ opened, selections }, { opened: 3, selections: ['local-provider file:///local', 'environment of sandbox-provider'] });
 	});
 
 	test('New Session uses the active native canvas for plain invocations and incidental toolbar context', async () => {
