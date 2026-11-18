@@ -300,7 +300,14 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 			this._configurationService.updateExperimentBasedConfiguration(affectedTreatmentVariables);
 		}
+
+		this.exposePendingReads();
 	};
+
+	/** Exposes reads made before the unit was known, once it is (see {@link ExperimentExposureTracker}). */
+	protected exposePendingReads(): void {
+		this._exposureTracker?.exposePendingReads();
+	}
 
 	async hasTreatments(): Promise<void> {
 		await this._delegate.initializePromise;

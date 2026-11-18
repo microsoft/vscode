@@ -267,6 +267,21 @@ describe('SimpleExperimentationService', () => {
 			service.dispose();
 		});
 
+		it('exposes a read made before the token arrived when the host next updates the variables', () => {
+			const { service, metadata, signIn } = createHostedService('VisualStudio', null);
+			const variables = { [EXPOSURE_GATE_TREATMENTS.visualstudio]: true, 'feature-a': 'treatment' };
+			service.updateTreatmentVariables(variables);
+
+			service.getTreatmentVariable('feature-a');
+			expect(metadata()).toHaveLength(0);
+
+			signIn('tid-1');
+			service.updateTreatmentVariables(variables);
+
+			expect(metadata().map(m => [m.flag, m.surface, m.assignment_units])).toEqual([['feature-a', 'visualstudio', '{"copilot_tracking_id":"tid-1"}']]);
+			service.dispose();
+		});
+
 		it('does not expose for a JetBrains host while its gate is off', () => {
 			const { service, sent } = createHostedService('JetBrains-IU');
 			service.updateTreatmentVariables({ 'feature-a': true });

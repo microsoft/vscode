@@ -676,7 +676,7 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 					// Resolved lazily: the authentication service may depend on this service.
 					const trackingId = instantiationService?.invokeFunction(accessor => accessor.get(IAuthenticationService).copilotToken?.getTokenValue('tid'));
 					// Exposures go to GitHub telemetry only, so they need the tracking ID; reads
-					// before the token arrives (or while signed out) wait for it.
+					// before the token arrives (or while signed out) are exposed once it does.
 					return trackingId ? {
 						// Hosts pass treatment variables without the assignment's data version.
 						dataVersion: '',
@@ -730,6 +730,9 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 			this._onDidTreatmentsChange.fire({ affectedTreatmentVariables: changedVariables });
 			this._configurationService.updateExperimentBasedConfiguration(changedVariables);
 		}
+		// Hosts update the variables before each request, after fetching the Copilot token, so
+		// reads made before the token arrived can be exposed now.
+		this._exposureTracker?.exposePendingReads();
 		this.resolveWaitFor();
 	}
 }

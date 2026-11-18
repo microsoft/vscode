@@ -140,6 +140,77 @@ describe('ExperimentExposureTracker', () => {
 
 		expect(exposures.map(e => e.trackingId)).toEqual(['tid-1', 'tid-2']);
 	});
+
+	describe('reads made before the unit is known', () => {
+		function createPendingTracker(treatments: Record<string, TreatmentValue | undefined>) {
+			let context: IExposureContext | undefined;
+			const exposures: IExperimentExposure[] = [];
+			const tracker = new ExperimentExposureTracker('vscode', name => treatments[name], () => context, exposure => exposures.push(exposure));
+			return { tracker, exposures, signIn: () => context = CONTEXT };
+		}
+
+		it('exposes them once the unit is known, without another read', () => {
+			const { tracker, exposures, signIn } = createPendingTracker({ [VSCODE_GATE]: true, 'copilotchat.a': 'treatment' });
+
+			tracker.onRead('copilotchat.a', 'treatment');
+			tracker.exposePendingReads();
+			expect(exposures).toHaveLength(0);
+
+			signIn();
+			tracker.exposePendingReads();
+			tracker.exposePendingReads();
+
+			expect(exposures.map(e => [e.flag, e.value, e.trackingId])).toEqual([['copilotchat.a', 'treatment', CONTEXT.trackingId]]);
+		});
+
+		it('exposes them on the next read of any flag', () => {
+			const { tracker, exposures, signIn } = createPendingTracker({ [VSCODE_GATE]: true, 'copilotchat.a': 1, 'copilotchat.b': 2 });
+
+			tracker.onRead('copilotchat.a', 1);
+			signIn();
+			tracker.onRead('copilotchat.b', 2);
+
+			expect(exposures.map(e => e.flag)).toEqual(['copilotchat.a', 'copilotchat.b']);
+		});
+
+		it('does not expose a value that changed before the unit was known', () => {
+			const treatments: Record<string, TreatmentValue | undefined> = { [VSCODE_GATE]: true, 'copilotchat.a': 'control' };
+			const { tracker, exposures, signIn } = createPendingTracker(treatments);
+
+			tracker.onRead('copilotchat.a', 'control');
+			treatments['copilotchat.a'] = 'treatment';
+			signIn();
+			tracker.exposePendingReads();
+
+			expect(exposures).toHaveLength(0);
+		});
+
+		it('keeps them until the assignment is loaded', () => {
+			const treatments: Record<string, TreatmentValue | undefined> = { [VSCODE_GATE]: true, 'copilotchat.a': true };
+			const { tracker, exposures, signIn } = createPendingTracker(treatments);
+
+			tracker.onRead('copilotchat.a', true);
+			treatments['copilotchat.a'] = undefined;
+			signIn();
+			tracker.exposePendingReads();
+			expect(exposures).toHaveLength(0);
+
+			treatments['copilotchat.a'] = true;
+			tracker.exposePendingReads();
+			expect(exposures.map(e => e.flag)).toEqual(['copilotchat.a']);
+		});
+
+		it('forgets them when the flag is later read as unassigned', () => {
+			const { tracker, exposures, signIn } = createPendingTracker({ [VSCODE_GATE]: true, 'copilotchat.a': true });
+
+			tracker.onRead('copilotchat.a', true);
+			tracker.onRead('copilotchat.a', undefined);
+			signIn();
+			tracker.exposePendingReads();
+
+			expect(exposures).toHaveLength(0);
+		});
+	});
 });
 
 describe('exposureSurfaceForEditor', () => {

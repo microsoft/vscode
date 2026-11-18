@@ -10,6 +10,17 @@ import { ITelemetryService, TelemetryEventProperties, TelemetryTrustedValue } fr
  * again when a later read sees a different value. Triggered experiment scorecards use it as the
  * exposure event. Its metadata matches the GitHub monolith's and the `githubexp` Go SDK's
  * `exp_exposure`, so one trigger condition works across surfaces.
+ *
+ * A triggered scorecard is only valid when its trigger fires in every arm under the same
+ * conditions. Exposures don't guarantee that on their own:
+ * - Only assigned values are exposed. A flag whose control arm doesn't set it (and falls back to
+ *   the code's default) is never exposed in control, so every arm, including control, must set it.
+ * - Only values from Copilot's own ExP client are exposed. For settings tagged `onExp`, VS Code
+ *   core can apply its own assignment as the setting's default; `getExperimentBasedConfig` falls
+ *   back to that default without a treatment read, so such values aren't exposed.
+ * - A flag is only exposed where code reads it. A flag read only when another flag is on (e.g.
+ *   a tuning value behind a treatment-only feature flag) is exposed in that arm only, so trigger
+ *   on the outer flag, which every arm reads.
  */
 export const EXP_EXPOSURE_EVENT = 'exp_exposure';
 export const EXPOSURE_SDK = 'copilot_chat_ts';
@@ -66,15 +77,19 @@ export interface IExperimentExposure extends IExposureContext {
 
 export class ExperimentExposureTracker {
 	private readonly _exposed = new Map<string, TreatmentValue>();
+	/** Reads made while the unit wasn't known, with the value they saw. */
+	private readonly _pending = new Map<string, TreatmentValue>();
 	private _trackingId: string | undefined;
 
 	/**
+	 * @param _readTreatment Reads a treatment variable without exposing it.
 	 * @param _getContext Returns undefined while the assignment's unit isn't known yet (e.g. while
-	 * signing in); such reads aren't exposed, so the first read once it's known is.
+	 * signing in). Reads made then are remembered and exposed once it's known, if the value is
+	 * still the same (see {@link exposePendingReads}).
 	 */
 	constructor(
 		private readonly _surface: ExposureSurface,
-		private readonly _readGate: (gate: string) => TreatmentValue | undefined,
+		private readonly _readTreatment: (name: string) => TreatmentValue | undefined,
 		private readonly _getContext: () => IExposureContext | undefined,
 		private readonly _report: (exposure: IExperimentExposure) => void,
 	) { }
@@ -89,23 +104,75 @@ export class ExperimentExposureTracker {
 		}
 		if (value === undefined) {
 			this._exposed.delete(flag);
+			this._pending.delete(flag);
 			return;
 		}
-		let context: IExposureContext | undefined;
-		try {
-			context = this._getContext();
-		} catch {
-			return;
-		}
+		const context = this._tryGetContext();
 		if (!context) {
+			// Code often reads a flag only once (observables and caches keep the value, and only
+			// changed treatments are re-read), so a read now may be the only one.
+			this._pending.set(flag, value);
 			return;
 		}
+		this._pending.delete(flag);
+		this._exposePending(context);
+		this._expose(flag, value, context);
+	}
+
+	/**
+	 * Exposes reads made while the unit wasn't known, now that it may be. Call it when the unit
+	 * or the assignment may have changed; any later read also does it.
+	 */
+	exposePendingReads(): void {
+		if (this._pending.size === 0) {
+			return;
+		}
+		const context = this._tryGetContext();
+		if (context) {
+			this._exposePending(context);
+		}
+	}
+
+	/** Forgets past exposures, so that the next read of each flag exposes it under a new assignment. */
+	reset(): void {
+		this._exposed.clear();
+	}
+
+	private _tryGetContext(): IExposureContext | undefined {
+		try {
+			return this._getContext();
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _exposePending(context: IExposureContext): void {
+		for (const [flag, value] of [...this._pending]) {
+			let current: TreatmentValue | undefined;
+			try {
+				current = this._readTreatment(flag);
+			} catch {
+				current = undefined;
+			}
+			if (current === undefined) {
+				// The assignment may still be loading (e.g. a new account's); try again later.
+				continue;
+			}
+			this._pending.delete(flag);
+			// A changed value isn't what the code used; the read that picks up the new value exposes it.
+			if (current === value) {
+				this._expose(flag, value, context);
+			}
+		}
+	}
+
+	private _expose(flag: string, value: TreatmentValue, context: IExposureContext): void {
 		if (context.trackingId !== this._trackingId) {
 			// A different account has its own assignment, so its reads expose again.
 			this._trackingId = context.trackingId;
 			this._exposed.clear();
 		}
-		if (this._exposed.get(flag) === value || this._readGate(EXPOSURE_GATE_TREATMENTS[this._surface]) !== true) {
+		if (this._exposed.get(flag) === value || this._readTreatment(EXPOSURE_GATE_TREATMENTS[this._surface]) !== true) {
 			return;
 		}
 
@@ -117,11 +184,6 @@ export class ExperimentExposureTracker {
 		} catch {
 			// Exposure logging must never break a flag read.
 		}
-	}
-
-	/** Forgets past exposures, so that the next read of each flag exposes it under a new assignment. */
-	reset(): void {
-		this._exposed.clear();
 	}
 }
 

@@ -552,6 +552,17 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		expect(exposures()).toEqual([['copilotchat.a', '']]);
 	});
 
+	it('exposes a read made before sign-in settled once it does, without another read', () => {
+		const { tokens, read, exposures } = exposingService(undefined, 'unknown');
+
+		read('copilotchat.a', 'a');
+		expect(exposures()).toEqual([]);
+		tokens.copilotToken = userToken('user');
+		tokens.authenticationState = 'signedIn';
+
+		expect(exposures()).toEqual([['copilotchat.a', '']]);
+	});
+
 	it('does not load assignments cached for another account', () => {
 		const { tokens, config } = exposingService(userToken('a'), 'signedIn');
 		const cacheA = config().memento;

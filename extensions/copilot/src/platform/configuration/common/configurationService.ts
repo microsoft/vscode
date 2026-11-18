@@ -286,6 +286,8 @@ export abstract class AbstractConfigurationService extends Disposable implements
 	public getExperimentBasedConfig<T extends ExperimentBasedConfigType>(key: ExperimentBasedConfig<T>, experimentationService: IExperimentationService, scope?: ConfigurationScope): T {
 		const value = this.getExperimentBasedConfigIfSet(key, experimentationService, scope);
 		// Deliberately not `??`: a treatment may legitimately resolve to `null`.
+		// The default can carry VS Code core's `onExp` assignment. It isn't a treatment read, so
+		// it isn't exposed as `exp_exposure` (see `EXP_EXPOSURE_EVENT`).
 		return value === undefined ? this.getDefaultValue(key) : value;
 	}
 

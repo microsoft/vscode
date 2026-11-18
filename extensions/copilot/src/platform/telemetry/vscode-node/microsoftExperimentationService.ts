@@ -390,6 +390,10 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		this._register(copilotTokenStore.onDidChangeAuthenticationState(updateAssignments));
 		this._register(copilotTokenStore.onDidChangeGitHubEnterpriseUri(updateAssignments));
 		this._register(runOnChange(configurationService.getConfigObservable(ConfigKey.Shared.AuthProvider), updateAssignments));
+		// Once sign-in settles, expose the reads made before it. Registered after `updateAssignments`,
+		// so a replaced delegate's reads wait for its assignment (its initial fetch exposes them).
+		this._register(copilotTokenStore.onDidChangeTokenData(() => this.exposePendingReads()));
+		this._register(copilotTokenStore.onDidChangeAuthenticationState(() => this.exposePendingReads()));
 
 		if (fetcherService instanceof FetcherService) {
 			fetcherService.setExperimentationService(this);
