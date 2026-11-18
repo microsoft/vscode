@@ -16,27 +16,28 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { IValue, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
+import { IValue, PromptHeaderAttributes, VSCodeAgentAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 /**
- * How a custom agent starts a new chat, from its agent file:
+ * How a custom agent starts a new chat, from the VS Code-only `vscode:` map of its agent file:
  *
  * ```yaml
- * commands:              # actions the first message's buttons run
- *   - name: screenshot
- *     label: Attach a screenshot
- *     icon: device-camera
- *     command: workbench.action.chat.attachAppWindowScreenshot   # any command; agent files are trusted
- *     args: [...]        # its arguments; without them it gets { sessionResource } of the chat
- *   - name: repro
- *     label: Add steps to reproduce
- *     prompt: "Steps to reproduce:\n1. "   # appended to the input (`send: true` sends it)
- * first-message:         # shown as the agent's message in an empty chat
- *   markdown: What went wrong?
- *   buttons: [screenshot]   # the first one is the primary button
- * assisted-approval-instructions: |  # guidance for the Assisted permissions judge (read by the agent host)
+ * vscode:
+ *   commands:              # actions the first message's buttons run
+ *     - name: screenshot
+ *       label: Attach a screenshot
+ *       icon: device-camera
+ *       command: workbench.action.chat.attachAppWindowScreenshot   # any command; agent files are trusted
+ *       args: [...]        # its arguments; without them it gets { sessionResource } of the chat
+ *     - name: repro
+ *       label: Add steps to reproduce
+ *       prompt: "Steps to reproduce:\n1. "   # appended to the input (`send: true` sends it)
+ *   first-message:         # shown as the agent's message in an empty chat
+ *     markdown: What went wrong?
+ *     buttons: [screenshot]   # the first one is the primary button
+ *   assisted-approval-instructions: |  # guidance for the Assisted permissions judge (read by the agent host)
  * ```
  */
 interface IAgentCommand {
@@ -124,11 +125,12 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		if (!header) {
 			return undefined;
 		}
-		const attribute = (name: string) => toJson(header.getAttribute(name)?.value);
+		const vscode = toJson(header.getAttribute(PromptHeaderAttributes.vscode)?.value);
+		const attribute = (name: string) => vscode && typeof vscode === 'object' && !Array.isArray(vscode) ? (vscode as Record<string, unknown>)[name] : undefined;
 		return {
 			agentName,
-			commands: toArray(attribute(PromptHeaderAttributes.commands)).map(asAgentCommand).filter((command): command is IAgentCommand => !!command),
-			firstMessage: asFirstMessage(attribute(PromptHeaderAttributes.firstMessage)),
+			commands: toArray(attribute(VSCodeAgentAttributes.commands)).map(asAgentCommand).filter((command): command is IAgentCommand => !!command),
+			firstMessage: asFirstMessage(attribute(VSCodeAgentAttributes.firstMessage)),
 		};
 	}
 

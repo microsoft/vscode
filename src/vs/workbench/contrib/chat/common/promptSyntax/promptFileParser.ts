@@ -95,6 +95,12 @@ export namespace PromptHeaderAttributes {
 	export const deferredToolLoading = 'deferred-tool-loading';
 	export const strictToolsList = 'strict-tools-list';
 	export const includeCustomInstructions = 'include-custom-instructions';
+	/** Map of VS Code-only agent options ({@link VSCodeAgentAttributes}), kept under one key so other harnesses can ignore them. */
+	export const vscode = 'vscode';
+}
+
+/** Keys of the `vscode:` map in an agent file. */
+export namespace VSCodeAgentAttributes {
 	export const commands = 'commands';
 	export const firstMessage = 'first-message';
 	export const assistedApprovalInstructions = 'assisted-approval-instructions';
