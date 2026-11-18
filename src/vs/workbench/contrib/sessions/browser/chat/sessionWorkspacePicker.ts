@@ -281,8 +281,10 @@ export class WorkspacePicker extends Disposable {
 	readonly onDidRemoveAttachedContext: Event<string> = this._onDidRemoveAttachedContext.event;
 
 	private _selectedFolderUri: URI | undefined;
-	/** Whether No Workspace is selected, with {@link IWorkspacePickerOptions.ownNoWorkspaceSelection}. */
+	/** Whether No Workspace is selected, with {@link IWorkspacePickerOptions.ownNoWorkspaceSelection} or {@link _noWorkspaceUnpersisted}. */
 	private _noWorkspaceSelected = false;
+	/** Whether No Workspace is selected without remembering it in the recent workspaces, such as an environment's only choice. */
+	private _noWorkspaceUnpersisted = false;
 	private _selectedResolved: IResolvedFolderWorkspace | undefined;
 	private _selectedDevContainerFolderUri: URI | undefined;
 	private _preselectionSource = NewSessionWorkspacePreselectionSource.None;
@@ -1368,6 +1370,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedFolderUri = undefined;
 		this._selectedResolved = undefined;
 		this._noWorkspaceSelected = false;
+		this._noWorkspaceUnpersisted = false;
 		this._preselectionSource = NewSessionWorkspacePreselectionSource.None;
 		this._selectionOrigin = WorkspaceSelectionOrigin.None;
 		if (this._shouldPersistSelection()) {
@@ -1379,7 +1382,9 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	isNoWorkspaceSelected(): boolean {
-		return !!this.options.getNoWorkspaceOption && (this.options.ownNoWorkspaceSelection ? this._noWorkspaceSelected : this.recentWorkspacesService.isNoWorkspaceChecked());
+		return !!this.options.getNoWorkspaceOption && (this.options.ownNoWorkspaceSelection || this._noWorkspaceUnpersisted
+			? this._noWorkspaceSelected
+			: this.recentWorkspacesService.isNoWorkspaceChecked());
 	}
 
 	/**
@@ -1398,6 +1403,7 @@ export class WorkspacePicker extends Disposable {
 		this._connectionStatusWatch.clear();
 		this._applySelection(undefined);
 		this._noWorkspaceSelected = true;
+		this._noWorkspaceUnpersisted = !persist;
 		if (persist) {
 			this.recentWorkspacesService.checkNoWorkspace();
 		}
@@ -1454,6 +1460,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedFolderUri = folderUri;
 		this._selectedResolved = resolved;
 		this._noWorkspaceSelected = false;
+		this._noWorkspaceUnpersisted = false;
 		this._watchSelectedGitHubInfo();
 		this._preselectionSource = source;
 		this._selectionOrigin = origin;
@@ -1480,6 +1487,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedFolderUri = resolved?.workspace.folders[0]?.root;
 		if (resolved) {
 			this._noWorkspaceSelected = false;
+			this._noWorkspaceUnpersisted = false;
 		}
 		this._watchSelectedGitHubInfo();
 		this._preselectionSource = resolved ? source : NewSessionWorkspacePreselectionSource.None;
