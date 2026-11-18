@@ -152,7 +152,7 @@ export class ResourceTree<T extends NonNullable<unknown>, C> {
 		if (iterator.hasNext()) {
 			const result = this._delete(child, iterator.next());
 
-			if (typeof result !== 'undefined' && child.childrenCount === 0) {
+			if (typeof result !== 'undefined' && child.childrenCount === 0 && typeof child.element === 'undefined') {
 				node.delete(name);
 			}
 
