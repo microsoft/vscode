@@ -900,7 +900,26 @@ export class Repository implements Disposable {
 	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
 
 	private _isHidden: boolean;
-	get isHidden(): boolean { return this._isHidden; }
+	get isHidden(): boolean { return this._isHidden || this._isWarm; }
+
+	/**
+	 * Whether the repository is kept open, hidden, at a known location of a workspace folder other
+	 * than its current one, so that switching to that location is instant. A warm repository does
+	 * not run git status, autofetch or refresh while it is warm: the changes it sees are applied
+	 * once it is shown.
+	 */
+	private _isWarm: boolean;
+	get isWarm(): boolean { return this._isWarm; }
+
+	private _onDidChangeWarm = new EventEmitter<boolean>();
+	private readonly onDidChangeWarm: Event<boolean> = this._onDidChangeWarm.event;
+
+	private didRunFirstStatus!: () => void;
+
+	/**
+	 * Resolves once git status ran for the first time.
+	 */
+	readonly whenFirstStatus = new Promise<void>(resolve => this.didRunFirstStatus = resolve);
 
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
@@ -923,8 +942,11 @@ export class Repository implements Disposable {
 		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter,
-		private readonly repositoryCache: RepositoryCache
+		private readonly repositoryCache: RepositoryCache,
+		isWarm = false
 	) {
+		this._isWarm = isWarm;
+		this.disposables.push(this._onDidChangeWarm);
 		this._operations = new OperationManager(this.logger);
 
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
@@ -991,7 +1013,7 @@ export class Repository implements Disposable {
 				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this.isHidden, parent);
 		this._sourceControl.contextValue = repository.kind;
 		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
 		this._sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot
@@ -3076,6 +3098,7 @@ export class Repository implements Disposable {
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
+			this.didRunFirstStatus();
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
@@ -3364,8 +3387,26 @@ export class Repository implements Disposable {
 		await timeout(5000);
 	}
 
+	/**
+	 * Hides or shows the repository as a warm repository, see {@link isWarm}.
+	 */
+	setWarm(isWarm: boolean): void {
+		if (this._isWarm === isWarm) {
+			return;
+		}
+
+		this._isWarm = isWarm;
+		this._sourceControl.isHidden = this.isHidden;
+		this._onDidChangeWarm.fire(isWarm);
+	}
+
 	async whenIdleAndFocused(): Promise<void> {
 		while (true) {
+			if (this._isWarm) {
+				await eventToPromise(filterEvent(this.onDidChangeWarm, isWarm => !isWarm));
+				continue;
+			}
+
 			if (!this.operations.isIdle()) {
 				await eventToPromise(this.onDidRunOperation);
 				continue;

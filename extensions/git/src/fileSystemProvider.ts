@@ -142,6 +142,13 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			return repository;
 		}
 
+		// The repository of a location that a workspace folder switched to (ex: another worktree) can still be opening
+		await this.model.whenFolderLocationSwitchesOpened();
+		repository = this.model.getRepository(uri);
+		if (repository) {
+			return repository;
+		}
+
 		// In case of the empty window, or the agent sessions window, no repositories are open
 		// so we need to explicitly open a repository before we can serve git content for the
 		// given git resource.
