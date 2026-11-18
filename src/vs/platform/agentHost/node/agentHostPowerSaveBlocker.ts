@@ -21,7 +21,7 @@ interface IAgentHostPowerBackend {
 }
 
 const nativePowerBackend: IAgentHostPowerBackend = {
-	start: startPowerSaveBlocker,
+	start: startNativePowerSaveBlocker,
 	isOnBatteryPower: async () => !isWindows && isOnBatteryPower(),
 	killOnDispose: isMacintosh,
 };
@@ -70,6 +70,7 @@ export class AgentHostPowerSaveBlocker extends Disposable {
 		const child = this._backend.start(this._allowOnBattery);
 		let disposed = false;
 		let stderr = '';
+		child.stdout?.once('data', () => this._logService.trace('[AgentHostKeepAwake] Idle sleep inhibitor helper is ready'));
 		child.stderr?.on('data', (data: Buffer) => stderr = (stderr + data.toString()).slice(-4096));
 		child.on('error', error => {
 			if (!disposed) {
@@ -100,13 +101,14 @@ export class AgentHostPowerSaveBlocker extends Disposable {
 	}
 }
 
-function startPowerSaveBlocker(allowOnBattery: boolean): ChildProcess {
+export function startNativePowerSaveBlocker(allowOnBattery: boolean): ChildProcess {
 	if (isMacintosh) {
 		return spawn('/usr/bin/caffeinate', ['-i', '-w', String(process.pid)], { stdio: ['pipe', 'ignore', 'pipe'] });
 	}
 	if (isLinux) {
-		// Only inhibit idle, not explicit sleep or lid handling. cat exits on our stdin closing.
-		return spawn('systemd-inhibit', ['--what=idle', '--mode=block', '--no-ask-password', '--who=VS Code Agent Host', '--why=An agent is working', '/bin/cat'], { stdio: ['pipe', 'ignore', 'pipe'] });
+		// --no-ask-password requires systemd 257. Piped stdin already prevents its
+		// interactive polkit agent from starting. cat exits when our stdin closes.
+		return spawn('systemd-inhibit', ['--what=idle', '--mode=block', '--who=VS Code Agent Host', '--why=An agent is working', '/bin/cat'], { stdio: ['pipe', 'ignore', 'pipe'] });
 	}
 	if (isWindows) {
 		const systemRoot = process.env['SystemRoot'];
@@ -116,7 +118,7 @@ function startPowerSaveBlocker(allowOnBattery: boolean): ChildProcess {
 		return spawn(join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
 			'-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
 			`${windowsPowerSaveBlockerScript}\n[AgentHostPowerSaveBlocker]::Run($${allowOnBattery})`,
-		], { windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] });
+		], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
 	}
 	throw new Error('Idle sleep inhibition is not supported on this platform');
 }
@@ -182,6 +184,7 @@ public static class AgentHostPowerSaveBlocker {
 	public static void Run(bool allowOnBattery) {
 		const uint continuous = 0x80000000;
 		bool holding = false;
+		bool ready = false;
 		// Console.In can implement ReadLineAsync synchronously on Windows PowerShell.
 		var input = System.Threading.Tasks.Task.Run(() => Console.OpenStandardInput().ReadByte());
 		try {
@@ -203,6 +206,10 @@ public static class AgentHostPowerSaveBlocker {
 						throw new Win32Exception(Marshal.GetLastWin32Error());
 					}
 					holding = allowed;
+				}
+				if (!ready) {
+					Console.WriteLine("ready");
+					ready = true;
 				}
 			} while (!input.Wait(15000));
 		} finally {

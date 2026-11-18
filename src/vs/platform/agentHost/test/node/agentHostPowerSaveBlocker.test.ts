@@ -4,13 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ChildProcess } from 'child_process';
+import { ChildProcess, execFile } from 'child_process';
 import { PassThrough } from 'stream';
+import { promisify } from 'util';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostPowerSaveBlocker } from '../../node/agentHostPowerSaveBlocker.js';
+import { AgentHostPowerSaveBlocker, startNativePowerSaveBlocker } from '../../node/agentHostPowerSaveBlocker.js';
+
+async function runNativeHelper(waitForReady: boolean): Promise<{ code: number | null; stdout: string; stderr: string }> {
+	const child = startNativePowerSaveBlocker(true);
+	let stdout = '';
+	let stderr = '';
+	let exited = false;
+	child.stdout?.on('data', data => {
+		stdout += data.toString();
+		if (waitForReady && stdout.includes('ready')) {
+			child.stdin?.end();
+		}
+	});
+	child.stderr?.on('data', data => stderr += data.toString());
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		const code = await new Promise<number | null>((resolve, reject) => {
+			child.once('error', reject);
+			child.once('close', code => {
+				exited = true;
+				resolve(code);
+			});
+			timer = setTimeout(() => reject(new Error(`Native inhibitor did not exit: ${stderr}`)), 10_000);
+			if (!waitForReady) {
+				child.stdin?.end();
+			}
+		});
+		return { code, stdout, stderr };
+	} finally {
+		clearTimeout(timer);
+		child.stdin?.end();
+		if (!exited) {
+			child.kill();
+		}
+	}
+}
 
 suite('AgentHostPowerSaveBlocker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -136,5 +173,31 @@ suite('AgentHostPowerSaveBlocker', () => {
 		children[0].kill = () => { kills++; return true; };
 		blocker.dispose();
 		assert.strictEqual(kills, 1);
+	});
+
+	(isLinux ? test : test.skip)('native Linux launcher uses arguments accepted by installed systemd', async function () {
+		this.timeout(15_000);
+		try {
+			await promisify(execFile)('systemd-inhibit', ['--version'], { timeout: 5000 });
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				this.skip();
+			}
+			throw error;
+		}
+		const result = await runNativeHelper(false);
+		assert.doesNotMatch(result.stderr, /unrecognized option|unknown option|invalid option/i);
+		if (result.code !== 0) {
+			// CI containers may have the command but no system bus or permission to inhibit.
+			assert.match(result.stderr, /Failed to (connect|inhibit)|Access denied|Interactive authentication required/i);
+		}
+	});
+
+	(isWindows ? test : test.skip)('native Windows helper acquires a request and releases it on stdin EOF', async function () {
+		this.timeout(15_000);
+		const result = await runNativeHelper(true);
+		assert.strictEqual(result.code, 0, result.stderr);
+		assert.match(result.stdout, /ready/);
+		assert.strictEqual(result.stderr, '');
 	});
 });
