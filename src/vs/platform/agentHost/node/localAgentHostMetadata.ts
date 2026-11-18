@@ -365,11 +365,7 @@ async function applyWindowsOwnerOnlyAcl(path: string): Promise<void> {
 		throw new Error('Unable to resolve the Windows system directory for local agent host metadata.');
 	}
 	const systemDirectory = join(systemRoot, 'System32');
-	const whoAmI = await runWindowsCommand(join(systemDirectory, 'whoami.exe'), ['/user', '/fo', 'csv', '/nh']);
-	const sid = whoAmI.match(/S-\d+(?:-\d+)+/)?.[0];
-	if (!sid) {
-		throw new Error('Unable to determine the current Windows user SID for local agent host metadata.');
-	}
+	const sid = await getCurrentWindowsUserSid(systemDirectory);
 	const icacls = join(systemDirectory, 'icacls.exe');
 	await runWindowsCommand(icacls, [path, '/reset']);
 	await runWindowsCommand(icacls, [
@@ -380,6 +376,22 @@ async function applyWindowsOwnerOnlyAcl(path: string): Promise<void> {
 		'*S-1-5-18:(OI)(CI)F',
 		'*S-1-5-32-544:(OI)(CI)F',
 	]);
+}
+
+let currentUserSid: Promise<string> | undefined;
+
+function getCurrentWindowsUserSid(systemDirectory: string): Promise<string> {
+	return currentUserSid ??= (async () => {
+		const whoAmI = await runWindowsCommand(join(systemDirectory, 'whoami.exe'), ['/user', '/fo', 'csv', '/nh']);
+		const sid = whoAmI.match(/S-\d+(?:-\d+)+/)?.[0];
+		if (!sid) {
+			throw new Error('Unable to determine the current Windows user SID for local agent host metadata.');
+		}
+		return sid;
+	})().catch(error => {
+		currentUserSid = undefined;
+		throw error;
+	});
 }
 
 function runWindowsCommand(command: string, args: readonly string[]): Promise<string> {

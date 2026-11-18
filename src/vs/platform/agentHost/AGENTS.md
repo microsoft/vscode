@@ -83,6 +83,18 @@ The forwarder publishes every standard runtime row as `copilotSdk/<kind>`, but u
 
 ---
 
+### Copilot steering and interaction correlation
+
+Copilot enriches `agentHost.turnCompleted` with `sdkSessionId`, `interactionIds` (a JSON array capped at 64 distinct IDs), `interactionIdsTruncated`, and known `originalTurnId` / `steeredFromTurn`. Input/turn-start boundaries and exactly correlated responses populate the snapshot. No separate interaction-mapping event is emitted. Associations are many-to-many; never select an arbitrary first interaction or duplicate usage across its turns.
+
+`agentHost.turnSteered` records the host-promoted successor and `steeredFromTurn` when its SDK user-message echo arrives, independently of eventual completion. `runtimeDelivery` distinguishes `steering`, `idle`, `queued` and unavailable evidence. `attributionStatus=confirmed` requires steering delivery and a shared observed predecessor interaction; repeated confirmed steering retains the original turn. Explicit idle/queued delivery is `newRequest` and starts its own origin, even when AH promoted it as steering. A changed interaction with steering delivery is `interactionMismatch`; absent evidence is `unknown`. Neither inherits an earlier original turn. Host presentation and execution routing are unchanged.
+
+Known lineage also enriches exactly correlated `copilotSdk/response.success` / `response.error` rows and `agentHost.modelCallTurnCorrelated`, including late mappings. Join the latter by SDK session and model-call ID, rejecting conflicts. This avoids another asynchronous mapping event or extending the forwarding timeout. Raw runtime lineage fields cannot override host attribution. Standard/restricted channel controls remain unchanged.
+
+Analytical snapshots have bounded session-local history and are cleared on disposal, not persisted. Active routing sets still expire with their execution turn. Completion snapshots contain only evidence available at emission; later responses/bridges may add information. Child origins remain absent unless established independently. Missing echoes/completions, cache eviction, cancellation and telemetry loss can leave gaps; do not treat fallback ownership or missing usage as complete attribution.
+
+An original steering turn is not necessarily human-initiated. This does not establish cross-chat originating triggers for side-chat replies, reused workers, automation chains or notifications. Compaction retains attempt-based ownership and Fusion retains workflow-based routing. Full descendant usage and root-position coverage still require validated runtime inheritance and downstream joins; tool/edit attribution and restart reconstruction are separate concerns.
+
 ## 2. Ownership and Layering
 
 ```mermaid
@@ -747,6 +759,18 @@ Four events from `node/copilot/copilotComputerUseTelemetry.ts` track Computer Us
 - `agentHost.computerUsePluginInstall` is reported for each download of the plugin, with the result, the HTTP status of a refused download, the duration, the pinned version and the build.
 - `agentHost.computerUseSetup` is reported when a macOS permission setup becomes ready or ends, also when Computer Use is turned off while it waits. It has the reason, the permissions missing at its start and at its end, how many times the plugin asked and the duration.
 
+#### Artifact telemetry
+
+Recording, promoting and removing artifacts and references is reported without labels, links or URIs:
+
+- `agentHost.artifactRecorded` is reported once per entry an `add_artifact_or_reference` call or the Create Pull Request action records, after the change is persisted. It has the entry's kind, the classification that was requested, and the `outcome` from `SessionArtifactCollection.addOrPromoteArtifact`: `added`, `promoted`, `modeUpdated` or `alreadyRecorded`. An existing artifact is never downgraded, so a reference request can report `alreadyRecorded` for an artifact. Tool calls carry their `toolCallId`, to join with `agentHost.toolInvoked`, and the client and account of their turn.
+- `agentHost.artifactRemoved` is reported for each entry removed by `remove_artifact_or_reference` (`initiator` `agentTool`) or by the user through `vscode/removeSessionArtifact` (`user`). Both report the entry the serialized removal found, so overlapping removals of one entry report it once.
+- `agentHost.sessionSummary` adds what the session had recorded across its chats when the summary was sent: artifact and reference counts, by pull request and issue, and the session's own pull requests by how they were recorded. Own pull requests are those of `getSessionRelatedPullRequestUrls` across the session's folders, compared by `getPullRequestUrlKey`. Use these rather than a pull request count that includes references, which grows when an agent records a pull request as a reference. The counts are absent when the session's state is no longer loaded, such as on deletion.
+
+Every report names the session that owns the entry's chat once the change is done: a change queued while its chat moved applies to the session the chat moved to (`getArtifactChangeOwner`).
+
+Sessions started from a pull request record that pull request when the session is created, which is not reported as a recording.
+
 #### Session pre-warming
 
 Behind the `chat.agentHost.experimental.prewarmSessions` setting, an idle provisional draft can launch its SDK session and start its MCP servers before the first send (`IAgentChats.warmChat`). `AgentHostSessionPrewarmer` (`node/agentHostSessionPrewarmer.ts`) decides when: the provider must support warming, the draft must have an active client and resolved customization enablement, and every launch folder, including additional multi-root folders, must be trusted. A missing trust configuration counts as untrusted; workspace-less drafts skip the trust check because their scratch folder has no workspace content. Ephemeral and imported drafts never warm. The experiment trigger is logged only after these gates, in both arms.
@@ -1028,7 +1052,7 @@ Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed 
 
 ## 9. Tools, prompt text and reminders: the token budget
 
-Every tool definition the model can see is input tokens on every request of every turn, and part of the prompt cache. A tool that is not deferred is paid for by every session on every model call, whether or not it is ever used. This document is the rule set for keeping that budget flat. Read it before adding a tool, changing a tool description, bumping `@github/copilot-sdk`, or adding text that reaches the model.
+Every tool definition the model can see is input tokens on every request of every turn, and part of the prompt cache. A tool that is not deferred is paid for by every session on every model call, whether or not it is ever used. This document is the rule set for keeping that budget flat. Read it before adding a tool, changing a tool description, bumping `@microsoft/copilot-sdk`, or adding text that reaches the model.
 
 ### The default: deferred
 
@@ -1046,7 +1070,7 @@ Tool search requires the client to forward its `toolSearch` tool, which users tu
 
 | Origin | Defined in | Deferral lever | Default if you do nothing |
 | --- | --- | --- | --- |
-| Runtime built-in (ships inside the SDK) | `@github/copilot-sdk`; names in `CopilotToolName` (`node/copilot/copilotToolDisplay.ts`) | `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` in `node/copilot/copilotBuiltinToolAllowlist.ts` (the default `availableTools`), plus `excludedTools` in `CopilotSessionLauncher` for conditional policy | **Off.** A built-in that is not in the allow-list is never registered, so a new SDK built-in stays off until a PR adds it. |
+| Runtime built-in (ships inside the SDK) | `@microsoft/copilot-sdk`; names in `CopilotToolName` (`node/copilot/copilotToolDisplay.ts`) | `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` in `node/copilot/copilotBuiltinToolAllowlist.ts` (the default `availableTools`), plus `excludedTools` in `CopilotSessionLauncher` for conditional policy | **Off.** A built-in that is not in the allow-list is never registered, so a new SDK built-in stays off until a PR adds it. |
 | Host server tool | `node/shared/*ServerTools.ts`, `sessionIsolationTools.ts`, contributed through `serverToolGroups.ts` | `deferLoading` on `IAgentServerToolDefinition`; the Copilot session maps it to the SDK `defer` flag, Claude maps it to MCP `alwaysLoad`, Codex ignores it | Deferred on Copilot. Only an explicit `false` is eager, and the baseline test pins that set. Claude and Codex apply their SDK defaults when it is unset. |
 | Client tool (workbench `ILanguageModelToolsService` tool forwarded to the host) | Any `vscode.lm` tool in an enabled tool set; forwarded by `agentHostActiveClientService._getClientTools` | `NON_DEFERRED_CLIENT_TOOL_NAMES` in `node/copilot/toolSearchDeferral.ts` | Deferred. Only names in that set are eager. |
 | MCP tool | Workspace, plugin or connector MCP configuration | Always deferred; routed through the per-server proxy tool | Deferred. |
@@ -1083,7 +1107,7 @@ Run them with:
 5. If the tool is only useful in some sessions (ephemeral, workspaceless, worktree-capable), gate it with `enabledForEphemeralSessions`, `isEnabledForSession` or `getDefinitionForSession` so other sessions never see it at all. An unavailable tool that is still listed is the worst case: tokens paid, no capability.
 6. Run the guardrail tests above and attach the eager-set diff (or "unchanged") to the PR.
 
-### Checklist: bumping `@github/copilot-sdk`
+### Checklist: bumping `@microsoft/copilot-sdk`
 
 An SDK bump can add runtime built-in tools, change built-in tool descriptions, change the deferred-tools reminder, or move text between cache blocks. None of that is visible in the package diff.
 
@@ -1092,7 +1116,7 @@ An SDK bump can add runtime built-in tools, change built-in tool descriptions, c
 3. Run the prompt snapshot suite. If `expectedModelFacingToolNames` fails, the runtime renamed or dropped a tool the host relied on, or a tool previously deferred is now eager. Handle a rename as in step 2; remove a dropped tool from the allow-list and the expected list.
 4. Read the baseline diff for description and ordering changes. A reworded built-in description appears as one rewritten line; a moved section or a changed cache split appears as a changed `cache_control` boundary. Mention both in the PR description so the cache-hit-rate dashboards can be read against the bump.
 5. Check the managed-settings schema snapshot (`copilotSdkManagedSettings.integrationTest.ts`) for new tool-related settings that should be pinned off.
-6. Check `rpc.d.ts` / `types.d.ts` in the bump for new `SessionConfig` tool options (`toolSearch`, `defer`, filters). A new option that defaults to on belongs in the launcher with an explicit value.
+6. Check `rpc.d.ts` / `types.d.ts` in the bump for new `CreateSessionOptions` tool options (`toolSearch`, `defer`, filters). A new option that defaults to on belongs in the launcher with an explicit value.
 
 ### Prompt text and reminders
 

@@ -178,7 +178,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createShellAuthenticationCarousel, getShellAuthenticationAnswer, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isModelRouterPickSettled, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createShellAuthenticationCarousel, getShellAuthenticationAnswer, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isModelRouterPickSettled, previousModelRouted, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
@@ -4289,6 +4289,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
 		const usage$ = derived(reader => turn$.read(reader)?.usage);
 		const routerPickSettled$ = derived(reader => isModelRouterPickSettled(mergedState$.read(reader)?.turns ?? [], opts.turnId, modelRouterNameFromModelId(turn$.read(reader)?.message.model?.id)));
+		const previousRouted$ = derivedOpts({ equalsFn: equals }, reader => previousModelRouted(mergedState$.read(reader)?.turns ?? [], opts.turnId));
 		store.add(autorun(reader => {
 			const state = mergedState$.read(reader);
 			if (state?.turns.some(turn => turn.id === opts.turnId)) {
@@ -4448,8 +4449,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const turn = turn$.read(reader);
 				const selectedModelId = turn?.message?.model?.id;
 				const resolution = this._createTurnModelLookup(opts.sessionResource, selectedModelId, this._hideAutoExplainability.read(reader))
-					.toAutoModeResolution?.(usage$.read(reader), lastAutoModeResolution !== undefined && !lastAutoModeResolution.resolved);
-				// An unresolved row is skipped for a slash command, and for a model router that already picked for this chat and is not picking again.
+					.toAutoModeResolution?.(usage$.read(reader), lastAutoModeResolution !== undefined && !lastAutoModeResolution.resolved, previousRouted$.read(reader));
+				// An unresolved row is skipped for a slash command, and for a model router that already picked for this chat.
 				const skipUnresolved = !resolution?.resolved && (turn?.message.text.startsWith('/') || routerPickSettled$.read(reader));
 				if (!resolution || skipUnresolved || equals(lastAutoModeResolution, resolution)) {
 					return;
@@ -8011,15 +8012,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const modelName = knownModel ? displayName(knownModel) : rawBilledId && isCopilotFusionTier(rawBilledId) ? fusionModelName(rawBilledId) : rawBilledId;
 				return modelId && modelName ? { modelId, modelName, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 			},
-			toAutoModeResolution: (usage, settlesPendingRow) => {
+			toAutoModeResolution: (usage, settlesPendingRow, previousRouted) => {
 				const routed = readUsageInfoMeta(usage).modelRouted;
 				if (routed) {
-					// A router that picks once per chat has nothing new to report on a later turn, but a row already showing "picking a model" still has to settle.
-					if (routed.kept && routed.firstTurnOnly && !settlesPendingRow) {
+					// A chat keeps its route when the route moves to another model, such as a family's newer version or a fallback.
+					const switchedFrom = routed.kept && previousRouted && previousRouted.chosenModel !== routed.chosenModel ? previousRouted.chosenModel : routed.switchedFrom;
+					const kept = routed.kept && !switchedFrom;
+					// A turn with no effort ran on its model's default.
+					const effortChangedFrom = kept && previousRouted && previousRouted.effort !== routed.effort ? { effort: previousRouted.effort } : undefined;
+					// A turn that stayed on its model and effort has nothing new to report, but a row already showing "picking a model" still has to settle.
+					if (kept && !effortChangedFrom && !settlesPendingRow) {
 						return undefined;
 					}
 					const routedModel = lookupRawModel(routed.chosenModel);
-					const previousModel = routed.switchedFrom ? lookupRawModel(routed.switchedFrom) : undefined;
+					const previousModel = switchedFrom ? lookupRawModel(switchedFrom) : undefined;
 					return {
 						kind: 'autoModeResolution',
 						resolved: { id: routed.chosenModel, name: routedModel ? displayName(routedModel) : routed.chosenModel },
@@ -8028,9 +8034,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						preference: routed.preference,
 						effort: routed.effort,
 						...(routed.contextTokens ? { contextSize: routed.contextTokens } : {}),
-						switchedFrom: routed.switchedFrom && (previousModel ? displayName(previousModel) : routed.switchedFrom),
+						switchedFrom: switchedFrom && (previousModel ? displayName(previousModel) : switchedFrom),
 						defaulted: routed.defaulted,
-						kept: routed.kept,
+						kept: kept || undefined,
+						...(effortChangedFrom ? { effortChangedFrom } : {}),
 					};
 				}
 				if (isModelRouterModelId(fallbackRawModelId)) {

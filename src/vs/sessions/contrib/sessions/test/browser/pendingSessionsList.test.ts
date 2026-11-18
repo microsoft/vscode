@@ -632,17 +632,38 @@ suite('Sessions - pending list items', () => {
 		assert.strictEqual(mainWindow.document.activeElement, editor);
 	});
 
+	/**
+	 * Desktop WebKit has no Touch constructor, so where it can't be built the event carries plain touch
+	 * lists with the members that Gesture reads. The event still reaches the same listeners either way.
+	 */
+	function createTouchEvent(type: 'touchstart' | 'touchend', target: HTMLElement, point: { clientX: number; clientY: number; pageX: number; pageY: number }, active: boolean): Event {
+		const init = { bubbles: true, cancelable: true };
+		let touch: Touch | undefined;
+		try {
+			touch = new mainWindow.Touch({ identifier: 1, target, ...point });
+		} catch {
+			// Illegal constructor in desktop WebKit
+		}
+		if (touch) {
+			const touches = active ? [touch] : [];
+			return new mainWindow.TouchEvent(type, { ...init, touches, targetTouches: touches, changedTouches: [touch] });
+		}
+		const plainTouch = { identifier: 1, target, ...point };
+		const list = (items: readonly object[]) => Object.assign([...items], { item: (index: number) => items[index] ?? null });
+		const event = new Event(type, init);
+		const touches = active ? [plainTouch] : [];
+		Object.defineProperties(event, { touches: { value: list(touches) }, targetTouches: { value: list(touches) }, changedTouches: { value: list([plainTouch]) } });
+		return event;
+	}
+
 	test('clock touches bypass list gestures without suppressing the preview click', async () => {
 		const touchDevice = sinon.stub(Gesture, 'isTouchDevice').returns(true);
 		disposables.add(toDisposable(() => touchDevice.restore()));
 		const { indicator, opened } = createScheduledPreview();
 		const bounds = indicator.getBoundingClientRect();
-		const touch = new mainWindow.Touch({
-			identifier: 1, target: indicator, clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2,
-			pageX: bounds.x + bounds.width / 2, pageY: bounds.y + bounds.height / 2,
-		});
-		const start = new mainWindow.TouchEvent('touchstart', { touches: [touch], targetTouches: [touch], changedTouches: [touch], bubbles: true, cancelable: true });
-		const end = new mainWindow.TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true, cancelable: true });
+		const point = { clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2, pageX: bounds.x + bounds.width / 2, pageY: bounds.y + bounds.height / 2 };
+		const start = createTouchEvent('touchstart', indicator, point, true);
+		const end = createTouchEvent('touchend', indicator, point, false);
 		indicator.dispatchEvent(start);
 		indicator.dispatchEvent(end);
 		if (!start.defaultPrevented && !end.defaultPrevented) {
