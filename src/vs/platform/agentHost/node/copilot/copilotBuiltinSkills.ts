@@ -309,7 +309,7 @@ const modelRouterNamedRoutesExample = [
 
 const modelRouterSkillContent = `# Model router
 
-A model router is a YAML file that VS Code lists as a model in the model picker. A chat that uses it asks a decision model which route fits the request, and runs on that route's model. By default that happens once per chat. Use this skill to create, edit, clean up or fix one.
+A model router is a YAML file that VS Code lists as a model in the model picker. A chat that uses it asks a decision model which route fits the request, and runs on that route's model. By default it asks on the first message it routes in a chat, and the chat stays on that route. Use this skill to create, edit, clean up or fix one.
 
 ## Where routers live
 
@@ -329,7 +329,7 @@ ${modelRouterExample}
 - A family never picks an experimental model (the check marks those \`experimental\`); write its exact id. The check shows the model each route \`matched\`, and reports a name that fits more than one family, such as \`claude\`. It stops at the first entry of a list that is available, so it does not look up the entries after it: compare those with the model list yourself.
 - \`when\` says which requests the route is for, and \`examples\` gives up to 10 of them. See "Routes that route well" below.
 - \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose the effort when it routes a request; \`off\` leaves each model's default and ignores route \`effort\`.
-- \`switching: first-turn\`, the default, picks a route and an effort on the first message it routes in a chat and keeps them; \`auto\` also routes later messages, and moves the chat when the work clearly changes.
+- \`switching: first-turn\`, the default, picks a route and an effort on the first message it routes in a chat and does not pick again; \`auto\` also routes later messages, and moves the chat when the work clearly changes.
 - \`context-size: long\` (optional, on a route or for the whole router) runs a model on its larger context window when it has one; \`default\` uses its standard one. The check lists a model's \`contextSizes\` when it has more than one, and \`longContextCostsMore\` when the larger one is billed at a higher rate. Without the key each model keeps its own default. A chat that is on a long window stays on one, on every model that has one.
 - \`display-name\` (optional, at most 64 characters) is the name the model picker and the chat show in place of the file name.
 - \`guidance\` at the top of the file (optional) is a rule for the routing decision that applies to every request. A route's own \`guidance\` is something else: see "Named routes and guidance".
@@ -391,7 +391,7 @@ Quote any example or \`when\` text that contains \`: \`, such as a pasted error 
 
 Steps 2 and 3 are for a new router or a clean-up. A small edit makes only the change the user asked for. A review does step 1, reads the router for the problems under "Cleaning up an existing router", and reports them without editing.
 
-1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list, or a family of one of them, and not a model marked \`disabledByPolicy\`.
+1. Call \`check_model_router\` with no arguments to see the existing routers and the models this account can use, with their ids and effort levels. Only use ids from that list, or a family of one of them, and not a model marked \`disabledByPolicy\`. The exception is a model the user asks for by id that this account doesn't have, such as a fallback for someone they share the router with: say that it could not be checked here.
 2. Offer to look at the user's recent Copilot chats to see what work they do. Only if they agree, read the \`user.message\` events in \`{{COPILOT_SESSION_STATE}}/*/events.jsonl\` from the last few weeks that have no \`agentId\` and whose \`data.source\` is missing, empty or \`user\`; the others are subagent prompts and injected content. Take the user's request from \`data.content\`, leaving out the \`<reminder>\`, \`<attachments>\`, \`<context>\`, \`<current_datetime>\` and similar blocks the host adds. Ignore the agent's replies and tool output. List the kinds of work they do and how often, and how they phrase short requests and hand-offs.
 3. Make sure every kind of work the user does often is named in some route's \`when\` or examples. Write the examples in their style, but never copy file paths, names, links or other details from their messages into the router.
 4. Write or edit the file with your normal file tools.
