@@ -6,7 +6,6 @@
 import { Dimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { ScrollEvent } from '../../../../base/common/scrollable.js';
 import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
@@ -170,7 +169,6 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	handleResize?(): void;
 	handleHide?(): void;
 	handleContentsChanged?(): void;
-	handleScroll?(e: ScrollEvent): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;
