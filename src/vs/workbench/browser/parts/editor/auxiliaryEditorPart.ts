@@ -352,7 +352,10 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 	private readonly optionsDisposable = this._register(new MutableDisposable());
 
 	private isCompact = false;
-	private compactAllowsSplit = false;
+	private _compactAllowsSplit = false;
+
+	/** Whether the window stays compact when split; restored with the window. */
+	get compactAllowsSplit(): boolean { return this._compactAllowsSplit; }
 
 	constructor(
 		windowId: number,
@@ -380,7 +383,7 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 
 	updateOptions(options: { compact: boolean; compactAllowsSplit?: boolean }): void {
 		this.isCompact = options.compact;
-		this.compactAllowsSplit = !!options.compactAllowsSplit;
+		this._compactAllowsSplit = !!options.compactAllowsSplit;
 
 		if (options.compact) {
 			if (!this.optionsDisposable.value) {
@@ -396,7 +399,7 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 	}
 
 	override getAddGroupLocation(location: IEditorGroupView): IEditorGroupView {
-		if (this.isCompact && !this.compactAllowsSplit) {
+		if (this.isCompact && !this._compactAllowsSplit) {
 			// When in compact mode, we prefer to open groups in the main part
 			// as compact mode is typically meant for showing just 1 editor.
 			return this.editorPartsView.mainPart.activeGroup;

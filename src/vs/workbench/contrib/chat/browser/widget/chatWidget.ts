@@ -95,7 +95,7 @@ import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFilePars
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
 import { captureForkPromptSourceInput, IForkPromptSourceInput } from '../actions/chatForkActions.js';
-import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatBackgroundActivityPillSections, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatRespondent, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatAgentEmptyChatMessage, IChatBackgroundActivityPillSections, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatRespondent, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -509,7 +509,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	/** The selected agent's `empty-chat-message`, shown as an agent message in the empty chat instead of any welcome. */
-	private _agentEmptyChatMessage: HTMLElement | undefined;
+	private _agentEmptyChatMessage: IChatAgentEmptyChatMessage | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
 	private _isRenderingWelcome = false;
@@ -1738,10 +1738,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const numItems = this.viewModel?.getItems().length ?? 0;
 			if (!numItems && this._agentEmptyChatMessage) {
-				if (this._agentEmptyChatMessage.parentElement !== this.welcomeMessageContainer) {
+				if (this._agentEmptyChatMessage.element.parentElement !== this.welcomeMessageContainer) {
 					this.welcomePart.clear();
 					dom.clearNode(this.welcomeMessageContainer);
-					dom.append(this.welcomeMessageContainer, this._agentEmptyChatMessage);
+					dom.append(this.welcomeMessageContainer, this._agentEmptyChatMessage.element);
 				}
 			} else if (!numItems) {
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
@@ -3167,6 +3167,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.refreshParsedInput();
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
+		}));
+		// Also when the selected agent's file changes its `argument-hint` in place.
+		store.add(autorun(reader => {
+			input.currentModeObs.read(reader).argumentHint?.read(reader);
 			this._applyInputPlaceholder();
 		}));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
@@ -3642,14 +3646,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputEditor?.updateOptions({ placeholder: base && getSandboxPlaceholder(base, this.input.sandboxToggleChecked.get()) });
 	}
 
-	setAgentEmptyChatMessage(element: HTMLElement | undefined): void {
-		if (this._agentEmptyChatMessage === element) {
+	get agentEmptyChatMessage(): IChatAgentEmptyChatMessage | undefined {
+		return this._agentEmptyChatMessage;
+	}
+
+	setAgentEmptyChatMessage(message: IChatAgentEmptyChatMessage | undefined): void {
+		if (this._agentEmptyChatMessage === message) {
 			return;
 		}
-		this._agentEmptyChatMessage?.remove();
-		this._agentEmptyChatMessage = element;
-		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!element);
-		if (!element) {
+		this._agentEmptyChatMessage?.element.remove();
+		this._agentEmptyChatMessage = message;
+		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!message);
+		if (!message) {
 			// Force the default welcome to render again.
 			this.welcomePart.clear();
 		}

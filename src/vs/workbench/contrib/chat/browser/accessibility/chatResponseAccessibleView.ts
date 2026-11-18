@@ -84,6 +84,20 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 			}
 		}
 
+		// An empty chat may show the selected agent's message, which is not part of the transcript.
+		const emptyChatMessage = verifiedWidget.agentEmptyChatMessage;
+		if ((!focusedItem || !isResponseVM(focusedItem)) && emptyChatMessage) {
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.PanelChat,
+				{ type: AccessibleViewType.View },
+				() => emptyChatMessage.accessibleText,
+				() => verifiedWidget.focusInput(),
+				AccessibilityVerbositySettingId.Chat,
+				undefined,
+				[...emptyChatMessage.actions],
+			);
+		}
+
 		if (!focusedItem || !isResponseVM(focusedItem)) {
 			return;
 		}

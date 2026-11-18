@@ -266,6 +266,10 @@ export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizat
 
 /** The agent file forwarded under the given SDK name, which the runtime reports without a path. */
 export function getCopilotCustomAgentUri(customizations: ICopilotAppliedCustomizations, sdkName: string): URI | undefined {
+	const native = customizations.nativeAgents?.find(agent => agent.id === sdkName);
+	if (native) {
+		return URI.parse(native.uri);
+	}
 	return getCopilotCustomAgents(customizations).find(agent => (agent.sdkName ?? getSdkCustomAgentName(agent.uri)) === sdkName)?.uri;
 }
 
