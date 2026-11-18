@@ -755,7 +755,10 @@ suite('MultiEditorTabsControl', () => {
 					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
 					const addWidth = container.querySelector<HTMLElement>('.tabs-bar-add-tab')?.offsetWidth ?? 0;
 					const terminal = Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).at(-1)!;
-					const gutter = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd) - (hasAdd ? 0 : toolbar.offsetWidth);
+					// Following the last tab, the Add Tab control and the toolbar add to the margin of the last tab around a second gutter
+					const margin = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd);
+					const follows = tabs.closest<HTMLElement>('.tabs-and-actions-container')!.classList.contains('add-tab-follows-last-tab');
+					const gutter = follows ? (margin - addWidth - toolbar.offsetWidth) / 2 : margin - (hasAdd ? 0 : toolbar.offsetWidth);
 					const threshold = (hasAdd ? Math.max(80, toolbar.offsetWidth + addWidth) : 80 + toolbar.offsetWidth) + gutter;
 					for (const delta of [-2, 2, -2, 2]) {
 						await layoutConnectedGroup(group, threshold + delta);

@@ -284,13 +284,16 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				wrapperWidth: wrapper.offsetWidth,
 				finalTabReservation: parseFloat(mainWindow.getComputedStyle(finalTab).marginInlineEnd),
 				addMarker: strip.classList.contains('has-add-tab'),
+				addFollowsLastTab: strip.classList.contains('add-tab-follows-last-tab'),
+				addWidth: strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!.offsetWidth,
 			});
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result, actions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], visibleActions: [result.contextual ? 2 : 0, result.trailing ? 2 : 0], overlaps: false, inBounds: true, addPosition: 'relative', tabsClear: true,
 			separatorVisible: result.contextual && result.trailing,
 			reservedWidth: result.wrapperWidth,
-			finalTabReservation: (result.add ? 0 : result.wrapperWidth) + 7,
+			// Following the last tab, the Add Tab control and the toolbars share its row
+			finalTabReservation: result.addFollowsLastTab ? 7 * 2 + result.addWidth + result.wrapperWidth : (result.add ? 0 : result.wrapperWidth) + 7,
 			addMarker: result.add,
 		})));
 	});
@@ -342,6 +345,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 							position: mainWindow.getComputedStyle(add).position,
 							stacking: mainWindow.getComputedStyle(add).isolation,
 							controlsOnlyRow: add.classList.contains('controls-only-row'),
+							addFollowsLastTab: title.querySelector<HTMLElement>('.tabs-and-actions-container')!.classList.contains('add-tab-follows-last-tab'),
 							tabContentInlineStart,
 							buttonInlineStart: direction === 'ltr' ? buttonBounds.left - tabsBounds.left : tabsBounds.right - buttonBounds.right,
 							backingWidth: Number.parseFloat(backing.width),
@@ -355,7 +359,8 @@ suite('Sessions - Editor tabs trailing layout', () => {
 			}
 		}
 		assert.deepStrictEqual(results, results.map(result => ({
-			...result, position: 'relative', stacking: 'isolate', controlsOnlyRow: true, buttonInlineStart: result.tabContentInlineStart, backingWidth: result.buttonWidth, backingCenter: result.buttonCenter, backingZIndex: '-1',
+			// Next to the last tab, rather than alone on the last row aligned with the tabs above
+			...result, position: 'relative', stacking: 'isolate', controlsOnlyRow: !result.addFollowsLastTab, buttonInlineStart: result.addFollowsLastTab ? result.buttonInlineStart : result.tabContentInlineStart, backingWidth: result.buttonWidth, backingCenter: result.buttonCenter, backingZIndex: '-1',
 		})));
 	});
 
@@ -397,6 +402,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 						...trailingBounds(strip),
 						controlsOnlyRow: add.classList.contains('controls-only-row'),
 						addOnlyLastRow: tabs.every(tab => tab.offsetTop < add.offsetTop),
+						addFollowsLastTab: strip.classList.contains('add-tab-follows-last-tab'),
 						buttonInlineStart,
 						alignmentCapped: buttonInlineStart < desiredInset,
 						alignmentWithinTarget: buttonInlineStart <= desiredInset + 1 / 64,
@@ -420,9 +426,10 @@ suite('Sessions - Editor tabs trailing layout', () => {
 					inBounds: true,
 					addPosition: 'relative',
 					tabsClear: true,
-					controlsOnlyRow: true,
-					addOnlyLastRow: true,
-					alignmentWithinTarget: true,
+					// Unless the last tab fits next to it
+					controlsOnlyRow: !result.addFollowsLastTab,
+					addOnlyLastRow: !result.addFollowsLastTab,
+					alignmentWithinTarget: result.addFollowsLastTab ? result.alignmentWithinTarget : true,
 					backingClear: true,
 				}))
 			});
@@ -460,7 +467,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 		}));
 	});
 
-	test('fit and fixed tabs become upper pills when only Add Tab occupies the last row', async () => {
+	test('fit and fixed tabs above the row of Add Tab become upper pills', async () => {
 		model.openEditor(model.getEditorByIndex(model.count - 1)!, { active: true });
 		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 		const results = [];
@@ -485,6 +492,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 						wrapping: strip.classList.contains('wrapping'),
 						...trailingBounds(strip),
 						addOnlyLastRow: tabs.every(tab => tab.offsetTop < add.offsetTop),
+						addFollowsLastTab: strip.classList.contains('add-tab-follows-last-tab'),
 						rowMarkers: tabs.every(tab => tab.classList.contains('connected-tab-upper-row') === (tab.offsetTop !== add.offsetTop)),
 						noPhantomCap: !active.classList.contains('connected-tab-upper-row') || mainWindow.getComputedStyle(active.querySelector<HTMLElement>('.tab-fill')!, '::after').content === 'none',
 						lastRowHeight: add.getBoundingClientRect().height > 0,
@@ -492,7 +500,11 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				}
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapping: true, actions: [2, 2], visibleActions: [2, 2], overlaps: false, inBounds: true, tabsClear: true, addPosition: 'relative', addOnlyLastRow: true, rowMarkers: true, noPhantomCap: true, lastRowHeight: true })));
+		// Add Tab follows the last tab where they fit on one row, else it occupies the last row alone
+		assert.deepStrictEqual({ follows: results.some(result => result.addFollowsLastTab), alone: results.some(result => !result.addFollowsLastTab), results }, {
+			follows: true, alone: true,
+			results: results.map(result => ({ ...result, wrapping: true, actions: [2, 2], visibleActions: [2, 2], overlaps: false, inBounds: true, tabsClear: true, addPosition: 'relative', addOnlyLastRow: !result.addFollowsLastTab, rowMarkers: true, noPhantomCap: true, lastRowHeight: true })),
+		});
 	});
 
 	test('oversized fit labels wrap and ellipsize in Modern UI while legacy tabs retain scrolling', async () => {

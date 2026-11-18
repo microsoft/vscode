@@ -127,6 +127,15 @@
 	margin-inline-end: var(--modern-ui-tab-terminal-gutter);
 }
 
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tab.last-tab {
+	/* Reserves the space of the add tab button, which overlaps it, so that the button wraps with the last tab and never forms a row of its own */
+	margin-inline-end: calc(var(--modern-ui-tab-terminal-gutter) * 2 + var(--last-tab-add-tab-width) + var(--last-tab-margin-right));
+}
+
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tabs-bar-add-tab {
+	margin-inline-start: calc(-1 * (var(--modern-ui-tab-terminal-gutter) + var(--last-tab-add-tab-width) + var(--last-tab-margin-right)));
+}
+
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
 	min-height: calc(var(--editor-group-tab-height) + var(--vscode-spacing-size20) * 2);
 	border-block: var(--vscode-spacing-size20) solid transparent;
@@ -264,6 +273,11 @@
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit.last-tab:not(.sticky-compact) {
 	max-width: max(80px, calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter)));
+}
+
+/* The last tab also reserves the space of the add tab button, see its margin */
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping.has-add-tab.add-tab-follows-last-tab .tabs-container > .tab.sizing-fit.last-tab:not(.sticky-compact) {
+	max-width: max(80px, calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter) * 2));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit:not(.sticky-compact) > .tab-label,
