@@ -756,6 +756,12 @@ suite('git', () => {
 			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove my file: v2.txt: Device or resource busy\n'), 'my file: v2.txt');
 		});
 
+		test('C-quoted path from git clean', () => {
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove "d/caf\\303\\251 \\"q\\".txt": Permission denied\n'), 'd/café "q".txt');
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove "tab\\there\\\\x.txt": Invalid argument\n'), 'tab\there\\x.txt');
+			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove "日本 \\"q\\".txt": Invalid argument\n'), '日本 "q".txt');
+		});
+
 		test('first failure when several files fail', () => {
 			assert.strictEqual(getCantRemoveFilePath('warning: failed to remove a.txt: Permission denied\nwarning: failed to remove b.txt: Permission denied\n'), 'a.txt');
 		});
