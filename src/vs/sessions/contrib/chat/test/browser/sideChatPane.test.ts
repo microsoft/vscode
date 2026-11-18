@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -28,7 +28,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISideChatPlacementService } from '../../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
-import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
@@ -41,14 +41,16 @@ import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platfo
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatEditorContent } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
-import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 /** The main window's one editor group, as far as the side pane opens and closes its editors there. */
 class TestEditors extends Disposable {
 	readonly opened: EditorInput[] = [];
 	active: EditorInput | undefined;
+	/** Runs once an editor shows, before its open completes, such as for what the user does while editors open. */
+	afterOpen: ((input: EditorInput) => Promise<void> | void) | undefined;
 
 	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
 	readonly onDidCloseEditor = this._onDidCloseEditor.event;
@@ -66,6 +68,7 @@ class TestEditors extends Disposable {
 			this.active = input;
 			this._onDidActiveEditorChange.fire();
 		}
+		await this.afterOpen?.(input);
 		return undefined;
 	}
 
@@ -141,7 +144,7 @@ suite('SideChatPaneContribution', () => {
 		const editors = store.add(new TestEditors());
 		const workingSets = new SessionEditorWorkingSetService();
 		const chatHostOpenerService = new ChatHostOpenerService();
-		const onDidChangeSessions = store.add(new Emitter<never>());
+		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		const storage = store.add(new InMemoryStorageService());
 		let editorVisible = true;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
@@ -164,22 +167,41 @@ suite('SideChatPaneContribution', () => {
 			markChatRead: async (_session, read) => { reads.push(read.title.get()); return true; },
 		}));
 		instantiationService.stub(ISessionEditorWorkingSetService, workingSets);
-		instantiationService.stub(ISessionsHostLayoutService, upcastPartial<ISessionsHostLayoutService>({ suppressEditorPartAutoVisibility: () => Disposable.None, revealEditorPartExplicitly: () => reveals++ }));
+		let suppressed = 0;
+		instantiationService.stub(ISessionsHostLayoutService, upcastPartial<ISessionsHostLayoutService>({
+			suppressEditorPartAutoVisibility: () => { suppressed++; return toDisposable(() => suppressed--); },
+			isEditorPartAutoVisibilitySuppressed: () => suppressed > 0,
+			revealEditorPartExplicitly: () => reveals++,
+		}));
+		/** An editor other than a side chat's, such as the Changes tab. */
+		const otherEditor = (name: string) => store.add(new class extends EditorInput {
+			override get typeId() { return 'otherEditor'; }
+			override get resource() { return undefined; }
+			override getName() { return name; }
+		}());
+		/** Opens an editor as the layout does, such as the Changes tab, while it suppresses revealing the side pane. */
+		const openLayoutEditor = async (name: string) => {
+			suppressed++;
+			try {
+				await editors.openEditor(otherEditor(name));
+			} finally {
+				suppressed--;
+			}
+		};
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ isVisible: () => editorVisible, onDidChangePartVisibility: onDidChangePartVisibility.event }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>(editors as unknown as Partial<IEditorService>));
+		const group = upcastPartial<IEditorGroupsService['mainPart']['activeGroup']>({
+			id: 1,
+			get activeEditor() { return editors.active ?? null; },
+			get count() { return editors.opened.length; },
+			contains: (editor: EditorInput) => editors.opened.includes(editor),
+			getIndexOfEditor: (editor: EditorInput) => editors.opened.indexOf(editor),
+		});
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
 			whenReady: Promise.resolve(),
 			mainPart: upcastPartial<IEditorGroupsService['mainPart']>({
-				get activeGroup() {
-					return upcastPartial<IEditorGroupsService['mainPart']['activeGroup']>({
-						id: 1,
-						get activeEditor() { return editors.active ?? null; },
-						get count() { return editors.opened.length; },
-						contains: (editor: EditorInput) => editors.opened.includes(editor),
-						getIndexOfEditor: (editor: EditorInput) => editors.opened.indexOf(editor),
-					});
-				},
-				groups: [upcastPartial<IEditorGroupsService['mainPart']['activeGroup']>({ id: 1 })],
+				activeGroup: group,
+				groups: [group],
 			}),
 		}));
 		instantiationService.stub(IStorageService, storage);
@@ -213,7 +235,7 @@ suite('SideChatPaneContribution', () => {
 		};
 		const tabs = () => editors.opened.map(editor => editor.getName());
 		const active = () => editors.active?.getName();
-		return { store, instantiationService, workingSets, ownerOf, main, source, side, chats, sideStatus, sideRead, inSidePane, editors, chatHostOpenerService, panes, showOwner, reload, tabs, active, setEditorVisible, reveals: () => reveals, reads };
+		return { store, instantiationService, workingSets, ownerOf, main, source, side, chats, sideStatus, sideRead, session, onDidChangeSessions, inSidePane, editors, chatHostOpenerService, showOwner, reload, storage, otherEditor, openLayoutEditor, panes, tabs, active, setEditorVisible, reveals: () => reveals, reads };
 	}
 
 	test('opens claimed side chats as tabs of the side pane, each owner of the working set with its own, until closed', async () => {
@@ -312,6 +334,130 @@ suite('SideChatPaneContribution', () => {
 			shownAgain: { tabs: ['side', 'second', 'third'], active: 'second' },
 			moved: { tabs: ['third', 'side', 'second'], active: 'second' },
 		});
+	});
+
+	test('closing a side chat tab under one chat keeps it for another chat that shows it', async () => {
+		const { main, source, side, editors, chatHostOpenerService, showOwner, tabs } = setup();
+		await chatHostOpenerService.getOpenerFor(side.resource)!.reveal(side.resource);
+		await showOwner(main);
+		await chatHostOpenerService.getOpenerFor(side.resource)!.reveal(side.resource);
+		await editors.closeEditors(editors.findEditors(side.resource));
+		const closedUnderMain = tabs();
+		await showOwner(source);
+		const underSource = tabs();
+		await showOwner(main);
+
+		assert.deepStrictEqual({ closedUnderMain, underSource, underMain: tabs() }, { closedUnderMain: [], underSource: ['side'], underMain: [] });
+	});
+
+	test('side chats opened while the working set restores all open once it settles', async () => {
+		const { workingSets, ownerOf, source, side, chats, chatHostOpenerService, tabs } = setup();
+		const second = chat('second', { kind: ChatOriginKind.SideChat, parentChat: source.resource });
+		chats.set([...chats.get(), second], undefined);
+		const restore = workingSets.beginRestore(ownerOf(source));
+		const opening = [side, second].map(sideChat => chatHostOpenerService.getOpenerFor(sideChat.resource)!.reveal(sideChat.resource));
+		restore.dispose();
+		await Promise.all(opening);
+
+		assert.deepStrictEqual(tabs(), ['side', 'second']);
+	});
+
+	test('after a reload, side chats whose chats load out of order show in their saved order', async () => {
+		const { main, source, side, chats, chatHostOpenerService, reload, tabs } = setup();
+		const second = chat('second', { kind: ChatOriginKind.SideChat, parentChat: source.resource });
+		chats.set([main, source, side, second], undefined);
+		for (const sideChat of [side, second]) {
+			await chatHostOpenerService.getOpenerFor(sideChat.resource)!.reveal(sideChat.resource);
+		}
+
+		await reload(() => chats.set([main, source], undefined));
+		chats.set([main, source, second], undefined);
+		await timeout(0);
+		chats.set([main, source, second, side], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(tabs(), ['side', 'second']);
+	});
+
+	test('after a reload, a tab the layout opens before the side chats load does not replace the side chat that was active', async () => {
+		const { main, source, side, chats, chatHostOpenerService, reload, openLayoutEditor, active } = setup();
+		const second = chat('second', { kind: ChatOriginKind.SideChat, parentChat: source.resource });
+		chats.set([main, source, side, second], undefined);
+		for (const sideChat of [side, second]) {
+			await chatHostOpenerService.getOpenerFor(sideChat.resource)!.reveal(sideChat.resource);
+		}
+
+		await reload(() => chats.set([main, source], undefined));
+		await openLayoutEditor('Changes');
+		chats.set([main, source, side, second], undefined);
+		await timeout(0);
+
+		assert.strictEqual(active(), 'second');
+	});
+
+	test('turning side chats in the side pane off and on keeps the side chat that was active', async () => {
+		const { source, side, chats, inSidePane, chatHostOpenerService, storage, tabs, active } = setup();
+		const second = chat('second', { kind: ChatOriginKind.SideChat, parentChat: source.resource });
+		chats.set([...chats.get(), second], undefined);
+		for (const sideChat of [side, second]) {
+			await chatHostOpenerService.getOpenerFor(sideChat.resource)!.reveal(sideChat.resource);
+		}
+
+		inSidePane.set(false, undefined);
+		await storage.flush();
+		inSidePane.set(true, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ tabs: tabs(), active: active() }, { tabs: ['side', 'second'], active: 'second' });
+	});
+
+	test('an editor the user chooses while a chat\'s side chat tabs reopen stays active', async () => {
+		const { source, side, chats, editors, chatHostOpenerService, reload, otherEditor, tabs, active } = setup();
+		const second = chat('second', { kind: ChatOriginKind.SideChat, parentChat: source.resource });
+		chats.set([...chats.get(), second], undefined);
+		for (const sideChat of [side, second]) {
+			await chatHostOpenerService.getOpenerFor(sideChat.resource)!.reveal(sideChat.resource);
+		}
+
+		await reload(() => {
+			editors.afterOpen = async input => {
+				if (input.getName() === 'side') {
+					editors.afterOpen = undefined;
+					await editors.openEditor(otherEditor('Files'));
+				}
+			};
+		});
+
+		assert.deepStrictEqual({ tabs: tabs(), active: active() }, { tabs: ['side', 'Files', 'second'], active: 'Files' });
+	});
+
+	test('turning side chats in the side pane off while a chat\'s side chat tabs reopen leaves none open', async () => {
+		const { source, side, chats, inSidePane, editors, chatHostOpenerService, reload, tabs } = setup();
+		const second = chat('second', { kind: ChatOriginKind.SideChat, parentChat: source.resource });
+		chats.set([...chats.get(), second], undefined);
+		for (const sideChat of [side, second]) {
+			await chatHostOpenerService.getOpenerFor(sideChat.resource)!.reveal(sideChat.resource);
+		}
+
+		await reload(() => {
+			editors.afterOpen = input => {
+				if (input.getName() === 'side') {
+					inSidePane.set(false, undefined);
+				}
+			};
+		});
+
+		assert.deepStrictEqual(tabs(), []);
+	});
+
+	test('a side chat tab closes once its session is removed', async () => {
+		const { session, side, onDidChangeSessions, chatHostOpenerService, tabs } = setup();
+		await chatHostOpenerService.getOpenerFor(side.resource)!.reveal(side.resource);
+		const opened = tabs();
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await timeout(0);
+
+		assert.deepStrictEqual({ opened, removed: tabs() }, { opened: ['side'], removed: [] });
 	});
 
 	test('a side chat that a detached pane of the grid shows stays there', () => {

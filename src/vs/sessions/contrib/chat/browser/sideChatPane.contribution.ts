@@ -8,7 +8,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue, runOnChange, waitForState } from '../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
@@ -34,7 +34,7 @@ import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/brow
 import { isSideChat, ISideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IChatHostOpener, IChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
@@ -56,7 +56,7 @@ const SIDE_CHAT_HOST_OPTIONS: ISessionViewHostOptions = {
 const OPEN_SIDE_CHATS_STORAGE_KEY = 'sessions.sideChatPane.openSideChats';
 
 interface IOwnerSideChats {
-	/** The side chats the owner shows, in the order they opened. */
+	/** The owner's side chats, in tab order. */
 	readonly open: readonly string[];
 	/** The side chat that was the side pane's active editor when the owner was last shown. */
 	readonly active?: string;
@@ -108,7 +108,6 @@ export class SideChatTab extends Disposable implements ISessionChatViewHost {
 	) {
 		super();
 		this.input = this._register(new ChatEditorInput(chatResource));
-		// Its group always shows its tabs: the side pane's tab strip names the chat, as it has no header.
 		this.input.setRendersTitle(false);
 		this._register(registerSessionChatViewHost(this.input, this));
 		this.content = derived(this, reader => {
@@ -143,7 +142,6 @@ export class SideChatTab extends Disposable implements ISessionChatViewHost {
 			}
 			const details = getChatEditorInputDetails(shown.session, shown.chat, title.read(reader), reader, sessionsListModelService,
 				() => getSessionAgentMergeConfigurationObservable(shown.session, sessionsProvidersService, configurationService, shown.chat));
-			// Its tab shows that it is a side chat, as the other tabs of the side pane show what they are, unless its status needs attention.
 			this.input.setDetails(sideChatNeedsAttention(shown.chat, reader) ? details : { ...details, icon: Codicon.commentDiscussion });
 		}));
 
@@ -165,15 +163,26 @@ export class SideChatTab extends Disposable implements ISessionChatViewHost {
 			sessionsChanged.read(reader);
 			this._update(reader);
 		}));
+		this._register(_sessionsManagementService.onDidChangeSessions(event => {
+			const known = this._knownSession;
+			if (known && event.removed.some(session => extUri.isEqual(session.resource, known.resource))) {
+				this._end();
+			}
+		}));
 	}
 
 	private _update(reader: IReader): void {
 		if (this._ended) {
 			return;
 		}
-		// The chats of the session it was in change without the sessions changing, such as as one is deleted.
+		// `getSessionForChatResource` is untracked: deleting a chat changes `chats` without firing `onDidChangeSessions`.
 		this._knownSession?.chats.read(reader);
 		this._knownSession?.loading.read(reader);
+		// A provider can replace the session it was in, whose chats then load into the replacement.
+		const current = this._knownSession && this._sessionsManagementService.getSession(this._knownSession.resource);
+		if (current !== this._knownSession) {
+			current?.chats.read(reader);
+		}
 		const owner = this._sessionsManagementService.getSessionForChatResource(this.chatResource);
 		if (owner) {
 			if (this._knownSession !== owner.session) {
@@ -225,24 +234,27 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 
 	static readonly ID = 'sessions.contrib.sideChatPane';
 
-	/** The tabs whose editors the side pane shows, by side chat. */
 	private readonly _tabs = new ResourceMap<{ readonly tab: SideChatTab; readonly store: DisposableStore }>();
 	private readonly _owners: Map<string, IOwnerSideChats>;
 	/** The owner whose side chats the side pane shows, once the editors of its working set settled. */
 	private readonly _shownOwner = observableValue<ISessionEditorWorkingSetOwner | undefined>(this, undefined);
 	/**
-	 * Which side chat the shown owner showed when it was last shown, and whether the side pane showed it, until that side chat
-	 * opens, such as once its chat loads after a reload, or the user chooses what the side pane shows.
+	 * The side chat to reopen as the active editor for `ownerKey`, and whether to reveal the side pane for it. Cleared once it
+	 * opens or the user activates another editor.
 	 */
 	private _restoreIntent: { readonly ownerKey: string; readonly active: string; readonly revealed: boolean } | undefined;
 	/** Closes that do not change which side chats an owner shows, such as when another owner's side chats show. */
 	private _closingForOwner = 0;
-	/** Opens of an owner's side chats, which change the side pane's active editor without the user choosing it. */
-	private _openingForOwner = 0;
+	/**
+	 * Opens of an owner's side chats, which change the side pane's active editor to their side chats without the user
+	 * choosing it. Once the user chooses another editor meanwhile, an open keeps it active.
+	 */
+	private readonly _openingForOwner = new Set<{ readonly chats: readonly URI[]; userChose: boolean }>();
 	/** Whether what the side pane showed of the shown owner was captured, as the editors of another owner are about to show. */
 	private _shownOwnerCaptured = false;
 	private readonly _opener: IChatHostOpener;
-	private readonly _pendingOpen = this._register(new MutableDisposable());
+	/** Opens that wait for the working set to settle, cancelled once side chats stop showing in the side pane. */
+	private readonly _pendingOpens = this._register(new DisposableStore());
 	private readonly _activeSideChatTab: IContextKey<string>;
 
 	constructor(
@@ -268,7 +280,6 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 			showsChat: chat => this._tabs.has(chat),
 			claimsChat: chat => this._claimsChat(chat),
 			reveal: (chat, options) => this._reveal(chat, options?.preserveFocus),
-			// Other chats started from a side chat, such as forks, open where they would without the side pane.
 			opensBeside: chat => this._claimsChat(chat),
 			openBeside: (chat, _reference, options) => this._reveal(chat, options?.preserveFocus),
 			close: async chat => {
@@ -288,9 +299,9 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 			for (const [chat, entry] of this._tabs) {
 				if (entry.tab.input === event.editor) {
 					this._disposeTab(chat);
-					// Closed by the user: its owner shows it no more. Restoring the working set of an owner closes it too.
-					if (!this._closingForOwner && !this._workingSetService.restoreState.get().restoring) {
-						this._forget(chat);
+					const owner = this._shownOwner.get();
+					if (owner && this._isUserClose()) {
+						this._forget(chat, owner);
 					}
 					return;
 				}
@@ -318,7 +329,6 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 				this._showOwner(state.owner);
 			}
 		}));
-		// The shown owner's side chats open as they load, such as after a reload: its session loads, then its chats.
 		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSessions);
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
@@ -356,33 +366,17 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 			return;
 		}
 
-		// The side chat joins the side chats of the owner whose working set shows now, or is about to, once the side pane settles.
-		const requested = this._workingSetService.restoreState.get().owner;
-		const cancellation = new CancellationTokenSource();
-		this._pendingOpen.value = toDisposable(() => cancellation.dispose(true));
-		try {
-			if (this._workingSetService.restoreState.get().restoring) {
-				await waitForState(this._workingSetService.restoreState, state => !state.restoring, undefined, cancellation.token);
-			}
-		} catch (error) {
-			if (isCancellationError(error)) {
-				return;
-			}
-			throw error;
-		}
-		if (cancellation.token.isCancellationRequested) {
+		const requestedOwner = this._workingSetService.restoreState.get().owner;
+		if (!await this._whenWorkingSetSettled()) {
 			return;
 		}
-		this._pendingOpen.clear();
 		const owner = this._workingSetService.restoreState.get().owner;
-		if (ownerKeyOf(owner) !== ownerKeyOf(requested)) {
-			// The grid moved on while the side pane settled: the side chat shows once the owner it was opened for shows again.
-			if (requested) {
-				this._remember(requested, chat, true);
+		if (ownerKeyOf(owner) !== ownerKeyOf(requestedOwner)) {
+			if (requestedOwner) {
+				this._remember(requestedOwner, chat, true);
 			}
 			return;
 		}
-		// What the user opens shows, rather than what the owner showed before.
 		this._restoreIntent = undefined;
 		if (owner) {
 			this._remember(owner, chat, true);
@@ -390,21 +384,43 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 		await this._openTab(chat, { preserveFocus: !!preserveFocus, inactive: false });
 	}
 
+	/** Waits until the side pane's working set settles; false when side chats stop showing in the side pane meanwhile. */
+	private async _whenWorkingSetSettled(): Promise<boolean> {
+		if (!this._workingSetService.restoreState.get().restoring) {
+			return true;
+		}
+		const cancellation = new CancellationTokenSource();
+		const pending = this._pendingOpens.add(toDisposable(() => cancellation.dispose(true)));
+		try {
+			await waitForState(this._workingSetService.restoreState, state => !state.restoring, undefined, cancellation.token);
+			return true;
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return false;
+			}
+			throw error;
+		} finally {
+			this._pendingOpens.delete(pending);
+		}
+	}
+
 	/**
-	 * Opens the tab of `chat` in the side pane, or reveals it; `inactive` opens it behind the active editor, and `append` as
-	 * the last tab rather than beside the active editor.
+	 * Opens the tab of `chat` in the side pane, or reveals it in the group that shows it; `inactive` opens it behind the
+	 * active editor, and `order` among the tabs of the side chats it lists rather than beside the active editor.
 	 */
-	private async _openTab(chat: URI, options: { readonly preserveFocus: boolean; readonly inactive: boolean; readonly append?: boolean }): Promise<void> {
+	private async _openTab(chat: URI, options: { readonly preserveFocus: boolean; readonly inactive: boolean; readonly order?: readonly string[] }): Promise<void> {
+		// An open that waited may continue after side chats stopped showing in the side pane.
+		if (!this._placementService.inSidePane.get()) {
+			return;
+		}
 		let entry = this._tabs.get(chat);
 		if (!entry) {
 			const store = new DisposableStore();
 			const tab = store.add(this._instantiationService.createInstance(SideChatTab, chat, () => void this._closeTab(tab, false).catch(onUnexpectedError)));
-			// Side chats stay in the main window's side pane.
 			tab.input.setMoveRestriction({
 				reason: localize('sideChatPane.moveRestriction', "Side chats stay in the side panel."),
 				canMoveTo: group => this._editorGroupsService.mainPart.groups.some(candidate => candidate.id === group),
 			});
-			// A Details-only collapse keeps the chat alive in the hidden editor group.
 			store.add(this._workingSetService.registerEditorToRetain(tab.input));
 			store.add(tab.onDidEnd(() => {
 				this._forget(chat);
@@ -417,18 +433,34 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 		if (this._tabs.get(chat) !== entry) {
 			return;
 		}
-		const group = this._editorGroupsService.mainPart.activeGroup;
-		await this._editorService.openEditor(entry.tab.input, {
+		const input = entry.tab.input;
+		const shownIn = this._editorGroupsService.mainPart.groups.find(candidate => candidate.contains(input));
+		const group = shownIn ?? this._editorGroupsService.mainPart.activeGroup;
+		await this._editorService.openEditor(input, {
 			pinned: true,
 			revealIfOpened: true,
 			preserveFocus: options.preserveFocus,
 			inactive: options.inactive,
 			activation: options.inactive ? EditorActivation.PRESERVE : undefined,
-			index: options.append && !group.contains(entry.tab.input) ? group.count : undefined,
+			index: options.order && !shownIn ? this._indexInOrder(options.order, chat, group) : undefined,
 		}, group);
 	}
 
-	/** Closes the tab of `tab`'s chat; `forOwner` keeps the side chat among those its owner shows. */
+	/** Where `chat` goes among the tabs of `group` to keep `order`: before the tab of the next side chat in `order`, else last. */
+	private _indexInOrder(order: readonly string[], chat: URI, group: IEditorGroup): number {
+		for (const later of order.slice(order.indexOf(chat.toString()) + 1)) {
+			const input = this._tabs.get(URI.parse(later))?.tab.input;
+			if (input && group.contains(input)) {
+				return group.getIndexOfEditor(input);
+			}
+		}
+		return group.count;
+	}
+
+	/**
+	 * Closes the tab of `tab`'s chat; `forOwner` keeps the side chat among those its owner shows. Returns whether the tab
+	 * closed, which it does not when its close is vetoed.
+	 */
 	private async _closeTab(tab: SideChatTab, forOwner: boolean): Promise<boolean> {
 		const editors = this._editorService.findEditors(tab.chatResource).filter(editor => editor.editor === tab.input);
 		if (!editors.length) {
@@ -445,7 +477,6 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 				this._closingForOwner--;
 			}
 		}
-		// Not closed when vetoed.
 		return !this._editorService.findEditors(tab.chatResource).some(editor => editor.editor === tab.input);
 	}
 
@@ -466,7 +497,7 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private _closeAllTabs(): void {
-		this._pendingOpen.clear();
+		this._pendingOpens.clear();
 		this._restoreIntent = undefined;
 		for (const { tab } of [...this._tabs.values()]) {
 			void this._closeTab(tab, true).catch(onUnexpectedError);
@@ -482,7 +513,6 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 				void this._closeTab(tab, true).catch(onUnexpectedError);
 			}
 		}
-		// Showing the owner opens its side chats as they load, the one it showed last as the active editor.
 		this._setRestoreIntent(owner);
 		this._shownOwner.set(owner, undefined);
 		this._openOwnerSideChats();
@@ -508,38 +538,41 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 		const key = ownerKeyOf(owner);
 		const record = this._owners.get(key);
 		let intent = this._restoreIntent?.ownerKey === key ? this._restoreIntent : undefined;
-		if (intent && (!record?.open.includes(intent.active) || this._tabs.has(URI.parse(intent.active)))) {
-			// It shows that side chat no more, or already.
+		const intentSettled = !!intent && (!record?.open.includes(intent.active) || this._tabs.has(URI.parse(intent.active)));
+		if (intentSettled) {
 			this._restoreIntent = intent = undefined;
 		}
 		if (!record) {
 			return;
 		}
-		const toOpen = record.open.map(chat => URI.parse(chat)).filter(chat => !this._tabs.has(chat) && this._claimsChat(chat));
+		const toOpen = record.open.map(chat => URI.parse(chat)).filter(chat => !this._tabs.has(chat) && !this._chatHostOpenerService.getOpenerOf(chat) && this._claimsChat(chat));
 		if (!toOpen.length) {
 			return;
 		}
-		// Until its chat loads, the owner's active side chat stays to open.
+		// `_claimsChat` is false until the chat loads, so keep the intent until the active side chat can open.
 		const active = intent && toOpen.find(chat => chat.toString() === intent.active);
 		const revealActive = !!active && !!intent?.revealed;
 		if (active) {
 			this._restoreIntent = undefined;
 		}
+		const opening = { chats: toOpen, userChose: false };
 		const open = async () => {
-			// Showing an owner's side chats again does not reveal a closed side pane, but for the one it showed
+			// Reopening an owner's side chats does not reveal a closed side pane. Only the active one does, below, if the side pane showed it.
 			const suppression = this._hostLayoutService.suppressEditorPartAutoVisibility();
 			try {
-				// One after another, each as the last tab, so they show in the order the owner showed them.
+				// One after another, so each finds its place among those already open.
 				for (const chat of toOpen) {
 					if (this._shownOwner.get() !== owner) {
 						return;
 					}
-					await this._openTab(chat, { preserveFocus: true, inactive: revealActive || !isEqual(chat, active), append: true });
+					if (this._claimsChat(chat)) {
+						await this._openTab(chat, { preserveFocus: true, inactive: opening.userChose || revealActive || !isEqual(chat, active), order: record.open });
+					}
 				}
 			} finally {
 				suppression.dispose();
 			}
-			if (active && revealActive && this._shownOwner.get() === owner) {
+			if (active && revealActive && !opening.userChose && this._shownOwner.get() === owner) {
 				await this._openTab(active, { preserveFocus: true, inactive: false });
 				// The layout may still suppress revealing the side pane on open while it restores the owner's editors.
 				if (this._shownOwner.get() === owner && this._tabs.has(active)) {
@@ -547,8 +580,8 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 		};
-		this._openingForOwner++;
-		open().catch(error => this._logService.error('[SideChatPane] Restoring side chats failed', error)).finally(() => this._openingForOwner--);
+		this._openingForOwner.add(opening);
+		open().catch(error => this._logService.error('[SideChatPane] Restoring side chats failed', error)).finally(() => this._openingForOwner.delete(opening));
 	}
 
 	/** Remembers what the side pane shows of the shown owner, once, before the editors of another owner show. */
@@ -567,8 +600,8 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 		const owner = this._shownOwner.get();
 		const key = ownerKeyOf(owner);
 		const record = key && this._owners.get(key);
-		// Until the side chat it showed opens, the owner shows what it showed before.
-		if (!key || !record || this._restoreIntent?.ownerKey === key) {
+		// While a restore intent is pending, or side chats do not show in the side pane, the tabs do not show the owner's side chats.
+		if (!key || !record || this._restoreIntent?.ownerKey === key || !this._placementService.inSidePane.get()) {
 			return;
 		}
 		const group = this._editorGroupsService.mainPart.activeGroup;
@@ -595,23 +628,31 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 	/** Remembers which side chat the user made the side pane's active editor for the shown owner. */
 	private _onDidChangeActiveEditor(): void {
 		const owner = this._shownOwner.get();
-		if (!owner || this._workingSetService.restoreState.get().restoring || this._openingForOwner || this._closingForOwner) {
-			return;
-		}
-		// The user chose what the side pane shows: what the owner showed before does not open as active anymore.
-		this._restoreIntent = undefined;
-		const key = ownerKeyOf(owner);
-		const record = this._owners.get(key);
-		if (!record) {
+		if (!owner || this._workingSetService.restoreState.get().restoring || this._closingForOwner) {
 			return;
 		}
 		const activeEditor = this._editorGroupsService.mainPart.activeGroup.activeEditor;
-		if (!activeEditor) {
+		const active = activeEditor ? [...this._tabs.values()].find(({ tab }) => tab.input === activeEditor)?.tab.chatResource : undefined;
+		if (this._openingForOwner.size) {
+			// Those opens suppress the layout's auto-visibility themselves: an editor other than the side chats they open is the user's choice.
+			if (active && [...this._openingForOwner].some(opening => opening.chats.some(chat => isEqual(chat, active)))) {
+				return;
+			}
+			for (const opening of this._openingForOwner) {
+				opening.userChose = true;
+			}
+		} else if (this._hostLayoutService.isEditorPartAutoVisibilitySuppressed()) {
+			// The layout opens editors too, such as the Changes tab once a working set restores: those are not the user's choice.
 			return;
 		}
-		const active = [...this._tabs.values()].find(({ tab }) => tab.input === activeEditor)?.tab.chatResource.toString();
-		if (active !== record.active) {
-			this._owners.set(key, { ...record, active });
+		this._restoreIntent = undefined;
+		const key = ownerKeyOf(owner);
+		const record = this._owners.get(key);
+		if (!record || !activeEditor) {
+			return;
+		}
+		if (active?.toString() !== record.active) {
+			this._owners.set(key, { ...record, active: active?.toString() });
 		}
 	}
 
@@ -623,11 +664,17 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 		this._owners.set(key, { open, active: active ? resource : record?.active, revealed: record?.revealed });
 	}
 
-	/** No owner shows `chat` anymore, such as once it was closed or deleted. */
-	private _forget(chat: URI): void {
+	/** Whether a side chat tab that closes was closed by the user, not by showing another owner's side chats. */
+	private _isUserClose(): boolean {
+		return !this._closingForOwner && !this._workingSetService.restoreState.get().restoring;
+	}
+
+	/** `owner` shows `chat` no more, such as once the user closed its tab; without `owner`, no owner does, such as once it was deleted. */
+	private _forget(chat: URI, owner?: ISessionEditorWorkingSetOwner): void {
 		const resource = chat.toString();
+		const ownerKey = ownerKeyOf(owner);
 		for (const [key, record] of [...this._owners]) {
-			if (!record.open.includes(resource)) {
+			if ((ownerKey && key !== ownerKey) || !record.open.includes(resource)) {
 				continue;
 			}
 			const open = record.open.filter(candidate => candidate !== resource);
@@ -651,7 +698,6 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private _saveOwners(): void {
-		// What the side pane shows now, such as after it was hidden, shows after a reload.
 		if (!this._shownOwnerCaptured && !this._workingSetService.restoreState.get().restoring) {
 			this._recordShownOwner();
 		}
