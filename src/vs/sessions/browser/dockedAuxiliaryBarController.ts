@@ -29,7 +29,10 @@ export interface IDockedAuxiliaryBarHost {
 	/** Height of the editor tabs above the optional header. */
 	getTabsHeight(): number;
 	getEditorContentTop(): number;
-	/** Whether the editor header spans details docked beside the editor content, which then start below the header rather than below the tabs. */
+	/**
+	 * Whether the editor header spans details docked beside the editor content, or filling the frame while it is
+	 * hidden, which then start below the header rather than below the tabs.
+	 */
 	headerSpansDetails?(): boolean;
 }
 
@@ -173,7 +176,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 		const width = this.editorPartContainer.clientWidth;
 		const frameHeight = this.editorPartContainer.clientHeight;
 		const editorVisible = this.host.isEditorVisible();
-		const contentTop = editorVisible ? this.host.getEditorContentTop() : this.host.getTabsHeight();
+		const contentTop = editorVisible ? this.host.getEditorContentTop() : this._getTop();
 		const availableHeight = Math.max(0, frameHeight - contentTop);
 		const height = editorVisible ? DockedAuxiliaryBarController.getEffectiveHeight(this.host.getHeight(), availableHeight) : availableHeight;
 		const top = position === 'top' ? contentTop : frameHeight - height;
@@ -319,7 +322,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 		}));
 	}
 
-	/** Top of the details docked beside the editor content. */
+	/** Top of details that are docked beside the editor content or fill the frame while it is hidden. */
 	private _getTop(): number {
 		return this.host.headerSpansDetails?.() ? this.host.getEditorContentTop() : this.host.getTabsHeight();
 	}

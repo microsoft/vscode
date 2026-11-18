@@ -509,6 +509,96 @@ suite('SpotlightOverlay', () => {
 		]);
 	});
 
+	suite('title close button', () => {
+
+		/** The workbench defines these size tokens; without them the close button has no box to align. */
+		function createTokenContainer(): HTMLElement {
+			const container = createContainer();
+			for (const [token, value] of [['spacing-size40', '4px'], ['spacing-size80', '8px'], ['spacing-size160', '16px'], ['spacing-size200', '20px'], ['codiconFontSize-compact', '12px']]) {
+				container.style.setProperty(`--vscode-${token}`, value);
+			}
+			return container;
+		}
+
+		function getCloseButton(container: HTMLElement): HTMLElement {
+			return container.getElementsByClassName('spotlight-callout-close')[0] as HTMLElement;
+		}
+
+		function visibleFooterLabels(container: HTMLElement): (string | null)[] {
+			const footer = container.getElementsByClassName('spotlight-callout-actions')[0];
+			return (Array.from(footer.getElementsByClassName('monaco-button')) as HTMLElement[]).filter(button => button.style.display !== 'none').map(button => button.textContent);
+		}
+
+		test('replaces End Tour, which then only shows for a custom label, where the close button hides, and ends the tour', () => {
+			const container = createTokenContainer();
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const target = createTarget(container, 0, 0, 50, 50);
+			const reasons: OnboardingDismissReason[] = [];
+			disposables.add(overlay.onDidSkip(reason => reasons.push(reason)));
+			const before = container.getElementsByClassName('spotlight-callout-close').length;
+			const shown = () => ({ footer: visibleFooterLabels(container), close: mainWindow.getComputedStyle(getCloseButton(container)).display !== 'none' });
+
+			overlay.setTitleCloseButton(true);
+			overlay.show(target, content());
+			const withoutLabel = shown();
+			overlay.show(target, content({ endTourLabel: 'Continue in Folder' }));
+			const withLabel = shown();
+			overlay.show(target, content());
+			const afterLabel = shown();
+			const close = getCloseButton(container);
+			close.click();
+			close.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({ before, withoutLabel, withLabel, afterLabel, ariaLabel: close.getAttribute('aria-label'), reasons }, {
+				before: 0,
+				withoutLabel: { footer: ['Back', 'Next'], close: true },
+				withLabel: { footer: ['Continue in Folder', 'Back', 'Next'], close: false },
+				afterLabel: { footer: ['Back', 'Next'], close: true },
+				ariaLabel: 'End Tour',
+				reasons: [OnboardingDismissReason.SkipButton, OnboardingDismissReason.EscapeKey],
+			});
+		});
+
+		test('is centered on the first line of a wrapping title', () => {
+			const container = createTokenContainer();
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			overlay.setTitleCloseButton(true);
+			overlay.show(createTarget(container, 100, 50, 200, 40), content({ title: 'A title long enough to wrap onto a second line in the callout' }));
+
+			const title = container.getElementsByClassName('spotlight-callout-title')[0].getBoundingClientRect();
+			const close = getCloseButton(container).getBoundingClientRect();
+			assert.deepStrictEqual({
+				wraps: title.height >= 40,
+				closeCenter: close.top + close.height / 2,
+				closeRightOfTitle: close.left >= title.right,
+			}, {
+				wraps: true,
+				closeCenter: title.top + 10,
+				closeRightOfTitle: true,
+			});
+		});
+
+		test('takes focus for focusEndTour without a custom label and joins the focus trap', () => {
+			const container = createTokenContainer();
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const target = createTarget(container, 100, 100, 80, 30);
+			const close = () => getCloseButton(container);
+			const focused = () => mainWindow.document.activeElement === close() ? 'close' : mainWindow.document.activeElement?.textContent;
+			overlay.setTitleCloseButton(true);
+
+			overlay.show(target, content({ focusEndTour: true, stepIndex: 0, stepCount: 1, canGoBack: false, isLastStep: true }), { hideNext: true });
+			const withoutLabel = focused();
+			const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+			Object.defineProperty(tab, 'keyCode', { get: () => 9 });
+			close().dispatchEvent(tab);
+			const afterTab = focused();
+			overlay.show(target, content({ endTourLabel: 'Got It', showEndTour: true, focusEndTour: true, stepIndex: 0, stepCount: 1, canGoBack: false, isLastStep: true }), { hideNext: true });
+			const withLabel = focused();
+
+			assert.deepStrictEqual({ withoutLabel, afterTab, withLabel }, { withoutLabel: 'close', afterTab: 'close', withLabel: 'Got It' });
+		});
+	});
+
 	test('allowTargetInteraction arranges click blockers around the target', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));

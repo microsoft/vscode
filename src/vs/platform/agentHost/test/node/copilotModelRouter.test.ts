@@ -292,7 +292,8 @@ suite('CopilotModelRouter', () => {
 		const moved = await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'fix the crash', models, previousTurns: [routedTurn({ router: 'daily', chosenModel: 'opus', routeName: 'feature' })], picker });
 		assert.deepStrictEqual({ routed: moved.routed, notices: moved.notices }, {
 			routed: { router: 'daily', chosenModel: 'opus', routeName: 'bug-fix', switchedFrom: 'opus', preference: 'Fixing.' },
-			notices: ['This request fits another route, so the model router daily moved this chat to its bug-fix route on OPUS.'],
+			// The routing itself says the chat moved, so there is no notice to repeat it.
+			notices: [],
 		});
 	});
 

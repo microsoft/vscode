@@ -262,11 +262,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			// comes from the renderer: not for Markdown with raw HTML, nor trusted Markdown with raw spans.
 			const content = this.markdown.content;
 			const renderMath = enableMath && !content.supportHtml && !(content.isTrusted && /<span/i.test(content.value));
-			const markedExtensions = renderMath
+			const hasMath = renderMath && content.value.includes('$');
+			const markedExtensions = hasMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
 					throwOnError: false
 				})])
 				: [];
+			if (hasMath && markedExtensions.length === 0) {
+				MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
+					.then(() => {
+						if (!store.isDisposed) {
+							this.renderMarkdown();
+						}
+					})
+					.catch(e => console.error('Failed to load MarkedKatexSupport extension:', e));
+			}
 
 			// Enables github-flavored-markdown + line breaks with single newlines
 			// (which matches typical expectations but isn't "proper" in markdown)
@@ -549,17 +559,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		// this is important when a markdown part first appears (e.g.
 		// after thinking content) and already contains visible content.
 		this._incrementalMorpher?.seed(markdown.content.value, /* animateInitial */ true);
-
-		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
-			// KaTeX not yet loaded - load it and re-render when ready
-			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
-				.then(() => {
-					this.renderMarkdown();
-				})
-				.catch(e => {
-					console.error('Failed to load MarkedKatexSupport extension:', e);
-				});
-		}
 	}
 
 	override dispose(): void {
