@@ -758,6 +758,7 @@ export interface IAgentTurnInteraction {
 	readonly steeredFromTurn?: string;
 	readonly interactionIds: readonly string[];
 	readonly interactionIdsTruncated: boolean;
+	readonly steeringDelivery?: 'steering' | 'idle' | 'queued' | 'unknown';
 }
 
 /** A point-in-time snapshot; missing counters and missing snapshots remain unknown. */

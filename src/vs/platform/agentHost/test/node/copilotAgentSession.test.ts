@@ -26154,6 +26154,88 @@ Use the attached image as context.
 			}, { pendingEvents: 256, droppedEvents: 1 });
 		});
 
+		for (const delivery of ['steering', 'idle', 'queued'] as const) {
+			test(`pending input delivered as ${delivery} retains only the appropriate Fusion and SDK state`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('original');
+				mockSession.fire('user.message', { content: 'start', interactionId: 'original-interaction', turnId: fusionTestData.resolved.turnId });
+				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
+				mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+				mockSession.fire('assistant.turn_start', { turnId: 'old-loop', interactionId: 'original-interaction' });
+				await session.sendSteering({ id: 'pending', message: { text: 'next', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', {
+					content: 'next', delivery,
+					interactionId: delivery === 'steering' ? 'original-interaction' : 'new-interaction',
+					turnId: delivery === 'steering' ? 'old-loop' : 'new-loop',
+				});
+				const successor = session.currentTurnId!;
+				const snapshot = session.turnInteractionCorrelation.get(successor);
+				assert.deepStrictEqual({
+					promotions: getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted && action.queuedMessageId === 'pending').length,
+					loopInherited: session['_currentTurn'].value?.sdkTurnIds.has('old-loop'),
+					workflowInherited: session.getFusionTurnId(fusionTestData.resolved.fusionId) === successor,
+					delivery: snapshot?.steeringDelivery,
+					origin: snapshot?.originalTurnId,
+					ready: session.hasRunningTurn,
+				}, {
+					promotions: 1, loopInherited: delivery === 'steering', workflowInherited: delivery === 'steering',
+					delivery, origin: delivery === 'steering' ? 'original' : successor, ready: true,
+				});
+			});
+		}
+
+		for (const delivery of ['idle', 'queued'] as const) {
+			test(`preserves the incoming Fusion prelude before a ${delivery} echo while excluding predecessor work`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('original');
+				mockSession.fire('user.message', { content: 'original', turnId: 'old-loop', interactionId: 'i1' }, { id: 'old-message' });
+				mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'old-route', parentId: 'old-message' });
+				mockSession.fire('assistant.fusion_phase_started', fusionMainPassTestData.started);
+				const oldFusion = { fusionId: fusionTestData.resolved.fusionId, phaseId: fusionMainPassTestData.started.phaseId, syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+				mockSession.fire('tool.execution_start', { toolCallId: 'old-tool', toolName: 'view', arguments: { path: '/old.ts' }, fusion: oldFusion }, { ephemeral: true });
+				await session.sendSteering({ id: 'pending', message: { text: 'new request', origin: { kind: MessageKind.User } } });
+				const incoming = 'incoming-fusion';
+				const newFusion = { ...oldFusion, fusionId: incoming, phaseId: 'incoming-main' };
+				mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId: incoming, turnId: 'incoming-workflow' }, { id: 'new-route' });
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionMainPassTestData.started, fusionId: incoming, phaseId: newFusion.phaseId });
+				mockSession.fire('tool.execution_start', { toolCallId: 'new-tool', toolName: 'view', arguments: { path: '/new.ts' }, fusion: newFusion }, { ephemeral: true });
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: incoming }, { id: 'new-phase', parentId: 'new-route' });
+				const beforePromotion = signals.length;
+				mockSession.fire('user.message', { content: 'new request', delivery, turnId: 'new-loop', interactionId: 'i2' }, { id: 'new-message', parentId: 'new-phase' });
+				const successor = session.currentTurnId!;
+				const toolOwners = ['old-tool', 'new-tool'].map(id => [id, session['_activeToolCalls'].get(id)?.turnId === successor]);
+				const start = signals.length;
+				mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, fusionId: incoming });
+				const completionCount = getActions(signals.slice(start)).filter(action => action.type === ActionType.ChatToolCallComplete).length;
+				mockSession.fire('tool.execution_complete', { toolCallId: 'new-tool', success: true, result: { content: 'new file' }, fusion: newFusion }, { ephemeral: true });
+				mockSession.fire('tool.execution_start', { toolCallId: 'new-tool', toolName: 'view', arguments: { path: '/new.ts' }, fusion: { ...newFusion, commitId: 'new-commit' } });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'new-tool', success: true, result: { content: 'new file' }, fusion: { ...newFusion, commitId: 'new-commit' } });
+				const beforeOld = signals.length;
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionMainPassTestData.started, phaseId: 'late-old-phase' });
+				for (const ephemeral of [true, false]) {
+					mockSession.fire('assistant.message', { messageId: 'late-old-message', content: 'OLD REQUEST CONTENT', toolRequests: [{ toolCallId: 'late-old-tool', name: 'view', arguments: {} }], fusion: ephemeral ? oldFusion : { ...oldFusion, commitId: 'old-commit' }, ...(ephemeral ? {} : { apiCallId: 'late-old-call' }) }, { ephemeral });
+					mockSession.fire('tool.execution_start', { toolCallId: 'late-old-tool', toolName: 'view', arguments: { path: '/old.ts' }, fusion: ephemeral ? oldFusion : { ...oldFusion, commitId: 'old-commit' } }, { ephemeral });
+				}
+				assert.deepStrictEqual({
+					promotions: getActions(signals).filter(action => action.type === ActionType.ChatTurnStarted && action.queuedMessageId === 'pending').length,
+					incomingOwner: session.getFusionTurnId(incoming),
+					oldOwner: session.getFusionTurnId(fusionTestData.resolved.fusionId),
+					completionCount,
+					toolOwners,
+					successorToolActions: getActions(signals.slice(beforePromotion)).flatMap(action => (action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallComplete)
+						&& action.turnId === successor && ['old-tool', 'new-tool'].includes(action.toolCallId) ? [[action.type, action.toolCallId]] : []),
+					lateOldSignals: signals.slice(beforeOld).map(signal => signal.kind === 'model_call_completed' ? { kind: signal.kind, turnId: signal.turnId, modelCallId: signal.modelCallId } : signal.kind),
+					origin: session.turnInteractionCorrelation.get(successor)?.originalTurnId,
+				}, {
+					promotions: 1, incomingOwner: successor, oldOwner: 'original', completionCount: 1,
+					toolOwners: [['old-tool', false], ['new-tool', true]],
+					successorToolActions: [[ActionType.ChatToolCallStart, 'new-tool'], [ActionType.ChatToolCallComplete, 'new-tool']],
+					lateOldSignals: [{ kind: 'model_call_completed', turnId: 'original', modelCallId: 'late-old-call' }], origin: successor,
+				});
+			});
+		}
+
 		test('steering during a Fusion phase hands the in-flight workflow to the steering turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');

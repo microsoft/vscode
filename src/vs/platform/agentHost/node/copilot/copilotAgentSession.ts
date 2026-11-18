@@ -73,7 +73,7 @@ import { createCopilotModelConfigurationReport } from './copilotManagedModelConf
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { getToolCallDurationMs, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
+import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 import { OtelData, type IOtlpLogRecord, type OtelAttributeValue, type OtlpLogLevelName } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -304,6 +304,7 @@ interface ILastMcpAuthRequirement {
 }
 
 interface ICopilotActiveToolCall {
+	readonly fusionId?: string;
 	readonly turnId: string;
 	readonly copilotTrackingId?: string;
 	readonly startedAt?: string;
@@ -2973,7 +2974,8 @@ export class CopilotAgentSession extends Disposable {
 	 * {@link CopilotTurn}, so subsequent SDK events target the steering turn
 	 * rather than being folded into the original turn.
 	 */
-	private _beginSteeringTurn(steering: IPendingSteering): void {
+	private _beginSteeringTurn(steering: IPendingSteering, echo?: SessionEventPayload<'user.message'>): void {
+		const runtimeDelivery = echo?.data.delivery;
 		const steeredFromTurnId = this._currentTurn.value?.id;
 		const steeredFromTurnContext = steeredFromTurnId ? this.turnInteractionCorrelation.getSteeringContext(steeredFromTurnId) : steering.steeredFromTurnContext;
 		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
@@ -2981,7 +2983,10 @@ export class CopilotAgentSession extends Disposable {
 		// message, so the steering turn keeps the preempted turn's Fusion state
 		// (empty when no workflow is running); otherwise its phase events can no
 		// longer be routed and stay invisible. A cancelled workflow is not kept.
-		const preservesFusionState = steeredFromTurnId !== undefined && !this._fusionTurnCancelled;
+		const startsNewRun = runtimeDelivery === 'idle' || runtimeDelivery === 'queued';
+		const incomingFusion = startsNewRun && echo ? this._fusionRequestCorrelation.getPrecedingResolution(echo) : undefined;
+		const preservesFusionState = (!startsNewRun || incomingFusion !== undefined) && steeredFromTurnId !== undefined && !this._fusionTurnCancelled;
+		this._logService.trace(`[Copilot:${this.sessionId}] Pending message promoted: pendingId=${steering.pendingMessage.id}, steeredFromTurn=${steeredFromTurnId}, runtimeDelivery=${runtimeDelivery ?? 'unknown'}, preservesFusionState=${preservesFusionState}`);
 		this._completeActiveTurn(false, preservesFusionState);
 		const newTurnId = generateUuid();
 		steering.promotedTurnId = newTurnId;
@@ -3002,31 +3007,32 @@ export class CopilotAgentSession extends Disposable {
 		if (preservesFusionState) {
 			// Phase chats stay open: like subagents, they outlive the root turn, and closing one would drop its running tools' results.
 			this._startTurn(newTurnId, steering.sender?.clientId, steering.sender?.clientContext);
-			this._transferFusionWorkflow(steeredFromTurnId, newTurnId);
+			this._transferFusionWorkflow(steeredFromTurnId, newTurnId, incomingFusion);
 		} else {
 			this.resetTurnState(newTurnId, steering.sender?.clientId, steering.sender?.clientContext.clientType, steering.sender?.clientContext);
 		}
 		const turn = this._currentTurn.value;
 		if (turn) {
-			if (steeredFromTurnContext) {
-				this.turnInteractionCorrelation.prepareSteering(turn.id, steeredFromTurnContext);
-			}
+			this.turnInteractionCorrelation.prepareSteering(turn.id, steeredFromTurnContext);
 			turn.messageCharLen = steering.pendingMessage.message.text.length;
 			turn.sdkSendInvoked = true;
 			turn.markRunning();
 		}
 		if (preservesFusionState) {
 			const resumedPhase = this._fusionProgress.resumeRunningPhase();
-			if (resumedPhase) {
+			if (resumedPhase && (!incomingFusion || (resumedPhase.phase && readToolCallMeta(resumedPhase.phase.toolCall).fusionPhase?.fusionId === incomingFusion.fusionId))) {
 				this._emitFusionProgress(resumedPhase);
 			}
-			this._transferProvisionalFusionToolCalls(steeredFromTurnId, newTurnId);
+			this._transferProvisionalFusionToolCalls(steeredFromTurnId, newTurnId, incomingFusion?.fusionId);
+			if (incomingFusion) {
+				this._recordHostSdkTurn(incomingFusion.turnId, newTurnId);
+			}
 		}
-		if (activeSdkTurnId && turn) {
+		if (!startsNewRun && activeSdkTurnId && turn) {
 			turn.activeSdkTurnId = activeSdkTurnId;
 			turn.sdkTurnIds.add(activeSdkTurnId);
 		}
-		if (activeSdkTurnId) {
+		if (!startsNewRun && activeSdkTurnId) {
 			this._recordHostSdkTurn(activeSdkTurnId, newTurnId);
 		}
 		// The SDK already runs this turn with the permission mode of the turn it preempted.
@@ -3161,6 +3167,21 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const toolCallId = fusion?.phaseId ? getFusionPhaseToolCallId(fusion.fusionId, fusion.phaseId) : this._fusionProgress.runningPhaseToolCallId;
 		return toolCallId !== undefined && this._fusionPhases.has(toolCallId) ? toolCallId : undefined;
+	}
+
+	/** The earlier host turn owning a root Fusion event, when that turn is no longer the active turn. */
+	private _earlierFusionTurnId(event: { readonly type: string; readonly agentId?: string; readonly data: { readonly fusion?: { readonly fusionId: string } | null } }): string | undefined {
+		const ownerTurnId = event.data.fusion && this.getFusionTurnId(event.data.fusion.fusionId);
+		const turn = this._currentTurn.value;
+		if (!event.agentId && turn && ownerTurnId && ownerTurnId !== turn.id) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring Fusion content for an earlier turn: ${event.type}`);
+			return ownerTurnId;
+		}
+		return undefined;
+	}
+
+	private _shouldDropEarlierFusionEvent(event: { readonly type: string; readonly agentId?: string; readonly data: { readonly fusion?: { readonly fusionId: string } | null } }): boolean {
+		return this._earlierFusionTurnId(event) !== undefined;
 	}
 
 	private _updateSubagentModel(parentToolCallId: string, model: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void {
@@ -3828,10 +3849,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Hands the Fusion workflows owned by one host turn to its successor, without marking their SDK turns ambiguous. */
-	private _transferFusionWorkflow(fromTurnId: string, toTurnId: string): void {
+	private _transferFusionWorkflow(fromTurnId: string, toTurnId: string, incomingFusion?: { readonly fusionId: string; readonly turnId: string }): void {
 		for (const owners of [this._fusionEventTurnIds, this._hostTurnIdsBySdkTurnId]) {
 			for (const [key, turnId] of owners) {
-				if (turnId === fromTurnId) {
+				const matchesIncoming = !incomingFusion || key === (owners === this._fusionEventTurnIds ? `fusion:${incomingFusion.fusionId}` : incomingFusion.turnId);
+				if (turnId === fromTurnId && matchesIncoming) {
 					owners.set(key, toTurnId);
 				}
 			}
@@ -3845,10 +3867,11 @@ export class CopilotAgentSession extends Disposable {
 	 * keep their open chat, and `task_complete` never had a row. Client tools are not
 	 * replayed: a new running row would ask the client to execute them again.
 	 */
-	private _transferProvisionalFusionToolCalls(fromTurnId: string, toTurnId: string): void {
+	private _transferProvisionalFusionToolCalls(fromTurnId: string, toTurnId: string, incomingFusionId?: string): void {
 		const unpublished = [...this._unpublishedToolCompletions].map(([toolCallId, { toolCall }]) => [toolCallId, toolCall] as const);
 		for (const [toolCallId, toolCall] of [...this._activeToolCalls, ...unpublished]) {
 			if (toolCall.turnId !== fromTurnId
+				|| (incomingFusionId !== undefined && toolCall.fusionId !== incomingFusionId)
 				|| (toolCall.parentToolCallId && !this._fusionPhases.has(toolCall.parentToolCallId))
 				|| toolCall.contributor?.kind === ToolCallContributorKind.Client
 				|| !this._surfacedProvisionalFusionToolCallIds.has(toolCallId)
@@ -11152,8 +11175,11 @@ export class CopilotAgentSession extends Disposable {
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
+			if (steering) {
+				this._logService.trace(`[Copilot:${sessionId}] Pending message delivery: pendingId=${steering.pendingMessage.id}, sdkMessageId=${e.data.messageId}, runtimeDelivery=${e.data.delivery ?? 'unknown'}, interactionId=${e.data.interactionId}, promotedTurnId=${steering.promotedTurnId}`);
+			}
 			if (steering && !steering.promotedTurnId) {
-				this._beginSteeringTurn(steering);
+				this._beginSteeringTurn(steering, e);
 			} else if (!this._currentTurn.value) {
 				this._beginProviderInitiatedTurn(e);
 			}
@@ -11287,15 +11313,23 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onMessage(e => {
 			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
 			this._resumeSubagentForEvent(e);
-			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.message')) {
-				return;
-			}
 			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
 			const isLastMessageChunk = isLastAssistantMessageChunk(e);
 			// Model-less root messages (synthetic background reads) are not model calls; AHP subagents omit the model.
 			const isModelResponse = !!e.agentId || stableModelCallId !== undefined || !!e.data.model;
 			const isCompleteModelCall = isModelResponse && (stableModelCallId !== undefined || isLastMessageChunk);
 			const modelCallId = stableModelCallId ?? e.data.messageId;
+			const earlierFusionTurnId = this._earlierFusionTurnId(e);
+			if (earlierFusionTurnId !== undefined) {
+				// Hidden from the active turn, but the model call still belongs to its workflow's turn.
+				if (isCompleteModelCall) {
+					this._emitModelCallCompleted(earlierFusionTurnId, modelCallId);
+				}
+				return;
+			}
+			if (!e.agentId && this._shouldDropLateRootTurnEvent('assistant.message')) {
+				return;
+			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (isCompleteModelCall && (!e.agentId || parentToolCallId)) {
 				this._emitModelCallCompleted(this._turnId, modelCallId, parentToolCallId);
@@ -11468,7 +11502,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		const handleToolStart = (e: SessionEventPayload<'tool.execution_start'>, replacementFailure?: string): void => {
-			if (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start')) {
+			if (this._shouldDropEarlierFusionEvent(e) || (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start'))) {
 				return;
 			}
 			const held = replacementFailure === undefined ? this._holdClientToolCall(e.data.toolName, e.data.toolCallId, e.agentId) : undefined;
@@ -11531,6 +11565,7 @@ export class CopilotAgentSession extends Disposable {
 				: this._currentTurn.value?.telemetryContext;
 			this._activeToolCalls.set(e.data.toolCallId, {
 				turnId: this._turnId,
+				fusionId: e.data.fusion?.fusionId,
 				copilotTrackingId: telemetryContext?.copilotTrackingId,
 				startedAt: e.timestamp,
 				toolName: e.data.toolName,
@@ -12016,6 +12051,8 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onProvisionalFusionEvent(e => {
 			if (e.type === 'tool.execution_complete') {
 				handleMeteredToolUsage(e);
+			} else if (this._shouldDropEarlierFusionEvent(e)) {
+				return;
 			}
 			if (e.type === 'assistant.message') {
 				// Review phases show their critique when they complete. Everything else a phase says belongs to its chat; only the committed answer becomes the response.
