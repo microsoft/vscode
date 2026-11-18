@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent } from '@github/copilot-sdk';
+import type { SessionEvent } from '@microsoft/copilot-sdk';
 import { LRUCache } from '../../../../base/common/map.js';
 import type { CopilotFusionEvent } from './copilotFusionProgress.js';
 import { isHostSentUserMessage } from './copilotMessageSource.js';

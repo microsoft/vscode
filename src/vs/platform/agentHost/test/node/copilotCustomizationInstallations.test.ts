@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, InstallationConfirmationRequest, McpInstallationReview } from '@github/copilot-sdk';
+import type { CopilotClient, InstallationConfirmationRequest, McpInstallationReview } from '@microsoft/copilot-sdk';
 import assert from 'assert';
 import { createHash } from 'crypto';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
