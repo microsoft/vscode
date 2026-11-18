@@ -136,6 +136,23 @@ suite('ToolSetsContribution', () => {
 		});
 	});
 
+	test('ClientToolSetsContribution exposes request search in both windows', () => {
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			store.add(toolsService.registerToolData({ id: 'vscode_searchAgentRequests', modelDescription: 'search', displayName: 'search', toolReferenceName: 'search_agent_requests', source: ToolDataSource.Internal }));
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		assert.deepStrictEqual([true, false].map(isSessionsWindow => Array.from(createContribution(isSessionsWindow).getToolSet('vscode-agent-requests')?.getTools() ?? [], tool => tool.toolReferenceName)), [
+			['search_agent_requests'],
+			['search_agent_requests'],
+		]);
+	});
+
 	test('getEnabledSelectionReferences keeps enabled tool set references and drops covered tools', () => {
 		const toolsService = createToolsService();
 

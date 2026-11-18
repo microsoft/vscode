@@ -117,6 +117,15 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 		}));
 
 		this._register(this._registerDynamicToolSet(toolsService, {
+			id: 'vscode-agent-requests',
+			referenceName: 'vscodeAgentRequests',
+			icon: Codicon.history,
+			description: localize('clientToolSet.agentRequests.description', "Request History"),
+			detail: localize('clientToolSet.agentRequests.detail', "Search the requests you sent to agents on connected hosts."),
+			members: ['search_agent_requests'],
+		}));
+
+		this._register(this._registerDynamicToolSet(toolsService, {
 			id: 'vscode-general',
 			referenceName: 'vscodeGeneral',
 			icon: Codicon.vscode,

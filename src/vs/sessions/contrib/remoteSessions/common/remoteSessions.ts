@@ -9,13 +9,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostsEnabledSettingId, RemoteSessionToolsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
-export const RemoteSessionToolsEnabledSettingId = 'chat.remoteSessions.tools.enabled';
+export { RemoteSessionToolsEnabledSettingId };
 
 export const remoteSessionToolsWhen = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
