@@ -139,23 +139,16 @@ suite('AgentHostPowerSaveBlocker', () => {
 	});
 
 	test('Linux power detection trusts line-power readings and treats unconfirmed power conservatively', () => {
-		assert.strictEqual(isOnBatteryPowerFromLinuxSupplies([
-			{ type: 'Mains', online: '1' },
-			{ type: 'Battery', status: 'Discharging' },
-		]), false);
-		assert.strictEqual(isOnBatteryPowerFromLinuxSupplies([
-			{ type: 'USB_C', online: '0' },
-			{ type: 'Battery', status: 'Full' },
-		]), true);
-		assert.strictEqual(isOnBatteryPowerFromLinuxSupplies([
-			{ type: 'Battery', status: 'Discharging' },
-		]), true);
-		assert.throws(() => isOnBatteryPowerFromLinuxSupplies([
-			{ type: 'Battery', status: 'Full' },
-		]), /Power source is unknown/);
-		assert.throws(() => isOnBatteryPowerFromLinuxSupplies([
-			{ type: 'Battery', scope: 'Device', status: 'Discharging' },
-		]), /Power source is unknown/);
+		assert.deepStrictEqual([
+			isOnBatteryPowerFromLinuxSupplies([{ type: 'Mains', online: '1' }]),
+			isOnBatteryPowerFromLinuxSupplies([{ type: 'Mains', online: '1' }, { type: 'Battery', status: 'Unknown' }]),
+			isOnBatteryPowerFromLinuxSupplies([{ type: 'USB_C', online: '0' }, { type: 'Battery', status: 'Full' }]),
+			isOnBatteryPowerFromLinuxSupplies([{ type: 'Battery', status: 'Discharging' }]),
+		], [false, false, true, true]);
+		for (const status of ['Unknown', 'Full', 'Not charging']) {
+			assert.throws(() => isOnBatteryPowerFromLinuxSupplies([{ type: 'Battery', status }]), /Power source is unknown/);
+		}
+		assert.throws(() => isOnBatteryPowerFromLinuxSupplies([{ type: 'Battery', scope: 'Device', status: 'Discharging' }]), /Power source is unknown/);
 		assert.throws(() => isOnBatteryPowerFromLinuxSupplies([]), /Power source is unknown/);
 	});
 

@@ -216,6 +216,10 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			sampleMemory: pid => this._sampleProcessMemory(pid),
 			getExitContext: exitTime => this._getExitContext(exitTime),
 		});
+		const store = new DisposableStore();
+		store.add(exitDiagnostics);
+		const powerSaveBlocker = store.add(new AgentHostElectronPowerSaveBlocker(this._logService));
+		store.add(utilityProcess.onMessage(message => powerSaveBlocker.handleMessage(message)));
 
 		try {
 			if (!utilityProcess.start({
@@ -248,10 +252,6 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			const client = new MessagePortClient(port, AgentHostMainProcessConnectionContext);
 			const managementService = ProxyChannel.toService<IAgentHostManagementService>(client.getChannel(AgentHostIpcChannels.Management));
 
-			const store = new DisposableStore();
-			store.add(exitDiagnostics);
-			const powerSaveBlocker = store.add(new AgentHostElectronPowerSaveBlocker(this._logService));
-			store.add(utilityProcess.onMessage(message => powerSaveBlocker.handleMessage(message)));
 			this._managementService = managementService;
 			store.add(toDisposable(() => {
 				if (this._managementService === managementService) {
@@ -297,7 +297,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				shutdown: () => managementService.shutdown(),
 			};
 		} catch (error) {
-			exitDiagnostics.dispose();
+			store.dispose();
 			this._disposeUtilityProcess(utilityProcess);
 			if (isFatalAgentHostStartError(error)) {
 				throw toFatalAgentHostStartError(error);

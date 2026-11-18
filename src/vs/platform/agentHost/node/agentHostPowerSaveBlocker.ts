@@ -115,8 +115,7 @@ export function startNativePowerSaveBlocker(allowOnBattery: boolean): ChildProce
 		return spawn('/usr/bin/caffeinate', ['-i', '-w', String(process.pid)], { stdio: ['pipe', 'ignore', 'pipe'] });
 	}
 	if (isLinux) {
-		// --no-ask-password requires systemd 257. Piped stdin already prevents its
-		// interactive polkit agent from starting. cat exits when our stdin closes.
+		// Piped stdin prevents polkit prompts; EOF releases the inhibitor.
 		return spawn('systemd-inhibit', ['--what=idle', '--mode=block', '--who=VS Code Agent Host', '--why=An agent is working', 'cat'], { stdio: ['pipe', 'ignore', 'pipe'] });
 	}
 	if (isWindows) {
@@ -178,6 +177,9 @@ async function readOptionalFile(path: string): Promise<string | undefined> {
 	}
 }
 
+/**
+ * Determines whether the host is on battery using Linux power-supply readings.
+ */
 export function isOnBatteryPowerFromLinuxSupplies(supplies: readonly ILinuxPowerSupply[]): boolean {
 	let hasOfflineLinePower = false;
 	let hasDischargingBattery = false;
