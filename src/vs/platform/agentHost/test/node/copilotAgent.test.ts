@@ -23215,23 +23215,33 @@ suite('CopilotAgent', () => {
 				`    guidance: ${guidance}`,
 				'',
 			].join('\n');
-			const notice = 'This chat does not have the guidance of the feature route. A route\'s guidance is given to a chat when it starts and is lost when VS Code restarts. Start a new chat to use it.';
-
-			async function createRoutedAgent(name: string, guidance = 'Plan first.') {
+			async function createRoutedAgent(name: string) {
 				const fileService = createInMemoryFileService(disposables, Schemas.file);
-				await fileService.writeFile(joinPath(userHome, '.agents', 'model-routers', 'team.model-router.yaml'), VSBuffer.fromString(routerFile(guidance)));
+				const routers = joinPath(userHome, '.agents', 'model-routers');
+				await fileService.writeFile(joinPath(routers, 'team.model-router.yaml'), VSBuffer.fromString(routerFile('Plan first.')));
+				await fileService.writeFile(joinPath(routers, 'solo.model-router.yaml'), VSBuffer.fromString(routerFile('Review first.')));
 				const h = await createWarmableAgent(name, undefined, { model: { id: 'claude-sonnet' }, rootConfig: { [ModelRouterEnabledConfigKey]: true }, userHome, fileService });
 				afterTest(() => disposeAgent(h.agent));
-				/** Routes a turn as the host does, then sends it on the model the router chose. */
-				const send = async (turnId: string, routed = true) => {
-					const notices = routed
-						? (await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None)).notices
-						: [];
-					await h.agent.chats.sendMessage(h.chat, 'build it', [workingDirectory], undefined, turnId, undefined, h.sendContext);
-					return notices;
+				// A chat that has started work is relaunched by resuming its session.
+				const resumeConfigs: Parameters<ITestCopilotClient['resumeSession']>[1][] = [];
+				h.client.resumeSession = async (id, config) => {
+					resumeConfigs.push(config);
+					const sdkSession = new MockCopilotSession(id);
+					h.sdkSessions.push(sdkSession);
+					return sdkSession as unknown as CopilotSession;
 				};
-				const briefed = () => h.launchConfigs.map(config => config.systemMessage?.content?.includes('<model_router_guidance>') === true);
-				return { ...h, send, briefed };
+				/** Routes a turn as the host does, then sends it on the model the router chose. */
+				const send = async (turnId: string, router: string | false = 'team', previousTurns: Turn[] = []) => {
+					const resolution = router
+						? await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: `model-router:${router}` }, text: 'build it', previousTurns }, h.context, CancellationToken.None)
+						: undefined;
+					await h.agent.chats.sendMessage(h.chat, 'build it', [workingDirectory], undefined, turnId, undefined, h.sendContext);
+					return { kept: resolution?.routed?.kept, notices: resolution?.notices ?? [] };
+				};
+				const guidanceOf = (config: { readonly systemMessage?: { readonly content?: string } } | undefined) => /How the user wants the work done:\n(?<guidance>.*)\n/.exec(config?.systemMessage?.content ?? '')?.groups?.guidance;
+				/** The guidance each session was launched with: those created, then those resumed. */
+				const launched = () => ({ created: h.launchConfigs.map(guidanceOf), resumed: resumeConfigs.map(guidanceOf) });
+				return { ...h, send, launched };
 			}
 
 			test('a warm session is replaced once when the first message is routed to a route with guidance', async () => {
@@ -23239,50 +23249,71 @@ suite('CopilotAgent', () => {
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				const first = await h.send('turn-1');
 				const second = await h.send('turn-2');
-				assert.deepStrictEqual({ first, second, prewarm: h.state().prewarm, briefed: h.briefed(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
-					first: [],
-					// The chat's guidance is decided; routing it again changes and announces nothing.
-					second: [],
+				assert.deepStrictEqual({ first, second, prewarm: h.state().prewarm, launched: h.launched(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					first: { kept: undefined, notices: [] },
+					// Routed to the same guidance again: nothing is relaunched.
+					second: { kept: undefined, notices: [] },
 					prewarm: ['modelRouterGuidanceChanged'],
-					briefed: [false, true],
+					launched: { created: [undefined, 'Plan first.'], resumed: [] },
 					sends: [0, 2],
 				});
 			});
 
-			test('a routed turn that is never sent gives its guidance to no other turn', async () => {
+			test('a routed turn that is never sent gives its guidance to no other turn, and a later routed turn brings its own', async () => {
 				const h = await createRoutedAgent('router-cancelled');
 				await h.agent.chats.warmChat!(h.chat, h.context);
 				// turn-1 is routed and then cancelled; turn-2 is sent on a hand-picked model and never routed.
 				await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-1', selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
 				await h.send('turn-2', false);
-				// The chat has started work without guidance, so a router picked later brings none and says so.
-				const later = await h.send('turn-3');
-				assert.deepStrictEqual({ later, prewarm: h.state().prewarm, briefed: h.briefed() }, { later: [notice], prewarm: ['used'], briefed: [false] });
-			});
-
-			test('a chat that lost its guidance is told once, also when routing keeps it on its route', async () => {
-				const h = await createRoutedAgent('router-restored');
-				await h.agent.chats.warmChat!(h.chat, h.context);
-				// As after a host restart: the chat has started work and has no guidance, and its saved turn says which route it is on.
-				await h.send('turn-1', false);
+				const afterUnrouted = { prewarm: h.state().prewarm, launched: h.launched() };
+				// The chat has started work without guidance, as it also has after a host restart. Its
+				// saved turn says which route it is on, and routing keeps it there.
 				const saved: Turn = {
 					id: 'saved-turn', state: TurnState.Complete, responseParts: [],
 					message: { text: 'build it', origin: { kind: MessageKind.User }, model: { id: 'model-router:team' } },
 					usage: { _meta: { modelRouted: { router: 'team', chosenModel: 'claude-sonnet', routeName: 'feature' } } },
 				};
-				const route = async (turnId: string, previousTurns: Turn[]) => {
-					const resolution = await h.agent.resolveTurnModel(h.chat, { turnId, selection: { id: 'model-router:team' }, text: 'go on', previousTurns }, h.context, CancellationToken.None);
-					return { kept: resolution.routed?.kept, notices: resolution.notices };
-				};
-				const first = await route('turn-2', [saved]);
-				// That turn was cancelled before its notice was shown, so the chat's history does not have it.
-				const afterCancelled = await route('turn-3', [saved]);
-				const shown: Turn = { ...saved, id: 'turn-3', responseParts: [{ kind: ResponsePartKind.SystemNotification, content: notice }] };
-				const afterShown = await route('turn-4', [saved, shown]);
-				assert.deepStrictEqual({ first, afterCancelled, afterShown }, {
-					first: { kept: true, notices: [notice] },
-					afterCancelled: { kept: true, notices: [notice] },
-					afterShown: { kept: true, notices: [] },
+				const later = await h.send('turn-3', 'team', [saved]);
+				assert.deepStrictEqual({ afterUnrouted, later, launched: h.launched() }, {
+					afterUnrouted: { prewarm: ['used'], launched: { created: [undefined], resumed: [] } },
+					later: { kept: true, notices: [] },
+					launched: { created: [undefined], resumed: ['Plan first.'] },
+				});
+			});
+
+			test('a chat that is routed to a route with other guidance is relaunched with it', async () => {
+				const h = await createRoutedAgent('router-moved');
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.send('turn-1');
+				// Another router, so the turn is routed afresh: to a route with guidance of its own.
+				await h.send('turn-2', 'solo');
+				// A turn sent on a hand-picked model keeps the guidance the chat has.
+				await h.send('turn-3', false);
+				assert.deepStrictEqual({ launched: h.launched(), sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					launched: { created: [undefined, 'Plan first.'], resumed: ['Review first.'] },
+					sends: [0, 1, 2],
+				});
+			});
+
+			test('a chat keeps its guidance when a turn routed elsewhere is never sent, or while background subagents run', async () => {
+				const h = await createRoutedAgent('router-kept');
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.send('turn-1');
+				// turn-2 is routed to a route with other guidance and cancelled; turn-3 is sent on a hand-picked model.
+				await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-2', selection: { id: 'model-router:solo' }, text: 'build it', previousTurns: [] }, h.context, CancellationToken.None);
+				await h.send('turn-3', false);
+				const afterCancelled = h.launched().resumed;
+				// A relaunch would end the background subagents of an earlier turn, so the session is kept until they are done.
+				const subagents = stub(chatEntriesBySdkId(h.agent).get(h.sdkSessionId()!)!.chatSession, 'hasActiveSubagents').get(() => true);
+				await h.send('turn-4', 'solo');
+				const whileSubagentsRun = h.launched().resumed;
+				subagents.restore();
+				await h.send('turn-5', 'solo');
+				assert.deepStrictEqual({ afterCancelled, whileSubagentsRun, afterwards: h.launched().resumed, sends: h.sdkSessions.map(session => session.sendCalls) }, {
+					afterCancelled: [],
+					whileSubagentsRun: [],
+					afterwards: ['Review first.'],
+					sends: [0, 3, 1],
 				});
 			});
 		});

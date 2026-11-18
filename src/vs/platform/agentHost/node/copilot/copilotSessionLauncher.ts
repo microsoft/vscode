@@ -386,7 +386,7 @@ export interface ICopilotSessionRuntime {
 	/** The owner session this launch is configured for; the chat's owner can change later, which relaunches at the next turn boundary. */
 	readonly launchOwner: URI;
 	/** The sandbox policy to pass when the SDK session opens; `undefined` when the launch applies it another way. */
-	getLaunchSandboxConfig(isResume: boolean): SandboxConfig | undefined;
+	getLaunchSandboxConfig(isResume: boolean, requestExtensions?: boolean): SandboxConfig | undefined;
 	/** Applies the launch-time sandbox policy and diagnostics before the SDK session is attached. */
 	applyLaunchSandbox(session: CopilotSession, isResume: boolean): Promise<void>;
 	handlePermissionRequest(request: PermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult | AttributedPermissionResult>;
@@ -1235,7 +1235,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const modelPolicy = built.modelPolicy;
 		// Applied during construction so MCP servers start sandboxed; the launch apply below still repeats it for runtimes without open-time support.
-		const config: ICopilotSessionConfig = { ...built.config, permissions: { ...built.config.permissions, sandbox: runtime.getLaunchSandboxConfig(plan.kind === 'resume') } };
+		const config: ICopilotSessionConfig = { ...built.config, permissions: { ...built.config.permissions, sandbox: runtime.getLaunchSandboxConfig(plan.kind === 'resume', built.config.extensions?.enabled) } };
 		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {

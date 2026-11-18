@@ -1081,6 +1081,24 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	});
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} grants Canvas data writes only when extensions are enabled`, async () => {
+			const home = URI.file('/copilot-home');
+			const openedPaths: Array<readonly string[] | undefined> = [];
+			for (const enabled of [false, true]) {
+				const fixture = setup(kind);
+				fixture.configuration.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: enabled });
+				fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
+
+				store.add(await fixture.launcher.launch(fixture.plan, {
+					...fixture.runtime,
+					getLaunchSandboxConfig: (isResume, requestExtensions) => fixture.sandbox.getLaunchConfig(isResume, requestExtensions ? home : undefined),
+				}));
+				openedPaths.push(fixture.captured?.permissions?.sandbox?.userPolicy?.filesystem?.readwritePaths);
+			}
+
+			assert.deepStrictEqual(openedPaths, [undefined, [URI.joinPath(home, 'extension-data').fsPath]]);
+		});
+
 		test(`${kind} passes the launch sandbox config when the SDK session opens and repeats it for older runtimes`, async () => {
 			const fixture = setup(kind);
 			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
