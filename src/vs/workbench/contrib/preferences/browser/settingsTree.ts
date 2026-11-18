@@ -853,6 +853,16 @@ export interface HeightChangeParams {
 	height: number;
 }
 
+const REMOVE_SETTING_FROM_LAYOUT_ACTION_ID = 'settings.removeFromLayout';
+
+/**
+ * Returns the actions of the given list that apply to the given setting. Removing a
+ * setting from the active layout only applies to settings that the active layout defines.
+ */
+function getApplicableSettingActions(actions: readonly IAction[], element: SettingsTreeSettingElement): IAction[] {
+	return actions.filter(action => action.id !== REMOVE_SETTING_FROM_LAYOUT_ACTION_ID || element.hasLayoutValue);
+}
+
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -1017,7 +1027,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.toolbar.context = element;
 		const actions = this.disposableActionFactory(element.setting, element.settingsTarget);
 		actions.forEach(a => isDisposable(a) && template.elementDisposables.add(a));
-		template.toolbar.setActions([], [...this.settingActions, ...actions]);
+		template.toolbar.setActions([], [...getApplicableSettingActions(this.settingActions, element), ...actions]);
 
 		const setting = element.setting;
 
@@ -2233,6 +2243,7 @@ export class SettingTreeRenderers extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 	) {
 		super();
 		this.settingActions = [
@@ -2247,6 +2258,12 @@ export class SettingTreeRenderers extends Disposable {
 							scope: context.setting.scope
 						});
 					}
+				}
+			}),
+			// The active layout defines the value; removing it applies the user or workspace value
+			new Action(REMOVE_SETTING_FROM_LAYOUT_ACTION_ID, localize('removeFromLayoutLabel', "Remove from Active Layout"), undefined, undefined, async context => {
+				if (context instanceof SettingsTreeSettingElement && context.hasLayoutValue) {
+					await this._configurationService.updateValue(context.setting.key, undefined, ConfigurationTarget.LAYOUT);
 				}
 			}),
 			new Separator(),
@@ -2316,7 +2333,7 @@ export class SettingTreeRenderers extends Disposable {
 		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
 		if (toolbarElement) {
 			this._contextMenuService.showContextMenu({
-				getActions: () => this.settingActions,
+				getActions: () => getApplicableSettingActions(this.settingActions, element),
 				getAnchor: () => <HTMLElement>toolbarElement,
 				getActionsContext: () => element
 			});
