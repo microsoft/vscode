@@ -7,6 +7,7 @@ import assert from 'assert';
 import { IME } from '../../../../base/common/ime.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -14,6 +15,7 @@ import { ILanguageService } from '../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { GlyphMarginLane } from '../../../common/model.js';
 import { createTextModel } from '../../common/testTextModel.js';
+import { TestCommandService } from '../editorTestServices.js';
 import { createCodeEditorServices, withTestCodeEditor } from '../testCodeEditor.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -54,6 +56,85 @@ suite('CodeEditorWidget', () => {
 		} finally {
 			IME.enable();
 		}
+	});
+
+	test('issue #348222: EditContext stays in sync when an extension consumes the type command without applying a text edit', function () {
+		// Needs a browser implementation of the EditContext API to dispatch synthetic textupdate events
+		if (typeof (globalThis as { EditContext?: unknown }).EditContext !== 'function' || typeof (globalThis as { TextUpdateEvent?: unknown }).TextUpdateEvent !== 'function') {
+			this.skip();
+		}
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const instantiationService = createCodeEditorServices(disposables);
+		// The `TestCommandService` registered by `createCodeEditorServices` cannot dispatch commands
+		// because its constructor argument is not a decorated service and therefore never provided,
+		// so stub in a wired-up instance
+		instantiationService.stub(ICommandService, new TestCommandService(instantiationService));
+		const editor = disposables.add(instantiationService.createInstance(CodeEditorWidget, container, { editContext: true }, { contributions: [] }));
+		const model = disposables.add(createTextModel('hello world'));
+		editor.setModel(model);
+
+		const editContext = container.querySelector<HTMLElement>('.native-edit-context')!.editContext!;
+		const executedCommands: string[] = [];
+		disposables.add(instantiationService.get(ICommandService).onWillExecuteCommand(e => executedCommands.push(e.commandId)));
+
+		// Overrides the editor's `type` command the same way the extension of the issue does:
+		// the command is consumed and no text edit is applied.
+		const typedTexts: string[] = [];
+		disposables.add(CommandsRegistry.registerCommand('type', (_accessor, args: { text: string }) => {
+			typedTexts.push(args.text);
+			editor.trigger('test', 'cancelSelection', {});
+		}));
+
+		// Select the entire line so that the EditContext contains the line's text
+		editor.setSelection(new Selection(1, 1, 1, 12));
+		assert.strictEqual(editContext.text, 'hello world');
+
+		// First keystroke: the browser replaces the selected EditContext text with 'x'
+		// and fires a textupdate event for it
+		editContext.updateText(0, 11, 'x');
+		editContext.updateSelection(1, 1);
+		editContext.dispatchEvent(new TextUpdateEvent('textupdate', {
+			text: 'x',
+			updateRangeStart: 0,
+			updateRangeEnd: 11,
+			selectionStart: 1,
+			selectionEnd: 1,
+			compositionStart: 0,
+			compositionEnd: 0
+		}));
+
+		// The command is consumed without applying an edit, so the model is unchanged
+		// and the EditContext must be resynchronized to the model text
+		assert.deepStrictEqual(executedCommands, ['type']);
+		assert.deepStrictEqual(typedTexts, ['x']);
+		assert.strictEqual(editContext.text, 'hello world');
+
+		// Second keystroke: the browser inserts 'y' at its own EditContext selection
+		// and fires a textupdate event for it
+		const selectionStart = editContext.selectionStart;
+		const selectionEnd = editContext.selectionEnd;
+		editContext.updateText(selectionStart, selectionEnd, 'y');
+		editContext.updateSelection(selectionStart + 1, selectionStart + 1);
+		editContext.dispatchEvent(new TextUpdateEvent('textupdate', {
+			text: 'y',
+			updateRangeStart: selectionStart,
+			updateRangeEnd: selectionEnd,
+			selectionStart: selectionStart + 1,
+			selectionEnd: selectionStart + 1,
+			compositionStart: 0,
+			compositionEnd: 0
+		}));
+
+		// The second keystroke must also be dispatched as a `type` command. Without the fix,
+		// the EditContext still contains the first keystroke and a `replacePreviousChar`
+		// command is dispatched instead, which corrupts the model.
+		assert.deepStrictEqual(executedCommands, ['type', 'type']);
+		assert.deepStrictEqual(typedTexts, ['x', 'y']);
+		assert.strictEqual(model.getValue(), 'hello world');
 	});
 
 	test('preserves the documentation link when the cursor limit is reached', () => {
