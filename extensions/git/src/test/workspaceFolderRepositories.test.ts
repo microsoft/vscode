@@ -59,6 +59,9 @@ class TestWorkspace {
 	/** The hidden repositories of the locations that folders switch to, until the switch completes. */
 	private readonly opening = new Set<string>();
 
+	/** The opened repositories awaiting their first status, see `Model.pendingSwitchRepositories`. */
+	private readonly pending = new Set<string>();
+
 	private visibleEditors: string[] = [];
 
 	constructor(private folders: TestFolder[]) {
@@ -92,25 +95,27 @@ class TestWorkspace {
 		}
 
 		[...show, ...opened].forEach(r => this.opening.add(r));
+		opened.forEach(r => this.pending.add(r));
 		return () => {
 			// A repository can have been closed meanwhile
 			const candidates = [...new Set([...show, ...opened, ...leave])].filter(r => this.repositories.has(r) || this.warm.includes(r) || this.opening.has(r));
 			[...show, ...opened].forEach(r => this.opening.delete(r));
+			opened.forEach(r => this.pending.delete(r));
 			this.completeSwitch(candidates);
 		};
 	}
 
 	/** `Model.switchFolderLocation`: the views change in one step, following the current folders. */
 	private completeSwitch(candidates: string[]): void {
-		const current = this.tracker.getCurrentRepositories(this.folders, candidates, [...this.repositories, ...this.warm, ...this.opening]);
-		for (const repository of current) {
+		const { show, warm } = this.tracker.completeSwitch(this.folders, candidates, [...this.repositories, ...this.warm, ...this.opening], [...this.pending]);
+		for (const repository of show) {
 			this.tracker.takeWarm(repository);
 			if (this.warm.includes(repository)) {
 				this.warm.splice(this.warm.indexOf(repository), 1);
 			}
 			this.repositories.add(repository);
 		}
-		candidates.filter(r => !current.has(r)).forEach(r => this.keepWarm(r));
+		warm.forEach(r => this.keepWarm(r));
 	}
 
 	setVisibleEditors(files: string[]): void {
@@ -296,6 +301,23 @@ suite('WorkspaceFolderRepositories', () => {
 		assert.deepStrictEqual({ shown: [...ws.repositories], warm: [...ws.warm].sort() }, { shown: [nested], warm: [primary, wt1].sort() });
 	});
 
+	test('a switch that completes while the folder switched on to a worktree nested in its location is still opening keeps the left location shown until the nested worktree is ready', () => {
+		const ws = new TestWorkspace([folderAt(primary)]);
+
+		const completeFirst = ws.beginUpdateFolders([folderAt(wt1, false)]);
+		ws.resolveLocations();
+		const completeNested = ws.beginUpdateFolders([folderAt(nested, false)]);
+		completeFirst();
+		const whileNestedOpens = { shown: [...ws.repositories], warm: [...ws.warm].sort() };
+		completeNested();
+		ws.resolveLocations();
+
+		assert.deepStrictEqual({ whileNestedOpens, settled: { shown: [...ws.repositories], warm: [...ws.warm].sort() } }, {
+			whileNestedOpens: { shown: [primary], warm: [wt1] },
+			settled: { shown: [nested], warm: [primary, wt1].sort() }
+		});
+	});
+
 	test('a switch completes for its folder while another folder changes', () => {
 		const otherFolder = folder(other, 1);
 		const ws = new TestWorkspace([folderAt(primary), otherFolder]);
@@ -412,18 +434,29 @@ suite('WorkspaceFolderRepositories locations', () => {
 		assert.deepStrictEqual({ onRemove, onLocations }, { onRemove: { close: [], leave: [] }, onLocations: { close: [], leave: [nested] } });
 	});
 
-	test('the current repositories are the candidates that are the deepest open repository containing a workspace folder', () => {
-		const tracker = new WorkspaceFolderRepositories<string>(root => root);
+	test('a switch completes with the candidates that are the deepest ready repository containing a workspace folder', () => {
+		const complete = (folders: TestFolder[], candidates: string[], open: string[], pending: string[] = [], tracker = new WorkspaceFolderRepositories<string>(root => root)) => tracker.completeSwitch(folders, candidates, open, pending);
 		const warmTracker = new WorkspaceFolderRepositories<string>(root => root);
 		warmTracker.keepWarm(nested);
+		const fallbackTracker = new WorkspaceFolderRepositories<string>(root => root);
 
 		assert.deepStrictEqual([
-			[...tracker.getCurrentRepositories([folder(nested)], [primary, nested, wt1], [primary, nested, wt1])],
-			[...tracker.getCurrentRepositories([folder(primary)], [nested, wt1], [nested, wt1])],
-			[...tracker.getCurrentRepositories([folder(wt1), folder(path.join(primary, 'src'), 1)], [primary, wt1, wt2], [primary, wt1, wt2])],
-			[...tracker.getCurrentRepositories([folder(nested)], [primary, wt1], [primary, wt1, nested])],
-			[...warmTracker.getCurrentRepositories([folder(nested)], [primary, wt1], [primary, wt1, nested])],
-		], [[nested], [], [wt1, primary], [], [primary]]);
+			complete([folder(nested)], [primary, nested, wt1], [primary, nested, wt1]),
+			complete([folder(primary)], [nested, wt1], [nested, wt1]),
+			complete([folder(wt1), folder(path.join(primary, 'src'), 1)], [primary, wt1, wt2], [primary, wt1, wt2]),
+			complete([folder(nested)], [primary, wt1], [primary, wt1, nested]),
+			complete([folder(nested)], [primary, wt1], [primary, wt1, nested], [], warmTracker),
+			complete([folder(nested)], [primary, wt1], [primary, wt1, nested], [nested], fallbackTracker),
+			complete([folder(nested)], [nested, wt1], [primary, wt1, nested], [], fallbackTracker),
+		], [
+			{ show: [nested], warm: [primary, wt1] },
+			{ show: [], warm: [nested, wt1] },
+			{ show: [wt1, primary], warm: [wt2] },
+			{ show: [], warm: [primary, wt1] },
+			{ show: [primary], warm: [wt1] },
+			{ show: [primary], warm: [wt1] },
+			{ show: [nested], warm: [wt1, primary] },
+		]);
 	});
 
 	test('takes a warm repository by its root, keeps at most the capacity and closes the least recently left one first', () => {

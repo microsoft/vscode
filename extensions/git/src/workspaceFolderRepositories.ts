@@ -25,6 +25,9 @@ export class WorkspaceFolderRepositories<T> {
 	/** The warm repositories, the least recently left first. */
 	private readonly warm: T[] = [];
 
+	/** The repositories that stay shown in place of the pending repository of a location that a folder switched to. */
+	private fallbacks = new Set<T>();
+
 	constructor(
 		private readonly getRoot: (repository: T) => string,
 		private readonly warmCapacity = 3
@@ -108,24 +111,33 @@ export class WorkspaceFolderRepositories<T> {
 	}
 
 	/**
-	 * The repositories among `candidates` that the workspace folders are at: for each folder, the deepest
-	 * repository that contains it among the candidates and the other open repositories that are not kept
-	 * warm, which includes those still opening for another switch. A switch that completes after the folders
-	 * changed again shows these and keeps the other candidates warm, so it never shows a location again whose
-	 * folder is now at a nested repository that is already shown or opening.
+	 * Completes a switch of folders to other locations: returns the repositories among `candidates` to show and
+	 * the ones to keep warm. The folders can have changed again while a location was opening, so this follows the
+	 * current folders rather than the switch: a folder is at the deepest repository that contains it among the
+	 * candidates and the `openRepositories` that are not kept warm. While that repository is `pending`, still
+	 * awaiting its first status for another switch, the deepest ready one that contains the folder stays shown in
+	 * its place, until a later switch completes with the pending one ready.
 	 */
-	getCurrentRepositories(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[], openRepositories: readonly T[]): Set<T> {
-		const repositories = [...new Set([...candidates, ...openRepositories.filter(r => !this.warm.includes(r))])];
-		const result = new Set<T>();
+	completeSwitch(workspaceFolders: readonly WorkspaceFolder[], candidates: readonly T[], openRepositories: readonly T[], pending: readonly T[]): { show: T[]; warm: T[] } {
+		const affected = [...new Set([...candidates, ...[...this.fallbacks].filter(r => openRepositories.includes(r))])];
+		const repositories = [...new Set([...affected, ...openRepositories.filter(r => !this.warm.includes(r))])];
+		const show = new Set<T>();
+		const fallbacks = new Set<T>();
 		for (const folder of workspaceFolders) {
-			const current = repositories
+			const containing = repositories
 				.filter(r => isDescendant(this.getRoot(r), folder.uri.fsPath))
-				.sort((a, b) => this.getRoot(b).length - this.getRoot(a).length)[0];
-			if (current && candidates.includes(current)) {
-				result.add(current);
+				.sort((a, b) => this.getRoot(b).length - this.getRoot(a).length);
+			const current = containing.find(r => !pending.includes(r));
+			if (!current || !affected.includes(current)) {
+				continue;
+			}
+			show.add(current);
+			if (current !== containing[0]) {
+				fallbacks.add(current);
 			}
 		}
-		return result;
+		this.fallbacks = fallbacks;
+		return { show: [...show], warm: affected.filter(r => !show.has(r)) };
 	}
 
 	/**
@@ -159,6 +171,7 @@ export class WorkspaceFolderRepositories<T> {
 	delete(repository: T): void {
 		this.retained.delete(repository);
 		this.keptInWorkspace.delete(repository);
+		this.fallbacks.delete(repository);
 
 		const index = this.warm.indexOf(repository);
 		if (index !== -1) {
