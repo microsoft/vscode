@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { groupBy } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -15,10 +15,11 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -343,6 +344,9 @@ function isCloudSandboxSession(session: ISession | undefined): boolean {
 	return session?.environment === 'cloud' && isAgentHostProviderId(session.providerId);
 }
 
+/** How long opening the Changes editor at a file waits for its changeset to load before it opens without scrolling to it. */
+const CHANGES_LOAD_TIMEOUT = 5000;
+
 /**
  * Nested chats use {@link getNestedChatDefaultChangesetId}, so the pill opens the same changeset the Changes view
  * defaults to, even before the chat's changesets load. Cloud sandboxes show Session Changes; other main chats keep
@@ -482,9 +486,10 @@ export class SessionChatInputToolbar extends Disposable {
 
 	/**
 	 * Opens the session's Changes editor where the chat's editors show, on the changeset `changesetId`, by default the one
-	 * the Changes pill opens, scrolled to the change of the first of `files` it lists.
+	 * the Changes pill opens, scrolled to the change of the first of `files` it lists, once the changeset has loaded.
+	 * With `sessionWide`, it shows the session's main chat, whose changes are the session's, also from a nested chat.
 	 */
-	readonly openChangesEditor: (changesetId?: string, files?: readonly URI[]) => void;
+	readonly openChangesEditor: (changesetId?: string, files?: readonly URI[], options?: { readonly sessionWide?: boolean; readonly editorOptions?: IEditorOptions }) => Promise<void>;
 
 	/** The chat the pills act on, with its session, which a host of the main window outside its panes activates the pane of. */
 	private _actionTarget(): IActionTarget {
@@ -795,12 +800,12 @@ export class SessionChatInputToolbar extends Disposable {
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
 				: localize('sessionChatPills.allChanges', "All Changes");
 		});
-		this.openChangesEditor = (changesetId, files) => {
+		this.openChangesEditor = async (changesetId, files, options) => {
 			const session = this._session.get();
 			if (!session || this._debugData.get()) {
 				return;
 			}
-			const chat = this._chat.get();
+			const chat = options?.sessionWide ? session.mainChat.get() : this._chat.get();
 			const workspace = chat?.workspace?.get() ?? session.workspace.get();
 			const target = getEditorTarget(chatWindowService, this._sessionHost);
 			if (!target) {
@@ -808,13 +813,18 @@ export class SessionChatInputToolbar extends Disposable {
 				return;
 			}
 			const id = changesetId ?? getChangesPillChangesetId(session, chat, workspace, undefined);
-			// The editor scrolls to a change by its diff's resources, which only the changeset knows
-			const changes = files?.length ? (chat ?? session.mainChat.get())?.changesets.get()?.find(changeset => changeset.id === id)?.changes.get() : undefined;
+			// The editor scrolls to a change by its diff's resources, which only the changeset knows once it has loaded
+			const changeset = files?.length ? (chat ?? session.mainChat.get())?.changesets.get()?.find(candidate => candidate.id === id) : undefined;
+			if (changeset?.isLoadingChanges.get()) {
+				await raceTimeout(waitForState(changeset.isLoadingChanges, loading => !loading), CHANGES_LOAD_TIMEOUT);
+			}
+			const changes = changeset?.changes.get();
 			const change = changes && coalesce(files?.map(file => changes.find(candidate => isChangesFileResource(candidate, file))) ?? []).at(0);
 			revealEditorTarget(hostLayoutService, target);
-			void sessionChangesService.openChangesEditor(session.resource, {
+			await sessionChangesService.openChangesEditor(session.resource, {
+				...options?.editorOptions,
 				changesetSelection: { kind: 'id', id },
-				chatResource: target !== 'main' ? chat?.resource : undefined,
+				chatResource: target !== 'main' || options?.sessionWide ? chat?.resource : undefined,
 				...(change ? { viewState: { revealData: { resource: { original: change.originalUri, modified: change.modifiedUri } } } } : {}),
 			}, target !== 'main' ? target.mainPart.activeGroup : undefined);
 		};
@@ -822,7 +832,7 @@ export class SessionChatInputToolbar extends Disposable {
 			changes: {
 				stats: this._diffStats,
 				label: changesLabel,
-				open: () => this.openChangesEditor(),
+				open: () => void this.openChangesEditor(),
 				getContextMenuPrimaryActions: () => changesOptions?.contextMenuActions?.() ?? [],
 			},
 			pullRequests: pullRequestData,

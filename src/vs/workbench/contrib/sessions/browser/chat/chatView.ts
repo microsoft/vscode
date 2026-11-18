@@ -707,7 +707,8 @@ export class ChatView extends AbstractChatView {
 		// Its changes can open the session's Changes editor, on Session Changes, as the pills do
 		const workingSet = options.input?.workingSet ? this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, {
 			workingSetOnly: true,
-			openChanges: { open: diff => this._chatPills.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, diff && [diff.modifiedURI, diff.originalURI]) },
+			// The working set lists the session's changes, also in a nested chat: they open as the session's
+			openChanges: { open: (diff, editorOptions) => void this._chatPills.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, diff && [diff.modifiedURI, diff.originalURI], { sessionWide: true, editorOptions }) },
 		})) : undefined;
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session,
 			workingSet && { hidden: workingSet.changesPillHidden, contextMenuActions: workingSet.getChangesPillContextMenuActions }));

@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -940,23 +940,28 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
-	test('opens a changeset of the Changes editor scrolled to the change of the first file it lists', () => {
+	test('opens a changeset of the Changes editor scrolled to the change of the first file it lists, once it has loaded, also of the session\'s main chat', async () => {
 		const { instantiationService } = createServices();
 		const file = URI.file('/repo/changed.ts');
 		const change = upcastPartial<ISessionFileChange>({ originalUri: URI.parse('git:/repo/changed.ts'), modifiedUri: file, insertions: 1, deletions: 0 });
 		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
-		const chat = upcastPartial<IChat>({
-			resource: URI.parse('chat:main'),
+		const loading = observableValue('loading', false);
+		const mainChanges = observableValue<readonly ISessionFileChange[]>('mainChanges', [change]);
+		const createChat = (resource: string, changes: IObservable<readonly ISessionFileChange[]>) => upcastPartial<IChat>({
+			resource: URI.parse(resource),
 			workspace,
-			changesets: constObservable([upcastPartial<ISessionChangeset>({ id: SESSION_CHANGES_CHANGESET_ID, changes: constObservable([change]) })]),
-			changes: constObservable([change]),
+			changesets: constObservable([upcastPartial<ISessionChangeset>({ id: SESSION_CHANGES_CHANGESET_ID, isLoadingChanges: loading, changes })]),
+			changes,
 		});
+		const chat = createChat('chat:main', mainChanges);
+		const nested = createChat('chat:nested', constObservable([]));
 		const session = upcastPartial<ITestSessionWithChat>({
 			loading: constObservable(false),
 			sessionId: 'provider:session',
-			capabilities: constObservable({ supportsMultipleChats: false }),
+			capabilities: constObservable({ supportsMultipleChats: true }),
 			resource: URI.parse('session:1'),
-			chats: constObservable([]),
+			chats: constObservable([chat, nested]),
+			mainChat: constObservable(chat),
 			workspace,
 		});
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ parent: undefined }));
@@ -975,15 +980,38 @@ suite('SessionChatInputToolbar', () => {
 		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
 		toolbar.setSession(session, chat);
 
-		toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [URI.file('/repo/other.ts'), file]);
-		toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [URI.file('/repo/other.ts')]);
-		toolbar.openChangesEditor(BRANCH_CHANGES_CHANGESET_ID, [file]);
+		await toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [URI.file('/repo/other.ts'), file], { editorOptions: { preserveFocus: true } });
+		await toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [URI.file('/repo/other.ts')]);
+		await toolbar.openChangesEditor(BRANCH_CHANGES_CHANGESET_ID, [file]);
+		// While the changeset loads, it waits for its changes
+		loading.set(true, undefined);
+		mainChanges.set([], undefined);
+		const whileLoading = toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [file]);
+		await timeout(0);
+		const openedWhileLoading = opened.length;
+		transaction(tx => { mainChanges.set([change], tx); loading.set(false, tx); });
+		await whileLoading;
+		// From a nested chat, the session's changes are its main chat's
+		toolbar.setSession(session, nested);
+		await toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [file], { sessionWide: true });
 
-		assert.deepStrictEqual(opened, [
-			{ changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID }, chatResource: undefined, viewState: { revealData: { resource: { original: change.originalUri, modified: file } } } },
-			{ changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID }, chatResource: undefined },
-			{ changesetSelection: { kind: 'id', id: BRANCH_CHANGES_CHANGESET_ID }, chatResource: undefined },
-		]);
+		const read = (options: ISessionChangesEditorOptions | undefined) => ({
+			changeset: options?.changesetSelection?.kind === 'id' ? options.changesetSelection.id : undefined,
+			chat: options?.chatResource?.toString(),
+			reveal: options?.viewState?.revealData && `${options.viewState.revealData.resource.original} -> ${options.viewState.revealData.resource.modified}`,
+			preserveFocus: options?.preserveFocus,
+		});
+		const revealed = 'git:/repo/changed.ts -> file:///repo/changed.ts';
+		assert.deepStrictEqual({ opened: opened.map(read), openedWhileLoading }, {
+			opened: [
+				{ changeset: SESSION_CHANGES_CHANGESET_ID, chat: undefined, reveal: revealed, preserveFocus: true },
+				{ changeset: SESSION_CHANGES_CHANGESET_ID, chat: undefined, reveal: undefined, preserveFocus: undefined },
+				{ changeset: BRANCH_CHANGES_CHANGESET_ID, chat: undefined, reveal: undefined, preserveFocus: undefined },
+				{ changeset: SESSION_CHANGES_CHANGESET_ID, chat: undefined, reveal: revealed, preserveFocus: undefined },
+				{ changeset: SESSION_CHANGES_CHANGESET_ID, chat: 'chat:main', reveal: revealed, preserveFocus: undefined },
+			],
+			openedWhileLoading: 3,
+		});
 	});
 
 	for (const activation of ['click', 'Enter', 'Space'] as const) {

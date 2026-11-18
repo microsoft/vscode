@@ -73,8 +73,8 @@ export interface IChatSessionWorkingSetKeep {
 
 /** Opens a session's changes in its Changes editor, in place of the diff editors the working set opens otherwise. */
 export interface IChatSessionWorkingSetOpenChanges {
-	/** Opens the Changes editor, scrolled to the file of `diff` where given. */
-	open(diff: IEditSessionEntryDiff | undefined): void;
+	/** Opens the Changes editor, scrolled to the file of `diff` where given, with `options`, such as to keep focus for a preview. */
+	open(diff: IEditSessionEntryDiff | undefined, options?: IEditorOptions): void;
 }
 
 /** What a {@link ChatSessionWorkingSet} can do with the files it lists. */
@@ -272,7 +272,7 @@ export class ChatSessionWorkingSet extends Disposable {
 				// Opening the file's changes, rather than the file, as a click does by default and Alt the opposite
 				const openChanges = inDiffEditor ? this._fileActions.openChanges?.read(undefined) : undefined;
 				if (openChanges) {
-					openChanges.open(diff);
+					openChanges.open(diff, options);
 					return;
 				}
 				void this._openFile(diff, options, sideBySide).catch(onUnexpectedError);

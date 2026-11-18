@@ -661,10 +661,11 @@ suite('ChatSessionWorkingSet', () => {
 	test('opens the Changes editor from rows, diff actions and View All Edits while the session gives one, and the file with Alt', async () => {
 		const diff = emptySessionEntryDiff(URI.parse('snapshot:/before/changed.ts'), URI.file('/changed.ts'));
 		const changesEditor: string[] = [];
-		const openChanges = observableValue<IChatSessionWorkingSetOpenChanges | undefined>('openChanges', { open: opened => changesEditor.push(opened?.modifiedURI.path ?? 'all') });
+		const openChanges = observableValue<IChatSessionWorkingSetOpenChanges | undefined>('openChanges', { open: (opened, options) => changesEditor.push(`${opened?.modifiedURI.path ?? 'all'}${options?.preserveFocus ? ' (preserving focus)' : ''}`) });
 		const { rows, fileAction, headerButton, opened } = createWorkingSet([diff], true, undefined, undefined, undefined, undefined, undefined, openChanges);
 		const openedEditors = () => opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : isResourceDiffEditorInput(input) ? 'diff' : isResourceMultiDiffEditorInput(input) ? 'multi-diff' : undefined);
 
+		rows()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
 		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, altKey: true }));
 		fileAction(rows()[0], 'Open Changes in Diff Editor').click();
@@ -679,8 +680,8 @@ suite('ChatSessionWorkingSet', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ withChangesEditor, without: { changesEditor, opened: openedEditors() } }, {
-			withChangesEditor: { changesEditor: ['/changed.ts', '/changed.ts', 'all'], opened: ['file:///changed.ts'] },
-			without: { changesEditor: ['/changed.ts', '/changed.ts', 'all'], opened: ['file:///changed.ts', 'file:///changed.ts', 'diff', 'multi-diff'] },
+			withChangesEditor: { changesEditor: ['/changed.ts (preserving focus)', '/changed.ts', '/changed.ts', 'all'], opened: ['file:///changed.ts'] },
+			without: { changesEditor: ['/changed.ts (preserving focus)', '/changed.ts', '/changed.ts', 'all'], opened: ['file:///changed.ts', 'file:///changed.ts', 'diff', 'multi-diff'] },
 		});
 	});
 
