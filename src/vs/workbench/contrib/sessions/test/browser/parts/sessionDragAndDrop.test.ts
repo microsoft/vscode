@@ -132,7 +132,7 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			const gridOverlayReturned = !!container.querySelector(overlayId);
 			dispatch(inputContent, 'dragover', dataTransfer);
 			const inputOverlay = widget.querySelector<HTMLElement>('.chat-dnd-overlay')!;
-			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), top: inputOverlay.style.top, height: inputOverlay.style.height, borderRadius: inputOverlay.style.borderRadius };
+			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), text: inputOverlay.textContent, top: inputOverlay.style.top, height: inputOverlay.style.height, borderRadius: inputOverlay.style.borderRadius };
 			const registered = isInputDropTarget(inputContent, new DragEvent('dragover', { dataTransfer }));
 			dispatch(inputContent, 'drop', dataTransfer);
 			await timeout(0);
@@ -156,8 +156,9 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 				// the drag is over the chat, which the key held lets it through to.
 				gridCoversInput: true, inputHints: [{ text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' }],
 				removedGridOverlay: true, inputReceivesPointer: true, gridOverlayReturned: false,
-				// The feedback covers the input, shaped as it is, which takes the drop, not the transcript, whose drop the placement takes.
-				inputFeedback: { visible: true, top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' },
+				// The feedback covers the input, shaped as it is, which takes the drop, not the transcript, whose drop the placement takes;
+				// it says what the hint over the input said.
+				inputFeedback: { visible: true, text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, top: '200px', height: '80px', borderRadius: '0px 0px 8px 8px' },
 				inputMoves: [], placementReceivesPointer: true, moves: [scope], transcriptIsInput: false,
 				attachments: [{ kind: 'chatReference', name: 'Source Chat', value: backendResource.toString() }],
 				registered: true, removed: true,
@@ -190,7 +191,7 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			const overlayOnEnterWhileHeld = !!container.querySelector(overlayId);
 			dispatch(transcript, 'dragover', dataTransfer, held);
 			const inputOverlay = widget.querySelector<HTMLElement>('.chat-dnd-overlay')!;
-			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), top: inputOverlay.style.top, height: inputOverlay.style.height };
+			const inputFeedback = { visible: inputOverlay.classList.contains('visible'), text: inputOverlay.textContent, top: inputOverlay.style.top, height: inputOverlay.style.height };
 			dispatch(transcript, 'drop', dataTransfer, held);
 			await timeout(0);
 			assert.deepStrictEqual({
@@ -199,9 +200,30 @@ suite('Sessions - Chat Reference Drop Priority', () => {
 			}, {
 				inputHints: [`Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`],
 				overlayWhileHeld: false, overlayOnEnterWhileHeld: false,
-				// The chat fits its feedback to the input, which takes the drop, as the drag is let through to it
-				inputFeedback: { visible: true, top: '200px', height: '80px' },
+				// The chat fits its feedback to the input, which takes the drop, as the drag is let through to it, and says what the hint said
+				inputFeedback: { visible: true, text: `Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach to chat`, top: '200px', height: '80px' },
 				moves: [], attachments: [{ kind: 'chatReference', value: backendResource.toString() }],
+			});
+		});
+
+		test(`${scope} placement takes the drag once the input moves away under it, rather than the chat covering itself`, () => {
+			const { container, widget, input, inputContent, overlayId, inputPoint, drag, dispatch } = setup(scope);
+			const dataTransfer = drag(sourceResource);
+			dispatch(inputContent, 'dragenter', dataTransfer);
+			dispatch(inputContent, 'dragover', dataTransfer);
+			const inputOverlay = widget.querySelector<HTMLElement>('.chat-dnd-overlay')!;
+			const feedback = () => ({ visible: inputOverlay.classList.contains('visible'), outlined: inputOverlay.classList.contains('input-drop-target-outline'), height: inputOverlay.style.height });
+			const overInput = feedback();
+			// The input moves up, as when what is docked on it changes, while the drag rests on the feedback where the input was
+			input.style.bottom = '120px';
+			dispatch(inputOverlay, 'dragover', dataTransfer);
+			const inputMovedAway = feedback();
+			// The drag is over what the feedback covered then
+			dispatch(widget, 'dragenter', dataTransfer);
+			assert.deepStrictEqual({ overInput, inputMovedAway, dragOffInput: inputPoint.clientY > input.getBoundingClientRect().bottom, placement: !!container.querySelector(overlayId) }, {
+				overInput: { visible: true, outlined: true, height: '80px' },
+				inputMovedAway: { visible: false, outlined: false, height: '' },
+				dragOffInput: true, placement: true,
 			});
 		});
 	}
