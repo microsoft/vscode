@@ -125,4 +125,34 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 			'setEditorHiddenByChat(false)',
 		]);
 	});
+
+	test('the watermark of the empty editor group offers to hide the editor area only while the chat part shows, with that group alone, in the main window of an editor window, and not while the secondary side bar is maximized over it', () => {
+		const shown = (keys: { chatPartVisible?: boolean; isSessionsWindow?: boolean; isAuxiliaryWindow?: boolean; editorPartMultipleEditorGroups?: boolean; auxiliaryBarMaximized?: boolean }) => {
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			for (const [key, value] of Object.entries(keys)) {
+				contextKeyService.createKey(key, value);
+			}
+			return MenuRegistry.getMenuItems(MenuId.EditorGroupWatermarkToolbar)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === 'workbench.action.hideEditorAreaForChat' && (!item.when || item.when.evaluate(contextKeyService.getContext(null))))
+				.map(item => ({ title: item.command.title, icon: (item.command.icon as { id: string } | undefined)?.id, group: item.group }));
+		};
+		const steps: string[] = [];
+		const layoutService = new class extends TestLayoutService {
+			override isVisible(part: Parts): boolean { return part === Parts.CHAT_PART; }
+			override setEditorHiddenByChat(hidden: boolean): void { steps.push(`setEditorHiddenByChat(${hidden})`); }
+		}();
+		CommandsRegistry.getCommand('workbench.action.hideEditorAreaForChat')!.handler({ get: () => layoutService } as unknown as ServicesAccessor);
+
+		const offered = [{ title: { value: 'Hide Editor Area', original: 'Hide Editor Area' }, icon: 'close', group: 'navigation' }];
+		assert.deepStrictEqual({
+			chatShows: shown({ chatPartVisible: true }),
+			chatHidden: shown({ chatPartVisible: false }),
+			agentsWindow: shown({ chatPartVisible: true, isSessionsWindow: true }),
+			auxiliaryWindow: shown({ chatPartVisible: true, isAuxiliaryWindow: true }),
+			otherGroups: shown({ chatPartVisible: true, editorPartMultipleEditorGroups: true }),
+			secondarySideBarMaximized: shown({ chatPartVisible: true, auxiliaryBarMaximized: true }),
+			steps,
+		}, { chatShows: offered, chatHidden: [], agentsWindow: [], auxiliaryWindow: [], otherGroups: [], secondarySideBarMaximized: [], steps: ['setEditorHiddenByChat(true)'] });
+	});
 });

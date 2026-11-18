@@ -180,6 +180,19 @@ function expectedSandboxConfig(options?: {
 }
 
 suite('buildSandboxConfigForSdk', () => {
+	test('grants the shared canvas data root only for sandboxed extension sessions and respects restrictions', () => {
+		const home = URI.file('/custom/copilot');
+		const enabled = sandbox('linux', AgentSandboxEnabledValue.On);
+		const data = '/custom/copilot/extension-data';
+		const writable = (config: ISandboxConfigValue | undefined, extensionHome?: URI, managedWrites?: string[]) =>
+			buildSandboxConfigForSdk('linux', config, undefined, { enabled: true, readwritePaths: managedWrites }, undefined, extensionHome)?.userPolicy?.filesystem?.readwritePaths;
+		assert.deepStrictEqual([
+			writable(enabled, home), writable(enabled), writable(undefined, home), writable(enabled, home, []),
+			writable(sandbox('linux', AgentSandboxEnabledValue.On, { readonlyPaths: ['/custom'] }), home),
+			writable(sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: [`${data}/private`] }), home),
+		], [[data], undefined, undefined, undefined, undefined, undefined]);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('enablement', () => {

@@ -21,9 +21,10 @@ export interface IChatViewHostShownSession {
 	 * `open` when the user brought the chat up, such as by picking it in the sessions list or starting a new chat;
 	 * `commit` when the first request of a new chat made it the session it became, which the user did not pick; `restore`
 	 * when the host shows a chat that it does not bring up for the user, such as the chat it last showed as the window
-	 * starts, or one opened with {@link IChatViewHostOpenOptions.restore}.
+	 * starts, or one opened with {@link IChatViewHostOpenOptions.restore}; `keepFolder` when the user brought it up where
+	 * the window's folder stays as it is, such as by a link to it in the window ({@link IChatViewHostOpenOptions.keepFolder}).
 	 */
-	readonly reason: 'open' | 'commit' | 'restore';
+	readonly reason: 'open' | 'commit' | 'restore' | 'keepFolder';
 }
 
 /** How {@link IChatViewHost.reveal} shows the host. */
@@ -49,11 +50,16 @@ export interface IChatViewHostOpenOptions {
 	 * `commit`), rather than one the user opens.
 	 */
 	readonly commit?: boolean;
+	/**
+	 * Shows the session as one the user opens where the window's folder stays as it is ({@link IChatViewHostShownSession.reason}
+	 * `keepFolder`), such as by a link to it in the window, rather than following it to where the session works.
+	 */
+	readonly keepFolder?: boolean;
 }
 
 /** Why a host shows a session that it opens with `options`. */
 export function getChatViewHostOpenReason(options: IChatViewHostOpenOptions | undefined): IChatViewHostShownSession['reason'] {
-	return options?.commit ? 'commit' : options?.restore ? 'restore' : 'open';
+	return options?.commit ? 'commit' : options?.restore ? 'restore' : options?.keepFolder ? 'keepFolder' : 'open';
 }
 
 /** What a new chat aims at, such as the folder and the session type of a new session that a sessions list starts. */
@@ -174,6 +180,11 @@ export interface IChatViewHostService extends IChatViewHost {
 
 	/** Whether a registered host replaces the Chat view, which then shows only the chats the host leaves to it. */
 	readonly replaced: IObservable<boolean>;
+	/**
+	 * Counts what asked the hosts to show something: opens, starts, reveals and New Chats. Each supersedes those before it,
+	 * so a caller that awaits one can tell whether a later one came meanwhile.
+	 */
+	readonly requests: IObservable<number>;
 	/**
 	 * Whether the Chat view hosts the chat that was opened or started last: it does by default, and for a chat the host that
 	 * replaces it leaves to it. Then the Chat view shows that chat, not only its sessions.

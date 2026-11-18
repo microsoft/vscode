@@ -139,7 +139,9 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		}
 		const widget = await this._chatWidgetService.openSession(clientResource, openToSide ? SIDE_GROUP : ChatViewPaneTarget, {
 			...options?.editorOptions,
-			revealIfOpened: !openToSide
+			revealIfOpened: !openToSide,
+			// A link in the window opens its chat where the window's folder stays, rather than following it
+			...(openToSide ? {} : { keepFolder: true }),
 		});
 		return !!widget;
 	}

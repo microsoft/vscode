@@ -371,9 +371,6 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 		if (items.length > MODEL_ROUTER_MAX_ROUTES || items.length < (guided ? 1 : MODEL_ROUTER_MIN_ROUTES)) {
 			report.error(`A router has ${MODEL_ROUTER_MIN_ROUTES} to ${MODEL_ROUTER_MAX_ROUTES} routes; this one has ${items.length}.`, routesProperty.value);
 		}
-		if (guided && switching === 'auto') {
-			report.error('A route\'s `guidance` is given to a chat when it starts and kept for that chat, so `switching: auto` can\'t be used with it.', switchingProperty?.value);
-		}
 	}
 
 	if (modelRouterDecisionTextBytes(guidance ?? '', routes) > MODEL_ROUTER_MAX_DECISION_TEXT_BYTES) {

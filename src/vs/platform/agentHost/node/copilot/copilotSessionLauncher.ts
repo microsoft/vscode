@@ -5,6 +5,7 @@
 
 import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationHandlerResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { homedir } from 'os';
+import { getEagerMcpDiagnosticLevel } from './copilotMcpServerLogs.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -381,7 +382,7 @@ export interface ICopilotSessionRuntime {
 	/** The owner session this launch is configured for; the chat's owner can change later, which relaunches at the next turn boundary. */
 	readonly launchOwner: URI;
 	/** The sandbox policy to pass when the SDK session opens; `undefined` when the launch applies it another way. */
-	getLaunchSandboxConfig(isResume: boolean): SandboxConfig | undefined;
+	getLaunchSandboxConfig(isResume: boolean, requestExtensions?: boolean): SandboxConfig | undefined;
 	/** Applies the launch-time sandbox policy and diagnostics before the SDK session is attached. */
 	applyLaunchSandbox(session: CopilotSession, isResume: boolean): Promise<void>;
 	handlePermissionRequest(request: PermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult | AttributedPermissionResult>;
@@ -1233,7 +1234,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const modelPolicy = built.modelPolicy;
 		// Applied during construction so MCP servers start sandboxed; the launch apply below still repeats it for runtimes without open-time support.
-		const config: SandboxAwareSessionConfig = { ...built.config, sandboxConfig: runtime.getLaunchSandboxConfig(plan.kind === 'resume') };
+		const config: SandboxAwareSessionConfig = { ...built.config, sandboxConfig: runtime.getLaunchSandboxConfig(plan.kind === 'resume', built.config.requestExtensions) };
 		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
@@ -1298,13 +1299,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		try {
 			const raw = await this._sessionOpenTelemetry.withSdkResume(
 				session,
-				() => this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.resumeSession(plan.sessionId, openConfig))),
+				() => this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.resumeSession(plan.sessionId, { ...openConfig, ...this._eagerDiagnostics() }))),
 			);
 			outcome = 'success';
 			return raw;
 		} finally {
 			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession settled: attemptId=${attemptId}, outcome=${outcome}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
 		}
+	}
+
+	/**
+	 * Captures MCP diagnostics from launch while the host logs at Debug or Trace, so startup
+	 * traffic is retained before any client subscribes. Live sessions reapply the effective
+	 * level through `CopilotMcpServerLogs` once their wrapper is set.
+	 */
+	private _eagerDiagnostics(): Pick<SessionConfig, 'diagnostics'> {
+		const level = getEagerMcpDiagnosticLevel(this._logService.getLevel());
+		return level ? { diagnostics: { sources: { mcp: { level } } } } : {};
 	}
 
 	private _withTraceContext<T>(sessionId: string, fn: () => T): T {
@@ -1336,6 +1347,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const raw = await this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.createSession({
 			...openConfig,
+			...this._eagerDiagnostics(),
 			sessionId: plan.sessionId,
 			model: plan.model?.id,
 			reasoningEffort: resolveCopilotReasoningEffort(model, this._configurationService, this._logService, plan.sessionId),

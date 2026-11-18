@@ -8,6 +8,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorktreeSendChoiceAsker } from '../../../chat/browser/agentSessions/worktreeSendChoiceTarget.js';
 
 /** Where the first request of a new session sent in its folder works ({@link INewSessionWorktreeSendChoiceProvider}). */
 export type NewSessionWorktreeSendChoice = 'worktree' | 'folder';
@@ -15,16 +16,18 @@ export type NewSessionWorktreeSendChoice = 'worktree' | 'folder';
 /**
  * Decides, as the first request of a new session that would work in its folder is sent, whether it works in a new worktree
  * of the folder instead: such as when another chat recently worked in that folder, as the user chose once or chooses now
- * in a callout on the composer's New Worktree control.
+ * in a callout on the New Worktree control of the draft's composer. It holds no UI: the composer marks its own control as
+ * the callout's target while the provider asks about its draft, with `WorktreeSendChoiceTarget`.
  */
-export interface INewSessionWorktreeSendChoiceProvider {
+export interface INewSessionWorktreeSendChoiceProvider extends IWorktreeSendChoiceAsker {
 	/** Whether another chat recently worked in `folder` itself, other than the session of `draft`: only then is there a choice. */
 	isRecentChatInFolder(folder: URI, draft: URI): boolean;
 	/**
-	 * Where the session works: as the user chose once, else as the user chooses now in a callout on `control`, while the send
-	 * waits. `undefined` is no answer, such as where it could not ask: the session then works in its folder.
+	 * Where the session of `draft` works: as the user chose once, else as the user chooses now in a callout on the New Worktree
+	 * control of the draft's composer, while the send waits. `undefined` is no answer, such as where it could not ask: the
+	 * session then works in its folder.
 	 */
-	askWorktreeOnSend(control: HTMLElement): Promise<NewSessionWorktreeSendChoice | undefined>;
+	requestSendChoice(draft: URI): Promise<NewSessionWorktreeSendChoice | undefined>;
 }
 
 export const INewSessionWorktreeSendChoiceService = createDecorator<INewSessionWorktreeSendChoiceService>('newSessionWorktreeSendChoiceService');

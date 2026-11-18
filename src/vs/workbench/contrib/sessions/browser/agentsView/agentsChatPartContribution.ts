@@ -6,6 +6,7 @@
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -20,7 +21,9 @@ import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../sessionChanges/browser/sessionChangesEditorInput.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { INewSessionTarget } from '../parts/chatView.js';
+import { IEditorWindowPresentedChat, IEditorWindowPresenterOpenOptions, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
@@ -65,6 +68,12 @@ export interface IEditorWindowChatPartService {
 	 * workbench creates its grid. Features that enable it together share the one chat part.
 	 */
 	enable(options: IEditorWindowChatPartOptions): IDisposable;
+
+	/** Closes the tab of `chatResource` in the chat part, where it has one; creates nothing where it has no chats yet. */
+	closeChat(chatResource: URI): Promise<void>;
+
+	/** Keeps what was typed in the chat part's one unsent composer for its next one; see `IAgentsChatPartService.parkComposerInput`. */
+	parkComposerInput(): boolean;
 }
 
 export class EditorWindowChatPartService extends Disposable implements IEditorWindowChatPartService {
@@ -105,6 +114,16 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 				this._updateAnchor();
 			}
 		});
+	}
+
+	async closeChat(chatResource: URI): Promise<void> {
+		if (this._frame.contentCreated.get()) {
+			await this._frame.content.get()?.closeChat(chatResource);
+		}
+	}
+
+	parkComposerInput(): boolean {
+		return this._frame.contentCreated.get() && !!this._frame.content.get()?.parkComposerInput();
 	}
 
 	private _updateAnchor(): void {
@@ -148,6 +167,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 
 		// While chats open in it, it replaces the Chat view, and shows the chats of the window's sessions. The host and the
 		// chat part's content are created as the first request comes, not as the window starts.
+		let presenter: AgentsChatPartPresenter | undefined;
 		store.add(autorun(reader => {
 			if (!this.enabled.read(reader)) {
 				return;
@@ -158,7 +178,11 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			reader.store.add(this._chatViewHostService.register({ host }));
 			// Unregistered, what the host is still doing does not open the chat part
 			reader.store.add(toDisposable(() => host.deactivate()));
-			reader.store.add(this._presenterService.registerPresenter(this._createPresenter()));
+			// What needs the chat part's content takes it only from here on: its service, though delayed, is created as the
+			// window idles once something takes it
+			presenter = this._instantiationService.createInstance(AgentsChatPartPresenter);
+			reader.store.add(this._presenterService.registerPresenter(presenter));
+			reader.store.add(toDisposable(() => presenter = undefined));
 		}));
 
 		// While chats do not open in it, it does not show, also not as the window restored it shown
@@ -177,7 +201,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			if (store.isDisposed) {
 				return;
 			}
-			const restored = this.enabled.get() ? restoreAgentsChatPart(this._layoutService, this._contextKeyService, () => this._chatPart()) : undefined;
+			const restored = this.enabled.get() ? presenter?.restore() : undefined;
 			visible?.set(this._layoutService.isVisible(Parts.CHAT_PART));
 			return restored;
 		}).catch(onUnexpectedError);
@@ -210,22 +234,50 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		return visible;
 	}
 
-	private _chatPart(): IAgentsChatPartService {
-		return this._instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService));
-	}
+}
 
-	/** The chat part as the presenter of the window's sessions; what reads it without needing it does not create it. */
-	private _createPresenter(): IEditorWindowSessionsPresenter {
+/** The chat part as the presenter of the window's sessions, while chats open in it; what reads it without needing it does not create it. */
+export class AgentsChatPartPresenter implements IEditorWindowSessionsPresenter {
+
+	readonly activeChat: IObservable<IEditorWindowPresentedChat | undefined>;
+
+	constructor(
+		@IAgentsChatPartFrame private readonly _frame: IAgentsChatPartFrame,
+		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+	) {
 		// Of the frame: reading it as the chat part is being created does not create it again
 		const { content, contentCreated: created } = this._frame;
-		const existing = () => created.get() ? content.get() : undefined;
-		return {
-			activeChat: derived(reader => created.read(reader) ? content.read(reader)?.activeChat.read(reader) : undefined),
-			openChat: (session, chatResource, options) => this._chatPart().openChat(session, chatResource, options),
-			openComposer: (target, options) => this._chatPart().openComposer(target, options),
-			closeChat: async chatResource => existing()?.closeChat(chatResource),
-			isShowing: chatResource => !!existing()?.isShowing(chatResource),
-			focus: () => this._chatPart().focus(),
-		};
+		this.activeChat = derived(reader => created.read(reader) ? content.read(reader)?.activeChat.read(reader) : undefined);
+	}
+
+	private _existing(): IAgentsChatPartService | undefined {
+		return this._frame.contentCreated.get() ? this._frame.content.get() : undefined;
+	}
+
+	openChat(session: ISession, chatResource: URI | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
+		return this._chatPart.openChat(session, chatResource, options);
+	}
+
+	openComposer(target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
+		return this._chatPart.openComposer(target, options);
+	}
+
+	async closeChat(chatResource: URI): Promise<void> {
+		return this._existing()?.closeChat(chatResource);
+	}
+
+	isShowing(chatResource: URI): boolean {
+		return !!this._existing()?.isShowing(chatResource);
+	}
+
+	focus(): void {
+		this._chatPart.focus();
+	}
+
+	/** Restores the chat part as the window restores it shown. */
+	restore(): Promise<void> {
+		return restoreAgentsChatPart(this._layoutService, this._contextKeyService, () => this._chatPart);
 	}
 }

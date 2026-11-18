@@ -85,6 +85,12 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	 */
 	private static readonly _agentHostOrigins = new Map<string, string>();
 
+	/** In-flight agent-host MCP server starts, so apps sharing a server start it once. */
+	private static readonly _pendingServerStarts = new Map<string, Promise<void>>();
+
+	/** Whether this app already started its stopped server after a failed load. */
+	private _didAutoStartServer = false;
+
 	/** Origin store for persistent webview origins per server (local MCP only) */
 	private readonly _originStore: WebviewOriginStore;
 
@@ -453,6 +459,24 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 	}
 
 	/**
+	 * Starts the agent-host MCP server that serves this app. A successful
+	 * start changes the server status, which retries the load.
+	 */
+	public startServer(): Promise<void> {
+		const server = this.server.get();
+		if (this.renderData.kind !== 'agentHost' || !server?.enabled || (server.status !== McpServerStatus.Stopped && server.status !== McpServerStatus.Error)) {
+			return Promise.resolve();
+		}
+		const key = `${this.renderData.sessionResource.toString()}\0${server.id}`;
+		let pending = ChatMcpAppModel._pendingServerStarts.get(key);
+		if (!pending) {
+			pending = server.start().finally(() => ChatMcpAppModel._pendingServerStarts.delete(key));
+			ChatMcpAppModel._pendingServerStarts.set(key, pending);
+		}
+		return pending;
+	}
+
+	/**
 	 * Loads the MCP App content into the webview.
 	 */
 	private async _loadContent(): Promise<void> {
@@ -484,6 +508,11 @@ export class ChatMcpAppModel extends Disposable implements IAgentHostMcpAppToolP
 			if (this.renderData.kind === 'agentHost' && this.renderData.serverName && this.server.get()?.status !== McpServerStatus.Ready) {
 				this._logService.trace('[MCP App] Server unavailable while loading app:', error);
 				this._loadState.set({ status: 'unavailable' }, undefined);
+				// Like local apps, start a stopped server once; a failed server waits for an explicit start.
+				if (!this._didAutoStartServer && this.server.get()?.status === McpServerStatus.Stopped) {
+					this._didAutoStartServer = true;
+					this.startServer().catch(startError => this._logService.warn('[MCP App] Failed to start MCP server:', startError));
+				}
 			} else {
 				this._logService.error('[MCP App] Error loading app:', error);
 				this._loadState.set({ status: 'error', error: error as Error }, undefined);
