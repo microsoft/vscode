@@ -461,6 +461,10 @@ export interface IChatRequestModelParameters {
 }
 
 export class ChatRequestModel implements IChatRequestModel {
+	static generateId(): string {
+		return 'request_' + generateUuid();
+	}
+
 	private _agentHostMetadata?: Record<string, unknown>;
 	public readonly id: string;
 	public response: ChatResponseModel | undefined;
@@ -571,7 +575,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
 		this._modelId = params.modelId;
 		this.modelConfiguration = params.modelConfiguration;
-		this.id = params.restoredId ?? 'request_' + generateUuid();
+		this.id = params.restoredId ?? ChatRequestModel.generateId();
 		const version = params.version;
 		this._version = version !== undefined && Number.isSafeInteger(version) && version >= 0 ? version : 0;
 		this._editedFileEvents = params.editedFileEvents;

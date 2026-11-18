@@ -31,6 +31,26 @@ suite('openSessionLink', () => {
 		assert.deepStrictEqual(['', '%'].map(value => parseOpenSessionLinkUri(`agent-host-session://ahp-session/shared?connectionAuthority=${value}`)), [undefined, undefined]);
 	});
 
+	test('opaque session, chat, and request values survive query decoding and external handoff', () => {
+		const backend = URI.from({ scheme: 'conversation', authority: 'host', path: '/s%2F', query: 'x=a&y=b' });
+		const chat = 'peer:/chat?part=a&turn=other%26';
+		const turn = 'request %2F & #/?';
+		const link = buildOpenSessionLinkUri(backend, chat, turn, 'owning-host');
+		const external = buildExternalOpenSessionLinkUri('vscode-insiders', backend, chat, turn, 'owning-host');
+		const restored = parseExternalOpenSessionLinkUri(external, 'vscode-insiders');
+		assert.ok(restored);
+		assert.deepStrictEqual([link, URI.parse(link), restored].map(target => [
+			parseOpenSessionLinkUri(target)?.toString(), parseOpenSessionLinkChatId(target),
+			parseOpenSessionLinkTurnId(target), parseOpenSessionLinkConnectionAuthority(target),
+		]), Array(3).fill([backend.toString(), chat, turn, 'owning-host']));
+	});
+
+	test('rejects invalid chat and turn fields rather than downgrading the target', () => {
+		for (const query of ['chat=', 'turn=%', 'turn=a&turn=b', 'connectionAuthority=local&connectionAuthority=other']) {
+			assert.strictEqual(parseOpenSessionLinkUri(`agent-host-session://provider/id?${query}`), undefined);
+		}
+	});
+
 	test('an explicitly supplied ambient scope remains distinguishable from old unscoped links', () => {
 		const backend = URI.parse('ahp-session:/shared');
 		assert.deepStrictEqual([undefined, 'local'].map(authority => parseOpenSessionLinkConnectionAuthority(buildOpenSessionLinkUri(backend, undefined, undefined, authority))), [undefined, 'local']);

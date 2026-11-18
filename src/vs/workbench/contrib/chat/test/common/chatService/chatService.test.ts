@@ -683,6 +683,30 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(accepted, [undefined, { kind: MessageKind.Agent }, { kind: MessageKind.Tool }]);
 	});
 
+	test('captures only explicit composer text at acceptance with the admitted model or pending ID', async () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const accepted: IChatRequestAcceptedEvent['userSubmission'][] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.userSubmission)));
+		const text = '  my draft\nsecond line ';
+		const first = await service.sendRequest(model.sessionResource, 'expanded prompt', { userSubmittedText: text });
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		const firstId = model.getRequests()[0].id;
+		const generated = await service.sendRequest(model.sessionResource, text);
+		ChatSendResult.assertSent(generated);
+		await generated.data.responseCompletePromise;
+		const queued = await service.sendRequest(model.sessionResource, 'expanded again', { queue: ChatRequestQueueKind.Queued, pauseQueue: true, userSubmittedText: text });
+		assert.ok(ChatSendResult.isQueued(queued));
+		const pendingId = model.getPendingRequests()[0].request.id;
+		assert.deepStrictEqual(accepted, [{ text, requestId: firstId }, undefined, { text, requestId: pendingId }]);
+		service.processPendingRequests(model.sessionResource);
+		const drained = await queued.deferred;
+		ChatSendResult.assertSent(drained);
+		await drained.data.responseCompletePromise;
+		assert.deepStrictEqual([model.getRequests().at(-1)?.id, accepted.length], [pendingId, 3]);
+	});
+
 	async function createSurveySession(sessionType: string, provider?: string) {
 		const sessions = new MockChatSessionsService();
 		sessions.setContributions([{ type: sessionType, name: 'Test', displayName: 'Test', description: '', agentHostProviderId: provider }]);
@@ -2839,7 +2863,9 @@ suite('ChatService', () => {
 			const existing = outcome === 'existing' ? addRequest('server-turn') : undefined;
 			existing?.response!.complete();
 			if (outcome !== 'removedFromQueue') {
+				const resolution = Event.toPromise(service.onDidResolvePendingRequest);
 				service.consumePendingRequest(sessionResource, pendingId, 'server-turn');
+				assert.deepStrictEqual(await resolution, { chatSessionResource: sessionResource, pendingRequestId: pendingId, requestId: 'server-turn' });
 			}
 			service.syncPendingRequestsFromRemote(sessionResource, []);
 			if (outcome === 'disposedBeforeStart' || outcome === 'removedFromQueue') {
@@ -3637,7 +3663,8 @@ suite('ChatService', () => {
 			});
 			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
 
-			const send = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			const acceptance = Event.toPromise(service.onDidAcceptRequest);
+			const send = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme, userSubmittedText: 'hello' });
 			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), [remoteScheme]);
 
 			materialization.complete(realItem(realResource));
@@ -3646,6 +3673,8 @@ suite('ChatService', () => {
 			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), [remoteScheme]);
 			ChatSendResult.assertSent(result);
 			await result.data.responseCompletePromise;
+			const event = await acceptance;
+			assert.deepStrictEqual([event.chatSessionResource.toString(), event.userSubmission], [realResource.toString(), { text: 'hello', requestId: service.getSession(realResource)?.getRequests()[0].id }]);
 			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), []);
 		});
 

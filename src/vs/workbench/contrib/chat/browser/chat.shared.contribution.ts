@@ -121,6 +121,7 @@ import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCod
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { ChatCopyActionRendering, registerChatCopyActions } from './actions/chatCopyActions.js';
+import { MyRequestsRecorder, registerMyRequestsActions } from './myRequests/myRequests.js';
 import { ChatModelFeedbackSurveyActionRendering, registerChatModelFeedbackSurveyActions } from './actions/chatModelFeedbackSurveyActions.js';
 import { ChatHarnessSwitchFeedbackSurveyService, IChatHarnessSwitchFeedbackSurveyService } from './feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { ChatModelFeedbackSurveyService, IChatModelFeedbackSurveyService } from './feedbackSurvey/chatModelFeedbackSurveyService.js';
@@ -3487,6 +3488,8 @@ registerWorkbenchContribution2(ChatPetEditingAchievementContribution.ID, ChatPet
 registerChatActions();
 registerChatAccessibilityActions();
 registerChatCopyActions();
+registerMyRequestsActions();
+registerWorkbenchContribution2(MyRequestsRecorder.ID, MyRequestsRecorder, WorkbenchPhase.BlockRestore);
 registerChatModelFeedbackSurveyActions();
 registerChatOpenAgentDebugPanelAction();
 registerChatCodeBlockActions();

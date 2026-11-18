@@ -453,7 +453,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 			resolveAndOpenSessionLink: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenSessionLink'),
 			waitForSessionLinkAvailable: async () => session,
 			sessionsProvidersService: { getProvider: () => undefined },
-			agentHostConnectionsService: { resolveSessionResource: () => resolution },
+			agentHostConnectionsService: { resolveSessionResource: () => resolution, resolveSessionResourceIdentity: () => resolution },
 			chatWindowService: {
 				get activeWindow() { return activeWindow; },
 				open: async (resource: URI, options?: IChatWindowOpenOptions) => {

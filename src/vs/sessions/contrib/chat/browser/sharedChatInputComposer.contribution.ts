@@ -60,7 +60,7 @@ export class SendInBackgroundAction extends Action2 {
 	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const widget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
 		if (widget) {
-			await SharedChatInputComposer.getBackgroundComposer(widget)?.submit(true);
+			await SharedChatInputComposer.getBackgroundComposer(widget)?.submit(true, true);
 		}
 	}
 }

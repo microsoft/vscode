@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IAgentHostConnectionsService, resolveChatLinkFragment } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { revealLinkedRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/sessionLinkNavigation.js';
+import { whenChatWidgetForSession } from '../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
 
 /** The chat window a link was activated in, and the chat of it the user activated it in. */
 export interface IChatWindowLinkSource {
@@ -32,14 +36,28 @@ export function getChatWindowLinkSource(window: IChatWindow | undefined, configu
  * The chat a link names in `session`: the chat of its chat id, or the main chat without one, or when the id names the
  * session's advertised default chat, as an opaque id or the chat's resource.
  */
-export async function resolveLinkedChat(connectionsService: IAgentHostConnectionsService, session: ISession, chatId: string | undefined): Promise<URI> {
-	if (chatId) {
-		const resolution = connectionsService.resolveSessionResource(session.resource);
-		if (!resolution || !await isDefaultChatLinkId(resolution.connection, resolution.backendSession, chatId)) {
-			return session.resource.with({ fragment: chatId });
+export async function resolveLinkedChat(connectionsService: IAgentHostConnectionsService, session: ISession, chatId: string | undefined): Promise<URI | undefined> {
+	const resolution = connectionsService.resolveSessionResource(session.resource);
+	if ((!resolution && connectionsService.resolveSessionResourceIdentity(session.resource)) || resolution?.connection.connectionAvailable?.get() === false) {
+		return undefined;
+	}
+	if (!chatId) {
+		return session.mainChat.get().resource;
+	}
+	if (!resolution) {
+		return session.chats.get().find(chat => chat.resource.fragment === chatId)?.resource;
+	}
+	const fragment = await resolveChatLinkFragment(resolution.connection, resolution.backendSession, chatId);
+	return fragment === undefined ? undefined : fragment ? session.resource.with({ fragment }) : session.mainChat.get().resource;
+}
+
+export async function revealLinkedChatTurn(widgets: IChatWidgetService, chat: URI, turn: string | undefined, token = CancellationToken.None): Promise<void> {
+	if (turn) {
+		const widget = await whenChatWidgetForSession(widgets, chat, { supportsInputRequests: true });
+		if (!token.isCancellationRequested) {
+			revealLinkedRequest(widget, chat, turn);
 		}
 	}
-	return session.mainChat.get().resource;
 }
 
 /**

@@ -7,7 +7,6 @@ import { isThenable } from '../../../../../base/common/async.js';
 import { Disposable, DisposableMap, type IDisposable } from '../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { resolveAgentMessageProvenance } from '../../../common/agentMessageProvenance.js';
@@ -362,7 +361,9 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 
 	private _admitQueuedTurn(host: IAgentHostChatContributionHost, channel: ProtocolURI, message: Message, messageId: string, sender: IQueuedMessageSender): void {
 		const sessionChannel = this._chatOwnership.requireChatOwner(channel);
-		const turnId = generateUuid();
+		// The client already assigned a unique ID when it queued the message. Keep references
+		// made while queued valid after promotion, just as for immediately submitted turns.
+		const turnId = messageId;
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,
 			turnId,

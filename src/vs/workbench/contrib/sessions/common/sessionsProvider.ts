@@ -205,6 +205,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** Original text of an explicit human composer send, before provider prompt construction. */
+	readonly userSubmittedText?: string;
 	/** Reject an unavailable connection instead of retaining the request for reconnection. */
 	readonly requireConnected?: boolean;
 	/** Initial configuration resolved by the target provider before its first turn. */

@@ -181,7 +181,7 @@ abstract class SubmitAction extends Action2 {
 		} else if (widget?.viewModel?.model.checkpoint) {
 			widget.viewModel.model.setCheckpoint(undefined);
 		}
-		widget?.acceptInput(context?.inputValue, context?.acceptInputOptions);
+		widget?.acceptInput(context?.inputValue, { ...context?.acceptInputOptions, isComposerSubmission: context?.inputValue === undefined });
 	}
 
 	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionTarget, AgentSessionProviders.Local>): Promise<void> {
@@ -782,7 +782,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		widget?.acceptInput(context?.inputValue, { noCommandDetection: true });
+		widget?.acceptInput(context?.inputValue, { noCommandDetection: true, isComposerSubmission: context?.inputValue === undefined });
 	}
 }
 
@@ -830,7 +830,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 			icon: ThemeIcon.isThemeIcon(codebaseTool.icon) ? codebaseTool.icon : undefined,
 			kind: 'tool'
 		});
-		widget.acceptInput();
+		widget.acceptInput(undefined, { isComposerSubmission: true });
 	}
 }
 
@@ -882,7 +882,7 @@ class SendToNewChatAction extends Action2 {
 
 		await instantiationService.invokeFunction(clearChatSessionPreservingType, widget, undefined);
 
-		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
+		widget.acceptInput(inputBeforeClear, { storeToHistory: true, isComposerSubmission: true });
 	}
 }
 

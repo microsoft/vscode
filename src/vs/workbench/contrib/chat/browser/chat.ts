@@ -389,7 +389,7 @@ export interface IChatWidgetViewOptions {
 	 * on the input so a host that routes the request elsewhere can forward them
 	 * instead of silently dropping them.
 	 */
-	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
+	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean, isComposerSubmission?: boolean) => Promise<boolean>;
 	/** Revalidates a composer submission synchronously after preparation, immediately before dispatch. */
 	validateInput?: (query: string) => void;
 	/**
@@ -467,6 +467,8 @@ export function isIChatResourceViewContext(context: IChatWidgetViewContext): con
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
 
 export interface IChatAcceptInputOptions {
+	/** Explicit send action on the composer's draft, not a programmatic widget submission. */
+	readonly isComposerSubmission?: boolean;
 	noCommandDetection?: boolean;
 	isVoiceInput?: boolean;
 	isVoiceModeInput?: boolean;

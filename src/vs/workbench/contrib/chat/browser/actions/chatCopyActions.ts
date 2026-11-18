@@ -18,7 +18,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { buildOpenSessionLinkUri, getSessionLinkAuthority } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
@@ -31,6 +31,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { OpenWithEditorPicker } from '../../../../services/editor/browser/openWithEditorPicker.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -179,6 +180,7 @@ export class CopyChatSessionLinkAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const context = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
 		const connectionsService = accessor.get(IAgentHostConnectionsService);
+		const remoteAuthority = accessor.get(IWorkbenchEnvironmentService).remoteAuthority;
 		const provisionalService = accessor.get(IAgentHostUntitledProvisionalSessionService);
 		const clipboardService = accessor.get(IClipboardService);
 		const links = await Promise.all(context.groupedEditors.flatMap(group => group.editors)
@@ -196,7 +198,11 @@ export class CopyChatSessionLinkAction extends Action2 {
 				if (isUntitledChatSession(backend)) {
 					throw new Error(localize('chat.copySessionLink.notCreated', "Send a message in this chat before copying its link."));
 				}
-				return buildOpenSessionLinkUri(backend, resource.fragment || undefined, undefined, identity.connectionAuthority);
+				const authority = getSessionLinkAuthority(connectionsService, identity.connectionAuthority);
+				if (remoteAuthority && authority === AMBIENT_AGENT_HOST_AUTHORITY) {
+					throw new Error(localize('chat.copySessionLink.unknownHost', "The agent host for this remote window could not be identified."));
+				}
+				return buildOpenSessionLinkUri(backend, resource.fragment || undefined, undefined, authority);
 			}));
 		if (links.length) {
 			await clipboardService.writeText([...new Set(links)].join('\n'));

@@ -360,7 +360,7 @@ export class AgentsLauncherService extends Disposable implements IAgentsLauncher
 
 	async sendInBackground(): Promise<void> {
 		const widget = this._getChatWidget();
-		await (widget && SharedChatInputComposer.getBackgroundComposer(widget))?.submit(true);
+		await (widget && SharedChatInputComposer.getBackgroundComposer(widget))?.submit(true, true);
 	}
 
 	/** The chat widget of the composer in the Agents Launcher's window. */

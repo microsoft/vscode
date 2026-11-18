@@ -2977,7 +2977,7 @@ export class CopilotAgentSession extends Disposable {
 		// longer be routed and stay invisible. A cancelled workflow is not kept.
 		const preservesFusionState = previousTurnId !== undefined && !this._fusionTurnCancelled;
 		this._completeActiveTurn(false, preservesFusionState);
-		const newTurnId = generateUuid();
+		const newTurnId = steering.pendingMessage.id;
 		steering.promotedTurnId = newTurnId;
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,

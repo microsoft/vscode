@@ -11,10 +11,11 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, getSessionLinkAuthority, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenOptions } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
@@ -24,7 +25,9 @@ import { ISession, SessionStatus } from '../../../../workbench/services/sessions
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { getSessionSummaryHoverData } from '../../../../workbench/contrib/sessions/browser/sessionHoverContent.js';
-import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from './chatLinkRouting.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { handleSessionLink } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/sessionLinkNavigation.js';
+import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat, revealLinkedChatTurn } from './chatLinkRouting.js';
 
 /**
  * Handles `agent-host-session://` links (surfaced by the `create_session` /
@@ -53,10 +56,12 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ILabelService labelService: ILabelService,
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatWidgetService private readonly _widgets: IChatWidgetService,
+		@INotificationService notifications: INotificationService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
-			open: async (resource, options: OpenOptions = {}) => this._open(resource, options.openToSide === true, this._getSource(options)),
+			open: (resource, options: OpenOptions = {}) => handleSessionLink(resource, notifications, () => this._open(resource, options.openToSide === true, this._getSource(options))),
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'sessions.agentSessionLinkPresentation',
@@ -110,18 +115,21 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		// An absent chat id means the session's main/default chat, not "no target chat" (see buildOpenSessionLinkUri).
 		const chatId = parseOpenSessionLinkChatId(resource);
 		const chatResource = await resolveLinkedChat(this._connectionsService, session, chatId);
-		if (source && await openLinkedChatInChatWindow(this._chatWindowService, source, session, chatResource, openToSide)) {
-			return true;
+		if (!chatResource) {
+			return false;
 		}
-		if (openToSide) {
-			if (chatId) {
-				await this._sessionsService.openChatToSide(session, chatResource);
+		if (!source || !await openLinkedChatInChatWindow(this._chatWindowService, source, session, chatResource, openToSide)) {
+			if (openToSide) {
+				if (chatId) {
+					await this._sessionsService.openChatToSide(session, chatResource);
+				} else {
+					await this._sessionsService.openSessionToSide(session, { forceMainChat: true, source: 'link' });
+				}
 			} else {
-				await this._sessionsService.openSessionToSide(session, { forceMainChat: true, source: 'link' });
+				await this._sessionsService.openChat(session, chatResource, { source: 'link' });
 			}
-		} else {
-			await this._sessionsService.openChat(session, chatResource, { source: 'link' });
 		}
+		await revealLinkedChatTurn(this._widgets, chatResource, parseOpenSessionLinkTurnId(resource));
 		return true;
 	}
 }
@@ -188,16 +196,14 @@ export function findSessionForOpenSessionLink(
 	connectionsService: IAgentHostConnectionsService,
 	connectionAuthority?: string,
 ): ISession | undefined {
-	return sessionsManagementService.getSessions().find(session => {
+	const matches = sessionsManagementService.getSessions().filter(session => {
 		const identity = connectionsService.resolveSessionResourceIdentity(session.resource);
-		if (connectionAuthority && identity?.connectionAuthority !== connectionAuthority) {
+		if (connectionAuthority && (!identity || getSessionLinkAuthority(connectionsService, identity.connectionAuthority) !== connectionAuthority)) {
 			return false;
 		}
-		if (isEqual(session.resource, backendSession)) {
-			return true;
-		}
-		return !!identity && isEqual(identity.backendSession, backendSession);
+		return isEqual(identity?.backendSession, backendSession) || (!connectionAuthority && isEqual(session.resource, backendSession));
 	});
+	return matches.length === 1 ? matches[0] : undefined;
 }
 
 function findChat(session: ISessionLinkState, chatId: string | undefined, reader: IReader): ISessionLinkChatState | undefined {

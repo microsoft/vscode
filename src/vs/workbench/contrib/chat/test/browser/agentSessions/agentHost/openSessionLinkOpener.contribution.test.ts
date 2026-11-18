@@ -12,8 +12,10 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
+import { identityAgentHostResourceUriMapper } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { buildOpenSessionLinkUri } from '../../../../../../../platform/agentHost/common/openSessionLink.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection, IAgentSessionMetadata } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -27,9 +29,41 @@ import { ISessionSummaryHoverService } from '../../../../browser/agentSessions/s
 import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatRequestOriginKind, ChatRequestOriginService } from '../../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { IChatRequestViewModel, IChatViewModel } from '../../../../common/model/chatViewModel.js';
+import { createAgentHostRequestLink } from '../../../../browser/agentSessions/agentHost/agentHostRequestLink.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 
 suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const ambientConnection = upcastPartial<IAgentConnection>({ resourceUris: identityAgentHostResourceUriMapper });
+
+	function listedSession(backend: URI, client: URI) {
+		const connection = upcastPartial<IAgentConnection>({
+			resourceUris: identityAgentHostResourceUriMapper,
+			getSubscriptionUnmanaged: () => undefined,
+			listSessions: async () => [upcastPartial<IAgentSessionMetadata>({ session: backend, chats: [{ chat: URI.parse('ahp-chat://peer-chat/c2Vzc2lvbg'), kind: 'peer' }] })],
+		});
+		return upcastPartial<IAgentHostConnectionsService>({
+			ambientConnection: connection,
+			findSessionResource: () => client,
+			resolveSessionResource: () => ({ backendSession: backend, connectionAuthority: 'local', connection }),
+		});
+	}
+
+	test('builds a request link for the committed backend on the specific remote-window host, never its window-relative local alias', async () => {
+		const client = URI.parse('agent-host-codex:/session').with({ fragment: 'peer %2F & 1' });
+		const backend = URI.parse('conversation://owner/thread?revision=2');
+		const connections = listedSession(backend, client);
+		connections.resolveSessionResourceIdentity = () => ({ backendSession: URI.parse('codex:/untitled-ui'), connectionAuthority: 'local' });
+		const provisional = upcastPartial<IAgentHostUntitledProvisionalSessionService>({ waitForPending: async () => backend });
+		const remote = 'remote-window';
+		const unqualified = await createAgentHostRequestLink(client, 'request', connections, provisional, remote);
+		const qualified = { ...connections, ambientConnection: upcastPartial<IAgentConnection>({ resourceUris: { ...identityAgentHostResourceUriMapper, connectionAuthority: 'specific-host' } }) };
+		const link = await createAgentHostRequestLink(client, 'request', qualified, provisional, remote);
+		assert.ok(link);
+		const uncommitted = await createAgentHostRequestLink(client, 'request', qualified, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ waitForPending: async () => undefined }), remote);
+		assert.deepStrictEqual([unqualified, uncommitted, parseOpenSessionLinkUri(link)?.toString(), parseOpenSessionLinkChatId(link), parseOpenSessionLinkTurnId(link), parseOpenSessionLinkConnectionAuthority(link)], [undefined, undefined, backend.toString(), client.fragment, 'request', 'specific-host']);
+	});
 
 	for (const chatId of [undefined, 'peer-chat']) {
 		for (const openToSide of [undefined, false, true]) {
@@ -60,11 +94,9 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 						override registerProvider(): IDisposable { return Disposable.None; }
 					}(),
 					new class extends mock<IPathService>() { }(),
-					new class extends mock<IAgentHostConnectionsService>() {
-						override findSessionResource(): URI | undefined { return client; }
-						override resolveSessionResource() { return undefined; }
-					}(),
+					listedSession(backend, client),
 					new TestConfigurationService(),
+					new TestNotificationService(),
 				));
 
 				assert.ok(opener);
@@ -126,11 +158,9 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 					override registerProvider(): IDisposable { return Disposable.None; }
 				}(),
 				new class extends mock<IPathService>() { }(),
-				new class extends mock<IAgentHostConnectionsService>() {
-					override findSessionResource(): URI | undefined { return client; }
-					override resolveSessionResource() { return undefined; }
-				}(),
+				listedSession(backend, client),
 				new TestConfigurationService({ chat: { agentSessions: { openInEditor: true } } }),
+				new TestNotificationService(),
 			);
 			try {
 				assert.ok(opener);
@@ -155,20 +185,24 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		const resources = new Map<string, URI>([[`local:${backend}`, local]]);
 		const opened: string[] = [];
 		let listings = 0;
+		let connected = true;
+		const warnings: string[] = [];
 		let opener: IOpener | undefined;
 		const owner = new class extends mock<IAgentConnection>() {
+			override getSubscriptionUnmanaged() { return undefined; }
 			override async listSessions(): Promise<IAgentSessionMetadata[]> {
 				listings++;
-				return [{ session: backend, provider: 'claude', startTime: 0, modifiedTime: 0 }];
+				return [{ session: backend, provider: 'claude', startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse('ahp-chat://peer/c2Vzc2lvbg'), kind: 'peer' }] }];
 			}
 		}();
 		const connections = new class extends mock<IAgentHostConnectionsService>() {
 			override readonly ambientConnection = new class extends mock<IAgentConnection>() {
+				override readonly resourceUris = identityAgentHostResourceUriMapper;
 				override async listSessions(): Promise<IAgentSessionMetadata[]> { throw new Error('Wrong connection'); }
 			}();
 			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return authority === 'other-host' ? owner : undefined; }
 			override findSessionResource(resource: URI, authority = 'local'): URI | undefined { return resources.get(`${authority}:${resource}`); }
-			override resolveSessionResource() { return undefined; }
+			override resolveSessionResource() { return connected ? { connection: owner, connectionAuthority: 'other-host', backendSession: backend } : undefined; }
 			override registerSessionResource(resource: URI, authority?: string, provider?: string): URI {
 				assert.deepStrictEqual([authority, provider], ['other-host', 'claude']);
 				resources.set(`${authority}:${resource}`, remote);
@@ -190,10 +224,16 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<IPathService>() { }(),
 			connections,
 			new TestConfigurationService(),
+			new class extends TestNotificationService {
+				override warn(message: string) { warnings.push(message); return super.warn(message); }
+			}(),
 		));
 		assert.ok(opener);
 		const result = await opener.open(URI.parse(buildOpenSessionLinkUri(backend, 'peer', undefined, 'other-host')));
-		assert.deepStrictEqual({ result, listings, opened }, { result: true, listings: 1, opened: [remote.with({ fragment: 'peer' }).toString()] });
+		const missing = await opener.open(buildOpenSessionLinkUri(backend, 'absent', undefined, 'other-host'));
+		connected = false;
+		const offline = await opener.open(buildOpenSessionLinkUri(backend, 'peer', undefined, 'other-host'));
+		assert.deepStrictEqual({ result, missing, offline, warnings: warnings.length, listings, opened }, { result: true, missing: true, offline: true, warnings: 2, listings: 3, opened: [remote.with({ fragment: 'peer' }).toString()] });
 	});
 
 	for (const [name, defaultChat, peerChat, defaultId, peerId, cached] of ([
@@ -207,6 +247,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			let opener: IOpener | undefined;
 			const opened: string[] = [];
 			const connections = new class extends mock<IAgentHostConnectionsService>() {
+				override readonly ambientConnection = ambientConnection;
 				override readonly onDidChangeSessionResolution = Event.None;
 				override findSessionResource(): URI | undefined { return client; }
 				override resolveSessionResource() {
@@ -229,6 +270,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 				new class extends mock<IPathService>() { }(),
 				connections,
 				new TestConfigurationService(),
+				new TestNotificationService(),
 			));
 			await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, defaultChat)));
 			await opener!.open(URI.parse(buildOpenSessionLinkUri(backend, defaultId)));
@@ -246,6 +288,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		const resources = new Map<string, URI>();
 		let listings = 0;
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override async listSessions(): Promise<IAgentSessionMetadata[]> { listings++; return ready.p; }
 		}();
 		const connections = new class extends mock<IAgentHostConnectionsService>() {
@@ -286,6 +329,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<IPathService>() { }(),
 			connections,
 			new TestConfigurationService(),
+			new TestNotificationService(),
 		));
 		const root = store.add(providers.get('workbench.agentSessionLinkPresentation')!.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(backend))));
 		const peer = store.add(providers.get('workbench.agentChatLinkPresentation')!.createLinkPresentationWatcher(URI.parse(buildOpenSessionLinkUri(backend, 'peer'))));
@@ -336,8 +380,9 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 				override registerProvider(): IDisposable { return Disposable.None; }
 			},
 			new class extends mock<IPathService>() { },
-			new class extends mock<IAgentHostConnectionsService>() { },
+			listedSession(URI.parse('codex:/source-thread'), URI.parse('agent-host-codex:/source-thread')),
 			new TestConfigurationService(),
+			new TestNotificationService(),
 		));
 
 		assert.ok(registeredOpener, 'expected an opener service opener to be registered');
@@ -356,6 +401,9 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 	});
 
 	test('opens and presents the exact peer chat from an agent-host-session link', async () => {
+		const effects: string[] = [];
+		const errors: string[] = [];
+		const request = upcastPartial<IChatRequestViewModel>({ id: 'target', message: { text: 'request', parts: [] } });
 		let registeredOpener: IOpener | undefined;
 		const openerService = new class extends mock<IOpenerService>() {
 			override registerOpener(opener: IOpener): IDisposable {
@@ -368,7 +416,11 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override async openSession(sessionResource: URI): Promise<IChatWidget | undefined> {
 				openedResource = sessionResource;
-				return new class extends mock<IChatWidget>() { };
+				return upcastPartial<IChatWidget>({
+					viewModel: upcastPartial<IChatViewModel>({ sessionResource, getItems: () => [request] }),
+					reveal: item => effects.push(`reveal:${item.id}`),
+					focus: item => effects.push(`focus:${item.id}`),
+				});
 			}
 		};
 
@@ -418,22 +470,32 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 				override registerProvider(): IDisposable { return Disposable.None; }
 			},
 			new class extends mock<IPathService>() { },
-			new class extends mock<IAgentHostConnectionsService>() { override resolveSessionResource() { return undefined; } }(),
+			listedSession(URI.parse('copilotcli:/session'), sessionResource),
 			new TestConfigurationService(),
+			new class extends TestNotificationService {
+				override error(message: Error) { errors.push(message.message); return super.error(message); }
+			}(),
 		));
 
 		assert.ok(registeredOpener);
-		const link = URI.parse(buildOpenSessionLinkUri('copilotcli:/session', 'peer-chat'));
+		const link = URI.parse(buildOpenSessionLinkUri('copilotcli:/session', 'peer-chat', 'target'));
 		const opened = await registeredOpener.open(link);
+		const missing = await registeredOpener.open(buildOpenSessionLinkUri('copilotcli:/session', 'peer-chat', 'missing'));
 		const watcher = store.add(providers.get('workbench.agentChatLinkPresentation')!.createLinkPresentationWatcher(link));
 		const presentation = await waitForState(watcher.presentation, value => value?.title === peerChat.label);
 
 		assert.deepStrictEqual({
 			opened,
+			effects,
+			missing,
+			errors: errors.length,
 			openedResource: openedResource?.toString(),
 			presentation: presentation && { kind: presentation.kind, title: presentation.title, status: presentation.status?.kind },
 		}, {
 			opened: true,
+			effects: ['reveal:target', 'focus:target'],
+			missing: true,
+			errors: 1,
 			openedResource: 'agent-host-copilotcli:/session#peer-chat',
 			presentation: { kind: 'chat', title: 'Hi', status: 'warning' },
 		});
@@ -462,6 +524,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			new class extends mock<IPathService>() { },
 			new class extends mock<IAgentHostConnectionsService>() { },
 			new TestConfigurationService(),
+			new TestNotificationService(),
 		));
 
 		const opened = await requestOriginService.open({
