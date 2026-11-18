@@ -7,6 +7,7 @@ import { $, addDisposableListener, append, DisposableResizeObserver, EventType, 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { equals } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -210,10 +211,10 @@ export class ScreenshotAnnotationEditor {
 	private activeOpacity = 1;
 	private readonly actions: DrawAction[] = [];
 	private readonly undoneActions: DrawAction[] = [];
-	/** Counts changes to the actions, so that finishing a markup knows whether it changed the image. */
-	private revision = 0;
-	private savedRevision = 0;
+	/** The actions when the markup started, so that ending it knows whether it changed the image. */
+	private savedActions: readonly DrawAction[] = [];
 	private disposed = false;
+	private pendingCancel: Promise<boolean> | undefined;
 	private currentAction: DrawAction | null = null;
 	private isDrawing = false;
 	private isErasing = false;
@@ -252,7 +253,7 @@ export class ScreenshotAnnotationEditor {
 	private preCropState: { element: HTMLImageElement; width: number; height: number; currentCrop: { x: number; y: number; width: number; height: number } | null } | null = null;
 	private mainToolbar: HTMLElement | null = null;
 	private cropToolbar: HTMLElement | null = null;
-	/** Holds Done while marking up, which hides with the main toolbar while cropping. */
+	/** Holds Cancel and Done while marking up, which hide with the main toolbar while cropping. */
 	private doneContainer: HTMLElement | null = null;
 
 	/** Annotations are stored in original-image coords. While in crop mode the canvas already shows the original image, so the offset is 0. */
@@ -299,18 +300,26 @@ export class ScreenshotAnnotationEditor {
 	private toolOptionsPopover: HTMLElement | null = null;
 
 
+	/**
+	 * @param confirmDiscard Asks the user whether to discard the changes of a markup that is cancelled.
+	 */
 	constructor(
 		private readonly screenshot: { readonly dataUrl: string },
 		private readonly parentElement: HTMLElement,
+		private readonly confirmDiscard: () => Promise<boolean>,
 		private readonly initialState?: IAnnotationEditorState,
 	) {
 		this.createUI();
-		this.savedRevision = this.revision;
 		this.loadImage();
 	}
 
 	get element(): HTMLElement {
 		return this.container;
+	}
+
+	/** Whether the image differs from how it was when the markup started, which cancelling discards. */
+	get hasChanges(): boolean {
+		return !this.disposed && (!!this.textEditState?.text.trim() || !equals(this.actions, this.savedActions));
 	}
 
 	focus(): void {
@@ -404,8 +413,9 @@ export class ScreenshotAnnotationEditor {
 		cropToolbar.style.display = 'none';
 		this.cropToolbar = cropToolbar;
 
+		const cancelLabel = localize('cancel', "Cancel");
 		const cropCancelBtn = this.disposables.add(new Button(cropToolbar, { ...defaultButtonStyles, secondary: true }));
-		cropCancelBtn.label = localize('cancel', "Cancel");
+		cropCancelBtn.label = cancelLabel;
 		this.disposables.add(cropCancelBtn.onDidClick(() => {
 			this.cancelCrop();
 		}));
@@ -417,6 +427,9 @@ export class ScreenshotAnnotationEditor {
 		}));
 
 		this.doneContainer = append(toolbarParent, $('div.annotation-mark-up-header-end'));
+		const cancelBtn = this.disposables.add(new Button(this.doneContainer, { ...defaultButtonStyles, secondary: true }));
+		cancelBtn.label = cancelLabel;
+		this.disposables.add(cancelBtn.onDidClick(() => void this.cancel()));
 		const doneBtn = this.disposables.add(new Button(this.doneContainer, defaultButtonStyles));
 		doneBtn.label = localize('done', "Done");
 		this.disposables.add(doneBtn.onDidClick(() => this.finish()));
@@ -502,7 +515,7 @@ export class ScreenshotAnnotationEditor {
 					return;
 				}
 				if (this.selectedActionIndex >= 0) {
-					// Whoever hosts the markup ends it on Escape, which must only clear the selection here.
+					// Whoever hosts the markup cancels it on Escape, which must only clear the selection here.
 					e.preventDefault();
 					e.stopPropagation();
 					this.selectedActionIndex = -1;
@@ -511,7 +524,7 @@ export class ScreenshotAnnotationEditor {
 				}
 				e.preventDefault();
 				e.stopPropagation();
-				this.finish();
+				void this.cancel();
 			} else if (e.key === 'Enter' && this.cropMode) {
 				e.preventDefault();
 				this.commitCrop();
@@ -882,7 +895,7 @@ export class ScreenshotAnnotationEditor {
 
 			// Restore prior crop, if any.
 			this.applyDisplayedCrop(this.initialState?.crop ?? null);
-			this.savedRevision = this.revision;
+			this.savedActions = this.actions.slice();
 		};
 		// Use original screenshot (not annotated) so we can re-crop from full original
 		img.src = this.screenshot.dataUrl;
@@ -1346,7 +1359,6 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private updateUndoRedoState(): void {
-		this.revision++;
 		if (this.undoBtn) {
 			this.undoBtn.disabled = this.actions.length === 0;
 		}
@@ -1355,7 +1367,16 @@ export class ScreenshotAnnotationEditor {
 		}
 	}
 
-	private undo(): void {
+	/** Whether a pointer gesture is changing the actions, which undo and redo must not interleave with. */
+	private get isChangingActions(): boolean {
+		return this.isDrawing || this.isErasing || this.isDraggingSelected || this.isResizingSelectedText;
+	}
+
+	/** Undoes the latest change, like Undo does. */
+	undo(): void {
+		if (this.cropMode || this.isChangingActions) {
+			return;
+		}
 		if (this.textPlacementState) {
 			this.cancelTextPlacement();
 			return;
@@ -1392,7 +1413,11 @@ export class ScreenshotAnnotationEditor {
 		}
 	}
 
-	private redo(): void {
+	/** Redoes the latest undone change, like Redo does. */
+	redo(): void {
+		if (this.cropMode || this.isChangingActions) {
+			return;
+		}
 		if (this.textPlacementState) {
 			return;
 		}
@@ -2435,7 +2460,7 @@ export class ScreenshotAnnotationEditor {
 
 	/**
 	 * Ends a markup and keeps what changed: fires `onDidSave` when something changed, and `onDidCancel` when nothing
-	 * did. Done and Escape end it as well.
+	 * did. Done ends it as well.
 	 */
 	finish(): void {
 		if (this.disposed) {
@@ -2446,7 +2471,7 @@ export class ScreenshotAnnotationEditor {
 		if (this.cropMode) {
 			this.cancelCrop();
 		}
-		if (this.revision === this.savedRevision) {
+		if (!this.hasChanges) {
 			this._onDidCancel.fire();
 		} else {
 			const annotated = this.actions.length > 0 || this.currentCrop !== null;
@@ -2459,6 +2484,28 @@ export class ScreenshotAnnotationEditor {
 			});
 		}
 		this.dispose();
+	}
+
+	/**
+	 * Ends a markup without its changes and fires `onDidCancel`, once the user confirms discarding any. Resolves with
+	 * whether it ended. Cancel and Escape cancel it as well.
+	 */
+	cancel(): Promise<boolean> {
+		this.pendingCancel ??= this.doCancel().finally(() => {
+			this.pendingCancel = undefined;
+		});
+		return this.pendingCancel;
+	}
+
+	private async doCancel(): Promise<boolean> {
+		if (this.hasChanges && !await this.confirmDiscard()) {
+			return false;
+		}
+		if (!this.disposed) {
+			this._onDidCancel.fire();
+			this.dispose();
+		}
+		return true;
 	}
 
 	dispose(): void {

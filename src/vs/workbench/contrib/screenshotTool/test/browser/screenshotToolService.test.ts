@@ -5,14 +5,19 @@
 
 import assert from 'assert';
 import { $, registerWindow } from '../../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfirmation, IConfirmationResult } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { NoMatchingKb, ResolutionResult, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorPane } from '../../../../common/editor.js';
@@ -54,6 +59,26 @@ suite('ScreenshotTool', () => {
 			override alert(message: string): void { this.messages.push(message); }
 		}
 
+		/** Resolves Ctrl+Z to Undo and Ctrl+Shift+Z to Redo, like their keybindings. */
+		class TestKeybindingService extends MockKeybindingService {
+			override softDispatch(event: IKeyboardEvent): ResolutionResult {
+				if (event.keyCode === KeyCode.KeyZ && event.ctrlKey) {
+					return { kind: ResultKind.KbFound, commandId: event.shiftKey ? 'redo' : 'undo', commandArgs: undefined, isBubble: false };
+				}
+				return NoMatchingKb;
+			}
+		}
+
+		/** Records the confirmations that it shows and answers them in order, declining once it runs out of answers. */
+		class TestDialogs extends TestDialogService {
+			readonly confirmations: string[] = [];
+			readonly answers: boolean[] = [];
+			override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+				this.confirmations.push(confirmation.message);
+				return { confirmed: this.answers.shift() ?? false };
+			}
+		}
+
 		function createImage(width: number, height: number, color: string): VSBuffer {
 			const canvas = $<HTMLCanvasElement>('canvas');
 			canvas.width = width;
@@ -70,6 +95,7 @@ suite('ScreenshotTool', () => {
 			store.add(toDisposable(() => container.remove()));
 			const telemetry = new TestScreenshotToolTelemetryService();
 			const accessibility = new TestAccessibility();
+			const dialogs = new TestDialogs();
 			const captures: (Window | undefined)[] = [];
 			const focusedWindows: Window[] = [];
 			const windowImage = createImage(mainWindow.innerWidth, mainWindow.innerHeight, '#0000ff');
@@ -91,12 +117,13 @@ suite('ScreenshotTool', () => {
 					override getContainer() { return container; }
 				}(),
 				accessibility,
-				new MockKeybindingService(),
+				new TestKeybindingService(),
 				new MockContextKeyService(),
 				new NullLogService(),
 				upcastPartial<IEditorService>(options.editorService ?? {}),
+				dialogs,
 			));
-			return { service, telemetry, accessibility, container, captures, focusedWindows };
+			return { service, telemetry, accessibility, dialogs, container, captures, focusedWindows };
 		}
 
 		function getOverlay(container: HTMLElement): HTMLElement {
@@ -107,8 +134,23 @@ suite('ScreenshotTool', () => {
 			element.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, button: 0, pointerId: 1, bubbles: true, cancelable: true }));
 		}
 
-		function key(element: HTMLElement, keyName: string, keyCode: number): void {
-			element.dispatchEvent(new KeyboardEvent('keydown', { key: keyName, keyCode, bubbles: true, cancelable: true }));
+		function key(element: HTMLElement, keyName: string, keyCode: number, modifiers?: { ctrlKey?: boolean; shiftKey?: boolean }): void {
+			element.dispatchEvent(new KeyboardEvent('keydown', { key: keyName, keyCode, ...modifiers, bubbles: true, cancelable: true }));
+		}
+
+		/** Clicks the button with a label in an element, such as Cancel and Done in the header of a markup. */
+		function click(element: Element, label: string): void {
+			[...element.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === label)!.click();
+		}
+
+		/** Crops a markup to the whole image, which changes it. */
+		function crop(markUp: HTMLElement): void {
+			markUp.querySelector<HTMLElement>('.crop-btn')!.click();
+			click(markUp.querySelector('.annotation-crop-toolbar')!, 'Apply');
+		}
+
+		function header(markUp: HTMLElement): Element {
+			return markUp.querySelector('.annotation-mark-up-header-end')!;
 		}
 
 		function summarize(result: ScreenshotToolResult) {
@@ -251,14 +293,13 @@ suite('ScreenshotTool', () => {
 			const markUp = await waitForMarkUp(container);
 			const hint = mainWindow.document.getElementById(markUp.getAttribute('aria-describedby')!)?.textContent;
 			const labels = [...markUp.querySelectorAll<HTMLElement>('.tool-btn, .monaco-button')].map(element => element.getAttribute('aria-label') ?? element.textContent);
-			markUp.querySelector<HTMLElement>('.crop-btn')!.click();
-			[...markUp.querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Apply')!.click();
-			key(markUp, 'Escape', 27);
+			crop(markUp);
+			click(header(markUp), 'Done');
 			const edit = await first.result;
 
 			// Done without changes keeps the screenshot as it is.
 			const second = store.add(service.markUp(container, Promise.resolve(edit!), ScreenshotToolSurface.Chat));
-			[...(await waitForMarkUp(container)).querySelectorAll<HTMLElement>('.monaco-button')].find(element => element.textContent === 'Done')!.click();
+			click(header(await waitForMarkUp(container)), 'Done');
 			assert.deepStrictEqual({
 				label: markUp.getAttribute('aria-label'),
 				hint,
@@ -272,7 +313,7 @@ suite('ScreenshotTool', () => {
 			}, {
 				label: 'Mark Up Image',
 				hint: 'Draw on the image or crop it, then select Done to apply your changes.',
-				labels: ['Select / Move', 'Pan', 'Crop', 'Draw', 'Rectangle', 'Ellipse', 'Arrow', 'Eraser', 'Text', 'Undo', 'Redo', 'Cancel', 'Apply', 'Done'],
+				labels: ['Select / Move', 'Pan', 'Crop', 'Draw', 'Rectangle', 'Ellipse', 'Arrow', 'Eraser', 'Text', 'Undo', 'Redo', 'Cancel', 'Apply', 'Cancel', 'Done'],
 				edit: { annotated: true, size: '40x30', actions: 1, original: true },
 				unchanged: undefined,
 				open: 0,
@@ -281,6 +322,75 @@ suite('ScreenshotTool', () => {
 					{ surface: 'chat', changed: true, annotated: true },
 					{ surface: 'chat', changed: false, annotated: true },
 				],
+			});
+		});
+
+		test('Cancel and Escape end a markup without its changes, once the user confirms discarding them', async () => {
+			const { service, container, dialogs, telemetry } = createService();
+			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
+
+			// Without changes, nothing is lost, so Cancel does not ask.
+			const unchanged = store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			click(header(await waitForMarkUp(container)), 'Cancel');
+			const unchangedResult = await unchanged.result;
+
+			const changed = store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			const markUp = await waitForMarkUp(container);
+			crop(markUp);
+			const hasChanges = changed.hasChanges;
+			dialogs.answers.push(false, true);
+			const declined = await changed.cancel();
+			const openAfterDeclining = markUp.isConnected;
+			key(markUp, 'Escape', 27);
+			assert.deepStrictEqual({
+				unchangedResult,
+				hasChanges,
+				declined,
+				openAfterDeclining,
+				discarded: await changed.result,
+				hasChangesAfterwards: changed.hasChanges,
+				confirmations: dialogs.confirmations,
+				open: container.querySelectorAll('.screenshot-annotation-editor').length,
+				edits: telemetry.edits,
+			}, {
+				unchangedResult: undefined,
+				hasChanges: true,
+				declined: false,
+				openAfterDeclining: true,
+				discarded: undefined,
+				hasChangesAfterwards: false,
+				confirmations: ['Discard your changes to this image?', 'Discard your changes to this image?'],
+				open: 0,
+				edits: [
+					{ surface: 'chat', changed: false, annotated: false },
+					{ surface: 'chat', changed: false, annotated: false },
+				],
+			});
+		});
+
+		test('the keybindings of Undo and Redo undo and redo a markup, without reaching the workbench', async () => {
+			const { service, container } = createService();
+			const reached: string[] = [];
+			const onKeyDown = (e: KeyboardEvent) => reached.push(e.key);
+			container.addEventListener('keydown', onKeyDown);
+			store.add(toDisposable(() => container.removeEventListener('keydown', onKeyDown)));
+			const original = await createScreenshotToolImage(createImage(40, 30, '#00ff00'), 'image/png');
+			const markUp = store.add(service.markUp(container, { original, annotationState: undefined }, ScreenshotToolSurface.Chat));
+			const element = await waitForMarkUp(container);
+			const enabled = () => ['Undo', 'Redo'].filter(label => !element.querySelector<HTMLButtonElement>(`.tool-btn[aria-label="${label}"]`)!.disabled);
+			crop(element);
+			const states = [enabled()];
+			key(element, 'z', 90, { ctrlKey: true });
+			states.push(enabled());
+			key(element, 'Z', 90, { ctrlKey: true, shiftKey: true });
+			states.push(enabled());
+			click(header(element), 'Done');
+			const edit = await markUp.result;
+			assert.deepStrictEqual({ states, reached, actions: edit?.annotationState?.actions.length, undone: edit?.annotationState?.undoneActions.length }, {
+				states: [['Undo'], ['Redo'], ['Undo']],
+				reached: [],
+				actions: 1,
+				undone: 0,
 			});
 		});
 

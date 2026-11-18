@@ -16,9 +16,11 @@ import { isNative } from '../../../../base/common/platform.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -92,6 +94,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.activeContext = ScreenshotToolActiveContext.bindTo(contextKeyService);
@@ -240,6 +243,9 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		let focusRequested = false;
 		const markUp: IScreenshotToolMarkUp = {
 			result: result.p,
+			get hasChanges() {
+				return !!editor?.hasChanges;
+			},
 			focus: () => {
 				focusRequested = true;
 				editor?.focus();
@@ -250,6 +256,13 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 				} else {
 					void result.complete(undefined);
 				}
+			},
+			cancel: async () => {
+				if (editor) {
+					return editor.cancel();
+				}
+				void result.complete(undefined);
+				return true;
 			},
 			dispose: () => {
 				void result.complete(undefined);
@@ -269,13 +282,23 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 				return;
 			}
 			editable = loaded;
-			const annotationEditor = editor = new ScreenshotAnnotationEditor(loaded.original, container, loaded.annotationState);
+			const annotationEditor = editor = new ScreenshotAnnotationEditor(loaded.original, container, () => this.confirmDiscardMarkUp(), loaded.annotationState);
 			store.add(toDisposable(() => annotationEditor.dispose()));
 			for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
-				// Workbench shortcuts would act on what is underneath the markup and take focus from it.
+				// Workbench shortcuts would act on what is underneath the markup and take focus from it, so the markup runs Undo and Redo itself.
 				store.add(addDisposableListener(annotationEditor.element, type, (e: KeyboardEvent) => {
-					if (!this.isAccessibilityHelpKey(new StandardKeyboardEvent(e))) {
-						e.stopPropagation();
+					const commandId = this.resolveCommand(new StandardKeyboardEvent(e));
+					if (commandId === AccessibilityCommandId.OpenAccessibilityHelp) {
+						return;
+					}
+					e.stopPropagation();
+					if (type === EventType.KEY_DOWN && (commandId === UndoCommand.id || commandId === RedoCommand.id)) {
+						e.preventDefault();
+						if (commandId === UndoCommand.id) {
+							annotationEditor.undo();
+						} else {
+							annotationEditor.redo();
+						}
 					}
 				}));
 			}
@@ -377,8 +400,24 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 	}
 
 	private isAccessibilityHelpKey(event: StandardKeyboardEvent): boolean {
+		return this.resolveCommand(event) === AccessibilityCommandId.OpenAccessibilityHelp;
+	}
+
+	/** Returns the command that a key runs where it was pressed. */
+	private resolveCommand(event: StandardKeyboardEvent): string | undefined {
 		const result = this.keybindingService.softDispatch(event, event.target);
-		return result.kind === ResultKind.KbFound && result.commandId === AccessibilityCommandId.OpenAccessibilityHelp;
+		return result.kind === ResultKind.KbFound ? result.commandId ?? undefined : undefined;
+	}
+
+	/** Asks the user whether to discard the changes of a markup that is cancelled. */
+	private async confirmDiscardMarkUp(): Promise<boolean> {
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('discardMarkUp', "Discard your changes to this image?"),
+			detail: localize('discardMarkUpDetail', "Your changes will be lost."),
+			primaryButton: localize({ key: 'discardMarkUpButton', comment: ['&& denotes a mnemonic'] }, "&&Discard"),
+		});
+		return confirmed;
 	}
 
 	private getSelectionAnnouncement(): string {
