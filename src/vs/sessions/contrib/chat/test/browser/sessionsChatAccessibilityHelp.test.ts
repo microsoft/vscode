@@ -72,13 +72,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 
 		assert.deepStrictEqual({
+			toggle: content.includes('show Toggle Inbox beside the Sessions list filters, or beside Sort on phone'),
+			toggleKeyboard: content.includes('Enter or Space to activate it. Its pressed state indicates Inbox Mode'),
+			restoreGrouping: content.includes('restore your previous grouping, remembered across reloads'),
 			screenReaderDefault: content.includes('auto, keeps you in the current conversation when a screen reader is attached'),
 			explicitChoices: content.includes('Set it to off to always stay, or on to always advance'),
 			settingsLink: content.includes('Settings link and Show Session button'),
 			persistentNotification: content.includes('notification stays visible until you dismiss it or choose Show Session'),
 			returnAction: content.includes('Choose Return to Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
-		}, { screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
+		}, { toggle: true, toggleKeyboard: true, restoreGrouping: true, screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, returnAction: true, dismiss: true });
 	});
 
 	test('defers to webview Find help while the Find input is focused', () => {
