@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, defineTool } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient, defineTool } from '@microsoft/copilot-sdk';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -33,7 +33,7 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 		sessionId: string,
 		chat: IByokLmBridgeConnection['chat'],
 		run: (session: SdkSession) => Promise<void>,
-		sessionOptions: Pick<SdkSessionOptions, 'tools' | 'availableTools'> = {},
+		sessionOptions: Pick<SdkSessionOptions, 'tools'> = {},
 		streamDeltas?: () => readonly IByokLmStreamDeltaBody[],
 	): Promise<void> {
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-responses-sdk-`);
@@ -59,10 +59,16 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 		const handle = await proxy.start();
 		const client = new CopilotClient({
 			mode: 'empty',
-			baseDirectory,
-			useLoggedInUser: false,
-			logLevel: 'error',
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(baseDirectory)),
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: baseDirectory,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(baseDirectory)),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
+			observability: {
+				logLevel: 'error',
+			},
 		});
 		let session: SdkSession | undefined;
 		let clientStarted = false;
@@ -72,21 +78,30 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 			clientStarted = true;
 			session = await client.createSession({
 				sessionId,
-				model: 'test-model',
-				reasoningEffort: 'medium',
-				// Without this, the SDK never requests a streamed response (`stream:
-				// true` never reaches the proxy, so `streamDeltas` above never fires);
-				// the final `assistant.message`/`assistant.reasoning` events still
-				// arrive from the non-streaming JSON fallback, so tests can pass
-				// without ever exercising the SSE path they intend to cover.
-				streaming: true,
-				tools: sessionOptions.tools,
-				availableTools: sessionOptions.availableTools ?? [],
-				provider: {
-					type: 'openai',
-					wireApi: 'responses',
-					baseUrl: handle.providerBaseUrl('acme'),
-					bearerToken: `${handle.nonce}.${sessionId}`,
+				model: 'acme/test-model',
+				inference: {
+					reasoningEffort: 'medium',
+					providers: [{
+						name: 'acme',
+						type: 'openai',
+						wireApi: 'responses',
+						baseUrl: handle.providerBaseUrl('acme'),
+						bearerToken: `${handle.nonce}.${sessionId}`,
+					}],
+					models: [{ provider: 'acme', id: 'test-model' }],
+				},
+				github: { capi: { enabled: false } },
+				events: {
+					// Without this, the SDK never requests a streamed response (`stream:
+					// true` never reaches the proxy, so `streamDeltas` above never fires);
+					// the final `assistant.message`/`assistant.reasoning` events still
+					// arrive from the non-streaming JSON fallback, so tests can pass
+					// without ever exercising the SSE path they intend to cover.
+					streaming: true,
+				},
+				tools: {
+					definitions: sessionOptions.tools?.definitions,
+					availableTools: sessionOptions.tools?.availableTools ?? [],
 				},
 			});
 			await run(session);
@@ -235,16 +250,18 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				},
 			});
 		}, {
-			tools: [
-				defineTool('echo', {
-					description: 'Returns a fixed echo result.',
-					parameters: { type: 'object', properties: {}, additionalProperties: false },
-					handler: async () => 'echo result',
-					skipPermission: true,
-					defer: 'never',
-				}),
-			],
-			availableTools: ['custom:echo'],
+			tools: {
+				definitions: [
+					defineTool('echo', {
+						description: 'Returns a fixed echo result.',
+						parameters: { type: 'object', properties: {}, additionalProperties: false },
+						handler: async () => 'echo result',
+						skipPermission: true,
+						defer: 'never',
+					}),
+				],
+				availableTools: ['custom:echo'],
+			},
 		}, () => captured.length === 0
 			? [
 				{ kind: 'reasoning', id: 'rs_provider', delta: 'Calling echo', newSummaryPart: true, encryptedContent: 'opaque' },

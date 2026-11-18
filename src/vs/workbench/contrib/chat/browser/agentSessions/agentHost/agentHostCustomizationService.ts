@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { equals } from '../../../../../../base/common/arrays.js';
 import { UriTemplate } from '../../../../../../base/common/uriTemplate.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -1305,7 +1306,19 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			const state = value && !(value instanceof Error) ? value : sub.verifiedValue;
 			this._trackMcpDiagnostics(sessionResource, { connection: target.connection, customizations: state?.customizations ?? [] });
 		};
+		let previousState = sub.value instanceof Error ? sub.verifiedValue : sub.value;
 		store.add(Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
+			const state = sub.value instanceof Error ? sub.verifiedValue : sub.value;
+			if (state === previousState || (state && previousState
+				&& state.customizations === previousState.customizations
+				&& state.workingDirectories === previousState.workingDirectories
+				&& state.activeClients === previousState.activeClients
+				&& state.defaultChat === previousState.defaultChat
+				&& equals(state.chats, previousState.chats, (a, b) => a.resource === b.resource)
+				&& state._meta === previousState._meta)) {
+				return;
+			}
+			previousState = state;
 			recordMcpDiagnostics();
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();

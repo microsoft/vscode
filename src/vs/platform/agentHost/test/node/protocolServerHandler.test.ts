@@ -56,6 +56,7 @@ import { CapturingTelemetryService } from '../../../telemetry/test/common/testTe
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -109,6 +110,7 @@ import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { buildPendingEditContentUri } from '../../common/pendingEditContentUri.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
+import { CopilotBuiltinSkillResourceProvider } from '../../node/copilot/copilotBuiltinSkills.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -273,6 +275,8 @@ class MockAgentService extends Disposable implements IAgentService {
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
+	/** Entries `removeSessionArtifact` removes, each for the first request only. */
+	readonly removableArtifacts = new Map<string, ISessionArtifact>();
 	readonly stopBackgroundWorkCalls: { chat: string; id: string }[] = [];
 	readonly answerShellAuthenticationCalls: { chat: string; requestId: string; answer: string | undefined }[] = [];
 	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
@@ -448,8 +452,12 @@ class MockAgentService extends Disposable implements IAgentService {
 		return URI.file('/state/sdk-session/events.jsonl');
 	}
 	getSessionPlanFile(_session: URI, _chat: URI): URI | undefined { return undefined; }
-	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+	async removeSessionArtifact(session: URI, artifactId: string): Promise<ISessionArtifact | undefined> {
 		this.removeSessionArtifactCalls.push({ session: session.toString(), artifactId });
+		// Like the serialized removal, only the first request for an entry removes it.
+		const removed = this.removableArtifacts.get(artifactId);
+		this.removableArtifacts.delete(artifactId);
+		return removed;
 	}
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		this.stopBackgroundWorkCalls.push({ chat: chat.toString(), id });
@@ -2716,6 +2724,33 @@ suite('ProtocolServerHandler', () => {
 			uninitialized: false,
 			response: { jsonrpc: '2.0', id: 20, result: null },
 			calls: [{ session: 'copilotcli:/session-1', artifactId: 'artifact-1' }],
+		});
+	});
+
+	test('reports only the request that removed an entry, as the removal found it', async () => {
+		stateManager.createSession(makeSessionSummary());
+		agentService.removableArtifacts.set('artifact-1', { id: 'artifact-1', chat: defaultChatUri, type: SessionArtifactType.PullRequest, label: 'Fix', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1', isGitHub: true });
+		const transport = connectClient('client-remove-artifact-telemetry');
+		const first = waitForResponse(transport, 20);
+		const overlapping = waitForResponse(transport, 21);
+		transport.simulateMessage(request(20, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'artifact-1' }));
+		transport.simulateMessage(request(21, RemoveSessionArtifactExtensionMethod, { session: sessionUri, artifactId: 'artifact-1' }));
+
+		assert.deepStrictEqual({
+			responses: await Promise.all([first, overlapping]),
+			removed: telemetryService.events.filter(event => event.eventName === 'agentHost.artifactRemoved').map(event => event.data),
+		}, {
+			responses: [{ jsonrpc: '2.0', id: 20, result: null }, { jsonrpc: '2.0', id: 21, result: null }],
+			removed: [{
+				provider: 'copilot',
+				agentSessionId: 'test-session',
+				turnId: undefined,
+				toolCallId: undefined,
+				initiator: 'user',
+				kind: SessionArtifactType.PullRequest,
+				category: 'artifact',
+				isGitHub: true,
+			}],
 		});
 	});
 
@@ -7438,6 +7473,58 @@ suite('ProtocolServerHandler', () => {
 		} finally {
 			await rm(path, { recursive: true });
 		}
+	});
+
+	test('MC built-in skill sources allow exact reads without filesystem grants, not writes or other resources', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'builtin-skills', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'builtin-skills', protocolVersions: [PROTOCOL_VERSION] }));
+		const provider = new CopilotBuiltinSkillResourceProvider();
+		const reads: string[] = [];
+		agentService.resourceRead = uri => {
+			reads.push(uri.toString());
+			return provider.read(uri, ContentEncoding.Utf8);
+		};
+		const resources = [
+			'agent-builtin-skill:/troubleshoot/SKILL.md',
+			'agent-builtin-skill:/model-router/SKILL.md',
+			'agent-builtin:/skill/troubleshoot',
+			'agent-builtin:/skill/model-router',
+		];
+		const cases = [
+			...resources.map(uri => ({ method: 'resourceRead', uri, expected: 'source' })),
+			...['resourceWrite', 'resourceDelete', 'resourceMkdir', 'resourceRequest', 'resourceResolve', 'resourceList', 'createResourceWatch', 'resourceCopy', 'resourceMove'].map(method =>
+			({ method, uri: resources[0], expected: AhpErrorCodes.PermissionDenied })),
+			...[
+				'agent-builtin-skill:/unknown/SKILL.md',
+				'agent-builtin-skill://other/troubleshoot/SKILL.md',
+				'agent-builtin-skill:/troubleshoot/SKILL.md?other=1',
+				'agent-builtin-skill:/troubleshoot/SKILL.md/child',
+				'agent-builtin:/skill/unknown',
+				'agent-builtin:/skills',
+				'file:///private/secret',
+			].map(uri => ({ method: 'resourceRead', uri, expected: AhpErrorCodes.PermissionDenied })),
+		];
+		const results = [];
+		const expected = [];
+		for (const [index, item] of cases.entries()) {
+			const id = index + 2;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, item.method, { uri: item.uri, source: item.uri, destination: item.uri, data: 'overwrite', encoding: ContentEncoding.Utf8, write: true }));
+			const message = await response;
+			results.push(hasKey(message, { error: true }) ? message.error.code
+				: hasKey(message, { result: true }) ? message.result : undefined);
+			expected.push(item.expected === 'source' ? await provider.read(URI.parse(item.uri), ContentEncoding.Utf8) : item.expected);
+		}
+		assert.deepStrictEqual({ results, reads }, { results: expected, reads: resources });
 	});
 
 	test('MC MCP app resources route to their owning provider without filesystem grants', async () => {

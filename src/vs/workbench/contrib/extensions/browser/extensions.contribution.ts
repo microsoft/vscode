@@ -19,12 +19,11 @@ import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/c
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, IAction2Options, IMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryManifestStatus, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IExtensionGalleryAccountService } from '../../../services/extensionManagement/common/extensionGalleryAccount.js';
 import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionRequestsTimeoutConfigKey, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -77,6 +76,7 @@ import { ExtensionRecommendationsService } from './extensionRecommendationsServi
 import { ClearLanguageAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction, InstallAction, InstallAnotherVersionAction, InstallSpecificVersionOfExtensionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction } from './extensionsActions.js';
 import { ExtensionActivationProgress } from './extensionsActivationProgress.js';
 import { ExtensionsCompletionItemsProvider } from './extensionsCompletionItemsProvider.js';
+import './extensionsCopyActions.js';
 import { ExtensionEnablementContextKeysContribution } from './extensionEnablementContext.js';
 import { ExtensionDependencyChecker } from './extensionsDependencyChecker.js';
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from './extensionsIcons.js';
@@ -588,7 +588,6 @@ const CONTEXT_GALLERY_SORT_CAPABILITIES = new RawContextKey<string>('gallerySort
 const CONTEXT_GALLERY_FILTER_CAPABILITIES = new RawContextKey<string>('galleryFilterCapabilities', '');
 const CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPublicRepositorySigned', false);
 const CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPrivateRepositorySigned', false);
-const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
 
 async function runAction<T = void>(action: IAction): Promise<T> {
 	try {
@@ -661,7 +660,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		CONTEXT_GALLERY_FILTER_CAPABILITIES.bindTo(this.contextKeyService).set(`_${extensionGalleryManifest?.capabilities.extensionQuery.filtering?.map(s => s.name)?.join('_')}_`);
 		CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(!!extensionGalleryManifest?.capabilities?.signing?.allPublicRepositorySigned);
 		CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED.bindTo(this.contextKeyService).set(!!extensionGalleryManifest?.capabilities?.signing?.allPrivateRepositorySigned);
-		CONTEXT_GALLERY_HAS_EXTENSION_LINK.bindTo(this.contextKeyService).set(!!(extensionGalleryManifest && getExtensionGalleryManifestResourceUri(extensionGalleryManifest, ExtensionGalleryResourceType.ExtensionDetailsViewUri)));
 	}
 
 	private registerQuickAccessProvider(): void {
@@ -1683,56 +1681,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
 					return runAction(instantiationService.createInstance(InstallAnotherVersionAction, extension, false));
-				}
-			}
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.copyExtension',
-			title: localize2('workbench.extensions.action.copyExtension', 'Copy'),
-			menu: {
-				id: MenuId.ExtensionContext,
-				group: '1_copy'
-			},
-			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				const clipboardService = accessor.get(IClipboardService);
-				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
-					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
-				if (extension) {
-					const name = localize('extensionInfoName', 'Name: {0}', extension.displayName);
-					const id = localize('extensionInfoId', 'Id: {0}', extensionId);
-					const description = localize('extensionInfoDescription', 'Description: {0}', extension.description);
-					const verision = localize('extensionInfoVersion', 'Version: {0}', extension.version);
-					const publisher = localize('extensionInfoPublisher', 'Publisher: {0}', extension.publisherDisplayName);
-					const link = extension.url ? localize('extensionInfoVSMarketplaceLink', 'VS Marketplace Link: {0}', `${extension.url}`) : null;
-					const clipboardStr = `${name}\n${id}\n${description}\n${verision}\n${publisher}${link ? '\n' + link : ''}`;
-					await clipboardService.writeText(clipboardStr);
-				}
-			}
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.copyExtensionId',
-			title: localize2('workbench.extensions.action.copyExtensionId', 'Copy Extension ID'),
-			menu: {
-				id: MenuId.ExtensionContext,
-				group: '1_copy'
-			},
-			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IClipboardService).writeText(id)
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.copyLink',
-			title: localize2('workbench.extensions.action.copyLink', 'Copy Link'),
-			menu: {
-				id: MenuId.ExtensionContext,
-				group: '1_copy',
-				when: ContextKeyExpr.and(ContextKeyExpr.has('isGalleryExtension'), CONTEXT_GALLERY_HAS_EXTENSION_LINK),
-			},
-			run: async (accessor: ServicesAccessor, _, extension: IExtensionArg) => {
-				const clipboardService = accessor.get(IClipboardService);
-				if (extension.galleryLink) {
-					await clipboardService.writeText(extension.galleryLink);
 				}
 			}
 		});

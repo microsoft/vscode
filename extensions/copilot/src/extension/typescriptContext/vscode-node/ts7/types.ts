@@ -51,12 +51,6 @@ export abstract class ProgramContext {
 }
 
 export class RecoverableError extends Error {
-	public static readonly SourceFileNotFound: number = 1;
-	public static readonly NodeNotFound: number = 2;
-	public static readonly NodeKindMismatch: number = 3;
-	public static readonly SymbolNotFound: number = 4;
-	public static readonly NoDeclaration: number = 5;
-	public static readonly NoProgram: number = 6;
 	public static readonly NoSourceFile: number = 7;
 
 	public readonly code: number;

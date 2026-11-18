@@ -58,6 +58,7 @@ import { TestThemeService } from '../../../../../../platform/theme/test/common/t
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -100,7 +101,7 @@ import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, Notifica
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withFolderScopeGitState, withSessionGitState, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withFolderScopeGitState, withSessionGitState, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type Message, type MessageAttachment, type MessageChatAttachment, type IModelRoutedInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type CreateChatParams, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -120,6 +121,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
+import { autoModeRoutingTitle } from '../../../common/chatAutoModeExplainability.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatPlanReviewResult, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService, IChatEditingSession, IChatEditingSessionProvider } from '../../../common/editing/chatEditingService.js';
@@ -1112,6 +1114,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		onDidChangeWorkbenchState: Event.None
 	});
 	const trustController: { result: boolean | undefined; workspaceTrusted: boolean; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string>; setUrisTrustCalls: string[][] } = { result: true, workspaceTrusted: false, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>(), setUrisTrustCalls: [] };
+	// The marketplace install provider of each registered agent listens for the MCP registry being replaced.
+	instantiationService.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+		override readonly onDidChangeMcpGalleryManifest = Event.None;
+	}());
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust(): Promise<boolean | undefined> {
 			trustController.workspaceTrustCalls++;
@@ -2711,6 +2717,43 @@ suite('AgentHostChatContribution', () => {
 				});
 			});
 		}
+		test('Copilot app task completion shows its summary as response text through the live handler, restored history and reconnect', async () => {
+			const { startRequest, fire } = await openWireSession();
+			const { turnId, progress, finish } = await startRequest();
+			const summary = 'Fixed the parser.\n\n- **Tests:** `npm test` passes';
+			const input = JSON.stringify({ summary });
+			const content = [{ type: ToolResultContentType.Text as const, text: summary }];
+			const shape = (parts: readonly IChatProgress[]) => parts.flatMap(part => part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized'
+				? [`tool: ${textOf(part.pastTenseMessage ?? part.invocationMessage)} (${part.presentation ?? 'shown'}${IChatToolInvocation.resultDetails(part) ? ', raw details' : ''})`]
+				: part.kind === 'markdownContent' ? [part.content.value] : []);
+			fire(chatToolCallStart(turnId, 'done', 'task_complete', 'task_complete'));
+			fire(chatToolCallReady(turnId, 'done', 'Running task_complete', { toolInput: input, confirmed: ToolCallConfirmationReason.NotNeeded }));
+			const running = shape(progress);
+			fire(chatToolCallComplete(turnId, 'done', { success: true, pastTenseMessage: 'Tool finished', content }));
+			await finish();
+			const message = { text: 'Hello', origin: { kind: MessageKind.User as const } };
+			const responseParts = [{
+				kind: ResponsePartKind.ToolCall as const,
+				toolCall: {
+					status: ToolCallStatus.Completed as const, toolCallId: 'done', toolName: 'task_complete', displayName: 'task_complete',
+					invocationMessage: 'Running task_complete', toolInput: input, confirmed: ToolCallConfirmationReason.NotNeeded,
+					success: true, pastTenseMessage: 'Tool finished', content,
+				},
+			}];
+			const restored = await openWireSession({ chat: { turns: [{ id: 'restored-turn', state: TurnState.Complete, usage: undefined, message, responseParts }] } });
+			const reconnected = await openWireSession({ chat: { activeTurn: { id: 'active-turn', startedAt: '2026-09-30T12:00:00.000Z', usage: undefined, message, responseParts } } });
+			const response = restored.chatSession.history.find(item => item.type === 'response');
+			const shown = ['tool: Task complete (hidden)', `\n\n**Task completed:**\n\n${summary}`];
+			assert.deepStrictEqual({
+				running,
+				live: shape(progress),
+				restored: response?.type === 'response' ? shape(response.parts) : undefined,
+				reconnected: shape(reconnected.chatSession.progressObs?.get() ?? []),
+			}, {
+				running: ['tool: Marking task complete (shown)'],
+				live: shown, restored: shown, reconnected: shown,
+			});
+		});
 		test('explicit VS Code search metadata keeps its messages even when the tool has a Copilot app alias', async () => {
 			const { startRequest, fire } = await openWireSession();
 			const { turnId, progress, finish } = await startRequest();
@@ -10373,7 +10416,7 @@ suite('AgentHostChatContribution', () => {
 				userSelectedModelId: 'agent-host-copilot:model-router:daily',
 			});
 
-			// No earlier turn says this router picks once per chat, so the row is already showing when the kept pick arrives.
+			// No earlier turn says this router already picked for the chat, so the row is already showing when the kept pick arrives.
 			fire({
 				type: 'chat/usage',
 				session,
@@ -10388,6 +10431,55 @@ suite('AgentHostChatContribution', () => {
 				['daily', 'GPT-5.4 mini', true],
 			]);
 		}));
+
+		test('a chat on a model router shows its pick and what changed since, not the turns that stayed as they were', async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:model-router:daily', upcastPartial<ILanguageModelChatMetadata>({ name: 'Daily Driver' })],
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+				['agent-host-copilot:gpt-5.5', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.5' })],
+			]);
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
+			const backend = AgentSession.uri('copilot', 'routed');
+			const defaultChat = buildDefaultChatUri(backend.toString());
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Routed', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			const main = createDefaultChatSummary(summary, defaultChat);
+			agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat, chats: [main] });
+			// The router moves a chat when the work changes, so it routes every turn.
+			const routedTurn = (id: string, modelRouted: IModelRoutedInfo): Turn => ({
+				id, state: TurnState.Complete, message: { text: id, origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } }, responseParts: [],
+				usage: { inputTokens: 1, outputTokens: 1, _meta: { modelRouted } },
+			});
+			agentHostService.chatStates.set(defaultChat, {
+				...createChatState(main),
+				turns: [
+					routedTurn('picked', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'low' }),
+					routedTurn('stayed', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'low', kept: true }),
+					routedTurn('stayed-with-more-effort', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'high', kept: true }),
+					routedTurn('moved', { router: 'daily', chosenModel: 'gpt-5.5', effort: 'high', switchedFrom: 'gpt-5.4-mini' }),
+					routedTurn('stayed-again', { router: 'daily', chosenModel: 'gpt-5.5', effort: 'high', kept: true }),
+					// The chat keeps its route, and the route now runs on another model.
+					routedTurn('route-on-another-model', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'high', kept: true }),
+					// A turn without an effort runs on the model's default.
+					routedTurn('stayed-on-default-effort', { router: 'daily', chosenModel: 'gpt-5.4-mini', kept: true }),
+					routedTurn('stayed-with-an-effort-again', { router: 'daily', chosenModel: 'gpt-5.4-mini', effort: 'medium', kept: true }),
+				],
+			});
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: backend.path }), CancellationToken.None));
+
+			assert.deepStrictEqual(session.history.flatMap(item => item.type === 'response' ? [item.parts.flatMap(part => part.kind === 'autoModeResolution' ? [autoModeRoutingTitle(part)] : [])] : []), [
+				['daily picked GPT-5.4 mini \u00b7 Low effort'],
+				[],
+				['daily changed effort from Low to High'],
+				['daily switched from GPT-5.4 mini to GPT-5.5 \u00b7 High effort'],
+				[],
+				['daily switched from GPT-5.5 to GPT-5.4 mini \u00b7 High effort'],
+				['daily changed effort from High to the model\'s default'],
+				['daily changed effort from the model\'s default to Medium'],
+			]);
+		});
 
 		test('Copilot Fusion routing shows only the resolved part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([

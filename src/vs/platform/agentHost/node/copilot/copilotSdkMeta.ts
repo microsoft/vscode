@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ToolExecutionStartToolDescription } from '@github/copilot-sdk';
+import type { ToolExecutionStartToolDescription } from '@microsoft/copilot-sdk';
 
 /** Reads the Copilot SDK's typed MCP Apps resource metadata. */
 export function getCopilotSdkToolResourceUri(toolDescription: ToolExecutionStartToolDescription | undefined): string | undefined {

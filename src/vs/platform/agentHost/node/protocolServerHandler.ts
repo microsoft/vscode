@@ -17,6 +17,7 @@ import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
+import { getCopilotBuiltinSkillSource } from './copilot/copilotBuiltinSkills.js';
 import { resolveBranchChangesetScopeForOwner } from './agentHostBranchChangesetScope.js';
 import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -104,6 +105,7 @@ import {
 } from '../common/state/sessionProtocol.js';
 import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
 import { ROOT_STATE_URI, isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type Message, type ModelSelection, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
+import { getArtifactChangeOwner } from './shared/sessionArtifacts.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -3139,6 +3141,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		for (const field of fields) {
 			const value = isParamsObject(params) ? params[field] ?? (field === 'cwd' ? this._config.defaultDirectory : undefined) : undefined;
 			const readOnly = configProbe || ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
+			if (method === 'resourceRead' && typeof value === 'string' && getCopilotBuiltinSkillSource(URI.parse(value, true)) !== undefined) {
+				continue;
+			}
 			if (typeof value !== 'string' || (!await this._isGrantedRelayResource(value, readOnly) && !await this._isPublishedPlanResource(value, method, readOnly))) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Resource is outside the host workspace grants');
 			}
@@ -3642,9 +3647,26 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'artifactId must be a non-empty string'));
 		}
 		try {
-			return this._agentService.removeSessionArtifact(this._parseSessionUri(sessionParam), artifactId);
+			return this._removeSessionArtifact(this._parseSessionUri(sessionParam), artifactId);
 		} catch (error) {
 			return Promise.reject(error);
+		}
+	}
+
+	private async _removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		// Reported from the entry the serialized removal found, so a concurrent removal or promotion is not misreported.
+		const removed = await this._agentService.removeSessionArtifact?.(session, artifactId);
+		if (removed) {
+			this._telemetryReporter.artifactRemoved({
+				...getArtifactChangeOwner(this._stateManager, removed.chat ?? session.toString(), session.toString()),
+				chat: undefined,
+				turnId: undefined,
+				toolCallId: undefined,
+				initiator: 'user',
+				kind: removed.type,
+				isArtifact: removed.isArtifact,
+				isGitHub: removed.isGitHub === true,
+			});
 		}
 	}
 

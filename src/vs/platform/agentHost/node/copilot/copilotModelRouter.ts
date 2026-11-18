@@ -311,7 +311,7 @@ export class CopilotModelRouter {
 		if (outcome === 'stay' || !target) {
 			return decision(context, current, { kept: true }, [], effort);
 		}
-		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [describeSwitch(router, target)], this._effortFor(context, target, pick.effortScore));
+		return decision(context, target, { switchedFrom: current.model.id, ...preferenceOf(target) }, [], this._effortFor(context, target, pick.effortScore));
 	}
 }
 
@@ -391,13 +391,6 @@ function keptEffort(route: IResolvedModelRoute, effort: string | undefined): str
 function preferenceOf(route: IResolvedModelRoute): Partial<IModelRoutedInfo> {
 	const line = route.route.when.trim().replace(/\s+/g, ' ');
 	return { preference: line.length > PREFERENCE_CHARS ? `${line.slice(0, PREFERENCE_CHARS).trimEnd()}\u2026` : line };
-}
-
-function describeSwitch(router: IModelRouter, { route, model }: IResolvedModelRoute): string {
-	// Two named routes can run on the same model, so the model alone would not say what changed.
-	return route.name
-		? localize('modelRouter.switchedToNamedRoute', "This request fits another route, so the model router {0} moved this chat to its {1} route on {2}.", modelRouterLabel(router), route.name, model.name)
-		: localize('modelRouter.switched', "This request fits another route, so the model router {0} moved this chat to {1}.", modelRouterLabel(router), model.name);
 }
 
 function describeFailure(router: IModelRouter, error: unknown, model: string): string {
