@@ -39,6 +39,20 @@ function sanitizeRef(ref: string, path: string, submoduleOf: string | undefined,
 	return ref;
 }
 
+/**
+ * Looks up the repository of a git resource. The repository of a workspace folder that was just
+ * added or switched (ex: to another worktree) may still be opening while editors already read from it.
+ */
+export async function getRepositoryAfterWorkspaceFolderChanges(model: Pick<Model, 'getRepository' | 'whenWorkspaceFolderChangesSettled'>, uri: string | Uri): Promise<Repository | undefined> {
+	const repository = model.getRepository(uri);
+	if (repository) {
+		return repository;
+	}
+
+	await model.whenWorkspaceFolderChangesSettled();
+	return model.getRepository(uri);
+}
+
 export class GitFileSystemProvider implements FileSystemProvider {
 
 	private _onDidChangeFile = new EventEmitter<FileChangeEvent[]>();
@@ -137,15 +151,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	}
 
 	private async getOrOpenRepository(uri: string | Uri): Promise<Repository | undefined> {
-		let repository = this.model.getRepository(uri);
-		if (repository) {
-			return repository;
-		}
-
-		// The repository of a workspace folder that was just added or switched (ex: to
-		// another worktree) may still be opening while editors already read from it.
-		await this.model.whenWorkspaceFolderChangesSettled();
-		repository = this.model.getRepository(uri);
+		let repository = await getRepositoryAfterWorkspaceFolderChanges(this.model, uri);
 		if (repository) {
 			return repository;
 		}
