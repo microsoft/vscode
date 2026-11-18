@@ -69,8 +69,14 @@ export class LocalDiffEmbeddingsSearch {
 		try {
 			const perFileChunks = await raceCancellationError(Promise.all(includedFiles.map(uri => limiter.queue(async () => {
 				const file = await this._workspaceFileIndex.tryLoad(uri);
-				return file ? this.getChunksAndEmbeddings(authToken, file, batchInfo, telemetryInfo, token) : undefined;
+				return file ? this.getChunksAndEmbeddings(authToken, file, batchInfo, telemetryInfo, token) : [];
 			}))), token);
+
+			// Without chunks for a changed file we can't replace its stale remote results, so fail the whole diff search
+			if (perFileChunks.some(chunks => !chunks)) {
+				this._logService.debug('LocalDiffEmbeddingsSearch: could not compute chunks for some changed files');
+				return undefined;
+			}
 
 			const chunks = coalesce(perFileChunks).flat();
 			return rankEmbeddings(await raceCancellationError(queryEmbedding, token), chunks.map(x => [x.chunk, x.embedding] as const), maxResults)

@@ -825,6 +825,8 @@ export class CodeSearchChunkSearch extends Disposable {
 	}
 
 	private async searchExternalIngest(sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<readonly FileChunkAndScore[] | undefined> {
+		// Repos that are still resolving may turn out to be GitHub repos, which external ingest must not index
+		await raceCancellationError(this._repoTracker.initialize(), token);
 		if (!this.shouldUseExternalIngest()) {
 			return undefined;
 		}
@@ -979,6 +981,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		}
 
 		// External ingest covers content without a GitHub remote. It must not block remote indexing of GitHub repos.
+		await this._repoTracker.initialize();
 		const [remoteResult, externalIngestResult] = await raceCancellationError(Promise.all([
 			this.triggerRemoteIndexingOfRepos(triggerReason, telemetryInfo, token),
 			this.shouldUseExternalIngest() ? this._externalIngestIndex.value.doIngest(telemetryInfo, onProgress, token) : undefined,
@@ -987,11 +990,12 @@ export class CodeSearchChunkSearch extends Disposable {
 			return remoteResult;
 		}
 
-		if (remoteResult.isError() && remoteResult.err === TriggerRemoteIndexingError.notIndexable) {
-			// No repos to index remotely, so only external ingest matters
+		if (externalIngestResult.isError()) {
 			return externalIngestResult;
 		}
-		return remoteResult.isOk() ? externalIngestResult : remoteResult;
+
+		// With no repos to index remotely, only external ingest matters
+		return remoteResult.isError() && remoteResult.err === TriggerRemoteIndexingError.notIndexable ? externalIngestResult : remoteResult;
 	}
 
 	private async triggerRemoteIndexingOfRepos(triggerReason: BuildIndexTriggerReason, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<true, TriggerIndexingError>> {
