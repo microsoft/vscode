@@ -165,6 +165,11 @@ import './telemetry/chatEditorTopologyTelemetry.js';
 import './telemetry/chatModelCountTelemetry.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ClientToolSetsContribution } from './tools/clientToolSetsContribution.js';
+import { ChatRequestHistoryRecorder } from './requestHistory/chatRequestHistoryRecorder.js';
+import { registerChatRequestHistoryActions } from './requestHistory/chatRequestHistoryActions.js';
+import { ChatRequestHistoryToolContribution } from './requestHistory/searchRequestHistoryTool.js';
+import { IChatRequestHistoryService } from '../common/requestHistory/chatRequestHistory.js';
+import { ChatRequestHistoryService } from '../common/requestHistory/chatRequestHistoryService.js';
 import { RenameToolContribution } from './tools/renameTool.js';
 import { UsagesToolContribution } from './tools/usagesTool.js';
 import './voiceClient/micCaptureService.js';
@@ -2413,6 +2418,13 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.tools.autoExpandFailures', "When enabled, terminal tool failures are automatically expanded in the chat UI to show error details."),
 		},
+		[ChatConfiguration.RequestHistoryEnabled]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION_MACHINE,
+			tags: ['experimental'],
+			markdownDescription: nls.localize('chat.requestHistory.enabled', "Controls whether this machine keeps a searchable history of the chat requests you send to any agent host, local or remote. The history stores only the request text, when it was sent, and a link back to the chat, never responses or attachments. It is shared by all windows on this machine and is not synced. Search it with the **Chat: Search Request History...** command, and agents can search it with the `search_request_history` tool. Turning this off stops recording and hides the history without deleting it; use **Chat: Clear Request History...** to delete it."),
+		},
 		[ChatAIDisabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
@@ -3450,6 +3462,8 @@ registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, Workbe
 registerWorkbenchContribution2(CodexStatusBarEntry.ID, CodexStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ClientToolSetsContribution.ID, ClientToolSetsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatRequestHistoryRecorder.ID, ChatRequestHistoryRecorder, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatRequestHistoryToolContribution.ID, ChatRequestHistoryToolContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(RenameToolContribution.ID, RenameToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
@@ -3487,6 +3501,7 @@ registerWorkbenchContribution2(ChatPetEditingAchievementContribution.ID, ChatPet
 registerChatActions();
 registerChatAccessibilityActions();
 registerChatCopyActions();
+registerChatRequestHistoryActions();
 registerChatModelFeedbackSurveyActions();
 registerChatOpenAgentDebugPanelAction();
 registerChatCodeBlockActions();
@@ -3534,6 +3549,7 @@ registerSingleton(IChatSessionReviewPreferencesService, ChatSessionReviewPrefere
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);
 registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.Delayed);
 registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
+registerSingleton(IChatRequestHistoryService, ChatRequestHistoryService, InstantiationType.Delayed);
 registerSingleton(IChatHarnessSwitchFeedbackSurveyService, ChatHarnessSwitchFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatModelFeedbackSurveyService, ChatModelFeedbackSurveyService, InstantiationType.Delayed);
 registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);

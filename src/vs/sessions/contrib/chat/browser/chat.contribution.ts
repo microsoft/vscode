@@ -42,6 +42,7 @@ import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView } from 
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { ActiveSessionChatRevealerContribution } from './activeSessionChatRevealer.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
+import { ChatRequestHistorySessionsContribution } from './chatRequestHistorySessions.contribution.js';
 import { SessionLinkAttachmentWidgetContribution } from './sessionLinkAttachmentWidget.js';
 import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from '../../../../workbench/contrib/sessions/browser/chat/sessionsChatHistory.js';
@@ -343,6 +344,7 @@ registerAction2(BranchChatSessionAction);
 // chat.desktop.contribution.ts so the phone bundle can omit them.
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChatRequestHistorySessionsContribution.ID, ChatRequestHistorySessionsContribution, WorkbenchPhase.AfterRestored);
 // Before chat inputs restore their drafts, whose session links become pills once a widget can show them.
 registerWorkbenchContribution2(SessionLinkAttachmentWidgetContribution.ID, SessionLinkAttachmentWidgetContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionArchiveNudgeContribution.ID, SessionArchiveNudgeContribution, WorkbenchPhase.AfterRestored);

@@ -17,8 +17,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
@@ -40,7 +39,7 @@ import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { toPortableMarkdown } from '../widget/chatClipboard.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { isUntitledChatSession } from '../../common/model/chatUri.js';
+import { AgentHostChatLinkResolution, resolveAgentHostChatLink } from '../agentSessions/agentHost/agentHostChatLink.js';
 
 const CopyItemActionId = 'workbench.action.chat.copyItem';
 const copyFeedbackDuration = 1200;
@@ -185,18 +184,7 @@ export class CopyChatSessionLinkAction extends Action2 {
 			.filter((editor): editor is ChatEditorInput => editor instanceof ChatEditorInput)
 			.map(async editor => {
 				const resource = editor.sessionResource;
-				const identity = resource && connectionsService.resolveSessionResourceIdentity(resource);
-				if (!resource || !identity) {
-					throw new Error(localize('chat.copySessionLink.unavailable', "This chat does not have an Agent Host session link."));
-				}
-				const provisionalBackend = identity.connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY
-					? await provisionalService.waitForPending(resource)
-					: undefined;
-				const backend = provisionalBackend ?? identity.backendSession;
-				if (isUntitledChatSession(backend)) {
-					throw new Error(localize('chat.copySessionLink.notCreated', "Send a message in this chat before copying its link."));
-				}
-				return buildOpenSessionLinkUri(backend, resource.fragment || undefined, undefined, identity.connectionAuthority);
+				return getAgentHostChatLinkOrThrow(resource && await resolveAgentHostChatLink(resource, undefined, connectionsService, provisionalService));
 			}));
 		if (links.length) {
 			await clipboardService.writeText([...new Set(links)].join('\n'));
@@ -205,8 +193,53 @@ export class CopyChatSessionLinkAction extends Action2 {
 	}
 }
 
+function getAgentHostChatLinkOrThrow(resolution: AgentHostChatLinkResolution | undefined): string {
+	if (resolution?.kind === 'link') {
+		return resolution.link;
+	}
+	if (resolution?.kind === 'notCreated') {
+		throw new Error(localize('chat.copySessionLink.notCreated', "Send a message in this chat before copying its link."));
+	}
+	throw new Error(localize('chat.copySessionLink.unavailable', "This chat does not have an Agent Host session link."));
+}
+
+/** Copies the link that opens an Agent Host chat at one of its requests. */
+export class CopyChatRequestLinkAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.copyRequestLink';
+
+	constructor() {
+		super({
+			id: CopyChatRequestLinkAction.ID,
+			title: localize2('chat.copyRequestLink', "Copy Request Link"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatContext,
+				when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.regex(ChatContextKeys.chatSessionType.key, /^(agent-host-|remote-)/)),
+				group: 'copy',
+				order: 10,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const connectionsService = accessor.get(IAgentHostConnectionsService);
+		const provisionalService = accessor.get(IAgentHostUntitledProvisionalSessionService);
+		const clipboardService = accessor.get(IClipboardService);
+		const item = unwrapChatContextMenuActionContext(args[0]) ?? accessor.get(IChatWidgetService).lastFocusedWidget?.getFocus();
+		if (!isChatTreeItem(item) || !isRequestVM(item)) {
+			return;
+		}
+		const link = getAgentHostChatLinkOrThrow(await resolveAgentHostChatLink(item.sessionResource, item.id, connectionsService, provisionalService));
+		await clipboardService.writeText(link);
+		status(localize('chat.copyRequestLink.status', "Request link copied to clipboard"));
+	}
+}
+
 export function registerChatCopyActions() {
 	registerAction2(CopyChatSessionLinkAction);
+	registerAction2(CopyChatRequestLinkAction);
 
 	// A plain paste in the chat input may become Markdown or an attachment, so
 	// keep the usual "paste without formatting" chord for verbatim text.

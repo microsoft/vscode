@@ -374,6 +374,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidCommitSession = this._register(new Emitter<IChatSessionCommitEvent>());
 	readonly onDidCommitSession = this._onDidCommitSession.event;
+	private readonly _onDidDeleteChatSessionItem = this._register(new Emitter<URI>());
+	readonly onDidDeleteChatSessionItem = this._onDidDeleteChatSessionItem.event;
 
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeAvailability: Event<void> = this._onDidChangeAvailability.event;
@@ -1332,6 +1334,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		await controllerData.initialRefresh;
 		await controllerData.controller.deleteChatSessionItem(sessionResource, token);
 		this._disposeSession(sessionResource);
+		this._onDidDeleteChatSessionItem.fire(sessionResource);
 	}
 
 	private _disposeSession(sessionResource: URI): void {

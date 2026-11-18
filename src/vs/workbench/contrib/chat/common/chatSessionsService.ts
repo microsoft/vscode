@@ -1030,6 +1030,9 @@ export interface IChatSessionsService {
 	 */
 	readonly onDidCommitSession: Event<IChatSessionCommitEvent>;
 
+	/** Fires with the resource of a session or chat after {@link deleteChatSessionItem} deleted it. */
+	readonly onDidDeleteChatSessionItem: Event<URI>;
+
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
 

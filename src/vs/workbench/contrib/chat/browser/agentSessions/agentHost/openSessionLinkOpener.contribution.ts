@@ -7,14 +7,14 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { tildify } from '../../../../../../base/common/labels.js';
 import { IObservable, observableValueOpts } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, isDefaultChatLinkId, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -26,7 +26,8 @@ import { IChatRequestOriginService } from '../../../common/chatRequestOrigin.js'
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../chat.js';
+import { revealChatRequest } from '../../widget/chatRequestReveal.js';
 import { getAgentChangesSummary } from '../agentSessionsModel.js';
 import { shouldRevealSessionEditor } from '../agentSessionsOpener.js';
 import { ISessionSummaryHoverData } from '../sessionSummaryHover.js';
@@ -53,6 +54,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 
 	static readonly ID = 'workbench.chat.agentHostOpenSessionLinkOpener';
 	private readonly _sessionListRefreshes = new Map<string, Promise<void>>();
+	private readonly _pendingTurnReveal = this._register(new MutableDisposable());
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
@@ -60,7 +62,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatRequestOriginService requestOriginService: IChatRequestOriginService,
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@IPathService pathService: IPathService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -84,7 +86,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 				if (!parseOpenSessionLinkUri(resource)) {
 					throw new Error(`Invalid agent session link: ${resource.toString(true)}`);
 				}
-				return new WorkbenchAgentSessionLinkPresentationWatcher(token => this._resolveClientSessionResource(resource, token), 'session', this._chatSessionsService, logService, this._connectionsService.onDidChangeSessionResolution);
+				return new WorkbenchAgentSessionLinkPresentationWatcher(token => this._resolveClientSessionResource(resource, token), 'session', this._chatSessionsService, this._logService, this._connectionsService.onDidChangeSessionResolution);
 			},
 		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
@@ -96,7 +98,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 				if (!parseOpenSessionLinkUri(resource)) {
 					throw new Error(`Invalid agent chat link: ${resource.toString(true)}`);
 				}
-				return new WorkbenchAgentSessionLinkPresentationWatcher(token => this._resolveClientSessionResource(resource, token), 'chat', this._chatSessionsService, logService, this._connectionsService.onDidChangeSessionResolution);
+				return new WorkbenchAgentSessionLinkPresentationWatcher(token => this._resolveClientSessionResource(resource, token), 'chat', this._chatSessionsService, this._logService, this._connectionsService.onDidChangeSessionResolution);
 			},
 		}));
 		// The editor window's adapter onto the shared session hover. It resolves
@@ -130,20 +132,40 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		const clientResource = await this._withoutDefaultChatFragment(linkedResource);
 		await this._chatSessionsService.activateChatSessionItemProvider(getChatSessionType(clientResource));
 		const openToSide = options?.openToSide === true;
+		let widget: IChatWidget | undefined;
 		if (!openToSide && this._configurationService.getValue<boolean>(ChatConfiguration.OpenSessionsInEditor)) {
-			const widget = await this._chatWidgetService.openSession(clientResource, ACTIVE_GROUP, {
+			widget = await this._chatWidgetService.openSession(clientResource, ACTIVE_GROUP, {
 				...options?.editorOptions,
 				revealIfOpened: shouldRevealSessionEditor(this._chatWidgetService, clientResource),
 			});
-			return !!widget;
+		} else {
+			widget = await this._chatWidgetService.openSession(clientResource, openToSide ? SIDE_GROUP : ChatViewPaneTarget, {
+				...options?.editorOptions,
+				revealIfOpened: !openToSide,
+				// A link in the window opens its chat where the window's folder stays, rather than following it
+				...(openToSide ? {} : { keepFolder: true }),
+			});
 		}
-		const widget = await this._chatWidgetService.openSession(clientResource, openToSide ? SIDE_GROUP : ChatViewPaneTarget, {
-			...options?.editorOptions,
-			revealIfOpened: !openToSide,
-			// A link in the window opens its chat where the window's folder stays, rather than following it
-			...(openToSide ? {} : { keepFolder: true }),
-		});
+		this._revealTurn(resource, widget?.viewModel?.sessionResource ?? clientResource, options?.fromUserGesture === true);
 		return !!widget;
+	}
+
+	/**
+	 * Reveals the request a link names with `turn=` once the opened chat shows it, which for a remote host can be after
+	 * its history arrives. Opening another link stops waiting.
+	 */
+	private _revealTurn(resource: URI | string, chatResource: URI, focus: boolean): void {
+		const turnId = parseOpenSessionLinkTurnId(resource);
+		const cancellation = new CancellationTokenSource();
+		this._pendingTurnReveal.value = toDisposable(() => cancellation.dispose(true));
+		if (!turnId) {
+			return;
+		}
+		void revealChatRequest(this._chatWidgetService, chatResource, turnId, { focus, token: cancellation.token }).then(revealed => {
+			if (!revealed && !cancellation.token.isCancellationRequested) {
+				this._logService.info(`[OpenSessionLink] Request ${turnId} did not appear in ${chatResource.toString()}`);
+			}
+		});
 	}
 
 	/** A link to the session's default chat opens the session itself, which selects the default chat. */
