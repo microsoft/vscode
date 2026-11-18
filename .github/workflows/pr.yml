@@ -614,7 +614,7 @@ jobs:
     name: Linux
     needs: changes
     if: ${{ !cancelled() }}
-    uses: ./.github/workflows/pr-linux-cli-test.yml
+    uses: ./.github/workflows/pr-linux-cli.yml
     with:
       rustup_toolchain: 1.88
       cli_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
