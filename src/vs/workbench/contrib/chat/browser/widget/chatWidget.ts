@@ -3159,6 +3159,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.refreshParsedInput();
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
+			this._applyInputPlaceholder();
 		}));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
@@ -3600,6 +3601,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (this._lockedAgent) {
 			placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder
 				|| localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+		}
+		// The selected agent's own hint (`argument-hint`) is more specific; it is not the session's, so it stays out of the view model.
+		const argumentHint = this.input.currentModeObs.get().argumentHint?.get();
+		if (argumentHint) {
+			this._updateInputPlaceholder(argumentHint);
+			this._appliedInputPlaceholder = true;
+			return;
 		}
 		// Routed through `_updateInputPlaceholder`, so a host-supplied placeholder still wins.
 		if (placeholder) {
