@@ -54,6 +54,9 @@ import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/c
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
+import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -100,6 +103,7 @@ import { IAutomationTemplate, readAutomationTemplates } from './automationTempla
 import { getAutomationsViewContent, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons, getVisibleAutomations, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
+import { AUTOMATIONS_TOUR_ID } from '../../../onboardingTours/browser/tours/automationsTour.js';
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
@@ -121,7 +125,7 @@ export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automation
 export const SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY = 'sessions.automations.showDisabled';
 const ShowDisabledAutomationsContext = new RawContextKey<boolean>('sessionsAutomationsShowDisabled', false);
 const TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID = 'sessions.automations.toggleShowDisabled';
-/** Onboarding spotlight targets shared by automatic introductions and checklist tours. */
+/** Onboarding spotlight targets shared by creation introductions and checklist tours. */
 const AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID = 'sessions.automations.templates';
 const CREATE_AUTOMATION_ONBOARDING_TARGET_ID = 'sessions.automations.create';
 const CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID = 'sessions.automations.createWithAgent';
@@ -3318,6 +3322,8 @@ registerAction2(class NewAutomationAction extends Action2 {
 });
 
 registerAction2(class CreateAutomationWithAgentAction extends Action2 {
+	private showingIntroduction = false;
+
 	constructor() {
 		super({
 			id: CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID,
@@ -3328,13 +3334,35 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		if (this.showingIntroduction) {
+			return;
+		}
+		const onboardingService = accessor.get(IOnboardingScenarioService);
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
 		const sessionsService = accessor.get(ISessionsService);
-		const mountedDraftHasInput = accessor.get(INewSessionComposerService).hasDraftInput;
-		const savedDraft = mountedDraftHasInput === undefined ? readNewChatDraftState(accessor.get(IStorageService)) : undefined;
+		const composerService = accessor.get(INewSessionComposerService);
+		const storageService = accessor.get(IStorageService);
+		const sessionDraftsService = accessor.get(ISessionDraftsService);
+		if (onboardingScenarioRegistry.getScenario(AUTOMATIONS_TOUR_ID) && onboardingService.shouldShowNudge(AUTOMATIONS_TOUR_ID)) {
+			this.showingIntroduction = true;
+			try {
+				const outcome = await onboardingService.runScenario(AUTOMATIONS_TOUR_ID);
+				if (outcome === OnboardingOutcome.Aborted) {
+					onboardingService.reset(AUTOMATIONS_TOUR_ID);
+					return;
+				}
+				if (outcome === OnboardingOutcome.Skipped || outcome === OnboardingOutcome.Dismissed) {
+					return;
+				}
+			} finally {
+				this.showingIntroduction = false;
+			}
+		}
+		const mountedDraftHasInput = composerService.hasDraftInput;
+		const savedDraft = mountedDraftHasInput === undefined ? readNewChatDraftState(storageService) : undefined;
 		const hasDraftInput = mountedDraftHasInput ?? (!!savedDraft?.inputText || !!savedDraft?.attachments.length);
-		if (hasDraftInput && !accessor.get(ISessionDraftsService).enabled.get()) {
+		if (hasDraftInput && !sessionDraftsService.enabled.get()) {
 			const { result } = await dialogService.prompt<boolean>({
 				type: 'warning',
 				message: localize('replaceAutomationDraft', "Replace your existing draft?"),
