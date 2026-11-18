@@ -431,6 +431,37 @@ suite('AgentHostCheckpointService', () => {
 		});
 	});
 
+	for (const explicitChat of [false, true]) {
+		test(`checkpoint reads wait for queued turn-end publication (explicit chat=${explicitChat})`, async () => {
+			const { chat, gitService, session, service, workingDirectory } = createTestService(async () => 'tree', { previous: false });
+			await service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+			const publishing = new DeferredPromise<void>();
+			const releasePublication = new DeferredPromise<void>();
+			const updateRef = gitService.updateRef;
+			gitService.updateRef = async (...args) => {
+				publishing.complete();
+				await releasePublication.p;
+				await updateRef(...args);
+			};
+			const end = service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
+			await publishing.p;
+			let readResolved = false;
+			const read = service.getTurnCheckpointPair(session, explicitChat ? chat : undefined, 'turn-1', workingDirectory).then(pair => {
+				readResolved = true;
+				return pair;
+			});
+			await timeout(0);
+			const resolvedBeforePublication = readResolved;
+			releasePublication.complete();
+			const [pair] = await Promise.all([read, end]);
+
+			assert.deepStrictEqual({ resolvedBeforePublication, pair }, {
+				resolvedBeforePublication: false,
+				pair: { parent: 'commit-1', current: buildCheckpointRefName(AgentSession.id(session), 1) },
+			});
+		});
+	}
+
 	test('discard waits for an in-flight turn-start capture', async () => {
 		const captureStarted = new DeferredPromise<void>();
 		const releaseCapture = new DeferredPromise<void>();

@@ -469,6 +469,8 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		turnId: string,
 		workingDirectory?: URI
 	): Promise<{ parent: string; current: string } | undefined> {
+		const queueSession = chat ? this._turnQueueSession(sessionUri, chat, turnId) : sessionUri;
+		await this._sequencer.peek(queueSession.toString());
 		if (!workingDirectory) {
 			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri.toString());
 			if (!workingDirectories || workingDirectories.length === 0) {
