@@ -985,9 +985,9 @@ export function formatTurnResponseDetails(
 }
 
 /**
- * Whether a model router that picks once per chat has already picked for this chat. A later turn
- * that selects it keeps that pick without being routed, so there is no routing to report. As on
- * the host, a model picked by hand or another router selected since then means it routes afresh.
+ * Whether a model router has already picked for this chat. A later turn that selects it reports
+ * only a move to another route, so there is no row to show while it decides. As on the host, a
+ * model picked by hand or another router selected since then means it routes afresh.
  */
 export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string, routerName: string | undefined): boolean {
 	if (!routerName) {
@@ -999,7 +999,7 @@ export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string,
 		}
 		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
 		if (routed) {
-			return routed.router === routerName && routed.firstTurnOnly === true;
+			return routed.router === routerName;
 		}
 		// A turn since that pick that selected a model by hand, or another router. A restored turn
 		// that asked for a router and got no pick has the model it ran on as its selection, so the

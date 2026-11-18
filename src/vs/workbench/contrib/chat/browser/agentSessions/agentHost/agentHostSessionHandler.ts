@@ -4449,7 +4449,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const selectedModelId = turn?.message?.model?.id;
 				const resolution = this._createTurnModelLookup(opts.sessionResource, selectedModelId, this._hideAutoExplainability.read(reader))
 					.toAutoModeResolution?.(usage$.read(reader), lastAutoModeResolution !== undefined && !lastAutoModeResolution.resolved);
-				// An unresolved row is skipped for a slash command, and for a model router that already picked for this chat and is not picking again.
+				// An unresolved row is skipped for a slash command, and for a model router that already picked for this chat.
 				const skipUnresolved = !resolution?.resolved && (turn?.message.text.startsWith('/') || routerPickSettled$.read(reader));
 				if (!resolution || skipUnresolved || equals(lastAutoModeResolution, resolution)) {
 					return;
@@ -8014,8 +8014,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			toAutoModeResolution: (usage, settlesPendingRow) => {
 				const routed = readUsageInfoMeta(usage).modelRouted;
 				if (routed) {
-					// A router that picks once per chat has nothing new to report on a later turn, but a row already showing "picking a model" still has to settle.
-					if (routed.kept && routed.firstTurnOnly && !settlesPendingRow) {
+					// A turn that stayed on its model has nothing new to report, but a row already showing "picking a model" still has to settle.
+					if (routed.kept && !settlesPendingRow) {
 						return undefined;
 					}
 					const routedModel = lookupRawModel(routed.chosenModel);
