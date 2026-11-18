@@ -1247,32 +1247,48 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('in Single, Close All keeps the draft of the composer used last for the next to take first, also across groups side by side', async () => {
-		const d = createChatWindowComposerResource();
-		// D shows in the first group; E, kept from before, comes back with a composer beside it
-		const first = createService({
-			chatTabs: SessionsChatTabsMode.Single, visible: true,
-			stored: stringify({ chats: [d.toString()], active: 0, kept: [toStoredChatDraft({ inputText: 'E', attachments: [] })] }),
-			storedComposers: stringify([{ resource: d, input: toStoredChatDraft({ inputText: 'D', attachments: [] }) }]),
+	test('in Single, Close All keeps the draft of the composer used last for the next to take first, also across groups side by side, and also when a chat shows in front of it', async () => {
+		/** D shows in the first group; E, kept from before, comes back with a composer beside it; then `then` goes on from there. */
+		const run = async (then: (fixture: ReturnType<typeof createService>) => Promise<void>) => {
+			const d = createChatWindowComposerResource();
+			const first = createService({
+				chatTabs: SessionsChatTabsMode.Single, visible: true,
+				stored: stringify({ chats: [d.toString()], active: 0, kept: [toStoredChatDraft({ inputText: 'E', attachments: [] })] }),
+				storedComposers: stringify([{ resource: d, input: toStoredChatDraft({ inputText: 'D', attachments: [] }) }]),
+			});
+			await first.service.restore();
+			await then(first);
+			const groups = first.part.groups.map(group => group.editors.length);
+			await first.service.closeAllChats();
+
+			const sending = observableValue<ISession | undefined>('newSession', undefined);
+			const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: first.save(), newSession: sending });
+			await second.startWindow();
+			const next: string[] = [];
+			for (let i = 0; i < 3; i++) {
+				await second.service.openComposer(undefined, { newComposer: true });
+				next.push(second.composerDrafts().at(-1)!.input);
+				sending.set(sentSession(`sent${i}`), undefined);
+			}
+			return { groups, next };
+		};
+
+		assert.deepStrictEqual({
+			// The user goes back to D, in the first group
+			backToD: await run(async ({ service, part }) => {
+				await service.openComposer(undefined, { sideBySide: true });
+				part.activate(part.groups[0]);
+			}),
+			// A sent chat shows in front of D; E, beside it, is used after D; then the user picks that chat again, in front of D
+			chatInFrontOfD: await run(async ({ service }) => {
+				await service.openChat(session, chatA);
+				await service.openComposer(undefined, { sideBySide: true });
+				await service.openChat(session, chatA);
+			}),
+		}, {
+			backToD: { groups: [1, 1], next: ['D', 'E', ''] },
+			chatInFrontOfD: { groups: [2, 1], next: ['E', 'D', ''] },
 		});
-		await first.service.restore();
-		await first.service.openComposer(undefined, { sideBySide: true });
-		const groups = first.part.groups.map(group => group.editors.length);
-		// The user goes back to D, in the first group
-		first.part.activate(first.part.groups[0]);
-		await first.service.closeAllChats();
-
-		const sending = observableValue<ISession | undefined>('newSession', undefined);
-		const second = createService({ chatTabs: SessionsChatTabsMode.Single, stored: first.save(), newSession: sending });
-		await second.startWindow();
-		const next: string[] = [];
-		for (let i = 0; i < 3; i++) {
-			await second.service.openComposer(undefined, { newComposer: true });
-			next.push(second.composerDrafts().at(-1)!.input);
-			sending.set(sentSession(`sent${i}`), undefined);
-		}
-
-		assert.deepStrictEqual({ groups, next }, { groups: [1, 1], next: ['D', 'E', ''] });
 	});
 
 	test('a chat that the user opens in the Chat view while no host replaces it, or in an editor, leaves the chats it keeps; not one the Chat view restores, nor one it shows while a host replaces it', async () => {

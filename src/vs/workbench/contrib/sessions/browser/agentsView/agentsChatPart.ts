@@ -262,6 +262,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _kept: IChatDraft[] | undefined;
 	/** What was typed in each composer whose tab is closing, kept once it closed: not when its close is vetoed. */
 	private readonly _closingComposerInputs = new WeakMap<EditorInput, IChatDraft>();
+	/** Its tabs as they were last active, the latest first, across its groups. */
+	private _recentInputs: EditorInput[] = [];
+	/** While it closes all its chats, what their composers kept as they closed, to keep in the order they were used. */
+	private _closingAllKept: { readonly input: EditorInput; readonly draft: IChatDraft }[] | undefined;
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
 
 	private _part: IContentPart | undefined;
@@ -479,15 +483,22 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	async closeAllChats(): Promise<void> {
+		const groups = this._part?.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE) ?? [];
+		// Its tabs, the most recently active first: as they were active, then as each group, the most recent first, orders the others
+		const recency = [...this._recentInputs, ...groups.flatMap(group => group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE))];
+		const rank = (input: EditorInput) => {
+			const index = recency.indexOf(input);
+			return index < 0 ? recency.length : index;
+		};
+		const kept: { readonly input: EditorInput; readonly draft: IChatDraft }[] = this._closingAllKept = [];
 		this._closingAll = true;
 		try {
-			// The least recently active first, group by group and in each group: in Single, the composer used last keeps its draft
-			// last, for the next to take first
-			for (const group of [...this._part?.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE) ?? []].reverse()) {
-				await group.closeEditors([...group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)].reverse());
-			}
+			await Promise.all(groups.map(group => group.closeAllEditors()));
 		} finally {
 			this._closingAll = false;
+			this._closingAllKept = undefined;
+			// In Single, the least recently used first: the composer used last keeps its draft last, for the next to take first
+			this._keptComposerInputs().push(...kept.sort((a, b) => rank(b.input) - rank(a.input)).map(entry => entry.draft));
 		}
 		this._hideIfEmpty();
 	}
@@ -814,6 +825,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._partStore.add(toDisposable(() => {
 			this._closingAll = true;
 			this._partClosing = true;
+			this._recentInputs = [];
 			part.forceClose();
 			this._kept = [];
 		}));
@@ -837,6 +849,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 						this._settleComposerTab(active, tx);
 					}
 				});
+				if (active) {
+					this._recentInputs = [active, ...this._recentInputs.filter(input => input !== active)];
+				}
 			}
 		};
 		const trackGroup = (group: IEditorGroup) => {
@@ -856,8 +871,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				const kept = this._closingComposerInputs.get(editor);
 				if (kept) {
 					this._closingComposerInputs.delete(editor);
-					this._keptComposerInputs().push(kept);
+					if (this._closingAllKept) {
+						this._closingAllKept.push({ input: editor, draft: kept });
+					} else {
+						this._keptComposerInputs().push(kept);
+					}
 				}
+				this._recentInputs = this._recentInputs.filter(input => input !== editor);
 				const closedChat = this._closingChatTabs.get(editor);
 				this._closingChatTabs.delete(editor);
 				updateActive();
