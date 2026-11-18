@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -33,11 +33,17 @@ suite('Copilot SDK - customization discovery', function () {
 		const home = await realpath(await mkdtemp(join(tmpdir(), 'copilot-workspace-hooks-')));
 		const workspace = join(home, 'workspace');
 		const client = new CopilotClient({
-			mode: 'copilot-cli', baseDirectory: home, useLoggedInUser: false,
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-			})),
+			mode: 'coding-agent',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: home,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
 		});
 		try {
 			await mkdir(join(workspace, '.github', 'hooks'), { recursive: true });
@@ -79,11 +85,17 @@ suite('Copilot SDK - customization discovery', function () {
 		const store = disposables.add(new DisposableStore());
 		const home = await realpath(await mkdtemp(join(tmpdir(), 'copilot-discovery-')));
 		const client = new CopilotClient({
-			mode: 'copilot-cli', baseDirectory: home, useLoggedInUser: false,
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
-				PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
-				COPILOT_TELEMETRY_ENABLED: 'false',
-			})),
+			mode: 'coding-agent',
+			runtime: RuntimeConnection.forSpawnedStdio({
+				baseDirectory: home,
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
+					PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR,
+					COPILOT_TELEMETRY_ENABLED: 'false',
+				})),
+			}),
+			github: {
+				useLoggedInUser: false,
+			},
 		});
 		try {
 			for (const name of ['hooks-inventory', 'mcp-inventory']) {
