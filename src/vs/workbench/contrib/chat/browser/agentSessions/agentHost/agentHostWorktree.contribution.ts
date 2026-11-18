@@ -276,6 +276,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		}
 		// Back to its own location from a worktree; else where the folder is, which supersedes a move under way
 		const target = atWorktree ? workspace.uri : folder.uri;
+		// No reason is passed: this unattended return is never vetoed, by design
 		this._workspaceEditingService.setFolderLocation(target).then(
 			() => { if (atWorktree) { this._log('toPrimary', 'switched', true); } },
 			error => { this._logService.error('[worktree] could not return the folder to its own location', error); if (atWorktree) { this._log('toPrimary', 'failed', true); } });
