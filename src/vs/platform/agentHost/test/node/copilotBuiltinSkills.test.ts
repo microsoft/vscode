@@ -87,13 +87,13 @@ suite('Copilot builtin troubleshoot skill', () => {
 				// Resolving stops at a route's first model that is available, so each entry is looked up on its own.
 				entries: parsed.router?.routes.map(route => route.models.map(reference => {
 					const found = matchModelReference(models, reference);
-					return found?.kind === 'model' ? found.model.id : found?.kind;
+					return `${reference}: ${found?.kind === 'model' ? found.model.id : found?.kind}`;
 				})),
 			};
 		});
 		assert.deepStrictEqual(checked, [
-			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-haiku-5.5', 'gpt-6.1-sol'], entries: [['claude-opus-5.5', 'claude-sonnet-5.5'], ['claude-haiku-5.5'], ['gpt-6.1-sol']] },
-			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-opus-5.5', 'claude-haiku-5.5'], entries: [['claude-opus-5.5'], ['claude-opus-5.5'], ['claude-haiku-5.5']] },
+			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-haiku-5.5', 'gpt-6.1-sol'], entries: [['opus: claude-opus-5.5', 'sonnet: claude-sonnet-5.5'], ['haiku: claude-haiku-5.5'], ['sol: gpt-6.1-sol']] },
+			{ diagnostics: [], models: ['claude-opus-5.5', 'claude-opus-5.5', 'claude-haiku-5.5'], entries: [['opus: claude-opus-5.5'], ['opus: claude-opus-5.5'], ['haiku: claude-haiku-5.5']] },
 		]);
 	});
 
