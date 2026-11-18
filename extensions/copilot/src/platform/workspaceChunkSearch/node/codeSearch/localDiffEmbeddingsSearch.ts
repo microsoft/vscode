@@ -8,7 +8,7 @@ import { TelemetryCorrelationId } from '../../../../util/common/telemetryCorrela
 import { coalesce } from '../../../../util/vs/base/common/arrays';
 import { Limiter, raceCancellationError } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { ResourceMap } from '../../../../util/vs/base/common/map';
+import { ResourceMap, ResourceSet } from '../../../../util/vs/base/common/map';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { FileChunkAndScore, FileChunkWithEmbedding } from '../../../chunking/common/chunk';
@@ -47,6 +47,14 @@ export class LocalDiffEmbeddingsSearch {
 	 * @returns The top chunks from {@linkcode files}, or `undefined` if the files could not be searched.
 	 */
 	async search(files: readonly URI[], query: WorkspaceChunkQueryWithEmbeddings, maxResults: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<FileChunkAndScore[] | undefined> {
+		// Files that are no longer changed are covered by the remote index again
+		const changedFiles = new ResourceSet(files);
+		for (const uri of Array.from(this._cache.keys())) {
+			if (!changedFiles.has(uri)) {
+				this._cache.delete(uri);
+			}
+		}
+
 		const includedFiles = files.filter(uri => shouldInclude(uri, options.globPatterns));
 		if (!includedFiles.length) {
 			return [];

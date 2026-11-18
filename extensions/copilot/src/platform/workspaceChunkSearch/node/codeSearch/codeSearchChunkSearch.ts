@@ -669,9 +669,11 @@ export class CodeSearchChunkSearch extends Disposable {
 			const indexedRepos = allRepos.filter(repo => repo.status === CodeSearchRepoStatus.Ready);
 
 			const diffArray = await raceCancellationError(this.getLocalDiff(), token);
-			const diffFilePattern = Array.isArray(diffArray) ? diffArray.map(uri => new RelativePattern(uri, '*')) : undefined;
+			const localDiffFiles = Array.isArray(diffArray) ? this.getLocallySearchableDiffFiles(diffArray) : diffArray;
+			const diffFilePattern = Array.isArray(localDiffFiles) ? localDiffFiles.map(uri => new RelativePattern(uri, '*')) : undefined;
 
 			const localSearchCts = new CancellationTokenSource(token);
+			const externalIngestCts = new CancellationTokenSource(token);
 
 			// Kick off remote and local searches in parallel
 			const innerTelemetryInfo = telemetryInfo.addCaller('CodeSearchChunkSearch::searchWorkspace');
@@ -690,12 +692,15 @@ export class CodeSearchChunkSearch extends Disposable {
 				})
 				: Promise.resolve<SemanticCodeSearchResult>({ chunks: [], outOfSync: false });
 
-			const localSearchOperation = raceTimeout(this.searchLocalDiff(diffArray, sizing, query, options, innerTelemetryInfo, localSearchCts.token), this.localDiffSearchTimeout, () => {
+			const localSearchOperation = raceTimeout(this.searchLocalDiff(localDiffFiles, sizing, query, options, innerTelemetryInfo, localSearchCts.token), this.localDiffSearchTimeout, () => {
 				localSearchCts.cancel();
 			});
 
-			// External ingest only covers content without a GitHub remote, so it is searched alongside code search
-			const externalIngestOperation = this.searchExternalIngest(sizing, query, innerTelemetryInfo, token);
+			// External ingest only covers content without a GitHub remote, so it is searched alongside code search.
+			// A slow ingest must not hold back code search results.
+			const externalIngestOperation = raceTimeout(this.searchExternalIngest(sizing, query, innerTelemetryInfo, externalIngestCts.token), this.localDiffSearchTimeout, () => {
+				externalIngestCts.cancel();
+			});
 
 			let codeSearchResults: SemanticCodeSearchResult | undefined;
 			let localResults: DiffSearchResult | undefined;
@@ -710,6 +715,7 @@ export class CodeSearchChunkSearch extends Disposable {
 				}
 			} finally {
 				localSearchCts.dispose(true);
+				externalIngestCts.dispose(true);
 			}
 
 			/* __GDPR__
@@ -806,13 +812,33 @@ export class CodeSearchChunkSearch extends Disposable {
 		return diffArray;
 	}
 
+	/**
+	 * Changed files without a GitHub remote are only sent for semantic search when external ingest is enabled.
+	 */
+	private getLocallySearchableDiffFiles(files: readonly URI[]): readonly URI[] {
+		if (this.isExternalIngestEnabled()) {
+			return files;
+		}
+
+		const gitHubRoots = this.getGitHubRepoRoots();
+		return files.filter(uri => gitHubRoots.some(root => isEqualOrParent(uri, root)));
+	}
+
 	private async searchLocalDiff(diffArray: LocalDiffResult, sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<DiffSearchResult | undefined> {
 		if (!Array.isArray(diffArray)) {
 			return undefined;
 		}
 
-		const chunks = await this._localDiffSearch.value.search(diffArray, query, sizing.maxResultCountHint, options, telemetryInfo.addCaller('CodeSearchChunkSearch::searchLocalDiff'), token);
-		return chunks ? { chunks, strategyId: 'localEmbeddings' } : undefined;
+		try {
+			const chunks = await this._localDiffSearch.value.search(diffArray, query, sizing.maxResultCountHint, options, telemetryInfo.addCaller('CodeSearchChunkSearch::searchLocalDiff'), token);
+			return chunks ? { chunks, strategyId: 'localEmbeddings' } : undefined;
+		} catch (e) {
+			if (isCancellationError(e)) {
+				throw e;
+			}
+			this._logService.warn(`Local diff search failed: ${e}`);
+			return undefined;
+		}
 	}
 
 	private async searchExternalIngest(sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<readonly FileChunkAndScore[] | undefined> {
