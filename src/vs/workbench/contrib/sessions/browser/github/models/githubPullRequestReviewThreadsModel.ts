@@ -152,7 +152,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): IDisposable {
 		if (this._pollingClientCount++ === 0) {
 			this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Start polling ${this.owner}/${this.repo}#${this.prNumber} every ${intervalMs}ms`);
-			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}`, intervalMs));
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}/threads`, intervalMs));
 		}
 
 		return toDisposable(() => {
@@ -170,7 +170,8 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 		this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Poll cycle for ${this.owner}/${this.repo}#${this.prNumber}`);
 		await this.refresh(false, { priority: 'background' });
 		if (!this._store.isDisposed && this._pollingClientCount > 0) {
-			this._pollScheduler.schedule();
+			// Keep the offset after every poll: timers that fire together (e.g. after sleep) spread out again.
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}/threads`, DEFAULT_POLL_INTERVAL_MS));
 		}
 	}
 

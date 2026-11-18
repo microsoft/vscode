@@ -341,7 +341,7 @@ suite('GitHubPullRequestModel', () => {
 
 		await mockFetcher.getPullRequestGate.complete(undefined);
 		await timeout(0);
-		await timeout(60_000);
+		await timeout(90_000);
 		assert.deepStrictEqual({
 			getPullRequestCalls: mockFetcher.getPullRequestCalls,
 			getReviewsCalls: mockFetcher.getReviewsCalls,
@@ -351,7 +351,7 @@ suite('GitHubPullRequestModel', () => {
 		});
 
 		secondPolling.dispose();
-		await timeout(60_000);
+		await timeout(90_000);
 
 		assert.deepStrictEqual({
 			getPullRequestCalls: mockFetcher.getPullRequestCalls,
@@ -578,11 +578,11 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 
 		await mockFetcher.getReviewThreadsGate.complete(undefined);
 		await timeout(0);
-		await timeout(60_000);
+		await timeout(90_000);
 		assert.strictEqual(mockFetcher.getReviewThreadsCalls, 2);
 
 		secondPolling.dispose();
-		await timeout(60_000);
+		await timeout(90_000);
 
 		assert.strictEqual(mockFetcher.getReviewThreadsCalls, 2);
 	}));
@@ -872,11 +872,11 @@ suite('GitHubPullRequestCIModel', () => {
 
 		await mockFetcher.getCheckRunsGate.complete(undefined);
 		await timeout(0);
-		await timeout(60_000);
+		await timeout(90_000);
 		assert.strictEqual(mockFetcher.getCheckRunsCalls, 2);
 
 		secondPolling.dispose();
-		await timeout(60_000);
+		await timeout(90_000);
 
 		assert.strictEqual(mockFetcher.getCheckRunsCalls, 2);
 	}));
@@ -1175,6 +1175,25 @@ suite('GitHubPullRequestModel polling capacity', () => {
 			return this._request([]);
 		}
 	}
+
+	test('keeps the offset when polling again', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const mockFetcher = new MockPRFetcher();
+		mockFetcher.nextPR = makePR();
+		mockFetcher.nextReviews = [];
+		const model = store.add(new GitHubPullRequestModel('microsoft', 'vscode', 346010, mockFetcher as unknown as GitHubPRFetcher, new NullLogService(), new PullRequestIconCache(store.add(new TestStorageService()))));
+		const delay = getStaggeredPollDelay('microsoft/vscode#346010', 60_000);
+		const polling = model.startPolling();
+
+		await timeout(delay + 1);
+		const afterFirstPoll = mockFetcher.getPullRequestCalls;
+		await timeout(60_000);
+		const beforeSecondPoll = mockFetcher.getPullRequestCalls;
+		await timeout(delay);
+		const afterSecondPoll = mockFetcher.getPullRequestCalls;
+		polling.dispose();
+
+		assert.deepStrictEqual({ delayAbovePlainInterval: delay > 60_500, afterFirstPoll, beforeSecondPoll, afterSecondPoll }, { delayAbovePlainInterval: true, afterFirstPoll: 1, beforeSecondPoll: 1, afterSecondPoll: 2 });
+	}));
 
 	test('polling many pull requests does not exceed the request capacity', () => runWithFakedTimers<void>({ useFakeTimers: true, maxTaskCount: 100_000 }, async () => {
 		const fetcher = new CapacityLimitedFetcher();

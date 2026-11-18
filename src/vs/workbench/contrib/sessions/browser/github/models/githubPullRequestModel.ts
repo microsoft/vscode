@@ -145,7 +145,8 @@ export class GitHubPullRequestModel extends Disposable {
 		await this.refresh({ priority: 'background' });
 		// Re-schedule for next poll cycle (RunOnceScheduler is one-shot)
 		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
-			this._pollScheduler.schedule();
+			// Keep the offset after every poll: timers that fire together (e.g. after sleep) spread out again.
+			this._pollScheduler.schedule(getStaggeredPollDelay(`${this.owner}/${this.repo}#${this.prNumber}`, DEFAULT_POLL_INTERVAL_MS));
 		}
 	}
 
