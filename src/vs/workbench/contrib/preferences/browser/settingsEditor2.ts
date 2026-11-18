@@ -336,6 +336,13 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
+		// The Layout tab shows the settings of the active layout and whether it is locked
+		this._register(configurationService.onDidChangeLayoutSettings(() => {
+			if (this.viewState.settingsTarget === ConfigurationTarget.LAYOUT) {
+				this.onConfigUpdate(undefined, true);
+			}
+		}));
+
 		this._register(chatEntitlementService.onDidChangeSentiment(() => {
 			this.updateAiSearchToggleVisibility();
 		}));
@@ -583,7 +590,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		if (cachedState) {
-			const settingsTarget = cachedState.target;
+			const settingsTarget = this.toAvailableSettingsTarget(cachedState.target);
 			this.settingsTargetsWidget.settingsTarget = settingsTarget;
 			this.viewState.settingsTarget = settingsTarget;
 			if (!this.searchWidget.getValue()) {
@@ -627,8 +634,15 @@ export class SettingsEditor2 extends EditorPane {
 
 		const target: SettingsTarget | undefined = options.folderUri ?? recoveredViewState?.settingsTarget ?? <SettingsTarget | undefined>options.target;
 		if (target) {
-			this.settingsTargetsWidget.updateTarget(target);
+			this.settingsTargetsWidget.updateTarget(this.toAvailableSettingsTarget(target));
 		}
+	}
+
+	/**
+	 * Returns the given target, or the user settings for the settings of a named layout while none is active.
+	 */
+	private toAvailableSettingsTarget(target: SettingsTarget): SettingsTarget {
+		return target === ConfigurationTarget.LAYOUT && !this.configurationService.layoutSettings ? ConfigurationTarget.USER_LOCAL : target;
 	}
 
 	override clearInput(): void {
@@ -1056,6 +1070,8 @@ export class SettingsEditor2 extends EditorPane {
 			return this.preferencesService.openRemoteSettings(openOptions);
 		} else if (currentSettingsTarget === ConfigurationTarget.WORKSPACE) {
 			return this.preferencesService.openWorkspaceSettings(openOptions);
+		} else if (currentSettingsTarget === ConfigurationTarget.LAYOUT) {
+			return this.preferencesService.openLayoutSettings(openOptions);
 		} else if (URI.isUri(currentSettingsTarget)) {
 			return this.preferencesService.openFolderSettings({ folderUri: currentSettingsTarget, ...openOptions });
 		}
@@ -1238,6 +1254,8 @@ export class SettingsEditor2 extends EditorPane {
 				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER_LOCAL);
 			} else if (element.scope === 'remote') {
 				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.USER_REMOTE);
+			} else if (element.scope === 'layout') {
+				this.settingsTargetsWidget.updateTarget(ConfigurationTarget.LAYOUT);
 			}
 			this.applyFilter(`@${ID_SETTING_TAG}${element.settingKey}`);
 		}));
@@ -1333,7 +1351,8 @@ export class SettingsEditor2 extends EditorPane {
 
 		const configurationTargetIsWorkspace = configurationTarget === ConfigurationTarget.WORKSPACE || configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER;
 
-		const userPassedInManualReset = configurationTargetIsWorkspace || !!languageFilter;
+		// A value in the layout is kept also if it equals the default value, so that it takes precedence over the values of other scopes
+		const userPassedInManualReset = configurationTargetIsWorkspace || configurationTarget === ConfigurationTarget.LAYOUT || !!languageFilter;
 		const isManualReset = userPassedInManualReset ? manualReset : value === undefined;
 
 		// If the user is changing the value back to the default, and we're not targeting a workspace scope, do a 'reset' instead
@@ -1413,7 +1432,8 @@ export class SettingsEditor2 extends EditorPane {
 		const reportedTarget = props.settingsTarget === ConfigurationTarget.USER_LOCAL ? 'user' :
 			props.settingsTarget === ConfigurationTarget.USER_REMOTE ? 'user_remote' :
 				props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
-					'folder';
+					props.settingsTarget === ConfigurationTarget.LAYOUT ? 'layout' :
+						'folder';
 
 		const data = {
 			key: props.key,

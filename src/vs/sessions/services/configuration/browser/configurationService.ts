@@ -32,8 +32,8 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFolder, WorkbenchState, Workspace } from '../../../../platform/workspace/common/workspace.js';
 import { DefaultConfiguration, FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
-import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, IWorkbenchConfigurationService, RestrictedSettings, isLayoutOverridableSetting } from '../../../../workbench/services/configuration/common/configuration.js';
-import { Configuration, createLayoutConfigurationModel, toLayoutSettings } from '../../../../workbench/services/configuration/common/configurationModels.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IConfigurationCache, ILayoutSettings, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
+import { Configuration } from '../../../../workbench/services/configuration/common/configurationModels.js';
 import { ConfigurationEditingError, ConfigurationEditingErrorCode } from '../../../../workbench/services/configuration/common/configurationEditing.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
@@ -136,7 +136,6 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			this.policyConfiguration.configurationModel,
 			this.workspaceConfiguration.getConfiguration(),
 		];
-		const previousConfiguration = this._configuration;
 		this._configuration = new Configuration(
 			defaultModel,
 			policyModel,
@@ -150,7 +149,6 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			workspace,
 			this.logService
 		);
-		this._configuration.updateLayoutConfiguration(previousConfiguration.layoutConfiguration);
 		await this.loadFolderConfigurations(workspace.folders);
 	}
 
@@ -209,16 +207,11 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		}
 
 		if (!targets.length) {
-			targets.push(...this.deriveConfigurationTargets(key, value, inspect, !!overrides?.overrideIdentifiers?.length));
+			targets.push(...this.deriveConfigurationTargets(key, value, inspect));
 
 			// Remove the setting, if the value is same as default value and is updated only in user target
 			if (equals(value, inspect.defaultValue) && targets.length === 1 && targets[0] === ConfigurationTarget.USER) {
 				value = undefined;
-			}
-
-			// Reset a setting of the named layout to its default value so that the layout continues to define it
-			if (value === undefined && targets.length === 1 && targets[0] === ConfigurationTarget.LAYOUT) {
-				value = inspect.defaultValue;
 			}
 		}
 
@@ -235,8 +228,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 
 	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined, options: IConfigurationUpdateOptions | undefined): Promise<void> {
 		if (target === ConfigurationTarget.LAYOUT) {
-			this.writeLayoutConfigurationValue(key, value, overrides);
-			return;
+			throw new Error(`Unable to write ${key} to Layout Settings because the Agents window has no named layouts.`);
 		}
 
 		if (!this.instantiationService) {
@@ -258,14 +250,9 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		await this.reloadConfiguration(target);
 	}
 
-	private deriveConfigurationTargets(_key: string, value: unknown, inspect: IConfigurationValue<unknown>, languageSpecific: boolean): ConfigurationTarget[] {
+	private deriveConfigurationTargets(_key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
 		if (equals(value, inspect.value)) {
 			return [];
-		}
-
-		// A setting defined by the active named layout belongs to that layout
-		if (inspect.layoutValue !== undefined && !languageSpecific) {
-			return [ConfigurationTarget.LAYOUT];
 		}
 
 		const definedTargets: ConfigurationTarget[] = [];
@@ -368,38 +355,25 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		return Array.isArray(allProfilesSettings) && allProfilesSettings.includes(key);
 	}
 
-	getLayoutConfiguration(): IStringDictionary<unknown> {
-		return toLayoutSettings(this._configuration.layoutConfiguration);
+	// The Agents window has no named layouts
+	readonly layoutSettings: ILayoutSettings | undefined = undefined;
+	readonly onDidChangeLayoutSettings: Event<void> = Event.None;
+
+	setLayoutSettings(layout: ILayoutSettings | undefined): void {
+		if (layout) {
+			throw new Error('The Agents window has no named layouts.');
+		}
 	}
 
-	setLayoutConfiguration(settings: IStringDictionary<unknown>): void {
-		this.updateLayoutConfiguration(createLayoutConfigurationModel(settings, this.logService));
+	getLayoutConfiguration(): IStringDictionary<unknown> {
+		return {};
+	}
+
+	isActiveLayoutSetting(_key: string): boolean {
+		return false;
 	}
 
 	// #endregion
-
-	private updateLayoutConfiguration(layoutConfiguration: ConfigurationModel): void {
-		const previousData = this._configuration.toData();
-		const change = this._configuration.compareAndUpdateLayoutConfiguration(layoutConfiguration);
-		this.triggerConfigurationChange(change, previousData, ConfigurationTarget.LAYOUT);
-	}
-
-	private writeLayoutConfigurationValue(key: string, value: unknown, overrides: IConfigurationUpdateOverrides | undefined): void {
-		if (!isLayoutOverridableSetting(key)) {
-			throw new Error(`Unable to write ${key} to the layout target because a named layout cannot define it.`);
-		}
-		if (overrides?.overrideIdentifiers?.length) {
-			throw new Error(`Unable to write language specific value of ${key} to the layout target.`);
-		}
-
-		const layoutConfiguration = this._configuration.layoutConfiguration.merge();
-		if (value === undefined) {
-			layoutConfiguration.removeValue(key);
-		} else {
-			layoutConfiguration.setValue(key, value);
-		}
-		this.updateLayoutConfiguration(layoutConfiguration);
-	}
 
 	private initAgentsWindowReadOnlyKeys(): void {
 		const properties = this.configurationRegistry.getConfigurationProperties();

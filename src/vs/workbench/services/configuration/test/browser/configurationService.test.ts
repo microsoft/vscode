@@ -2696,20 +2696,26 @@ suite('WorkspaceConfigurationService - Folder', () => {
 			.then(() => assert.ok(target.called));
 	});
 
-	test('layout configuration takes precedence over user and workspace settings and ignores settings that are not layout overridable', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('the settings of the active named layout are read from its settings file and take precedence over user and workspace settings, settings that a layout cannot define are ignored', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const resource = joinPath(ROOT, 'layouts', 'debug', 'settings.json');
+		await fileService.writeFile(resource, VSBuffer.fromString(JSON.stringify({ 'configurationLayoutTest.layoutSetting': 'layoutValue', 'configurationLayoutTest.otherSetting': 'layoutValue' })));
 		await testObject.updateValue('configurationLayoutTest.layoutSetting', 'userValue', ConfigurationTarget.USER);
 		await testObject.updateValue('configurationLayoutTest.layoutSetting', 'workspaceValue', ConfigurationTarget.WORKSPACE);
 		const target = sinon.spy();
 		disposables.add(testObject.onDidChangeConfiguration(target));
 
-		testObject.setLayoutConfiguration({ 'configurationLayoutTest.layoutSetting': 'layoutValue', 'configurationLayoutTest.otherSetting': 'layoutValue' });
+		testObject.setLayoutSettings({ name: 'Debug', resource, locked: false }, { 'configurationLayoutTest.layoutSetting': 'lastKnownValue' });
+		const beforeRead = testObject.getValue('configurationLayoutTest.layoutSetting');
+		await testObject.reloadConfiguration(ConfigurationTarget.LAYOUT);
 
 		assert.deepStrictEqual({
+			beforeRead,
 			layoutConfiguration: testObject.getLayoutConfiguration(),
 			layoutSetting: testObject.getValue('configurationLayoutTest.layoutSetting'),
 			otherSetting: testObject.getValue('configurationLayoutTest.otherSetting'),
 			changeSource: target.lastCall.args[0].source
 		}, {
+			beforeRead: 'lastKnownValue',
 			layoutConfiguration: { 'configurationLayoutTest.layoutSetting': 'layoutValue' },
 			layoutSetting: 'layoutValue',
 			otherSetting: 'isSet',
@@ -2717,20 +2723,42 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		});
 	}));
 
-	test('update without target writes a setting defined by the layout into the layout', async () => {
+	test('changes without a scope of a setting a layout can define are written to the settings file of the active layout, a value that equals the value without the layout removes it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const key = 'configurationLayoutTest.layoutSetting';
-		testObject.setLayoutConfiguration({ [key]: 'layoutValue' });
+		const resource = joinPath(ROOT, 'layouts', 'debug', 'settings.json');
+		await testObject.updateValue(key, 'userValue', ConfigurationTarget.USER);
+		testObject.setLayoutSettings({ name: 'Debug', resource, locked: false });
 
-		await testObject.updateValue(key, 'updatedValue');
-		const afterUpdate = testObject.getLayoutConfiguration();
+		await testObject.updateValue(key, 'layoutValue');
+		const afterUpdate = { file: JSON.parse((await fileService.readFile(resource)).value.toString()), value: testObject.getValue(key) };
 		await testObject.updateValue(key, undefined);
+		const afterReset = testObject.getLayoutConfiguration();
+		await testObject.updateValue(key, 'userValue');
+		const afterUpdateToUserValue = testObject.getLayoutConfiguration();
 
-		assert.deepStrictEqual({ afterUpdate, afterReset: testObject.getLayoutConfiguration(), userValue: testObject.inspect(key).userValue }, {
-			afterUpdate: { [key]: 'updatedValue' },
+		assert.deepStrictEqual({ afterUpdate, afterReset, afterUpdateToUserValue, userValue: testObject.inspect(key).userValue }, {
+			afterUpdate: { file: { [key]: 'layoutValue' }, value: 'layoutValue' },
 			afterReset: { [key]: 'isSet' },
-			userValue: undefined
+			afterUpdateToUserValue: {},
+			userValue: 'userValue'
 		});
-	});
+	}));
+
+	test('the settings of a locked layout cannot be changed, nor layout settings while no named layout is active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const key = 'configurationLayoutTest.layoutSetting';
+		const write = () => testObject.updateValue(key, 'layoutValue', {}, ConfigurationTarget.LAYOUT, { donotNotifyError: true }).then(() => undefined, error => error.message);
+
+		testObject.setLayoutSettings({ name: 'Debug', resource: joinPath(ROOT, 'layouts', 'debug', 'settings.json'), locked: true });
+		const locked = await write();
+		testObject.setLayoutSettings(undefined);
+		const noLayout = await write();
+
+		assert.deepStrictEqual({ locked, noLayout, layoutConfiguration: testObject.getLayoutConfiguration() }, {
+			locked: `Unable to write ${key} because the layout 'Debug' is locked. Unlock the layout to change its settings.`,
+			noLayout: `Unable to write ${key} to Layout Settings because no named layout is active.`,
+			layoutConfiguration: {}
+		});
+	}));
 
 	test('remove setting from all targets', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const key = 'configurationService.folder.testSetting';

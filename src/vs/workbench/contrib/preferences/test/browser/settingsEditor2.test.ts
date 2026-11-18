@@ -65,6 +65,7 @@ suite('SettingsEditor2', () => {
 		function createEditor(query = '@tag:expassigned', advanced = false, settingKeys = ['test.assigned', 'test.unassigned']) {
 			const configuration = new class extends TestConfigurationService {
 				readonly onDidChangeRestrictedSettings = Event.None;
+				readonly onDidChangeLayoutSettings = Event.None;
 				isSettingAppliedForAllProfiles(): boolean { return false; }
 			}();
 			store.add(configuration.onDidChangeConfigurationEmitter);

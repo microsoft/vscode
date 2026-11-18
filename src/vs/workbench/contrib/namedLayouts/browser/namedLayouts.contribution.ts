@@ -22,6 +22,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING, NamedLayoutsEnabledContext } from '../../../services/namedLayouts/common/namedLayouts.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ToggleSidebarVisibilityAction } from '../../../browser/actions/layoutActions.js';
@@ -41,7 +42,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
-			markdownDescription: localize('namedLayouts.enabled', "Controls whether the current layout of a window can be saved as a named layout and whether a window can switch between named layouts. A named layout contains the arrangement of the side bars, the panel and the editor groups, the location, visibility and order of view containers and views, and the values of layout related settings such as {0}. Changes made while a named layout is active are saved into that layout, unless the layout is locked.", '`#workbench.editor.showTabs#`')
+			markdownDescription: localize('namedLayouts.enabled', "Controls whether the current layout of a window can be saved as a named layout and whether a window can switch between named layouts. A named layout contains the arrangement of the side bars, the panel and the editor groups, the location, visibility and order of view containers and views, and the values of layout related settings such as {0}. The settings of the active layout are shown in the Layout tab of the Settings editor. Changes made while a named layout is active are saved into that layout, unless the layout is locked.", '`#workbench.editor.showTabs#`')
 		}
 	}
 });
@@ -361,7 +362,7 @@ registerAction2(class NewLayoutAction extends Action2 {
 			menu: {
 				id: MenuId.NamedLayoutsSubmenu,
 				group: NamedLayoutsMenuGroup.Manage,
-				order: 3,
+				order: 4,
 				when: NamedLayoutsEnabledContext
 			}
 		});
@@ -391,6 +392,56 @@ registerAction2(class NewLayoutAction extends Action2 {
 		}
 
 		await namedLayoutsService.createLayout(name);
+	}
+});
+
+const NamedLayoutActiveContext = ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutContext.notEqualsTo(DEFAULT_NAMED_LAYOUT_ID));
+
+registerAction2(class OpenLayoutSettingsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.openLayoutSettings',
+			title: localize2('openLayoutSettings', "Open Layout Settings"),
+			metadata: {
+				description: localize2('openLayoutSettings.description', "Opens the settings of the active layout."),
+			},
+			category: Categories.Preferences,
+			precondition: NamedLayoutActiveContext,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<unknown> {
+		return accessor.get(IPreferencesService).openLayoutSettings();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.NamedLayoutsSubmenu, {
+	command: {
+		id: 'workbench.action.openLayoutSettings',
+		title: localize('layoutSettings', "Layout Settings")
+	},
+	group: NamedLayoutsMenuGroup.Manage,
+	order: 3,
+	when: NamedLayoutActiveContext
+});
+
+registerAction2(class OpenLayoutSettingsFileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.openLayoutSettingsFile',
+			title: localize2('openLayoutSettingsFile', "Open Layout Settings (JSON)"),
+			metadata: {
+				description: localize2('openLayoutSettingsFile.description', "Opens the settings file of the active layout."),
+			},
+			category: Categories.Preferences,
+			precondition: NamedLayoutActiveContext,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<unknown> {
+		return accessor.get(IPreferencesService).openLayoutSettings({ jsonEditor: true });
 	}
 });
 
@@ -617,7 +668,7 @@ registerAction2(class ResetActiveLayoutAction extends Action2 {
 			menu: {
 				id: MenuId.NamedLayoutsSubmenu,
 				group: NamedLayoutsMenuGroup.Manage,
-				order: 4,
+				order: 5,
 				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutResettableContext)
 			}
 		});
@@ -645,7 +696,7 @@ registerAction2(class DeleteActiveLayoutAction extends Action2 {
 			menu: {
 				id: MenuId.NamedLayoutsSubmenu,
 				group: NamedLayoutsMenuGroup.Manage,
-				order: 5,
+				order: 6,
 				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutDeletableContext)
 			}
 		});

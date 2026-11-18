@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { equals } from '../../../../base/common/objects.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Queue, Barrier, Promises, Delayer, Throttler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
@@ -15,13 +15,13 @@ import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../.
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Configuration, createLayoutConfigurationModel, toLayoutSettings } from '../common/configurationModels.js';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, isLayoutOverridableSetting } from '../common/configuration.js';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, isLayoutOverridableSetting, ILayoutSettings, getValueWithoutLayout, layoutSettingsSchemaId } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults, getConfigurationExperimentName, getConfigurationKeyExperimentName } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationEditing, EditableConfigurationTarget } from '../common/configurationEditing.js';
-import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration, DefaultConfiguration, ApplicationConfiguration } from './configuration.js';
+import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration, DefaultConfiguration, ApplicationConfiguration, LayoutConfiguration } from './configuration.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { mark } from '../../../../base/common/performance.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
@@ -51,6 +51,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { fixSettingLinks } from '../../preferences/common/preferencesModels.js';
 import { IExperimentalSettingsService } from '../common/experimentalSettings.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -110,6 +111,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private instantiationService: IInstantiationService | undefined;
 	private configurationEditing: Promise<ConfigurationEditing> | undefined;
+
+	private _layoutSettings: ILayoutSettings | undefined;
+	private layoutConfiguration: LayoutConfiguration | undefined;
+	private readonly layoutConfigurationDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _onDidChangeLayoutSettings = this._register(new Emitter<void>());
+	readonly onDidChangeLayoutSettings: Event<void> = this._onDidChangeLayoutSettings.event;
 
 	constructor(
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string; configurationCache: IConfigurationCache },
@@ -417,9 +424,13 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				value = undefined;
 			}
 
-			// Reset a setting of the named layout to its default value so that the layout continues to define it
-			if (value === undefined && targets.length === 1 && targets[0] === ConfigurationTarget.LAYOUT) {
-				value = inspect.defaultValue;
+			// Resetting a setting of the active named layout sets it to its default value in the layout.
+			// The layout does not keep a value that equals the value of the setting without the layout
+			if (targets.length === 1 && targets[0] === ConfigurationTarget.LAYOUT) {
+				value = value === undefined ? inspect.defaultValue : value;
+				if (equals(value, getValueWithoutLayout(inspect))) {
+					value = undefined;
+				}
 			}
 		}
 
@@ -433,6 +444,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			const { local, remote } = await this.reloadUserConfiguration();
 			await this.reloadWorkspaceConfiguration();
 			await this.loadConfiguration(application, local, remote, true);
+			await this.reloadLayoutConfiguration();
 			return;
 		}
 
@@ -462,6 +474,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			case ConfigurationTarget.WORKSPACE:
 			case ConfigurationTarget.WORKSPACE_FOLDER:
 				await this.reloadWorkspaceConfiguration();
+				return;
+
+			case ConfigurationTarget.LAYOUT:
+				await this.reloadLayoutConfiguration();
 				return;
 		}
 	}
@@ -578,35 +594,59 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return Array.isArray(allProfilesSettings) && allProfilesSettings.includes(key);
 	}
 
+	get layoutSettings(): ILayoutSettings | undefined {
+		return this._layoutSettings;
+	}
+
+	setLayoutSettings(layout: ILayoutSettings | undefined, lastKnownSettings?: IStringDictionary<unknown>): void {
+		const previous = this._layoutSettings;
+		this._layoutSettings = layout;
+
+		const resourceChanged = !isEqual(previous?.resource, layout?.resource);
+		if (resourceChanged) {
+			this.layoutConfiguration = undefined;
+			this.layoutConfigurationDisposables.clear();
+			if (layout) {
+				const disposables = this.layoutConfigurationDisposables.value = new DisposableStore();
+				const layoutConfiguration = this.layoutConfiguration = disposables.add(new LayoutConfiguration(layout.resource, this.fileService, this.uriIdentityService, this.logService));
+				disposables.add(layoutConfiguration.onDidChangeConfiguration(configurationModel => this.updateLayoutConfiguration(configurationModel)));
+			}
+		}
+
+		if (resourceChanged || (layout && lastKnownSettings)) {
+			this.updateLayoutConfiguration(createLayoutConfigurationModel(layout ? lastKnownSettings ?? {} : {}, this.logService));
+		}
+
+		if (resourceChanged || previous?.name !== layout?.name || previous?.locked !== layout?.locked) {
+			this._onDidChangeLayoutSettings.fire();
+		}
+	}
+
 	getLayoutConfiguration(): IStringDictionary<unknown> {
 		return toLayoutSettings(this._configuration.layoutConfiguration);
 	}
 
-	setLayoutConfiguration(settings: IStringDictionary<unknown>): void {
-		this.updateLayoutConfiguration(createLayoutConfigurationModel(settings, this.logService));
+	isActiveLayoutSetting(key: string): boolean {
+		return !!this._layoutSettings && isLayoutOverridableSetting(key);
+	}
+
+	private async reloadLayoutConfiguration(): Promise<void> {
+		const layoutConfiguration = this.layoutConfiguration;
+		if (!layoutConfiguration) {
+			return;
+		}
+
+		const configurationModel = await layoutConfiguration.loadConfiguration();
+		// Another named layout may have become active meanwhile
+		if (layoutConfiguration === this.layoutConfiguration) {
+			this.updateLayoutConfiguration(configurationModel);
+		}
 	}
 
 	private updateLayoutConfiguration(layoutConfiguration: ConfigurationModel): void {
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
 		const change = this._configuration.compareAndUpdateLayoutConfiguration(layoutConfiguration);
 		this.triggerConfigurationChange(change, previous, ConfigurationTarget.LAYOUT);
-	}
-
-	private writeLayoutConfigurationValue(key: string, value: unknown, overrides: IConfigurationUpdateOverrides | undefined): void {
-		if (!isLayoutOverridableSetting(key)) {
-			throw new Error(`Unable to write ${key} to the layout target because a named layout cannot define it.`);
-		}
-		if (overrides?.overrideIdentifiers?.length) {
-			throw new Error(`Unable to write language specific value of ${key} to the layout target.`);
-		}
-
-		const layoutConfiguration = this._configuration.layoutConfiguration.merge();
-		if (value === undefined) {
-			layoutConfiguration.removeValue(key);
-		} else {
-			layoutConfiguration.setValue(key, value);
-		}
-		this.updateLayoutConfiguration(layoutConfiguration);
 	}
 
 	private async createWorkspace(arg: IAnyWorkspaceIdentifier, folderLocation?: URI): Promise<Workspace> {
@@ -880,6 +920,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			}
 			this.triggerConfigurationChange(change, { data: previousData, workspace: this.workspace }, ConfigurationTarget.DEFAULT);
 			this.updateRestrictedSettings();
+
+			// The settings of the active named layout ignore settings that were not registered when they were read
+			if (!properties || properties.some(key => isLayoutOverridableSetting(key))) {
+				this.reloadLayoutConfiguration().catch(onUnexpectedError);
+			}
 		}
 	}
 
@@ -1130,11 +1175,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			return;
 		}
 
-		if (target === ConfigurationTarget.LAYOUT) {
-			this.writeLayoutConfigurationValue(key, value, overrides);
-			return;
-		}
-
 		const editableConfigurationTarget = this.toEditableConfigurationTarget(target, key);
 		if (!editableConfigurationTarget) {
 			throw new Error('Invalid configuration target');
@@ -1175,7 +1215,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				if (workspaceFolder) {
 					return this.reloadWorkspaceFolderConfiguration(workspaceFolder);
 				}
+				return;
 			}
+			case EditableConfigurationTarget.LAYOUT:
+				return this.reloadLayoutConfiguration();
 		}
 	}
 
@@ -1190,6 +1233,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			case EditableConfigurationTarget.USER_REMOTE: return this._configuration.remoteUserConfiguration;
 			case EditableConfigurationTarget.WORKSPACE: return this._configuration.workspaceConfiguration;
 			case EditableConfigurationTarget.WORKSPACE_FOLDER: return resource ? this._configuration.folderConfigurations.get(resource) : undefined;
+			case EditableConfigurationTarget.LAYOUT: return this._configuration.layoutConfiguration;
 		}
 	}
 
@@ -1209,8 +1253,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			return [];
 		}
 
-		// A setting defined by the active named layout belongs to that layout
-		if (inspect.layoutValue !== undefined && !languageSpecific) {
+		// Changes of a setting the active named layout can define belong to that layout
+		if (this.isActiveLayoutSetting(key) && !languageSpecific) {
 			return [ConfigurationTarget.LAYOUT];
 		}
 
@@ -1278,19 +1322,29 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
 			return EditableConfigurationTarget.WORKSPACE_FOLDER;
 		}
+		if (target === ConfigurationTarget.LAYOUT) {
+			return EditableConfigurationTarget.LAYOUT;
+		}
 		return null;
 	}
 }
 
 class RegisterConfigurationSchemasContribution extends Disposable implements IWorkbenchContribution {
+
+	private readonly layoutSettingsSchemaAssociation = this._register(new MutableDisposable());
+
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IExtensionService extensionService: IExtensionService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 	) {
 		super();
+
+		this.associateLayoutSettingsSchema();
+		this._register(configurationService.onDidChangeLayoutSettings(() => this.associateLayoutSettingsSchema()));
 
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.registerConfigurationSchemas();
@@ -1399,6 +1453,19 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 				allowComments: true
 			} : workspaceSettingsSchema;
 
+		// A named layout can only define the settings that are layout overridable, without language specific values
+		const layoutSettingsSchema: IJSONSchema = {
+			properties: Object.keys(allSettings.properties).reduce<IJSONSchemaMap>((result, key) => {
+				if (allSettings.properties[key].layoutOverridable) {
+					result[key] = allSettings.properties[key];
+				}
+				return result;
+			}, {}),
+			additionalProperties: true,
+			allowTrailingCommas: true,
+			allowComments: true
+		};
+
 		const configDefaultsSchema: IJSONSchema = {
 			type: 'object',
 			description: localize('configurationDefaults.description', 'Contribute defaults for configurations'),
@@ -1423,6 +1490,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 			machineSettingsSchema,
 			workspaceSettingsSchema,
 			folderSettingsSchema,
+			layoutSettingsSchema,
 			configDefaultsSchema,
 		});
 	}
@@ -1434,6 +1502,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		machineSettingsSchema: IJSONSchema;
 		workspaceSettingsSchema: IJSONSchema;
 		folderSettingsSchema: IJSONSchema;
+		layoutSettingsSchema: IJSONSchema;
 		configDefaultsSchema: IJSONSchema;
 	}): void {
 		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
@@ -1443,7 +1512,18 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		jsonRegistry.registerSchema(machineSettingsSchemaId, schemas.machineSettingsSchema);
 		jsonRegistry.registerSchema(workspaceSettingsSchemaId, schemas.workspaceSettingsSchema);
 		jsonRegistry.registerSchema(folderSettingsSchemaId, schemas.folderSettingsSchema);
+		jsonRegistry.registerSchema(layoutSettingsSchemaId, schemas.layoutSettingsSchema);
 		jsonRegistry.registerSchema(configurationDefaultsSchemaId, schemas.configDefaultsSchema);
+	}
+
+	/**
+	 * Associates the schema of layout settings with the settings file of the active named layout.
+	 */
+	private associateLayoutSettingsSchema(): void {
+		const resource = this.configurationService.layoutSettings?.resource;
+		this.layoutSettingsSchemaAssociation.value = resource
+			? Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution).registerSchemaAssociation(layoutSettingsSchemaId, resource.toString())
+			: undefined;
 	}
 
 	private checkAndFilterPropertiesRequiringTrust(properties: IStringDictionary<IConfigurationPropertySchema>): IStringDictionary<IConfigurationPropertySchema> {

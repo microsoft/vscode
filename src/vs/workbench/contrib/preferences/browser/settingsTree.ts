@@ -853,16 +853,6 @@ export interface HeightChangeParams {
 	height: number;
 }
 
-const REMOVE_SETTING_FROM_LAYOUT_ACTION_ID = 'settings.removeFromLayout';
-
-/**
- * Returns the actions of the given list that apply to the given setting. Removing a
- * setting from the active layout only applies to settings that the active layout defines.
- */
-function getApplicableSettingActions(actions: readonly IAction[], element: SettingsTreeSettingElement): IAction[] {
-	return actions.filter(action => action.id !== REMOVE_SETTING_FROM_LAYOUT_ACTION_ID || element.hasLayoutValue);
-}
-
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -1027,7 +1017,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.toolbar.context = element;
 		const actions = this.disposableActionFactory(element.setting, element.settingsTarget);
 		actions.forEach(a => isDisposable(a) && template.elementDisposables.add(a));
-		template.toolbar.setActions([], [...getApplicableSettingActions(this.settingActions, element), ...actions]);
+		template.toolbar.setActions([], [...this.settingActions, ...actions]);
 
 		const setting = element.setting;
 
@@ -1330,7 +1320,7 @@ class SettingComplexObjectRenderer extends SettingComplexRenderer implements ITr
 			showAddButton: false,
 			isReadOnly: true,
 		});
-		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly);
+		template.button.parentElement?.classList.toggle('hide', dataElement.isReadOnly);
 		super.renderValue(dataElement, template, onChange);
 	}
 }
@@ -1426,7 +1416,7 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 		template.listWidget.setValue(value, {
 			showAddButton: getShowAddButtonList(dataElement, value),
 			keySuggester,
-			isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly
+			isReadOnly: dataElement.isReadOnly
 		});
 		template.context = dataElement;
 
@@ -1755,7 +1745,7 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingIncludeExcludeItemTemplate, onChange: (value: string) => void): void {
 		const value = getIncludeExcludeDisplayValue(dataElement);
-		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly });
+		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.isReadOnly });
 		template.context = dataElement;
 		template.elementDisposables.add(toDisposable(() => {
 			template.includeExcludeWidget.cancelEdit();
@@ -1826,7 +1816,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
-		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.inputBox.setEnabled(!dataElement.isReadOnly);
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
@@ -1976,7 +1966,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 
 		template.selectBox.setOptions(displayOptions);
 		template.selectBox.setAriaLabel(dataElement.setting.key);
-		template.selectBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.selectBox.setEnabled(!dataElement.isReadOnly);
 
 		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
@@ -2047,7 +2037,7 @@ class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRend
 			dataElement.value.toString() : '';
 		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
-		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.inputBox.setEnabled(!dataElement.isReadOnly);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -2130,7 +2120,7 @@ class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRender
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
-		if (dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly) {
+		if (dataElement.isReadOnly) {
 			template.checkbox.disable();
 			template.descriptionElement.classList.add('disabled');
 		} else {
@@ -2243,7 +2233,6 @@ export class SettingTreeRenderers extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
-		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 	) {
 		super();
 		this.settingActions = [
@@ -2258,12 +2247,6 @@ export class SettingTreeRenderers extends Disposable {
 							scope: context.setting.scope
 						});
 					}
-				}
-			}),
-			// The active layout defines the value; removing it applies the user or workspace value
-			new Action(REMOVE_SETTING_FROM_LAYOUT_ACTION_ID, localize('removeFromLayoutLabel', "Remove from Active Layout"), undefined, undefined, async context => {
-				if (context instanceof SettingsTreeSettingElement && context.hasLayoutValue) {
-					await this._configurationService.updateValue(context.setting.key, undefined, ConfigurationTarget.LAYOUT);
 				}
 			}),
 			new Separator(),
@@ -2333,7 +2316,7 @@ export class SettingTreeRenderers extends Disposable {
 		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
 		if (toolbarElement) {
 			this._contextMenuService.showContextMenu({
-				getActions: () => getApplicableSettingActions(this.settingActions, element),
+				getActions: () => this.settingActions,
 				getAnchor: () => <HTMLElement>toolbarElement,
 				getActionsContext: () => element
 			});

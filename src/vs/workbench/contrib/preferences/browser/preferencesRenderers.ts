@@ -546,7 +546,14 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			for (const section of settingsGroup.sections) {
 				for (const setting of section.settings) {
 					if (OVERRIDE_PROPERTY_REGEX.test(setting.key)) {
-						if (setting.overrides) {
+						if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.LAYOUT) {
+							markerData.push({
+								severity: MarkerSeverity.Hint,
+								tags: [MarkerTag.Unnecessary],
+								...setting.range,
+								message: nls.localize('unsupportedLayoutLanguageOverrideSetting', "This setting cannot be applied because a layout cannot define language specific values.")
+							});
+						} else if (setting.overrides) {
 							this.handleOverrides(setting.overrides, configurationRegistry, markerData);
 						}
 						continue;
@@ -572,6 +579,9 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 								break;
 							case ConfigurationTarget.WORKSPACE_FOLDER:
 								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
+								break;
+							case ConfigurationTarget.LAYOUT:
+								this.handleLayoutConfiguration(setting, configuration, markerData);
 								break;
 						}
 					} else {
@@ -659,6 +669,17 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	private handleRemoteUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
 		if (configuration.scope === ConfigurationScope.APPLICATION) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+		}
+	}
+
+	private handleLayoutConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
+		if (!configuration.layoutOverridable) {
+			markerData.push({
+				severity: MarkerSeverity.Hint,
+				tags: [MarkerTag.Unnecessary],
+				...setting.range,
+				message: nls.localize('unsupportedLayoutSetting', "This setting cannot be applied because a layout cannot define it.")
+			});
 		}
 	}
 

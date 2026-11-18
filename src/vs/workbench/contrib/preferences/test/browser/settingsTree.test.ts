@@ -448,46 +448,4 @@ suite('SettingsTree renderer', () => {
 		element.dispose();
 		renderer.dispose();
 	});
-
-	test('the context menu of a setting that the active layout defines removes the setting from the layout', async () => {
-		const updates: unknown[][] = [];
-		const configuration = new class extends TestConfigurationService {
-			isSettingAppliedForAllProfiles(): boolean { return false; }
-			override async updateValue(key: string, value: unknown, ...rest: unknown[]): Promise<void> { updates.push([key, value, ...rest]); }
-		}();
-		store.add(configuration.onDidChangeConfigurationEmitter);
-		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
-		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
-		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
-		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
-		instantiationService.stub(IUserDataSyncEnablementService, { isEnabled: () => false });
-		const contextMenuService = new class extends TestContextMenuService {
-			delegate: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
-			override showContextMenu(delegate: Parameters<IContextMenuService['showContextMenu']>[0]): void {
-				this.delegate = delegate;
-			}
-		}();
-		instantiationService.stub(IContextMenuService, contextMenuService);
-		const renderers = store.add(instantiationService.createInstance(SettingTreeRenderers));
-		const element = createSettingElement('info');
-		const container = document.createElement('div');
-		container.appendChild(document.createElement('div')).classList.add('monaco-toolbar');
-		const getActions = (hasLayoutValue: boolean) => {
-			element.hasLayoutValue = hasLayoutValue;
-			renderers.showContextMenu(element, container);
-			return contextMenuService.delegate?.getActions?.() ?? [];
-		};
-
-		const withoutLayoutValue = getActions(false).map(action => action.id);
-		const withLayoutValue = getActions(true);
-		await withLayoutValue.find(action => action.id === 'settings.removeFromLayout')?.run(element);
-		element.parent?.dispose();
-		element.dispose();
-
-		assert.deepStrictEqual({ withoutLayoutValue: withoutLayoutValue.slice(0, 2), withLayoutValue: withLayoutValue.map(action => action.id).slice(0, 2), updates }, {
-			withoutLayoutValue: ['settings.resetSetting', 'vs.actions.separator'],
-			withLayoutValue: ['settings.resetSetting', 'settings.removeFromLayout'],
-			updates: [['test.setting', undefined, ConfigurationTarget.LAYOUT]]
-		});
-	});
 });

@@ -5,7 +5,7 @@
 
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
 import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -23,6 +23,7 @@ export const profileSettingsSchemaId = 'vscode://schemas/settings/profile';
 export const machineSettingsSchemaId = 'vscode://schemas/settings/machine';
 export const workspaceSettingsSchemaId = 'vscode://schemas/settings/workspace';
 export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
+export const layoutSettingsSchemaId = 'vscode://schemas/settings/layout';
 export const launchSchemaId = 'vscode://schemas/launch';
 export const tasksSchemaId = 'vscode://schemas/tasks';
 export const mcpSchemaId = 'vscode://schemas/mcp';
@@ -98,18 +99,63 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	isSettingAppliedForAllProfiles(setting: string): boolean;
 
 	/**
+	 * The named layout that is active in this window, `undefined` if no named layout is active.
+	 */
+	readonly layoutSettings: ILayoutSettings | undefined;
+
+	/**
+	 * Fires when {@link layoutSettings} changes: another named layout became active, or the
+	 * name or the locked state of the active one changed.
+	 */
+	readonly onDidChangeLayoutSettings: Event<void>;
+
+	/**
+	 * Applies the settings of the named layout that becomes active in this window, or of no
+	 * named layout. The settings of a named layout are read from its settings file and take
+	 * precedence over user, workspace and workspace folder settings in this window only.
+	 * Settings that are not layout overridable and language specific values are ignored.
+	 *
+	 * The settings file is watched for changes. Use {@link reloadConfiguration} with the
+	 * `LAYOUT` target to read it.
+	 *
+	 * @param lastKnownSettings The settings that apply until the settings file is read. If not
+	 * given, the current settings are kept for the same settings file and cleared for another one.
+	 */
+	setLayoutSettings(layout: ILayoutSettings | undefined, lastKnownSettings?: IStringDictionary<unknown>): void;
+
+	/**
 	 * Returns the settings of the named layout that is active in this window.
 	 * The result is empty if no named layout is active.
 	 */
 	getLayoutConfiguration(): IStringDictionary<unknown>;
 
 	/**
-	 * Replaces the settings of the named layout that is active in this window.
-	 * These settings apply to this window only and take precedence over user,
-	 * workspace and workspace folder settings. Settings that are not layout overridable are ignored.
-	 * Pass an empty object if no named layout is active.
+	 * Whether changes to the given setting apply to the named layout that is active in this
+	 * window: a named layout is active and can define the setting. Changes that do not target
+	 * a scope, and that are not language specific, are written to the layout then.
 	 */
-	setLayoutConfiguration(settings: IStringDictionary<unknown>): void;
+	isActiveLayoutSetting(key: string): boolean;
+}
+
+/**
+ * A named layout whose settings apply to a window, see {@link IWorkbenchConfigurationService.setLayoutSettings}.
+ */
+export interface ILayoutSettings {
+
+	/**
+	 * The name of the layout, shown to the user.
+	 */
+	readonly name: string;
+
+	/**
+	 * The settings file of the layout.
+	 */
+	readonly resource: URI;
+
+	/**
+	 * Whether the layout is locked. The settings of a locked layout cannot be changed.
+	 */
+	readonly locked: boolean;
 }
 
 /**
@@ -125,6 +171,15 @@ export function isLayoutOverridableSetting(key: string): boolean {
 export function getLayoutOverridableSettings(): string[] {
 	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 	return Object.keys(properties).filter(key => properties[key].layoutOverridable === true);
+}
+
+/**
+ * Returns the value a setting would have if the named layout did not define it: the value
+ * of the workspace folder, workspace, user or application settings, or the default value.
+ * Layout settings have primitive values, so the value of the most specific scope is the result.
+ */
+export function getValueWithoutLayout<T>(inspected: IConfigurationValue<T>): T | undefined {
+	return inspected.workspaceFolderValue ?? inspected.workspaceValue ?? inspected.userValue ?? inspected.applicationValue ?? inspected.defaultValue;
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
