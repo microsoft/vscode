@@ -508,6 +508,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	readonly inputVisible: IObservable<boolean> = this._inputVisibleObs;
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
+	/** The selected agent's `empty-chat-message`, shown as an agent message in the empty chat instead of any welcome. */
+	private _agentEmptyChatMessage: HTMLElement | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
 	private _isRenderingWelcome = false;
@@ -1735,7 +1737,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const numItems = this.viewModel?.getItems().length ?? 0;
-			if (!numItems) {
+			if (!numItems && this._agentEmptyChatMessage) {
+				if (this._agentEmptyChatMessage.parentElement !== this.welcomeMessageContainer) {
+					this.welcomePart.clear();
+					dom.clearNode(this.welcomeMessageContainer);
+					dom.append(this.welcomeMessageContainer, this._agentEmptyChatMessage);
+				}
+			} else if (!numItems) {
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 				let additionalMessage: string | IMarkdownString | undefined;
 				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.completed) {
@@ -3624,6 +3632,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _updateInputPlaceholder(placeholder: string | undefined): void {
 		const base = this.viewOptions.inputPlaceholder ?? placeholder;
 		this.inputEditor?.updateOptions({ placeholder: base && getSandboxPlaceholder(base, this.input.sandboxToggleChecked.get()) });
+	}
+
+	setAgentEmptyChatMessage(element: HTMLElement | undefined): void {
+		if (this._agentEmptyChatMessage === element) {
+			return;
+		}
+		this._agentEmptyChatMessage?.remove();
+		this._agentEmptyChatMessage = element;
+		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!element);
+		if (!element) {
+			// Force the default welcome to render again.
+			this.welcomePart.clear();
+		}
+		this.renderWelcomeViewContentIfNeeded();
 	}
 
 	setInput(value = ''): void {

@@ -5,6 +5,7 @@
 
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import './chatDefaultPresentation.contribution.js';
+import './widget/chatAgentStartExperience.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ExportAgentHostDebugLogsAction } from './actions/exportAgentHostDebugLogsAction.js';
 import { ForkConversationAction } from './actions/chatForkActions.js';
