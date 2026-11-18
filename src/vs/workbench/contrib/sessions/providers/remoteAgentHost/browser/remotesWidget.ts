@@ -73,7 +73,7 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 	},
 	devContainer: {
 		label: localize('remotes.empty.devContainers', "No Dev Containers."),
-		description: localize('remotes.empty.devContainers.description', "Use Create Dev Container on a connected SSH, WSL, or tunnel host that has Docker."),
+		description: localize('remotes.empty.devContainers.description', "Use Create Dev Container in this section's header to create one on this computer or on a connected SSH, WSL, or tunnel host that has Docker."),
 	},
 };
 
@@ -106,6 +106,7 @@ export class RemotesWidget extends Disposable {
 	private failedKinds: readonly RemoteKind[] = [];
 	private hasRefreshed = false;
 	private signingInToTunnels = false;
+	private creatingDevContainer = false;
 
 	constructor(
 		container: HTMLElement,
@@ -256,8 +257,9 @@ export class RemotesWidget extends Disposable {
 		this._register(autorun(reader => {
 			const remotes = this.model.remotes.read(reader);
 			this.model.tunnelAuthenticationRequired.read(reader);
-			// Dev Containers are created from host rows, so their group only appears once one exists.
-			this.kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader), remotes.some(remote => remote.kind === 'extension'), remotes.some(remote => remote.kind === 'devContainer'));
+			const canCreateDevContainer = this.model.canCreateDevContainer.read(reader);
+			const hasDevContainers = canCreateDevContainer || remotes.some(remote => remote.kind === 'devContainer');
+			this.kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader), remotes.some(remote => remote.kind === 'extension'), hasDevContainers);
 			this.render();
 		}));
 	}
@@ -272,6 +274,8 @@ export class RemotesWidget extends Disposable {
 				void this.openConfiguration(entry.kind);
 			} else if (action === 'documentation' && entry.documentation) {
 				void this.openDocumentation(entry.documentation.href);
+			} else if (action === 'createDevContainer' && entry.create?.enabled) {
+				void this.createDevContainer();
 			}
 		} else if (entry.type === 'remote') {
 			if (action === 'toggleVisibility') {
@@ -495,6 +499,7 @@ export class RemotesWidget extends Disposable {
 				type: 'group', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
 				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
 				documentation: remoteSetup[kind].documentation,
+				...(kind === 'devContainer' && this.model.canCreateDevContainer.get() ? { create: { enabled: !this.creatingDevContainer } } : {}),
 			});
 			if (!collapsed) {
 				if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
@@ -562,6 +567,27 @@ export class RemotesWidget extends Disposable {
 					this.table.setFocus([index]);
 					this.table.domFocus();
 				}
+			}
+		}
+	}
+
+	/** Creates a Dev Container from the section header, which asks where to create it when there is more than one choice. */
+	private async createDevContainer(): Promise<void> {
+		if (this.creatingDevContainer) {
+			return;
+		}
+		this.creatingDevContainer = true;
+		this.render();
+		try {
+			await this.model.createDevContainer();
+		} catch (error) {
+			if (!isCancellationError(error) && !this._store.isDisposed) {
+				this.notificationService.error(error);
+			}
+		} finally {
+			this.creatingDevContainer = false;
+			if (!this._store.isDisposed) {
+				this.render();
 			}
 		}
 	}

@@ -35,10 +35,10 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { TestProgressService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { IInputOptions, IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../common/agentHostSessionsProvider.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../../common/devContainerAgentHostService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
@@ -83,6 +83,7 @@ suite('RemotesModel', () => {
 		const displayNamesChanged = store.add(new Emitter<string>());
 		const renameInputs: IInputOptions[] = [];
 		let renameInput: string | undefined;
+		const devContainerPicks: { picked?: string; readonly offered: string[][] } = { offered: [] };
 		const environmentHosts = observableValue<readonly IMissionControlHost[]>(store, []);
 		const environmentAvailable = observableValue<boolean | undefined>(store, false);
 		const environmentState = {
@@ -175,6 +176,11 @@ suite('RemotesModel', () => {
 				}
 				return environmentState.pendingRename?.p ?? renameInput;
 			},
+			pick: (async (picks: QuickPickInput<IQuickPickItem>[]) => {
+				const items = picks.filter((pick): pick is IQuickPickItem => pick.type !== 'separator');
+				devContainerPicks.offered.push(items.map(item => item.description ? `${item.label} (${item.description})` : item.label));
+				return items.find(item => item.id === devContainerPicks.picked);
+			}) as IQuickInputService['pick'],
 		});
 		instantiationService.stub(IMissionControlAvailabilityService, { available: environmentAvailable });
 		instantiationService.stub(IMissionControlEnvironmentService, {
@@ -364,7 +370,7 @@ suite('RemotesModel', () => {
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing, extensionHosts, devContainers, telemetry,
+			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing, extensionHosts, devContainers, devContainerPicks, telemetry,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -448,6 +454,48 @@ suite('RemotesModel', () => {
 			confirmations: ['Are you sure you want to delete Dev Container \'Dev Container\'?'],
 			deletions: ['devcontainer:wsl:Ubuntu'],
 			deleted: [],
+		});
+	});
+
+	test('offers creating a Dev Container when only this computer has Docker, triggering the experiment in every arm', async () => {
+		const results = [];
+		for (const enabled of [false, true]) {
+			const { model, devContainers, telemetry, setConfiguration } = setup();
+			await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+			await setConfiguration(DevContainerEnvironmentsEnabledSettingId, enabled);
+			const before = { triggers: [...telemetry.triggers], canCreate: model.canCreateDevContainer.get() };
+			devContainers.hosts.set(new Set([LocalDevContainerEnvironmentHost]), undefined);
+			results.push({ enabled, before, triggers: telemetry.triggers, canCreate: model.canCreateDevContainer.get() });
+		}
+		const trigger = `config.${DevContainerEnvironmentsEnabledSettingId}`;
+		assert.deepStrictEqual(results, [
+			{ enabled: false, before: { triggers: [], canCreate: false }, triggers: [trigger], canCreate: false },
+			{ enabled: true, before: { triggers: [], canCreate: false }, triggers: [trigger], canCreate: true },
+		]);
+	});
+
+	test('creates Dev Containers from the section on the only host or a picked one, naming those on this computer', async () => {
+		const { model, devContainers, devContainerPicks, confirmations, setConfiguration } = setup();
+		await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		const unavailable = await model.createDevContainer().then(() => 'created', (error: Error) => error.message);
+		devContainers.hosts.set(new Set([LocalDevContainerEnvironmentHost]), undefined);
+		await model.createDevContainer();
+		devContainers.hosts.set(new Set([LocalDevContainerEnvironmentHost, 'wsl:Ubuntu']), undefined);
+		await model.createDevContainer();
+		devContainerPicks.picked = 'wsl:Ubuntu';
+		await model.createDevContainer();
+		const rows = model.remotes.get().filter(remote => remote.kind === 'devContainer').map(({ id, description, connectsWithHost }) => ({ id, description, connectsWithHost }));
+		await model.deleteDevContainer('devcontainer:local');
+		assert.deepStrictEqual({ unavailable, offered: devContainerPicks.offered, rows, details: confirmations.map(confirmation => confirmation.detail), deletions: devContainers.deletions }, {
+			unavailable: 'Dev Containers cannot be created on this remote now. Connect to it and make sure Docker is installed.',
+			offered: [['This Computer', 'Ubuntu (WSL)'], ['This Computer', 'Ubuntu (WSL)']],
+			rows: [
+				{ id: 'devcontainer:local', description: 'This Computer', connectsWithHost: undefined },
+				{ id: 'devcontainer:wsl:Ubuntu', description: 'Ubuntu', connectsWithHost: true },
+			],
+			details: ['This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it can no longer continue.'],
+			deletions: ['devcontainer:local'],
 		});
 	});
 

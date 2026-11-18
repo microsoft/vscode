@@ -24,14 +24,14 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IProgress, IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
-import { areDevContainerEnvironmentsEnabled, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
@@ -70,6 +70,8 @@ export interface ICustomizationRemote {
 	readonly gitHubEnvironment?: IRemoteGitHubEnvironmentShare;
 	/** Whether a Dev Container environment can be created on this connected host now. */
 	readonly canCreateDevContainer?: boolean;
+	/** Whether this remote connects and disconnects with its host, so it has no connect action of its own. */
+	readonly connectsWithHost?: boolean;
 }
 
 export type IRemoteRefreshProgress =
@@ -79,6 +81,8 @@ export type IRemoteRefreshProgress =
 export interface IRemotesModel extends IDisposable {
 	readonly remotes: IObservable<readonly ICustomizationRemote[]>;
 	readonly environmentsEnabled: IObservable<boolean>;
+	/** Whether a Dev Container environment can be created now, on this computer or on a connected host. */
+	readonly canCreateDevContainer: IObservable<boolean>;
 	readonly tunnelAuthenticationRequired: IObservable<'github' | 'microsoft' | undefined>;
 	signInToTunnels(): Promise<void>;
 	/** Returns the kinds that failed to refresh; diagnostic details are written to the log. */
@@ -91,8 +95,11 @@ export interface IRemotesModel extends IDisposable {
 	setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void>;
 	deleteTunnel(id: string): Promise<void>;
 	deleteSSHHost(id: string): Promise<void>;
-	/** Creates a Dev Container environment on a connected SSH, WSL, or tunnel host. */
-	createDevContainer(id: string): Promise<void>;
+	/**
+	 * Creates a Dev Container environment on a connected SSH, WSL, or tunnel host, or on {@link LocalDevContainerEnvironmentHost}.
+	 * Without a host, asks where to create it when there is more than one choice.
+	 */
+	createDevContainer(id?: string): Promise<void>;
 	/** Deletes a Dev Container environment, including its container and files, after confirmation. */
 	deleteDevContainer(id: string): Promise<void>;
 	remove(id: string): Promise<void>;
@@ -102,7 +109,7 @@ export interface IRemotesModel extends IDisposable {
 /**
  * The kinds of remotes to show, in display order. Extensions are listed only while
  * an extension registers a remote, since users cannot add remotes of that kind. Dev
- * Containers are listed only once one exists, since they are created from host rows.
+ * Containers are listed only while one exists or one can be created.
  */
 export function getVisibleRemoteKinds(operatingSystem: OperatingSystem, environmentsEnabled = false, hasExtensionRemotes = false, hasDevContainers = false): readonly RemoteKind[] {
 	return [
@@ -130,6 +137,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = this._remotes;
 	private readonly _environmentsEnabled = observableValue(this, false);
 	readonly environmentsEnabled = this._environmentsEnabled;
+	private readonly _canCreateDevContainer = observableValue(this, false);
+	readonly canCreateDevContainer = this._canCreateDevContainer;
 	private readonly _tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
 	readonly tunnelAuthenticationRequired = this._tunnelAuthenticationRequired;
 	private readonly pickerVisibility: RemoteAgentHostPickerVisibility;
@@ -518,23 +527,53 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 	}
 
-	async createDevContainer(id: string): Promise<void> {
-		const remote = this._remotes.get().find(remote => remote.id === id);
-		if (!this.enabled || this._store.isDisposed || !remote?.canCreateDevContainer) {
-			throw new Error(localize('remotes.devContainerUnavailable', "Dev Containers cannot be created on this remote now. Connect to it and make sure Docker is installed."));
+	async createDevContainer(id?: string): Promise<void> {
+		const unavailable = () => new Error(localize('remotes.devContainerUnavailable', "Dev Containers cannot be created on this remote now. Connect to it and make sure Docker is installed."));
+		const hosts = this.getDevContainerHosts();
+		if (!this.enabled || this._store.isDisposed || !hosts.length) {
+			throw unavailable();
 		}
-		await this.devContainerService.createEnvironment(id);
+		let hostId = id;
+		if (hostId === undefined) {
+			const picked = hosts.length === 1 ? hosts[0] : await this.quickInputService.pick(hosts, {
+				placeHolder: localize('remotes.pickDevContainerHost', "Select where to create the Dev Container"),
+			});
+			if (!picked) {
+				return;
+			}
+			hostId = picked.id;
+		}
+		if (this._store.isDisposed || !this.getDevContainerHosts().some(host => host.id === hostId)) {
+			throw unavailable();
+		}
+		await this.devContainerService.createEnvironment(hostId);
+	}
+
+	/** This computer first, then the connected hosts that can run Dev Containers now. */
+	private getDevContainerHosts(): (IQuickPickItem & { readonly id: string })[] {
+		if (!this.canCreateDevContainer.get()) {
+			return [];
+		}
+		const local = this.devContainerService.environmentHosts.get().has(LocalDevContainerEnvironmentHost)
+			? [{ id: LocalDevContainerEnvironmentHost, label: localize('remotes.thisComputer', "This Computer") }] : [];
+		return [
+			...local,
+			...this._remotes.get().filter(remote => remote.canCreateDevContainer).map(remote => ({ id: remote.id, label: remote.name, description: remoteKindLabels[remote.kind] })),
+		];
 	}
 
 	async deleteDevContainer(id: string): Promise<void> {
 		const remote = this._remotes.get().find(remote => remote.id === id);
-		if (!this.enabled || this._store.isDisposed || remote?.kind !== 'devContainer') {
+		const target = this.targets.get(id);
+		if (!this.enabled || this._store.isDisposed || remote?.kind !== 'devContainer' || target?.kind !== 'devContainer') {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
 		const { confirmed } = await this.dialogService.confirm({
 			type: 'warning',
 			message: localize('remotes.deleteDevContainerConfirmation', "Are you sure you want to delete Dev Container '{0}'?", remote.name),
-			detail: localize('remotes.deleteDevContainerDetail', "This removes the container and its Docker volume from {0}, including all files in the container. Sessions that ran in it can no longer continue.", remote.detail),
+			detail: target.environment.sourceAddress === LocalDevContainerEnvironmentHost
+				? localize('remotes.deleteLocalDevContainerDetail', "This removes the container and its Docker volume from this computer, including all files in the container. Sessions that ran in it can no longer continue.")
+				: localize('remotes.deleteDevContainerDetail', "This removes the container and its Docker volume from {0}, including all files in the container. Sessions that ran in it can no longer continue.", remote.detail),
 			primaryButton: localize('remotes.deleteDevContainerButton', "&&Delete"),
 		});
 		if (!confirmed) {
@@ -735,6 +774,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		// Hosts are computed in every experiment arm, so the trigger below precedes any difference between the arms.
 		const devContainerHosts = this.enabled ? this.devContainerService.environmentHosts.read(reader) : new Set<string>();
 		const devContainersEnabled = this.enabled && areDevContainerEnvironmentsEnabled(this.configurationService);
+		const localDevContainerHost = devContainerHosts.has(LocalDevContainerEnvironmentHost);
+		if (localDevContainerHost) {
+			// The Dev Containers section and its create action appear for this computer alone.
+			logSettingExperimentTrigger(this.telemetryService, DevContainerEnvironmentsEnabledSettingId);
+		}
 		if (devContainersEnabled) {
 			for (const environment of this.devContainerService.environments.read(reader)) {
 				const target = { kind: 'devContainer' as const, environment };
@@ -802,7 +846,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				case 'devContainer': {
 					const sourceAddress = target.environment.sourceAddress;
 					name = localize('remotes.devContainerName', "Dev Container");
-					detail = this.remoteAgentHostService.getDisplayNameOverride(sourceAddress) ?? providersByAddress.get(sourceAddress)?.label ?? sourceAddress;
+					detail = sourceAddress === LocalDevContainerEnvironmentHost ? localize('remotes.thisComputer', "This Computer")
+						: this.remoteAgentHostService.getDisplayNameOverride(sourceAddress) ?? providersByAddress.get(sourceAddress)?.label ?? sourceAddress;
 					description = detail;
 					break;
 				}
@@ -826,7 +871,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				...(target.kind === 'extension' ? { contributedBy: { extensionId: target.host.extensionId, displayName: target.host.extensionDisplayName } } : {}),
 				...(description ? { description } : {}),
 				...(isDevContainerHost && devContainersEnabled ? { canCreateDevContainer: true } : {}),
-				...(target.kind === 'devContainer' ? { canDelete: true } : {}),
+				...(target.kind === 'devContainer' ? { canDelete: true, ...(target.environment.sourceAddress !== LocalDevContainerEnvironmentHost ? { connectsWithHost: true } : {}) } : {}),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),
@@ -845,6 +890,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 		transaction(tx => {
 			this._environmentsEnabled.set(environmentsEnabled, tx);
+			this._canCreateDevContainer.set(devContainersEnabled && (localDevContainerHost || remotes.some(remote => remote.canCreateDevContainer)), tx);
 			this._remotes.set(remotes.sort((a, b) => remoteKinds.indexOf(a.kind) - remoteKinds.indexOf(b.kind) || a.name.localeCompare(b.name)), tx);
 		});
 	}

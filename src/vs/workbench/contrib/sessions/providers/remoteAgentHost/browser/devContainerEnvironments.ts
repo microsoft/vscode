@@ -14,14 +14,14 @@ import { localize } from '../../../../../../nls.js';
 import { supportsAgentHostDevContainerEnvironments } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { devContainerEnvironmentUri, isDevContainerEnvironmentId } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
+import { devContainerEnvironmentUri, isDevContainerEnvironmentId, localDevContainerEnvironmentUri } from '../../../../../../platform/agentHost/common/devContainerEnvironments.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { resolveRemoteAgentHostEntryAuthority } from '../../../browser/openInVSCodeUtils.js';
-import { areDevContainerEnvironmentsEnabled, canUseDevContainerEnvironments, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerEnvironment } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerEnvironmentsEnabled, canUseDevContainerEnvironments, DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerEnvironment, LocalDevContainerEnvironmentHost } from '../../../common/devContainerAgentHostService.js';
 import { getDevContainerSourceEntry, resolveDevContainerSourceConnection } from './devContainerSource.js';
 import type { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
@@ -47,6 +47,10 @@ function isEnvironmentHostEntry(entry: IRemoteAgentHostEntry): boolean {
 	return entry.connection.type === RemoteAgentHostEntryType.SSH || entry.connection.type === RemoteAgentHostEntryType.Tunnel || entry.connection.type === RemoteAgentHostEntryType.WSL;
 }
 
+function isLocal(stored: IStoredDevContainerEnvironment): boolean {
+	return stored.sourceAddress === LocalDevContainerEnvironmentHost;
+}
+
 /** Shared pieces of the Dev Container service that owns the single Dev Container connection factory. */
 export interface IDevContainerEnvironmentsHost {
 	currentConnector(): IDevContainerAgentHostConnector | undefined;
@@ -63,9 +67,9 @@ interface IEnvironmentState {
 	readonly address: string;
 	readonly provider: RemoteAgentHostSessionsProvider;
 	readonly store: DisposableStore;
-	/** Serializes connecting and disconnecting, which follow the source host. */
+	/** Serializes connecting and disconnecting, which follow the source host of an environment on a remote host. */
 	readonly operations: Sequencer;
-	/** Source host connection that the environment last followed. */
+	/** Source host connection that an environment on a remote host last followed. */
 	sourceConnection: IAgentConnection | undefined;
 	pending: { readonly promise: Promise<void>; readonly tokenSource: CancellationTokenSource } | undefined;
 	staged: boolean;
@@ -76,8 +80,10 @@ interface IEnvironmentState {
 }
 
 /**
- * Dev Container environments: standalone containers created from an image on SSH, Tunnel, and WSL hosts.
- * Each is a persistent remote Sessions provider that connects and disconnects with its source host.
+ * Dev Container environments: standalone containers created from an image on this computer or on SSH, Tunnel, and WSL hosts.
+ * Each is a persistent remote Sessions provider. One on a remote host connects and disconnects with its source host.
+ * One on this computer connects on first use, such as when it is selected or one of its sessions is opened, so starting
+ * the application does not start its containers.
  */
 export class DevContainerEnvironments extends Disposable {
 	private readonly _states = new Map<string, IEnvironmentState>();
@@ -86,6 +92,7 @@ export class DevContainerEnvironments extends Disposable {
 	private readonly _environmentHosts = observableValue<ReadonlySet<string>>(this, new Set());
 	readonly environmentHosts: IObservable<ReadonlySet<string>> = this._environmentHosts;
 	private readonly _dockerChecks = new Map<string, { readonly connection: IAgentConnection; available: boolean | undefined }>();
+	private _localDockerCheck: { readonly connector: IDevContainerAgentHostConnector; available: boolean | undefined } | undefined;
 
 	constructor(
 		private readonly _host: IDevContainerEnvironmentsHost,
@@ -121,7 +128,7 @@ export class DevContainerEnvironments extends Disposable {
 		}
 		const stored: IStoredDevContainerEnvironment = { id: generateUuid(), sourceAddress, name: this._nextName() };
 		// The current host connection is followed explicitly below rather than automatically.
-		const state = this._createState(stored, this._remoteAgentHostService.getConnection(sourceAddress));
+		const state = this._createState(stored, isLocal(stored) ? undefined : this._remoteAgentHostService.getConnection(sourceAddress));
 		this._writeStored([...this._readStored(), stored]);
 		this._publish();
 		try {
@@ -142,7 +149,7 @@ export class DevContainerEnvironments extends Disposable {
 		try {
 			await this._disconnect(state);
 			// A host that is no longer configured cannot be reached to remove its container.
-			if (getDevContainerSourceEntry(state.uri, this._remoteAgentHostService)) {
+			if (isLocal(state.stored) || getDevContainerSourceEntry(state.uri, this._remoteAgentHostService)) {
 				const connector = this._host.currentConnector() ?? await this._host.waitForConnector(CancellationToken.None);
 				if (!connector.removeContainer || !await connector.removeContainer(state.uri)) {
 					throw new Error(localize('devContainerEnvironment.removeFailed', "The Dev Container '{0}' could not be removed.", state.provider.label));
@@ -190,7 +197,7 @@ export class DevContainerEnvironments extends Disposable {
 	}
 
 	private _createState(stored: IStoredDevContainerEnvironment, sourceConnection: IAgentConnection | undefined): IEnvironmentState {
-		const uri = devContainerEnvironmentUri(agentHostAuthority(stored.sourceAddress), stored.id);
+		const uri = isLocal(stored) ? localDevContainerEnvironmentUri(stored.id) : devContainerEnvironmentUri(agentHostAuthority(stored.sourceAddress), stored.id);
 		const address = this._host.getAddress(uri);
 		const store = new DisposableStore();
 		const provider = store.add(this._host.createProvider({
@@ -260,7 +267,7 @@ export class DevContainerEnvironments extends Disposable {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		if (userInitiated) {
+		if (userInitiated && !isLocal(state.stored)) {
 			// Connecting the host also connects its environments.
 			await resolveDevContainerSourceConnection(state.uri, this._remoteAgentHostService, this._sessionsProvidersService, token);
 		}
@@ -318,8 +325,8 @@ export class DevContainerEnvironments extends Disposable {
 
 	private _reconcile(): void {
 		for (const state of this._states.values()) {
-			const sourceConnection = this._remoteAgentHostService.getConnection(state.stored.sourceAddress);
-			if (sourceConnection !== state.sourceConnection) {
+			const sourceConnection = isLocal(state.stored) ? undefined : this._remoteAgentHostService.getConnection(state.stored.sourceAddress);
+			if (!isLocal(state.stored) && sourceConnection !== state.sourceConnection) {
 				state.sourceConnection = sourceConnection;
 				if (sourceConnection && !state.deleting) {
 					void this._connect(state.address, false).catch(error => this._logService.warn(`[DevContainerEnvironments] Failed to connect ${state.provider.label}`, error));
@@ -348,7 +355,23 @@ export class DevContainerEnvironments extends Disposable {
 
 	private _updateEnvironmentHosts(): void {
 		const hosts = new Set<string>();
-		if (canUseDevContainerEnvironments(this._configurationService) && this._host.currentConnector()) {
+		const connector = this._host.currentConnector();
+		if (canUseDevContainerEnvironments(this._configurationService) && connector) {
+			if (this._localDockerCheck?.connector !== connector) {
+				const current = { connector, available: undefined as boolean | undefined };
+				this._localDockerCheck = current;
+				(connector.isLocalDockerAvailable?.() ?? Promise.resolve(false)).then(available => current.available = available, error => {
+					current.available = false;
+					this._logService.warn('[DevContainerEnvironments] Failed to check Docker availability on this computer', error);
+				}).finally(() => {
+					if (!this._store.isDisposed && this._localDockerCheck === current) {
+						this._updateEnvironmentHosts();
+					}
+				});
+			}
+			if (this._localDockerCheck.available) {
+				hosts.add(LocalDevContainerEnvironmentHost);
+			}
 			for (const entry of this._remoteAgentHostService.configuredEntries) {
 				if (!isEnvironmentHostEntry(entry)) {
 					continue;
@@ -380,6 +403,7 @@ export class DevContainerEnvironments extends Disposable {
 			}
 		} else {
 			this._dockerChecks.clear();
+			this._localDockerCheck = undefined;
 		}
 		const previous = this._environmentHosts.get();
 		if (previous.size !== hosts.size || [...hosts].some(host => !previous.has(host))) {

@@ -46,6 +46,8 @@ export type RemoteTableEntry =
 		readonly refreshing: boolean;
 		readonly warning?: string;
 		readonly documentation?: IRemoteEmptyEntry['documentation'];
+		/** Present while a remote of this group's kind can be created from its header. */
+		readonly create?: { readonly enabled: boolean };
 	}
 	| {
 		readonly type: 'remote';
@@ -230,7 +232,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						}
 					}));
 					const createDevContainer = disposables.add(new Action('remotes.createDevContainer', '', ThemeIcon.asClassName(Codicon.add), true, async () => {
-						if (template.row?.entry.type === 'remote') {
+						if (template.row?.entry.type === 'remote' || template.row?.entry.type === 'group') {
 							this.onAction(template.row.entry, 'createDevContainer');
 						}
 					}));
@@ -378,8 +380,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				template.container.classList.toggle('remotes-visibility-column', showVisibility);
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
+				const showGroupCreate = template.column === 'actions' && entry.type === 'group' && !!entry.create;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
 				const isDevContainer = showConnection && entry.remote.kind === 'devContainer';
+				const showConnect = showConnection && !entry.remote.connectsWithHost;
 				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && !!entry.remote.canDelete);
 				const showCreateDevContainer = showConnection && !!entry.remote.canCreateDevContainer;
 				const showLocationPreference = showConnection && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh');
@@ -387,12 +391,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					&& (!!entry.remote.canShareAsGitHubEnvironment || !!entry.remote.gitHubEnvironment);
 				const showExtension = showConnection && !!entry.remote.contributedBy;
 				const showUpdate = showConnection && RemoteAgentHostConnectionStatus.isIncompatible(entry.remote.connectionStatus) && !!entry.remote.connectionStatus.vscodeUpgradeMethod;
-				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${isDevContainer}:${showCreateDevContainer}:${showDelete}:${showLocationPreference}:${showGitHubEnvironment}:${showExtension}:${showUpdate}`;
+				const actionLayout = `${showConfig}:${showDocumentation}:${showGroupCreate}:${showConnection}:${showConnect}:${isDevContainer}:${showCreateDevContainer}:${showDelete}:${showLocationPreference}:${showGitHubEnvironment}:${showExtension}:${showUpdate}`;
 				if (template.column === 'actions' && template.actionLayout !== actionLayout) {
 					template.actionLayout = actionLayout;
-					// Dev Containers connect with their host and have no meaningful address to copy.
+					// Dev Containers have no meaningful address to copy, and those on remote hosts connect with their host.
 					template.toolbar.setActions(showConnection ? [
-						...(isDevContainer ? [] : [template.action]),
+						...(showConnect ? [template.action] : []),
 						...(showCreateDevContainer ? [template.createDevContainer] : []),
 						template.rename,
 						...(isDevContainer ? [] : [template.copyAddress]),
@@ -402,13 +406,18 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						...(showDelete ? [template.delete] : []),
 						...(showUpdate ? [template.updateServer] : []),
 					] : [
+						...(showGroupCreate ? [template.createDevContainer] : []),
 						...(showDocumentation ? [template.documentation] : []),
 						...(showConfig ? [template.action] : []),
 					]);
 				}
-				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showVisibility && !showConfig && !showDocumentation && !showConnection);
+				template.container.classList.toggle('remotes-cell-action-hidden', !showCollapse && !showVisibility && !showConfig && !showDocumentation && !showGroupCreate && !showConnection);
 				if (template.column === 'actions' && entry.type === 'group' && entry.documentation) {
 					template.documentation.label = entry.documentation.label;
+				}
+				if (template.column === 'actions' && entry.type === 'group' && entry.create) {
+					template.createDevContainer.label = localize('remotes.createDevContainerInGroup', "Create Dev Container");
+					template.createDevContainer.enabled = entry.create.enabled;
 				}
 				template.action.enabled = true;
 				template.action.tooltip = '';

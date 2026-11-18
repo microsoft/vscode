@@ -29,8 +29,11 @@ export const DevContainerWorktreeEnabledSettingId = 'chat.agentHost.devContainer
 /** Experimental setting that keeps user and agent state of new Dev Containers on a volume across rebuilds. */
 export const DevContainerStateVolumeEnabledSettingId = 'chat.agentHost.devContainer.stateVolume.enabled';
 
-/** Experimental setting that enables Dev Container environments created from a base image on SSH, Tunnel, and WSL hosts. */
+/** Experimental setting that enables Dev Container environments created from a base image on this computer and on SSH, Tunnel, and WSL hosts. */
 export const DevContainerEnvironmentsEnabledSettingId = 'chat.agentHost.devContainer.environments.enabled';
+
+/** {@link IDevContainerEnvironment.sourceAddress} of Dev Container environments on this computer. No SSH, Tunnel, or WSL host address equals it. */
+export const LocalDevContainerEnvironmentHost = 'local';
 
 /** Whether Dev Container environments are available, apart from their experiment-controlled setting. */
 export function canUseDevContainerEnvironments(configurationService: IConfigurationService): boolean {
@@ -82,6 +85,8 @@ export interface IDevContainerAgentHostConnector {
 	readonly onDidChangeSandboxSupport?: Event<{ readonly workspaceUri: URI; readonly supported: boolean }>;
 	/** Whether the workspace has a supported configuration and Docker is available on its host. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
+	/** Whether Docker is available on this computer, regardless of settings. */
+	isLocalDockerAvailable?(): Promise<boolean>;
 	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection>;
 	stopContainer?(workspaceUri: URI): Promise<boolean>;
 	removeContainer?(workspaceUri: URI): Promise<boolean>;
@@ -96,11 +101,14 @@ export interface IDevContainerAgentHostTarget {
 	release(): Promise<void>;
 }
 
-/** A standalone Dev Container created from an image on an SSH, Tunnel, or WSL host, offered as its own remote environment. */
+/**
+ * A standalone Dev Container created from an image on this computer or on an SSH, Tunnel, or WSL host, offered as its own remote environment.
+ * One on a remote host connects and disconnects with that host; one on this computer connects on first use.
+ */
 export interface IDevContainerEnvironment {
 	/** Address of the container's Agent Host connection, which also identifies the environment. */
 	readonly address: string;
-	/** Address of the SSH, Tunnel, or WSL host that runs the container. */
+	/** Address of the SSH, Tunnel, or WSL host that runs the container, or {@link LocalDevContainerEnvironmentHost}. */
 	readonly sourceAddress: string;
 	readonly providerId: string;
 }
@@ -124,8 +132,9 @@ export interface IDevContainerAgentHostService {
 	/** Dev Container environments, empty while {@link areDevContainerEnvironmentsEnabled} is false. */
 	readonly environments: IObservable<readonly IDevContainerEnvironment[]>;
 	/**
-	 * Addresses of connected SSH, Tunnel, and WSL hosts that support Dev Container environments and have Docker,
-	 * computed while {@link canUseDevContainerEnvironments} is true, regardless of the experiment-controlled setting.
+	 * {@link LocalDevContainerEnvironmentHost} while Docker is available on this computer, and the addresses of connected
+	 * SSH, Tunnel, and WSL hosts that support Dev Container environments and have Docker. Computed while
+	 * {@link canUseDevContainerEnvironments} is true, regardless of the experiment-controlled setting.
 	 */
 	readonly environmentHosts: IObservable<ReadonlySet<string>>;
 	/** Creates a Dev Container environment on a host from {@link environmentHosts} and connects to it. */

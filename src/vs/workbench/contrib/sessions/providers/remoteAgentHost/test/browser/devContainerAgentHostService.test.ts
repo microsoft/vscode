@@ -35,7 +35,7 @@ import { IWorkspaceTrustRequestService } from '../../../../../../../platform/wor
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { ISession } from '../../../../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../common/sessionsProvider.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnector } from '../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostConnector, LocalDevContainerEnvironmentHost } from '../../../../common/devContainerAgentHostService.js';
 import { DevContainerAgentHostService } from '../../browser/devContainerAgentHostService.js';
 import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 
@@ -282,18 +282,23 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 suite('Dev Container Agent Host Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setupEnvironments(removeContainer: (workspaceUri: URI) => Promise<boolean> = async () => true) {
+	function setupEnvironments(removeContainer: (workspaceUri: URI) => Promise<boolean> = async () => true, options: { readonly localDocker?: boolean; readonly stored?: readonly unknown[] } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
 		const remoteService = store.add(new TestRemoteAgentHostService());
 		remoteService.configuredEntries = [{ name: 'Build', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:build', hostName: 'build' } }];
 		const storage = store.add(new InMemoryStorageService());
+		if (options.stored) {
+			storage.store('devContainerAgentHost.environments', JSON.stringify(options.stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
 		const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [DevContainerEnvironmentsEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true });
-		const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, store.add(new TestSessionsProvidersService()), storage, configurationService));
+		const providersService = store.add(new TestSessionsProvidersService());
+		const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, storage, configurationService));
 		const createdUris: URI[] = [];
 		const removedUris: URI[] = [];
 		store.add(service.registerConnector({
 			isAvailable: async () => true,
+			isLocalDockerAvailable: async () => !!options.localDocker,
 			showLog: async () => { },
 			createConnection: async (workspaceUri, address) => {
 				createdUris.push(workspaceUri);
@@ -310,7 +315,7 @@ suite('Dev Container Agent Host Service', () => {
 				override async isDockerAvailable() { return true; }
 			}();
 		}();
-		return { service, remoteService, storage, createdUris, removedUris, createHostConnection };
+		return { service, remoteService, storage, createdUris, removedUris, createHostConnection, providersService };
 	}
 
 	test('creates environments on Docker hosts that connect and disconnect with the host until deleted', async () => {
@@ -349,6 +354,35 @@ suite('Dev Container Agent Host Service', () => {
 			hostDisconnected: { status: 'disconnected', connected: false, defaultDirectory: undefined },
 			hostReconnected: { status: 'connected', connected: true, defaultDirectory: '/workspaces' },
 			deleted: { environments: [], providerDisposed: true, stored: undefined },
+		});
+	});
+
+	test('environments on this computer need no source host and connect when created or first used, not when restored', async () => {
+		const { service, createdUris, removedUris, providersService } = setupEnvironments(undefined, {
+			localDocker: true,
+			stored: [{ id: 'restored', sourceAddress: LocalDevContainerEnvironmentHost, name: 'Dev Container' }],
+		});
+		await waitForState(service.environmentHosts, hosts => hosts.has(LocalDevContainerEnvironmentHost));
+		const restored = providersService.getProviders().find((provider): provider is TestProvider => provider instanceof TestProvider)!;
+		await timeout(0);
+		const afterRestore = { status: restored.status.kind, connections: createdUris.length };
+		await restored.config.connectOnDemand!();
+		const afterFirstUse = { status: restored.status.kind, connections: createdUris.length };
+		const created = await service.createEnvironment(LocalDevContainerEnvironmentHost);
+		const afterCreate = { status: service.provider!.status.kind, host: service.provider!.config.devContainerEnvironmentHost, connections: createdUris.length };
+		await service.deleteEnvironment(created.address);
+		assert.deepStrictEqual({
+			hosts: [...service.environmentHosts.get()],
+			afterRestore, afterFirstUse, afterCreate,
+			sources: [...createdUris, ...removedUris].map(uri => findDevContainerEnvironment(uri)?.sourceAuthority),
+			environments: service.environments.get().map(environment => environment.sourceAddress),
+		}, {
+			hosts: [LocalDevContainerEnvironmentHost],
+			afterRestore: { status: 'disconnected', connections: 0 },
+			afterFirstUse: { status: 'connected', connections: 1 },
+			afterCreate: { status: 'connected', host: LocalDevContainerEnvironmentHost, connections: 2 },
+			sources: ['local', 'local', 'local'],
+			environments: [LocalDevContainerEnvironmentHost],
 		});
 	});
 

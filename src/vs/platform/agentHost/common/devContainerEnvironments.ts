@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { LOCAL_AGENT_HOST_AUTHORITY } from './agentHostUri.js';
 
 /** Scheme of client URIs that identify a Dev Container environment on its source host. */
 export const devContainerEnvironmentScheme = 'vscode-dev-container-environment';
@@ -43,4 +44,14 @@ export function findDevContainerEnvironment(uri: URI): { readonly sourceAuthorit
 	}
 	const environmentId = uri.path.slice(1);
 	return isDevContainerEnvironmentId(environmentId) ? { sourceAuthority: uri.authority, environmentId } : undefined;
+}
+
+/** Creates the URI of a Dev Container environment on this computer rather than on a remote host. */
+export function localDevContainerEnvironmentUri(environmentId: string): URI {
+	return devContainerEnvironmentUri(LOCAL_AGENT_HOST_AUTHORITY, environmentId);
+}
+
+/** Whether a URI identifies a Dev Container environment on this computer. No remote host's Agent Host authority is the local authority. */
+export function isLocalDevContainerEnvironment(uri: URI): boolean {
+	return findDevContainerEnvironment(uri)?.sourceAuthority === LOCAL_AGENT_HOST_AUTHORITY;
 }

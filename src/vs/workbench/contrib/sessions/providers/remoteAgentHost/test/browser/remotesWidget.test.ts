@@ -33,6 +33,7 @@ import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly environmentsEnabled = observableValue(this, false);
+	readonly canCreateDevContainer = observableValue(this, false);
 	readonly tunnelAuthenticationRequired = observableValue<'github' | 'microsoft' | undefined>(this, undefined);
 	pendingSignIn: DeferredPromise<void> | undefined;
 	signInCalls = 0;
@@ -56,7 +57,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly gitHubEnvironmentChanges: { id: string; shared: boolean }[] = [];
 	readonly tunnelDeletions: string[] = [];
 	readonly sshDeletions: string[] = [];
-	readonly devContainerCreations: string[] = [];
+	readonly devContainerCreations: (string | undefined)[] = [];
 	readonly devContainerDeletions: string[] = [];
 	copyFailure: Error | undefined;
 	pendingConnection: DeferredPromise<void> | undefined;
@@ -128,11 +129,12 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}
 
-	async createDevContainer(id: string): Promise<void> {
+	async createDevContainer(id?: string): Promise<void> {
 		this.devContainerCreations.push(id);
 		await this.pendingManagement?.p;
+		const host = id ?? 'local';
 		this.remotes.set([...this.remotes.get(), {
-			id: `devcontainer:${id}`, kind: 'devContainer', name: 'Dev Container', detail: id, description: id,
+			id: `devcontainer:${host}`, kind: 'devContainer', name: 'Dev Container', detail: host, description: host,
 			canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.connected,
 		}], undefined);
 	}
@@ -1339,6 +1341,37 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual({ hidden, shown, settings, guidance, disabled: groups() }, {
 			hidden: ['Dev Tunnels', 'SSH'], shown: ['GitHub Environments', 'Dev Tunnels', 'SSH'],
 			settings: [{ query: GitHubEnvironmentsEnabledSettingId }], guidance: true, disabled: ['Dev Tunnels', 'SSH'],
+		});
+	});
+
+	test('Dev Containers appears while one can be created, and its header creates one without choosing a host', async () => {
+		const { widget, parent, model } = createWidget();
+		const groups = () => [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(node => node.textContent);
+		const hidden = groups();
+		model.canCreateDevContainer.set(true, undefined);
+		widget.setVisible(true);
+		await timeout(0);
+		const shown = groups();
+		const guidance = widget.getAccessibilityContent().includes('No Dev Containers.');
+		parent.querySelector<HTMLElement>('.remotes-group-row [aria-label="Create Dev Container"]')!.click();
+		await timeout(0);
+		model.canCreateDevContainer.set(false, undefined);
+		assert.deepStrictEqual({ hidden, shown, guidance, creations: model.devContainerCreations, withContainer: groups(), headerAction: !!parent.querySelector('.remotes-group-row [aria-label="Create Dev Container"]') }, {
+			hidden: ['Dev Tunnels', 'SSH'], shown: ['Dev Tunnels', 'SSH', 'Dev Containers'], guidance: true,
+			creations: [undefined], withContainer: ['Dev Tunnels', 'SSH', 'Dev Containers'], headerAction: false,
+		});
+	});
+
+	test('Dev Containers on this computer offer Connect, while those on remote hosts connect with their host', () => {
+		const { parent, model } = createWidget();
+		model.remotes.set([
+			{ id: 'devcontainer:local', kind: 'devContainer', name: 'Dev Container', detail: 'This Computer', description: 'This Computer', canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+			{ id: 'devcontainer:ssh', kind: 'devContainer', name: 'Dev Container 2', detail: 'Build server', description: 'Build server', canRemove: false, canDelete: true, connectsWithHost: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		], undefined);
+		const actions = (id: string) => [...parent.querySelectorAll<HTMLElement>(`[data-remote-id="${id}"] .remotes-actions-column [role="button"]`)].map(action => action.getAttribute('aria-label'));
+		assert.deepStrictEqual({ local: actions('devcontainer:local'), remote: actions('devcontainer:ssh') }, {
+			local: ['Connect to Dev Container', 'Rename Dev Container...', 'Delete Dev Container'],
+			remote: ['Rename Dev Container 2...', 'Delete Dev Container 2'],
 		});
 	});
 

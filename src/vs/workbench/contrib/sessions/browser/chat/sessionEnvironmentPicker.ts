@@ -42,6 +42,7 @@ import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../common/chatConstants.js';
+import { LocalDevContainerEnvironmentHost } from '../../common/devContainerAgentHostService.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -362,6 +363,9 @@ export class SessionEnvironmentPicker extends Disposable {
 	private getDevContainerHostLabel(environment: ISessionCreationEnvironment): string | undefined {
 		const provider = environment.kind === 'remote' && this.sessionsProvidersService.getProvider(environment.providerIds[0]);
 		const host = provider && isAgentHostProvider(provider) ? provider.devContainerEnvironmentHost : undefined;
+		if (host === LocalDevContainerEnvironmentHost) {
+			return localize('environmentPicker.devContainerThisComputer', "this computer");
+		}
 		return host && (this.remoteAgentHostService.getDisplayNameOverride(host)
 			?? this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === host)?.name
 			?? host);
