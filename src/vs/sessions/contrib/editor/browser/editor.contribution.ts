@@ -10,7 +10,7 @@ import './media/editorHeader.css';
 import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './diffEditor.sessions.contribution.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OpenBrowserAction, registerSessionActivityBarTabEntries } from './addTabActions.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -28,8 +28,10 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { AgentWorkbenchLayout } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
-import { DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { CustomViewVisibleContext, EditorMaximizedContext } from '../../../common/agentsWindowContextKeys.js';
+import { DesktopLayoutContext, IsPhoneLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { CustomViewVisibleContext, EditorMaximizedContext, HasDockedDetailsContext } from '../../../common/agentsWindowContextKeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -52,6 +54,22 @@ import { SessionsCategories } from '../../../../workbench/contrib/sessions/commo
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
+
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+	title: localize('detailsPosition', "Details Position"),
+	submenu: Menus.DetailsPosition,
+	group: '3_workbench_layout_move',
+	order: 7,
+	when: ContextKeyExpr.and(
+		DesktopLayoutContext,
+		IsPhoneLayoutContext.negate(),
+		ContextKeyExpr.or(
+			ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), HasDockedDetailsContext),
+			ActiveEditorContext.isEqualTo(EmptyFileEditorInput.EDITOR_ID),
+			ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+		),
+	),
+});
 
 export class SessionsTabStyleContribution extends Disposable implements IWorkbenchContribution {
 

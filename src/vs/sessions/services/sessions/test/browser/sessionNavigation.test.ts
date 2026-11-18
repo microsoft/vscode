@@ -134,6 +134,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidReplaceNewDraftSession = Event.None;
 	readonly onDidAcceptNewSessionRequest = Event.None;
+	readonly onDidDispatchNewSessionRequest = Event.None;
 	readonly onDidEndNewSessionRequest = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
 

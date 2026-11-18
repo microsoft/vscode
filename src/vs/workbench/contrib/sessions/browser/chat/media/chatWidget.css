@@ -56,8 +56,18 @@
 	line-height: 1.4;
 }
 
-.new-session-send-status > .codicon {
+.new-session-send-status > .codicon,
+.new-session-send-status > .new-session-send-status-spinner > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/*
+ * Frames the spinner of a starting session: as it turns, its box reaches beyond the status, which a host that fits its
+ * window to its content, such as the Agents Launcher, would otherwise measure, sizing the window by the spinner's angle.
+ */
+.new-session-send-status > .new-session-send-status-spinner {
+	display: flex;
+	overflow: hidden;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -66,9 +76,14 @@
 		animation: new-session-send-fade-in 180ms ease-out;
 	}
 
-	.monaco-workbench:not(.monaco-reduce-motion) .new-session-send-status > .codicon {
+	.monaco-workbench:not(.monaco-reduce-motion) .new-session-send-status > .codicon-check {
 		animation: new-session-send-check-pop 320ms ease-out;
 	}
+}
+
+/* The spinner of a starting session stands still while motion is reduced. */
+.monaco-reduce-motion .new-session-send-status-spinner > .codicon-loading {
+	animation: none;
 }
 
 @keyframes new-session-send-fade-in {
