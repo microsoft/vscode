@@ -38,7 +38,7 @@
 }
 
 /* A custom agent's first message reads like a response at the top of the chat */
-.interactive-session .chat-welcome-view-container.chat-agent-first-message {
+.interactive-session .chat-welcome-view-container.chat-agent-empty-chat-message {
 	align-items: stretch;
 	justify-content: flex-start;
 	overflow: auto;

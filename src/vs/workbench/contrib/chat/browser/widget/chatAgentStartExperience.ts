@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -21,60 +21,39 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 /**
- * How a custom agent starts a new chat, from the VS Code-only `vscode:` map of its agent file:
+ * The message a custom agent shows in an empty chat, from the VS Code-only `vscode:` map of its agent file.
+ * It is not part of the transcript and disappears once the user sends a request.
  *
  * ```yaml
  * vscode:
- *   commands:              # actions the first message's buttons run
- *     - name: screenshot
- *       label: Attach a screenshot
- *       icon: device-camera
- *       command: workbench.action.chat.attachAppWindowScreenshot   # any command; agent files are trusted
- *       args: [...]        # its arguments; without them it gets { sessionResource } of the chat
- *     - name: repro
- *       label: Add steps to reproduce
- *       prompt: "Steps to reproduce:\n1. "   # appended to the input (`send: true` sends it)
- *   first-message:         # shown as the agent's message in an empty chat
+ *   empty-chat-message:
  *     markdown: What went wrong?
- *     buttons: [screenshot]   # the first one is the primary button
- *   assisted-approval-instructions: |  # guidance for the Assisted permissions judge (read by the agent host)
+ *     buttons:                # the first one is the primary button
+ *       - label: Attach a screenshot
+ *         icon: device-camera
+ *         command: workbench.action.chat.attachAppWindowScreenshot   # any command; agent files are trusted
+ *         args: [...]         # its arguments; without them it gets { sessionResource } of the chat
  * ```
  */
-interface IAgentCommand {
-	readonly name: string;
+interface IAgentEmptyChatMessage {
+	readonly agentName: string;
+	readonly markdown: string;
+	readonly buttons: readonly IAgentButton[];
+}
+
+interface IAgentButton {
 	readonly label: string;
 	readonly icon?: string;
-	readonly prompt?: string;
-	readonly send?: boolean;
-	readonly command?: string;
+	readonly command: string;
 	/** Arguments from the agent file (YAML values; scalars are strings). */
 	readonly args?: readonly unknown[];
-}
-
-interface IAgentFirstMessage {
-	readonly markdown: string;
-	readonly buttons: readonly string[];
-}
-
-interface IAgentStartExperience {
-	readonly agentName: string;
-	readonly commands: readonly IAgentCommand[];
-	readonly firstMessage: IAgentFirstMessage | undefined;
-}
-
-/** The VS Code command behind an agent command. */
-function agentCommandId(agentName: string, commandName: string): string {
-	const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-	return `_chat.agentCommand.${slug(agentName)}.${slug(commandName)}`;
 }
 
 export class ChatAgentStartExperienceContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatAgentStartExperience';
 
 	private readonly _widgets = this._register(new DisposableMap<IChatWidget>());
-	private readonly _firstMessages = this._register(new DisposableMap<IChatWidget>());
-	/** Commands per agent command ID, registered once and kept up to date. */
-	private readonly _commands = new Map<string, { definition: IAgentCommand; readonly registration: DisposableStore }>();
+	private readonly _messages = this._register(new DisposableMap<IChatWidget>());
 
 	constructor(
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -88,9 +67,8 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		this._register(this._chatWidgetService.onDidAddWidget(widget => this._attach(widget)));
 		this._register(this._chatWidgetService.onDidRemoveWidget(widget => {
 			this._widgets.deleteAndDispose(widget);
-			this._firstMessages.deleteAndDispose(widget);
+			this._messages.deleteAndDispose(widget);
 		}));
-		this._register({ dispose: () => this._commands.forEach(entry => entry.registration.dispose()) });
 	}
 
 	private _attach(widget: IChatWidget): void {
@@ -108,7 +86,7 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 	private async _update(widget: IChatWidget): Promise<void> {
 		const mode = widget.input.currentModeObs.get();
 		const uri = mode.uri?.get();
-		const experience = uri && !mode.isBuiltin ? await this._read(mode.name.get(), uri).catch(error => {
+		const message = uri && !mode.isBuiltin ? await this._read(mode.name.get(), uri).catch(error => {
 			this._logService.error('[ChatAgentStartExperience]', error);
 			return undefined;
 		}) : undefined;
@@ -116,86 +94,44 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		if (!this._widgets.has(widget) || widget.input.currentModeObs.get().id !== mode.id) {
 			return;
 		}
-		experience?.commands.forEach(command => this._registerCommand(experience.agentName, command));
-		this._setFirstMessage(widget, experience?.firstMessage && this._renderFirstMessage(experience, experience.firstMessage, widget));
-	}
-
-	private async _read(agentName: string, uri: URI): Promise<IAgentStartExperience | undefined> {
-		const header = (await this._promptsService.parseNew(uri, CancellationToken.None)).header;
-		if (!header) {
-			return undefined;
-		}
-		const vscode = toJson(header.getAttribute(PromptHeaderAttributes.vscode)?.value);
-		const attribute = (name: string) => vscode && typeof vscode === 'object' && !Array.isArray(vscode) ? (vscode as Record<string, unknown>)[name] : undefined;
-		return {
-			agentName,
-			commands: toArray(attribute(VSCodeAgentAttributes.commands)).map(asAgentCommand).filter((command): command is IAgentCommand => !!command),
-			firstMessage: asFirstMessage(attribute(VSCodeAgentAttributes.firstMessage)),
-		};
-	}
-
-	private _setFirstMessage(widget: IChatWidget, rendered: { element: HTMLElement; store: DisposableStore } | undefined): void {
-		this._firstMessages.deleteAndDispose(widget);
+		this._messages.deleteAndDispose(widget);
+		const rendered = message && this._render(message, widget);
 		if (rendered) {
-			this._firstMessages.set(widget, rendered.store);
+			this._messages.set(widget, rendered.store);
 		}
-		widget.setAgentFirstMessage?.(rendered?.element);
+		widget.setAgentEmptyChatMessage?.(rendered?.element);
+	}
+
+	private async _read(agentName: string, uri: URI): Promise<IAgentEmptyChatMessage | undefined> {
+		const header = (await this._promptsService.parseNew(uri, CancellationToken.None)).header;
+		const vscode = asRecord(toJson(header?.getAttribute(PromptHeaderAttributes.vscode)?.value));
+		const message = vscode?.[VSCodeAgentAttributes.emptyChatMessage];
+		const raw = typeof message === 'string' ? { markdown: message } : asRecord(message);
+		const markdown = asString(raw?.markdown);
+		return markdown ? { agentName, markdown, buttons: toArray(raw?.buttons).map(asButton).filter((button): button is IAgentButton => !!button) } : undefined;
 	}
 
 	/** Renders like a chat response: markdown, then a row of command buttons as in `ChatCommandButtonContentPart`. */
-	private _renderFirstMessage(experience: IAgentStartExperience, message: IAgentFirstMessage, widget: IChatWidget): { element: HTMLElement; store: DisposableStore } {
+	private _render(message: IAgentEmptyChatMessage, widget: IChatWidget): { element: HTMLElement; store: DisposableStore } {
 		const store = new DisposableStore();
-		const element = dom.$('.interactive-item-container.interactive-response.chat-agent-first-message-item');
+		const element = dom.$('.interactive-item-container.interactive-response.chat-agent-empty-chat-message-item');
 		const user = dom.append(dom.append(element, dom.$('.header')), dom.$('.user'));
 		dom.append(user, dom.$('.avatar-container', undefined, dom.$('.avatar.codicon-avatar', undefined, dom.$(ThemeIcon.asCSSSelector(Codicon.chatSparkle)))));
-		dom.append(user, dom.$('h3.username', undefined, experience.agentName));
+		dom.append(user, dom.$('h3.username', undefined, message.agentName));
 		const value = dom.append(element, dom.$('.value'));
 		const markdown = store.add(this._markdownRendererService.render(new MarkdownString(message.markdown, { supportThemeIcons: true })));
 		markdown.element.classList.add('rendered-markdown');
 		value.appendChild(markdown.element);
 
-		const commands = message.buttons.map(name => experience.commands.find(command => command.name === name)).filter((command): command is IAgentCommand => !!command);
-		if (commands.length) {
+		if (message.buttons.length) {
 			const row = dom.append(value, dom.$('.chat-command-button'));
-			commands.forEach((command, index) => {
+			message.buttons.forEach((definition, index) => {
 				const button = store.add(new Button(row, { ...defaultButtonStyles, supportIcons: true, secondary: index > 0 }));
-				button.label = command.icon ? `$(${command.icon}) ${command.label}` : command.label;
-				store.add(button.onDidClick(() => this._commandService.executeCommand(agentCommandId(experience.agentName, command.name), { widget })));
+				button.label = definition.icon ? `$(${definition.icon}) ${definition.label}` : definition.label;
+				store.add(button.onDidClick(() => this._commandService.executeCommand(definition.command, ...(definition.args ?? [{ sessionResource: widget.viewModel?.sessionResource }]))));
 			});
 		}
 		return { element, store };
-	}
-
-	private _registerCommand(agentName: string, definition: IAgentCommand): void {
-		const id = agentCommandId(agentName, definition.name);
-		const existing = this._commands.get(id);
-		if (existing) {
-			existing.definition = definition;
-			return;
-		}
-		const entry = { definition, registration: new DisposableStore() };
-		entry.registration.add(CommandsRegistry.registerCommand(id, (_accessor, context?: { widget?: IChatWidget }) =>
-			this._run(entry.definition, context?.widget ?? this._chatWidgetService.lastFocusedWidget)));
-		this._commands.set(id, entry);
-	}
-
-	private async _run(command: IAgentCommand, widget: IChatWidget | undefined): Promise<void> {
-		if (!widget) {
-			return;
-		}
-		if (command.prompt !== undefined) {
-			const current = widget.getInput();
-			const text = current ? `${current.replace(/\s+$/, '')}\n\n${command.prompt}` : command.prompt;
-			if (command.send) {
-				await widget.acceptInput(text);
-			} else {
-				widget.setInput(text);
-				widget.focusInput();
-			}
-		}
-		if (command.command) {
-			await this._commandService.executeCommand(command.command, ...(command.args ?? [{ sessionResource: widget.viewModel?.sessionResource }]));
-		}
 	}
 }
 
@@ -208,6 +144,10 @@ function toJson(value: IValue | undefined): unknown {
 	}
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
 function toArray(value: unknown): readonly unknown[] {
 	return Array.isArray(value) ? value : [];
 }
@@ -216,29 +156,11 @@ function asString(value: unknown): string | undefined {
 	return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
-function asAgentCommand(value: unknown): IAgentCommand | undefined {
-	if (!value || typeof value !== 'object') {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	const name = asString(raw.name);
-	const label = asString(raw.label) ?? name;
-	const prompt = typeof raw.prompt === 'string' ? raw.prompt : undefined;
-	const command = asString(raw.command);
-	const args = Array.isArray(raw.args) ? raw.args : undefined;
-	return name && label && (prompt !== undefined || command) ? { name, label, icon: asString(raw.icon), prompt, send: raw.send === 'true', command, args } : undefined;
-}
-
-function asFirstMessage(value: unknown): IAgentFirstMessage | undefined {
-	if (typeof value === 'string') {
-		return asString(value) ? { markdown: value, buttons: [] } : undefined;
-	}
-	if (!value || typeof value !== 'object') {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	const markdown = asString(raw.markdown);
-	return markdown ? { markdown, buttons: toArray(raw.buttons).map(asString).filter((name): name is string => !!name) } : undefined;
+function asButton(value: unknown): IAgentButton | undefined {
+	const raw = asRecord(value);
+	const label = asString(raw?.label);
+	const command = asString(raw?.command);
+	return label && command ? { label, icon: asString(raw?.icon), command, args: Array.isArray(raw?.args) ? raw.args : undefined } : undefined;
 }
 
 registerWorkbenchContribution2(ChatAgentStartExperienceContribution.ID, ChatAgentStartExperienceContribution, WorkbenchPhase.AfterRestored);

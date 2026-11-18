@@ -500,8 +500,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _draftOnly = observableValue(this, false);
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
-	/** The selected agent's `first-message`, shown as an agent message in the empty chat instead of any welcome. */
-	private _agentFirstMessage: HTMLElement | undefined;
+	/** The selected agent's `empty-chat-message`, shown as an agent message in the empty chat instead of any welcome. */
+	private _agentEmptyChatMessage: HTMLElement | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
 	private _isRenderingWelcome = false;
@@ -1729,11 +1729,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const numItems = this.viewModel?.getItems().length ?? 0;
-			if (!numItems && this._agentFirstMessage) {
-				if (this._agentFirstMessage.parentElement !== this.welcomeMessageContainer) {
+			if (!numItems && this._agentEmptyChatMessage) {
+				if (this._agentEmptyChatMessage.parentElement !== this.welcomeMessageContainer) {
 					this.welcomePart.clear();
 					dom.clearNode(this.welcomeMessageContainer);
-					dom.append(this.welcomeMessageContainer, this._agentFirstMessage);
+					dom.append(this.welcomeMessageContainer, this._agentEmptyChatMessage);
 				}
 			} else if (!numItems) {
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
@@ -3601,13 +3601,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputEditor?.updateOptions({ placeholder: base && getSandboxPlaceholder(base, this.input.sandboxToggleChecked.get()) });
 	}
 
-	setAgentFirstMessage(element: HTMLElement | undefined): void {
-		if (this._agentFirstMessage === element) {
+	setAgentEmptyChatMessage(element: HTMLElement | undefined): void {
+		if (this._agentEmptyChatMessage === element) {
 			return;
 		}
-		this._agentFirstMessage?.remove();
-		this._agentFirstMessage = element;
-		this.welcomeMessageContainer?.classList.toggle('chat-agent-first-message', !!element);
+		this._agentEmptyChatMessage?.remove();
+		this._agentEmptyChatMessage = element;
+		this.welcomeMessageContainer?.classList.toggle('chat-agent-empty-chat-message', !!element);
 		if (!element) {
 			// Force the default welcome to render again.
 			this.welcomePart.clear();

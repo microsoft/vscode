@@ -101,8 +101,7 @@ export namespace PromptHeaderAttributes {
 
 /** Keys of the `vscode:` map in an agent file. */
 export namespace VSCodeAgentAttributes {
-	export const commands = 'commands';
-	export const firstMessage = 'first-message';
+	export const emptyChatMessage = 'empty-chat-message';
 	export const assistedApprovalInstructions = 'assisted-approval-instructions';
 }
 

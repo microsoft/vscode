@@ -9471,12 +9471,18 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The selected custom agent's guidance for the Assisted permissions judge, from its agent file. */
 	private async _readAgentAssistedApprovalInstructions(wrapper: CopilotSessionWrapper): Promise<{ readonly name: string; readonly instructions: string } | undefined> {
+		const selected = this._lastAppliedAgent;
+		if (selected === null) {
+			return undefined;
+		}
 		try {
-			const agent = (await this._awaitControlPlaneRpc('rpc.agent.getCurrent', wrapper.session.rpc.agent.getCurrent())).agent;
+			// Only a resumed session does not know its agent yet; the runtime restored it.
+			const current = selected === undefined ? (await this._awaitControlPlaneRpc('rpc.agent.getCurrent', wrapper.session.rpc.agent.getCurrent())).agent : undefined;
+			const sdkName = selected ?? current?.name;
 			// Agents forwarded from VS Code are registered under opaque names, and the runtime reports them without a path.
-			const uri = agent && (agent.path ? URI.file(agent.path) : getCopilotCustomAgentUri(this._launchPlan.snapshot, agent.name));
+			const uri = current?.path ? URI.file(current.path) : sdkName ? getCopilotCustomAgentUri(this._launchPlan.snapshot, sdkName) : undefined;
 			const parsed = uri ? await parseAgentFile(uri, this._fileService) : undefined;
-			return agent && parsed?.assistedApprovalInstructions ? { name: agent.displayName || agent.name, instructions: parsed.assistedApprovalInstructions } : undefined;
+			return parsed?.assistedApprovalInstructions ? { name: parsed.name, instructions: parsed.assistedApprovalInstructions } : undefined;
 		} catch (error) {
 			// Without them, the judge still has the user's instructions and the conversation.
 			this._logService.warn(`[Copilot:${this.sessionId}] Could not read the selected agent's Assisted permissions instructions`, error);

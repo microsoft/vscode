@@ -548,8 +548,8 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
-	/** Shows an element as the selected agent's first message in the empty chat, instead of any welcome. */
-	setAgentFirstMessage?(element: HTMLElement | undefined): void;
+	/** Shows an element as the selected agent's message in the empty chat, instead of any welcome. */
+	setAgentEmptyChatMessage?(element: HTMLElement | undefined): void;
 	refreshParsedInput(): void;
 	/** Floats persistent input content and reserves matching space below the transcript. */
 	setPersistentContentHeight(height: number | undefined): void;
