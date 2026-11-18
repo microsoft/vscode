@@ -388,6 +388,51 @@ suite('NamedLayoutsService', () => {
 		});
 	});
 
+	test('applies the saved state of the default layout when the layout that was active is no longer available', async () => {
+		const firstParticipant = new TestParticipant();
+		const first = createService(firstParticipant);
+		firstParticipant.state = 'default state';
+		await first.createLayout('Debug');
+		firstParticipant.state = 'debug state';
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		// Named layouts are disabled while the workspace is closed
+		configurationService.setUserConfiguration(NAMED_LAYOUTS_ENABLED_SETTING, false);
+
+		// Simulates a new window of the same workspace, the workbench restores the arrangement of the layout that was active itself
+		const openWindow = () => {
+			const lifecycleService = disposables.add(new TestLifecycleService());
+			lifecycleService.usePhases = true;
+			instantiationService.stub(ILifecycleService, lifecycleService);
+			const participant = new TestParticipant();
+			participant.state = 'restored by the workbench';
+			const service = createService(participant);
+			const restore = async () => {
+				lifecycleService.phase = LifecyclePhase.Restored;
+				await lifecycleService.when(LifecyclePhase.Restored);
+				await service.switchLayout(service.activeLayout); // queued after the restore
+			};
+			return { service, participant, restore };
+		};
+		const getDebugLayout = (service: NamedLayoutsService) => service.layouts.find(layout => layout.name === 'Debug')!;
+
+		const second = openWindow();
+		await second.restore();
+		const afterReopening = { layout: second.service.activeLayout.name, state: second.participant.state };
+
+		// A layout that becomes active before the workbench is restored is kept
+		await second.service.switchLayout(getDebugLayout(second.service));
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const third = openWindow();
+		await third.service.switchLayout(getDebugLayout(third.service));
+		await third.restore();
+		const afterSwitchBeforeRestored = { layout: third.service.activeLayout.name, state: third.participant.state };
+
+		assert.deepStrictEqual({ afterReopening, afterSwitchBeforeRestored }, {
+			afterReopening: { layout: 'Default', state: 'default state' },
+			afterSwitchBeforeRestored: { layout: 'Debug', state: 'debug state' }
+		});
+	});
+
 	test('a layout locked by its extension always starts from its definition and cannot be unlocked', async () => {
 		const participant = new TestDefinitionParticipant();
 		const testObject = createService(participant);

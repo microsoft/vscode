@@ -318,14 +318,6 @@ function toViewContainerLocation(location: NamedLayoutViewContainerLocation): Vi
 }
 
 /**
- * Returns the given identifiers sorted by the given order. The sort is stable,
- * identifiers without an order are placed last.
- */
-function sortByOrder(ids: readonly string[], getOrder: (id: string) => number | undefined): string[] {
-	return [...ids].sort((a, b) => (getOrder(a) ?? Number.MAX_VALUE) - (getOrder(b) ?? Number.MAX_VALUE));
-}
-
-/**
  * Captures and applies the layout state that the default layout shares with the
  * other windows of the profile: the location of view containers and views, the
  * view containers shown in the activity bar, the panel and the secondary side bar
@@ -388,24 +380,19 @@ export class SharedLayoutStateParticipant implements INamedLayoutParticipant {
 		const viewContainers: IStringDictionary<INamedLayoutViewContainerDefinition> = {};
 		const views: IStringDictionary<INamedLayoutViewDefinition> = {};
 
+		// Values are described even if they are the defaults of the contributions: aspects that a
+		// definition does not specify are taken from the default layout of the user, not from the contributions
 		for (const [locationName, location] of VIEW_CONTAINER_LOCATIONS) {
 			const locationViewContainers = this.viewDescriptorService.getViewContainersByLocation(location);
 			const pinnedIds = this.paneCompositePartService.getPinnedPaneCompositeIds(location);
 			const barIds = this.paneCompositePartService.getPaneCompositeIds(location).filter(id => locationViewContainers.some(viewContainer => viewContainer.id === id));
 
-			// The order is only described if it differs from the order of the contributions
-			const describeOrder = !equals(barIds, sortByOrder(barIds, id => locationViewContainers.find(viewContainer => viewContainer.id === id)?.order));
-
 			for (const viewContainer of locationViewContainers) {
 				const index = barIds.indexOf(viewContainer.id);
-				const viewContainerDefinition: INamedLayoutViewContainerDefinition = {
-					...(this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer) !== location ? { location: locationName } : {}),
-					...(index !== -1 && !pinnedIds.includes(viewContainer.id) ? { visible: false } : {}),
-					...(index !== -1 && describeOrder ? { order: index + 1 } : {})
+				viewContainers[viewContainer.id] = {
+					location: locationName,
+					...(index !== -1 ? { visible: pinnedIds.includes(viewContainer.id), order: index + 1 } : {})
 				};
-				if (Object.keys(viewContainerDefinition).length) {
-					viewContainers[viewContainer.id] = viewContainerDefinition;
-				}
 
 				this.captureViewDefinitions(viewContainer, views);
 			}
@@ -421,19 +408,14 @@ export class SharedLayoutStateParticipant implements INamedLayoutParticipant {
 		// Views moved into another view container cannot be described
 		const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
 		const viewDescriptors = model.allViewDescriptors.filter(viewDescriptor => this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id) === viewContainer);
-		const viewIds = viewDescriptors.map(viewDescriptor => viewDescriptor.id);
-		const describeOrder = !equals(viewIds, sortByOrder(viewIds, id => viewDescriptors.find(viewDescriptor => viewDescriptor.id === id)?.order));
 
 		viewDescriptors.forEach((viewDescriptor, index) => {
-			const visible = model.isVisible(viewDescriptor.id);
+			// The visibility of a view whose when clause does not match is not known
 			const isActive = model.activeViewDescriptors.includes(viewDescriptor);
-			const viewDefinition: INamedLayoutViewDefinition = {
-				...(viewDescriptor.canToggleVisibility && isActive && visible === !!viewDescriptor.hideByDefault ? { visible } : {}),
-				...(describeOrder ? { order: index + 1 } : {})
+			views[viewDescriptor.id] = {
+				...(viewDescriptor.canToggleVisibility && isActive ? { visible: model.isVisible(viewDescriptor.id) } : {}),
+				order: index + 1
 			};
-			if (Object.keys(viewDefinition).length) {
-				views[viewDescriptor.id] = viewDefinition;
-			}
 		});
 	}
 

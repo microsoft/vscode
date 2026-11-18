@@ -321,6 +321,32 @@ suite('ViewContainerModel', () => {
 		});
 	});
 
+	test('uses the stored order of a view that was not registered while the stored order changed', () => {
+		// eslint-disable-next-line local/code-no-any-casts
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: nls.localize2('Test View 1', 'Test View 1'), order: 1 };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: nls.localize2('Test View 2', 'Test View 2'), order: 2 };
+		ViewsRegistry.registerViews([view1, view2], container);
+		const storageKey = getViewsStateStorageId('test.state');
+
+		// For example switching to a layout that orders the views differently while view2 is in another view container
+		ViewsRegistry.deregisterViews([view2], container);
+		storageService.store(storageKey, JSON.stringify([
+			{ id: 'view1', isHidden: false, order: 1 },
+			{ id: 'view2', isHidden: false, order: 0 }
+		]), StorageScope.PROFILE, StorageTarget.USER);
+		ViewsRegistry.registerViews([view2], container);
+
+		assert.deepStrictEqual({
+			views: testObject.visibleViewDescriptors.map(({ id }) => id),
+			storedOrders: JSON.parse(storageService.get(storageKey, StorageScope.PROFILE, '[]')).map(({ id, order }: { id: string; order?: number }) => [id, order])
+		}, {
+			views: ['view2', 'view1'],
+			storedOrders: [['view1', 1], ['view2', 0]]
+		});
+	});
+
 	test('view states', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		// eslint-disable-next-line local/code-no-any-casts

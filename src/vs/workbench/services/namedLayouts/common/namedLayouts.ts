@@ -338,8 +338,10 @@ export interface INamedLayoutsService {
 
 	/**
 	 * Describes the current layout of this window in the format of layouts that
-	 * extensions contribute. The description is not complete, for example it does not
-	 * contain the sizes of views or views moved into other view containers.
+	 * extensions contribute. Aspects that a definition does not specify are taken from the
+	 * default layout of the user, so the description specifies them explicitly. It is not
+	 * complete, for example it does not contain the sizes of views or views moved into other
+	 * view containers.
 	 */
 	captureDefinition(): INamedLayoutDefinition;
 }

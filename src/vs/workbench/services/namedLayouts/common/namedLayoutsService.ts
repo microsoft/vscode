@@ -87,6 +87,9 @@ interface ILayoutSnapshot {
  * its definition when it becomes active. Changes made to the active locked layout
  * are detected against its state once the window settled after it was applied,
  * locked or reverted.
+ *
+ * If the layout that was active when the window closed no longer exists when it
+ * reopens, the saved state of the default layout is applied.
  */
 export class NamedLayoutsService extends Disposable implements INamedLayoutsService {
 
@@ -123,6 +126,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	 */
 	private lockedLayoutIds: Set<string>;
 	private activeLayoutId: string;
+
+	/**
+	 * Counts the changes of the active layout, to detect that another layout became active meanwhile.
+	 */
+	private activeLayoutChanges = 0;
 	private isApplying = false;
 
 	private contributedLayouts = new Map<string, IContributedNamedLayout>();
@@ -152,6 +160,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		this.storedLayouts = this.loadLayouts();
 		this.lockedLayoutIds = this.loadLockedLayoutIds();
+		const storedActiveLayoutId = this.storageService.get(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
 		this.activeLayoutId = this.restoreActiveLayout();
 
 		// The workbench restores the arrangement it saved itself. For a locked layout that
@@ -165,6 +174,18 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 					await this.applyLayoutState(storedLayout, [...this.participants]);
 				}
 			})).catch(error => this.logService.error('[named layouts] Failed to restore the locked layout.', error));
+		}
+
+		// If the layout that was active when the window closed was deleted meanwhile, or named layouts
+		// were disabled, the workbench restores the arrangement of that layout. The saved arrangement of
+		// the default layout is applied instead, so that it is not overwritten by the next switch
+		if (storedActiveLayoutId && restoredLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
+			const activeLayoutChanges = this.activeLayoutChanges;
+			lifecycleService.when(LifecyclePhase.Restored).then(() => this.sequencer.queue(async () => {
+				if (this.activeLayoutChanges === activeLayoutChanges) {
+					await this.applyLayoutState(undefined, [...this.participants]);
+				}
+			})).catch(error => this.logService.error('[named layouts] Failed to restore the default layout.', error));
 		}
 
 		this._register(this.storageService.onWillSaveState(() => this.saveActiveLayout()));
@@ -375,13 +396,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	captureDefinition(): INamedLayoutDefinition {
-		const settings: IStringDictionary<unknown> = {};
-		for (const key of getLayoutOverridableSettings()) {
-			const value = this.configurationService.getValue(key);
-			if (!equals(value, this.configurationService.inspect(key).defaultValue)) {
-				settings[key] = value;
-			}
-		}
+		// Settings that a definition does not specify have the values of the default layout of the user
+		const settings = this.captureSettings();
 
 		const definition: INamedLayoutDefinition = Object.keys(settings).length ? { settings } : {};
 		for (const participant of this.participants) {
@@ -562,6 +578,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 		if (this.activeLayoutId !== layoutId) {
 			this.activeLayoutId = layoutId;
+			this.activeLayoutChanges++;
 			this._onDidChangeActiveLayout.fire(this.activeLayout);
 		}
 	}

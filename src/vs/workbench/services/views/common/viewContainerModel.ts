@@ -91,6 +91,15 @@ class ViewDescriptorsState extends Disposable {
 		return this.state.get(id);
 	}
 
+	/**
+	 * Returns the order of the given view that is stored for all workspaces, `undefined` if it has
+	 * none. It can differ from the order in memory while the view is not registered, because
+	 * another window or a layout switch changed the stored state meanwhile.
+	 */
+	getStoredGlobalOrder(id: string): number | undefined {
+		return this.getStoredGlobalState().get(id)?.order;
+	}
+
 	updateState(viewDescriptors: ReadonlyArray<IViewDescriptor>): void {
 		this.updateWorkspaceState(viewDescriptors);
 		this.updateGlobalState(viewDescriptors);
@@ -602,6 +611,10 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 					}
 				}
 				state.collapsed = isUndefinedOrNull(addedViewDescriptorState.collapsed) ? (isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed) : addedViewDescriptorState.collapsed;
+				if (!viewDescriptor.workspace) {
+					// The order in memory is not updated while the view is not registered. The order of workspace views is stored per workspace
+					state.order = this.viewDescriptorsState.getStoredGlobalOrder(viewDescriptor.id);
+				}
 			} else {
 				state = {
 					active: false,
