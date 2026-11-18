@@ -141,6 +141,9 @@ export const WorkspaceRemoteAgentHostsSettingId = 'chat.workspaceRemoteAgentHost
 /** Configuration key to enable remote agent host connections. */
 export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
 
+/** Configuration key enabling the tools that let agents read and act on remote agent hosts (registered by the Agents window). */
+export const RemoteSessionToolsEnabledSettingId = 'chat.remoteSessions.tools.enabled';
+
 /** Configuration key that controls whether online dev tunnels, configured SSH remote agent hosts, and WSL remote agent hosts are auto-connected at startup. */
 export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoConnect';
 
