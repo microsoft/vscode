@@ -97,7 +97,7 @@ suite('WorkspaceEditingService', () => {
 			};
 		}
 
-		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean; state?: WorkbenchState; confirmed?: boolean; destinationTrusted?: boolean }) {
+		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean; state?: WorkbenchState; confirmed?: boolean; destinationTrusted?: boolean; vetoReasons?: string[]; vetoConfirmed?: boolean }) {
 			const trusted: URI[] = [];
 			const prompts: string[] = [];
 			const switchTrust: (boolean | undefined)[] = [];
@@ -105,16 +105,27 @@ suite('WorkspaceEditingService', () => {
 			const resolved: URI[] = [];
 			const switched: (URI | undefined)[] = [];
 			const reasons: (string | undefined)[] = [];
+			const events: string[] = [];
+			const dialogs: { message: string; detail?: string; primaryButton?: string }[] = [];
 			let current = options.current;
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
 				{
 					getWorkbenchState: () => options.state ?? WorkbenchState.FOLDER,
 					getWorkspace: () => ({ folders: [{ uri: current }], uri: URI.file('/work/project') }),
-					setFolderLocation: async (location: URI, o?: { trusted?: boolean; onApplied?: () => void }) => { current = location; switched.push(location); switchTrust.push(o?.trusted); o?.onApplied?.(); return true; }
+					setFolderLocation: async (location: URI, o?: { trusted?: boolean; onApplied?: () => void }) => { events.push('switch'); current = location; switched.push(location); switchTrust.push(o?.trusted); o?.onApplied?.(); return true; }
 				},
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-				{ confirm: async () => { prompts.push('trust'); return { confirmed: options.confirmed ?? false }; } },
+				{
+					confirm: async (dialog: { message: string; detail?: string; primaryButton?: string }) => {
+						if (dialog.primaryButton) {
+							dialogs.push(dialog);
+							return { confirmed: options.vetoConfirmed ?? false };
+						}
+						prompts.push('trust');
+						return { confirmed: options.confirmed ?? false };
+					}
+				},
 				undefined,
 				{ extUri },
 				{
@@ -122,15 +133,20 @@ suite('WorkspaceEditingService', () => {
 					getUriTrustInfo: async (uri: URI) => { trustLookups.push(uri); return { trusted: extUri.isEqual(uri, URI.file('/work/project')) ? options.primaryTrusted : (options.destinationTrusted ?? false) || trusted.some(t => extUri.isEqual(t, uri)) }; },
 					setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); }
 				},
-				undefined, undefined, undefined,
+				undefined, undefined,
+				{ info: () => { } },
 				{
 					canSetLocation: () => (options.state ?? WorkbenchState.FOLDER) === WorkbenchState.FOLDER,
+					willChangeLocation: async (_folder: unknown, _location: URI, reason: string) => {
+						events.push(`willChange:${reason}`);
+						return { reasons: options.vetoReasons ?? [], stop: async () => { events.push('stop'); } };
+					},
 					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', providerId: 'test', builtIn: options.builtIn ?? true }; },
 					setLocation: (_folder: unknown, _location: unknown, reason?: string) => { reasons.push(reason); }
 				},
 				{ isWorkspaceTrustEnabled: () => true }
 			));
-			return { service, reasons, prompts, switchTrust, trustLookups: () => trustLookups.map(u => u.toString()), trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
+			return { service, reasons, events, dialogs, prompts, switchTrust, trustLookups: () => trustLookups.map(u => u.toString()), trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
 		}
 
 		test('a non-local location is rejected without resolving, trusting or switching', async () => {
@@ -155,6 +171,40 @@ suite('WorkspaceEditingService', () => {
 			await fixture.service.setFolderLocation(URI.file('/work/alt'), { reason: 'user' });
 			await fixture.service.setFolderLocation(URI.file('/work/alt'));
 			assert.deepStrictEqual(fixture.reasons, ['user', undefined]);
+		});
+
+		test('a user switch that something vetoes asks, and stops what runs before switching once confirmed', async () => {
+			const alt = URI.file('/work/alt');
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true, vetoReasons: ['A debug session is running.', 'The task \'build\' is running.'], vetoConfirmed: true });
+			await fixture.service.setFolderLocation(alt, { reason: 'user' });
+			assert.deepStrictEqual({ events: fixture.events, dialogs: fixture.dialogs.map(({ message, detail, primaryButton }) => ({ message, detail, primaryButton })) }, {
+				events: ['willChange:user', 'stop', 'switch'],
+				dialogs: [{ message: `Switch the folder to 'L'?`, detail: `A debug session is running.\nThe task 'build' is running.\n\nSwitching stops them.`, primaryButton: '&&Stop and Switch' }]
+			});
+		});
+
+		test('cancelling the confirmation stops nothing, switches nothing and grants no trust', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true, builtIn: false, vetoReasons: ['A debug session is running.'], vetoConfirmed: false });
+			await fixture.service.setFolderLocation(URI.file('/work/alt'), { reason: 'user' });
+			assert.deepStrictEqual({ events: fixture.events, trusted: fixture.trusted(), prompts: fixture.prompts, published: fixture.reasons }, { events: ['willChange:user'], trusted: [], prompts: [], published: [] });
+		});
+
+		test('a user switch nothing vetoes does not ask', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true });
+			await fixture.service.setFolderLocation(URI.file('/work/alt'), { reason: 'user' });
+			assert.deepStrictEqual({ events: fixture.events, dialogs: fixture.dialogs.length }, { events: ['willChange:user', 'switch'], dialogs: 0 });
+		});
+
+		test('a programmatic switch that something vetoes gives way without asking', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true, vetoReasons: ['A debug session is running.'], vetoConfirmed: true });
+			await fixture.service.setFolderLocation(URI.file('/work/alt'), { reason: 'programmatic' });
+			assert.deepStrictEqual({ events: fixture.events, dialogs: fixture.dialogs.length }, { events: ['willChange:programmatic'], dialogs: 0 });
+		});
+
+		test('a switch without a reason, such as a return to the primary, is not vetoed', async () => {
+			const fixture = createService({ current: URI.file('/work/alt'), primaryTrusted: true, vetoReasons: ['A debug session is running.'] });
+			await fixture.service.setFolderLocation(URI.file('/work/project'));
+			assert.deepStrictEqual({ events: fixture.events, dialogs: fixture.dialogs.length }, { events: ['switch'], dialogs: 0 });
 		});
 
 		test('trust is inherited from the primary, not from the current location', async () => {

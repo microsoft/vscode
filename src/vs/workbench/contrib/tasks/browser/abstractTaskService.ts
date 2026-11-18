@@ -72,6 +72,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/
 import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IFolderLocationWillChangeEvent, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -298,9 +299,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService
 	) {
 		super();
+		this._register(workspaceFolderLocationService.onWillChangeLocation(evt => this._vetoFolderLocationChange(evt)));
 		this._whenTaskSystemReady = Event.toPromise(Event.filter(this.onDidChangeTaskSystemInfo, () => this.hasTaskSystemInfo), this._store);
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
@@ -1090,6 +1093,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve(false);
 		}
 		return this._taskSystem.isActive();
+	}
+
+	private _vetoFolderLocationChange(evt: IFolderLocationWillChangeEvent): void {
+		evt.veto(
+			this.getActiveTasks().then(tasks => tasks.map(task => nls.localize('taskRunningSwitchingFolderLocation', "The task '{0}' is running.", task._label))),
+			async () => {
+				await Promise.all((await this.getActiveTasks()).map(task => this.terminate(task)));
+			});
 	}
 
 	public async getActiveTasks(): Promise<Task[]> {

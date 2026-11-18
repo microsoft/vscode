@@ -203,6 +203,34 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			return true;
 		};
 
+		// What runs against the current location asks to be considered before the folder moves. The user confirms a switch they
+		// started; a programmatic one gives way instead. Without a reason (such as a return to the primary location) nothing is asked.
+		if (!this.uriIdentityService.extUri.isEqual(location, currentFolder.uri) && (reason === 'user' || reason === 'programmatic')) {
+			const vetoes = await this.workspaceFolderLocationService.willChangeLocation(currentFolder, location, reason);
+			if (!isFresh()) {
+				return;
+			}
+			if (vetoes.reasons.length > 0) {
+				if (reason === 'programmatic') {
+					this.logService.info(`[folderLocation] not switching to ${location.toString()}: ${vetoes.reasons.join(' ')}`);
+					return;
+				}
+				const { confirmed } = await this.dialogService.confirm({
+					type: Severity.Warning,
+					message: localize('confirmFolderLocationSwitch', "Switch the folder to '{0}'?", resolved?.label ?? basename(location)),
+					detail: localize('confirmFolderLocationSwitchDetail', "{0}\n\nSwitching stops them.", vetoes.reasons.join('\n')),
+					primaryButton: localize({ key: 'stopAndSwitch', comment: ['&& denotes a mnemonic'] }, "&&Stop and Switch")
+				});
+				if (!confirmed || !isFresh()) {
+					return;
+				}
+				await vetoes.stop();
+				if (!isFresh()) {
+					return;
+				}
+			}
+		}
+
 		// Settle the trust of the destination before switching, so its settings are never applied under another trust.
 		// This also applies to returning to the primary location, which has its own trust.
 		// A request superseded before its trust grant starts persists no trust: freshness is checked right before each grant.

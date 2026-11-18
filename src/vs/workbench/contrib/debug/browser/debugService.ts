@@ -31,6 +31,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { EditorsOrder } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -114,6 +115,7 @@ export class DebugService implements IDebugService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITestService private readonly testService: ITestService,
+		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
@@ -211,6 +213,12 @@ export class DebugService implements IDebugService {
 				this.model.getSessions().length > 0,
 				nls.localize('active debug session', 'A debug session is still running that would terminate.'),
 			);
+		}));
+
+		this.disposables.add(workspaceFolderLocationService.onWillChangeLocation(evt => {
+			if (this.model.getSessions().length > 0) {
+				evt.veto(nls.localize('active debug session switching folder location', 'A debug session is running.'), () => this.stopSession(undefined));
+			}
 		}));
 
 		this.initContextKeys(contextKeyService);

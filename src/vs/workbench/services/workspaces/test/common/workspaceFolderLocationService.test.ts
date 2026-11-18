@@ -213,6 +213,31 @@ suite('WorkspaceFolderLocationService', () => {
 		}, { singleFolder: true, atAlternate: true, otherFolder: false, multiRoot: false, empty: false, remote: false });
 	});
 
+	test('willChangeLocation collects the reasons of the listeners, without duplicates, and stops what they ask for', async () => {
+		const reported: string[] = [];
+		const previous = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error.message));
+		disposables.add(toDisposable(() => setUnexpectedErrorHandler(previous)));
+		const service = disposables.add(createService());
+		const stopped: string[] = [];
+		disposables.add(service.onWillChangeLocation(e => e.veto('A debug session is running.', async () => { stopped.push('debug'); })));
+		disposables.add(service.onWillChangeLocation(e => e.veto(Promise.resolve(['A debug session is running.', 'A task is running.']), async () => { stopped.push('tasks'); })));
+		disposables.add(service.onWillChangeLocation(e => e.veto(Promise.resolve(undefined))));
+		disposables.add(service.onWillChangeLocation(e => e.veto([])));
+		disposables.add(service.onWillChangeLocation(e => e.veto(Promise.reject(new Error('broken')))));
+
+		const vetoes = await service.willChangeLocation(folder(primary), a, 'user');
+		assert.deepStrictEqual({ reasons: vetoes.reasons, stoppedBefore: [...stopped] }, { reasons: ['A debug session is running.', 'A task is running.'], stoppedBefore: [] });
+
+		await vetoes.stop();
+		assert.deepStrictEqual({ stopped: stopped.sort(), reported }, { stopped: ['debug', 'tasks'], reported: ['broken'] });
+	});
+
+	test('willChangeLocation has no reasons without listeners', async () => {
+		const service = disposables.add(createService());
+		assert.deepStrictEqual((await service.willChangeLocation(folder(primary), a, 'programmatic')).reasons, []);
+	});
+
 	test('onDidChangeCanSetLocation fires when the workspace folders or state change', () => {
 		const folders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const state = disposables.add(new Emitter<WorkbenchState>());
