@@ -19,7 +19,7 @@ interface ITurnInteractionState {
 	steeredFromTurn?: string;
 	interactions: Set<string>;
 	truncated: boolean;
-	steering?: ISteeringTurnContext;
+	steeredFromTurnContext?: ISteeringTurnContext;
 }
 
 type TurnSteeringEvent = {
@@ -64,28 +64,28 @@ export class TurnInteractionCorrelation {
 		return { turnId, originalTurnId: state?.originalTurnId, interactionIds: [...state?.interactions ?? []] };
 	}
 
-	prepareSteering(turnId: string, previous: ISteeringTurnContext): void {
+	prepareSteering(turnId: string, steeredFromTurnContext: ISteeringTurnContext): void {
 		this._turns.set(turnId, {
-			steeredFromTurn: previous.turnId, steering: previous,
+			steeredFromTurn: steeredFromTurnContext.turnId, steeredFromTurnContext,
 			interactions: new Set(), truncated: false,
 		});
 	}
 
 	resolveSteering(turnId: string, interactionId: string | undefined, delivery: SessionEventPayload<'user.message'>['data']['delivery']): void {
 		const state = this._turns.get(turnId);
-		const previous = state?.steering;
-		if (!state || !previous) {
+		const steeredFromTurnContext = state?.steeredFromTurnContext;
+		if (!state || !steeredFromTurnContext) {
 			return;
 		}
 		const runtimeDelivery = delivery === 'steering' || delivery === 'idle' || delivery === 'queued' ? delivery : 'unknown';
-		const shared = !!interactionId && previous.interactionIds.includes(interactionId);
+		const shared = !!interactionId && steeredFromTurnContext.interactionIds.includes(interactionId);
 		const attributionStatus = runtimeDelivery === 'idle' || runtimeDelivery === 'queued' ? 'newRequest'
-			: runtimeDelivery === 'steering' && shared && previous.originalTurnId ? 'confirmed'
-				: runtimeDelivery === 'steering' && interactionId && previous.interactionIds.length > 0 && !shared ? 'interactionMismatch' : 'unknown';
-		state.originalTurnId = attributionStatus === 'confirmed' ? previous.originalTurnId : attributionStatus === 'newRequest' ? turnId : undefined;
-		state.steering = undefined;
+			: runtimeDelivery === 'steering' && shared && steeredFromTurnContext.originalTurnId ? 'confirmed'
+				: runtimeDelivery === 'steering' && interactionId && steeredFromTurnContext.interactionIds.length > 0 && !shared ? 'interactionMismatch' : 'unknown';
+		state.originalTurnId = attributionStatus === 'confirmed' ? steeredFromTurnContext.originalTurnId : attributionStatus === 'newRequest' ? turnId : undefined;
+		state.steeredFromTurnContext = undefined;
 		this._telemetryService.publicLog2<TurnSteeringEvent, TurnSteeringClassification>('agentHost.turnSteered', {
-			sdkSessionId: this._sdkSessionId, turnId, steeredFromTurn: previous.turnId,
+			sdkSessionId: this._sdkSessionId, turnId, steeredFromTurn: steeredFromTurnContext.turnId,
 			originalTurnId: state.originalTurnId, runtimeDelivery, attributionStatus,
 		});
 	}
