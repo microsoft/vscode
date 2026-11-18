@@ -16,22 +16,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { createFileSystemProviderError, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicDeleteOptions, IFileAtomicOptions, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileChange, IFileOpenOptions, IFileReadStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IStat, isFileSystemWatcher } from '../../common/files.js';
 import { FileService } from '../../common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../common/inMemoryFilesystemProvider.js';
+import { AtomicRenameFileSystemProvider } from '../common/inMemoryFileService.js';
 import { NullFileSystemProvider } from '../common/nullFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 
 class BufferedWriteFileSystemProvider extends InMemoryFileSystemProvider {
 	override get capabilities(): FileSystemProviderCapabilities {
 		return super.capabilities & ~FileSystemProviderCapabilities.FileReadWrite;
-	}
-}
-
-class AtomicRenameFileSystemProvider extends InMemoryFileSystemProvider {
-	override get capabilities(): FileSystemProviderCapabilities {
-		return super.capabilities | FileSystemProviderCapabilities.FileAtomicRename;
-	}
-
-	async renameFileAtomic(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
-		return super.rename(from, to, options);
 	}
 }
 

@@ -24,7 +24,7 @@ import { IExternalTerminalService } from '../../../../../platform/externalTermin
 import { ExternalTerminalNotStartedError } from '../../../../../platform/externalTerminal/common/externalTerminal.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { AtomicRenameFileSystemProvider } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -79,7 +79,7 @@ suite('CopilotCliHandoffService', () => {
 	async function observe(options: IObserveOptions) {
 		const disposables = store.add(new DisposableStore());
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new AtomicRenameFileSystemProvider())));
 		await fileService.writeFile(getCopilotCliOwnerRecordUri(copilotHome, sessionId), VSBuffer.fromString(JSON.stringify(options.record)));
 		if (options.handoffRequest) {
 			await writeCopilotCliHandoffRequest(fileService, copilotHome, sessionId, options.handoffRequest);
@@ -98,8 +98,8 @@ suite('CopilotCliHandoffService', () => {
 			exists: resource => fileService.exists(resource),
 			createWatcher: (resource, watchOptions) => fileService.createWatcher(resource, watchOptions),
 			writeFile: (resource, content, writeOptions) => fileService.writeFile(resource, content, writeOptions),
-			move: async (source, target, overwrite) => {
-				const result = await fileService.move(source, target, overwrite);
+			move: async (source, target, overwrite, moveOptions) => {
+				const result = await fileService.move(source, target, overwrite, moveOptions);
 				if (target.path === getCopilotCliHandoffRequestUri(copilotHome, sessionId).path) {
 					const request = await readCopilotCliHandoffRequest(fileService, copilotHome, sessionId);
 					if (request?.status !== 'requested') {

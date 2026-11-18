@@ -14,6 +14,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { FileOperation } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { AtomicRenameFileSystemProvider } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { COPILOT_CLI_HANDOFF_NONE, CopilotCliHandoffState, getCopilotCliHandoffRequestUri, getCopilotCliOwnerRecordUri, getNextCopilotCliHandoffState, ICopilotCliOwnerRecord, observeCopilotCliHandoffInputPaused, parseCopilotCliHandoffRequest, parseCopilotCliOwnerRecord, parseCopilotCliTerminalCommand, readCopilotCliHandoffRequest, readCopilotCliOwnerRecord, requestCopilotCliHandoff, setCopilotCliHandoffInputPaused, writeCopilotCliHandoffRequest, writeCopilotCliOwnerRecord } from '../../common/copilotCliHandoff.js';
 
@@ -66,13 +67,16 @@ suite('Copilot CLI handoff prototype', () => {
 
 	test('writes the owner record atomically, through a temporary file renamed over it', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new AtomicRenameFileSystemProvider())));
 		const ownerRecord = getCopilotCliOwnerRecordUri(copilotHome, sessionId);
 		await fileService.writeFile(ownerRecord, VSBuffer.fromString(JSON.stringify(record('vscode', 'code-command'))));
 		const moves: string[] = [];
+		const deleted: string[] = [];
 		store.add(fileService.onDidRunOperation(e => {
 			if (e.isOperation(FileOperation.MOVE)) {
 				moves.push(`${basename(e.resource).replace(/[0-9a-f-]{36}/, '<uuid>')} -> ${basename(e.target.resource)}`);
+			} else if (e.isOperation(FileOperation.DELETE)) {
+				deleted.push(basename(e.resource));
 			}
 		}));
 
@@ -82,12 +86,34 @@ suite('Copilot CLI handoff prototype', () => {
 		assert.deepStrictEqual({
 			record: await readCopilotCliOwnerRecord(fileService, copilotHome, sessionId),
 			moves,
+			deleted,
 			files: folder.children?.map(child => child.name),
 		}, {
 			record: { ...record('cli', 'continue-in-terminal'), window: 'agents' },
 			moves: ['.owner.json.<uuid>.tmp -> owner.json'],
+			deleted: [],
 			files: ['owner.json'],
 		});
+	});
+
+	test('preserves the previous owner and cleans up the temporary file when atomic replacement fails', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		const provider = store.add(new class extends AtomicRenameFileSystemProvider {
+			override async renameFileAtomic(): Promise<void> {
+				throw new Error('Atomic replacement failed');
+			}
+		}());
+		store.add(fileService.registerProvider(Schemas.file, provider));
+		const original = record('vscode', 'code-command');
+		await fileService.writeFile(getCopilotCliOwnerRecordUri(copilotHome, sessionId), VSBuffer.fromString(JSON.stringify(original)));
+
+		await assert.rejects(writeCopilotCliOwnerRecord(fileService, copilotHome, sessionId, record('cli', 'take-back')), /Atomic replacement failed/);
+
+		const folder = await fileService.resolve(joinPath(copilotHome, 'session-state', sessionId));
+		assert.deepStrictEqual({
+			record: await readCopilotCliOwnerRecord(fileService, copilotHome, sessionId),
+			files: folder.children?.map(child => child.name),
+		}, { record: original, files: ['owner.json'] });
 	});
 
 	test('a missing owner record reads as no recorded owner', async () => {
@@ -99,7 +125,7 @@ suite('Copilot CLI handoff prototype', () => {
 	for (const accepted of [true, false]) {
 		test(`a takeover requester never writes ownership before the current owner responds (accepted=${accepted})`, async () => {
 			const fileService = store.add(new FileService(new NullLogService()));
-			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+			store.add(fileService.registerProvider(Schemas.file, store.add(new AtomicRenameFileSystemProvider())));
 			const original = record('cli', 'take-back');
 			const target = record('vscode', 'take-back', '2026-11-17T22:15:00.000Z');
 			await writeCopilotCliOwnerRecord(fileService, copilotHome, sessionId, original);
@@ -127,7 +153,7 @@ suite('Copilot CLI handoff prototype', () => {
 
 	test('an unresponsive current owner cannot be forcefully taken over after the request expires', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 500 }, async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new AtomicRenameFileSystemProvider())));
 		const original = record('cli', 'take-back');
 		await writeCopilotCliOwnerRecord(fileService, copilotHome, sessionId, original);
 		const result = await requestCopilotCliHandoff(fileService, copilotHome, sessionId, record('vscode', 'take-back'));

@@ -278,7 +278,7 @@ async function writeCopilotCliRecord(fileService: IFileService, target: URI, rec
 	const temporary = joinPath(dirname(target), `.${basename(target)}.${generateUuid()}.tmp`);
 	await fileService.writeFile(temporary, VSBuffer.fromString(`${JSON.stringify(record, undefined, 2)}\n`));
 	try {
-		await fileService.move(temporary, target, true);
+		await fileService.move(temporary, target, true, { atomic: true });
 	} catch (error) {
 		await fileService.del(temporary).catch(() => { });
 		throw error;
