@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMatch, matchesFuzzy } from 'vs/base/common/filters';
-import { ltrim } from 'vs/base/common/strings';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { emptyMatches, IMatch, matchesFuzzy } from './filters.js';
+import { ltrim } from './strings.js';
+import { ThemeIcon } from './themables.js';
 
 const iconStartMarker = '$(';
 
@@ -102,6 +102,10 @@ export function matchesFuzzyIconAware(query: string, target: IParsedLabelWithIco
 
 	// match on value without icon
 	const matches = matchesFuzzy(query, wordToMatchAgainstWithoutIconsTrimmed, enableSeparateSubstringMatching);
+
+	if (matches === emptyMatches) {
+		return matches;
+	}
 
 	// Map matches back to offsets with icon and trimming
 	if (matches) {

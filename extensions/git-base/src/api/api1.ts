@@ -5,16 +5,20 @@
 
 import { Disposable, commands } from 'vscode';
 import { Model } from '../model';
-import { pickRemoteSource } from '../remoteSource';
+import { getRemoteSourceActions, pickRemoteSource } from '../remoteSource';
 import { GitBaseExtensionImpl } from './extension';
-import { API, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceProvider } from './git-base';
+import { API, PickRemoteSourceOptions, PickRemoteSourceResult, RemoteSourceAction, RemoteSourceProvider } from './git-base';
 
 export class ApiImpl implements API {
 
 	constructor(private _model: Model) { }
 
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<PickRemoteSourceResult | string | undefined> {
-		return pickRemoteSource(this._model, options as any);
+		return pickRemoteSource(this._model, options);
+	}
+
+	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]> {
+		return getRemoteSourceActions(this._model, url);
 	}
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
@@ -26,11 +30,11 @@ export function registerAPICommands(extension: GitBaseExtensionImpl): Disposable
 	const disposables: Disposable[] = [];
 
 	disposables.push(commands.registerCommand('git-base.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
-		if (!extension.model) {
+		if (!extension.model || !opts) {
 			return;
 		}
 
-		return pickRemoteSource(extension.model, opts as any);
+		return pickRemoteSource(extension.model, opts);
 	}));
 
 	return Disposable.from(...disposables);

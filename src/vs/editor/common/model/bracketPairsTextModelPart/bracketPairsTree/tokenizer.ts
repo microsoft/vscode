@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotSupportedError } from 'vs/base/common/errors';
-import { StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { BracketAstNode, TextAstNode } from './ast';
-import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
-import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length';
-import { SmallImmutableSet } from './smallImmutableSet';
+import { NotSupportedError } from '../../../../../base/common/errors.js';
+import { StandardTokenType, TokenMetadata } from '../../../encodedTokenAttributes.js';
+import { IViewLineTokens } from '../../../tokens/lineTokens.js';
+import { BracketAstNode, TextAstNode } from './ast.js';
+import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets.js';
+import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length.js';
+import { SmallImmutableSet } from './smallImmutableSet.js';
 
 export interface Tokenizer {
 	readonly offset: Length;
@@ -64,17 +64,21 @@ export class TextBufferTokenizer implements Tokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
 
-	private readonly reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
+	private readonly reader;
 
 	constructor(
 		private readonly textModel: ITokenizerSource,
 		private readonly bracketTokens: LanguageAgnosticBracketTokens
 	) {
+		this.reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
+		this._offset = lengthZero;
+		this.didPeek = false;
+		this.peeked = null;
 		this.textBufferLineCount = textModel.getLineCount();
 		this.textBufferLastLineLength = textModel.getLineLength(this.textBufferLineCount);
 	}
 
-	private _offset: Length = lengthZero;
+	private _offset: Length;
 
 	get offset() {
 		return this._offset;
@@ -95,8 +99,8 @@ export class TextBufferTokenizer implements Tokenizer {
 		this.reader.setPosition(obj.lineCount, obj.columnCount);
 	}
 
-	private didPeek = false;
-	private peeked: Token | null = null;
+	private didPeek;
+	private peeked: Token | null;
 
 	read(): Token | null {
 		let token: Token | null;
@@ -173,7 +177,7 @@ class NonPeekableTextBufferTokenizer {
 		if (this.line === null) {
 			this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 			this.line = this.lineTokens.getLineContent();
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens.findTokenIndexAtOffset(this.lineCharOffset);
 		}
 
 		const startLineIdx = this.lineIdx;

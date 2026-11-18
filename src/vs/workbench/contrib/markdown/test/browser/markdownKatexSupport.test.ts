@@ -1,0 +1,114 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import assert from 'assert';
+import { getWindow } from '../../../../../base/browser/dom.js';
+import { basicMarkupHtmlTags, defaultAllowedAttrs, safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MarkedKatexSupport } from '../../browser/markedKatexSupport.js';
+
+
+suite('Markdown Katex Support Test', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => {
+		// `loadExtension` adds the KaTeX stylesheet to the document, so remove it again. Its rules cannot be read in
+		// the unit tests (it has another origin), which breaks the later tests that read the rules of every stylesheet.
+		for (const element of [...getWindow(document).document.head.children]) {
+			if (element.classList.contains('katex')) {
+				element.remove();
+			}
+		}
+	});
+
+	async function renderMarkdownWithKatex(str: string) {
+		const katex = await MarkedKatexSupport.loadExtension(getWindow(document), {});
+		const rendered = store.add(renderMarkdown(new MarkdownString(str), {
+			sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
+				allowedTags: basicMarkupHtmlTags,
+				allowedAttributes: defaultAllowedAttrs,
+			}),
+			markedExtensions: [katex],
+		}));
+		return rendered;
+	}
+
+	test('Basic inline equation', async () => {
+		const rendered = await renderMarkdownWithKatex('Hello $\\frac{1}{2}$ World!');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should support inline equation wrapped in parans', async () => {
+		const rendered = await renderMarkdownWithKatex('Hello ($\\frac{1}{2}$) World!');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should support blocks immediately after paragraph', async () => {
+		const rendered = await renderMarkdownWithKatex([
+			'Block example:',
+			'$$',
+			'\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}',
+			'$$',
+		].join('\n'));
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should not render math when dollar sign is preceded by word character', async () => {
+		const rendered = await renderMarkdownWithKatex('for ($i = 1; $i -le 20; $i++) { echo "hello world"; Start-Sleep 1 }');
+		assert.ok(!rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should not render math when dollar sign is followed by word character', async () => {
+		const rendered = await renderMarkdownWithKatex('The cost is $10dollars for this item');
+		assert.ok(!rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should still render math with special characters around dollars', async () => {
+		const rendered = await renderMarkdownWithKatex('Hello ($\\frac{1}{2}$) and [$x^2$] work fine');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should still render math at start and end of line', async () => {
+		const rendered = await renderMarkdownWithKatex('$\\frac{1}{2}$ at start, and at end $x^2$');
+		assert.ok(rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should not render math when dollar signs appear in jQuery expressions', async () => {
+		const rendered = await renderMarkdownWithKatex('$.getJSON, $.ajax, $.get and $("#dialogDetalleZona").dialog(...) / $("#dialogDetallePDC").dialog(...)');
+		assert.ok(!rendered.element.innerHTML.includes('katex'));
+		await assertSnapshot(rendered.element.innerHTML);
+	});
+
+	test('Should only allow relative positioning in math styles', () => {
+		const config = MarkedKatexSupport.getSanitizerOptions({ allowedTags: basicMarkupHtmlTags, allowedAttributes: defaultAllowedAttrs });
+		const element = document.createElement('div');
+		safeSetInnerHtml(element, '<span style="position: fixed; top: 1px">a</span><span style="position: absolute">b</span><span style="position: relative; top: 1px">c</span>', {
+			allowedTags: config.allowedTags,
+			allowedAttributes: config.allowedAttributes,
+		});
+		assert.deepStrictEqual([...element.querySelectorAll('span')].map(e => e.getAttribute('style')), ['top: 1px', '', 'position: relative; top: 1px']);
+	});
+
+	test('Should show math that fails to render as text, not as HTML', async () => {
+		const rendered = await renderMarkdownWithKatex('$\\undefinedcommand <span class="monaco-button" style="position: relative; top: -40px">x</span>$');
+		assert.deepStrictEqual({
+			elements: rendered.element.querySelectorAll('p *').length,
+			text: rendered.element.textContent,
+		}, {
+			elements: 0,
+			text: '$\\undefinedcommand <span class="monaco-button" style="position: relative; top: -40px">x</span>$',
+		});
+	});
+});
+

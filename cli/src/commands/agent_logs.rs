@@ -1,0 +1,317 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+use ahp::SubscriptionEvent;
+use ahp_types::actions::StateAction;
+use ahp_types::commands::{SubscribeParams, SubscribeResult};
+use ahp_types::state::{SessionStatus, SnapshotState};
+use console::Style;
+
+use crate::tunnels::shutdown_signal::ShutdownRequest;
+use crate::util::errors::AnyError;
+
+use super::agent;
+use super::agent_discovery;
+use super::args::AgentLogsArgs;
+use super::output::{self, Styles};
+use super::CommandContext;
+
+/// Subscribes to a session and streams actions/notifications in real time.
+pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32, AnyError> {
+	let client = match (
+		args.discovery.address.as_deref(),
+		args.discovery.tunnel.as_deref(),
+	) {
+		(None, None) => {
+			agent_discovery::connect_to_session_host(
+				&ctx,
+				&args.session,
+				args.discovery.user_data_dir.as_deref(),
+			)
+			.await?
+		}
+		(address, tunnel) => agent::connect_explicit(&ctx, address, tunnel).await?,
+	};
+
+	let (result, mut sub): (SubscribeResult, _) = {
+		let r: SubscribeResult = agent::request_with_auth(
+			&ctx,
+			&client,
+			"subscribe",
+			SubscribeParams::new(args.session.clone()),
+		)
+		.await?;
+		let s = client.attach_subscription(&args.session).await;
+		(r, s)
+	};
+
+	// Print initial state summary.
+	print_initial_state(&args.session, &result);
+
+	let header = Styles::muted();
+	println!(
+		"\n{}",
+		header.apply_to("Streaming events (Ctrl+C to quit)...")
+	);
+	println!(
+		"{}",
+		header.apply_to(output::utf8_or_ascii("─", "-").repeat(50))
+	);
+
+	// Stream events until Ctrl+C or the subscription closes.
+	let mut shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
+
+	loop {
+		tokio::select! {
+			ev = sub.recv() => match ev {
+				Some(SubscriptionEvent::Action(envelope)) => {
+					print_action(envelope.server_seq, &envelope.action);
+				}
+				Some(other) => {
+					if let Some(message) = format_notification(&other) {
+						let notif_style = Style::new().magenta();
+						println!("{}", notif_style.apply_to(message));
+					}
+				}
+				None => {
+					println!("{}", Styles::muted().apply_to("Subscription closed."));
+					break;
+				}
+			},
+			_ = shutdown.wait() => {
+				println!("\n{}", Styles::muted().apply_to("Interrupted."));
+				break;
+			}
+		}
+	}
+
+	client.shutdown().await;
+	Ok(0)
+}
+
+/// Formats notifications without retaining the action payloads' debug formatters.
+fn format_notification(event: &SubscriptionEvent) -> Option<String> {
+	match event {
+		SubscriptionEvent::Action(_) => None,
+		SubscriptionEvent::SessionAdded(params) => {
+			Some(format!("notification: SessionAdded({params:?})"))
+		}
+		SubscriptionEvent::SessionRemoved(params) => {
+			Some(format!("notification: SessionRemoved({params:?})"))
+		}
+		SubscriptionEvent::SessionSummaryChanged(params) => {
+			Some(format!("notification: SessionSummaryChanged({params:?})"))
+		}
+		SubscriptionEvent::AuthRequired(params) => {
+			Some(format!("notification: AuthRequired({params:?})"))
+		}
+		other => Some(format!("notification: {other:?}")),
+	}
+}
+
+fn print_initial_state(uri: &str, result: &SubscribeResult) {
+	let title = Styles::title();
+	let label = Styles::label();
+	let uri_style = Styles::uri();
+
+	println!(
+		"\n{} {}",
+		title.apply_to("Session"),
+		uri_style.apply_to(uri)
+	);
+
+	let Some(ref snapshot) = result.snapshot else {
+		return;
+	};
+
+	if let SnapshotState::Session(ref session) = snapshot.state {
+		let s = session;
+		if !s.title.is_empty() {
+			println!("  {} {}", label.apply_to("title:"), s.title);
+		}
+		println!("  {} {}", label.apply_to("provider:"), s.provider);
+		if let Some(ref activity) = s.activity {
+			if !activity.is_empty() {
+				println!("  {} {}", label.apply_to("activity:"), activity);
+			}
+		}
+		println!("  {} {}", label.apply_to("chats:"), session.chats.len());
+
+		// Print a brief summary of the chats in this session.
+		for chat in &session.chats {
+			let status = SessionStatus::from_bits(chat.status);
+			let marker = if status.contains(SessionStatus::InProgress) {
+				Style::new()
+					.green()
+					.bold()
+					.apply_to(output::utf8_or_ascii("►", ">"))
+			} else if status.contains(SessionStatus::Error) {
+				Styles::error().apply_to(output::utf8_or_ascii("✗", "x"))
+			} else {
+				Styles::muted().apply_to(output::utf8_or_ascii("○", "o"))
+			};
+			let title = if chat.title.is_empty() {
+				"(untitled)".to_string()
+			} else {
+				truncate(&chat.title, 80)
+			};
+			println!("    {} {}", marker, Styles::muted().apply_to(title));
+		}
+	}
+
+	println!("  {} {}", label.apply_to("seq:"), snapshot.from_seq);
+}
+
+fn print_action(seq: u64, action: &StateAction) {
+	let seq_str = Styles::muted().apply_to(format!("[{seq:>6}]"));
+
+	// Serialize the action to extract the "type" tag and remaining fields.
+	let value = serde_json::to_value(action).unwrap_or_default();
+	let type_name = value
+		.get("type")
+		.and_then(|v| v.as_str())
+		.unwrap_or("unknown");
+
+	// Build a compact params string from all fields except "type".
+	let params = if let Some(obj) = value.as_object() {
+		let parts: Vec<String> = obj
+			.iter()
+			.filter(|(k, _)| k.as_str() != "type")
+			.map(|(k, v)| {
+				let v_str = match v {
+					serde_json::Value::String(s) => truncate(s, 80),
+					other => truncate(&other.to_string(), 80),
+				};
+				format!("{}={}", Styles::label().apply_to(k), v_str)
+			})
+			.collect();
+		parts.join(" ")
+	} else {
+		String::new()
+	};
+
+	let style = action_style(type_name);
+	println!("{} {} {}", seq_str, style.apply_to(type_name), params);
+}
+
+/// Picks a color for the action type name.
+fn action_style(type_name: &str) -> Style {
+	if type_name.contains("error") || type_name.contains("Failed") {
+		Styles::error()
+	} else if type_name.contains("Complete") || type_name.contains("complete") {
+		Styles::success()
+	} else if type_name.contains("Cancel") || type_name.contains("cancel") {
+		Styles::warning()
+	} else if type_name.contains("oolCall") || type_name.contains("oolcall") {
+		Style::new().blue()
+	} else if type_name.contains("delta")
+		|| type_name.contains("Delta")
+		|| type_name.contains("reasoning")
+	{
+		Styles::muted()
+	} else {
+		Style::new().cyan()
+	}
+}
+
+fn truncate(s: &str, max: usize) -> String {
+	let s = s.replace('\n', " ");
+	if s.chars().count() <= max {
+		s
+	} else {
+		let suffix = output::utf8_or_ascii("…", "...");
+		let prefix_length = max.saturating_sub(suffix.chars().count());
+		format!(
+			"{}{suffix}",
+			s.chars().take(prefix_length).collect::<String>()
+		)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use serde_json::json;
+
+	#[test]
+	fn notification_format_preserves_debug_output() {
+		let events = [
+			SubscriptionEvent::SessionAdded(
+				serde_json::from_value(json!({
+					"channel": "ahp-root://",
+					"summary": {
+						"provider": "test-provider",
+						"title": "Session \"α\"\n",
+						"status": 1,
+						"resource": "ahp-session:/one",
+						"createdAt": "2026-01-01T00:00:00Z",
+						"modifiedAt": "2026-01-01T00:00:00Z",
+						"_meta": { "nested": [1, "é"] }
+					}
+				}))
+				.unwrap(),
+			),
+			SubscriptionEvent::SessionRemoved(
+				serde_json::from_value(json!({
+					"channel": "ahp-root://",
+					"session": "ahp-session:/one"
+				}))
+				.unwrap(),
+			),
+			SubscriptionEvent::SessionSummaryChanged(
+				serde_json::from_value(json!({
+					"channel": "ahp-root://",
+					"session": "ahp-session:/one",
+					"changes": { "title": "Changed\n\"title\"", "status": 2 }
+				}))
+				.unwrap(),
+			),
+			SubscriptionEvent::AuthRequired(
+				serde_json::from_value(json!({
+					"channel": "ahp-session:/one",
+					"resource": {
+						"resource": "https://example.test/",
+						"resource_name": "Réseau \"test\"",
+						"authorization_servers": ["https://auth.example.test/"]
+					},
+					"reason": "future-reason"
+				}))
+				.unwrap(),
+			),
+		];
+
+		for event in events {
+			assert_eq!(
+				format_notification(&event),
+				Some(format!("notification: {event:?}"))
+			);
+		}
+	}
+
+	#[test]
+	fn notification_format_leaves_actions_to_action_renderer() {
+		let envelope = serde_json::from_value(json!({
+			"channel": "ahp-session:/one",
+			"serverSeq": 1,
+			"action": { "type": "session/titleChanged", "title": "Title" }
+		}))
+		.unwrap();
+		assert_eq!(
+			format_notification(&SubscriptionEvent::Action(envelope)),
+			None
+		);
+	}
+
+	#[test]
+	fn truncate_respects_character_limit() {
+		assert_eq!(
+			(
+				truncate("abcdef", 5).chars().count(),
+				truncate("áéíóúñ", 5).chars().count()
+			),
+			(5, 5)
+		);
+	}
+}

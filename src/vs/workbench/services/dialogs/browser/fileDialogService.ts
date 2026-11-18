@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
-import { Schemas } from 'vs/base/common/network';
-import { memoize } from 'vs/base/common/decorators';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { localize } from 'vs/nls';
-import { getMediaOrTextMime } from 'vs/base/common/mime';
-import { basename } from 'vs/base/common/resources';
-import { triggerDownload, triggerUpload } from 'vs/base/browser/dom';
-import Severity from 'vs/base/common/severity';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
-import { Iterable } from 'vs/base/common/iterator';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { URI } from '../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { AbstractFileDialogService } from './abstractFileDialogService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { HTMLFileSystemProvider } from '../../../../platform/files/browser/htmlFileSystemProvider.js';
+import { localize } from '../../../../nls.js';
+import { getMediaOrTextMime } from '../../../../base/common/mime.js';
+import { basename } from '../../../../base/common/resources.js';
+import { getActiveWindow, triggerDownload, triggerUpload } from '../../../../base/browser/dom.js';
+import Severity from '../../../../base/common/severity.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { extractFileListData } from '../../../../platform/dnd/browser/dnd.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
+import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -57,13 +59,14 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.pickFileAndOpenSimplified(schema, options, false);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
 		try {
-			([fileHandle] = await window.showOpenFilePicker({ multiple: false }));
+			([fileHandle] = await activeWindow.showOpenFilePicker({ multiple: false }));
 		} catch (error) {
 			return; // `showOpenFilePicker` will throw an error when the user cancels
 		}
@@ -116,7 +119,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.pickFileToSaveSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
@@ -124,7 +128,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const startIn = Iterable.first(this.fileSystemProvider.directories);
 
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri), startIn } });
+			fileHandle = await activeWindow.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri), startIn } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -139,10 +143,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	private getFilePickerTypes(filters?: FileFilter[]): FilePickerAcceptType[] | undefined {
 		return filters?.filter(filter => {
 			return !((filter.extensions.length === 1) && ((filter.extensions[0] === '*') || filter.extensions[0] === ''));
-		}).map(filter => {
-			const accept: Record<string, string[]> = {};
+		}).map((filter): FilePickerAcceptType => {
+			const accept: Record<MIMEType, FileExtension[]> = {};
 			const extensions = filter.extensions.filter(ext => (ext.indexOf('-') < 0) && (ext.indexOf('*') < 0) && (ext.indexOf('_') < 0));
-			accept[getMediaOrTextMime(`fileName.${filter.extensions[0]}`) ?? 'text/plain'] = extensions.map(ext => ext.startsWith('.') ? ext : `.${ext}`);
+			accept[(getMediaOrTextMime(`fileName.${filter.extensions[0]}`) ?? 'text/plain') as MIMEType] = extensions.map(ext => ext.startsWith('.') ? ext : `.${ext}`) as FileExtension[];
 			return {
 				description: filter.name,
 				accept
@@ -157,7 +161,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.showSaveDialogSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
@@ -165,7 +170,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const startIn = Iterable.first(this.fileSystemProvider.directories);
 
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
+			fileHandle = await activeWindow.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
 		} catch (error) {
 			return undefined; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -184,28 +189,50 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.showOpenDialogSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		const activeWindow = this.getFilePickerWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
-		let uri: URI | undefined;
-		const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
+		const uris: URI[] = [];
+		const startIn = await this.getFilePickerStartIn(options.defaultUri) ?? 'documents';
 
 		try {
 			if (options.canSelectFiles) {
-				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
-				if (handle.length === 1 && WebFileSystemAccess.isFileSystemFileHandle(handle[0])) {
-					uri = await this.fileSystemProvider.registerFileHandle(handle[0]);
+				const handles = await activeWindow.showOpenFilePicker({ multiple: options.canSelectMany ?? false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
+				for (const handle of handles) {
+					if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
+						uris.push(await this.fileSystemProvider.registerFileHandle(handle));
+					}
 				}
 			} else {
-				const handle = await window.showDirectoryPicker({ ...{ startIn } });
-				uri = await this.fileSystemProvider.registerDirectoryHandle(handle);
+				const handle = await activeWindow.showDirectoryPicker({ ...{ startIn } });
+				uris.push(await this.fileSystemProvider.registerDirectoryHandle(handle));
 			}
 		} catch (error) {
 			// ignore - `showOpenFilePicker` / `showDirectoryPicker` will throw an error when the user cancels
 		}
 
-		return uri ? [uri] : undefined;
+		return uris.length ? uris : undefined;
+	}
+
+	protected getFilePickerWindow(): Window & typeof globalThis {
+		return getActiveWindow();
+	}
+
+	private async getFilePickerStartIn(defaultUri: URI | undefined): Promise<FileSystemDirectoryHandle | undefined> {
+		if (defaultUri) {
+			try {
+				const handle = await this.fileSystemProvider.getDirectoryHandle(defaultUri);
+				if (handle) {
+					return handle;
+				}
+			} catch (error) {
+				this.logService.debug(`[FileDialogService] Failed to resolve default URI to a directory handle: ${getErrorMessage(error)}`);
+			}
+		}
+
+		return Iterable.first(this.fileSystemProvider.directories);
 	}
 
 	private async showUnsupportedBrowserWarning(context: 'save' | 'open'): Promise<undefined> {
@@ -213,10 +240,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// When saving, try to just download the contents
 		// of the active text editor if any as a workaround
 		if (context === 'save') {
-			const activeTextModel = this.codeEditorService.getActiveCodeEditor()?.getModel();
-			if (activeTextModel) {
-				triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
-				return;
+			const activeCodeEditor = this.codeEditorService.getActiveCodeEditor();
+			if (!(activeCodeEditor instanceof EmbeddedCodeEditorWidget)) {
+				const activeTextModel = activeCodeEditor?.getModel();
+				if (activeTextModel) {
+					triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
+					return;
+				}
 			}
 		}
 

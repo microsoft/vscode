@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { CursorUndo, CursorUndoRedoController } from 'vs/editor/contrib/cursorUndo/browser/cursorUndo';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { Handler } from '../../../../common/editorCommon.js';
+import { CursorUndo, CursorUndoRedoController } from '../../browser/cursorUndo.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 suite('FindController', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const cursorUndoAction = new CursorUndo();
 
@@ -23,15 +26,15 @@ suite('FindController', () => {
 			editor.trigger('test', Handler.Type, { text: 'hello' });
 
 			// press left
-			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
+			editor.runCommand(CoreNavigationCommands.CursorLeft, {});
 
 			// press Delete
-			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, {});
+			editor.runCommand(CoreEditingCommands.DeleteRight, {});
 			assert.deepStrictEqual(editor.getValue(), 'hell');
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
 
 			// press left
-			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
+			editor.runCommand(CoreNavigationCommands.CursorLeft, {});
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 4, 1, 4)]);
 
 			// press Ctrl+U

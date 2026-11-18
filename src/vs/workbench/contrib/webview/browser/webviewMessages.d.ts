@@ -3,18 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import type { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
+import type { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import type { WebviewMouseActivity } from '../common/webview.js';
+import type { WebviewStyles } from './webview.js';
 
 type KeyEvent = {
-	key: string;
-	keyCode: number;
-	code: string;
-	shiftKey: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	repeat: boolean;
+	readonly key: string;
+	readonly keyCode: number;
+	readonly code: string;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly ctrlKey: boolean;
+	readonly metaKey: boolean;
+	readonly repeat: boolean;
+	readonly isTrusted: boolean;
+	readonly keyEventToken: string;
+}
+
+type WebViewDragEvent = {
+	readonly shiftKey: boolean;
 }
 
 export type FromWebviewMessage = {
@@ -27,15 +34,18 @@ export type FromWebviewMessage = {
 	'did-find': { didFind: boolean };
 	'do-update-state': string;
 	'do-reload': void;
-	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string };
+	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string; range?: { readonly start: number; readonly end?: number } };
 	'load-localhost': { id: string; origin: string };
 	'did-scroll-wheel': IMouseWheelEvent;
+	'did-mouse-move': WebviewMouseActivity;
 	'fatal-error': { message: string };
 	'no-csp-found': void;
 	'did-keydown': KeyEvent;
 	'did-keyup': KeyEvent;
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
+	'drag': WebViewDragEvent;
+	'updated-intrinsic-content-size': { width: number; height: number };
 };
 
 interface UpdateContentEvent {
@@ -45,6 +55,8 @@ interface UpdateContentEvent {
 		allowMultipleAPIAcquire: boolean;
 		allowScripts: boolean;
 		allowForms: boolean;
+		allowFullscreen?: boolean;
+		includeHorizontalScrollbarInContentHeight?: boolean;
 	};
 	state: any;
 	cspSource: string;
@@ -58,14 +70,18 @@ export type ToWebviewMessage = {
 	'did-load-resource':
 	| { id: number; status: 401 | 404; path: string }
 	| { id: number; status: 304; path: string; mime: string; mtime: number | undefined }
-	| { id: number; status: 200; path: string; mime: string; data: any; etag: string | undefined; mtime: number | undefined }
+	| { id: number; status: 200 | 206; path: string; mime: string; etag: string | undefined; mtime: number | undefined; range?: string; stream?: ReadableStream<Uint8Array> }
 	;
+	// Safari fallback: transferable streams not supported
+	'did-load-resource-chunk': { id: number; data: Uint8Array };
+	'did-load-resource-end': { id: number; error?: boolean };
 	'did-load-localhost': {
 		id: string;
 		origin: string;
 		location: string | undefined;
 	};
 	'set-confirm-before-close': string;
+	'set-context-menu-visible': { visible: boolean };
 	'initial-scroll-position': number;
 	'content': UpdateContentEvent;
 	'set-title': string | undefined;

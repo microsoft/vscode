@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { sha1Hex } from 'vs/base/browser/hash';
-import { hash, StringSHA1 } from 'vs/base/common/hash';
+import assert from 'assert';
+import { hash, hashAsync, StringSHA1 } from '../../common/hash.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('Hash', () => {
 	test('string', () => {
@@ -82,7 +82,7 @@ suite('Hash', () => {
 		assert.strictEqual(actual, expected);
 
 		// Test with crypto.subtle
-		actual = await sha1Hex(str);
+		actual = await hashAsync(str);
 		assert.strictEqual(actual, expected);
 	}
 
@@ -101,4 +101,6 @@ suite('Hash', () => {
 	test('sha1-4', () => {
 		return checkSHA1('hello', 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

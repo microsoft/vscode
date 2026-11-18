@@ -1,0 +1,153 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable, IDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatListItemRendererOptions, IChatWidgetService } from '../../chat.js';
+import { IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
+import { IObservable } from '../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ILanguageSelection } from '../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IChatThinkingTitleRequest } from '../../../common/chatThinkingTitleService.js';
+
+export interface IChatContentPart extends IDisposable {
+	domNode: HTMLElement | undefined;
+
+	/**
+	 * Used to indicate a part's ownership of a code block.
+	 */
+	codeblocksPartId?: string;
+
+	/**
+	 * Codeblocks that were rendered by this part.
+	 */
+	codeblocks?: IChatCodeBlockInfo[];
+
+	/**
+	 * Returns true if the other content is equivalent to what is already rendered in this content part.
+	 * Returns false if a rerender is needed.
+	 * followingContent is all the content that will be rendered after this content part (to support progress messages' behavior).
+	 */
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
+
+	/**
+	 * Called when the content part is mounted to the DOM after being detached
+	 * due to virtualization.
+	 */
+	onDidRemount?(): void;
+
+	addDisposable?(disposable: IDisposable): void;
+}
+
+/** Diff resource emitted by an edit-rendering content part. */
+export interface IChatContentPartDiffResource {
+	readonly resource: URI;
+	readonly originalURI: URI | undefined;
+	readonly modifiedURI: URI | undefined;
+}
+
+/** Aggregated diff data emitted by an edit-rendering content part. */
+export interface IChatContentPartDiffData {
+	readonly added: number;
+	readonly removed: number;
+	readonly resources: readonly IChatContentPartDiffResource[];
+}
+
+/**
+ * A content part whose edits contribute to aggregated statistics. Consumers read `diffData`
+ * when they attach, because the change event may already have fired during construction
+ * (for example when an editing session restores finalized diffs synchronously).
+ */
+export interface IChatContentPartDiffSource {
+	readonly onDidChangeDiff: Event<IChatContentPartDiffData>;
+	readonly diffData: IChatContentPartDiffData | undefined;
+}
+
+/**
+ * Focuses the chat input once an input request of `context`'s chat is done: of the widget its renderer tells, such as the one
+ * whose list renders it, else of a widget that shows the chat.
+ */
+export function focusChatInput(context: IChatContentPartRenderContext, chatWidgetService: IChatWidgetService): void {
+	if (context.focusInput) {
+		context.focusInput();
+	} else {
+		chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
+	}
+}
+
+export interface IChatContentPartRenderContext {
+	readonly element: IChatRequestViewModel | IChatResponseViewModel;
+	readonly readOnly?: boolean;
+	readonly renderInputRequests?: boolean;
+	/** Focuses the input of the widget the user is in, such as the one whose list renders it ({@link focusChatInput}). */
+	readonly focusInput?: () => void;
+	readonly elementIndex: number;
+	readonly container: HTMLElement;
+	/** Lazily provides an anchor that clips content overlays below floating list UI such as the sticky header. */
+	readonly getOverlayClippingContainer?: () => HTMLElement;
+	readonly content: ReadonlyArray<IChatRendererContent>;
+	readonly contentIndex: number;
+	/** Whether the response-level progress indicator owns progress animation for this render. */
+	readonly suppressProgressShimmer?: boolean;
+	readonly progressMessageAction?: IChatListItemRendererOptions['progressMessageAction'];
+	readonly backgroundActivityPillSections?: IChatListItemRendererOptions['backgroundActivityPillSections'];
+	/** Reserves scroll space before an automatic collapse, not a user toggle. */
+	readonly onWillCollapse?: (target: HTMLElement) => void;
+	/** A tool group, separate from reasoning, in the persistent progress layout. */
+	readonly isToolChain?: boolean;
+	/** Reasoning and tool calls share one collapsed section in the Conversation persistent progress layout. */
+	readonly isConversation?: boolean;
+	/**
+	 * The part is hosted by the tool confirmation carousel above the chat input rather than by a
+	 * transcript row, so it renders the confirmation that transcript copies defer to it.
+	 */
+	readonly inToolConfirmationCarousel?: boolean;
+	/** The image batch owns previews and animation; this part only renders tool details. */
+	readonly inImageGenerationBatch?: boolean;
+	readonly editorPool: EditorPool;
+	readonly codeBlockStartIndex: number;
+	readonly treeStartIndex: number;
+	readonly diffEditorPool: DiffEditorPool;
+	readonly currentWidth: IObservable<number>;
+	readonly onDidChangeVisibility: Event<boolean>;
+	/** Only a newly completed, visible header may generate a title; historical headers may reuse cached titles. */
+	readonly registerThinkingTitle?: (header: HTMLElement, getRequest: () => IChatThinkingTitleRequest, acceptTitle: (title: string) => void, newlyCompleted: boolean) => IDisposable;
+	readonly inlineTextModels: InlineTextModelCollection;
+}
+
+/**
+ * Ref-counted collection of inline text models keyed by URI. Models are
+ * created on first acquire and disposed only when the last reference is
+ * released, preventing duplicate-model errors during re-renders.
+ */
+export class InlineTextModelCollection extends Disposable {
+	private readonly _collection: InlineTextModelReferenceCollection;
+
+	constructor(@IModelService modelService: IModelService) {
+		super();
+		this._collection = new InlineTextModelReferenceCollection(modelService);
+	}
+
+	acquire(uri: URI, value: string, languageSelection: ILanguageSelection | null, isForSimpleWidget: boolean) {
+		return this._collection.acquire(uri.toString(), uri, value, languageSelection, isForSimpleWidget);
+	}
+}
+
+class InlineTextModelReferenceCollection extends ReferenceCollection<ITextModel> {
+	constructor(private readonly modelService: IModelService) {
+		super();
+	}
+
+	protected override createReferencedObject(key: string, uri: URI, value: string, languageSelection: ILanguageSelection | null, isForSimpleWidget: boolean): ITextModel {
+		return this.modelService.createModel(value, languageSelection, uri, isForSimpleWidget);
+	}
+
+	protected override destroyReferencedObject(_key: string, model: ITextModel): void {
+		model.dispose();
+	}
+}

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/moby/moby/commit/abd39744c6f3ed854500e423f5fabf952165161f",
+	"version": "https://github.com/moby/moby/commit/c2029cb2574647e4bc28ed58486b8e85883eedb9",
 	"name": "Dockerfile",
 	"scopeName": "source.dockerfile",
 	"patterns": [
@@ -42,6 +42,9 @@
 			"match": "^\\s*(?i:(ONBUILD)\\s+)?(?i:(CMD|ENTRYPOINT))\\s"
 		},
 		{
+			"include": "#string-character-escape"
+		},
+		{
 			"begin": "\"",
 			"beginCaptures": {
 				"1": {
@@ -57,8 +60,7 @@
 			"name": "string.quoted.double.dockerfile",
 			"patterns": [
 				{
-					"match": "\\\\.",
-					"name": "constant.character.escaped.dockerfile"
+					"include": "#string-character-escape"
 				}
 			]
 		},
@@ -78,8 +80,7 @@
 			"name": "string.quoted.single.dockerfile",
 			"patterns": [
 				{
-					"match": "\\\\.",
-					"name": "constant.character.escaped.dockerfile"
+					"include": "#string-character-escape"
 				}
 			]
 		},
@@ -98,5 +99,11 @@
 			"comment": "comment.line",
 			"match": "^(\\s*)((#).*$\\n?)"
 		}
-	]
+	],
+	"repository": {
+		"string-character-escape": {
+			"name": "constant.character.escaped.dockerfile",
+			"match": "\\\\."
+		}
+	}
 }

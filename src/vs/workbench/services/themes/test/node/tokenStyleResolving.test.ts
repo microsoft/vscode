@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
-import * as assert from 'assert';
-import { ITokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { TokenStyle, getTokenClassificationRegistry } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { Color } from 'vs/base/common/color';
-import { isString } from 'vs/base/common/types';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoaderService';
-import { ITokenStyle } from 'vs/platform/theme/common/themeService';
-import { mock, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ColorThemeData } from '../../common/colorThemeData.js';
+import assert from 'assert';
+import { ITokenColorCustomizations } from '../../common/workbenchThemeService.js';
+import { TokenStyle, getTokenClassificationRegistry } from '../../../../../platform/theme/common/tokenClassificationRegistry.js';
+import { Color } from '../../../../../base/common/color.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isString } from '../../../../../base/common/types.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { DiskFileSystemProvider } from '../../../../../platform/files/node/diskFileSystemProvider.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
+import { ExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoaderService.js';
+import { ITokenStyle } from '../../../../../platform/theme/common/themeService.js';
+import { mock, TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
@@ -88,7 +91,7 @@ suite('Themes - TokenStyleResolving', () => {
 	const environmentService = new (mock<IEnvironmentService>())();
 	const configurationService = new (mock<IConfigurationService>())();
 
-	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, storageService, TestProductService, environmentService, configurationService, requestService);
+	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, storageService, TestProductService, environmentService, configurationService, new ExtensionGalleryManifestService(TestProductService), requestService, new NullLogService());
 
 	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
@@ -96,6 +99,8 @@ suite('Themes - TokenStyleResolving', () => {
 	teardown(() => {
 		diskFileSystemProvider.dispose();
 	});
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('color defaults', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
@@ -189,6 +194,9 @@ suite('Themes - TokenStyleResolving', () => {
 		tokenStyle = themeData.resolveScopes([['meta.structure.dictionary.json', 'string.quoted.double.json']]);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
 
+		tokenStyle = themeData.resolveScopes([['source.json', 'meta.structure.dictionary.json', 'string.quoted.double.json']]);
+		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
+
 		tokenStyle = themeData.resolveScopes([['keyword'], ['storage.type'], ['entity.name.class']]);
 		assertTokenStyle(tokenStyle, ts('#66D9EF', { italic: true, bold: false, underline: false }), 'storage.type');
 
@@ -264,33 +272,32 @@ suite('Themes - TokenStyleResolving', () => {
 		registry.registerTokenType('myTestInterface', 'A type just for testing', 'interface');
 		registry.registerTokenType('myTestSubInterface', 'A type just for testing', 'myTestInterface');
 
-		try {
-			const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
-			themeData.setCustomColors({ 'editor.foreground': '#000000' });
-			themeData.setCustomSemanticTokenColors({
-				enabled: true,
-				rules: {
-					'interface': '#ff0000',
-					'myTestInterface': { italic: true },
-					'interface.static': { bold: true }
-				}
-			});
-
-			assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff0000', { italic: true }) });
-			assertTokenStyles(themeData, { 'myTestSubInterface.static': ts('#ff0000', { italic: true, bold: true }) });
-
-			themeData.setCustomSemanticTokenColors({
-				enabled: true,
-				rules: {
-					'interface': '#ff0000',
-					'myTestInterface': { foreground: '#ff00ff', italic: true }
-				}
-			});
-			assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff00ff', { italic: true }) });
-		} finally {
+		store.add(toDisposable(() => {
 			registry.deregisterTokenType('myTestInterface');
 			registry.deregisterTokenType('myTestSubInterface');
-		}
+		}));
+		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+		themeData.setCustomColors({ 'editor.foreground': '#000000' });
+		themeData.setCustomSemanticTokenColors({
+			enabled: true,
+			rules: {
+				'interface': '#ff0000',
+				'myTestInterface': { italic: true },
+				'interface.static': { bold: true }
+			}
+		});
+
+		assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff0000', { italic: true }) });
+		assertTokenStyles(themeData, { 'myTestSubInterface.static': ts('#ff0000', { italic: true, bold: true }) });
+
+		themeData.setCustomSemanticTokenColors({
+			enabled: true,
+			rules: {
+				'interface': '#ff0000',
+				'myTestInterface': { foreground: '#ff00ff', italic: true }
+			}
+		});
+		assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff00ff', { italic: true }) });
 	});
 
 	test('language', async () => {

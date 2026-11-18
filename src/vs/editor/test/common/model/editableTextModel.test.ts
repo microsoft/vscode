@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { EndOfLinePreference, EndOfLineSequence } from '../../../common/model.js';
+import { MirrorTextModel } from '../../../common/model/mirrorTextModel.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { assertSyncedModels, testApplyEditsWithSyncedModels } from './editableTextModelTestUtils.js';
+import { createTextModel } from '../testTextModel.js';
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
 		const model = createTextModel(original.join('\n'));
@@ -60,6 +64,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
 		const model = createTextModel(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
@@ -101,6 +107,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicAS
 });
 
 suite('EditorModel - EditableTextModel.applyEdits', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
@@ -205,7 +213,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('Bug 19872: Undo is funky', () => {
+	test('Bug 19872: Undo is funky (2)', () => {
 		testApplyEditsWithSyncedModels(
 			[
 				'something',
@@ -981,7 +989,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('change while emitting events 1', () => {
-
+		let disposable!: IDisposable;
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
 				range: new Range(1, 6, 1, 6),
@@ -993,7 +1001,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			let isFirstTime = true;
-			model.onDidChangeContent(() => {
+			disposable = model.onDidChangeContent(() => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1006,10 +1014,11 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				}]);
 			});
 		});
+		disposable.dispose();
 	});
 
 	test('change while emitting events 2', () => {
-
+		let disposable!: IDisposable;
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
 				range: new Range(1, 6, 1, 6),
@@ -1021,7 +1030,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			let isFirstTime = true;
-			model.onDidChangeContent((e: IModelContentChangedEvent) => {
+			disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1034,6 +1043,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				}]);
 			});
 		});
+		disposable.dispose();
 	});
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
@@ -1043,7 +1053,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		const mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
-		model.onDidChangeContent((e: IModelContentChangedEvent) => {
+		const disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
 			const versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');
@@ -1060,6 +1070,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		model.setEOL(EndOfLineSequence.CRLF);
 		assertMirrorModels();
 
+		disposable.dispose();
 		model.dispose();
 		mirrorModel2.dispose();
 	});
@@ -1104,6 +1115,125 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		model.applyEdits(undoEdits);
 
 		assert.deepStrictEqual(model.getValue(), 'line1\nline2\nline3\n');
+
+		model.dispose();
+	});
+});
+
+suite('CRLF edit normalization', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('edit ending with \\r followed by \\n in buffer should strip trailing \\r', () => {
+		// Document: "abc\r\ndef\r\n"
+		// Edit: Replace range (1,1)-(1,4) "abc" with "xyz\r"
+		// The \r at end of replacement should be stripped since next char is \n
+		const model = createTextModel('abc\r\ndef\r\n');
+		model.setEOL(EndOfLineSequence.CRLF);
+
+		assert.strictEqual(model.getEOL(), '\r\n');
+		assert.strictEqual(model.getLineCount(), 3);
+		assert.strictEqual(model.getLineContent(1), 'abc');
+		assert.strictEqual(model.getLineContent(2), 'def');
+
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 4), text: 'xyz\r' }
+		]);
+
+		// The trailing \r should be stripped, so we get "xyz" not "xyz\r"
+		assert.strictEqual(model.getLineContent(1), 'xyz');
+		assert.strictEqual(model.getLineContent(2), 'def');
+		assert.strictEqual(model.getLineCount(), 3);
+
+		model.dispose();
+	});
+
+	test('edit ending with \\r\\n should NOT be modified', () => {
+		// Document: "abc\r\ndef\r\n"
+		// Edit: Replace range (1,1)-(1,4) "abc" with "xyz\r\n"
+		// This is a proper CRLF so should not be modified
+		const model = createTextModel('abc\r\ndef\r\n');
+		model.setEOL(EndOfLineSequence.CRLF);
+
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 4), text: 'xyz\r\n' }
+		]);
+
+		// Should add a new line
+		assert.strictEqual(model.getLineContent(1), 'xyz');
+		assert.strictEqual(model.getLineContent(2), '');
+		assert.strictEqual(model.getLineContent(3), 'def');
+		assert.strictEqual(model.getLineCount(), 4);
+
+		model.dispose();
+	});
+
+	test('edit ending with \\r NOT followed by \\n should NOT be modified', () => {
+		// Document: "abcdef" (no newline after)
+		// Edit: Replace range (1,1)-(1,4) "abc" with "xyz\r"
+		// Since there's no \n after the range, the \r should stay
+		const model = createTextModel('abcdef');
+		model.setEOL(EndOfLineSequence.CRLF);
+
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 4), text: 'xyz\r' }
+		]);
+
+		// The \r should cause a new line since buffer normalizes EOL
+		// Actually since buffer uses CRLF, the lone \r will be normalized to \r\n
+		assert.strictEqual(model.getLineCount(), 2);
+
+		model.dispose();
+	});
+
+	test('edit in LF buffer should NOT strip trailing \\r', () => {
+		// Document with LF: "abc\ndef\n"
+		// Edit: Replace range (1,1)-(1,4) "abc" with "xyz\r"
+		// Since buffer is LF, no special handling needed
+		const model = createTextModel('abc\ndef\n');
+		model.setEOL(EndOfLineSequence.LF);
+
+		assert.strictEqual(model.getEOL(), '\n');
+		assert.strictEqual(model.getLineCount(), 3);
+
+		model.applyEdits([
+			{ range: new Range(1, 1, 1, 4), text: 'xyz\r' }
+		]);
+
+		// The \r will be normalized to \n (buffer's EOL)
+		assert.strictEqual(model.getLineCount(), 4);
+
+		model.dispose();
+	});
+
+	test('LSP include sorting scenario - edit ending with \\r should be normalized', () => {
+		// This is the real-world scenario from the issue
+		// Document: "#include \"a.h\"\r\n#include \"c.h\"\r\n#include \"b.h\"\r\n"
+		// Edit: Replace lines 1-3 with reordered includes ending with \r
+		const model = createTextModel('#include "a.h"\r\n#include "c.h"\r\n#include "b.h"\r\n');
+		model.setEOL(EndOfLineSequence.CRLF);
+
+		assert.strictEqual(model.getEOL(), '\r\n');
+		assert.strictEqual(model.getLineCount(), 4);
+		assert.strictEqual(model.getLineContent(1), '#include "a.h"');
+		assert.strictEqual(model.getLineContent(2), '#include "c.h"');
+		assert.strictEqual(model.getLineContent(3), '#include "b.h"');
+
+		// Edit: replace range (1,1)-(3,16) with text ending in \r
+		// Range covers: #include "a.h"\r\n#include "c.h"\r\n#include "b.h"
+		// Note: line 3 col 16 is after the last char "h" but before the \r\n
+		model.applyEdits([
+			{
+				range: new Range(1, 1, 3, 16),
+				text: '#include "a.h"\r\n#include "b.h"\r\n#include "c.h"\r'
+			}
+		]);
+
+		// The trailing \r should be stripped because the next char after range is \n
+		assert.strictEqual(model.getLineCount(), 4);
+		assert.strictEqual(model.getLineContent(1), '#include "a.h"');
+		assert.strictEqual(model.getLineContent(2), '#include "b.h"');
+		assert.strictEqual(model.getLineContent(3), '#include "c.h"');
+		assert.strictEqual(model.getLineContent(4), '');
 
 		model.dispose();
 	});

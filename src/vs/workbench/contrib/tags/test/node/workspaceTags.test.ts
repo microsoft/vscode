@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as crypto from 'crypto';
-import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from '../../common/workspaceTags.js';
 
 function hash(value: string): string {
-	return crypto.createHash('sha1').update(value.toString()).digest('hex');
+	return crypto.createHash('sha256').update(value.toString()).digest('hex');
 }
 
 async function asyncHash(value: string): Promise<string> {
@@ -58,4 +59,6 @@ suite('Telemetry - WorkspaceTags', () => {
 	fetch = +refs/heads/*:refs/remotes/origin/*
 `;
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

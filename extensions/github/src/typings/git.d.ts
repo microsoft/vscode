@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult, Command } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command, SourceControlHistoryItem } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -78,6 +78,8 @@ export const enum Status {
 	UNTRACKED,
 	IGNORED,
 	INTENT_TO_ADD,
+	INTENT_TO_RENAME,
+	TYPE_CHANGED,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,
@@ -154,6 +156,10 @@ export interface FetchOptions {
 	all?: boolean;
 	prune?: boolean;
 	depth?: number;
+}
+
+export interface InitOptions {
+	defaultBranch?: string;
 }
 
 export interface BranchQuery {
@@ -270,12 +276,34 @@ export interface PushErrorHandler {
 
 export interface BranchProtection {
 	readonly remote: string;
-	readonly branches: string[];
+	readonly rules: BranchProtectionRule[];
+}
+
+export interface BranchProtectionRule {
+	readonly include?: string[];
+	readonly exclude?: string[];
 }
 
 export interface BranchProtectionProvider {
 	onDidChangeBranchProtection: Event<Uri>;
 	provideBranchProtection(): BranchProtection[];
+}
+
+export interface AvatarQueryCommit {
+	readonly hash: string;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
+}
+
+export interface AvatarQuery {
+	readonly commits: AvatarQueryCommit[];
+	readonly size: number;
+}
+
+export interface SourceControlHistoryItemDetailsProvider {
+	provideAvatar(repository: Repository, query: AvatarQuery): Promise<Map<string, string | undefined> | undefined>;
+	provideHoverCommands(repository: Repository): Promise<Command[] | undefined>;
+	provideMessageLinks(repository: Repository, message: string): Promise<string | undefined>;
 }
 
 export type APIState = 'uninitialized' | 'initialized';
@@ -296,7 +324,7 @@ export interface API {
 
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
-	init(root: Uri): Promise<Repository | null>;
+	init(root: Uri, options?: InitOptions): Promise<Repository | null>;
 	openRepository(root: Uri): Promise<Repository | null>
 
 	registerRemoteSourcePublisher(publisher: RemoteSourcePublisher): Disposable;
@@ -305,6 +333,7 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
+	registerSourceControlHistoryItemDetailsProvider(provider: SourceControlHistoryItemDetailsProvider): Disposable;
 }
 
 export interface GitExtension {

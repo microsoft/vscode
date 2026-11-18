@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange } from 'vs/editor/common/core/range';
-import { CommentThread, CommentThreadCollapsibleState } from 'vs/editor/common/languages';
-import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { CommentThread, CommentThreadCollapsibleState } from '../../../../editor/common/languages.js';
+import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { ICommentInfo, ICommentService } from './commentService.js';
 
 class CommentThreadRangeDecoration implements IModelDeltaDecoration {
 	private _decorationId: string | undefined;
@@ -32,31 +32,33 @@ export class CommentThreadRangeDecorator extends Disposable {
 	private static description = 'comment-thread-range-decorator';
 	private decorationOptions: ModelDecorationOptions;
 	private activeDecorationOptions: ModelDecorationOptions;
+	private lineEndDecorationOptions: ModelDecorationOptions;
+	private activeLineEndDecorationOptions: ModelDecorationOptions;
 	private decorationIds: string[] = [];
 	private activeDecorationIds: string[] = [];
 	private editor: ICodeEditor | undefined;
 	private threadCollapseStateListeners: IDisposable[] = [];
 	private currentThreadCollapseStateListener: IDisposable | undefined;
 
-	constructor(commentService: ICommentService) {
+	/**
+	 * @param fillsEditorWidth Whether the backgrounds of ranges that span several lines extend to the full width
+	 * of the editor, rather than ending with the code on each line.
+	 */
+	constructor(commentService: ICommentService, private readonly fillsEditorWidth: () => boolean = () => true) {
 		super();
-		const decorationOptions: IModelDecorationOptions = {
+		const createOptions = (className: string, shouldFillLineOnLineBreak: boolean) => ModelDecorationOptions.createDynamic({
 			description: CommentThreadRangeDecorator.description,
 			isWholeLine: false,
 			zIndex: 20,
-			className: 'comment-thread-range'
-		};
+			className,
+			shouldFillLineOnLineBreak
+		});
 
-		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
+		this.decorationOptions = createOptions('comment-thread-range', true);
+		this.activeDecorationOptions = createOptions('comment-thread-range-current', true);
+		this.lineEndDecorationOptions = createOptions('comment-thread-range', false);
+		this.activeLineEndDecorationOptions = createOptions('comment-thread-range-current', false);
 
-		const activeDecorationOptions: IModelDecorationOptions = {
-			description: CommentThreadRangeDecorator.description,
-			isWholeLine: false,
-			zIndex: 20,
-			className: 'comment-thread-range-current'
-		};
-
-		this.activeDecorationOptions = ModelDecorationOptions.createDynamic(activeDecorationOptions);
 		this._register(commentService.onDidChangeCurrentCommentThread(thread => {
 			this.updateCurrent(thread);
 		}));
@@ -80,7 +82,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 							this.updateCurrent(undefined);
 						}
 					});
-					newDecoration.push(new CommentThreadRangeDecoration(range, this.activeDecorationOptions));
+					newDecoration.push(new CommentThreadRangeDecoration(range, this.fillsEditorWidth() ? this.activeDecorationOptions : this.activeLineEndDecorationOptions));
 				}
 			}
 		}
@@ -99,6 +101,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 		this.editor = editor;
 
 		const commentThreadRangeDecorations: CommentThreadRangeDecoration[] = [];
+		const options = this.fillsEditorWidth() ? this.decorationOptions : this.lineEndDecorationOptions;
 		for (const info of commentInfos) {
 			info.threads.forEach(thread => {
 				if (thread.isDisposed) {
@@ -120,7 +123,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 					return;
 				}
 
-				commentThreadRangeDecorations.push(new CommentThreadRangeDecoration(range, this.decorationOptions));
+				commentThreadRangeDecorations.push(new CommentThreadRangeDecoration(range, options));
 			});
 		}
 

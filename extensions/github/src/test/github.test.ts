@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import { workspace, extensions, Uri, commands } from 'vscode';
-import { findPullRequestTemplates, pickPullRequestTemplate } from '../pushErrorHandler';
+import { findPullRequestTemplates, pickPullRequestTemplate } from '../pushErrorHandler.js';
 
 suite('github smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri;
@@ -39,11 +39,11 @@ suite('github smoke test', function () {
 	});
 
 	test('selecting non-default quick-pick item should correspond to a template', async () => {
-		const template0 = Uri.file("some-imaginary-template-0");
-		const template1 = Uri.file("some-imaginary-template-1");
+		const template0 = Uri.file('some-imaginary-template-0');
+		const template1 = Uri.file('some-imaginary-template-1');
 		const templates = [template0, template1];
 
-		const pick = pickPullRequestTemplate(Uri.file("/"), templates);
+		const pick = pickPullRequestTemplate(Uri.file('/'), templates);
 
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
@@ -53,9 +53,9 @@ suite('github smoke test', function () {
 	});
 
 	test('selecting first quick-pick item should return undefined', async () => {
-		const templates = [Uri.file("some-imaginary-file")];
+		const templates = [Uri.file('some-imaginary-file')];
 
-		const pick = pickPullRequestTemplate(Uri.file("/"), templates);
+		const pick = pickPullRequestTemplate(Uri.file('/'), templates);
 
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');

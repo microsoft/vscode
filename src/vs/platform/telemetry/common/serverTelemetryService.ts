@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
+import { IProductService } from '../../product/common/productService.js';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from './telemetry.js';
+import { ITelemetryServiceConfig, TelemetryService } from './telemetryService.js';
+import { NullTelemetryServiceShape } from './telemetryUtils.js';
 
 export interface IServerTelemetryService extends ITelemetryService {
 	updateInjectedTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;
@@ -28,6 +28,10 @@ export class ServerTelemetryService extends TelemetryService implements IServerT
 	) {
 		super(config, _configurationService, _productService);
 		this._injectedTelemetryLevel = injectedTelemetryLevel;
+	}
+
+	override get telemetryLevel(): TelemetryLevel {
+		return Math.min(super.telemetryLevel, this._injectedTelemetryLevel);
 	}
 
 	override publicLog(eventName: string, data?: ITelemetryData) {
@@ -58,7 +62,7 @@ export class ServerTelemetryService extends TelemetryService implements IServerT
 			throw new Error('Telemetry level cannot be undefined. This will cause infinite looping!');
 		}
 		// We always take the most restrictive level because we don't want multiple clients to connect and send data when one client does not consent
-		this._injectedTelemetryLevel = this._injectedTelemetryLevel ? Math.min(this._injectedTelemetryLevel, telemetryLevel) : telemetryLevel;
+		this._injectedTelemetryLevel = Math.min(this._injectedTelemetryLevel, telemetryLevel);
 		if (this._injectedTelemetryLevel === TelemetryLevel.NONE) {
 			this.dispose();
 		}

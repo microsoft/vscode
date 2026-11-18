@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as nls from '../../../../nls.js';
+import * as Objects from '../../../../base/common/objects.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 
-import { ProblemMatcherRegistry } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+import { ProblemMatcherRegistry } from './problemMatcher.js';
 
-import commonSchema from './jsonSchemaCommon';
+import commonSchema from './jsonSchemaCommon.js';
 
 const schema: IJSONSchema = {
 	oneOf: [
@@ -74,9 +74,13 @@ Object.getOwnPropertyNames(definitions).forEach(key => {
 	delete definitions[key];
 });
 
-function fixReferences(literal: any) {
+function fixReferences(literal: Record<string, unknown> | unknown[]) {
 	if (Array.isArray(literal)) {
-		literal.forEach(fixReferences);
+		literal.forEach(element => {
+			if (typeof element === 'object' && element !== null) {
+				fixReferences(element as Record<string, unknown>);
+			}
+		});
 	} else if (typeof literal === 'object') {
 		if (literal['$ref']) {
 			literal['$ref'] = literal['$ref'] + '1';
@@ -84,12 +88,12 @@ function fixReferences(literal: any) {
 		Object.getOwnPropertyNames(literal).forEach(property => {
 			const value = literal[property];
 			if (Array.isArray(value) || typeof value === 'object') {
-				fixReferences(value);
+				fixReferences(value as Record<string, unknown>);
 			}
 		});
 	}
 }
-fixReferences(schema);
+fixReferences(schema as unknown as Record<string, unknown>);
 
 ProblemMatcherRegistry.onReady().then(() => {
 	try {

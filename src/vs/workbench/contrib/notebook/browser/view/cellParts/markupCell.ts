@@ -3,37 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CellEditState, CellFocusMode, CellFoldingState, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
-import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
+import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { tokenizeToStringSync } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
+import { IReadonlyTextBuffer } from '../../../../../../editor/common/model.js';
+import { localize } from '../../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { CellEditState, CellFocusMode, CellFoldingState, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate, ICellViewModel } from '../../notebookBrowser.js';
+import { collapsedIcon, expandedIcon } from '../../notebookIcons.js';
+import { CellEditorOptions } from './cellEditorOptions.js';
+import { CellEditorOverflowWidgets } from './cellEditorOverflowWidgets.js';
+import { collapsedCellTTPolicy, MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
+import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
+import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 
 export class MarkupCell extends Disposable {
 
 	private editor: CodeEditorWidget | null = null;
+	private editorOverflowWidgets: CellEditorOverflowWidgets | undefined;
 
 	private markdownAccessibilityContainer!: HTMLElement;
 	private editorPart: HTMLElement;
@@ -44,6 +47,7 @@ export class MarkupCell extends Disposable {
 	private foldingState: CellFoldingState;
 	private cellEditorOptions: CellEditorOptions;
 	private editorOptions: IEditorOptions;
+	private _isDisposed: boolean = false;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -90,7 +94,6 @@ export class MarkupCell extends Disposable {
 			this.relayoutCell();
 		}
 
-		this.applyDecorations();
 		this.viewUpdate();
 
 		this.layoutCellParts();
@@ -174,9 +177,31 @@ export class MarkupCell extends Disposable {
 			}
 		}));
 
-		this._register(this.cellEditorOptions.onDidChange(() => {
-			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
-		}));
+		this._register(this.cellEditorOptions.onDidChange(() => this.updateMarkupCellOptions()));
+	}
+
+	private updateMarkupCellOptions(): void {
+		this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+		if (this.editor) {
+			this.editor.updateOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+			const cts = new CancellationTokenSource();
+			this._register({ dispose() { cts.dispose(true); } });
+			raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
+				if (this._isDisposed) {
+					return;
+				}
+
+				if (model) {
+					model.updateOptions({
+						indentSize: this.cellEditorOptions.indentSize,
+						tabSize: this.cellEditorOptions.tabSize,
+						insertSpaces: this.cellEditorOptions.insertSpaces,
+					});
+				}
+			});
+		}
 	}
 
 	private updateCollapsedState() {
@@ -199,32 +224,12 @@ export class MarkupCell extends Disposable {
 		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
 	}
 
-	private applyDecorations() {
-		// apply decorations
-		this._register(this.viewCell.onCellDecorationsChanged((e) => {
-			e.added.forEach(options => {
-				if (options.className) {
-					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
-				}
-			});
-
-			e.removed.forEach(options => {
-				if (options.className) {
-					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.className]);
-				}
-			});
-		}));
-
-		this.viewCell.getCellDecorations().forEach(options => {
-			if (options.className) {
-				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
-			}
-		});
-	}
-
 	override dispose() {
+		this._isDisposed = true;
+		this.editorOverflowWidgets?.setVisible(false);
+
 		// move focus back to the cell list otherwise the focus goes to body
-		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor && (this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) {
+		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor && (this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body)) {
 			this.notebookEditor.focusContainer();
 		}
 
@@ -233,7 +238,7 @@ export class MarkupCell extends Disposable {
 	}
 
 	private updateFoldingIconShowClass() {
-		const showFoldingIcon = this.notebookEditor.notebookOptions.getLayoutConfiguration().showFoldingControls;
+		const showFoldingIcon = this.notebookEditor.notebookOptions.getDisplayOptions().showFoldingControls;
 		this.templateData.foldingIndicator.classList.remove('mouseover', 'always');
 		this.templateData.foldingIndicator.classList.add(showFoldingIcon);
 	}
@@ -251,6 +256,7 @@ export class MarkupCell extends Disposable {
 	private viewUpdateCollapsed(): void {
 		DOM.show(this.templateData.cellInputCollapsedContainer);
 		DOM.hide(this.editorPart);
+		this.editorOverflowWidgets?.setVisible(false);
 
 		this.templateData.cellInputCollapsedContainer.innerText = '';
 
@@ -260,7 +266,8 @@ export class MarkupCell extends Disposable {
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
 		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
-		DOM.safeInnerHtml(element, richEditorText);
+		element.innerText = richEditorText;
+		element.innerHTML = (collapsedCellTTPolicy?.createHTML(richEditorText) ?? richEditorText) as string;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 
 		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
@@ -277,6 +284,7 @@ export class MarkupCell extends Disposable {
 		this.viewCell.renderedMarkdownHeight = 0;
 		this.viewCell.layoutChange({});
 	}
+
 
 	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
 		return tokenizeToStringSync(this.languageService, buffer.getLineContent(1), language);
@@ -319,21 +327,22 @@ export class MarkupCell extends Disposable {
 			this.templateData.editorContainer.innerText = '';
 
 			// create a special context key service that set the inCompositeEditor-contextkey
-			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
+			const editorContextKeyService = this.editorDisposables.add(this.contextKeyService.createScoped(this.templateData.editorPart));
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
-			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
-			this.editorDisposables.add(editorContextKeyService);
-
+			const editorInstaService = this.editorDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService])));
+			this.editorOverflowWidgets = this.editorDisposables.add(new CellEditorOverflowWidgets(this.notebookEditor.getOverflowContainerDomNode()));
 			this.editor = this.editorDisposables.add(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
 				...this.editorOptions,
+				overflowWidgetsDomNode: this.editorOverflowWidgets.domNode,
 				dimension: {
 					width: width,
 					height: editorHeight
 				},
-				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+				allowVariableLineHeights: false,
 			}, {
 				contributions: this.notebookEditor.creationOptions.cellEditorContributions
 			}));
+			this.editorOverflowWidgets.bindEditor(this.editor);
 			this.templateData.currentEditor = this.editor;
 			this.editorDisposables.add(this.editor.onDidBlurEditorWidget(() => {
 				if (this.editor) {
@@ -354,6 +363,11 @@ export class MarkupCell extends Disposable {
 				}
 
 				this.editor!.setModel(model);
+				model.updateOptions({
+					indentSize: this.cellEditorOptions.indentSize,
+					tabSize: this.cellEditorOptions.tabSize,
+					insertSpaces: this.cellEditorOptions.insertSpaces,
+				});
 
 				const realContentHeight = this.editor!.getContentHeight();
 				if (realContentHeight !== editorHeight) {
@@ -378,14 +392,16 @@ export class MarkupCell extends Disposable {
 			});
 		}
 
+		this.editorOverflowWidgets?.setVisible(true);
 		this.viewCell.editorHeight = editorHeight;
 		this.focusEditorIfNeeded();
-		this.renderedEditors.set(this.viewCell, this.editor!);
+		this.renderedEditors.set(this.viewCell, this.editor);
 	}
 
 	private viewUpdatePreview(): void {
 		this.viewCell.detachTextEditor();
 		DOM.hide(this.editorPart);
+		this.editorOverflowWidgets?.setVisible(false);
 		DOM.hide(this.templateData.cellInputCollapsedContainer);
 		this.markdownAccessibilityContainer.ariaHidden = 'false';
 		this.templateData.container.classList.toggle('input-collapsed', false);
@@ -396,7 +412,7 @@ export class MarkupCell extends Disposable {
 		this.markdownAccessibilityContainer.innerText = '';
 		if (this.viewCell.renderedHtml) {
 			if (this.accessibilityService.isScreenReaderOptimized()) {
-				DOM.safeInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
+				domSanitize.safeSetInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
 			} else {
 				DOM.clearNode(this.markdownAccessibilityContainer);
 			}
@@ -407,7 +423,7 @@ export class MarkupCell extends Disposable {
 
 	private focusEditorIfNeeded() {
 		if (this.viewCell.focusMode === CellFocusMode.Editor &&
-			(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)
+			(this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body)
 		) { // Don't steal focus from other workbench parts, but if body has focus, we can take it
 			if (!this.editor) {
 				return;
@@ -512,7 +528,7 @@ export class MarkupCell extends Disposable {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
-			if (document.activeElement?.contains(this.templateData.container)) {
+			if (this.templateData.container.ownerDocument.activeElement?.contains(this.templateData.container)) {
 				this.focusSwitchDisposable.value = disposableTimeout(() => updateFocusMode(), 300);
 			} else {
 				updateFocusMode();

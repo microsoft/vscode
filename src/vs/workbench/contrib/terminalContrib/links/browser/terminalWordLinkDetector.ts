@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { matchesScheme } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IBufferLine, Terminal } from 'xterm';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { matchesScheme } from '../../../../../base/common/network.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from './links.js';
+import { convertLinkRangeToBuffer, getXtermLineContent } from './terminalLinkHelpers.js';
+import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
+import type { IBufferLine, Terminal } from '@xterm/xterm';
 
 const enum Constants {
 	/**
@@ -27,7 +28,7 @@ interface Word {
 	text: string;
 }
 
-export class TerminalWordLinkDetector implements ITerminalLinkDetector {
+export class TerminalWordLinkDetector extends Disposable implements ITerminalLinkDetector {
 	static id = 'word';
 
 	// Word links typically search the workspace so it makes sense that their maximum link length is
@@ -41,12 +42,14 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IProductService private readonly _productService: IProductService,
 	) {
+		super();
+
 		this._refreshSeparatorCodes();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.WordSeparators)) {
 				this._refreshSeparatorCodes();
 			}
-		});
+		}));
 	}
 
 	detect(lines: IBufferLine[], startLine: number, endLine: number): ITerminalSimpleLink[] {
@@ -100,7 +103,8 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 			links.push({
 				text: word.text,
 				bufferRange,
-				type: TerminalBuiltinLinkType.Search
+				type: TerminalBuiltinLinkType.Search,
+				contextLine: text
 			});
 		}
 
@@ -124,6 +128,10 @@ export class TerminalWordLinkDetector implements ITerminalLinkDetector {
 
 	private _refreshSeparatorCodes(): void {
 		const separators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
-		this._separatorRegex = new RegExp(`[${escapeRegExpCharacters(separators)}]`, 'g');
+		let powerlineSymbols = '';
+		for (let i = 0xe0b0; i <= 0xe0bf; i++) {
+			powerlineSymbols += String.fromCharCode(i);
+		}
+		this._separatorRegex = new RegExp(`[${escapeRegExpCharacters(separators)}${powerlineSymbols}]`, 'g');
 	}
 }

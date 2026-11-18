@@ -1,0 +1,164 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { toAction } from '../../../../base/common/actions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { bindHasWorktreeAndRepositoryContextKey, hasWorktreeAndRepositoryContextKey } from '../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { URI } from '../../../../base/common/uri.js';
+import { SessionIsArchivedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+
+class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.contrib.applyChangesToParentRepo';
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
+	) {
+		super();
+
+		this._register(bindHasWorktreeAndRepositoryContextKey(contextKeyService, getFocusedSessionChatSource(focusedSessionHostService).session));
+	}
+}
+
+class ApplyChangesToParentRepoAction extends Action2 {
+	static readonly ID = 'chatEditing.applyChangesToParentRepo';
+
+	constructor() {
+		super({
+			id: ApplyChangesToParentRepoAction.ID,
+			title: localize2('applyChangesToParentRepo', 'Apply Changes to Parent Repository'),
+			icon: Codicon.desktopDownload,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(
+				IsSessionsWindowContext,
+				hasWorktreeAndRepositoryContextKey,
+			),
+			menu: [
+				{
+					id: MenuId.AgentsChangesPrimaryActionSubMenu,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.false(),
+						IsSessionsWindowContext,
+						hasWorktreeAndRepositoryContextKey
+					),
+				},
+			],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
+		const logService = accessor.get(ILogService);
+		const openerService = accessor.get(IOpenerService);
+		const productService = accessor.get(IProductService);
+
+		const activeSession = resolveSessionCommandTarget(accessor, [sessionArg])?.session;
+		const folder = activeSession?.workspace.get()?.folders[0];
+		if (!activeSession || !folder?.gitRepository?.workTreeUri) {
+			return;
+		}
+
+		const worktreeRoot = folder.gitRepository.workTreeUri;
+		const repoRoot = folder.root;
+
+		const openFolderAction = toAction({
+			id: 'applyChangesToParentRepo.openFolder',
+			label: localize('openInVSCode', "Open in VS Code"),
+			run: () => {
+				const scheme = productService.quality === 'stable'
+					? 'vscode'
+					: productService.quality === 'exploration'
+						? 'vscode-exploration'
+						: 'vscode-insiders';
+
+				const params = new URLSearchParams();
+				params.set('windowId', '_blank');
+				params.set('session', activeSession.resource.toString());
+
+				openerService.open(URI.from({
+					scheme,
+					authority: Schemas.file,
+					path: repoRoot.path,
+					query: params.toString(),
+				}), { openExternal: true });
+			}
+		});
+
+		try {
+			// Get the worktree branch name. Since the worktree and parent repo
+			// share the same git object store, the parent can directly reference
+			// this branch for a merge.
+			const worktreeBranch = await commandService.executeCommand<string>(
+				'_git.revParseAbbrevRef',
+				worktreeRoot.fsPath
+			);
+
+			if (!worktreeBranch) {
+				notificationService.notify({
+					severity: Severity.Warning,
+					message: localize('applyChangesNoBranch', "Could not determine worktree branch name."),
+				});
+				return;
+			}
+
+			// Merge the worktree branch into the parent repo.
+			// This is idempotent: if already merged, git says "Already up to date."
+			// If new commits exist, they're brought in. Handles partial applies naturally.
+			const result = await commandService.executeCommand('_git.mergeBranch', repoRoot.fsPath, worktreeBranch);
+			if (!result) {
+				logService.warn('[ApplyChangesToParentRepo] No result from merge command');
+			} else {
+				notificationService.notify({
+					severity: Severity.Info,
+					message: typeof result === 'string' && result.startsWith('Already up to date')
+						? localize('alreadyUpToDate', 'Parent repository is up to date with worktree.')
+						: localize('applyChangesSuccess', 'Applied changes to parent repository.'),
+					actions: { primary: [openFolderAction] }
+				});
+			}
+		} catch (err) {
+			logService.error('[ApplyChangesToParentRepo] Failed to apply changes', err);
+			notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('applyChangesConflict', "Failed to apply changes to parent repo. The parent repo may have diverged — resolve conflicts manually."),
+				actions: { primary: [openFolderAction] }
+			});
+		}
+	}
+}
+
+registerAction2(ApplyChangesToParentRepoAction);
+registerWorkbenchContribution2(ApplyChangesToParentRepoContribution.ID, ApplyChangesToParentRepoContribution, WorkbenchPhase.AfterRestored);
+
+// Register the apply submenu in the session changes toolbar
+MenuRegistry.appendMenuItem(MenuId.AgentsChangesToolbar, {
+	submenu: MenuId.AgentsChangesPrimaryActionSubMenu,
+	title: localize2('applyActions', 'Apply Actions'),
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		IsSessionsWindowContext,
+		SessionIsArchivedContext.isEqualTo(false))
+});

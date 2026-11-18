@@ -5,8 +5,9 @@
 
 import { getCSSLanguageService } from 'vscode-css-languageservice';
 import {
-	DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, ClientCapabilities
+	DocumentContext, IHTMLDataProvider, ClientCapabilities as HtmlClientCapabilities, getLanguageService as getHTMLLanguageService, ClientCapabilities, TokenType
 } from 'vscode-html-languageservice';
+
 import {
 	SelectionRange,
 	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
@@ -14,27 +15,28 @@ import {
 	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
 	WorkspaceFolder
 } from 'vscode-languageserver';
-import { TextDocument } from 'vscode-languageserver-textdocument';
+import { DocumentUri, TextDocument } from 'vscode-languageserver-textdocument';
 
-import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
-import { getCSSMode } from './cssMode';
-import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
-import { getHTMLMode } from './htmlMode';
-import { getJavaScriptMode } from './javascriptMode';
-import { FileSystemProvider } from '../requests';
+import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache.js';
+import { getCSSMode } from './cssMode.js';
+import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport.js';
+import { getHTMLMode } from './htmlMode.js';
+import { getJavaScriptMode } from './javascriptMode.js';
+import { FileSystemProvider } from '../requests.js';
 
 export {
-	WorkspaceFolder, CompletionItem, CompletionList, CompletionItemKind, Definition, Diagnostic, DocumentHighlight, DocumentHighlightKind,
+	WorkspaceFolder, CompletionItem, CompletionList, CompletionItemKind, type Definition, Diagnostic, DocumentHighlight, DocumentHighlightKind,
 	DocumentLink, FoldingRange, FoldingRangeKind, FormattingOptions,
-	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, SymbolKind, TextEdit,
+	Hover, Location, Position, Range, type SignatureHelp, SymbolInformation, SymbolKind, TextEdit,
 	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
 	SignatureInformation, ParameterInformation, DiagnosticSeverity,
 	SelectionRange, TextDocumentIdentifier
 } from 'vscode-languageserver';
 
-export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration, TokenType } from 'vscode-html-languageservice';
+export type { DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration } from 'vscode-html-languageservice';
+export { ClientCapabilities, TokenType };
 
-export { TextDocument } from 'vscode-languageserver-textdocument';
+export { TextDocument, type DocumentUri } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
 	readonly css?: any;
@@ -89,6 +91,7 @@ export interface LanguageMode {
 	onDocumentRemoved(document: TextDocument): void;
 	getSemanticTokens?(document: TextDocument): Promise<SemanticTokenData[]>;
 	getSemanticTokenLegend?(): { types: string[]; modifiers: string[] };
+	getTextDocumentContent?(uri: DocumentUri): Promise<string | undefined>;
 	dispose(): void;
 }
 
@@ -108,7 +111,9 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: FileSystemProvider): LanguageModes {
+export const FILE_PROTOCOL = 'html-server';
+
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean }, workspace: Workspace, clientCapabilities: HtmlClientCapabilities, requestService: FileSystemProvider): LanguageModes {
 	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 
@@ -118,13 +123,13 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	modelCaches.push(documentRegions);
 
 	let modes = Object.create(null);
-	modes['html'] = getHTMLMode(htmlLanguageService, workspace);
-	if (supportedLanguages['css']) {
-		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
+	modes.html = getHTMLMode(htmlLanguageService, workspace);
+	if (supportedLanguages.css) {
+		modes.css = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
-	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace);
-		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
+	if (supportedLanguages.javascript) {
+		modes.javascript = getJavaScriptMode(documentRegions, 'javascript', workspace);
+		modes.typescript = getJavaScriptMode(documentRegions, 'typescript', workspace);
 	}
 	return {
 		async updateDataProviders(dataProviders: IHTMLDataProvider[]): Promise<void> {
@@ -138,8 +143,8 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			return undefined;
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
-			return documentRegions.get(document).getLanguageRanges(range).map(r => {
-				return <LanguageModeRange>{
+			return documentRegions.get(document).getLanguageRanges(range).map((r): LanguageModeRange => {
+				return {
 					start: r.start,
 					end: r.end,
 					mode: r.languageId && modes[r.languageId],

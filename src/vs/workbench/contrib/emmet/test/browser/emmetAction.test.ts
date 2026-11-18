@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IGrammarContributions, EmmetEditorAction } from 'vs/workbench/contrib/emmet/browser/emmetActions';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IGrammarContributions, EmmetEditorAction } from '../../browser/emmetActions.js';
+import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 class MockGrammarContributions implements IGrammarContributions {
 	private scopeName: string;
@@ -22,7 +23,6 @@ class MockGrammarContributions implements IGrammarContributions {
 }
 
 suite('Emmet', () => {
-
 	test('Get language mode and parent mode for emmet', () => {
 		withTestCodeEditor([], {}, (editor, viewModel, instantiationService) => {
 			const languageService = instantiationService.get(ILanguageService);
@@ -63,4 +63,6 @@ suite('Emmet', () => {
 
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { memoize, throttle } from 'vs/base/common/decorators';
+import { memoize, throttle } from '../../common/decorators.js';
+import { toDisposable } from '../../common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Decorators', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('memoize should memoize methods', () => {
 		class Foo {
 			count = 0;
@@ -124,6 +128,7 @@ suite('Decorators', () => {
 		assert.strictEqual(foo.answer, 42);
 
 		try {
+			// eslint-disable-next-line local/code-no-any-casts
 			(foo as any)['$memoize$answer'] = 1337;
 			assert(false);
 		} catch (e) {
@@ -134,45 +139,42 @@ suite('Decorators', () => {
 	test('throttle', () => {
 		const spy = sinon.spy();
 		const clock = sinon.useFakeTimers();
-		try {
-			class ThrottleTest {
-				private _handle: Function;
+		store.add(toDisposable(() => clock.restore()));
+		class ThrottleTest {
+			private _handle: Function;
 
-				constructor(fn: Function) {
-					this._handle = fn;
-				}
-
-				@throttle(
-					100,
-					(a: number, b: number) => a + b,
-					() => 0
-				)
-				report(p: number): void {
-					this._handle(p);
-				}
+			constructor(fn: Function) {
+				this._handle = fn;
 			}
 
-			const t = new ThrottleTest(spy);
-
-			t.report(1);
-			t.report(2);
-			t.report(3);
-			assert.deepStrictEqual(spy.args, [[1]]);
-
-			clock.tick(200);
-			assert.deepStrictEqual(spy.args, [[1], [5]]);
-			spy.resetHistory();
-
-			t.report(4);
-			t.report(5);
-			clock.tick(50);
-			t.report(6);
-
-			assert.deepStrictEqual(spy.args, [[4]]);
-			clock.tick(60);
-			assert.deepStrictEqual(spy.args, [[4], [11]]);
-		} finally {
-			clock.restore();
+			@throttle(
+				100,
+				(a: number, b: number) => a + b,
+				() => 0
+			)
+			report(p: number): void {
+				this._handle(p);
+			}
 		}
+
+		const t = new ThrottleTest(spy);
+
+		t.report(1);
+		t.report(2);
+		t.report(3);
+		assert.deepStrictEqual(spy.args, [[1]]);
+
+		clock.tick(200);
+		assert.deepStrictEqual(spy.args, [[1], [5]]);
+		spy.resetHistory();
+
+		t.report(4);
+		t.report(5);
+		clock.tick(50);
+		t.report(6);
+
+		assert.deepStrictEqual(spy.args, [[4]]);
+		clock.tick(60);
+		assert.deepStrictEqual(spy.args, [[4], [11]]);
 	});
 });

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOMPurify from 'dompurify';
+import DOMPurify, { type Config as DOMPurifyConfig } from 'dompurify';
 import MarkdownIt from 'markdown-it';
-import type * as MarkdownItToken from 'markdown-it/lib/token';
+import type Token from 'markdown-it/lib/token.mjs';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
 const allowedHtmlTags = Object.freeze(['a',
@@ -122,7 +122,7 @@ const allowedSvgTags = Object.freeze([
 	'vkern',
 ]);
 
-const sanitizerOptions: DOMPurify.Config = {
+const sanitizerOptions: DOMPurifyConfig = {
 	ALLOWED_TAGS: [
 		...allowedHtmlTags,
 		...allowedSvgTags,
@@ -135,9 +135,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		linkify: true,
 		highlight: (str: string, lang?: string) => {
 			if (lang) {
-				return `<code class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</code>`;
+				return `<div class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</div>`;
 			}
-			return `<code>${markdownIt.utils.escapeHtml(str)}</code>`;
+			return markdownIt.utils.escapeHtml(str);
 		}
 	});
 	markdownIt.linkify.set({ fuzzyLink: false });
@@ -281,6 +281,16 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		pre code {
 			line-height: 1.357em;
 			white-space: pre-wrap;
+			padding: 0;
+		}
+
+		li p {
+			margin-bottom: 0.7em;
+		}
+
+		ul,
+		ol {
+			margin-bottom: 0.7em;
 		}
 	`;
 	const template = document.createElement('template');
@@ -332,18 +342,22 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
-			f(markdownIt);
+			try {
+				f(markdownIt);
+			} catch (err) {
+				console.error('Error extending markdown-it', err);
+			}
 		}
 	};
 };
 
 
-function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
+function addNamedHeaderRendering(md: MarkdownIt): void {
 	const slugCounter = new Map<string, number>();
 
 	const originalHeaderOpen = md.renderer.rules.heading_open;
-	md.renderer.rules.heading_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
-		const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
+	md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
+		const title = tokens[idx + 1].children!.reduce<string>((acc: string, t: Token) => acc + t.content, '');
 		let slug = slugify(title);
 
 		if (slugCounter.has(slug)) {
@@ -364,16 +378,16 @@ function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	};
 
 	const originalRender = md.render;
-	md.render = function () {
+	md.render = function (str: string, env?: unknown) {
 		slugCounter.clear();
-		return originalRender.apply(this, arguments as any);
+		return originalRender.call(this, str, env);
 	};
 }
 
 function addLinkRenderer(md: MarkdownIt): void {
 	const original = md.renderer.rules.link_open;
 
-	md.renderer.rules.link_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
+	md.renderer.rules.link_open = (tokens: Token[], idx: number, options, env, self) => {
 		const token = tokens[idx];
 		const href = token.attrGet('href');
 		if (typeof href === 'string' && href.startsWith('#')) {
@@ -392,8 +406,7 @@ function slugify(text: string): string {
 		text.trim()
 			.toLowerCase()
 			.replace(/\s+/g, '-') // Replace whitespace with -
-			// allow-any-unicode-next-line
-			.replace(/[\]\[\!\/\'\"\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
+			.replace(/[\]\[\!\/\'\"\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\{\|\}\~\`\u3002\uff0c\u3001\uff1b\uff1a\uff1f\uff01\u2026\u2014\u00b7\u02c9\u00a8\u2018\u2019\u201c\u201d\u3005\uff5e\u2016\u2236\uff02\uff07\uff40\uff5c\u3003\u3014\u3015\u3008\u3009\u300a\u300b\u300c\u300d\u300e\u300f\uff0e\u3016\u3017\u3010\u3011\uff08\uff09\uff3b\uff3d\uff5b\uff5d]/g, '') // Remove known punctuators
 			.replace(/^\-+/, '') // Remove leading -
 			.replace(/\-+$/, '') // Remove trailing -
 	);

@@ -1,0 +1,639 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isElectron } from '../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize } from '../../../../../nls.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
+import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
+import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
+import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
+import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES } from '../../common/model/chatModel.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { IChatWidget } from '../chat.js';
+import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
+import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
+import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { IChatSessionsService, isAgentHostTarget } from '../../common/chatSessionsService.js';
+import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
+import { IGitService } from '../../../git/common/gitService.js';
+import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+
+const OPEN_GITHUB_ISSUE_COMMAND = 'github.copilot.chat.cloudSessions.openIssue';
+const OPEN_GITHUB_PULL_REQUEST_COMMAND = 'github.copilot.chat.cloudSessions.openPullRequest';
+
+interface IGitHubContextSelection {
+	readonly repoId: string;
+	readonly url: string;
+	readonly label: string;
+}
+
+interface IGitHubRepositoryPick extends IQuickPickItem {
+	readonly repoId?: string;
+	readonly folderUri?: URI;
+}
+
+/**
+ * Command ID that extensions can call to enable debug tools for the current
+ * chat session. Sets the context key and immediately flushes tool updates so
+ * that newly-enabled tools are visible on the next `vscode.lm.tools` read.
+ */
+export const EnableChatDebugToolsCommandId = 'chat.enableDebugTools';
+
+export function shouldShowOpenEditorsContext(widget: Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>, hasEligibleOpenEditors: boolean): boolean {
+	if (!hasEligibleOpenEditors) {
+		return false;
+	}
+
+	const sessionResource = widget.viewModel?.sessionResource;
+	if (sessionResource && isAgentHostTarget(getChatSessionType(sessionResource))) {
+		return false;
+	}
+
+	if (widget.lockedAgentId && isAgentHostTarget(widget.lockedAgentId)) {
+		return false;
+	}
+
+	return true;
+}
+
+export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.contextContributions';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatContextPickService contextPickService: IChatContextPickService,
+	) {
+		super();
+
+		// ###############################################################################################
+		//
+		// Default context picks/values which are "native" to chat. This is NOT the complete list
+		// and feature area specific context, like for notebooks, problems, etc, should be contributed
+		// by the feature area.
+		//
+		// ###############################################################################################
+
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ToolsContextPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(new AgentContextValuePick()));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
+	}
+}
+
+export class AgentContextValuePick implements IChatContextValueItem {
+	readonly type = 'valuePick';
+	readonly label = localize('chatContext.agent', "Agent...");
+	readonly icon = Codicon.agent;
+	readonly ordinal = 1000;
+
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.inputPart.isAgentPickerInAttachContextMenu;
+	}
+
+	async asAttachment(widget: IChatWidget): Promise<undefined> {
+		widget.inputPart.openModePicker(widget.inputPart.attachContextButtonElement ?? widget.inputPart.inputToolbarElement);
+		return undefined;
+	}
+}
+
+export class FileContextValuePick implements IChatContextValueItem {
+	readonly type = 'valuePick';
+	readonly label = localize('chatContext.files', "Files...");
+	readonly icon = Codicon.file;
+	readonly ordinal = 900;
+
+	constructor(
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IChatAttachmentResolveService private readonly attachmentResolveService: IChatAttachmentResolveService,
+		@INotificationService private readonly notificationService: INotificationService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		return !!(widget.attachmentCapabilities.supportsFileAttachments || widget.attachmentCapabilities.supportsImageAttachments);
+	}
+
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry[] | undefined> {
+		try {
+			const resources = await this.fileDialogService.showOpenDialog({
+				title: localize('chatContext.attachFiles.title', "Attach Files"),
+				openLabel: localize('chatContext.attachFiles.openLabel', "Attach"),
+				canSelectFiles: true,
+				canSelectFolders: false,
+				canSelectMany: true,
+				...(!widget.attachmentCapabilities.supportsFileAttachments ? {
+					filters: [{ name: localize('chatContext.attachFiles.images', "Images"), extensions: Object.keys(CHAT_ATTACHABLE_IMAGE_MIME_TYPES) }],
+				} : {}),
+			});
+			if (!resources?.length) {
+				return undefined;
+			}
+			if (!this.isEnabled(widget)) {
+				this.notificationService.warn(localize('chatContext.attachFiles.unsupported', "File and image attachments are not supported in this chat."));
+				return undefined;
+			}
+
+			const attachments: IChatRequestVariableEntry[] = [];
+			for (const resource of resources) {
+				try {
+					const attachment = await this.attachmentResolveService.resolveEditorAttachContext({ resource });
+					if (!attachment) {
+						this.notificationService.warn(localize('chatContext.attachFiles.unresolved', "Could not attach {0}.", basename(resource)));
+						continue;
+					}
+					if (attachment.kind === 'image' && !widget.attachmentCapabilities.supportsImageAttachments) {
+						this.notificationService.warn(localize('chatContext.attachFiles.imageUnsupported', "Could not attach {0}. Image attachments are not supported in this chat.", basename(resource)));
+						continue;
+					}
+					if (attachment.kind !== 'image' && !widget.attachmentCapabilities.supportsFileAttachments) {
+						this.notificationService.warn(localize('chatContext.attachFiles.fileUnsupported', "Could not attach {0}. File attachments are not supported in this chat.", basename(resource)));
+						continue;
+					}
+					attachments.push(attachment);
+				} catch (error) {
+					this.notificationService.error(localize('chatContext.attachFiles.failed', "Could not attach {0}: {1}", basename(resource), toErrorMessage(error)));
+				}
+			}
+			return attachments;
+		} catch (error) {
+			this.notificationService.error(localize('chatContext.attachFiles.dialogFailed', "Could not open the file dialog: {0}", toErrorMessage(error)));
+			return undefined;
+		} finally {
+			widget.focusInput();
+		}
+	}
+}
+
+export class GitHubContextValuePick implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly ordinal = -450;
+
+	private readonly _commandId: string;
+
+	constructor(
+		kind: 'issue' | 'pullRequest',
+		@IGitService private readonly gitService: IGitService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+	) {
+		if (kind === 'issue') {
+			this.label = localize('chatContext.githubIssue', "Issue...");
+			this.icon = Codicon.issues;
+			this._commandId = OPEN_GITHUB_ISSUE_COMMAND;
+		} else {
+			this.label = localize('chatContext.githubPullRequest', "Pull Request...");
+			this.icon = Codicon.gitPullRequest;
+			this._commandId = OPEN_GITHUB_PULL_REQUEST_COMMAND;
+		}
+	}
+
+	isEnabled(): boolean {
+		return true;
+	}
+
+	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
+		const repositories = await this.getRepositoryPicks();
+		let repository: IGitHubRepositoryPick | undefined;
+
+		if (repositories.length === 1) {
+			repository = repositories[0];
+		} else if (repositories.length > 1) {
+			repository = await this.pickRepository(repositories);
+		}
+
+		if (repositories.length > 1 && !repository) {
+			return undefined;
+		}
+
+		const repositoryArgument = repository?.repoId ?? this.getRepositoryId(repository?.folderUri) ?? repository?.folderUri;
+		const selection = await this.commandService.executeCommand<IGitHubContextSelection | undefined>(this._commandId, repositoryArgument);
+		if (!selection) {
+			return undefined;
+		}
+
+		const resource = URI.parse(selection.url);
+		return {
+			kind: 'generic',
+			id: selection.url,
+			fullName: selection.label,
+			name: selection.label,
+			value: resource,
+			icon: this.icon,
+			references: [{ reference: resource, kind: 'reference' }],
+		};
+	}
+
+	protected async pickRepository(repositories: readonly IGitHubRepositoryPick[]): Promise<IGitHubRepositoryPick | undefined> {
+		return this.quickInputService.pick<IGitHubRepositoryPick>(
+			[...repositories],
+			{
+				canPickMany: false,
+				placeHolder: localize('chatContext.githubRepository.placeholder', "Select a repository"),
+			}
+		);
+	}
+
+	private async getRepositoryPicks(): Promise<readonly IGitHubRepositoryPick[]> {
+		const knownRepositories = Array.from(this.gitService.repositories);
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		if (workspaceFolders.length > 1) {
+			return workspaceFolders.map((folder): IGitHubRepositoryPick => {
+				const repository = knownRepositories.find(repository =>
+					isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folder.uri)
+				);
+				const info = repository && getGitHubRemoteInfo(repository.state.get());
+				return info ? {
+					label: folder.name,
+					description: `${info.owner}/${info.repo}`,
+					repoId: `${info.owner}/${info.repo}`,
+					folderUri: folder.uri,
+				} : {
+					label: folder.name,
+					folderUri: folder.uri,
+				};
+			});
+		}
+
+		const repositoryIds = new Set<string>();
+		for (const repository of knownRepositories) {
+			if (!repository) {
+				continue;
+			}
+			const info = getGitHubRemoteInfo(repository.state.get());
+			if (info) {
+				repositoryIds.add(`${info.owner}/${info.repo}`);
+			}
+		}
+		return Array.from(repositoryIds)
+			.sort()
+			.map(repoId => ({ label: repoId, repoId }));
+	}
+
+	private getRepositoryId(folderUri: URI | undefined): string | undefined {
+		if (!folderUri) {
+			return undefined;
+		}
+		const repository = Array.from(this.gitService.repositories).find(repository =>
+			isEqual(this.workspaceContextService.getWorkspaceFolder(repository.rootUri)?.uri, folderUri)
+		);
+		const info = repository && getGitHubRemoteInfo(repository.state.get());
+		return info ? `${info.owner}/${info.repo}` : undefined;
+	}
+}
+
+class ToolsContextPickerPick implements IChatContextPickerItem {
+
+	readonly type = 'pickerPick';
+	readonly label: string = localize('chatContext.tools', 'Tools...');
+	readonly icon: ThemeIcon = Codicon.tools;
+	readonly ordinal = -500;
+
+	isEnabled(widget: IChatWidget): boolean {
+		return !!widget.attachmentCapabilities.supportsToolAttachments;
+	}
+
+	asPicker(widget: IChatWidget): IChatContextPicker {
+
+		type Pick = IChatContextPickerPickItem & { toolInfo: { ordinal: number; label: string } };
+		const items: Pick[] = [];
+
+		for (const [entry, enabled] of widget.input.selectedToolsModel.entriesMap.get()) {
+			if (enabled) {
+				if (isToolSet(entry)) {
+					items.push({
+						toolInfo: ToolDataSource.classify(entry.source),
+						label: entry.referenceName,
+						description: entry.description,
+						asAttachment: (): IChatRequestToolSetEntry => toToolSetVariableEntry(entry)
+					});
+				} else {
+					items.push({
+						toolInfo: ToolDataSource.classify(entry.source),
+						label: entry.toolReferenceName ?? entry.displayName,
+						description: entry.userDescription ?? entry.modelDescription,
+						asAttachment: (): IChatRequestToolEntry => toToolVariableEntry(entry)
+					});
+				}
+			}
+		}
+
+		items.sort((a, b) => {
+			let res = a.toolInfo.ordinal - b.toolInfo.ordinal;
+			if (res === 0) {
+				res = a.toolInfo.label.localeCompare(b.toolInfo.label);
+			}
+			if (res === 0) {
+				res = a.label.localeCompare(b.label);
+			}
+			return res;
+		});
+
+		let lastGroupLabel: string | undefined;
+		const picks: (IQuickPickSeparator | Pick)[] = [];
+
+		for (const item of items) {
+			if (lastGroupLabel !== item.toolInfo.label) {
+				picks.push({ type: 'separator', label: item.toolInfo.label });
+				lastGroupLabel = item.toolInfo.label;
+			}
+			picks.push(item);
+		}
+
+		return {
+			placeholder: localize('chatContext.tools.placeholder', 'Select a tool'),
+			picks: Promise.resolve(picks)
+		};
+	}
+
+
+}
+
+
+
+class OpenEditorContextValuePick implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly label: string = localize('chatContext.editors', 'Open Editors');
+	readonly icon: ThemeIcon = Codicon.file;
+	readonly ordinal = 800;
+
+	constructor(
+		@IEditorService private _editorService: IEditorService,
+		@ILabelService private _labelService: ILabelService,
+	) { }
+
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
+		const hasEligibleOpenEditors = this._editorService.editors.some(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput);
+		return shouldShowOpenEditorsContext(widget, hasEligibleOpenEditors);
+	}
+
+	async asAttachment(): Promise<IChatRequestVariableEntry[]> {
+		const result: IChatRequestVariableEntry[] = [];
+		for (const editor of this._editorService.editors) {
+			if (!(editor instanceof FileEditorInput || editor instanceof DiffEditorInput || editor instanceof UntitledTextEditorInput || editor instanceof NotebookEditorInput)) {
+				continue;
+			}
+			const uri = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			if (!uri) {
+				continue;
+			}
+			result.push({
+				kind: 'file',
+				id: uri.toString(),
+				value: uri,
+				name: this._labelService.getUriBasenameLabel(uri),
+			});
+		}
+		return result;
+	}
+
+}
+
+
+export class ClipboardImageContextValuePick implements IChatContextValueItem {
+	readonly type = 'valuePick';
+	readonly label = localize('imageFromClipboard', 'Image from Clipboard');
+	readonly icon = Codicon.fileMedia;
+
+	constructor(
+		private readonly readImageOnEnable: boolean,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@INotificationService private readonly _notificationService: INotificationService,
+	) { }
+
+	async isEnabled(widget: IChatWidget) {
+		if (!widget.attachmentCapabilities.supportsImageAttachments) {
+			return false;
+		}
+		if (!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision) {
+			return false;
+		}
+		if (!this.readImageOnEnable) {
+			return true;
+		}
+		const imageData = await this._clipboardService.readImage();
+		return isImage(imageData);
+	}
+
+	async asAttachment(): Promise<IImageVariableEntry | undefined> {
+		const fileBuffer = await this._clipboardService.readImage();
+		if (!isImage(fileBuffer)) {
+			this._notificationService.warn(localize('clipboardHasNoImage', "The clipboard does not contain an image."));
+			return undefined;
+		}
+		return {
+			id: await imageToHash(fileBuffer),
+			name: localize('pastedImage', 'Pasted Image'),
+			fullName: localize('pastedImage', 'Pasted Image'),
+			value: fileBuffer,
+			kind: 'image',
+		};
+	}
+}
+
+export class TerminalContext implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly icon = Codicon.terminal;
+	readonly label = localize('terminal', 'Terminal');
+	constructor(private readonly _resource: URI, @ITerminalService private readonly _terminalService: ITerminalService) {
+
+	}
+	isEnabled(widget: IChatWidget) {
+		const terminal = this._terminalService.getInstanceFromResource(this._resource);
+		return !!widget.attachmentCapabilities.supportsTerminalAttachments && terminal?.isDisposed === false;
+	}
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
+		const terminal = this._terminalService.getInstanceFromResource(this._resource);
+		if (!terminal) {
+			return;
+		}
+		const params = new URLSearchParams(this._resource.query);
+		const command = terminal.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(cmd => cmd.id === params.get('command'));
+		if (!command) {
+			return;
+		}
+		const attachment: IChatRequestVariableEntry = {
+			kind: 'terminalCommand',
+			id: `terminalCommand:${Date.now()}}`,
+			value: this.asValue(command),
+			name: command.command,
+			command: command.command,
+			output: command.getOutput(),
+			exitCode: command.exitCode,
+			resource: this._resource
+		};
+		const cleanup = new DisposableStore();
+		let disposed = false;
+		const disposeCleanup = () => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			cleanup.dispose();
+		};
+		cleanup.add(widget.attachmentModel.onDidChange(e => {
+			if (e.deleted.includes(attachment.id)) {
+				disposeCleanup();
+			}
+		}));
+		cleanup.add(terminal.onDisposed(() => {
+			widget.attachmentModel.delete(attachment.id);
+			widget.refreshParsedInput();
+			disposeCleanup();
+		}));
+		return attachment;
+	}
+
+	private asValue(command: ITerminalCommand): string {
+		let value = `Command: ${command.command}`;
+		const output = command.getOutput();
+		if (output) {
+			value += `\nOutput:\n${output}`;
+		}
+		if (typeof command.exitCode === 'number') {
+			value += `\nExit Code: ${command.exitCode}`;
+		}
+		return value;
+	}
+}
+
+export class ScreenshotContextValuePick implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly icon = Codicon.deviceCamera;
+	readonly label = (isElectron
+		? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
+		: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot'));
+
+	constructor(
+		@IHostService private readonly _hostService: IHostService,
+	) { }
+
+	async isEnabled(widget: IChatWidget) {
+		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision;
+	}
+
+	async asAttachment(_widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
+		const blob = await this._hostService.getScreenshot();
+		return blob && convertBufferToScreenshotVariable(blob);
+	}
+}
+
+export class BrowserScreenshotContextContribution extends Disposable {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatContextPickService contextPickService: IChatContextPickService,
+	) {
+		super();
+		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
+	}
+}
+
+class SessionReferenceContextPickerPick implements IChatContextPickerItem {
+
+	readonly type = 'pickerPick';
+	readonly icon = Codicon.comment;
+	readonly label = localize('chatContext.sessions', 'Sessions...');
+	readonly ordinal = -400;
+
+	constructor(
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.location === ChatAgentLocation.Chat;
+	}
+
+	asPicker(widget: IChatWidget): IChatContextPicker {
+		const currentSessionResource = widget.viewModel?.sessionResource;
+		const onlyShowAttachableCopilotCliSessions = !!currentSessionResource && isAgentHostTarget(getChatSessionType(currentSessionResource));
+		return {
+			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
+			picks: (async () => {
+				const picks: { pick: IChatContextPickerPickItem; lastActivity: number }[] = [];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
+				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
+					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
+					for (const item of group.items) {
+						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
+							continue;
+						}
+						const sessionResource = item.resource;
+						if (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource)) {
+							continue;
+						}
+						const icon = item.iconPath ?? providerIcon;
+						const lastActivity = item.timing.lastRequestEnded ?? item.timing.created;
+						picks.push({
+							lastActivity,
+							pick: {
+								label: item.label,
+								description: new Date(lastActivity).toLocaleString(),
+								asAttachment: (): IChatRequestVariableEntry => ({
+									kind: 'sessionReference',
+									id: sessionResource.toString(),
+									name: item.label,
+									value: sessionResource,
+									icon,
+								})
+							}
+						});
+					}
+				}
+				picks.sort((a, b) => b.lastActivity - a.lastActivity);
+				return picks.map(({ pick }) => pick);
+			})()
+		};
+	}
+
+	private _canAttachCopilotCliSession(sessionResource: URI): boolean {
+		// For now, attachments while in an Agent Host Copilot harness are attachable when backed by Copilot CLI events.jsonl.
+		return !!buildHostLocalEventsPath(
+			sessionResource,
+			this._copilotHomeService.home,
+			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
+		);
+	}
+}

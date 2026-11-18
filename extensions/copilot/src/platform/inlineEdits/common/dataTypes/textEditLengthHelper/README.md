@@ -1,0 +1,1 @@
+These sources are copied from the VS Code bracket pair colorization feature.

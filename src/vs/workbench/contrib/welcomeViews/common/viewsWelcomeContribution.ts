@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewsWelcomeExtensionPoint, ViewWelcome, ViewIdentifierMap } from './viewsWelcomeExtensionPoint';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ViewContainerExtensions, IViewContentDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import * as nls from '../../../../nls.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IExtensionPoint, IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
+import { ViewsWelcomeExtensionPoint, ViewWelcome, ViewIdentifierMap } from './viewsWelcomeExtensionPoint.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as ViewContainerExtensions, IViewContentDescriptor, IViewsRegistry } from '../../../common/views.js';
+import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IListStyles, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
-import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./selectBox';
+import { Event } from '../../../common/event.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { isMacintosh } from '../../../common/platform.js';
+import { MarkdownActionHandler } from '../../markdownRenderer.js';
+import { AnchorPosition, IContextViewProvider } from '../contextview/contextview.js';
+import { IListStyles, unthemedListStyles } from '../list/listWidget.js';
+import { Widget } from '../widget.js';
+import './selectBox.css';
+import { SelectBoxList } from './selectBoxCustom.js';
+import { SelectBoxNative } from './selectBoxNative.js';
 
 
 
@@ -28,6 +28,7 @@ export interface ISelectBoxDelegate extends IDisposable {
 	focus(): void;
 	blur(): void;
 	setFocusable(focus: boolean): void;
+	setEnabled(enabled: boolean): void;
 
 	// Delegated Widget interface
 	render(container: HTMLElement): void;
@@ -38,7 +39,17 @@ export interface ISelectBoxOptions {
 	ariaLabel?: string;
 	ariaDescription?: string;
 	minBottomMargin?: number;
+	/** Preferred custom dropdown position; defaults to below and flips when space is limited. Native pickers ignore this. */
+	anchorPosition?: AnchorPosition;
+	/** Maximum number of visible custom dropdown options before scrolling. */
+	maxVisibleOptions?: number;
 	optionsAsChildren?: boolean;
+	/** Context views with higher layers are rendered higher in z-index order. */
+	contextViewLayer?: number;
+	/** Hide disabled options from the custom-drawn dropdown. */
+	hideDisabledOptions?: boolean;
+	/** Show option descriptions in right-side hovers instead of the details pane. */
+	showOptionDescriptionHovers?: boolean;
 }
 
 // Utilize optionItem interface to capture all option parameters
@@ -48,9 +59,16 @@ export interface ISelectOptionItem {
 	decoratorRight?: string;
 	description?: string;
 	descriptionIsMarkdown?: boolean;
-	descriptionMarkdownActionHandler?: IContentActionHandler;
+	readonly descriptionMarkdownActionHandler?: MarkdownActionHandler;
 	isDisabled?: boolean;
+	isSeparator?: boolean;
 }
+
+export const SeparatorSelectOption: Readonly<ISelectOptionItem> = Object.freeze({
+	text: '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+	isDisabled: true,
+	isSeparator: true,
+});
 
 export interface ISelectBoxStyles extends IListStyles {
 	readonly selectBackground: string | undefined;
@@ -122,6 +140,10 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	setFocusable(focusable: boolean): void {
 		this.selectBoxDelegate.setFocusable(focusable);
+	}
+
+	setEnabled(enabled: boolean): void {
+		this.selectBoxDelegate.setEnabled(enabled);
 	}
 
 	render(container: HTMLElement): void {

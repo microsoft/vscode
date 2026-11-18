@@ -1,0 +1,585 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
+import { themeColorFromId } from '../../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../../../base/common/uuid.js';
+import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
+import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
+import { Action2, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
+import { INLINE_ATTACHMENT_ANCHOR } from '../../../../common/attachments/chatInlineAttachments.js';
+import { localize, localize2 } from '../../../../../../../nls.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
+import { agentReg, slashReg, variableReg } from '../../../../common/requestParser/chatRequestParser.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat.js';
+import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
+import { ChatWidget } from '../../chatWidget.js';
+import { registerChatInputReferenceDecorationType } from './chatInputReferenceDecorations.js';
+import { NativeEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
+import { TextAreaEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/textArea/textAreaEditContextRegistry.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { ThrottledDelayer } from '../../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../../base/common/errors.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { getSandboxPlaceholder } from './chatInputSandboxContribution.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKindFromValue } from '../../../../common/attachments/chatVariableEntries.js';
+
+const decorationDescription = 'chat';
+const placeholderDecorationType = 'chat-session-detail';
+const slashCommandTextDecorationType = 'chat-session-text';
+const clickableSlashPromptTextDecorationType = 'chat-session-clickable-text';
+const variableTextDecorationType = 'chat-variable-text';
+
+function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
+	return subcommand ? `${agent.id}__${subcommand}` : agent.id;
+}
+
+function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
+	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
+}
+
+function exactlyOneSpaceAfterPart(parsedRequest: readonly IParsedChatRequestPart[], part: IParsedChatRequestPart): boolean {
+	const partIdx = parsedRequest.indexOf(part);
+	if (parsedRequest.length > partIdx + 2) {
+		return false;
+	}
+
+	const nextPart = parsedRequest[partIdx + 1];
+	return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
+}
+
+function getSkillResource(variable: ChatRequestDynamicVariablePart): URI | undefined {
+	if (getAgentHostCompletionReferenceKindFromValue(variable.data) !== AgentHostCompletionReferenceKind.Skill || isUUID(variable.id)) {
+		return undefined;
+	}
+	return URI.parse(variable.id, true);
+}
+
+class InputEditorDecorations extends Disposable {
+
+	private static readonly UPDATE_DELAY = 200;
+
+	static readonly ID = 'inputEditorDecorations';
+	public readonly id = InputEditorDecorations.ID;
+
+	private readonly previouslyUsedAgents = new Set<string>();
+	private clickableReferences: { range: Range; uri: URI }[] = [];
+	private mouseDownReference: { position: Position; uri: URI; range: Range } | undefined;
+
+	private readonly viewModelDisposables = this._register(new MutableDisposable());
+	private readonly inputEditorDisposables = this._register(new MutableDisposable<DisposableStore>());
+
+	private readonly updateThrottle = this._register(new ThrottledDelayer<void>(InputEditorDecorations.UPDATE_DELAY));
+
+	constructor(
+		private readonly widget: IChatWidget,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super();
+
+		this.registeredDecorationTypes();
+		this.registerInputEditorListeners();
+		this.triggerInputEditorDecorationsUpdate();
+		this._register(this.widget.onDidChangeActiveInputEditor(() => {
+			this.registerInputEditorListeners();
+			this.triggerInputEditorDecorationsUpdate();
+		}));
+		this._register(this.widget.onDidChangeParsedInput(() => this.triggerInputEditorDecorationsUpdate()));
+		this._register(this.widget.onDidChangeViewModel(() => {
+			this.registerViewModelListeners();
+			this.previouslyUsedAgents.clear();
+			this.triggerInputEditorDecorationsUpdate();
+		}));
+		this._register(this.widget.onDidSubmitAgent((e) => {
+			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
+		}));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
+		this._register(this.customizationHarnessService.onDidChangeSlashCommands((e) => {
+			const sessionResource = this.widget.viewModel?.sessionResource;
+			if (sessionResource && e.sessionType === getChatSessionType(sessionResource)) {
+				this.triggerInputEditorDecorationsUpdate();
+			}
+		}));
+		this._register(autorun(reader => {
+			this.widget.input.sandboxToggleChecked.read(reader);
+			const currentMode = this.widget.input.currentModeObs.read(reader);
+			if (currentMode) {
+				// Also watch the mode's description to react to any changes
+				currentMode.description.read(reader);
+			}
+			// Trigger decoration update when mode or its properties change
+			this.triggerInputEditorDecorationsUpdate();
+		}));
+
+		this.registerViewModelListeners();
+	}
+
+	async openSkillAtCursor(): Promise<void> {
+		const editor = this.widget.inputEditor;
+		const position = editor.getPosition();
+		if (!position || !editor.getSelection()?.isEmpty()) {
+			return;
+		}
+
+		const variable = this.widget.parsedInput.parts.find((part): part is ChatRequestDynamicVariablePart =>
+			part instanceof ChatRequestDynamicVariablePart
+			&& Range.containsPosition(part.editorRange, position)
+			&& !Position.equals(Range.getEndPosition(part.editorRange), position));
+		const resource = variable && getSkillResource(variable);
+		if (resource) {
+			await this.editorService.openEditor({ resource });
+		}
+	}
+
+	private registerInputEditorListeners(): void {
+		const store = new DisposableStore();
+		this.inputEditorDisposables.value = store;
+		this.mouseDownReference = undefined;
+		this.clickableReferences = [];
+		const editor = this.widget.inputEditor;
+		store.add(editor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
+		store.add(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.placeholder)) {
+				this.triggerInputEditorDecorationsUpdate();
+			}
+		}));
+		store.add(editor.onMouseDown(e => {
+			this.mouseDownReference = undefined;
+
+			if (!e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			const position = e.target.position;
+			const reference = this.clickableReferences.find(reference => reference.range.containsPosition(position) && !Position.equals(reference.range.getEndPosition(), position));
+			if (!reference) {
+				return;
+			}
+
+			this.mouseDownReference = {
+				position: Position.lift(position),
+				uri: reference.uri,
+				range: reference.range,
+			};
+		}));
+		store.add(editor.onMouseUp(e => {
+			const mouseDownReference = this.mouseDownReference;
+			this.mouseDownReference = undefined;
+
+			if (!mouseDownReference || !e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			if (!mouseDownReference.range.containsPosition(e.target.position) || !Position.equals(mouseDownReference.position, e.target.position)) {
+				return;
+			}
+
+			void this.editorService.openEditor({ resource: mouseDownReference.uri });
+		}));
+	}
+
+	private registerViewModelListeners(): void {
+		this.viewModelDisposables.value = this.widget.viewModel?.onDidChange(e => {
+			if (e?.kind === 'changePlaceholder' || e?.kind === 'initialize') {
+				this.triggerInputEditorDecorationsUpdate();
+			}
+		});
+	}
+
+	private registeredDecorationTypes() {
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
+			color: themeColorFromId(chatSlashCommandForeground),
+			backgroundColor: themeColorFromId(chatSlashCommandBackground),
+			borderRadius: '3px'
+		}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, clickableSlashPromptTextDecorationType, {
+			color: themeColorFromId(chatSlashCommandForeground),
+			backgroundColor: themeColorFromId(chatSlashCommandBackground),
+			borderRadius: '3px',
+			cursor: 'pointer'
+		}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
+			color: themeColorFromId(chatSlashCommandForeground),
+			backgroundColor: themeColorFromId(chatSlashCommandBackground),
+			borderRadius: '3px'
+		}));
+		this._register(registerChatInputReferenceDecorationType(this.codeEditorService));
+	}
+
+	private getPlaceholderColor(): string | undefined {
+		return getInputPlaceholderColor(this.themeService);
+	}
+
+	private triggerInputEditorDecorationsUpdate(): void {
+		// update placeholder decorations immediately, in sync
+		this.updateInputPlaceholderDecoration();
+
+		// with a delay, update the rest of the decorations
+		this.updateThrottle.trigger(token => this.updateAsyncInputEditorDecorations(token)).catch(err => {
+			// Throttled delayers reject with CancellationError when disposed mid-flight.
+			if (!isCancellationError(err)) {
+				throw err;
+			}
+		});
+	}
+
+	private updateInputPlaceholderDecoration(): void {
+		const inputValue = this.widget.inputEditor.getValue();
+
+		const viewModel = this.widget.viewModel;
+		if (!viewModel) {
+			this.updateAriaPlaceholder(undefined);
+			// No bound view model yet (e.g. session still loading): clear any stale
+			// placeholder decoration so it doesn't render over typed text. See #325323.
+			if (inputValue) {
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
+			}
+			return;
+		}
+
+		if (!inputValue) {
+			// If the editor's placeholder option is set (e.g. dictation shows
+			// "Listening…"), PlaceholderTextContribution renders it already; skip
+			// the decoration placeholder so the two don't render on top of each
+			// other.
+			if (this.widget.inputEditor.getOption(EditorOption.placeholder)) {
+				this.updateAriaPlaceholder(this.widget.inputEditor.getOption(EditorOption.placeholder));
+				this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
+				return;
+			}
+
+			const mode = this.widget.input.currentModeObs.get();
+			const placeholder = mode.argumentHint?.get() ?? mode.description.get() ?? '';
+			const displayPlaceholder = getSandboxPlaceholder(viewModel.inputPlaceholder || placeholder, this.widget.input.sandboxToggleChecked.get());
+
+			const decoration: IDecorationOptions[] = [
+				{
+					range: {
+						startLineNumber: 1,
+						endLineNumber: 1,
+						startColumn: 1,
+						endColumn: 1000
+					},
+					renderOptions: {
+						after: {
+							contentText: displayPlaceholder,
+							color: this.getPlaceholderColor()
+						}
+					}
+				}
+			];
+			this.updateAriaPlaceholder(displayPlaceholder || undefined);
+			this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, decoration);
+			return;
+		}
+
+		this.updateAriaPlaceholder(undefined);
+
+		const parsedRequest = this.widget.parsedInput.parts;
+
+		let placeholderDecoration: IDecorationOptions[] | undefined;
+		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
+
+		const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
+		if (onlyAgentAndWhitespace) {
+			// Agent reference with no other text - show the placeholder
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, undefined));
+			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentPart.agent.metadata.followupPlaceholder;
+			if (agentPart.agent.description && exactlyOneSpaceAfterPart(parsedRequest, agentPart)) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(agentPart.editorRange),
+					renderOptions: {
+						after: {
+							contentText: shouldRenderFollowupPlaceholder ? agentPart.agent.metadata.followupPlaceholder : agentPart.agent.description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
+
+		const onlyAgentAndAgentCommandAndWhitespace = agentPart && agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart);
+		if (onlyAgentAndAgentCommandAndWhitespace) {
+			// Agent reference and subcommand with no other text - show the placeholder
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, agentSubcommandPart.command.name));
+			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(parsedRequest, agentSubcommandPart)) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(agentSubcommandPart.editorRange),
+					renderOptions: {
+						after: {
+							contentText: shouldRenderFollowupPlaceholder ? agentSubcommandPart.command.followupPlaceholder : agentSubcommandPart.command.description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
+
+		const onlyAgentCommandAndWhitespace = agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentSubcommandPart);
+		if (onlyAgentCommandAndWhitespace) {
+			// Agent subcommand with no other text - show the placeholder
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(parsedRequest, agentSubcommandPart)) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(agentSubcommandPart.editorRange),
+					renderOptions: {
+						after: {
+							contentText: agentSubcommandPart.command.description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
+	}
+
+	private async updateAsyncInputEditorDecorations(token: CancellationToken): Promise<void> {
+		const editor = this.widget.inputEditor;
+		this.clickableReferences = [];
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, []);
+
+		const parsedRequest = this.widget.parsedInput.parts;
+		const viewModel = this.widget.viewModel;
+		if (!viewModel) {
+			return;
+		}
+
+		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
+		const clickableDecorations: IDecorationOptions[] = [];
+		for (const variable of dynamicVariableParts) {
+			const uri = getSkillResource(variable);
+			if (uri) {
+				clickableDecorations.push(this.createClickableReferenceDecoration(variable.editorRange, uri, variable.modelDescription));
+			}
+		}
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
+
+		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
+		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
+		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
+
+		// first, fetch all async context
+		const promptSlashCommand = slashPromptPart ? await this.customizationHarnessService.resolvePromptSlashCommand(slashPromptPart.name, viewModel.sessionResource, token) : undefined;
+		if (token.isCancellationRequested || editor !== this.widget.inputEditor) {
+			// a new update came in while we were waiting
+			return;
+		}
+
+		if (slashPromptPart && promptSlashCommand) {
+			const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
+			if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(parsedRequest, slashPromptPart) && promptSlashCommand) {
+				const description = promptSlashCommand.argumentHint;
+				if (description) {
+					this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, [{
+						range: getRangeForPlaceholder(slashPromptPart.editorRange),
+						renderOptions: {
+							after: {
+								contentText: description,
+								color: this.getPlaceholderColor(),
+							}
+						}
+					}]);
+				}
+			}
+		}
+
+		const textDecorations: IDecorationOptions[] | undefined = [];
+		if (agentPart) {
+			textDecorations.push({ range: agentPart.editorRange });
+		}
+		if (agentSubcommandPart) {
+			textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });
+		}
+
+		if (slashCommandPart) {
+			textDecorations.push({ range: slashCommandPart.editorRange, hoverMessage: new MarkdownString(slashCommandPart.slashCommand.detail) });
+		}
+
+		if (slashPromptPart && promptSlashCommand) {
+			clickableDecorations.push(this.createClickableReferenceDecoration(slashPromptPart.editorRange, promptSlashCommand.uri, promptSlashCommand.description));
+			this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
+
+		const varDecorations: IDecorationOptions[] = [];
+		// Parts parsed from the text of an inline attachment pill cover its anchor, which the pill renders instead.
+		const inputModel = this.widget.inputEditor.getModel();
+		const isInlineAttachmentAnchor = (range: IRange) => inputModel?.getValueInRange(range) === INLINE_ATTACHMENT_ANCHOR;
+		const toolParts = parsedRequest.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart || p instanceof ChatRequestToolSetPart);
+		for (const tool of toolParts) {
+			if (!isInlineAttachmentAnchor(tool.editorRange)) {
+				varDecorations.push({ range: tool.editorRange });
+			}
+		}
+
+		const isEditingPreviousRequest = !!viewModel.editing;
+		if (isEditingPreviousRequest) {
+			for (const variable of dynamicVariableParts) {
+				if (!isInlineAttachmentAnchor(variable.editorRange)) {
+					varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });
+				}
+			}
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
+	}
+
+	private createClickableReferenceDecoration(range: IRange, uri: URI, description?: string): IDecorationOptions {
+		this.clickableReferences.push({ range: Range.lift(range), uri });
+		const hoverMessage = new MarkdownString();
+		if (description) {
+			hoverMessage.appendText(description);
+			hoverMessage.appendText('\n');
+		}
+		hoverMessage.appendText(localize(
+			'chatInput.promptSlashCommand.open',
+			"Click to open {0}",
+			this.labelService.getUriLabel(uri, { relative: true })
+		));
+		return { range, hoverMessage };
+	}
+
+	private updateAriaPlaceholder(value: string | undefined): void {
+		const nativeEditContext = NativeEditContextRegistry.get(this.widget.inputEditor.getId());
+		if (nativeEditContext) {
+			const domNode = nativeEditContext.domNode.domNode;
+			if (value && value.trim().length) {
+				domNode.setAttribute('aria-placeholder', value);
+			} else {
+				domNode.removeAttribute('aria-placeholder');
+			}
+		} else {
+			const textAreaEditContext = TextAreaEditContextRegistry.get(this.widget.inputEditor.getId());
+			if (textAreaEditContext) {
+				const textArea = textAreaEditContext.textArea.domNode;
+				if (value && value.trim().length) {
+					textArea.setAttribute('aria-placeholder', value);
+				} else {
+					textArea.removeAttribute('aria-placeholder');
+				}
+			}
+		}
+	}
+}
+
+class InputEditorSlashCommandMode extends Disposable {
+	public readonly id = 'InputEditorSlashCommandMode';
+
+	constructor(
+		private readonly widget: IChatWidget
+	) {
+		super();
+		this._register(this.widget.onDidChangeAgent(e => {
+			if (e.slashCommand && e.slashCommand.isSticky || !e.slashCommand && e.agent.metadata.isSticky) {
+				this.repopulateAgentCommand(e.agent, e.slashCommand);
+			}
+		}));
+		this._register(this.widget.onDidSubmitAgent(e => {
+			this.repopulateAgentCommand(e.agent, e.slashCommand);
+		}));
+	}
+
+	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand | undefined) {
+		// Make sure we don't repopulate if the user already has something in the input
+		if (this.widget.inputEditor.getValue().trim()) {
+			return;
+		}
+
+		let value: string | undefined;
+		if (slashCommand && slashCommand.isSticky) {
+			value = `${chatAgentLeader}${agent.name} ${chatSubcommandLeader}${slashCommand.name} `;
+		} else if (agent.metadata.isSticky) {
+			value = `${chatAgentLeader}${agent.name} `;
+		}
+
+		if (value) {
+			this.widget.inputEditor.setValue(value);
+			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+		}
+	}
+}
+
+ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode);
+
+registerAction2(class OpenSkillAtCursorAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.openSkillAtCursor',
+			title: localize2('chat.openSkillAtCursor', "Open Skill at Cursor"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inChatInput),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const widget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		await widget?.getContrib<InputEditorDecorations>(InputEditorDecorations.ID)?.openSkillAtCursor();
+	}
+});
+
+class ChatTokenDeleter extends Disposable {
+
+	public readonly id = 'chatTokenDeleter';
+
+	constructor(
+		private readonly widget: IChatWidget,
+	) {
+		super();
+
+		let prevInsertTokenRange: Range | undefined;
+
+		// A simple heuristic to delete the previous insert token when the user presses backspace.
+		this._register(this.widget.inputEditor.onDidChangeModelContent(e => {
+			let insertedTokenRange: Range | undefined;
+
+			// Don't try to handle multi-cursor edits right now
+			if (e.changes.length === 1) {
+				const change = e.changes[0];
+				if (change.text.length > 0 && change.rangeLength === 1) {
+					// A full slash command or agent reference was just inserted - store it so that if the user immediately deletes it, we can delete the whole thing instead of just one character
+					if (slashReg.test(change.text) || agentReg.test(change.text) || variableReg.test(change.text)) {
+						insertedTokenRange = new Range(change.range.startLineNumber, change.range.startColumn, change.range.endLineNumber, change.range.startColumn + change.text.length);
+					}
+				} else if (change.text.length === 0 && prevInsertTokenRange && change.range.endColumn === prevInsertTokenRange.endColumn) {
+					this.widget.inputEditor.executeEdits(this.id, [{
+						range: prevInsertTokenRange,
+						text: '',
+					}]);
+					this.widget.refreshParsedInput();
+				}
+			}
+			prevInsertTokenRange = insertedTokenRange;
+		}));
+	}
+}
+ChatWidget.CONTRIBS.push(ChatTokenDeleter);

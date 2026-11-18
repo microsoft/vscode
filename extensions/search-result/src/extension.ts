@@ -8,7 +8,7 @@ import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
-const ELISION_REGEX = /⟪ ([0-9]+) characters skipped ⟫/g;
+const ELISION_REGEX = /\u27ea ([0-9]+) characters skipped \u27eb/g;
 const SEARCH_RESULT_SELECTOR = { language: 'search-result', exclusive: true };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const lineResult = parseSearchResults(document, token)[position.line];
 				if (!lineResult) { return []; }
 				if (lineResult.type === 'file') {
-					return lineResult.allLocations;
+					return lineResult.allLocations.map(l => ({ ...l, originSelectionRange: lineResult.location.originSelectionRange }));
 				}
 
 				const location = lineResult.locations.find(l => l.originSelectionRange.contains(position));
@@ -150,7 +150,7 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 		vscode.Uri.joinPath(folder.uri, path);
 
 	if (vscode.workspace.workspaceFolders) {
-		const multiRootFormattedPath = /^(.*) • (.*)$/.exec(path);
+		const multiRootFormattedPath = /^(.*) \u2022 (.*)$/.exec(path);
 		if (multiRootFormattedPath) {
 			const [, workspaceName, workspacePath] = multiRootFormattedPath;
 			const folder = vscode.workspace.workspaceFolders.filter(wf => wf.name === workspaceName)[0];

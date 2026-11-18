@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
-import { FontStyle, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { SemanticTokensLegend, SemanticTokens } from '../languages.js';
+import { FontStyle, MetadataConsts, TokenMetadata } from '../encodedTokenAttributes.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import { SparseMultilineTokens } from '../tokens/sparseMultilineTokens.js';
+import { ILanguageService } from '../languages/language.js';
 
 const enum SemanticTokensProviderStylingConstants {
 	NO_STYLING = 0b01111111111111111111111111111111
 }
+
+const ENABLE_TRACE = false;
 
 export class SemanticTokensProviderStyling {
 
@@ -20,6 +22,7 @@ export class SemanticTokensProviderStyling {
 	private _hasWarnedOverlappingTokens = false;
 	private _hasWarnedInvalidLengthTokens = false;
 	private _hasWarnedInvalidEditStart = false;
+	private _hasWarnedInvalidEditDeleteCount = false;
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
@@ -36,7 +39,7 @@ export class SemanticTokensProviderStyling {
 		let metadata: number;
 		if (entry) {
 			metadata = entry.metadata;
-			if (this._logService.getLevel() === LogLevel.Trace) {
+			if (ENABLE_TRACE && this._logService.getLevel() === LogLevel.Trace) {
 				this._logService.trace(`SemanticTokensProviderStyling [CACHED] ${tokenTypeIndex} / ${tokenModifierSet}: foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
 			}
 		} else {
@@ -50,7 +53,7 @@ export class SemanticTokensProviderStyling {
 					}
 					modifierSet = modifierSet >> 1;
 				}
-				if (modifierSet > 0 && this._logService.getLevel() === LogLevel.Trace) {
+				if (ENABLE_TRACE && modifierSet > 0 && this._logService.getLevel() === LogLevel.Trace) {
 					this._logService.trace(`SemanticTokensProviderStyling: unknown token modifier index: ${tokenModifierSet.toString(2)} for legend: ${JSON.stringify(this._legend.tokenModifiers)}`);
 					tokenModifiers.push('not-in-legend');
 				}
@@ -86,7 +89,7 @@ export class SemanticTokensProviderStyling {
 					}
 				}
 			} else {
-				if (this._logService.getLevel() === LogLevel.Trace) {
+				if (ENABLE_TRACE && this._logService.getLevel() === LogLevel.Trace) {
 					this._logService.trace(`SemanticTokensProviderStyling: unknown token type index: ${tokenTypeIndex} for legend: ${JSON.stringify(this._legend.tokenTypes)}`);
 				}
 				metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
@@ -94,7 +97,7 @@ export class SemanticTokensProviderStyling {
 			}
 			this._hashTable.add(tokenTypeIndex, tokenModifierSet, encodedLanguageId, metadata);
 
-			if (this._logService.getLevel() === LogLevel.Trace) {
+			if (ENABLE_TRACE && this._logService.getLevel() === LogLevel.Trace) {
 				this._logService.trace(`SemanticTokensProviderStyling ${tokenTypeIndex} (${tokenType}) / ${tokenModifierSet} (${tokenModifiers.join(' ')}): foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
 			}
 		}
@@ -105,21 +108,28 @@ export class SemanticTokensProviderStyling {
 	public warnOverlappingSemanticTokens(lineNumber: number, startColumn: number): void {
 		if (!this._hasWarnedOverlappingTokens) {
 			this._hasWarnedOverlappingTokens = true;
-			console.warn(`Overlapping semantic tokens detected at lineNumber ${lineNumber}, column ${startColumn}`);
+			this._logService.warn(`Overlapping semantic tokens detected at lineNumber ${lineNumber}, column ${startColumn}`);
 		}
 	}
 
 	public warnInvalidLengthSemanticTokens(lineNumber: number, startColumn: number): void {
 		if (!this._hasWarnedInvalidLengthTokens) {
 			this._hasWarnedInvalidLengthTokens = true;
-			console.warn(`Semantic token with invalid length detected at lineNumber ${lineNumber}, column ${startColumn}`);
+			this._logService.warn(`Semantic token with invalid length detected at lineNumber ${lineNumber}, column ${startColumn}`);
 		}
 	}
 
 	public warnInvalidEditStart(previousResultId: string | undefined, resultId: string | undefined, editIndex: number, editStart: number, maxExpectedStart: number): void {
 		if (!this._hasWarnedInvalidEditStart) {
 			this._hasWarnedInvalidEditStart = true;
-			console.warn(`Invalid semantic tokens edit detected (previousResultId: ${previousResultId}, resultId: ${resultId}) at edit #${editIndex}: The provided start offset ${editStart} is outside the previous data (length ${maxExpectedStart}).`);
+			this._logService.warn(`Invalid semantic tokens edit detected (previousResultId: ${previousResultId}, resultId: ${resultId}) at edit #${editIndex}: The provided start offset ${editStart} is outside the previous data (length ${maxExpectedStart}).`);
+		}
+	}
+
+	public warnInvalidEditDeleteCount(previousResultId: string | undefined, resultId: string | undefined, srcLength: number, deltaLength: number): void {
+		if (!this._hasWarnedInvalidEditDeleteCount) {
+			this._hasWarnedInvalidEditDeleteCount = true;
+			this._logService.warn(`Invalid semantic tokens edit detected (previousResultId: ${previousResultId}, resultId: ${resultId}): The edits delete more tokens than the previous data contains (previous length ${srcLength}, computed length ${srcLength + deltaLength}).`);
 		}
 	}
 

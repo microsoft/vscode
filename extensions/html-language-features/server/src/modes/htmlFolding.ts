@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, FoldingRange, Position, Range, LanguageModes, LanguageMode } from './languageModes';
+import { TextDocument, FoldingRange, Position, Range, LanguageModes, LanguageMode } from './languageModes.js';
 import { CancellationToken } from 'vscode-languageserver';
 
 export async function getFoldingRanges(languageModes: LanguageModes, document: TextDocument, maxRanges: number | undefined, _cancellationToken: CancellationToken | null): Promise<FoldingRange[]> {

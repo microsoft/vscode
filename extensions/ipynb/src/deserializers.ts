@@ -6,6 +6,7 @@
 import type * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
+import { textMimeTypes } from './constants';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -19,7 +20,7 @@ const jupyterLanguageToMonacoLanguageMapping = new Map([
 export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 	const jupyterLanguage =
 		metadata?.language_info?.name ||
-		(metadata?.kernelspec as any)?.language;
+		(metadata?.kernelspec as unknown as { language: string })?.language;
 
 	// Default to python language only if the Python extension is installed.
 	const defaultLanguage =
@@ -89,17 +90,16 @@ function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[
 		.sort((outputItemA, outputItemB) => outputItemA.index - outputItemB.index).map(item => item.item);
 }
 
-
-enum CellOutputMimeTypes {
-	error = 'application/vnd.code.notebook.error',
-	stderr = 'application/vnd.code.notebook.stderr',
-	stdout = 'application/vnd.code.notebook.stdout'
+/**
+ * Concatenates a multiline string or an array of strings into a single string.
+ * Also normalizes line endings to use LF (`\n`) instead of CRLF (`\r\n`).
+ * Same is done in serializer as well.
+ */
+function concatMultilineCellSource(source: string | string[]): string {
+	return concatMultilineString(source).replace(/\r\n/g, '\n');
 }
 
-export const textMimeTypes = ['text/plain', 'text/markdown', 'text/latex', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
-
-function concatMultilineString(str: string | string[], trim?: boolean): string {
-	const nonLineFeedWhiteSpaceTrim = /(^[\t\f\v\r ]+|[\t\f\v\r ]+$)/g;
+function concatMultilineString(str: string | string[]): string {
 	if (Array.isArray(str)) {
 		let result = '';
 		for (let i = 0; i < str.length; i += 1) {
@@ -111,10 +111,9 @@ function concatMultilineString(str: string | string[], trim?: boolean): string {
 			}
 		}
 
-		// Just trim whitespace. Leave \n in place
-		return trim ? result.replace(nonLineFeedWhiteSpaceTrim, '') : result;
+		return result;
 	}
-	return trim ? str.toString().replace(nonLineFeedWhiteSpaceTrim, '') : str.toString();
+	return str.toString();
 }
 
 function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCellOutputItem {
@@ -139,6 +138,8 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 			}
 		} else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
 			return NotebookCellOutputItem.text(JSON.stringify(value), mime);
+		} else if (mime === 'application/json') {
+			return NotebookCellOutputItem.json(value, mime);
 		} else {
 			// For everything else, treat the data as strings (or multi-line strings).
 			value = Array.isArray(value) ? concatMultilineString(value) : value;
@@ -149,22 +150,27 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 	}
 }
 
-function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
+function getNotebookCellMetadata(cell: nbformat.ICell): {
 	[key: string]: any;
 } {
-	const cellMetadata: { [key: string]: any } = {};
 	// We put this only for VSC to display in diff view.
 	// Else we don't use this.
-	const custom: CellMetadata = {};
+	const cellMetadata: CellMetadata = {};
+	if (cell.cell_type === 'code') {
+		if (typeof cell['execution_count'] === 'number') {
+			cellMetadata.execution_count = cell['execution_count'];
+		} else {
+			cellMetadata.execution_count = null;
+		}
+	}
+
 	if (cell['metadata']) {
-		custom['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
+		cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
 	}
 
-	if ('id' in cell && typeof cell.id === 'string') {
-		custom.id = cell.id;
+	if (typeof cell.id === 'string') {
+		cellMetadata.id = cell.id;
 	}
-
-	cellMetadata.custom = custom;
 
 	if (cell['attachments']) {
 		cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
@@ -284,13 +290,13 @@ export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): Noteboo
 	if (fn) {
 		result = fn(output);
 	} else {
-		result = translateDisplayDataOutput(output as any);
+		result = translateDisplayDataOutput(output as unknown as nbformat.IDisplayData | nbformat.IDisplayUpdate | nbformat.IExecuteResult);
 	}
 	return result;
 }
 
 function createNotebookCellDataFromRawCell(cell: nbformat.IRawCell): NotebookCellData {
-	const cellData = new NotebookCellData(NotebookCellKind.Code, concatMultilineString(cell.source), 'raw');
+	const cellData = new NotebookCellData(NotebookCellKind.Code, concatMultilineCellSource(cell.source), 'raw');
 	cellData.outputs = [];
 	cellData.metadata = getNotebookCellMetadata(cell);
 	return cellData;
@@ -298,7 +304,7 @@ function createNotebookCellDataFromRawCell(cell: nbformat.IRawCell): NotebookCel
 function createNotebookCellDataFromMarkdownCell(cell: nbformat.IMarkdownCell): NotebookCellData {
 	const cellData = new NotebookCellData(
 		NotebookCellKind.Markup,
-		concatMultilineString(cell.source),
+		concatMultilineCellSource(cell.source),
 		'markdown'
 	);
 	cellData.outputs = [];
@@ -310,13 +316,13 @@ function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLangua
 	const outputs = cellOutputs.map(jupyterCellOutputToCellOutput);
 	const hasExecutionCount = typeof cell.execution_count === 'number' && cell.execution_count > 0;
 
-	const source = concatMultilineString(cell.source);
+	const source = concatMultilineCellSource(cell.source);
 
 	const executionSummary: NotebookCellExecutionSummary = hasExecutionCount
 		? { executionOrder: cell.execution_count as number }
 		: {};
 
-	const vscodeCustomMetadata = cell.metadata['vscode'] as { [key: string]: any } | undefined;
+	const vscodeCustomMetadata = cell.metadata?.['vscode'] as { [key: string]: any } | undefined;
 	const cellLanguageId = vscodeCustomMetadata && vscodeCustomMetadata.languageId && typeof vscodeCustomMetadata.languageId === 'string' ? vscodeCustomMetadata.languageId : cellLanguage;
 	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguageId);
 
@@ -353,7 +359,7 @@ export function jupyterNotebookModelToNotebookData(
 	preferredLanguage: string
 ): NotebookData {
 	const notebookContentWithoutCells = { ...notebookContent, cells: [] };
-	if (!notebookContent.cells || notebookContent.cells.length === 0) {
+	if (!Array.isArray(notebookContent.cells)) {
 		throw new Error('Notebook content is missing cells');
 	}
 
@@ -362,6 +368,6 @@ export function jupyterNotebookModelToNotebookData(
 		.filter((item): item is NotebookCellData => !!item);
 
 	const notebookData = new NotebookData(cells);
-	notebookData.metadata = { custom: notebookContentWithoutCells };
+	notebookData.metadata = notebookContentWithoutCells;
 	return notebookData;
 }

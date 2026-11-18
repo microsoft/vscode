@@ -1,15 +1,40 @@
 pool:
-  vmImage: "ubuntu-latest"
+  name: 1es-ubuntu-22.04-x64
+  os: linux
 
 trigger:
   branches:
     include: ["main", "release/*"]
 pr: none
 
+resources:
+  repositories:
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      ref: main
+      endpoint: Monaco
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      ref: main
+      endpoint: Monaco
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      ref: main
+      endpoint: Monaco
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      ref: main
+      endpoint: Monaco
+
 steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: "16.x"
-  - template: ./distro/download-distro.yml
-  - script: node build/azure-pipelines/distro/apply-cli-patches
-    displayName: Apply distro patches
+  - checkout: self
+    path: s
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode
+
+  - template: ./common/setup-node.yml@self
+  - template: ./distro/download-distro.yml@self

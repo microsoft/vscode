@@ -1,0 +1,95 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: 24.x
+      checkLatest: true
+
+  # Check out the private microsoft/vscode-capi repository using the agent's
+  # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
+  # repository resource is declared in the top-level pipeline (resources.repositories).
+  - checkout: capi
+    path: s/.build/vscode-capi
+    fetchDepth: 1
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-capi
+
+  - pwsh: node build/setup-npm-registry.ts $env:NPM_REGISTRY
+    workingDirectory: $(Build.SourcesDirectory)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), contains(variables['Agent.OS'], 'windows'))
+    displayName: Setup NPM Registry (Windows)
+
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY
+    workingDirectory: $(Build.SourcesDirectory)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: Setup NPM Registry (non-Windows)
+
+  # Copilot installs only some of the projects, so its store has its own key.
+  - template: ../common/restore-pnpm-store.yml@self
+    parameters:
+      keyArgs: copilot
+
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$env:NPM_REGISTRY"
+      $NpmrcPath = (npm config get userconfig)
+      Write-Host "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), contains(variables['Agent.OS'], 'windows'))
+    displayName: Setup NPM (Windows)
+
+  - script: |
+      set -e
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: Setup NPM (non-Windows)
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - template: ../common/install-pnpm.yml@self
+
+  # The installs are frozen, so retrying one after a transient registry error such as ECONNRESET
+  # ends in the same state as a first successful attempt.
+  - script: pnpm install --frozen-lockfile
+    workingDirectory: build
+    displayName: Install build dependencies
+    retryCountOnTaskFailure: 3
+
+  # Only the dependencies of the root project, of the local lint rules that Copilot's lint loads
+  # through the root lint configuration, and of Copilot and chat-lib. pnpm runs the root install
+  # scripts, which install the whole repository, on every install that runs scripts, filtered or not:
+  # the install skips the scripts, then builds Copilot's dependencies and runs its postinstall.
+  - script: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Install vscode and copilot dependencies
+    retryCountOnTaskFailure: 3
+
+  - script: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Build copilot dependencies
+    retryCountOnTaskFailure: 3
+
+  - script: pnpm run postinstall
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run copilot postinstall
+
+  # microsoft/vscode-capi is a separate repository that installs with npm.
+  - script: npm ci
+    workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
+    displayName: Install vscode-capi dependencies
+    retryCountOnTaskFailure: 3
+
+  - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Verify native optional dependency binaries
+
+  - template: ../common/prune-pnpm-store.yml@self

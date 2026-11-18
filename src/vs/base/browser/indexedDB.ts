@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { mark } from 'vs/base/common/performance';
+import { toErrorMessage } from '../common/errorMessage.js';
+import { ErrorNoTelemetry, getErrorMessage } from '../common/errors.js';
+import { mark } from '../common/performance.js';
 
 class MissingStoresError extends Error {
 	constructor(readonly db: IDBDatabase) {
@@ -54,7 +54,7 @@ export class IndexedDB {
 
 	private static doOpenDatabase(name: string, version: number | undefined, stores: string[]): Promise<IDBDatabase> {
 		return new Promise((c, e) => {
-			const request = window.indexedDB.open(name, version);
+			const request = indexedDB.open(name, version);
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
 				const db = request.result;
@@ -78,13 +78,13 @@ export class IndexedDB {
 		});
 	}
 
-	private static deleteDatabase(indexedDB: IDBDatabase): Promise<void> {
+	private static deleteDatabase(database: IDBDatabase): Promise<void> {
 		return new Promise((c, e) => {
 			// Close any opened connections
-			indexedDB.close();
+			database.close();
 
 			// Delete the db
-			const deleteRequest = window.indexedDB.deleteDatabase(indexedDB.name);
+			const deleteRequest = indexedDB.deleteDatabase(database.name);
 			deleteRequest.onerror = (err) => e(deleteRequest.error);
 			deleteRequest.onsuccess = () => c();
 		});
@@ -125,9 +125,49 @@ export class IndexedDB {
 					c(request.result);
 				}
 			};
-			transaction.onerror = () => e(transaction.error);
-			transaction.onabort = () => e(transaction.error);
+			transaction.onerror = () => e(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
+			transaction.onabort = () => e(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
 			const request = dbRequestFn(transaction.objectStore(store));
+		}).finally(() => this.pendingTransactions.splice(this.pendingTransactions.indexOf(transaction), 1));
+	}
+
+	/**
+	 * Atomically stores `newValue` when the current valid value strictly equals `expectedValue`.
+	 * Values rejected by `isValid` are treated as `undefined`; transaction failures reject without committing.
+	 */
+	async compareAndSwap<T>(
+		store: string,
+		key: IDBValidKey,
+		expectedValue: T | undefined,
+		newValue: T,
+		isValid: (value: unknown) => value is T,
+	): Promise<{ readonly swapped: boolean; readonly currentValue: T | undefined }> {
+		if (!this.database) {
+			throw new DBClosedError(this.name);
+		}
+
+		const transaction = this.database.transaction(store, 'readwrite');
+		this.pendingTransactions.push(transaction);
+		return new Promise<{ readonly swapped: boolean; readonly currentValue: T | undefined }>((resolve, reject) => {
+			let currentValue: T | undefined;
+			let swapped = false;
+
+			transaction.oncomplete = () => resolve({
+				swapped,
+				currentValue: swapped ? newValue : currentValue,
+			});
+			transaction.onerror = () => reject(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
+			transaction.onabort = () => reject(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
+
+			const objectStore = transaction.objectStore(store);
+			const request = objectStore.get(key);
+			request.onsuccess = () => {
+				currentValue = isValid(request.result) ? request.result : undefined;
+				if (currentValue === expectedValue) {
+					swapped = true;
+					objectStore.put(newValue, key);
+				}
+			};
 		}).finally(() => this.pendingTransactions.splice(this.pendingTransactions.indexOf(transaction), 1));
 	}
 

@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorState } from 'vs/editor/common/cursorCommon';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
-import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { getSelectionHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CursorState } from '../../../common/cursorCommon.js';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from '../../../common/cursorEvents.js';
+import { CursorMoveCommands } from '../../../common/cursor/cursorMoveCommands.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { FindMatch, ITextModel } from '../../../common/model.js';
+import { CommonFindController } from '../../find/browser/findController.js';
+import { FindOptionOverride, INewFindReplaceState } from '../../find/browser/findState.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { getSelectionHighlightDecorationOptions } from '../../wordHighlighter/browser/highlightDecorations.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
@@ -38,13 +38,17 @@ function announceCursorChange(previousCursorState: CursorState[], cursorState: C
 	}
 }
 
+interface InsertCursorArgs {
+	source?: string;
+	logicalLine?: boolean;
+}
+
 export class InsertCursorAbove extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAbove',
-			label: nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
-			alias: 'Add Cursor Above',
+			label: nls.localize2('mutlicursor.insertAbove', "Add Cursor Above"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -64,7 +68,7 @@ export class InsertCursorAbove extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: InsertCursorArgs): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -96,8 +100,7 @@ export class InsertCursorBelow extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorBelow',
-			label: nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
-			alias: 'Add Cursor Below',
+			label: nls.localize2('mutlicursor.insertBelow', "Add Cursor Below"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -117,7 +120,7 @@ export class InsertCursorBelow extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: InsertCursorArgs): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -149,8 +152,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
-			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
-			alias: 'Add Cursors to Line Ends',
+			label: nls.localize2('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -204,8 +206,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToBottom',
-			label: nls.localize('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
-			alias: 'Add Cursors To Bottom',
+			label: nls.localize2('mutlicursor.addCursorsToBottom', "Add Cursors to Bottom"),
 			precondition: undefined
 		});
 	}
@@ -237,8 +238,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToTop',
-			label: nls.localize('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
-			alias: 'Add Cursors To Top',
+			label: nls.localize2('mutlicursor.addCursorsToTop', "Add Cursors to Top"),
 			precondition: undefined
 		});
 	}
@@ -272,6 +272,24 @@ export class MultiCursorSessionResult {
 	) { }
 }
 
+function isFindWidgetSearch(editor: ICodeEditor, findController: CommonFindController): boolean {
+	// Find widget owns entirely what we search for if:
+	//  - focus is not in the editor (i.e. it is in the find widget)
+	//  - and the search widget is visible
+	//  - and the search string is non-empty
+	const findState = findController.getState();
+	return !editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0;
+}
+
+function getSelectionSearchOptions(editor: ICodeEditor, findController: CommonFindController): { wholeWord: boolean; matchCase: boolean; usesFindOptions: boolean } {
+	const selectedTextMatchMode = editor.getOption(EditorOption.selectedTextMatchMode);
+	if (selectedTextMatchMode === 'findOptions') {
+		const findState = findController.getState();
+		return { wholeWord: findState.wholeWord, matchCase: findState.matchCase, usesFindOptions: true };
+	}
+	return { wholeWord: false, matchCase: selectedTextMatchMode === 'caseSensitive', usesFindOptions: false };
+}
+
 export class MultiCursorSession {
 
 	public static create(editor: ICodeEditor, findController: CommonFindController): MultiCursorSession | null {
@@ -280,28 +298,26 @@ export class MultiCursorSession {
 		}
 		const findState = findController.getState();
 
-		// Find widget owns entirely what we search for if:
-		//  - focus is not in the editor (i.e. it is in the find widget)
-		//  - and the search widget is visible
-		//  - and the search string is non-empty
-		if (!editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0) {
+		if (isFindWidgetSearch(editor, findController)) {
 			// Find widget owns what is searched for
-			return new MultiCursorSession(editor, findController, false, findState.searchString, findState.wholeWord, findState.matchCase, null);
+			return new MultiCursorSession(editor, findController, false, true, findState.searchString, findState.wholeWord, findState.matchCase, null);
 		}
 
-		// Otherwise, the selection gives the search text, and the find widget gives the search settings
-		// The exception is the find state disassociation case: when beginning with a single, collapsed selection
 		let isDisconnectedFromFindController = false;
 		let wholeWord: boolean;
 		let matchCase: boolean;
+		let usesFindOptions: boolean;
 		const selections = editor.getSelections();
 		if (selections.length === 1 && selections[0].isEmpty()) {
 			isDisconnectedFromFindController = true;
 			wholeWord = true;
 			matchCase = true;
+			usesFindOptions = true;
 		} else {
-			wholeWord = findState.wholeWord;
-			matchCase = findState.matchCase;
+			const selectionSearchOptions = getSelectionSearchOptions(editor, findController);
+			wholeWord = selectionSearchOptions.wholeWord;
+			matchCase = selectionSearchOptions.matchCase;
+			usesFindOptions = selectionSearchOptions.usesFindOptions;
 		}
 
 		// Selection owns what is searched for
@@ -322,13 +338,14 @@ export class MultiCursorSession {
 			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 
-		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, searchText, wholeWord, matchCase, currentMatch);
+		return new MultiCursorSession(editor, findController, isDisconnectedFromFindController, usesFindOptions, searchText, wholeWord, matchCase, currentMatch);
 	}
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		public readonly findController: CommonFindController,
 		public readonly isDisconnectedFromFindController: boolean,
+		public readonly usesFindOptions: boolean,
 		public readonly searchText: string,
 		public readonly wholeWord: boolean,
 		public readonly matchCase: boolean,
@@ -374,7 +391,7 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		this.findController.highlightFindOptions();
+		this._highlightFindOptions();
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -425,7 +442,7 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		this.findController.highlightFindOptions();
+		this._highlightFindOptions();
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -442,13 +459,19 @@ export class MultiCursorSession {
 			return [];
 		}
 
-		this.findController.highlightFindOptions();
+		this._highlightFindOptions();
 
 		const editorModel = this._editor.getModel();
 		if (searchScope) {
 			return editorModel.findMatches(this.searchText, searchScope, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 		}
 		return editorModel.findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+	}
+
+	private _highlightFindOptions(): void {
+		if (this.usesFindOptions) {
+			this.findController.highlightFindOptions();
+		}
 	}
 }
 
@@ -504,8 +527,18 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			this._sessionDispose.add(this._editor.onDidBlurEditorText(() => {
 				this._endSession();
 			}));
+			if (this._editor.getOption(EditorOption.selectedTextMatchMode) !== 'findOptions') {
+				this._sessionDispose.add(this._editor.onDidFocusEditorText(() => {
+					this._endSession();
+				}));
+			}
+			this._sessionDispose.add(this._editor.onDidChangeConfiguration(e => {
+				if (e.hasChanged(EditorOption.selectedTextMatchMode)) {
+					this._endSession();
+				}
+			}));
 			this._sessionDispose.add(findController.getState().onFindReplaceStateChange((e) => {
-				if (e.matchCase || e.wholeWord) {
+				if (session.usesFindOptions && (e.matchCase || e.wholeWord)) {
 					this._endSession();
 				}
 			}));
@@ -564,8 +597,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			// If there are multiple cursors, handle the case where they do not all select the same text.
 			const allSelections = this._editor.getSelections();
 			if (allSelections.length > 1) {
-				const findState = findController.getState();
-				const matchCase = findState.matchCase;
+				const matchCase = isFindWidgetSearch(this._editor, findController)
+					? findController.getState().matchCase
+					: getSelectionSearchOptions(this._editor, findController).matchCase;
 				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
 				if (!selectionsContainSameText) {
 					const model = this._editor.getModel();
@@ -619,7 +653,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		const allowFindRegex = this._editor.getOption(EditorOption.selectedTextMatchMode) === 'findOptions'
+			|| !this._editor.hasTextFocus();
+		if (allowFindRegex && findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 			const editorModel = this._editor.getModel();
 			if (findState.searchScope) {
 				matches = editorModel.findMatches(findState.searchString, findState.searchScope, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
@@ -691,8 +727,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToNextFindMatch',
-			label: nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"),
-			alias: 'Add Selection To Next Find Match',
+			label: nls.localize2('addSelectionToNextFindMatch', "Add Selection to Next Find Match"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -716,8 +751,7 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToPreviousFindMatch',
-			label: nls.localize('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"),
-			alias: 'Add Selection To Previous Find Match',
+			label: nls.localize2('addSelectionToPreviousFindMatch', "Add Selection to Previous Find Match"),
 			precondition: undefined,
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
@@ -736,8 +770,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToNextFindMatch',
-			label: nls.localize('moveSelectionToNextFindMatch', "Move Last Selection To Next Find Match"),
-			alias: 'Move Last Selection To Next Find Match',
+			label: nls.localize2('moveSelectionToNextFindMatch', "Move Last Selection to Next Find Match"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -755,8 +788,7 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToPreviousFindMatch',
-			label: nls.localize('moveSelectionToPreviousFindMatch', "Move Last Selection To Previous Find Match"),
-			alias: 'Move Last Selection To Previous Find Match',
+			label: nls.localize2('moveSelectionToPreviousFindMatch', "Move Last Selection to Previous Find Match"),
 			precondition: undefined
 		});
 	}
@@ -769,8 +801,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 	constructor() {
 		super({
 			id: 'editor.action.selectHighlights',
-			label: nls.localize('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
-			alias: 'Select All Occurrences of Find Match',
+			label: nls.localize2('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -794,8 +825,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
 			id: 'editor.action.changeAll',
-			label: nls.localize('changeAll.label', "Change All Occurrences"),
-			alias: 'Change All Occurrences',
+			label: nls.localize2('changeAll.label', "Change All Occurrences"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -814,7 +844,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 }
 
 class SelectionHighlighterState {
-	private readonly _modelVersionId: number = this._model.getVersionId();
+	private readonly _modelVersionId: number;
 	private _cachedFindMatches: Range[] | null = null;
 
 	constructor(
@@ -824,6 +854,7 @@ class SelectionHighlighterState {
 		private readonly _wordSeparators: string | null,
 		prevState: SelectionHighlighterState | null
 	) {
+		this._modelVersionId = this._model.getVersionId();
 		if (prevState
 			&& this._model === prevState._model
 			&& this._searchText === prevState._searchText
@@ -849,6 +880,8 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 
 	private readonly editor: ICodeEditor;
 	private _isEnabled: boolean;
+	private _isEnabledMultiline: boolean;
+	private _maxLength: number;
 	private readonly _decorations: IEditorDecorationsCollection;
 	private readonly updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState | null;
@@ -860,12 +893,19 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		super();
 		this.editor = editor;
 		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
+		this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
+		this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
 		this._decorations = editor.createDecorationsCollection();
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
+			this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
+			this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
+			if (e.hasChanged(EditorOption.selectedTextMatchMode)) {
+				this.updateSoon.schedule(0);
+			}
 		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 
@@ -907,20 +947,22 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 
 	private _update(): void {
-		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this.editor));
+		this._setState(SelectionHighlighter._createState(this.state, this._isEnabled, this._isEnabledMultiline, this._maxLength, this.editor));
 	}
 
-	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, editor: ICodeEditor): SelectionHighlighterState | null {
+	private static _createState(oldState: SelectionHighlighterState | null, isEnabled: boolean, isEnabledMultiline: boolean, maxLength: number, editor: ICodeEditor): SelectionHighlighterState | null {
 		if (!isEnabled) {
 			return null;
 		}
 		if (!editor.hasModel()) {
 			return null;
 		}
-		const s = editor.getSelection();
-		if (s.startLineNumber !== s.endLineNumber) {
-			// multiline forbidden for perf reasons
-			return null;
+		if (!isEnabledMultiline) {
+			const s = editor.getSelection();
+			if (s.startLineNumber !== s.endLineNumber) {
+				// multiline forbidden for perf reasons
+				return null;
+			}
 		}
 		const multiCursorController = MultiCursorSelectionController.get(editor);
 		if (!multiCursorController) {
@@ -957,7 +999,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			// whitespace only selection
 			return null;
 		}
-		if (r.searchText.length > 200) {
+		if (maxLength > 0 && r.searchText.length > maxLength) {
 			// very long selection
 			return null;
 		}
@@ -1037,7 +1079,8 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		const hasSemanticHighlights = this._languageFeaturesService.documentHighlightProvider.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const occurrenceHighlighting: boolean = this.editor.getOption(EditorOption.occurrencesHighlight) !== 'off';
+		const hasSemanticHighlights = this._languageFeaturesService.documentHighlightProvider.has(model) && occurrenceHighlighting;
 		const decorations = matches.map(r => {
 			return {
 				range: r,
@@ -1074,21 +1117,24 @@ function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean):
 	return (toLowerCase ? text.toLowerCase() : text);
 }
 
+interface FocusCursorArgs {
+	source?: string;
+}
+
 export class FocusNextCursor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.focusNextCursor',
-			label: nls.localize('mutlicursor.focusNextCursor', "Focus Next Cursor"),
-			description: {
+			label: nls.localize2('mutlicursor.focusNextCursor', "Focus Next Cursor"),
+			metadata: {
 				description: nls.localize('mutlicursor.focusNextCursor.description', "Focuses the next cursor"),
 				args: [],
 			},
-			alias: 'Focus Next Cursor',
 			precondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: FocusCursorArgs): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -1117,17 +1163,16 @@ export class FocusPreviousCursor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.focusPreviousCursor',
-			label: nls.localize('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
-			description: {
+			label: nls.localize2('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
+			metadata: {
 				description: nls.localize('mutlicursor.focusPreviousCursor.description', "Focuses the previous cursor"),
 				args: [],
 			},
-			alias: 'Focus Previous Cursor',
 			precondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: FocusCursorArgs): void {
 		if (!editor.hasModel()) {
 			return;
 		}

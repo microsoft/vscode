@@ -4,58 +4,62 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'vs/base/common/path';
-import * as glob from 'vs/base/common/glob';
-import { normalizeNFD } from 'vs/base/common/normalization';
-import * as extpath from 'vs/base/common/extpath';
-import { isMacintosh as isMac } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { IFileQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
-import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { rgPath } from '@vscode/ripgrep';
+import * as path from '../../../../base/common/path.js';
+import * as glob from '../../../../base/common/glob.js';
+import { normalizeNFD } from '../../../../base/common/normalization.js';
+import * as extpath from '../../../../base/common/extpath.js';
+import { isMacintosh as isMac } from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { IFileQuery, IFolderQuery } from '../common/search.js';
+import { anchorGlob } from './ripgrepSearchUtils.js';
+import { getExcludeExceptionGlobs } from './ripgrepTextSearchEngine.js';
+import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 
-// If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
-const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
-
-export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
+export async function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, excludeExceptions?: readonly string[]) {
+	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads, excludeExceptions);
 	const cwd = folderQuery.folder.fsPath;
+	const resolvedRgDiskPath = await rgDiskPath();
 	return {
-		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
-		rgDiskPath,
+		cmd: cp.spawn(resolvedRgDiskPath, rgArgs.args, { cwd }),
+		rgDiskPath: resolvedRgDiskPath,
 		siblingClauses: rgArgs.siblingClauses,
 		rgArgs,
 		cwd
 	};
 }
 
-function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const args = ['--files', '--hidden', '--case-sensitive'];
+function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number, excludeExceptions?: readonly string[]) {
+	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
 
-	// includePattern can't have siblingClauses
-	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
-		const inclusion = anchorGlob(globArg);
-		args.push('-g', inclusion);
+	if (config.ignoreGlobCase || folderQuery.ignoreGlobCase) {
+		args.push('--glob-case-insensitive');
+		args.push('--ignore-file-case-insensitive');
+	}
+
+	const pushGlob = (globArg: string) => {
+		args.push('-g', globArg);
 		if (isMac) {
-			const normalized = normalizeNFD(inclusion);
-			if (normalized !== inclusion) {
+			const normalized = normalizeNFD(globArg);
+			if (normalized !== globArg) {
 				args.push('-g', normalized);
 			}
 		}
-	});
+	};
 
-	const rgGlobs = foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
-	rgGlobs.globArgs.forEach(globArg => {
-		const exclusion = `!${anchorGlob(globArg)}`;
-		args.push('-g', exclusion);
-		if (isMac) {
-			const normalized = normalizeNFD(exclusion);
-			if (normalized !== exclusion) {
-				args.push('-g', normalized);
-			}
-		}
-	});
-	if (folderQuery.disregardIgnoreFiles !== false) {
+	// Includes are applied to the results of an exception run instead, because
+	// ripgrep cannot intersect them with the globs of the exceptions
+	const rgGlobs: IRgGlobResult = excludeExceptions ? { globArgs: [], siblingClauses: {} } : foldersToRgExcludeGlobs([folderQuery], excludePattern, undefined, false);
+	if (excludeExceptions) {
+		getExcludeExceptionGlobs(excludeExceptions).forEach(pushGlob);
+	} else {
+		// includePattern can't have siblingClauses
+		foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => pushGlob(anchorGlob(globArg)));
+		rgGlobs.globArgs.forEach(globArg => pushGlob(`!${anchorGlob(globArg)}`));
+	}
+
+	// Exception runs ignore ignore files: the globs of the exceptions only match re-included paths,
+	// which override ignore files, and folders that lead to them may be ignored themselves
+	if (excludeExceptions || folderQuery.disregardIgnoreFiles !== false) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
 	} else if (folderQuery.disregardParentIgnoreFiles !== false) {
@@ -67,8 +71,13 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 		args.push('--follow');
 	}
 
-	if (config.exists) {
+	// Exception runs list their candidates, because they are filtered further before existence is known
+	if (config.exists && !excludeExceptions) {
 		args.push('--quiet');
+	}
+
+	if (numThreads) {
+		args.push('--threads', `${numThreads}`);
 	}
 
 	args.push('--no-config');
@@ -91,7 +100,7 @@ function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExclude?: 
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
-		const totalExcludePattern = Object.assign({}, folderQuery.excludePattern || {}, globalExclude || {});
+		const totalExcludePattern = glob.withoutExcludeExceptions(Object.assign({}, folderQuery.excludePattern || {}, globalExclude || {}));
 		const result = globExprsToRgGlobs(totalExcludePattern, absoluteGlobs ? folderQuery.folder.fsPath : undefined, excludesToSkip);
 		globArgs.push(...result.globArgs);
 		if (result.siblingClauses) {

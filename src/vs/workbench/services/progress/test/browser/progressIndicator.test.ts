@@ -3,34 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AbstractProgressScope, ScopedProgressIndicator } from '../../browser/progressIndicator.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 
-class TestProgressBar {
+class TestProgressBar extends ProgressBar {
 	fTotal: number = 0;
 	fWorked: number = 0;
 	fInfinite: boolean = false;
 	fDone: boolean = false;
+	fShowDelay: number | undefined = undefined;
 
-	infinite() {
+	override infinite() {
 		this.fDone = null!;
 		this.fInfinite = true;
 
 		return this;
 	}
 
-	total(total: number) {
+	override total(total: number) {
 		this.fDone = null!;
 		this.fTotal = total;
 
 		return this;
 	}
 
-	hasTotal() {
+	override hasTotal() {
 		return !!this.fTotal;
 	}
 
-	worked(worked: number) {
+	override worked(worked: number) {
 		this.fDone = null!;
 
 		if (this.fWorked) {
@@ -42,7 +45,7 @@ class TestProgressBar {
 		return this;
 	}
 
-	done() {
+	override done() {
 		this.fDone = true;
 
 		this.fInfinite = null!;
@@ -52,25 +55,29 @@ class TestProgressBar {
 		return this;
 	}
 
-	stop() {
+	override stop() {
 		return this.done();
 	}
 
-	show(): void { }
+	override show(delay?: number): void {
+		this.fShowDelay = delay;
+	}
 
-	hide(): void { }
+	override hide(): void { }
 }
 
 suite('Progress Indicator', () => {
 
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('ScopedProgressIndicator', async () => {
-		const testProgressBar = new TestProgressBar();
-		const progressScope = new class extends AbstractProgressScope {
+		const testProgressBar = disposables.add(new TestProgressBar(document.createElement('div')));
+		const progressScope = disposables.add(new class extends AbstractProgressScope {
 			constructor() { super('test.scopeId', true); }
 			testOnScopeOpened(scopeId: string) { super.onScopeOpened(scopeId); }
 			testOnScopeClosed(scopeId: string): void { super.onScopeClosed(scopeId); }
-		}();
-		const testObject = new ScopedProgressIndicator((<any>testProgressBar), progressScope);
+		}());
+		const testObject = disposables.add(new ScopedProgressIndicator(testProgressBar, progressScope));
 
 		// Active: Show (Infinite)
 		let fn = testObject.show(true);
@@ -117,4 +124,38 @@ suite('Progress Indicator', () => {
 		progressScope.testOnScopeOpened('test.scopeId');
 		assert.strictEqual(true, testProgressBar.fDone);
 	});
+
+	test('ScopedProgressIndicator - showWhile keeps start time and delay for replay', async () => {
+		const testProgressBar = disposables.add(new TestProgressBar(document.createElement('div')));
+		const progressScope = disposables.add(new class extends AbstractProgressScope {
+			constructor() { super('test.scopeId', false); }
+			testOnScopeOpened(scopeId: string) { super.onScopeOpened(scopeId); }
+			testOnScopeClosed(scopeId: string): void { super.onScopeClosed(scopeId); }
+		}());
+		const testObject = disposables.add(new ScopedProgressIndicator(testProgressBar, progressScope));
+
+		let resolvePromise!: () => void;
+		const promise = new Promise<void>(resolve => { resolvePromise = resolve; });
+
+		const startTime = Date.now();
+		const showWhileDone = testObject.showWhile(promise, 5000);
+
+		// Inactive scope: nothing is shown yet
+		assert.strictEqual(false, !!testProgressBar.fInfinite);
+
+		// The state keeps delay and wall clock start for replay computation.
+		const state = (testObject as unknown as { progressState: { whileStart: number; whileDelay: number } }).progressState;
+		assert.strictEqual(5000, state.whileDelay);
+		assert.strictEqual(true, state.whileStart >= startTime && state.whileStart <= Date.now(), `unexpected whileStart: ${state.whileStart}`);
+
+		// Reactivation replays the progress with the remaining delay
+		progressScope.testOnScopeOpened('test.scopeId');
+		assert.strictEqual(true, !!testProgressBar.fInfinite);
+		assert.strictEqual(true, typeof testProgressBar.fShowDelay === 'number' && testProgressBar.fShowDelay > 3000 && testProgressBar.fShowDelay <= 5000, `unexpected show delay: ${testProgressBar.fShowDelay}`);
+
+		resolvePromise();
+		await showWhileDone;
+		assert.strictEqual(true, testProgressBar.fDone);
+	});
+
 });

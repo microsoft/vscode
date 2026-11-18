@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, fail, ok, strictEqual } from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { ITerminalProfile, ProfileSource } from 'vs/platform/terminal/common/terminal';
-import { ITerminalConfiguration, ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectAvailableProfiles, IFsProvider } from 'vs/platform/terminal/node/terminalProfiles';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { ITerminalProfile, ProfileSource } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalConfiguration, ITerminalProfiles } from '../../common/terminal.js';
+import { detectAvailableProfiles, IFsProvider } from '../../../../../platform/terminal/node/terminalProfiles.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 /**
  * Assets that two profiles objects are equal, this will treat explicit undefined and unset
@@ -28,6 +29,8 @@ function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITe
 }
 
 suite('Workbench - TerminalProfiles', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
 			test('should detect Git Bash and provide login args', async () => {
@@ -92,7 +95,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined, isDefault: true }];
 				profilesEqual(profiles, expected);
 			});
-			suite('pwsh source detection/fallback', async () => {
+			suite('pwsh source detection/fallback', () => {
 				const pwshSourceConfig = ({
 					profiles: {
 						windows: {
@@ -214,6 +217,57 @@ suite('Workbench - TerminalProfiles', () => {
 				const profiles = await detectAvailableProfiles(undefined, undefined, true, configurationService, process.env, fsProvider, undefined, undefined, undefined);
 				const expected: ITerminalProfile[] = [
 					{ profileName: 'fakeshell1', path: '/bin/fakeshell1', isFromPath: true, isDefault: true }
+				];
+				profilesEqual(profiles, expected);
+			});
+			test('should find a bare-name profile at the login shell path when it is not on PATH', async () => {
+				const config = ({
+					profiles: {
+						windows: {},
+						osx: {
+							'fish': { path: 'fish', args: ['-l'], overrideName: true },
+							'zsh': { path: 'zsh' },
+							'tmux': { path: 'tmux' }
+						},
+						linux: {
+							'fish': { path: 'fish', args: ['-l'], overrideName: true },
+							'zsh': { path: 'zsh' },
+							'tmux': { path: 'tmux' }
+						}
+					},
+					useWslProfiles: false
+				} as ITestTerminalConfig) as ITerminalConfiguration;
+				const fsProvider = createFsProvider([
+					'/opt/homebrew/bin/fish',
+					'/opt/homebrew/bin/tmux',
+					'/bin/zsh',
+					'/opt/homebrew/bin/zsh'
+				]);
+				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
+				const profiles = await detectAvailableProfiles(undefined, 'fish', false, configurationService, { PATH: '/usr/bin:/bin' }, fsProvider, undefined, undefined, undefined, ['/opt/homebrew/bin/zsh', '/opt/homebrew/bin/fish']);
+				const expected: ITerminalProfile[] = [
+					{ profileName: 'fish', path: '/opt/homebrew/bin/fish', args: ['-l'], overrideName: true, isDefault: true },
+					{ profileName: 'zsh', path: '/bin/zsh', isFromPath: true, isDefault: false }
+				];
+				profilesEqual(profiles, expected);
+			});
+			test('should try login shell paths in the configured path order', async () => {
+				const config = ({
+					profiles: {
+						windows: {},
+						osx: { 'shell': { path: ['fish', 'zsh'] } },
+						linux: { 'shell': { path: ['fish', 'zsh'] } }
+					},
+					useWslProfiles: false
+				} as ITestTerminalConfig) as ITerminalConfiguration;
+				const fsProvider = createFsProvider([
+					'/opt/homebrew/bin/fish',
+					'/opt/homebrew/bin/zsh'
+				]);
+				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
+				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, { PATH: '/usr/bin:/bin' }, fsProvider, undefined, undefined, undefined, ['/opt/homebrew/bin/zsh', '/opt/homebrew/bin/fish']);
+				const expected: ITerminalProfile[] = [
+					{ profileName: 'shell', path: '/opt/homebrew/bin/fish', isDefault: false }
 				];
 				profilesEqual(profiles, expected);
 			});

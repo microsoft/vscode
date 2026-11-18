@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess, ForkOptions } from 'electron';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
+import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { ILogService } from '../../log/common/log.js';
 import { StringDecoder } from 'string_decoder';
-import { timeout } from 'vs/base/common/async';
-import { FileAccess } from 'vs/base/common/network';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import Severity from 'vs/base/common/severity';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { removeDangerousEnvVariables } from 'vs/base/common/processes';
-import { deepClone } from 'vs/base/common/objects';
+import { timeout } from '../../../base/common/async.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import Severity from '../../../base/common/severity.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
+import { deepClone } from '../../../base/common/objects.js';
+import { isWindows } from '../../../base/common/platform.js';
+import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
 
 export interface IUtilityProcessConfiguration {
 
@@ -23,6 +25,11 @@ export interface IUtilityProcessConfiguration {
 	 * A way to group utility processes of same type together.
 	 */
 	readonly type: string;
+
+	/**
+	 * A human-readable name for the utility process.
+	 */
+	readonly name: string;
 
 	/**
 	 * The entry point to load in the utility process.
@@ -70,10 +77,11 @@ export interface IUtilityProcessConfiguration {
 	readonly parentLifecycleBound?: number;
 
 	/**
-	 * Allow the utility process to force heap allocations inside
-	 * the V8 sandbox.
+	 * HTTP 401 and 407 requests created via electron:net module
+	 * will be redirected to the main process and can be handled
+	 * via the app#login event.
 	 */
-	readonly forceAllocationsToV8Sandbox?: boolean;
+	readonly respondToAuthRequestsFromMainProcess?: boolean;
 }
 
 export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfiguration {
@@ -91,6 +99,14 @@ export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfi
 	 * when the associated browser window closes or reloads.
 	 */
 	readonly windowLifecycleBound?: boolean;
+
+	/**
+	 * Optional period in milliseconds to allow for graceful shutdown
+	 * before forcefully killing the process when the window lifecycle ends.
+	 * If not set or 0, the process will be killed immediately.
+	 * This is useful for extension hosts that need time to deactivate extensions.
+	 */
+	readonly windowLifecycleGraceTime?: number;
 }
 
 function isWindowUtilityProcessConfiguration(config: IUtilityProcessConfiguration): config is IWindowUtilityProcessConfiguration {
@@ -126,7 +142,7 @@ export interface IUtilityProcessCrashEvent extends IUtilityProcessExitBaseEvent 
 	/**
 	 * The reason of the utility process crash.
 	 */
-	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure';
+	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure' | 'memory-eviction';
 }
 
 export interface IUtilityProcessInfo {
@@ -153,6 +169,9 @@ export class UtilityProcess extends Disposable {
 
 	private readonly _onMessage = this._register(new Emitter<unknown>());
 	readonly onMessage = this._onMessage.event;
+
+	private readonly _onSpawn = this._register(new Emitter<number | undefined>());
+	readonly onSpawn = this._onSpawn.event;
 
 	private readonly _onExit = this._register(new Emitter<IUtilityProcessExitEvent>());
 	readonly onExit = this._onExit.event;
@@ -204,16 +223,19 @@ export class UtilityProcess extends Disposable {
 	}
 
 	start(configuration: IUtilityProcessConfiguration): boolean {
-		const started = this.doStart(configuration, false);
+		const started = this.doStart(configuration);
 
 		if (started && configuration.payload) {
-			this.postMessage(configuration.payload);
+			const posted = this.postMessage(configuration.payload);
+			if (posted) {
+				this.log('payload sent via postMessage()', Severity.Info);
+			}
 		}
 
 		return started;
 	}
 
-	protected doStart(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): boolean {
+	protected doStart(configuration: IUtilityProcessConfiguration): boolean {
 		if (!this.validateCanStart()) {
 			return false;
 		}
@@ -223,11 +245,15 @@ export class UtilityProcess extends Disposable {
 		const serviceName = `${this.configuration.type}-${this.id}`;
 		const modulePath = FileAccess.asFileUri('bootstrap-fork.js').fsPath;
 		const args = this.configuration.args ?? [];
-		const execArgv = this.configuration.execArgv ?? [];
+		const execArgv = [...(this.configuration.execArgv ?? [])];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
-		const forceAllocationsToV8Sandbox = this.configuration.forceAllocationsToV8Sandbox;
+		const jsFlags = app.commandLine.getSwitchValue('js-flags');
+		if (jsFlags) {
+			execArgv.push(`--js-flags=${jsFlags}`);
+		}
+		const respondToAuthRequestsFromMainProcess = this.configuration.respondToAuthRequestsFromMainProcess;
 		const stdio = 'pipe';
-		const env = this.createEnv(configuration, isWindowSandboxed);
+		const env = this.createEnv(configuration);
 
 		this.log('creating new...', Severity.Info);
 
@@ -235,30 +261,34 @@ export class UtilityProcess extends Disposable {
 		this.process = utilityProcess.fork(modulePath, args, {
 			serviceName,
 			env,
-			execArgv,
+			execArgv, // !!! Add `--trace-warnings` for node.js tracing !!!
 			allowLoadingUnsignedLibraries,
-			forceAllocationsToV8Sandbox,
+			respondToAuthRequestsFromMainProcess,
 			stdio
-		} as ForkOptions & { forceAllocationsToV8Sandbox?: Boolean });
+		});
 
 		// Register to events
-		this.registerListeners(this.process, this.configuration, serviceName, isWindowSandboxed);
+		this.registerListeners(this.process, this.configuration, serviceName);
 
 		return true;
 	}
 
-	private createEnv(configuration: IUtilityProcessConfiguration, isWindowSandboxed: boolean): { [key: string]: any } {
-		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
+	private createEnv(configuration: IUtilityProcessConfiguration): NodeJS.ProcessEnv {
+		const env: NodeJS.ProcessEnv = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
-		env['VSCODE_AMD_ENTRYPOINT'] = configuration.entryPoint;
+		env['VSCODE_ESM_ENTRYPOINT'] = configuration.entryPoint;
 		if (typeof configuration.parentLifecycleBound === 'number') {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}
-		if (isWindowSandboxed) {
-			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1'; // TODO@bpasero remove me once sandbox is final
-		}
 		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
+		if (isWindows) {
+			if (isUNCAccessRestrictionsDisabled()) {
+				env['NODE_DISABLE_UNC_ACCESS_CHECKS'] = '1';
+			} else {
+				env['NODE_UNC_HOST_ALLOWLIST'] = getUNCHostAllowlist().join('\\');
+			}
+		}
 
 		// Remove any environment variables that are not allowed
 		removeDangerousEnvVariables(env);
@@ -271,7 +301,7 @@ export class UtilityProcess extends Disposable {
 		return env;
 	}
 
-	private registerListeners(process: ElectronUtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
+	private registerListeners(process: ElectronUtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string): void {
 
 		// Stdout
 		if (process.stdout) {
@@ -293,10 +323,11 @@ export class UtilityProcess extends Disposable {
 			this.processPid = process.pid;
 
 			if (typeof process.pid === 'number') {
-				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.type} [${configuration.responseWindowId}]` : configuration.type });
+				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.name} [${configuration.responseWindowId}]` : configuration.name });
 			}
 
 			this.log('successfully created', Severity.Info);
+			this._onSpawn.fire(process.pid);
 		}));
 
 		// Exit
@@ -319,8 +350,7 @@ export class UtilityProcess extends Disposable {
 				type UtilityProcessCrashClassification = {
 					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
 					reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the utility process crash to understand the nature of the crash better.' };
-					sandboxed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the window for the utility process was sandboxed or not.' };
-					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the utility process to understand the nature of the crash better' };
+					code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the utility process to understand the nature of the crash better' };
 					owner: 'bpasero';
 					comment: 'Provides insight into reasons the utility process crashed.';
 				};
@@ -328,13 +358,11 @@ export class UtilityProcess extends Disposable {
 					type: string;
 					reason: string;
 					code: number;
-					sandboxed: string;
 				};
 				this.telemetryService.publicLog2<UtilityProcessCrashEvent, UtilityProcessCrashClassification>('utilityprocesscrash', {
 					type: configuration.type,
 					reason: details.reason,
-					code: details.exitCode,
-					sandboxed: isWindowSandboxed ? '1' : '0' // TODO@bpasero remove this once sandbox is enabled by default
+					code: details.exitCode
 				});
 
 				// Event
@@ -356,12 +384,14 @@ export class UtilityProcess extends Disposable {
 		}));
 	}
 
-	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): void {
+	postMessage(message: unknown, transfer?: Electron.MessagePortMain[]): boolean {
 		if (!this.process) {
-			return; // already killed, crashed or never started
+			return false; // already killed, crashed or never started
 		}
 
 		this.process.postMessage(message, transfer);
+
+		return true;
 	}
 
 	connect(payload?: unknown): Electron.MessagePortMain {
@@ -452,7 +482,7 @@ export class WindowUtilityProcess extends UtilityProcess {
 		}
 
 		// Start utility process
-		const started = super.doStart(configuration, responseWindow.isSandboxed);
+		const started = super.doStart(configuration);
 		if (!started) {
 			return false;
 		}
@@ -470,11 +500,17 @@ export class WindowUtilityProcess extends UtilityProcess {
 	private registerWindowListeners(window: BrowserWindow, configuration: IWindowUtilityProcessConfiguration): void {
 
 		// If the lifecycle of the utility process is bound to the window,
-		// we kill the process if the window closes or changes
+		// we terminate the process if the window closes or changes.
+		// If a grace period is configured, we wait for the process to exit
+		// before terminating (e.g. extensions need time to deactivate).
 
 		if (configuration.windowLifecycleBound) {
-			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(() => this.kill()));
-			this._register(Event.fromNodeEventEmitter(window, 'closed')(() => this.kill()));
+			const graceTime = configuration.windowLifecycleGraceTime;
+			const terminate = graceTime && graceTime > 0
+				? () => this.waitForExit(graceTime)
+				: () => this.kill();
+			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(terminate));
+			this._register(Event.fromNodeEventEmitter(window, 'closed')(terminate));
 		}
 	}
 }

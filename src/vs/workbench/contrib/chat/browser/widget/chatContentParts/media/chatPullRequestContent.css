@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-pull-request-content-part {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 6px;
+	margin: 4px 0;
+	overflow: hidden;
+}
+
+.chat-pull-request-content-part .container .icon {
+	padding-right: 4px;
+	padding-top: 2px;
+}
+
+.chat-pull-request-content-part .content-container {
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-pull-request-content-part {
+
+	.title-container {
+		display: flex;
+		padding: 8px 12px;
+	}
+
+	.title {
+		color: inherit;
+		text-decoration: none;
+		cursor: pointer;
+
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+}

@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { groupBy } from 'vs/base/common/arrays';
-import { createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { uppercaseFirstLetter } from 'vs/base/common/strings';
-import 'vs/css!./notebookKernelActionViewItem';
-import { Command } from 'vs/editor/common/languages';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtension, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IActiveNotebookEditor, INotebookExtensionRecommendation, JUPYTER_EXTENSION_ID, KERNEL_RECOMMENDATIONS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { executingStateIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelMatchResult, INotebookKernelService, ISourceAction } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { IAction } from '../../../../../base/common/actions.js';
+import { groupBy } from '../../../../../base/common/arrays.js';
+import { createCancelablePromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { uppercaseFirstLetter } from '../../../../../base/common/strings.js';
+import { Command } from '../../../../../editor/common/languages.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { IActiveNotebookEditor, INotebookExtensionRecommendation, JUPYTER_EXTENSION_ID, KERNEL_RECOMMENDATIONS } from '../notebookBrowser.js';
+import { NotebookEditorWidget } from '../notebookEditorWidget.js';
+import { executingStateIcon, selectKernelIcon } from '../notebookIcons.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelMatchResult, INotebookKernelService, ISourceAction } from '../../common/notebookKernelService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { INotebookTextModel } from '../../common/notebookCommon.js';
+import { SELECT_KERNEL_ID } from '../controller/coreActions.js';
+import { EnablementState, IExtensionManagementServerService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 
 type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
 function isKernelPick(item: QuickPickInput<IQuickPickItem>): item is KernelPick {
@@ -73,7 +72,7 @@ export type KernelQuickPickContext =
 	{ id: string; extension: string } |
 	{ notebookEditorId: string } |
 	{ id: string; extension: string; notebookEditorId: string } |
-	{ ui?: boolean; notebookEditor?: NotebookEditorWidget };
+	{ ui?: boolean; notebookEditor?: NotebookEditorWidget; skipIfAlreadySelected?: boolean };
 
 export interface IKernelPickerStrategy {
 	showQuickPick(editor: IActiveNotebookEditor, wantedKernelId?: string): Promise<boolean>;
@@ -105,10 +104,10 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		protected readonly _quickInputService: IQuickInputService,
 		protected readonly _labelService: ILabelService,
 		protected readonly _logService: ILogService,
-		protected readonly _paneCompositePartService: IPaneCompositePartService,
 		protected readonly _extensionWorkbenchService: IExtensionsWorkbenchService,
 		protected readonly _extensionService: IExtensionService,
-		protected readonly _commandService: ICommandService
+		protected readonly _commandService: ICommandService,
+		protected readonly _extensionManagementServerService: IExtensionManagementServerService
 	) { }
 
 	async showQuickPick(editor: IActiveNotebookEditor, wantedId?: string, skipAutoRun?: boolean): Promise<boolean> {
@@ -136,11 +135,15 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			return true;
 		}
 
-		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
+
+		const localDisposableStore = new DisposableStore();
+		const quickPick = localDisposableStore.add(this._quickInputService.createQuickPick<KernelQuickPickItem>({ useSeparators: true }));
 		const quickPickItems = this._getKernelPickerQuickPickItems(notebook, matchResult, this._notebookKernelService, scopedContextKeyService);
 
 		if (quickPickItems.length === 1 && supportAutoRun(quickPickItems[0]) && !skipAutoRun) {
-			return await this._handleQuickPick(editor, quickPickItems[0], quickPickItems as KernelQuickPickItem[]);
+			const picked = await this._handleQuickPick(editor, quickPickItems[0], quickPickItems as KernelQuickPickItem[]);
+			localDisposableStore.dispose();
+			return picked;
 		}
 
 		quickPick.items = quickPickItems;
@@ -201,7 +204,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		}, this);
 
 		const pick = await new Promise<{ selected: KernelQuickPickItem | undefined; items: KernelQuickPickItem[] }>((resolve, reject) => {
-			quickPick.onDidAccept(() => {
+			localDisposableStore.add(quickPick.onDidAccept(() => {
 				const item = quickPick.selectedItems[0];
 				if (item) {
 					resolve({ selected: item, items: quickPick.items as KernelQuickPickItem[] });
@@ -210,16 +213,18 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				}
 
 				quickPick.hide();
-			});
+			}));
 
-			quickPick.onDidHide(() => {
+			localDisposableStore.add(quickPick.onDidHide(() => {
 				kernelDetectionTaskListener.dispose();
 				kernelChangeEventListener.dispose();
 				quickPick.dispose();
 				resolve({ selected: undefined, items: quickPick.items as KernelQuickPickItem[] });
-			});
+			}));
 			quickPick.show();
 		});
+
+		localDisposableStore.dispose();
 
 		if (pick.selected) {
 			return await this._handleQuickPick(editor, pick.selected, pick.items);
@@ -249,18 +254,18 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		// actions
 		if (isSearchMarketplacePick(pick)) {
 			await this._showKernelExtension(
-				this._paneCompositePartService,
 				this._extensionWorkbenchService,
 				this._extensionService,
+				this._extensionManagementServerService,
 				editor.textModel.viewType,
 				[]
 			);
 			// suggestedExtension must be defined for this option to be shown, but still check to make TS happy
 		} else if (isInstallExtensionPick(pick)) {
 			await this._showKernelExtension(
-				this._paneCompositePartService,
 				this._extensionWorkbenchService,
 				this._extensionService,
+				this._extensionManagementServerService,
 				editor.textModel.viewType,
 				pick.extensionIds,
 				this._productService.quality !== 'stable'
@@ -278,49 +283,82 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	}
 
 	protected async _showKernelExtension(
-		paneCompositePartService: IPaneCompositePartService,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
 		extensionService: IExtensionService,
+		extensionManagementServerService: IExtensionManagementServerService,
 		viewType: string,
 		extIds: string[],
 		isInsiders?: boolean
 	) {
 		// If extension id is provided attempt to install the extension as the user has requested the suggested ones be installed
 		const extensionsToInstall: IExtension[] = [];
+		const extensionsToInstallOnRemote: IExtension[] = [];
+		const extensionsToEnable: IExtension[] = [];
 
 		for (const extId of extIds) {
 			const extension = (await extensionWorkbenchService.getExtensions([{ id: extId }], CancellationToken.None))[0];
-			const canInstall = await extensionWorkbenchService.canInstall(extension);
-			if (canInstall) {
-				extensionsToInstall.push(extension);
+			if (extension.enablementState === EnablementState.DisabledGlobally || extension.enablementState === EnablementState.DisabledWorkspace || extension.enablementState === EnablementState.DisabledByEnvironment) {
+				extensionsToEnable.push(extension);
+			} else if (!extensionWorkbenchService.installed.some(e => areSameExtensions(e.identifier, extension.identifier))) {
+				// Install this extension only if it hasn't already been installed.
+				const canInstall = await extensionWorkbenchService.canInstall(extension);
+				if (canInstall === true) {
+					extensionsToInstall.push(extension);
+				}
+			} else if (extensionManagementServerService.remoteExtensionManagementServer) {
+				// already installed, check if it should be installed on remote since we are not getting any kernels or kernel providers.
+				if (extensionWorkbenchService.installed.some(e => areSameExtensions(e.identifier, extension.identifier) && e.server === extensionManagementServerService.remoteExtensionManagementServer)) {
+					// extension exists on remote server. should not happen
+					continue;
+				} else {
+					// extension doesn't exist on remote server
+					const canInstall = await extensionWorkbenchService.canInstall(extension);
+					if (canInstall) {
+						extensionsToInstallOnRemote.push(extension);
+					}
+				}
 			}
 		}
 
-		if (extensionsToInstall.length) {
-			await Promise.all(extensionsToInstall.map(async extension => {
+		if (extensionsToInstall.length || extensionsToEnable.length || extensionsToInstallOnRemote.length) {
+			await Promise.all([...extensionsToInstall.map(async extension => {
 				await extensionWorkbenchService.install(
 					extension,
 					{
 						installPreReleaseVersion: isInsiders ?? false,
-						context: { skipWalkthrough: true }
+						context: { skipWalkthrough: true },
 					},
 					ProgressLocation.Notification
 				);
-			}));
+			}), ...extensionsToEnable.map(async extension => {
+				switch (extension.enablementState) {
+					case EnablementState.DisabledWorkspace:
+						await extensionWorkbenchService.setEnablement([extension], EnablementState.EnabledWorkspace);
+						return;
+					case EnablementState.DisabledGlobally:
+						await extensionWorkbenchService.setEnablement([extension], EnablementState.EnabledGlobally);
+						return;
+					case EnablementState.DisabledByEnvironment:
+						await extensionWorkbenchService.setEnablement([extension], EnablementState.EnabledByEnvironment);
+						return;
+					default:
+						break;
+				}
+			}), ...extensionsToInstallOnRemote.map(async extension => {
+				await extensionWorkbenchService.installInServer(extension, this._extensionManagementServerService.remoteExtensionManagementServer!);
+			})]);
 
 			await extensionService.activateByEvent(`onNotebook:${viewType}`);
 			return;
 		}
 
-		const viewlet = await paneCompositePartService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 		const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
-		view?.search(`@tag:notebookKernel${pascalCased}`);
+		await extensionWorkbenchService.openSearch(`@tag:notebookKernel${pascalCased}`);
 	}
 
 	private async _showInstallKernelExtensionRecommendation(
 		notebookTextModel: NotebookTextModel,
-		quickPick: IQuickPick<KernelQuickPickItem>,
+		quickPick: IQuickPick<KernelQuickPickItem, { useSeparators: true }>,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
 		token: CancellationToken
 	) {
@@ -348,7 +386,11 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		const suggestedExtension: INotebookExtensionRecommendation | undefined = language ? this.getSuggestedKernelFromLanguage(notebookTextModel.viewType, language) : undefined;
 		if (suggestedExtension) {
 			await extensionWorkbenchService.queryLocal();
-			const extensions = extensionWorkbenchService.installed.filter(e => suggestedExtension.extensionIds.includes(e.identifier.id));
+
+			const extensions = extensionWorkbenchService.installed.filter(e =>
+				(e.enablementState === EnablementState.EnabledByEnvironment || e.enablementState === EnablementState.EnabledGlobally || e.enablementState === EnablementState.EnabledWorkspace)
+				&& suggestedExtension.extensionIds.includes(e.identifier.id)
+			);
 
 			if (extensions.length === suggestedExtension.extensionIds.length) {
 				// it's installed but might be detecting kernels
@@ -359,15 +401,15 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			quickPickItems.push({
 				id: 'installSuggested',
 				description: suggestedExtension.displayName ?? suggestedExtension.extensionIds.join(', '),
-				label: `$(${Codicon.lightbulb.id}) ` + localize('installSuggestedKernel', 'Install suggested extensions'),
+				label: `$(${Codicon.lightbulb.id}) ` + localize('installSuggestedKernel', 'Install/Enable suggested extensions'),
 				extensionIds: suggestedExtension.extensionIds
-			} as InstallExtensionPick);
+			} satisfies InstallExtensionPick);
 		}
 		// there is no kernel, show the install from marketplace
 		quickPickItems.push({
 			id: 'install',
 			label: localize('searchForKernels', "Browse marketplace for kernel extensions"),
-		} as SearchMarketplacePick);
+		} satisfies SearchMarketplacePick);
 
 		return quickPickItems;
 	}
@@ -379,7 +421,8 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	 */
 	private getSuggestedLanguage(notebookTextModel: NotebookTextModel): string | undefined {
 		const metaData = notebookTextModel.metadata;
-		let suggestedKernelLanguage: string | undefined = (metaData.custom as any)?.metadata?.language_info?.name;
+		const language_info = (metaData?.metadata as Record<string, unknown>)?.language_info as Record<string, string> | undefined;
+		let suggestedKernelLanguage: string | undefined = language_info?.name;
 		// TODO how do we suggest multi language notebooks?
 		if (!suggestedKernelLanguage) {
 			const cellLanguages = notebookTextModel.cells.map(cell => cell.language).filter(language => language !== 'markdown');
@@ -412,9 +455,9 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		@IQuickInputService _quickInputService: IQuickInputService,
 		@ILabelService _labelService: ILabelService,
 		@ILogService _logService: ILogService,
-		@IPaneCompositePartService _paneCompositePartService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService _extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService _extensionService: IExtensionService,
+		@IExtensionManagementServerService _extensionManagementServerService: IExtensionManagementServerService,
 		@ICommandService _commandService: ICommandService,
 		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
 		@IOpenerService private readonly _openerService: IOpenerService
@@ -426,10 +469,10 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			_quickInputService,
 			_labelService,
 			_logService,
-			_paneCompositePartService,
 			_extensionWorkbenchService,
 			_extensionService,
 			_commandService,
+			_extensionManagementServerService,
 		);
 	}
 
@@ -496,56 +539,70 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 	private async displaySelectAnotherQuickPick(editor: IActiveNotebookEditor, kernelListEmpty: boolean): Promise<boolean> {
 		const notebook: NotebookTextModel = editor.textModel;
 		const disposables = new DisposableStore();
-		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
-		const quickPickItem = await new Promise<KernelQuickPickItem | IQuickInputButton | undefined>(resolve => {
-			// select from kernel sources
-			quickPick.title = kernelListEmpty ? localize('select', "Select Kernel") : localize('selectAnotherKernel', "Select Another Kernel");
-			quickPick.placeholder = localize('selectKernel.placeholder', "Type to choose a kernel source");
+		const quickPick = disposables.add(this._quickInputService.createQuickPick<KernelQuickPickItem>({ useSeparators: true }));
+		const { promise, resolve } = Promise.withResolvers<KernelQuickPickItem | IQuickInputButton | undefined>();
+		let requestId = 0;
+		let isClosed = false;
+		const finish = (item: KernelQuickPickItem | IQuickInputButton | undefined) => {
+			isClosed = true;
+			resolve(item);
+		};
+		const updateItems = async (isInitial = false) => {
+			if (isClosed) {
+				return;
+			}
+			const currentRequest = ++requestId;
 			quickPick.busy = true;
-			quickPick.buttons = [this._quickInputService.backButton];
-			quickPick.show();
+			const items = await this._calculdateKernelSources(editor);
+			if (isClosed || disposables.isDisposed || currentRequest !== requestId) {
+				return;
+			}
+			quickPick.items = items;
+			if (!isInitial || items.length > 0) {
+				quickPick.busy = false;
+			}
+		};
 
-			disposables.add(quickPick.onDidTriggerButton(button => {
-				if (button === this._quickInputService.backButton) {
-					resolve(button);
-				}
-			}));
-			quickPick.onDidTriggerItemButton(async (e) => {
+		// select from kernel sources
+		quickPick.title = kernelListEmpty ? localize('select', "Select Kernel") : localize('selectAnotherKernel', "Select Another Kernel");
+		quickPick.placeholder = localize('selectKernel.placeholder', "Type to choose a kernel source");
+		quickPick.busy = true;
+		quickPick.buttons = [this._quickInputService.backButton];
+		quickPick.show();
 
-				if (isKernelSourceQuickPickItem(e.item) && e.item.documentation !== undefined) {
-					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand(e.item.documentation);
+		disposables.add(quickPick.onDidTriggerButton(button => {
+			if (button === this._quickInputService.backButton) {
+				finish(button);
+			}
+		}));
+		disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
+			if (isKernelSourceQuickPickItem(e.item) && e.item.documentation !== undefined) {
+				const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand<URI>(e.item.documentation);
+				if (uri) {
 					void this._openerService.open(uri, { openExternal: true });
 				}
-			});
-			disposables.add(quickPick.onDidAccept(async () => {
-				resolve(quickPick.selectedItems[0]);
-			}));
-			disposables.add(quickPick.onDidHide(() => {
-				resolve(undefined);
-			}));
+			}
+		}));
+		disposables.add(quickPick.onDidAccept(async () => {
+			finish(quickPick.selectedItems[0]);
+		}));
+		disposables.add(quickPick.onDidHide(() => {
+			finish(undefined);
+		}));
 
-			this._calculdateKernelSources(editor).then(quickPickItems => {
-				quickPick.items = quickPickItems;
-				if (quickPick.items.length > 0) {
-					quickPick.busy = false;
-				}
-			});
+		void updateItems(true);
 
-			disposables.add(Event.debounce<void, void>(
-				Event.any(
-					this._notebookKernelService.onDidChangeSourceActions,
-					this._notebookKernelService.onDidAddKernel,
-					this._notebookKernelService.onDidRemoveKernel
-				),
-				(last, _current) => last,
-				KERNEL_PICKER_UPDATE_DEBOUNCE
-			)(async () => {
-				quickPick.busy = true;
-				const quickPickItems = await this._calculdateKernelSources(editor);
-				quickPick.items = quickPickItems;
-				quickPick.busy = false;
-			}));
-		});
+		disposables.add(Event.debounce<void, void>(
+			Event.any(
+				this._notebookKernelService.onDidChangeSourceActions,
+				this._notebookKernelService.onDidAddKernel,
+				this._notebookKernelService.onDidRemoveKernel
+			),
+			(last, _current) => last,
+			KERNEL_PICKER_UPDATE_DEBOUNCE
+		)(() => updateItems()));
+
+		const quickPickItem = await promise;
 
 		quickPick.hide();
 		disposables.dispose();
@@ -577,7 +634,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				await this._selecteKernel(notebook, selectedKernelPickItem.kernel);
 				return true;
 			} else if (isGroupedKernelsPick(selectedKernelPickItem)) {
-				await this._selectOneKernel(notebook, selectedKernelPickItem.source, selectedKernelPickItem.kernels);
+				await this._selectOneKernel(notebook, selectedKernelPickItem.label, selectedKernelPickItem.kernels);
 				return true;
 			} else if (isSourcePick(selectedKernelPickItem)) {
 				// selected explicilty, it should trigger the execution?
@@ -589,23 +646,23 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				}
 			} else if (isSearchMarketplacePick(selectedKernelPickItem)) {
 				await this._showKernelExtension(
-					this._paneCompositePartService,
 					this._extensionWorkbenchService,
 					this._extensionService,
+					this._extensionManagementServerService,
 					editor.textModel.viewType,
 					[]
 				);
 				return true;
 			} else if (isInstallExtensionPick(selectedKernelPickItem)) {
 				await this._showKernelExtension(
-					this._paneCompositePartService,
 					this._extensionWorkbenchService,
 					this._extensionService,
+					this._extensionManagementServerService,
 					editor.textModel.viewType,
 					selectedKernelPickItem.extensionIds,
 					this._productService.quality !== 'stable'
 				);
-				return true;
+				return this.displaySelectAnotherQuickPick(editor, false);
 			}
 		}
 
@@ -629,7 +686,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		// group controllers by extension
 		for (const group of groupBy(others, (a, b) => a.extension.value === b.extension.value ? 0 : 1)) {
 			const extension = this._extensionService.extensions.find(extension => extension.identifier.value === group[0].extension.value);
-			const source = extension?.description ?? group[0].extension.value;
+			const source = extension?.displayName ?? extension?.description ?? group[0].extension.value;
 			if (group.length > 1) {
 				quickPickItems.push({
 					label: source,
@@ -651,7 +708,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				tooltip: localize('learnMoreTooltip', 'Learn More'),
 			}] : [];
 			return {
-				id: typeof action.command! === 'string' ? action.command! : action.command!.id,
+				id: typeof action.command! === 'string' ? action.command : action.command!.id,
 				label: action.label,
 				description: action.description,
 				command: action.command,
@@ -676,24 +733,25 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 
 	private async _selectOneKernel(notebook: NotebookTextModel, source: string, kernels: INotebookKernel[]) {
 		const quickPickItems: QuickPickInput<KernelPick>[] = kernels.map(kernel => toKernelQuickPick(kernel, undefined));
-		const quickPick = this._quickInputService.createQuickPick<KernelQuickPickItem>();
+		const localDisposableStore = new DisposableStore();
+		const quickPick = localDisposableStore.add(this._quickInputService.createQuickPick<KernelQuickPickItem>({ useSeparators: true }));
 		quickPick.items = quickPickItems;
 		quickPick.canSelectMany = false;
 
 		quickPick.title = localize('selectKernelFromExtension', "Select Kernel from {0}", source);
 
-		quickPick.onDidAccept(async () => {
+		localDisposableStore.add(quickPick.onDidAccept(async () => {
 			if (quickPick.selectedItems && quickPick.selectedItems.length > 0 && isKernelPick(quickPick.selectedItems[0])) {
 				await this._selecteKernel(notebook, quickPick.selectedItems[0].kernel);
 			}
 
 			quickPick.hide();
 			quickPick.dispose();
-		});
+		}));
 
-		quickPick.onDidHide(() => {
-			quickPick.dispose();
-		});
+		localDisposableStore.add(quickPick.onDidHide(() => {
+			localDisposableStore.dispose();
+		}));
 
 		quickPick.show();
 	}

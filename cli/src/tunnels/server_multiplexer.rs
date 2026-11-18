@@ -105,7 +105,7 @@ impl ServerMultiplexer {
 	}
 }
 
-/// Write loop started by `handle_server_message`. It take sthe ServerBridge, and
+/// Write loop started by `handle_server_message`. It takes the ServerBridge, and
 /// runs until there's no more items in the 'write queue'. At that point, if the
 /// record still exists in the bridges_lock (i.e. we haven't shut down), it'll
 /// return the ServerBridge so that the next handle_server_message call starts

@@ -424,7 +424,7 @@ suite('vscode API - window', () => {
 
 		const commandFile = await createRandomFile();
 		await commands.executeCommand('vscode.open', commandFile, ViewColumn.Three);
-		// Ensure active tab is correct after calling vscode.opn
+		// Ensure active tab is correct after calling vscode.open
 		assert.strictEqual(getActiveTab()?.group.viewColumn, ViewColumn.Three);
 
 		const leftDiff = await createRandomFile();
@@ -1035,5 +1035,29 @@ suite('vscode API - window', () => {
 		assert.strictEqual(statusBarEntryWithId.name, undefined);
 		statusBarEntryWithId.name = 'Test Name';
 		assert.strictEqual(statusBarEntryWithId.name, 'Test Name');
+	});
+
+	test('createStatusBar - static', async function () {
+
+		const item = window.createStatusBarItem('myStaticItem');
+
+		assert.strictEqual(item.alignment, StatusBarAlignment.Right);
+		assert.strictEqual(item.priority, 17);
+		assert.strictEqual(item.name, 'My Static Item');
+		assert.strictEqual(item.text, 'Hello $(globe)');
+		assert.strictEqual(item.tooltip, 'Hover World');
+		assert.deepStrictEqual(item.accessibilityInformation, { label: 'Hello World', role: 'button' });
+
+		item.dispose();
+	});
+
+	test('createStatusBar - static, CANNOT change some props', async function () {
+
+		const item = window.createStatusBarItem('myStaticItem', StatusBarAlignment.Left, 12);
+
+		assert.strictEqual(item.alignment, StatusBarAlignment.Right);
+		assert.strictEqual(item.priority, 17);
+
+		item.dispose();
 	});
 });

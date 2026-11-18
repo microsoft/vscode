@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ITerminalEnvironment } from '../../terminal/common/terminal.js';
 
 export const IExternalTerminalService = createDecorator<IExternalTerminalService>('externalTerminal');
 
@@ -35,9 +35,3 @@ export interface IExternalTerminalConfiguration {
 }
 
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
-
-export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminal');
-
-export interface IExternalTerminalMainService extends IExternalTerminalService {
-	readonly _serviceBrand: undefined;
-}

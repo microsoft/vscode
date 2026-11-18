@@ -7,17 +7,18 @@
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, language, OperatingSystem, platform, Platform } from 'vs/base/common/platform';
-import { escapeNonWindowsPath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
-import { isString } from 'vs/base/common/types';
-import { ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
+import * as path from '../../../../base/common/path.js';
+import { URI, uriToFsPath } from '../../../../base/common/uri.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, ShellIntegrationTimeoutOverride, TerminalSettingId, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from '../../../../base/common/platform.js';
+import { escapeNonWindowsPath, sanitizeCwd } from '../../../../platform/terminal/common/terminalEnvironment.js';
+import { isNumber, isString } from '../../../../base/common/types.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import type { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
@@ -51,7 +52,7 @@ export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalE
 }
 
 function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: string | null): void {
-	if (typeof value === 'string') {
+	if (isString(value)) {
 		env[key] = value;
 	} else {
 		delete env[key];
@@ -83,7 +84,7 @@ function mergeNonNullKeys(env: IProcessEnvironment, other: ITerminalEnvironment 
 
 async function resolveConfigurationVariables(variableResolver: VariableResolver, env: ITerminalEnvironment): Promise<ITerminalEnvironment> {
 	await Promise.all(Object.entries(env).map(async ([key, value]) => {
-		if (typeof value === 'string') {
+		if (isString(value)) {
 			try {
 				env[key] = await variableResolver(value);
 			} catch (e) {
@@ -172,7 +173,7 @@ export function getLangEnvVariable(locale?: string): string {
 			uk: 'UA',
 			zh: 'CN',
 		};
-		if (parts[0] in languageVariants) {
+		if (Object.prototype.hasOwnProperty.call(languageVariants, parts[0])) {
 			parts.push(languageVariants[parts[0]]);
 		}
 	} else {
@@ -231,21 +232,6 @@ async function _resolveCwd(cwd: string, variableResolver: VariableResolver | und
 	return cwd;
 }
 
-export type TerminalShellSetting = (
-	TerminalSettingId.AutomationShellWindows
-	| TerminalSettingId.AutomationShellMacOs
-	| TerminalSettingId.AutomationShellLinux
-	| TerminalSettingId.ShellWindows
-	| TerminalSettingId.ShellMacOs
-	| TerminalSettingId.ShellLinux
-);
-
-export type TerminalShellArgsSetting = (
-	TerminalSettingId.ShellArgsWindows
-	| TerminalSettingId.ShellArgsMacOs
-	| TerminalSettingId.ShellArgsLinux
-);
-
 export type VariableResolver = (str: string) => Promise<string>;
 
 export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | undefined, env: IProcessEnvironment, configurationResolverService: IConfigurationResolverService | undefined): VariableResolver | undefined {
@@ -253,103 +239,6 @@ export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | u
 		return undefined;
 	}
 	return (str) => configurationResolverService.resolveWithEnvironment(env, lastActiveWorkspace, str);
-}
-
-/**
- * @deprecated Use ITerminalProfileResolverService
- */
-export async function getDefaultShell(
-	fetchSetting: (key: TerminalShellSetting) => string | undefined,
-	defaultShell: string,
-	isWoW64: boolean,
-	windir: string | undefined,
-	variableResolver: VariableResolver | undefined,
-	logService: ILogService,
-	useAutomationShell: boolean,
-	platformOverride: Platform = platform
-): Promise<string> {
-	let maybeExecutable: string | undefined;
-	if (useAutomationShell) {
-		// If automationShell is specified, this should override the normal setting
-		maybeExecutable = getShellSetting(fetchSetting, 'automationShell', platformOverride) as string | undefined;
-	}
-	if (!maybeExecutable) {
-		maybeExecutable = getShellSetting(fetchSetting, 'shell', platformOverride) as string | undefined;
-	}
-	let executable: string = maybeExecutable || defaultShell;
-
-	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
-	// safe to assume that this was used by accident as Sysnative does not
-	// exist and will break the terminal in non-WoW64 environments.
-	if ((platformOverride === Platform.Windows) && !isWoW64 && windir) {
-		const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
-		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
-			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length + 1));
-		}
-	}
-
-	// Convert / to \ on Windows for convenience
-	if (executable && platformOverride === Platform.Windows) {
-		executable = executable.replace(/\//g, '\\');
-	}
-
-	if (variableResolver) {
-		try {
-			executable = await variableResolver(executable);
-		} catch (e) {
-			logService.error(`Could not resolve shell`, e);
-		}
-	}
-
-	return executable;
-}
-
-/**
- * @deprecated Use ITerminalProfileResolverService
- */
-export async function getDefaultShellArgs(
-	fetchSetting: (key: TerminalShellSetting | TerminalShellArgsSetting) => string | string[] | undefined,
-	useAutomationShell: boolean,
-	variableResolver: VariableResolver | undefined,
-	logService: ILogService,
-	platformOverride: Platform = platform,
-): Promise<string | string[]> {
-	if (useAutomationShell) {
-		if (!!getShellSetting(fetchSetting, 'automationShell', platformOverride)) {
-			return [];
-		}
-	}
-
-	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
-	let args = fetchSetting(<TerminalShellArgsSetting>`${TerminalSettingPrefix.ShellArgs}${platformKey}`);
-	if (!args) {
-		return [];
-	}
-	if (typeof args === 'string' && platformOverride === Platform.Windows) {
-		return variableResolver ? await variableResolver(args) : args;
-	}
-	if (variableResolver) {
-		const resolvedArgs: string[] = [];
-		for (const arg of args) {
-			try {
-				resolvedArgs.push(await variableResolver(arg));
-			} catch (e) {
-				logService.error(`Could not resolve ${TerminalSettingPrefix.ShellArgs}${platformKey}`, e);
-				resolvedArgs.push(arg);
-			}
-		}
-		args = resolvedArgs;
-	}
-	return args;
-}
-
-function getShellSetting(
-	fetchSetting: (key: TerminalShellSetting) => string | string[] | undefined,
-	type: 'automationShell' | 'shell',
-	platformOverride: Platform = platform,
-): string | string[] | undefined {
-	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
-	return fetchSetting(<TerminalShellSetting>`terminal.integrated.${type}.${platformKey}`);
 }
 
 export async function createTerminalEnvironment(
@@ -381,6 +270,26 @@ export async function createTerminalEnvironment(
 			}
 		}
 
+		// Workaround for https://github.com/microsoft/vscode/issues/204005
+		// We should restore the following environment variables when a user
+		// launches the application using the CLI so that integrated terminal
+		// can still inherit these variables.
+		// We are not bypassing the restrictions implied in https://github.com/electron/electron/pull/40770
+		// since this only affects integrated terminal and not the application itself.
+		if (isMacintosh) {
+			// Restore NODE_OPTIONS if it was set
+			if (env['VSCODE_NODE_OPTIONS']) {
+				env['NODE_OPTIONS'] = env['VSCODE_NODE_OPTIONS'];
+				delete env['VSCODE_NODE_OPTIONS'];
+			}
+
+			// Restore NODE_REPL_EXTERNAL_MODULE if it was set
+			if (env['VSCODE_NODE_REPL_EXTERNAL_MODULE']) {
+				env['NODE_REPL_EXTERNAL_MODULE'] = env['VSCODE_NODE_REPL_EXTERNAL_MODULE'];
+				delete env['VSCODE_NODE_REPL_EXTERNAL_MODULE'];
+			}
+		}
+
 		// Sanitize the environment, removing any undesirable VS Code and Electron environment
 		// variables
 		sanitizeProcessEnvironment(env, 'VSCODE_IPC_HOOK_CLI');
@@ -406,7 +315,7 @@ export async function createTerminalEnvironment(
  * @param backend The backend for the terminal.
  * @param isWindowsFrontend Whether the frontend is Windows, this is only exposed for injection via
  * tests.
- * @returns An escaped version of the path to be execuded in the terminal.
+ * @returns An escaped version of the path to be executed in the terminal.
  */
 export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows): Promise<string> {
 	let originalPath: string;
@@ -422,6 +331,9 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		}
 	}
 
+	// Control characters such as a carriage return would submit the line early
+	originalPath = originalPath.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+
 	if (!executable) {
 		return originalPath;
 	}
@@ -434,7 +346,6 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		title === 'pwsh' ||
 		pathBasename === 'powershell' ||
 		title === 'powershell';
-
 
 	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
 		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
@@ -449,7 +360,7 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		// Update Windows uriPath to be executed in WSL.
 		if (shellType !== undefined) {
 			if (shellType === WindowsShellType.GitBash) {
-				return escapeNonWindowsPath(originalPath.replace(/\\/g, '/'));
+				return escapeNonWindowsPath(originalPath.replace(/\\/g, '/'), shellType);
 			}
 			else if (shellType === WindowsShellType.Wsl) {
 				return backend?.getWslPath(originalPath, 'win-to-unix') || originalPath;
@@ -468,5 +379,68 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		return originalPath;
 	}
 
-	return escapeNonWindowsPath(originalPath);
+	return escapeNonWindowsPath(originalPath, shellType);
+}
+
+export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspaceContextService: IWorkspaceContextService, historyService: IHistoryService): IWorkspaceFolder | undefined {
+	const cwdUri = isString(cwd) ? URI.parse(cwd) : cwd;
+	let workspaceFolder = cwdUri ? workspaceContextService.getWorkspaceFolder(cwdUri) ?? undefined : undefined;
+	if (!workspaceFolder) {
+		// fallback to last active workspace if cwd is not available or it is not in workspace
+		// TOOD: last active workspace is known to be unreliable, we should remove this fallback eventually
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
+		workspaceFolder = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
+	}
+	return workspaceFolder;
+}
+
+export async function getUriLabelForShell(uri: URI | string, backend: Pick<ITerminalBackend, 'getWslPath'>, shellType?: TerminalShellType, os?: OperatingSystem, isWindowsFrontend: boolean = isWindows): Promise<string> {
+	let path = isString(uri) ? uri : uri.fsPath;
+	if (os === OperatingSystem.Windows) {
+		if (shellType === WindowsShellType.Wsl) {
+			return backend.getWslPath(path.replaceAll('/', '\\'), 'win-to-unix');
+		} else if (shellType === WindowsShellType.GitBash) {
+			// Convert \ to / and replace 'c:\' with '/c/'.
+			return path.replaceAll('\\', '/').replace(/^([a-zA-Z]):\//, '/$1/');
+		} else {
+			// If the frontend is not Windows but the terminal is, convert / to \.
+			path = isString(uri) ? path : uriToFsPath(uri, true);
+			return !isWindowsFrontend ? path.replaceAll('/', '\\') : path;
+		}
+	} else {
+		// If the frontend is Windows but the terminal is not, convert \ to /.
+		return isWindowsFrontend ? path.replaceAll('\\', '/') : path;
+	}
+}
+
+/**
+ * Gets the unified duration to wait for shell integration after the terminal launches before
+ * declaring the terminal lacks shell integration.
+ */
+export function getShellIntegrationTimeout(
+	configurationService: IConfigurationService,
+	siInjectionEnabled: boolean,
+	isRemote: boolean,
+	processReadyTimestamp?: number
+): number {
+	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
+	let timeoutMs: number;
+	if (isNumber(timeoutValue) && timeoutValue === ShellIntegrationTimeoutOverride.DisableForTests) {
+		// Used for tests
+		timeoutMs = 0;
+	} else if (!isNumber(timeoutValue) || timeoutValue < 0) {
+		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
+	} else if (timeoutValue === 0) {
+		timeoutMs = 0;
+	} else {
+		timeoutMs = Math.max(timeoutValue, 500);
+	}
+
+	// Adjust timeout based on how long the process has already been running
+	if (processReadyTimestamp !== undefined) {
+		const elapsed = Date.now() - processReadyTimestamp;
+		timeoutMs = Math.max(0, timeoutMs - elapsed);
+	}
+
+	return timeoutMs;
 }

@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { Position } from 'vs/editor/common/core/position';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import assert from 'assert';
+import { promiseWithResolvers } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../common/core/position.js';
+import { Handler } from '../../../../common/editorCommon.js';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
+import * as languages from '../../../../common/languages.js';
+import { ITextModel } from '../../../../common/model.js';
+import { ParameterHintsModel } from '../../browser/parameterHintsModel.js';
+import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -41,8 +43,7 @@ const emptySigHelpResult: languages.SignatureHelpResult = {
 
 suite('ParameterHintsModel', () => {
 	const disposables = new DisposableStore();
-
-	let registry = new LanguageFeatureRegistry<languages.SignatureHelpProvider>();
+	let registry: LanguageFeatureRegistry<languages.SignatureHelpProvider>;
 
 	setup(() => {
 		disposables.clear();
@@ -53,22 +54,30 @@ suite('ParameterHintsModel', () => {
 		disposables.clear();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function createMockEditor(fileContents: string) {
-		const textModel = createTextModel(fileContents, undefined, undefined, mockFile);
-		const editor = createTestCodeEditor(textModel, {
+		const textModel = disposables.add(createTextModel(fileContents, undefined, undefined, mockFile));
+		const editor = disposables.add(createTestCodeEditor(textModel, {
 			serviceCollection: new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
-				[IStorageService, new InMemoryStorageService()]
+				[IStorageService, disposables.add(new InMemoryStorageService())]
 			)
-		});
-		disposables.add(textModel);
-		disposables.add(editor);
+		}));
 		return editor;
 	}
 
-	test('Provider should get trigger character on type', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+	function getNextHint(model: ParameterHintsModel) {
+		return new Promise<languages.SignatureHelpResult | undefined>(resolve => {
+			const sub = disposables.add(model.onChangedHints(e => {
+				sub.dispose();
+				return resolve(e ? { value: e, dispose: () => { } } : undefined);
+			}));
+		});
+	}
+
+	test('Provider should get trigger character on type', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = '(';
 
@@ -87,15 +96,12 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			editor.trigger('keyboard', Handler.Type, { text: triggerChar });
-			await donePromise;
-		});
-	});
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		await donePromise;
+	}));
 
-	test('Provider should be retriggered if already active', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+	test('Provider should be retriggered if already active', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = '(';
 
@@ -135,21 +141,17 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			editor.trigger('keyboard', Handler.Type, { text: triggerChar });
-			await donePromise;
-		});
-	});
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		await donePromise;
+	}));
 
-	test('Provider should not be retriggered if previous help is canceled first', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+	test('Provider should not be retriggered if previous help is canceled first', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = '(';
 
 		const editor = createMockEditor('');
-		const hintModel = new ParameterHintsModel(editor, registry);
-		disposables.add(hintModel);
+		const hintModel = disposables.add(new ParameterHintsModel(editor, registry));
 
 		let invokeCount = 0;
 		disposables.add(registry.register(mockFileSelector, new class implements languages.SignatureHelpProvider {
@@ -184,15 +186,12 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, () => {
-			editor.trigger('keyboard', Handler.Type, { text: triggerChar });
-			return donePromise;
-		});
-	});
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		return donePromise;
+	}));
 
-	test('Provider should get last trigger character when triggered multiple times and only be invoked once', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+	test('Provider should get last trigger character when triggered multiple times and only be invoked once', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');
 		disposables.add(new ParameterHintsModel(editor, registry, 5));
@@ -224,18 +223,15 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			editor.trigger('keyboard', Handler.Type, { text: 'a' });
-			editor.trigger('keyboard', Handler.Type, { text: 'b' });
-			editor.trigger('keyboard', Handler.Type, { text: 'c' });
+		editor.trigger('keyboard', Handler.Type, { text: 'a' });
+		editor.trigger('keyboard', Handler.Type, { text: 'b' });
+		editor.trigger('keyboard', Handler.Type, { text: 'c' });
 
-			await donePromise;
-		});
-	});
+		await donePromise;
+	}));
 
-	test('Provider should be retriggered if already active', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+	test('Provider should be retriggered if already active', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');
 		disposables.add(new ParameterHintsModel(editor, registry, 5));
@@ -272,16 +268,13 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, () => {
-			editor.trigger('keyboard', Handler.Type, { text: 'a' });
-			return donePromise;
-		});
-	});
+		editor.trigger('keyboard', Handler.Type, { text: 'a' });
+		return donePromise;
+	}));
 
-	test('Should cancel existing request when new request comes in', async () => {
-
+	test('Should cancel existing request when new request comes in', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const editor = createMockEditor('abc def');
-		const hintsModel = new ParameterHintsModel(editor, registry);
+		const hintsModel = disposables.add(new ParameterHintsModel(editor, registry));
 
 		let didRequestCancellationOf = -1;
 		let invokeCount = 0;
@@ -293,7 +286,7 @@ suite('ParameterHintsModel', () => {
 			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): languages.SignatureHelpResult | Promise<languages.SignatureHelpResult> {
 				try {
 					const count = invokeCount++;
-					token.onCancellationRequested(() => { didRequestCancellationOf = count; });
+					disposables.add(token.onCancellationRequested(() => { didRequestCancellationOf = count; }));
 
 					// retrigger on first request
 					if (count === 0) {
@@ -324,27 +317,23 @@ suite('ParameterHintsModel', () => {
 
 		disposables.add(registry.register(mockFileSelector, longRunningProvider));
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+		hintsModel.trigger({ triggerKind: languages.SignatureHelpTriggerKind.Invoke }, 0);
+		assert.strictEqual(-1, didRequestCancellationOf);
 
-			hintsModel.trigger({ triggerKind: languages.SignatureHelpTriggerKind.Invoke }, 0);
-			assert.strictEqual(-1, didRequestCancellationOf);
+		return new Promise<void>((resolve, reject) =>
+			disposables.add(hintsModel.onChangedHints(newParamterHints => {
+				try {
+					assert.strictEqual(0, didRequestCancellationOf);
+					assert.strictEqual('1', newParamterHints!.signatures[0].label);
+					resolve();
+				} catch (e) {
+					reject(e);
+				}
+			})));
+	}));
 
-			return new Promise<void>((resolve, reject) =>
-				hintsModel.onChangedHints(newParamterHints => {
-					try {
-						assert.strictEqual(0, didRequestCancellationOf);
-						assert.strictEqual('1', newParamterHints!.signatures[0].label);
-						resolve();
-					} catch (e) {
-						reject(e);
-					}
-				}));
-		});
-	});
-
-	test('Provider should be retriggered by retrigger character', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+	test('Provider should be retriggered by retrigger character', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const triggerChar = 'a';
 		const retriggerChar = 'b';
@@ -383,26 +372,23 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			// This should not trigger anything
-			editor.trigger('keyboard', Handler.Type, { text: retriggerChar });
+		// This should not trigger anything
+		editor.trigger('keyboard', Handler.Type, { text: retriggerChar });
 
-			// But a trigger character should
-			editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		// But a trigger character should
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 
-			return donePromise;
-		});
-	});
+		return donePromise;
+	}));
 
-	test('should use first result from multiple providers', async () => {
+	test('should use first result from multiple providers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const triggerChar = 'a';
 		const firstProviderId = 'firstProvider';
 		const secondProviderId = 'secondProvider';
 		const paramterLabel = 'parameter';
 
 		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, registry, 5);
-		disposables.add(model);
+		const model = disposables.add(new ParameterHintsModel(editor, registry, 5));
 
 		disposables.add(registry.register(mockFileSelector, new class implements languages.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
@@ -460,25 +446,22 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			editor.trigger('keyboard', Handler.Type, { text: triggerChar });
+		editor.trigger('keyboard', Handler.Type, { text: triggerChar });
 
-			const firstHint = (await getNextHint(model))!.value;
-			assert.strictEqual(firstHint.signatures[0].label, firstProviderId);
-			assert.strictEqual(firstHint.activeSignature, 0);
-			assert.strictEqual(firstHint.signatures[0].parameters[0].label, paramterLabel);
+		const firstHint = (await getNextHint(model))!.value;
+		assert.strictEqual(firstHint.signatures[0].label, firstProviderId);
+		assert.strictEqual(firstHint.activeSignature, 0);
+		assert.strictEqual(firstHint.signatures[0].parameters[0].label, paramterLabel);
 
-			const secondHint = (await getNextHint(model))!.value;
-			assert.strictEqual(secondHint.signatures[0].label, secondProviderId);
-			assert.strictEqual(secondHint.activeSignature, 1);
-			assert.strictEqual(secondHint.signatures[0].parameters[0].label, paramterLabel);
-		});
-	});
+		const secondHint = (await getNextHint(model))!.value;
+		assert.strictEqual(secondHint.signatures[0].label, secondProviderId);
+		assert.strictEqual(secondHint.activeSignature, 1);
+		assert.strictEqual(secondHint.signatures[0].parameters[0].label, paramterLabel);
+	}));
 
-	test('Quick typing should use the first trigger character', async () => {
+	test('Quick typing should use the first trigger character', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, registry, 50);
-		disposables.add(model);
+		const model = disposables.add(new ParameterHintsModel(editor, registry, 50));
 
 		const triggerCharacter = 'a';
 
@@ -506,21 +489,17 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			editor.trigger('keyboard', Handler.Type, { text: triggerCharacter });
-			editor.trigger('keyboard', Handler.Type, { text: 'x' });
+		editor.trigger('keyboard', Handler.Type, { text: triggerCharacter });
+		editor.trigger('keyboard', Handler.Type, { text: 'x' });
 
-			await getNextHint(model);
-		});
-	});
+		await getNextHint(model);
+	}));
 
-	test('Retrigger while a pending resolve is still going on should preserve last active signature #96702', async () => {
-		let done: (r?: any) => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
+	test('Retrigger while a pending resolve is still going on should preserve last active signature #96702', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 
 		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, registry, 50);
-		disposables.add(model);
+		const model = disposables.add(new ParameterHintsModel(editor, registry, 50));
 
 		const triggerCharacter = 'a';
 		const retriggerCharacter = 'b';
@@ -559,23 +538,11 @@ suite('ParameterHintsModel', () => {
 			}
 		}));
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+		editor.trigger('keyboard', Handler.Type, { text: triggerCharacter });
 
-			editor.trigger('keyboard', Handler.Type, { text: triggerCharacter });
+		await getNextHint(model);
+		await getNextHint(model);
 
-			await getNextHint(model);
-			await getNextHint(model);
-
-			await donePromise;
-		});
-	});
+		await donePromise;
+	}));
 });
-
-function getNextHint(model: ParameterHintsModel) {
-	return new Promise<languages.SignatureHelpResult | undefined>(resolve => {
-		const sub = model.onChangedHints(e => {
-			sub.dispose();
-			return resolve(e ? { value: e, dispose: () => { } } : undefined);
-		});
-	});
-}

@@ -3,26 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ITelemetryData, ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from '../../services/search/common/search.js';
+import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol.js';
+import { revive } from '../../../base/common/marshalling.js';
+import * as Constants from '../../contrib/search/common/constants.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { AISearchKeyword } from '../../services/search/common/searchExtTypes.js';
+import { getOrSet } from '../../../base/common/map.js';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
 
 	private readonly _proxy: ExtHostSearchShape;
 	private readonly _searchProvider = new Map<number, RemoteSearchProvider>();
+	private readonly _aiSearchProviderHandles = new Set<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISearchService private readonly _searchService: ISearchService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService _configurationService: IConfigurationService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
 		this._proxy.$enableExtensionHostSearch();
@@ -31,10 +38,19 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	dispose(): void {
 		this._searchProvider.forEach(value => value.dispose());
 		this._searchProvider.clear();
+		this._aiSearchProviderHandles.clear();
+		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(false);
 	}
 
 	$registerTextSearchProvider(handle: number, scheme: string): void {
 		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.text, scheme, handle, this._proxy));
+	}
+
+	$registerAITextSearchProvider(handle: number, scheme: string): void {
+		Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(true);
+
+		this._aiSearchProviderHandles.add(handle);
+		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.aiText, scheme, handle, this._proxy));
 	}
 
 	$registerFileSearchProvider(handle: number, scheme: string): void {
@@ -44,6 +60,10 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	$unregisterProvider(handle: number): void {
 		dispose(this._searchProvider.get(handle));
 		this._searchProvider.delete(handle);
+
+		if (this._aiSearchProviderHandles.delete(handle) && this._aiSearchProviderHandles.size === 0) {
+			Constants.SearchContext.hasAIResultProvider.bindTo(this.contextKeyService).set(false);
+		}
 	}
 
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void {
@@ -64,7 +84,16 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		provider.handleFindMatch(session, data);
 	}
 
-	$handleTelemetry(eventName: string, data: any): void {
+	$handleKeywordResult(handle: number, session: number, data: AISearchKeyword): void {
+		const provider = this._searchProvider.get(handle);
+		if (!provider) {
+			throw new Error('Got result for unknown provider');
+		}
+
+		provider.handleKeywordResult(session, data);
+	}
+
+	$handleTelemetry(eventName: string, data: ITelemetryData | undefined): void {
 		this._telemetryService.publicLog(eventName, data);
 	}
 }
@@ -73,17 +102,21 @@ class SearchOperation {
 
 	private static _idPool = 0;
 
+	/** File-only matches use URI keys, with shared authority strings when casing must be preserved. */
+	private readonly matches = new Map<string, IFileMatch | string | undefined>();
+	private readonly authorities = new Map<string, string>();
+
 	constructor(
-		readonly progress?: (match: IFileMatch) => any,
+		readonly progress?: (match: IFileMatch | AISearchKeyword) => unknown,
 		readonly id: number = ++SearchOperation._idPool,
-		readonly matches = new Map<string, IFileMatch>()
+		readonly keywords: AISearchKeyword[] = []
 	) {
 		//
 	}
 
 	addMatch(match: IFileMatch): void {
 		const existingMatch = this.matches.get(match.resource.toString());
-		if (existingMatch) {
+		if (existingMatch && typeof existingMatch !== 'string') {
 			// TODO@rob clean up text/file result types
 			// If a file search returns the same file twice, we would enter this branch.
 			// It's possible that could happen, #90813
@@ -96,12 +129,56 @@ class SearchOperation {
 
 		this.progress?.(match);
 	}
+
+	addFileMatch(resource: URI): void {
+		const key = resource.toString();
+		if (this.matches.has(key)) {
+			return;
+		}
+
+		const parsed = URI.parse(key);
+		// URI formatting can normalize drive-letter casing.
+		const preservesComponents = parsed.scheme === resource.scheme
+			&& parsed.path === resource.path
+			&& parsed.query === resource.query
+			&& parsed.fragment === resource.fragment;
+		if (!preservesComponents) {
+			this.matches.set(key, { resource });
+		} else {
+			this.matches.set(key, parsed.authority === resource.authority
+				? undefined
+				: getOrSet(this.authorities, resource.authority, resource.authority));
+		}
+	}
+
+	getResults(): IFileMatch[] {
+		const results = new Array<IFileMatch>(this.matches.size);
+		let index = 0;
+		for (const [key, match] of this.matches) {
+			// Release serialized results as their URI objects are materialized.
+			this.matches.delete(key);
+			if (typeof match === 'object') {
+				results[index++] = match;
+			} else {
+				const resource = URI.parse(key);
+				results[index++] = { resource: match === undefined ? resource : resource.with({ authority: match }) };
+			}
+		}
+		this.authorities.clear();
+		return results;
+	}
+
+	addKeyword(result: AISearchKeyword): void {
+		this.keywords.push(result);
+		this.progress?.(result);
+	}
 }
 
 class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 	private readonly _registrations = new DisposableStore();
 	private readonly _searches = new Map<number, SearchOperation>();
+	private cachedAIName: string | undefined;
 
 	constructor(
 		searchService: ISearchService,
@@ -111,6 +188,13 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		private readonly _proxy: ExtHostSearchShape
 	) {
 		this._registrations.add(searchService.registerSearchResultProvider(this._scheme, type, this));
+	}
+
+	async getAIName(): Promise<string | undefined> {
+		if (this.cachedAIName === undefined) {
+			this.cachedAIName = await this._proxy.$getAIName(this._handle);
+		}
+		return this.cachedAIName;
 	}
 
 	dispose(): void {
@@ -125,7 +209,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		return this.doSearch(query, onProgress, token);
 	}
 
-	doSearch(query: ITextQuery | IFileQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
+	doSearch(query: ISearchQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
 		if (!query.folderQueries.length) {
 			throw new Error('Empty folderQueries');
 		}
@@ -133,13 +217,11 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		const search = new SearchOperation(onProgress);
 		this._searches.set(search.id, search);
 
-		const searchP = query.type === QueryType.File
-			? this._proxy.$provideFileSearchResults(this._handle, search.id, query, token)
-			: this._proxy.$provideTextSearchResults(this._handle, search.id, query, token);
+		const searchP = this._provideSearchResults(query, search.id, token);
 
 		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);
-			return { results: Array.from(search.matches.values()), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
+			return { results: search.getResults(), aiKeywords: Array.from(search.keywords), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
 		}, err => {
 			this._searches.delete(search.id);
 			return Promise.reject(err);
@@ -160,15 +242,31 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		dataOrUri.forEach(result => {
 			if ((<IRawFileMatch2>result).results) {
-				searchOp.addMatch({
-					resource: URI.revive((<IRawFileMatch2>result).resource),
-					results: (<IRawFileMatch2>result).results
-				});
+				searchOp.addMatch(revive((<IRawFileMatch2>result)));
 			} else {
-				searchOp.addMatch({
-					resource: URI.revive(<UriComponents>result)
-				});
+				searchOp.addFileMatch(URI.revive(<UriComponents>result));
 			}
 		});
+	}
+
+	handleKeywordResult(session: number, data: AISearchKeyword): void {
+		const searchOp = this._searches.get(session);
+
+		if (!searchOp) {
+			// ignore...
+			return;
+		}
+		searchOp.addKeyword(data);
+	}
+
+	private _provideSearchResults(query: ISearchQuery, session: number, token: CancellationToken): Promise<ISearchCompleteStats> {
+		switch (query.type) {
+			case QueryType.File:
+				return this._proxy.$provideFileSearchResults(this._handle, session, query, token);
+			case QueryType.Text:
+				return this._proxy.$provideTextSearchResults(this._handle, session, query, token);
+			default:
+				return this._proxy.$provideAITextSearchResults(this._handle, session, query, token);
+		}
 	}
 }

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as fs from 'fs';
-import * as encoding from 'vs/workbench/services/textfile/common/encoding';
-import * as streams from 'vs/base/common/stream';
-import * as iconv from '@vscode/iconv-lite-umd';
-import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { splitLines } from 'vs/base/common/strings';
-import { FileAccess } from 'vs/base/common/network';
+import * as encoding from '../../../common/encoding.js';
+import * as streams from '../../../../../../base/common/stream.js';
+import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { splitLines } from '../../../../../../base/common/strings.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
@@ -40,6 +41,7 @@ function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult
 						return reject(closeError);
 					}
 
+					// eslint-disable-next-line local/code-no-any-casts
 					if (err && (<any>err).code === 'EISDIR') {
 						return reject(err); // we want to bubble this error up (file is actually a folder)
 					}
@@ -207,13 +209,62 @@ suite('Encoding', () => {
 		assert.strictEqual(mimes.encoding, 'windows1252');
 	});
 
+	test('autoGuessEncoding (candidateGuessEncodings - ShiftJIS)', async function () {
+		// This file is determined to be windows1252 unless candidateDetectEncoding is set.
+		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.shiftjis.1.txt').fsPath;
+		const buffer = await readExactlyByFile(file, 512 * 8);
+		const mimes = await encoding.detectEncodingFromBuffer(buffer, true, ['utf8', 'shiftjis', 'eucjp']);
+		assert.strictEqual(mimes.encoding, 'shiftjis');
+	});
+
+	suite('autoGuessEncoding (candidate fallback)', () => {
+		const cp950Bytes = Buffer.from('a440afeba4a4a4e50a', 'hex');
+
+		for (const { name, bytes, candidates, expected } of [
+			{ name: 'short CP950', bytes: cp950Bytes, candidates: ['cp950'], expected: 'cp950' },
+			{ name: 'UTF-8 and CP950', bytes: cp950Bytes, candidates: ['utf8', 'cp950'], expected: 'cp950' },
+			{ name: 'normalized candidates', bytes: cp950Bytes, candidates: ['utf-8', 'CP950'], expected: 'cp950' },
+			{ name: 'duplicate candidates', bytes: cp950Bytes, candidates: ['cp950', 'cp950'], expected: 'cp950' },
+			{ name: 'only one lossless candidate', bytes: cp950Bytes, candidates: ['shiftjis', 'cp950', 'eucjp'], expected: 'cp950' },
+			{ name: 'mostly ASCII', bytes: Buffer.concat([cp950Bytes, Buffer.from('echo hello world\n'.repeat(300))]), candidates: ['cp950'], expected: 'cp950' },
+			{ name: 'valid UTF-8', bytes: Buffer.from('一般中文\n'), candidates: ['cp950'], expected: null },
+			{ name: 'ASCII', bytes: Buffer.from('echo hello world\n'), candidates: ['cp950'], expected: null },
+			{ name: 'empty', bytes: Buffer.alloc(0), candidates: ['cp950'], expected: null },
+			{ name: 'partial UTF-8 character', bytes: Buffer.from('e4b8', 'hex'), candidates: ['cp950'], expected: null },
+			{ name: 'invalid CP950', bytes: Buffer.from('ffff', 'hex'), candidates: ['cp950'], expected: null },
+			{ name: 'incomplete CP950', bytes: cp950Bytes.subarray(0, 7), candidates: ['cp950'], expected: null },
+			{ name: 'ambiguous candidates', bytes: Buffer.from('a4a4', 'hex'), candidates: ['cp950', 'eucjp'], expected: null },
+			{ name: 'no candidates', bytes: cp950Bytes, candidates: [], expected: 'windows1252' },
+			{ name: 'unsupported candidates', bytes: cp950Bytes, candidates: ['unsupported'], expected: 'windows1252' },
+			{ name: 'BOM takes precedence', bytes: Buffer.from('efbbbf41', 'hex'), candidates: ['cp950'], expected: 'utf8bom' },
+		]) {
+			test(name, async () => {
+				const buffer = VSBuffer.wrap(bytes);
+
+				assert.deepStrictEqual(await encoding.detectEncodingFromBuffer({ buffer, bytesRead: buffer.byteLength }, true, candidates), {
+					encoding: expected,
+					seemsBinary: false
+				});
+			});
+		}
+
+		test('disabled guessing', () => {
+			const buffer = VSBuffer.wrap(cp950Bytes);
+
+			assert.deepStrictEqual(encoding.detectEncodingFromBuffer({ buffer, bytesRead: buffer.byteLength }, false, ['cp950']), {
+				encoding: null,
+				seemsBinary: false
+			});
+		});
+	});
+
 	async function readAndDecodeFromDisk(path: string, fileEncoding: string | null) {
 		return new Promise<string>((resolve, reject) => {
 			fs.readFile(path, (err, data) => {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(iconv.decode(data, encoding.toNodeEncoding(fileEncoding!)));
+					resolve(importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js').then(iconv => iconv.decode(data, encoding.toNodeEncoding(fileEncoding))));
 				}
 			});
 		});
@@ -245,7 +296,7 @@ suite('Encoding', () => {
 			Buffer.from([65, 66, 67]),
 		]);
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -261,7 +312,7 @@ suite('Encoding', () => {
 			Buffer.from([65, 66, 67]),
 		]);
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 64, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -274,7 +325,7 @@ suite('Encoding', () => {
 		const source = newWriteableBufferStream();
 		source.end();
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 512, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 512, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.ok(stream);
@@ -287,7 +338,7 @@ suite('Encoding', () => {
 		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_utf16be.css').fsPath;
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 64, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.strictEqual(detected.encoding, 'utf16be');
 		assert.strictEqual(detected.seemsBinary, false);
@@ -300,11 +351,42 @@ suite('Encoding', () => {
 	test('toDecodeStream - empty file', async function () {
 		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/empty.txt').fsPath;
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
-		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		const expected = await readAndDecodeFromDisk(path, detected.encoding);
 		const actual = await readAllAsString(stream);
 		assert.strictEqual(actual, expected);
+	});
+
+	for (const { name, padding } of [
+		{ name: 'short CP950', padding: '' },
+		{ name: 'mostly ASCII', padding: 'echo hello world\n'.repeat(300) }
+	]) {
+		test(`toDecodeStream - candidate fallback (${name})`, async () => {
+			const source = newTestReadableStream([Buffer.concat([
+				Buffer.from('a440afeba4a4a4e50a', 'hex'),
+				Buffer.from(padding)
+			])]);
+			const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, guessEncoding: true, candidateGuessEncodings: ['utf8', 'cp950'], overwriteEncoding: async detected => detected || encoding.UTF8 });
+
+			assert.deepStrictEqual({ detected, content: await readAllAsString(stream) }, {
+				detected: { encoding: 'cp950', seemsBinary: false },
+				content: `一般中文\n${padding}`
+			});
+		});
+	}
+
+	test('toDecodeStream - candidate fallback preserves a split UTF-8 character', async () => {
+		const source = newTestReadableStream([
+			Buffer.from('e4b8', 'hex'),
+			Buffer.from('ad', 'hex')
+		]);
+		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 2, guessEncoding: true, candidateGuessEncodings: ['cp950'], overwriteEncoding: async detected => detected || encoding.UTF8 });
+
+		assert.deepStrictEqual({ detected, content: await readAllAsString(stream) }, {
+			detected: { encoding: 'utf8', seemsBinary: false },
+			content: '中'
+		});
 	});
 
 	test('toDecodeStream - decodes buffer entirely', async function () {
@@ -317,7 +399,7 @@ suite('Encoding', () => {
 		}
 
 		const source = newTestReadableStream(buffers);
-		const { stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		const expected = new TextDecoder().decode(incompleteEmojis);
 		const actual = await readAllAsString(stream);
@@ -329,7 +411,7 @@ suite('Encoding', () => {
 		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_gbk.txt').fsPath;
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'gbk' });
+		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async () => 'gbk' });
 		assert.ok(detected);
 		assert.ok(stream);
 
@@ -341,7 +423,7 @@ suite('Encoding', () => {
 		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/issue_102202.txt').fsPath;
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'utf-8' });
+		const { detected, stream } = await encoding.toDecodeStream(source, { acceptTextOnly: true, minBytesRequiredForDetection: 4, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async () => 'utf-8' });
 		assert.ok(detected);
 		assert.ok(stream);
 
@@ -364,7 +446,7 @@ suite('Encoding', () => {
 
 		let error: Error | undefined = undefined;
 		try {
-			await encoding.toDecodeStream(source(), { acceptTextOnly: true, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+			await encoding.toDecodeStream(source(), { acceptTextOnly: true, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
 		} catch (e) {
 			error = e;
 		}
@@ -374,7 +456,7 @@ suite('Encoding', () => {
 
 		// acceptTextOnly: false
 
-		const { detected, stream } = await encoding.toDecodeStream(source(), { acceptTextOnly: false, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stream } = await encoding.toDecodeStream(source(), { acceptTextOnly: false, guessEncoding: false, candidateGuessEncodings: [], overwriteEncoding: async detected => detected || encoding.UTF8 });
 
 		assert.ok(detected);
 		assert.strictEqual(detected.seemsBinary, true);
@@ -384,6 +466,8 @@ suite('Encoding', () => {
 	test('toEncodeReadable - encoding, utf16be', async function () {
 		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_utf16be.css').fsPath;
 		const source = await readAndDecodeFromDisk(path, encoding.UTF16be);
+
+		const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 
 		const expected = VSBuffer.wrap(
 			iconv.encode(source, encoding.toNodeEncoding(encoding.UTF16be))
@@ -446,8 +530,20 @@ suite('Encoding', () => {
 			if (enc === encoding.UTF8_with_bom) {
 				continue; // skip over encodings from us
 			}
-
+			const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 			assert.strictEqual(iconv.encodingExists(enc), true, enc);
 		}
 	});
+
+	// Renderers keep a global AMD `define` because they load scripts asynchronously, node.js does not need it
+	if (typeof document === 'undefined') {
+		test('loading the encoding libraries leaves no global AMD define behind in node.js', async function () {
+			// With a global AMD `define`, UMD packages that are imported later register with it instead of exporting
+			await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
+			await importAMDNodeModule<typeof import('jschardet')>('jschardet', 'dist/jschardet.min.js');
+			assert.strictEqual((globalThis as { define?: unknown }).define, undefined);
+		});
+	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

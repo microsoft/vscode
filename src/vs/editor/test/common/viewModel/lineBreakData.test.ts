@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PositionAffinity } from '../../../common/model.js';
+import { ModelDecorationInjectedTextOptions } from '../../../common/model/textModel.js';
+import { ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 
 suite('Editor ViewModel - LineBreakData', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Basic', () => {
 		const data = new ModelLineProjectionData([], [], [100], [0], 10);
 

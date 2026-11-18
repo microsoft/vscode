@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { IFileService } from 'vs/platform/files/common/files';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/model';
-import { URI } from 'vs/base/common/uri';
-import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { Range } from 'vs/editor/common/core/range';
-import { ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { mock } from '../../../../test/common/workbenchTestServices.js';
+import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { BulkFileOperations } from '../../browser/preview/bulkEditPreview.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ResourceFileEdit, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('BulkEditPreview', function () {
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: IInstantiationService;
 
@@ -53,6 +55,7 @@ suite('BulkEditPreview', function () {
 		];
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 		assert.strictEqual(ops.fileOperations.length, 1);
 		assert.strictEqual(ops.checked.isChecked(edits[0]), false);
 	});
@@ -66,6 +69,7 @@ suite('BulkEditPreview', function () {
 
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 		assert.strictEqual(ops.categories.length, 2);
 		assert.strictEqual(ops.categories[0].metadata.label, 'uri1'); // unconfirmed!
 		assert.strictEqual(ops.categories[1].metadata.label, 'uri2');
@@ -79,6 +83,7 @@ suite('BulkEditPreview', function () {
 		];
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 		assert.strictEqual(ops.categories.length, 1);
 		assert.strictEqual(ops.categories[0].metadata.label, 'uri1'); // unconfirmed!
 		assert.strictEqual(ops.categories[0].metadata.label, 'uri1');
@@ -93,6 +98,7 @@ suite('BulkEditPreview', function () {
 
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 
 		assert.strictEqual(ops.checked.isChecked(edits[0]), true);
 		assert.strictEqual(ops.checked.isChecked(edits[1]), true);
@@ -119,6 +125,7 @@ suite('BulkEditPreview', function () {
 		];
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 
 		assert.strictEqual(ops.checked.isChecked(edits[0]), false);
 		assert.strictEqual(ops.checked.isChecked(edits[1]), false);

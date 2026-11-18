@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI, UriDto } from 'vs/base/common/uri';
-import { ICommandAction } from 'vs/platform/action/common/action';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
-import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/window/electron-main/window';
-import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { FileAccess } from 'vs/base/common/network';
+import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { join } from '../../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI, UriDto } from '../../../../base/common/uri.js';
+import { ICommandAction } from '../../../action/common/action.js';
+import { NativeParsedArgs } from '../../../environment/common/argv.js';
+import { INativeWindowConfiguration } from '../../../window/common/window.js';
+import { ICodeWindow, ILoadEvent, IWindowState } from '../../../window/electron-main/window.js';
+import { findWindowOnFile, findWindowOnRequestedPath } from '../../electron-main/windowsFinder.js';
+import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
+import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FocusMode, IApplicationBadge } from '../../../native/common/native.js';
 
 suite('WindowsFinder', () => {
 
@@ -28,15 +30,19 @@ suite('WindowsFinder', () => {
 	};
 
 	const testWorkspaceFolders = toWorkspaceFolders([{ path: join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
-	const localWorkspaceResolver = async (workspace: any) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
+	const localWorkspaceResolver = async (workspace: IWorkspaceIdentifier) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
 
 	function createTestCodeWindow(options: { lastFocusTime: number; openedFolderUri?: URI; openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
-			onWillLoad: Event<ILoadEvent> = Event.None;
-			onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
-			onDidSignalReady: Event<void> = Event.None;
-			onDidClose: Event<void> = Event.None;
-			onDidDestroy: Event<void> = Event.None;
+			readonly onWillLoad: Event<ILoadEvent> = Event.None;
+			onDidMaximize = Event.None;
+			onDidUnmaximize = Event.None;
+			readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
+			readonly onDidSignalReady: Event<void> = Event.None;
+			readonly onDidClose: Event<void> = Event.None;
+			readonly onDidDestroy: Event<void> = Event.None;
+			readonly onDidEnterFullScreen: Event<void> = Event.None;
+			readonly onDidLeaveFullScreen: Event<void> = Event.None;
 			whenClosedOrLoaded: Promise<void> = Promise.resolve();
 			id: number = -1;
 			win: Electron.BrowserWindow = null!;
@@ -44,33 +50,35 @@ suite('WindowsFinder', () => {
 			openedWorkspace = options.openedFolderUri ? { id: '', uri: options.openedFolderUri } : options.openedWorkspace;
 			backupPath?: string | undefined;
 			remoteAuthority?: string | undefined;
+			iconPath?: URI | undefined;
 			isExtensionDevelopmentHost = false;
 			isExtensionTestHost = false;
 			lastFocusTime = options.lastFocusTime;
 			isFullScreen = false;
 			isReady = true;
-			isSandboxed = false;
 
 			ready(): Promise<ICodeWindow> { throw new Error('Method not implemented.'); }
 			setReady(): void { throw new Error('Method not implemented.'); }
 			addTabbedWindow(window: ICodeWindow): void { throw new Error('Method not implemented.'); }
 			load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
 			reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
-			focus(options?: { force: boolean }): void { throw new Error('Method not implemented.'); }
+			focus(options?: { mode: FocusMode }): void { throw new Error('Method not implemented.'); }
 			close(): void { throw new Error('Method not implemented.'); }
 			getBounds(): Electron.Rectangle { throw new Error('Method not implemented.'); }
-			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }
-			sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void { throw new Error('Method not implemented.'); }
+			send(channel: string, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
+			sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
 			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
-			isMinimized(): boolean { throw new Error('Method not implemented.'); }
+			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
 			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
 			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
 			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }
 			isDocumentEdited(): boolean { throw new Error('Method not implemented.'); }
-			handleTitleDoubleClick(): void { throw new Error('Method not implemented.'); }
+			setApplicationBadge(badge: IApplicationBadge | undefined): void { throw new Error('Method not implemented.'); }
 			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
-			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined }): void { throw new Error('Method not implemented.'); }
+			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined; dimmed?: boolean | undefined }): void { throw new Error('Method not implemented.'); }
+			notifyZoomLevel(level: number): void { throw new Error('Method not implemented.'); }
+			matches(webContents: Electron.WebContents): boolean { throw new Error('Method not implemented.'); }
 			dispose(): void { }
 		};
 	}
@@ -108,4 +116,22 @@ suite('WindowsFinder', () => {
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedWorkspace: testWorkspace });
 		assert.strictEqual(await findWindowOnFile([window], URI.file(join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
 	});
+
+	test('Window on the requested path, not a restored one', () => {
+		const workspaceWindow: ICodeWindow = createTestCodeWindow({ lastFocusTime: 4, openedWorkspace: testWorkspace });
+		const usedWindows = [vscodeFolderWindow, noVscodeFolderWindow, workspaceWindow];
+		const vscodeFolder = { id: '', uri: URI.file(join(fixturesFolder, 'vscode_folder')) };
+		const file = URI.file(join(fixturesFolder, 'no_vscode_folder', 'file.txt'));
+		const found = [
+			findWindowOnRequestedPath(usedWindows, [{ workspace: vscodeFolder }], undefined),
+			findWindowOnRequestedPath(usedWindows, [{ workspace: testWorkspace }], undefined),
+			findWindowOnRequestedPath(usedWindows, [{ fileUri: file }], noVscodeFolderWindow),
+			// A requested path that doesn't exist isn't resolved, so a single restored window must not be picked
+			findWindowOnRequestedPath([vscodeFolderWindow], [], undefined),
+			findWindowOnRequestedPath(usedWindows, [{ workspace: vscodeFolder }, { workspace: testWorkspace }], undefined),
+		];
+		assert.deepStrictEqual(found.map(window => window ? usedWindows.indexOf(window) : -1), [0, 2, 1, -1, -1]);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

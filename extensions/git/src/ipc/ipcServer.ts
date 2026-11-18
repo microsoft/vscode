@@ -25,12 +25,12 @@ function getIPCHandlePath(id: string): string {
 }
 
 export interface IIPCHandler {
-	handle(request: any): Promise<any>;
+	handle(request: unknown): Promise<unknown>;
 }
 
 export async function createIPCServer(context?: string): Promise<IPCServer> {
 	const server = http.createServer();
-	const hash = crypto.createHash('sha1');
+	const hash = crypto.createHash('sha256');
 
 	if (!context) {
 		const buffer = await new Promise<Buffer>((c, e) => crypto.randomBytes(20, (err, buf) => err ? e(err) : c(buf)));
@@ -39,7 +39,7 @@ export async function createIPCServer(context?: string): Promise<IPCServer> {
 		hash.update(context);
 	}
 
-	const ipcHandlePath = getIPCHandlePath(hash.digest('hex').substr(0, 10));
+	const ipcHandlePath = getIPCHandlePath(hash.digest('hex').substring(0, 10));
 
 	if (process.platform !== 'win32') {
 		try {
@@ -120,6 +120,7 @@ export class IPCServer implements IIPCServer, ITerminalEnvironmentProvider, Disp
 		this.server.close();
 
 		if (this._ipcHandlePath && process.platform !== 'win32') {
+			// eslint-disable-next-line local/code-no-sync-fs -- Disposable.dispose has no awaited cleanup contract; an async unlink could be abandoned at host exit, leaving the socket file behind.
 			fs.unlinkSync(this._ipcHandlePath);
 		}
 	}

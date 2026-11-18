@@ -24,6 +24,7 @@ export class NodeRequestCanceller implements OngoingRequestCanceller {
 		}
 		this._tracer.trace(this._serverId, `TypeScript Server: trying to cancel ongoing request with sequence number ${seq}`);
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- tryCancelOngoingRequest returns whether cancellation was signaled; an unawaited write could report success before the marker exists or after a write failure.
 			fs.writeFileSync(this.cancellationPipeName + seq, '');
 		} catch {
 			// noop

@@ -47,23 +47,11 @@ function _throttle<T>(fn: Function, key: string): Function {
 	return trigger;
 }
 
-function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
-		let fn: Function | null = null;
-
-		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
-		} else if (typeof descriptor.get === 'function') {
-			fnKey = 'get';
-			fn = descriptor.get;
-		}
-
-		if (!fn || !fnKey) {
+function decorate(decorator: (fn: Function, key: string) => Function): MethodDecorator {
+	return (_target: any, key: string | symbol, descriptor: PropertyDescriptor): void => {
+		if (typeof descriptor.value !== 'function') {
 			throw new Error('not supported');
 		}
-
-		descriptor[fnKey] = decorator(fn, key);
+		descriptor.value = decorator(descriptor.value, String(key));
 	};
 }

@@ -2,7 +2,7 @@
   "name": "coffeescript",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -11,6 +11,7 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-coffee-script grammars/coffeescript.cson ./syntaxes/coffeescript.tmLanguage.json"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -48,7 +49,8 @@
     ],
     "configurationDefaults": {
       "[coffeescript]": {
-        "diffEditor.ignoreTrimWhitespace": false
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.defaultColorDecorators": "never"
       }
     }
   },

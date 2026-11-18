@@ -3,35 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as json from 'vs/base/common/json';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { KeyCodeChord } from 'vs/base/common/keybindings';
-import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TestEnvironmentService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { joinPath } from 'vs/base/common/resources';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import assert from 'assert';
+import * as json from '../../../../../base/common/json.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
+import { KeybindingParser } from '../../../../../base/common/keybindingParser.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService, IUserFriendlyKeybinding } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { KeybindingsEditingService } from '../../common/keybindingEditing.js';
+import { ITextFileService } from '../../../textfile/common/textfiles.js';
+import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
+import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -44,7 +45,7 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 suite('KeybindingsEditing', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let fileService: IFileService;
 	let environmentService: IEnvironmentService;
@@ -59,7 +60,6 @@ suite('KeybindingsEditing', () => {
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
-		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService()))));
 
 		const userFolder = joinPath(ROOT, 'User');
 		await fileService.createFolder(userFolder);
@@ -67,8 +67,10 @@ suite('KeybindingsEditing', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
-		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
 
 		instantiationService = workbenchInstantiationService({
 			fileService: () => fileService,
@@ -76,10 +78,12 @@ suite('KeybindingsEditing', () => {
 			environmentService: () => environmentService
 		}, disposables);
 
+		instantiationService.stub(IKeybindingService, 'resolveUserBinding', (key: string) => {
+			const parsed = KeybindingParser.parseKeybinding(key);
+			return parsed ? USLayoutResolvedKeybinding.resolveKeybinding(parsed, OS) : [];
+		});
 		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditingService));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('errors cases - parse errors', async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.keybindingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
@@ -145,6 +149,29 @@ suite('KeybindingsEditing', () => {
 		return assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
+	test('add a keybinding preserves command arguments and the system-wide flag', async () => {
+		const expected: IUserFriendlyKeybinding[] = [{
+			key: 'ctrl+cmd+a',
+			command: 'workbench.action.openAgentsWindow',
+			args: { source: 'keyboardShortcut' },
+			systemWide: true,
+		}];
+		const keybinding = new ResolvedKeybindingItem(
+			undefined,
+			'workbench.action.openAgentsWindow',
+			{ source: 'keyboardShortcut' },
+			undefined,
+			false,
+			null,
+			false,
+			true,
+		);
+
+		await testObject.addKeybinding(keybinding, 'ctrl+cmd+a', undefined);
+
+		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
 	test('add a new default keybinding', async () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
 		await testObject.addKeybinding(aResolvedKeybindingItem({ command: 'a' }), 'alt+c', undefined);
@@ -170,6 +197,56 @@ suite('KeybindingsEditing', () => {
 		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined);
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
+
+	test('edit a default system-wide keybinding adds a user keybinding that is not system-wide', async () => {
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
+		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'a', systemWide: true }), 'alt+c', undefined);
+		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
+	test('edit a user keybinding preserves systemWide on other entries', async () => {
+		await writeToKeybindingsFile({ key: 'escape', command: 'b' }, { key: 'alt+shift+g', command: 'c', systemWide: true });
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }, { key: 'alt+shift+g', command: 'c', systemWide: true }];
+		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined);
+		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
+	for (const operation of ['edit', 'remove', 'reset'] as const) {
+		test(`${operation} the last matching binding preserves siblings with different keys, arguments, conditions, or scope`, async () => {
+			const selected: IUserFriendlyKeybinding = {
+				key: 'escape', command: 'a', when: 'editorTextFocus', args: { value: 1 }, systemWide: true,
+			};
+			const siblings: IUserFriendlyKeybinding[] = [
+				{ ...selected, key: 'alt+c' },
+				{ ...selected, args: { value: 2 } },
+				{ ...selected, when: 'terminalFocus' },
+				{ ...selected, systemWide: false },
+				{ ...selected },
+			];
+			const laterSibling = operation === 'edit'
+				? { ...selected, key: 'alt+c' }
+				: operation === 'remove'
+					? { ...selected, args: { value: 2 } }
+					: { ...selected, systemWide: false };
+			await writeToKeybindingsFile(...siblings, selected, laterSibling);
+			const binding = new ResolvedKeybindingItem(
+				aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape } }).resolvedKeybinding,
+				'a', { value: 1 }, ContextKeyExpr.has('editorTextFocus'), false, null, false, true,
+			);
+			if (operation === 'edit') {
+				await testObject.editKeybinding(binding, 'alt+x', 'terminalFocus');
+			} else if (operation === 'remove') {
+				await testObject.removeKeybinding(binding);
+			} else {
+				await testObject.resetKeybinding(binding);
+			}
+			assert.deepStrictEqual(await getUserKeybindings(), [
+				...siblings,
+				...(operation === 'edit' ? [{ ...selected, key: 'alt+x', when: 'terminalFocus' }] : []),
+				laterSibling,
+			]);
+		});
+	}
 
 	test('remove a default keybinding', async () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }];
@@ -256,7 +333,7 @@ suite('KeybindingsEditing', () => {
 		return json.parse((await fileService.readFile(userDataProfileService.currentProfile.keybindingsResource)).value.toString());
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
+	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord, systemWide }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers }; systemWide?: boolean }): ResolvedKeybindingItem {
 		const aSimpleKeybinding = function (chord: { keyCode: KeyCode; modifiers?: Modifiers }): KeyCodeChord {
 			const { ctrlKey, shiftKey, altKey, metaKey } = chord.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new KeyCodeChord(ctrlKey!, shiftKey!, altKey!, metaKey!, chord.keyCode);
@@ -269,6 +346,6 @@ suite('KeybindingsEditing', () => {
 			}
 		}
 		const keybinding = chords.length > 0 ? new USLayoutResolvedKeybinding(chords, OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false, systemWide);
 	}
 });

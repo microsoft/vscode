@@ -13,6 +13,12 @@ declare module 'vscode' {
 	export interface FileSearchQuery {
 		/**
 		 * The search pattern to match against file paths.
+		 * To be correctly interpreted by Quick Open, this is interpreted in a relaxed way. The picker will apply its own highlighting and scoring on the results.
+		 *
+		 * Tips for matching in Quick Open:
+		 * With the pattern, the picker will use the file name and file paths to score each entry. The score will determine the ordering and filtering.
+		 * The scoring prioritizes prefix and substring matching. Then, it checks and it checks whether the pattern's letters appear in the same order as in the target (file name and path).
+		 * If a file does not match at all using our criteria, it will be omitted from Quick Open.
 		 */
 		pattern: string;
 	}

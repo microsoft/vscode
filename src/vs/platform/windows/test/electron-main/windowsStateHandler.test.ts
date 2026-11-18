@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from '../../electron-main/windowsStateHandler.js';
+import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
 
@@ -98,10 +99,28 @@ suite('Windows State Storing', () => {
 		};
 		assertRestoring(windowState, 'folder');
 
+		// A folder location carried by state of an older version is ignored
+		const stored = getWindowsStateStoreData({ openedWindows: [{ backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI }] });
+		const restored = restoreWindowsState({ ...stored, openedWindows: stored.openedWindows.map(window => ({ ...window, folderLocation: { uri: 'file:///alt', label: 'Alt', providerId: 'p' } })) });
+		assert.deepStrictEqual(Object.keys(restored.openedWindows[0]).includes('folderLocation'), false);
+
 		windowState = {
 			openedWindows: [{ backupPath: testBackupPath1, uiState: getUIState(), folderUri: testFolderURI }, { backupPath: testBackupPath1, uiState: getUIState(), folderUri: testRemoteFolderURI, remoteAuthority: 'bar' }]
 		};
 		assertRestoring(windowState, 'multiple windows');
+
+		windowState = {
+			openedWindows: [{ backupPath: testBackupPath1, uiState: { ...getUIState(), minimized: true }, folderUri: testFolderURI }]
+		};
+		assertRestoring(windowState, 'minimized window');
+
+		windowState = {
+			openedWindows: [
+				{ backupPath: testBackupPath1, uiState: { ...getUIState(), alwaysOnTop: true }, folderUri: testFolderURI },
+				{ backupPath: testBackupPath2, uiState: { ...getUIState(), alwaysOnTop: false }, folderUri: testRemoteFolderURI, remoteAuthority: 'bar' }
+			]
+		};
+		assertRestoring(windowState, 'independent always-on-top states');
 
 		windowState = {
 			lastActiveWindow: { backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI },
@@ -182,8 +201,8 @@ suite('Windows State Storing', () => {
 					"mode": 1,
 					"x": 768,
 					"y": 336,
-					"width": 1024,
-					"height": 768
+					"width": 1200,
+					"height": 800
 				}
 			}
 		}`;
@@ -193,9 +212,11 @@ suite('Windows State Storing', () => {
 			openedWindows: [],
 			lastActiveWindow: {
 				backupPath: '/home/user/.config/code-oss-dev/Backups/1549539668998',
-				uiState: { mode: WindowMode.Normal, x: 768, y: 336, width: 1024, height: 768 }
+				uiState: { mode: WindowMode.Normal, x: 768, y: 336, width: 1200, height: 800 }
 			}
 		};
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

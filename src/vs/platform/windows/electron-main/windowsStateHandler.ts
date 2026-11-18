@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Display, screen } from 'electron';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
-import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import electron from 'electron';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateService } from '../../state/node/state.js';
+import { INativeWindowConfiguration, IWindowSettings } from '../../window/common/window.js';
+import { IWindowsMainService } from './windows.js';
+import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from '../../window/electron-main/window.js';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export interface IWindowState {
 	readonly windowId?: number;
@@ -50,12 +50,37 @@ interface ISerializedWindowState {
 	readonly uiState: IWindowUIState;
 }
 
+/**
+ * Restores the windows of the previous session exactly as they were, for example
+ * minimized, after the application restarted while the user was away.
+ */
+export interface IExactRestoreState {
+
+	/**
+	 * macOS: hide the application again after showing its windows.
+	 */
+	readonly hideApplication: boolean;
+}
+
+function isExactRestoreState(value: unknown): value is IExactRestoreState {
+	const candidate = value as Partial<IExactRestoreState> | undefined;
+	return !!candidate && typeof candidate === 'object' && typeof candidate.hideApplication === 'boolean';
+}
+
 export class WindowsStateHandler extends Disposable {
 
 	private static readonly windowsStateStorageKey = 'windowsState';
+	private static readonly exactRestoreStorageKey = 'windowsExactRestore';
 
 	get state() { return this._state; }
-	private readonly _state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+	private readonly _state: IWindowsState;
+
+	/**
+	 * Whether to restore the windows of the previous session exactly as they were.
+	 */
+	readonly exactRestore: IExactRestoreState | undefined;
+
+	private nextExactRestore: IExactRestoreState | undefined = undefined;
 
 	private lastClosedState: IWindowState | undefined = undefined;
 
@@ -70,7 +95,34 @@ export class WindowsStateHandler extends Disposable {
 	) {
 		super();
 
+		this._state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+		this.exactRestore = this.takeExactRestore();
+
 		this.registerListeners();
+	}
+
+	private takeExactRestore(): IExactRestoreState | undefined {
+		const exactRestore = this.stateService.getItem<unknown>(WindowsStateHandler.exactRestoreStorageKey);
+		if (exactRestore === undefined) {
+			return undefined;
+		}
+
+		this.stateService.removeItem(WindowsStateHandler.exactRestoreStorageKey); // only applies to the next startup
+		if (!isExactRestoreState(exactRestore)) {
+			return undefined;
+		}
+
+		this.logService.info('[WindowsStateHandler] restoring windows exactly');
+
+		return exactRestore;
+	}
+
+	/**
+	 * Restores the windows exactly as they are on the next startup, if the
+	 * application quits without veto. Pass `undefined` to cancel.
+	 */
+	setNextExactRestore(exactRestore: IExactRestoreState | undefined): void {
+		this.nextExactRestore = exactRestore;
 	}
 
 	private registerListeners(): void {
@@ -78,26 +130,31 @@ export class WindowsStateHandler extends Disposable {
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
 		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		app.on('browser-window-blur', () => {
+		electron.app.on('browser-window-blur', () => {
 			if (!this.shuttingDown) {
 				this.saveWindowsState();
 			}
 		});
 
 		// Handle various lifecycle events around windows
-		this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window));
-		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
-		this.windowsMainService.onDidChangeWindowsCount(e => {
+		this._register(this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window)));
+		this._register(this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown()));
+		this._register(this.lifecycleMainService.onWillShutdown(() => {
+			if (this.nextExactRestore) {
+				this.stateService.setItem(WindowsStateHandler.exactRestoreStorageKey, this.nextExactRestore); // fires only when no window vetoed the shutdown
+			}
+		}));
+		this._register(this.windowsMainService.onDidChangeWindowsCount(e => {
 			if (e.newCount - e.oldCount > 0) {
 				// clear last closed window state when a new window opens. this helps on macOS where
 				// otherwise closing the last window, opening a new window and then quitting would
 				// use the state of the previously closed window when restarting.
 				this.lastClosedState = undefined;
 			}
-		});
+		}));
 
 		// try to save state before destroy because close will not fire
-		this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window));
+		this._register(this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window)));
 	}
 
 	// Note that onBeforeShutdown() and onBeforeCloseWindow() are fired in different order depending on the OS:
@@ -150,6 +207,7 @@ export class WindowsStateHandler extends Disposable {
 		// on macOS.
 		// https://github.com/electron/electron/issues/34367
 		const displaysWithFullScreenWindow = new Set<number | undefined>();
+		const exact = !!this.nextExactRestore;
 
 		const currentWindowsState: IWindowsState = {
 			openedWindows: [],
@@ -165,7 +223,7 @@ export class WindowsStateHandler extends Disposable {
 			}
 
 			if (activeWindow) {
-				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
+				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow, exact);
 
 				if (currentWindowsState.lastActiveWindow.uiState.mode === WindowMode.Fullscreen) {
 					displaysWithFullScreenWindow.add(currentWindowsState.lastActiveWindow.uiState.display); // always allow fullscreen for active window
@@ -176,7 +234,7 @@ export class WindowsStateHandler extends Disposable {
 		// 2.) Find extension host window
 		const extensionHostWindow = this.windowsMainService.getWindows().find(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost);
 		if (extensionHostWindow) {
-			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
+			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow, exact);
 
 			if (currentWindowsState.lastPluginDevelopmentHostWindow.uiState.mode === WindowMode.Fullscreen) {
 				if (displaysWithFullScreenWindow.has(currentWindowsState.lastPluginDevelopmentHostWindow.uiState.display)) {
@@ -196,7 +254,7 @@ export class WindowsStateHandler extends Disposable {
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.windowsMainService.getWindowCount() > 1) {
 			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => {
-				const windowState = this.toWindowState(window);
+				const windowState = this.toWindowState(window, exact);
 
 				if (windowState.uiState.mode === WindowMode.Fullscreen) {
 					if (displaysWithFullScreenWindow.has(windowState.uiState.display)) {
@@ -254,14 +312,14 @@ export class WindowsStateHandler extends Disposable {
 		}
 	}
 
-	private toWindowState(window: ICodeWindow): IWindowState {
+	private toWindowState(window: ICodeWindow, exact = false): IWindowState {
 		return {
 			windowId: window.id,
 			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
-			uiState: window.serializeWindowState()
+			uiState: window.serializeWindowState({ exact })
 		};
 	}
 
@@ -339,8 +397,8 @@ export class WindowsStateHandler extends Disposable {
 		//
 
 		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: Display | undefined;
-		const displays = screen.getAllDisplays();
+		let displayToUse: electron.Display | undefined;
+		const displays = electron.screen.getAllDisplays();
 
 		// Single Display
 		if (displays.length === 1) {
@@ -352,25 +410,25 @@ export class WindowsStateHandler extends Disposable {
 
 			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
 			if (isMacintosh) {
-				const cursorPoint = screen.getCursorScreenPoint();
-				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
+				const cursorPoint = electron.screen.getCursorScreenPoint();
+				displayToUse = electron.screen.getDisplayNearestPoint(cursorPoint);
 			}
 
 			// if we have a last active window, use that display for the new window
 			if (!displayToUse && lastActive) {
-				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
+				displayToUse = electron.screen.getDisplayMatching(lastActive.getBounds());
 			}
 
 			// fallback to primary display or first display
 			if (!displayToUse) {
-				displayToUse = screen.getPrimaryDisplay() || displays[0];
+				displayToUse = electron.screen.getPrimaryDisplay() || displays[0];
 			}
 		}
 
 		// Compute x/y based on display bounds
 		// Note: important to use Math.round() because Electron does not seem to be too happy about
 		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState();
+		let state = defaultWindowState(undefined, isWorkspaceIdentifier(configuration.workspace) || isSingleFolderWorkspaceIdentifier(configuration.workspace));
 		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
 		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
 
@@ -389,7 +447,11 @@ export class WindowsStateHandler extends Disposable {
 				if (lastActiveState.mode === WindowMode.Fullscreen) {
 					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
 				} else {
-					state = lastActiveState;
+					state = {
+						...lastActiveState,
+						zoomLevel: undefined, // do not inherit zoom level
+						alwaysOnTop: undefined
+					};
 				}
 
 				ensureNoOverlap = state.mode !== WindowMode.Fullscreen && windowConfig.newWindowDimensions === 'offset';
@@ -474,7 +536,7 @@ export function getWindowsStateStoreData(windowsState: IWindowsState): IWindowsS
 function serializeWindowState(windowState: IWindowState): ISerializedWindowState {
 	return {
 		workspaceIdentifier: windowState.workspace && { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() },
-		folder: windowState.folderUri && windowState.folderUri.toString(),
+		folder: windowState.folderUri?.toString(),
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
 		uiState: windowState.uiState

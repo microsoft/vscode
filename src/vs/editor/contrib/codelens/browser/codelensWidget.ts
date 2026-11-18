@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Constants } from 'vs/base/common/uint';
-import 'vs/css!./codelensWidget';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, IContentWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { CodeLens, Command } from 'vs/editor/common/languages';
-import { CodeLensItem } from 'vs/editor/contrib/codelens/browser/codelens';
+import * as dom from '../../../../base/browser/dom.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Constants } from '../../../../base/common/uint.js';
+import './codelensWidget.css';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, IContentWidgetPosition, IViewZone, IViewZoneChangeAccessor } from '../../../browser/editorBrowser.js';
+import { Range } from '../../../common/core/range.js';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { CodeLens, Command } from '../../../common/languages.js';
+import { CodeLensItem } from './codelens.js';
 
 class CodeLensViewZone implements IViewZone {
 
@@ -83,7 +83,7 @@ class CodeLensContentWidget implements IContentWidget {
 		this._domNode.className = `codelens-decoration`;
 	}
 
-	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
+	withCommands(lenses: ReadonlyArray<CodeLens | undefined | null>, animate: boolean): void {
 		this._commands.clear();
 
 		const children: HTMLElement[] = [];
@@ -97,8 +97,9 @@ class CodeLensContentWidget implements IContentWidget {
 			if (lens.command) {
 				const title = renderLabelWithIcons(lens.command.title.trim());
 				if (lens.command.id) {
-					children.push(dom.$('a', { id: String(i), title: lens.command.tooltip, role: 'button' }, ...title));
-					this._commands.set(String(i), lens.command);
+					const id = `c${(CodeLensContentWidget._idPool++)}`;
+					children.push(dom.$('a', { id, title: lens.command.tooltip, role: 'button' }, ...title));
+					this._commands.set(id, lens.command);
 				} else {
 					children.push(dom.$('span', { title: lens.command.tooltip }, ...title));
 				}
@@ -195,11 +196,11 @@ export class CodeLensWidget {
 
 	private _contentWidget?: CodeLensContentWidget;
 	private _decorationIds: string[];
-	private _data: CodeLensItem[];
+	private _data: readonly CodeLensItem[];
 	private _isDisposed: boolean = false;
 
 	constructor(
-		data: CodeLensItem[],
+		data: readonly CodeLensItem[],
 		editor: IActiveCodeEditor,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: IViewZoneChangeAccessor,
@@ -275,7 +276,7 @@ export class CodeLensWidget {
 		});
 	}
 
-	updateCodeLensSymbols(data: CodeLensItem[], helper: CodeLensHelper): void {
+	updateCodeLensSymbols(data: readonly CodeLensItem[], helper: CodeLensHelper): void {
 		this._decorationIds.forEach(helper.removeDecoration, helper);
 		this._decorationIds = [];
 		this._data = data;
@@ -295,7 +296,7 @@ export class CodeLensWidget {
 		}
 	}
 
-	computeIfNecessary(model: ITextModel): CodeLensItem[] | null {
+	computeIfNecessary(model: ITextModel): readonly CodeLensItem[] | null {
 		if (!this._viewZone.isVisible()) {
 			return null;
 		}
@@ -310,8 +311,7 @@ export class CodeLensWidget {
 		return this._data;
 	}
 
-	updateCommands(symbols: Array<CodeLens | undefined | null>): void {
-
+	updateCommands(symbols: ReadonlyArray<CodeLens | undefined | null>): void {
 		this._createContentWidgetIfNecessary();
 		this._contentWidget!.withCommands(symbols, true);
 
@@ -351,7 +351,7 @@ export class CodeLensWidget {
 		}
 	}
 
-	getItems(): CodeLensItem[] {
+	getItems(): readonly CodeLensItem[] {
 		return this._data;
 	}
 }

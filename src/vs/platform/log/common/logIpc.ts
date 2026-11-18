@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, isLogLevel, LogLevel } from 'vs/platform/log/common/log';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { URI } from '../../../base/common/uri.js';
+import { Event } from '../../../base/common/event.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, DidChangeLoggersEvent, ILogger, ILoggerOptions, ILoggerResource, ILoggerService, isLogLevel, LogLevel } from './log.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
 
 export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
 
@@ -45,7 +45,8 @@ export class LoggerChannelClient extends AbstractLoggerService implements ILogge
 		this.channel.call('registerLogger', [logger, this.windowId]);
 	}
 
-	override deregisterLogger(resource: URI): void {
+	override deregisterLogger(idOrResource: URI | string): void {
+		const resource = this.toResource(idOrResource);
 		super.deregisterLogger(resource);
 		this.channel.call('deregisterLogger', [resource, this.windowId]);
 	}

@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { BINARY_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from 'vs/workbench/services/editor/common/editorResolverService';
-import { isEditorInputWithOptions } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { localize } from '../../../../../nls.js';
+import { BaseBinaryResourceEditor } from '../../../../browser/parts/editor/binaryEditor.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { FileEditorInput } from './fileEditorInput.js';
+import { BINARY_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from '../../common/files.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IEditorResolverService, ResolvedStatus, ResolvedEditor } from '../../../../services/editor/common/editorResolverService.js';
+import { OpenWithEditorPicker } from '../../../../services/editor/browser/openWithEditorPicker.js';
+import { isEditorInputWithOptions } from '../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -25,14 +27,16 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	static readonly ID = BINARY_FILE_EDITOR_ID;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(
 			BinaryFileEditor.ID,
+			group,
 			{
 				openInternal: (input, options) => this.openInternal(input, options)
 			},
@@ -43,7 +47,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	}
 
 	private async openInternal(input: EditorInput, options: IEditorOptions | undefined): Promise<void> {
-		if (input instanceof FileEditorInput && this.group?.activeEditor) {
+		if (input instanceof FileEditorInput && this.group.activeEditor) {
 
 			// We operate on the active editor here to support re-opening
 			// diff editors where `input` may just be one side of the
@@ -58,12 +62,17 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			}
 
 			// Try to let the user pick an editor
+			const pickedOptions = await this.instantiationService.createInstance(OpenWithEditorPicker).pick({
+				...untypedActiveEditor,
+				options: { ...options }
+			});
+			if (!pickedOptions) {
+				return;
+			}
+
 			let resolvedEditor: ResolvedEditor | undefined = await this.editorResolverService.resolveEditor({
 				...untypedActiveEditor,
-				options: {
-					...options,
-					override: EditorResolution.PICK
-				}
+				options: pickedOptions
 			}, this.group);
 
 			if (resolvedEditor === ResolvedStatus.NONE) {
@@ -84,7 +93,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			}
 
 			// Replace the active editor with the picked one
-			await (this.group ?? this.editorGroupService.activeGroup).replaceEditors([{
+			await this.group.replaceEditors([{
 				editor: activeEditor,
 				replacement: resolvedEditor?.editor ?? input,
 				options: {

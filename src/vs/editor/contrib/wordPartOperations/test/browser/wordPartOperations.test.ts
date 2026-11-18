@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/browser/wordTestUtils';
-import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/browser/utils';
-import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from 'vs/editor/contrib/wordPartOperations/browser/wordPartOperations';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorCommand } from '../../../../browser/editorExtensions.js';
+import { Position } from '../../../../common/core/position.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from '../../../wordOperations/test/browser/wordTestUtils.js';
+import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from '../../browser/wordPartOperations.js';
+import { StaticServiceAccessor } from './utils.js';
+import { TestLanguageConfigurationService } from '../../../../test/common/modes/testLanguageConfigurationService.js';
 
 suite('WordPartOperations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const _deleteWordPartLeft = new DeleteWordPartLeft();
 	const _deleteWordPartRight = new DeleteWordPartRight();
 	const _cursorWordPartLeft = new CursorWordPartLeft();
@@ -224,7 +228,7 @@ suite('WordPartOperations', () => {
 			ed => cursorWordPartLeft(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 1)),
-			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+			{ wordSeparators: '!"#&\'()*+,./:;<=>?@[\\]^`{|}·' } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
@@ -241,7 +245,7 @@ suite('WordPartOperations', () => {
 			ed => cursorWordPartRight(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getPosition()!.equals(new Position(1, 60)),
-			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+			{ wordSeparators: '!"#&\'()*+,./:;<=>?@[\\]^`{|}·' } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
@@ -258,7 +262,7 @@ suite('WordPartOperations', () => {
 			ed => deleteWordPartLeft(ed),
 			ed => ed.getPosition()!,
 			ed => ed.getValue().length === 0,
-			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+			{ wordSeparators: '!"#&\'()*+,./:;<=>?@[\\]^`{|}·' } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);
@@ -275,7 +279,7 @@ suite('WordPartOperations', () => {
 			ed => deleteWordPartRight(ed),
 			ed => new Position(1, text.length - ed.getValue().length + 1),
 			ed => ed.getValue().length === 0,
-			{ wordSeparators: "!\"#&'()*+,./:;<=>?@[\\]^`{|}·" } // default characters sans '$-%~' plus '·'
+			{ wordSeparators: '!"#&\'()*+,./:;<=>?@[\\]^`{|}·' } // default characters sans '$-%~' plus '·'
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepStrictEqual(actual, EXPECTED);

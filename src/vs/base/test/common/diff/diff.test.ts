@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IDiffChange, LcsDiff, StringDiffSequence } from 'vs/base/common/diff/diff';
+import assert from 'assert';
+import { IDiffChange, LcsDiff, stringDiff, StringDiffSequence } from '../../../common/diff/diff.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
 
 function createArray<T>(length: number, value: T): T[] {
 	const r: T[] = [];
@@ -79,6 +80,8 @@ function lcsTest(originalStr: string, modifiedStr: string, answerStr: string) {
 }
 
 suite('Diff', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('LcsDiff - different strings tests', function () {
 		this.timeout(10000);
 		lcsTest('heLLo world', 'hello orlando', 'heo orld');
@@ -94,9 +97,54 @@ suite('Diff', () => {
 		lcsTest('fooBar', 'fooMyBar', 'fooBar'); // all insertions
 		lcsTest('fooBar', 'fooBar', 'fooBar'); // identical sequences
 	});
+
+	test('stringDiff does not split surrogate pairs', () => {
+		for (const pretty of [false, true]) {
+			assert.deepStrictEqual(stringDiff('𫟹', '𫔍', pretty), [{
+				originalStart: 0,
+				originalLength: 2,
+				modifiedStart: 0,
+				modifiedLength: 2,
+			}]);
+			assert.deepStrictEqual(stringDiff('a😀b', 'a😃b', pretty), [{
+				originalStart: 1,
+				originalLength: 2,
+				modifiedStart: 1,
+				modifiedLength: 2,
+			}]);
+			assert.deepStrictEqual(stringDiff('😀a', '😀b', pretty), [{
+				originalStart: 2,
+				originalLength: 1,
+				modifiedStart: 2,
+				modifiedLength: 1,
+			}]);
+		}
+	});
+
+	test('stringDiff maps insertions and deletions at surrogate pair boundaries', () => {
+		assert.deepStrictEqual({
+			insertion: stringDiff('a', 'a😀', false),
+			deletion: stringDiff('😀a', 'a', false),
+		}, {
+			insertion: [{
+				originalStart: 1,
+				originalLength: 0,
+				modifiedStart: 1,
+				modifiedLength: 2,
+			}],
+			deletion: [{
+				originalStart: 0,
+				originalLength: 2,
+				modifiedStart: 0,
+				modifiedLength: 0,
+			}],
+		});
+	});
 });
 
 suite('Diff - Ported from VS', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('using continue processing predicate to quit early', function () {
 		const left = 'abcdef';
 		const right = 'abxxcyyydzzzzezzzzzzzzzzzzzzzzzzzzf';

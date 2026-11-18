@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalLinkResolver, ResolvedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { removeLinkSuffix, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { URI } from 'vs/base/common/uri';
-import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Schemas } from 'vs/base/common/network';
-import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IPath, posix, win32 } from 'vs/base/common/path';
+import { ITerminalLinkResolver, ResolvedLink } from './links.js';
+import { removeLinkSuffix, removeLinkQueryString, winDrivePrefix } from './terminalLinkParsing.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isWindows, OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IPath, posix, win32 } from '../../../../../base/common/path.js';
+import { ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 export class TerminalLinkResolver implements ITerminalLinkResolver {
-	declare _serviceBrand: undefined;
-
 	// Link cache could be shared across all terminals, but that could lead to weird results when
 	// both local and remote terminals are present
 	private readonly _resolvedLinkCaches: Map<string, LinkCache> = new Map();
@@ -25,6 +25,14 @@ export class TerminalLinkResolver implements ITerminalLinkResolver {
 	}
 
 	async resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink> {
+		// Correct scheme and authority for remote terminals
+		if (uri && uri.scheme === Schemas.file && processManager.remoteAuthority) {
+			uri = uri.with({
+				scheme: Schemas.vscodeRemote,
+				authority: processManager.remoteAuthority
+			});
+		}
+
 		// Get the link cache
 		let cache = this._resolvedLinkCaches.get(processManager.remoteAuthority ?? '');
 		if (!cache) {
@@ -52,9 +60,14 @@ export class TerminalLinkResolver implements ITerminalLinkResolver {
 			}
 		}
 
-		// Remove any line/col suffix before processing the path
+		// Remove any line/col suffix
 		let linkUrl = removeLinkSuffix(link);
-		if (!linkUrl) {
+
+		// Remove any query string
+		linkUrl = removeLinkQueryString(linkUrl);
+
+		// Exit early if the link is determines as not valid already
+		if (linkUrl.length === 0) {
 			cache.set(link, null);
 			return null;
 		}
@@ -163,9 +176,9 @@ class LinkCache {
 	set(link: string | URI, value: ResolvedLink) {
 		// Reset cached link TTL on any set
 		if (this._cacheTilTimeout) {
-			window.clearTimeout(this._cacheTilTimeout);
+			mainWindow.clearTimeout(this._cacheTilTimeout);
 		}
-		this._cacheTilTimeout = window.setTimeout(() => this._cache.clear(), LinkCacheConstants.TTL);
+		this._cacheTilTimeout = mainWindow.setTimeout(() => this._cache.clear(), LinkCacheConstants.TTL);
 		this._cache.set(this._getKey(link), value);
 	}
 

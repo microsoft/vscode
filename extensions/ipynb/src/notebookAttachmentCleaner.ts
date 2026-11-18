@@ -52,6 +52,14 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		}));
 
 		this._disposables.push(vscode.workspace.onDidChangeNotebookDocument(e => {
+			for (const change of e.contentChanges) {
+				for (const cell of change.removedCells) {
+					if (cell.document.isClosed) {
+						this._imageDiagnosticCollection.delete(cell.document.uri);
+					}
+				}
+			}
+
 			this._delayer.trigger(() => {
 
 				e.cellChanges.forEach(change => {
@@ -81,39 +89,39 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		this._disposables.push(vscode.workspace.onWillSaveNotebookDocument(e => {
 			if (e.reason === vscode.TextDocumentSaveReason.Manual) {
 				this._delayer.dispose();
-
-				e.waitUntil(new Promise((resolve) => {
-					if (e.notebook.getCells().length === 0) {
-						return;
+				if (e.notebook.getCells().length === 0) {
+					return;
+				}
+				const notebookEdits: vscode.NotebookEdit[] = [];
+				for (const cell of e.notebook.getCells()) {
+					if (cell.kind !== vscode.NotebookCellKind.Markup) {
+						continue;
 					}
 
-					const notebookEdits: vscode.NotebookEdit[] = [];
-					for (const cell of e.notebook.getCells()) {
-						if (cell.kind !== vscode.NotebookCellKind.Markup) {
-							continue;
-						}
+					const metadataEdit = this.cleanNotebookAttachments({
+						notebook: e.notebook,
+						cell: cell,
+						document: cell.document
+					});
 
-						const metadataEdit = this.cleanNotebookAttachments({
-							notebook: e.notebook,
-							cell: cell,
-							document: cell.document
-						});
-
-						if (metadataEdit) {
-							notebookEdits.push(metadataEdit);
-						}
+					if (metadataEdit) {
+						notebookEdits.push(metadataEdit);
 					}
-
-					const workspaceEdit = new vscode.WorkspaceEdit();
-					workspaceEdit.set(e.notebook.uri, notebookEdits);
-
-					resolve(workspaceEdit);
-				}));
+				}
+				if (!notebookEdits.length) {
+					return;
+				}
+				const workspaceEdit = new vscode.WorkspaceEdit();
+				workspaceEdit.set(e.notebook.uri, notebookEdits);
+				e.waitUntil(Promise.resolve(workspaceEdit));
 			}
 		}));
 
 		this._disposables.push(vscode.workspace.onDidCloseNotebookDocument(e => {
 			this._attachmentCache.delete(e.uri.toString());
+			for (const cell of e.getCells()) {
+				this._imageDiagnosticCollection.delete(cell.document.uri);
+			}
 		}));
 
 		this._disposables.push(vscode.workspace.onWillRenameFiles(e => {
@@ -136,7 +144,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		}));
 
 		this._disposables.push(vscode.workspace.onDidCloseTextDocument(e => {
-			this.analyzeMissingAttachments(e);
+			this._imageDiagnosticCollection.delete(e.uri);
 		}));
 
 		vscode.workspace.textDocuments.forEach(document => {
@@ -229,11 +237,14 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 
 		this.updateDiagnostics(cell.document.uri, diagnostics);
 
-		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse, cell.metadata.attachments)) {
+		if (cell.index > -1 && !objectEquals(markdownAttachmentsInUse || {}, cell.metadata.attachments || {})) {
 			const updateMetadata: { [key: string]: any } = deepClone(cell.metadata);
-			updateMetadata.attachments = markdownAttachmentsInUse;
+			if (Object.keys(markdownAttachmentsInUse).length === 0) {
+				updateMetadata.attachments = undefined;
+			} else {
+				updateMetadata.attachments = markdownAttachmentsInUse;
+			}
 			const metadataEdit = vscode.NotebookEdit.updateCellMetadata(cell.index, updateMetadata);
-
 			return metadataEdit;
 		}
 		return;
@@ -246,7 +257,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		}
 
 		if (document.isClosed) {
-			this.updateDiagnostics(document.uri, []);
+			this._imageDiagnosticCollection.delete(document.uri);
 			return;
 		}
 
@@ -388,4 +399,3 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 		this._delayer.dispose();
 	}
 }
-

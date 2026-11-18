@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isTypedArray, isObject, isUndefinedOrNull } from './types.js';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
@@ -24,8 +24,9 @@ export function deepFreeze<T>(obj: T): T {
 		return obj;
 	}
 	const stack: any[] = [obj];
-	while (stack.length > 0) {
-		const obj = stack.shift();
+	for (let index = 0; index < stack.length; index++) {
+		const obj = stack[index];
+		stack[index] = undefined;
 		Object.freeze(obj);
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
@@ -69,10 +70,10 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 			throw new Error('Cannot clone recursive data-structure');
 		}
 		seen.add(obj);
-		const r2 = {};
+		const r2: Record<string, unknown> = {};
 		for (const i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
-				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
+				r2[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
 		}
 		seen.delete(obj);
@@ -168,17 +169,77 @@ export function equals(one: any, other: any): boolean {
  *  "Uncaught TypeError: Converting circular structure to JSON"
  */
 export function safeStringify(obj: any): string {
-	const seen = new Set<any>();
-	return JSON.stringify(obj, (key, value) => {
-		if (isObject(value) || Array.isArray(value)) {
-			if (seen.has(value)) {
-				return '[Circular]';
-			} else {
-				seen.add(value);
+	// Track only current ancestors so shared sibling references are serialized in full.
+	const ancestors: unknown[] = [];
+	return JSON.stringify(obj, function (this: unknown, key: string, value: unknown) {
+		if (typeof value === 'object' && value !== null) {
+			// `this` is the object holding `key`, pop the subtrees that are already done
+			while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+				ancestors.pop();
 			}
+			if (ancestors.includes(value)) {
+				return '[Circular]';
+			}
+			ancestors.push(value);
+		}
+		if (typeof value === 'bigint') {
+			return `[BigInt ${value.toString()}]`;
 		}
 		return value;
 	});
+}
+
+/**
+ * Like `JSON.stringify`, but with deterministic ordering of object keys so that
+ * structurally equal inputs always produce the same string. Useful for cache
+ * keys derived from arbitrary object payloads.
+ *
+ * - Object keys are sorted at every level of nesting.
+ * - Properties whose value is `undefined` are omitted (matching `JSON.stringify`).
+ * - Circular references are replaced with the string `"[Circular]"` to avoid
+ *   throwing.
+ * - A top-level `undefined` returns the string `'undefined'`; any other
+ *   stringification failure returns the empty string.
+ */
+export function stableStringify(value: unknown): string {
+	if (value === undefined) {
+		return 'undefined';
+	}
+	try {
+		return _stableStringify(value, new Set());
+	} catch {
+		return '';
+	}
+}
+
+function _stableStringify(value: unknown, seen: Set<object>): string {
+	if (value === null || typeof value !== 'object') {
+		return JSON.stringify(value) ?? 'null';
+	}
+	if (seen.has(value as object)) {
+		return '"[Circular]"';
+	}
+	seen.add(value as object);
+
+	let result: string;
+	if (Array.isArray(value)) {
+		result = '[' + value.map(v => _stableStringify(v, seen)).join(',') + ']';
+	} else {
+		const keys = Object.keys(value as object).sort();
+		const parts: string[] = [];
+		for (const k of keys) {
+			const v = (value as Record<string, unknown>)[k];
+			if (v === undefined) {
+				continue;
+			}
+			parts.push(JSON.stringify(k) + ':' + _stableStringify(v, seen));
+		}
+		result = '{' + parts.join(',') + '}';
+	}
+
+	// Track only ancestors so shared sibling references are serialized in full.
+	seen.delete(value as object);
+	return result;
 }
 
 type obj = { [key: string]: any };
@@ -212,7 +273,7 @@ export function distinct(base: obj, target: obj): obj {
 	return result;
 }
 
-export function getCaseInsensitive(target: obj, key: string): any {
+export function getCaseInsensitive(target: obj, key: string): unknown {
 	const lowercaseKey = key.toLowerCase();
 	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
 	return equivalentKey ? target[equivalentKey] : target[key];
@@ -228,37 +289,10 @@ export function filter(obj: obj, predicate: (key: string, value: any) => boolean
 	return result;
 }
 
-export function getAllPropertyNames(obj: object): string[] {
-	let res: string[] = [];
-	let proto = Object.getPrototypeOf(obj);
-	while (Object.prototype !== proto) {
-		res = res.concat(Object.getOwnPropertyNames(proto));
-		proto = Object.getPrototypeOf(proto);
+export function mapValues<T extends {}, R>(obj: T, fn: (value: T[keyof T], key: string) => R): { [K in keyof T]: R } {
+	const result: { [key: string]: R } = {};
+	for (const [key, value] of Object.entries(obj)) {
+		result[key] = fn(<T[keyof T]>value, key);
 	}
-	return res;
-}
-
-export function getAllMethodNames(obj: object): string[] {
-	const methods: string[] = [];
-	for (const prop of getAllPropertyNames(obj)) {
-		if (typeof (obj as any)[prop] === 'function') {
-			methods.push(prop);
-		}
-	}
-	return methods;
-}
-
-export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: unknown[]) => unknown): T {
-	const createProxyMethod = (method: string): () => unknown => {
-		return function () {
-			const args = Array.prototype.slice.call(arguments, 0);
-			return invoke(method, args);
-		};
-	};
-
-	const result = {} as T;
-	for (const methodName of methodNames) {
-		(<any>result)[methodName] = createProxyMethod(methodName);
-	}
-	return result;
+	return result as { [K in keyof T]: R };
 }

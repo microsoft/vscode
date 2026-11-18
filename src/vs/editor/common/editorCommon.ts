@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation, IModelDeltaDecoration, IModelDecoration } from 'vs/editor/common/model';
-import { ThemeColor } from 'vs/base/common/themables';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { Event } from '../../base/common/event.js';
+import { IMarkdownString } from '../../base/common/htmlContent.js';
+import { IDisposable } from '../../base/common/lifecycle.js';
+import { ThemeColor } from '../../base/common/themables.js';
+import { URI, UriComponents } from '../../base/common/uri.js';
+import { IEditorOptions } from './config/editorOptions.js';
+import { IDimension } from './core/2d/dimension.js';
+import { IPosition, Position } from './core/position.js';
+import { IRange, Range } from './core/range.js';
+import { ISelection, Selection } from './core/selection.js';
+import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from './model.js';
+import { IModelDecorationsChangedEvent } from './textModelEvents.js';
+import { ICommandMetadata } from '../../platform/commands/common/commands.js';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -104,6 +105,12 @@ export interface IDiffEditorModel {
 	modified: ITextModel;
 }
 
+export interface IDiffEditorViewModel extends IDisposable {
+	readonly model: IDiffEditorModel;
+
+	waitForDiff(): Promise<void>;
+}
+
 /**
  * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
  */
@@ -140,6 +147,15 @@ export interface IContentSizeChangedEvent {
 	readonly contentHeightChanged: boolean;
 }
 
+/**
+ * @internal
+ */
+export interface ITriggerEditorOperationEvent {
+	source: string | null | undefined;
+	handlerId: string;
+	payload: unknown;
+}
+
 export interface INewScrollPosition {
 	scrollLeft?: number;
 	scrollTop?: number;
@@ -149,11 +165,12 @@ export interface IEditorAction {
 	readonly id: string;
 	readonly label: string;
 	readonly alias: string;
+	readonly metadata: ICommandMetadata | undefined;
 	isSupported(): boolean;
 	run(args?: unknown): Promise<void>;
 }
 
-export type IEditorModel = ITextModel | IDiffEditorModel;
+export type IEditorModel = ITextModel | IDiffEditorModel | IDiffEditorViewModel;
 
 /**
  * A (serializable) state of the cursors.
@@ -181,7 +198,7 @@ export interface IViewState {
 export interface ICodeEditorViewState {
 	cursorState: ICursorState[];
 	viewState: IViewState;
-	contributionsState: { [id: string]: any };
+	contributionsState: { [id: string]: unknown };
 }
 /**
  * (Serializable) View state for the diff editor.
@@ -189,6 +206,7 @@ export interface ICodeEditorViewState {
 export interface IDiffEditorViewState {
 	original: ICodeEditorViewState | null;
 	modified: ICodeEditorViewState | null;
+	modelState?: unknown;
 }
 /**
  * An editor view state.
@@ -248,8 +266,11 @@ export interface IEditor {
 	 * be called when the container of the editor gets resized.
 	 *
 	 * If a dimension is passed in, the passed in value will be used.
+	 *
+	 * By default, this will also render the editor immediately.
+	 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 	 */
-	layout(dimension?: IDimension): void;
+	layout(dimension?: IDimension, postponeRendering?: boolean): void;
 
 	/**
 	 * Brings browser focus to the editor text
@@ -443,7 +464,7 @@ export interface IEditor {
 	 * @param handlerId The id of the handler or the id of a contribution.
 	 * @param payload Extra data to be sent to the handler.
 	 */
-	trigger(source: string | null | undefined, handlerId: string, payload: any): void;
+	trigger(source: string | null | undefined, handlerId: string, payload: unknown): void;
 
 	/**
 	 * Gets the current model attached to this editor.
@@ -474,7 +495,7 @@ export interface IEditor {
 	 * @see {@link ITextModel.changeDecorations}
 	 * @internal
 	 */
-	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 }
 
 /**
@@ -525,7 +546,7 @@ export interface IEditorDecorationsCollection {
 	 * An event emitted when decorations change in the editor,
 	 * but the change is not caused by us setting or clearing the collection.
 	 */
-	onDidChange: Event<IModelDecorationsChangedEvent>;
+	readonly onDidChange: Event<IModelDecorationsChangedEvent>;
 	/**
 	 * Get the decorations count.
 	 */
@@ -547,6 +568,10 @@ export interface IEditorDecorationsCollection {
 	 */
 	set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 	/**
+	 * Append `newDecorations` to this collection.
+	 */
+	append(newDecorations: readonly IModelDeltaDecoration[]): string[];
+	/**
 	 * Remove all previous decorations.
 	 */
 	clear(): void;
@@ -563,11 +588,11 @@ export interface IEditorContribution {
 	/**
 	 * Store view state.
 	 */
-	saveViewState?(): any;
+	saveViewState?(): unknown;
 	/**
 	 * Restore view state.
 	 */
-	restoreViewState?(state: any): void;
+	restoreViewState?(state: unknown): void;
 }
 
 /**
@@ -584,8 +609,8 @@ export interface IDiffEditorContribution {
 /**
  * @internal
  */
-export function isThemeColor(o: any): o is ThemeColor {
-	return o && typeof o.id === 'string';
+export function isThemeColor(o: unknown): o is ThemeColor {
+	return !!o && typeof (o as ThemeColor).id === 'string';
 }
 
 /**
@@ -608,7 +633,9 @@ export interface IThemeDecorationRenderOptions {
 
 	fontStyle?: string;
 	fontWeight?: string;
+	fontFamily?: string;
 	fontSize?: string;
+	lineHeight?: number;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
@@ -753,14 +780,4 @@ export interface CompositionTypePayload {
 	replacePrevCharCnt: number;
 	replaceNextCharCnt: number;
 	positionDelta: number;
-}
-
-/**
- * @internal
- */
-export interface PastePayload {
-	text: string;
-	pasteOnNewLine: boolean;
-	multicursorText: string[] | null;
-	mode: string | null;
 }

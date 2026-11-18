@@ -36,8 +36,8 @@
 					"modifiedRange": "[6,85 -> 6,123]"
 				},
 				{
-					"originalRange": "[8,57 -> 9,1]",
-					"modifiedRange": "[6,127 -> 6,140]"
+					"originalRange": "[8,57 -> 9,1 EOL]",
+					"modifiedRange": "[6,127 -> 6,140 EOL]"
 				}
 			]
 		},

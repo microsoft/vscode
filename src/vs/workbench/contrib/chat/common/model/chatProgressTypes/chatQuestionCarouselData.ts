@@ -1,0 +1,109 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { IChatQuestion, IChatQuestionAnswers, IChatQuestionCarousel } from '../../chatService/chatService.js';
+import { ToolDataSource } from '../../tools/languageModelToolsService.js';
+
+export const CHAT_QUESTION_PASSWORD_MASK = '••••••••';
+
+export function maskPasswordAnswers(questions: readonly IChatQuestion[], answers: IChatQuestionAnswers | undefined): IChatQuestionAnswers | undefined {
+	if (!answers || !questions.some(question => question.password && answers[question.id] !== undefined)) {
+		return answers;
+	}
+	const masked = { ...answers };
+	for (const question of questions) {
+		if (question.password && masked[question.id] !== undefined) {
+			masked[question.id] = CHAT_QUESTION_PASSWORD_MASK;
+		}
+	}
+	return masked;
+}
+
+/**
+ * Runtime representation of a question carousel with a {@link DeferredPromise}
+ * that is resolved when the user submits answers. {@link toJSON} strips the
+ * completion so only serialisable data is persisted.
+ */
+export class ChatQuestionCarouselData implements IChatQuestionCarousel {
+	public readonly kind = 'questionCarousel' as const;
+	public readonly completion = new DeferredPromise<{ answers: IChatQuestionAnswers | undefined }>();
+	private readonly _isUsed = observableValue<boolean | undefined>(this, undefined);
+	/** Whether the carousel is settled: answered, skipped or dismissed, through any widget that shows its chat, or elsewhere. */
+	public readonly used: IObservable<boolean> = derived(this, reader => !!this._isUsed.read(reader));
+	get isUsed(): boolean | undefined { return this._isUsed.get(); }
+	set isUsed(value: boolean | undefined) { this._isUsed.set(value, undefined); }
+	public draftAnswers: IChatQuestionAnswers | undefined;
+	public draftCurrentIndex: number | undefined;
+	public draftCollapsed: boolean | undefined;
+	/**
+	 * Set to `true` when the carousel was dismissed because the user typed
+	 * directly in the associated terminal instead of using the carousel UI.
+	 */
+	public dismissedByTerminalInput?: boolean;
+
+	/**
+	 * True when the input was accepted/answered outside the carousel UI, such
+	 * as by voice or automatic reply.
+	 */
+	public answeredExternally?: boolean;
+	public autoReply?: boolean;
+
+	/**
+	 * Set to `true` only when a person settled the carousel through its own UI, whether by submitting or
+	 * dismissing it. Answers submitted on their behalf (defaults, automatic replies, voice) and dismissals caused
+	 * by cancellation or disposal leave it unset. Not persisted.
+	 */
+	public submittedByUser?: boolean;
+
+	/**
+	 * Marks the carousel as dismissed with the given answers and clears draft
+	 * state. Safe to call multiple times — subsequent calls are no-ops.
+	 */
+	dismiss(answers: IChatQuestionAnswers | undefined): void {
+		if (this.isUsed) {
+			return;
+		}
+		this.data = maskPasswordAnswers(this.questions, answers) ?? {};
+		this.isUsed = true;
+		this.draftAnswers = undefined;
+		this.draftCurrentIndex = undefined;
+		this.draftCollapsed = undefined;
+		void this.completion.complete({ answers });
+	}
+
+	constructor(
+		public questions: IChatQuestion[],
+		public allowSkip: boolean,
+		public resolveId?: string,
+		public data?: IChatQuestionAnswers,
+		isUsed?: boolean,
+		public message?: string | IMarkdownString,
+		public source?: ToolDataSource,
+		public terminalId?: string,
+		public answerPresentation?: 'conversation',
+	) {
+		this.isUsed = isUsed;
+	}
+
+	toJSON(): IChatQuestionCarousel {
+		return {
+			kind: this.kind,
+			questions: this.questions,
+			allowSkip: this.allowSkip,
+			resolveId: this.resolveId,
+			data: this.data,
+			isUsed: this.isUsed,
+			answeredExternally: this.answeredExternally,
+			autoReply: this.autoReply,
+			message: this.message,
+			source: this.source,
+			terminalId: this.terminalId,
+			answerPresentation: this.answerPresentation,
+		};
+	}
+}

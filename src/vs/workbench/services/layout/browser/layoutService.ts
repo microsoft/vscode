@@ -3,12 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Part } from 'vs/workbench/browser/part';
-import { Dimension } from 'vs/base/browser/dom';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { Part } from '../../../browser/part.js';
+import { IDimension } from '../../../../base/browser/dom.js';
+import { Direction, IViewSize } from '../../../../base/browser/ui/grid/grid.js';
+import { isMacintosh, isNative, isWeb } from '../../../../base/common/platform.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.js';
+import { CustomTitleBarVisibility, TitleBarSetting, getMenuBarVisibility, hasCustomTitlebar, hasNativeMenu, hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { isFullscreen, isWCOEnabled } from '../../../../base/browser/browser.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IWorkbenchLayoutService>(ILayoutService);
 
@@ -19,17 +25,129 @@ export const enum Parts {
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
+	SESSIONS_PART = 'workbench.parts.sessions',
+	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
+	CHAT_PART = 'workbench.parts.chat',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
+}
+
+export const enum ZenModeSettings {
+	SHOW_TABS = 'zenMode.showTabs',
+	HIDE_LINENUMBERS = 'zenMode.hideLineNumbers',
+	HIDE_STATUSBAR = 'zenMode.hideStatusBar',
+	HIDE_ACTIVITYBAR = 'zenMode.hideActivityBar',
+	CENTER_LAYOUT = 'zenMode.centerLayout',
+	FULLSCREEN = 'zenMode.fullScreen',
+	RESTORE = 'zenMode.restore',
+	SILENT_NOTIFICATIONS = 'zenMode.silentNotifications',
+}
+
+export const enum LayoutSettings {
+	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
+	ACTIVITY_BAR_AUTO_HIDE = 'workbench.activityBar.autoHide',
+	ACTIVITY_BAR_COMPACT = 'workbench.activityBar.compact',
+	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
+	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
+	COMMAND_CENTER = 'window.commandCenter',
+	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
+	SHADOWS = 'workbench.shadows',
+	MODERN_UI = 'workbench.experimental.modernUI',
+	MODERN_UI_DENSITY = 'window.density.layout',
+	MODERN_UI_FROSTED_GLASS = 'workbench.modernUIFrostedGlass',
+	MODERN_UI_FROSTED_GLASS_OPACITY = 'workbench.modernUIFrostedGlassOpacity',
+	MODERN_UI_EDITOR_TAB_STYLE = 'workbench.experimental.modernUIEditorTabStyle',
+	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
+}
+
+export const enum ModernUIFrostedGlassOpacity {
+	Minimum = 50,
+	Maximum = 100,
+	Default = 80
+}
+
+export const enum ModernUIEditorTabStyle {
+	Connected = 'connected',
+	Pill = 'pill'
+}
+
+export const enum ModernUIDensity {
+	Default = 'default',
+	Compact = 'compact'
+}
+
+/** Default panel gutter, retained at exterior edges. Inter-panel spacing is resolved separately. */
+export const FLOATING_PANEL_MARGIN = 4;
+
+/**
+ * Compact Modern UI density removes the gaps between cards.
+ */
+export const COMPACT_FLOATING_PANEL_MARGIN = 0;
+
+/**
+ * Compact Modern UI density connects the card cluster directly to the window chrome.
+ */
+export const COMPACT_FLOATING_PANEL_OUTER_MARGIN = 0;
+/** The trailing card margin; the following card supplies the resolved inter-panel gap. */
+export const FLOATING_PANEL_INNER_MARGIN = 0;
+
+export function getFloatingPanelMargin(layoutService: IWorkbenchLayoutService): number {
+	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_MARGIN : layoutService.getPanelSpacing();
+}
+
+/**
+ * The density-specific perimeter gutter (in pixels) on an edge facing window chrome. Keep in sync with
+ * `--modern-ui-floating-card-outer-margin` in `floatingPanels.css`.
+ */
+export function getFloatingPanelOuterMargin(layoutService: IWorkbenchLayoutService): number {
+	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_OUTER_MARGIN : FLOATING_PANEL_MARGIN;
+}
+
+export const enum ActivityBarPosition {
+	DEFAULT = 'default',
+	TOP = 'top',
+	BOTTOM = 'bottom',
+	HIDDEN = 'hidden'
+}
+
+/**
+ * Whether the compact menu is owned by the title bar rather than the activity bar.
+ * This is the case when the activity bar is at the top or bottom, because the activity
+ * bar then lives in the side bar and disappears with the side bar, and when the activity
+ * bar is hidden. The title bar only owns the menu while the custom title bar is shown in
+ * the main window; otherwise the activity bar keeps it so that the menu remains reachable.
+ */
+export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
+	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	return getMenuBarVisibility(configurationService) === 'compact'
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM || activityBarLocation === ActivityBarPosition.HIDDEN)
+		&& shouldShowCustomTitleBar(configurationService, mainWindow);
+}
+
+export const enum EditorTabsMode {
+	MULTIPLE = 'multiple',
+	SINGLE = 'single',
+	NONE = 'none'
+}
+
+export const enum EditorActionsLocation {
+	DEFAULT = 'default',
+	TITLEBAR = 'titleBar',
+	HIDDEN = 'hidden'
 }
 
 export const enum Position {
 	LEFT,
 	RIGHT,
-	BOTTOM
+	BOTTOM,
+	TOP
 }
 
-export const enum PanelOpensMaximizedOptions {
+export function isHorizontal(position: Position): boolean {
+	return position === Position.BOTTOM || position === Position.TOP;
+}
+
+export const enum PartOpensMaximizedOptions {
 	ALWAYS,
 	NEVER,
 	REMEMBER_LAST
@@ -42,37 +160,333 @@ export function positionToString(position: Position): string {
 		case Position.LEFT: return 'left';
 		case Position.RIGHT: return 'right';
 		case Position.BOTTOM: return 'bottom';
+		case Position.TOP: return 'top';
 		default: return 'bottom';
 	}
+}
+
+/**
+ * Whether the floating cards sit against the top window edge and take the density-specific
+ * outer gutter. Both grid rows above the middle section (title bar and banner) must be hidden.
+ */
+export function isFloatingTopEdgeExposed(layoutService: IWorkbenchLayoutService, targetWindow: Window): boolean {
+	return !layoutService.isVisible(Parts.TITLEBAR_PART, targetWindow) && !layoutService.isVisible(Parts.BANNER_PART);
+}
+
+/**
+ * Determines which horizontal edge of the floating-card cluster is owned by its outermost
+ * card when the Modern UI Update experiment is enabled, and which {@link Parts} owns it.
+ * The owning part receives the density-specific outer gutter. Compact density includes the
+ * default-position Activity Bar in the connected card cluster.
+ *
+ * The horizontal order of the parts is reconstructed from the same inputs the grid
+ * layout uses (mirrors `Layout.adjustPartPositions` in `src/vs/workbench/browser/layout.ts`): the activity bar and primary side bar sit
+ * on `getSideBarPosition()`, the secondary side bar on the opposite side, the editor in
+ * the middle, and a vertical (left/right) panel immediately next to the editor on its
+ * placement side. The outermost *visible* part on each edge wins; a visible Activity Bar is the
+ * outermost card of the side bar cluster. A hidden editor is skipped, so a maximized side bar
+ * (which spans the full content width) is correctly detected as the owner on both edges.
+ *
+ * Consumed by `AbstractPaneCompositePart` (side bars and panel) and `EditorPart`
+ * (main editor) so the outer-gutter decision stays in sync between them.
+ */
+export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutService): { left: Parts | undefined; right: Parts | undefined } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { left: undefined, right: undefined };
+	}
+
+	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
+	const panelPosition = layoutService.getPanelPosition();
+	const verticalPanelVisible = !isHorizontal(panelPosition) && layoutService.isVisible(Parts.PANEL_PART);
+
+	// A visible vertical panel sits immediately outside the editor on its placement
+	// side (between the editor and the side/aux bar on that side).
+	const panelInLeftSequence = verticalPanelVisible && panelPosition === Position.LEFT;
+	const panelInRightSequence = verticalPanelVisible && panelPosition === Position.RIGHT;
+
+	// The full window order of the floatable parts, left -> right: the activity bar and
+	// primary side bar sit together on `getSideBarPosition()` (activity bar outermost), the
+	// secondary side bar on the opposite side, a vertical panel immediately beside the editor
+	// on its placement side, and the editor in the middle. Each edge is resolved by walking
+	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
+	// bar that spans the full content width) is skipped and the spanning card is detected on
+	// both edges.
+	// A chat part, where a window has one, sits immediately beside the editor on `getChatPartPosition()`, inside a
+	// vertical panel on that side.
+	const chatPartLeft = layoutService.getChatPartPosition() === Position.LEFT;
+	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
+	const panelGroup: Parts[] = [Parts.PANEL_PART];
+	const fullOrder: Parts[] = [
+		...(sideBarLeft ? sideBarGroup : [Parts.AUXILIARYBAR_PART]),
+		...(panelInLeftSequence ? panelGroup : []),
+		...(chatPartLeft ? [Parts.CHAT_PART] : []),
+		Parts.EDITOR_PART,
+		...(chatPartLeft ? [] : [Parts.CHAT_PART]),
+		...(panelInRightSequence ? panelGroup : []),
+		...(sideBarLeft ? [Parts.AUXILIARYBAR_PART] : [...sideBarGroup].reverse()) // activity bar is outermost on the right edge
+	];
+
+	return {
+		left: resolveFloatingOuterOwner(layoutService, fullOrder),
+		right: resolveFloatingOuterOwner(layoutService, [...fullOrder].reverse())
+	};
+}
+
+/**
+ * Walks the given window order (outermost -> innermost) and returns the first visible card
+ * owning the cluster edge. A visible default-position Activity Bar is a cluster card in both
+ * densities: it is the outermost card of the side bar cluster and carries the outer gutter.
+ */
+function resolveFloatingOuterOwner(layoutService: IWorkbenchLayoutService, orderedParts: Parts[]): Parts | undefined {
+	for (const part of orderedParts) {
+		// The editor is the only multi-window part in this order; its main-window visibility
+		// is what matters for the main-window floating layout.
+		const visible = part === Parts.EDITOR_PART
+			? layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+			: layoutService.isVisible(part as SINGLE_WINDOW_PARTS);
+		if (!visible) {
+			continue;
+		}
+
+		return part;
+	}
+
+	return undefined;
+}
+
+/**
+ * The horizontal cluster edges on which the given part is the outermost floating card and
+ * should therefore receive the density-specific outer gutter. A part can own both edges (notably
+ * a horizontal bottom/top panel that spans the full width when the bars beside it are
+ * hidden or not full-height). Convenience wrapper around {@link getFloatingOuterEdgeOwners}.
+ */
+export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutService, partId: Parts): { left: boolean; right: boolean } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { left: false, right: false };
+	}
+
+	// A horizontal (bottom/top) panel can reach both window edges simultaneously, so it
+	// is not captured by the single-owner-per-edge model and is resolved separately.
+	if (partId === Parts.PANEL_PART && isHorizontal(layoutService.getPanelPosition())) {
+		return getFloatingHorizontalPanelOuterEdges(layoutService);
+	}
+
+	const owners = getFloatingOuterEdgeOwners(layoutService);
+	return { left: owners.left === partId, right: owners.right === partId };
+}
+
+/**
+ * Horizontal margins (in pixels) a floating pane composite reserves, mirroring the
+ * margins in `floatingPanels.css`.
+ */
+export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbenchLayoutService, partId: Parts): { left: number; right: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { left: 0, right: 0 };
+	}
+
+	const outerGutter = getFloatingOuterGutterEdges(layoutService, partId);
+	const margin = getFloatingPanelMargin(layoutService);
+	const outerMargin = getFloatingPanelOuterMargin(layoutService);
+
+	// The primary side bar meets the activity bar rail flush so the two read as one connected
+	// surface. Only a left-positioned side bar needs this explicitly; on the right the seam is
+	// the side bar's trailing edge, which already uses the inner margin.
+	const meetsActivityBarRail = partId === Parts.SIDEBAR_PART
+		&& layoutService.getSideBarPosition() === Position.LEFT
+		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART);
+	const leading = meetsActivityBarRail ? FLOATING_PANEL_INNER_MARGIN : margin;
+
+	const panelMeetsRightActivityBar = partId === Parts.PANEL_PART
+		&& isHorizontal(layoutService.getPanelPosition())
+		&& layoutService.getSideBarPosition() === Position.RIGHT
+		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART)
+		&& layoutService.isVisible(Parts.SIDEBAR_PART)
+		&& getFloatingSidebarSiblingToEditorStatus(layoutService).sideBar;
+	const trailing = panelMeetsRightActivityBar ? margin : FLOATING_PANEL_INNER_MARGIN;
+
+	return {
+		left: outerGutter.left ? outerMargin : leading,
+		right: outerGutter.right ? outerMargin : trailing,
+	};
+}
+
+/**
+ * Whether the primary sidebar and auxiliary bar are each in the same grid row as the
+ * editor (sibling to the editor) for a horizontal panel. A bar that is a sibling is not
+ * full-height; it sits above or below the panel row rather than spanning the full height.
+ * Mirrors the sideBarSiblingToEditor / auxiliaryBarSiblingToEditor formula used in
+ * adjustPartPositions() in layout.ts.
+ */
+export function getFloatingSidebarSiblingToEditorStatus(
+	layoutService: IWorkbenchLayoutService
+): { sideBar: boolean; auxBar: boolean } {
+	const alignment = layoutService.getPanelAlignment();
+	const sideBarOnLeft = layoutService.getSideBarPosition() === Position.LEFT;
+	return {
+		sideBar: !(alignment === 'center' || (sideBarOnLeft && alignment === 'right') || (!sideBarOnLeft && alignment === 'left')),
+		auxBar: !(alignment === 'center' || (!sideBarOnLeft && alignment === 'right') || (sideBarOnLeft && alignment === 'left')),
+	};
+}
+
+/**
+ * Vertical margins (in pixels) a floating pane composite (primary side bar, secondary side
+ * bar or panel) reserves, mirroring the margins in `floatingPanels.css`. Compact density
+ * uses the perimeter gutter whenever the edge faces window chrome rather than another card.
+ */
+export function getFloatingPaneCompositeVerticalMargins(
+	layoutService: IWorkbenchLayoutService,
+	partId: Parts,
+	targetWindow: Window
+): { top: number; bottom: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: 0, bottom: 0 };
+	}
+
+	const outerEdges = getFloatingPaneCompositeVerticalOuterEdges(layoutService, partId, targetWindow);
+	const margin = getFloatingPanelMargin(layoutService);
+	const outerMargin = getFloatingPanelOuterMargin(layoutService);
+
+	return {
+		top: outerEdges.top
+			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
+			: margin,
+		bottom: outerEdges.bottom
+			? outerMargin
+			: FLOATING_PANEL_INNER_MARGIN
+	};
+}
+
+export function getFloatingPaneCompositeVerticalOuterEdges(
+	layoutService: IWorkbenchLayoutService,
+	partId: Parts,
+	targetWindow: Window
+): { top: boolean; bottom: boolean } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: false, bottom: false };
+	}
+
+	const panelPosition = layoutService.getPanelPosition();
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const isSideBar = partId === Parts.SIDEBAR_PART || partId === Parts.AUXILIARYBAR_PART;
+	const siblingStatus = getFloatingSidebarSiblingToEditorStatus(layoutService);
+	const isSiblingToEditor = partId === Parts.SIDEBAR_PART ? siblingStatus.sideBar : siblingStatus.auxBar;
+	const facesPanelAbove = panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor;
+	const facesEditorAbove = partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
+	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
+	const facesPanelBelow = panelVisible && panelPosition === Position.BOTTOM && isSideBar && isSiblingToEditor;
+
+	return {
+		top: !facesPanelAbove && !facesEditorAbove,
+		bottom: !facesEditorBelow && !facesPanelBelow,
+	};
+}
+
+/**
+ * Vertical margins (in pixels) the floating main editor reserves, mirroring the margins in
+ * `floatingPanels.css`. A panel above or below takes the place of the corresponding window edge.
+ */
+export function getFloatingEditorVerticalMargins(
+	layoutService: IWorkbenchLayoutService,
+	targetWindow: Window
+): { top: number; bottom: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: 0, bottom: 0 };
+	}
+
+	const outerEdges = getFloatingEditorVerticalOuterEdges(layoutService);
+	const margin = getFloatingPanelMargin(layoutService);
+	const outerMargin = getFloatingPanelOuterMargin(layoutService);
+
+	return {
+		top: outerEdges.top
+			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
+			: margin,
+		bottom: outerEdges.bottom
+			? outerMargin
+			: FLOATING_PANEL_INNER_MARGIN
+	};
+}
+
+export function getFloatingEditorVerticalOuterEdges(layoutService: IWorkbenchLayoutService): { top: boolean; bottom: boolean } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: false, bottom: false };
+	}
+
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const panelPosition = layoutService.getPanelPosition();
+	return {
+		top: !(panelVisible && panelPosition === Position.TOP),
+		bottom: !(panelVisible && panelPosition === Position.BOTTOM),
+	};
+}
+
+/**
+ * Whether a visible horizontal (bottom/top) panel reaches each horizontal cluster edge and
+ * should therefore receive the density-specific outer gutter so it aligns with the editor above.
+ * The panel spans underneath a bar that is not full-height, and reaches an edge whenever
+ * the bar on that side is hidden or not full-height (and, on the side bar side, the
+ * activity bar is absent). The full-height/sibling computation mirrors `Layout.adjustPartPositions`.
+ */
+function getFloatingHorizontalPanelOuterEdges(layoutService: IWorkbenchLayoutService): { left: boolean; right: boolean } {
+	if (!layoutService.isVisible(Parts.PANEL_PART)) {
+		return { left: false, right: false };
+	}
+
+	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
+	const { sideBar: sideBarSiblingToEditor, auxBar: auxSiblingToEditor } = getFloatingSidebarSiblingToEditorStatus(layoutService);
+
+	const sideBarSideReached = !layoutService.isVisible(Parts.ACTIVITYBAR_PART)
+		&& (!layoutService.isVisible(Parts.SIDEBAR_PART) || sideBarSiblingToEditor);
+	const auxSideReached = !layoutService.isVisible(Parts.AUXILIARYBAR_PART) || auxSiblingToEditor;
+
+	return sideBarLeft
+		? { left: sideBarSideReached, right: auxSideReached }
+		: { left: auxSideReached, right: sideBarSideReached };
 }
 
 const positionsByString: { [key: string]: Position } = {
 	[positionToString(Position.LEFT)]: Position.LEFT,
 	[positionToString(Position.RIGHT)]: Position.RIGHT,
-	[positionToString(Position.BOTTOM)]: Position.BOTTOM
+	[positionToString(Position.BOTTOM)]: Position.BOTTOM,
+	[positionToString(Position.TOP)]: Position.TOP
 };
 
 export function positionFromString(str: string): Position {
 	return positionsByString[str];
 }
 
-function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
+function partOpensMaximizedSettingToString(setting: PartOpensMaximizedOptions): string {
 	switch (setting) {
-		case PanelOpensMaximizedOptions.ALWAYS: return 'always';
-		case PanelOpensMaximizedOptions.NEVER: return 'never';
-		case PanelOpensMaximizedOptions.REMEMBER_LAST: return 'preserve';
+		case PartOpensMaximizedOptions.ALWAYS: return 'always';
+		case PartOpensMaximizedOptions.NEVER: return 'never';
+		case PartOpensMaximizedOptions.REMEMBER_LAST: return 'preserve';
 		default: return 'preserve';
 	}
 }
 
-const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions } = {
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.ALWAYS)]: PanelOpensMaximizedOptions.ALWAYS,
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.NEVER)]: PanelOpensMaximizedOptions.NEVER,
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.REMEMBER_LAST)]: PanelOpensMaximizedOptions.REMEMBER_LAST
+const partOpensMaximizedByString: { [key: string]: PartOpensMaximizedOptions } = {
+	[partOpensMaximizedSettingToString(PartOpensMaximizedOptions.ALWAYS)]: PartOpensMaximizedOptions.ALWAYS,
+	[partOpensMaximizedSettingToString(PartOpensMaximizedOptions.NEVER)]: PartOpensMaximizedOptions.NEVER,
+	[partOpensMaximizedSettingToString(PartOpensMaximizedOptions.REMEMBER_LAST)]: PartOpensMaximizedOptions.REMEMBER_LAST
 };
 
-export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedOptions {
-	return panelOpensMaximizedByString[str];
+export function partOpensMaximizedFromString(str: string): PartOpensMaximizedOptions {
+	return partOpensMaximizedByString[str];
+}
+
+export type MULTI_WINDOW_PARTS = Parts.EDITOR_PART | Parts.STATUSBAR_PART | Parts.TITLEBAR_PART;
+export type SINGLE_WINDOW_PARTS = Exclude<Parts, MULTI_WINDOW_PARTS>;
+
+export function isMultiWindowPart(part: Parts): part is MULTI_WINDOW_PARTS {
+	return part === Parts.EDITOR_PART ||
+		part === Parts.STATUSBAR_PART ||
+		part === Parts.TITLEBAR_PART;
+}
+
+export interface IPartVisibilityChangeEvent {
+	readonly partId: string;
+	readonly visible: boolean;
+	readonly source?: 'resize';
 }
 
 export interface IWorkbenchLayoutService extends ILayoutService {
@@ -85,19 +499,14 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeZenMode: Event<boolean>;
 
 	/**
-	 * Emits when fullscreen is enabled or disabled.
+	 * Emits when the target window is maximized or unmaximized.
 	 */
-	readonly onDidChangeFullscreen: Event<boolean>;
+	readonly onDidChangeWindowMaximized: Event<{ readonly windowId: number; readonly maximized: boolean }>;
 
 	/**
-	 * Emits when the window is maximized or unmaximized.
+	 * Emits when main editor centered layout is enabled or disabled.
 	 */
-	readonly onDidChangeWindowMaximized: Event<boolean>;
-
-	/**
-	 * Emits when centered layout is enabled or disabled.
-	 */
-	readonly onDidChangeCenteredLayout: Event<boolean>;
+	readonly onDidChangeMainEditorCenteredLayout: Event<boolean>;
 
 	/*
 	 * Emit when panel position changes.
@@ -110,14 +519,25 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangePanelAlignment: Event<PanelAlignment>;
 
 	/**
-	 * Emit when part visibility changes
+	 * Emit when part visibility changes.
 	 */
-	readonly onDidChangePartVisibility: Event<void>;
+	readonly onDidChangePartVisibility: Event<IPartVisibilityChangeEvent>;
 
 	/**
 	 * Emit when notifications (toasts or center) visibility changes.
 	 */
 	readonly onDidChangeNotificationsVisibility: Event<boolean>;
+
+	/*
+	 * Emit when auxiliary bar maximized state changes.
+	 */
+	readonly onDidChangeAuxiliaryBarMaximized: Event<void>;
+
+	/**
+	 * Emits when the auxiliary bar starts or stops hiding its Maximize action, as claimed by
+	 * {@link hideAuxiliaryBarMaximize}.
+	 */
+	readonly onDidChangeAuxiliaryBarMaximizeHidden: Event<boolean>;
 
 	/**
 	 * True if a default layout with default editors was applied at startup
@@ -146,29 +566,56 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	hasFocus(part: Parts): boolean;
 
 	/**
-	 * Focuses the part. If the part is not visible this is a noop.
+	 * Returns whether the floating panels presentation is enabled for this
+	 * workbench, i.e. whether the Modern UI Update experiment
+	 * (`LayoutSettings.MODERN_UI`) is on. Always `false` for the agents window,
+	 * which has its own floating card design and must not apply the experiment's
+	 * content insets.
 	 */
-	focusPart(part: Parts): void;
+	isFloatingPanelsEnabled(): boolean;
 
 	/**
-	 * Returns the parts HTML element, if there is one.
+	 * Returns whether Modern UI uses its compact density.
 	 */
-	getContainer(part: Parts): HTMLElement | undefined;
+	isModernUICompact(): boolean;
+
+	/** Effective gap between panel areas, in pixels. Compact and phone layouts return zero. */
+	getPanelSpacing(): number;
 
 	/**
-	 * Returns if the part is visible.
+	 * Focuses the part in the target window. If the part is not visible this is a noop.
 	 */
-	isVisible(part: Parts): boolean;
+	focusPart(part: SINGLE_WINDOW_PARTS): void;
+	focusPart(part: MULTI_WINDOW_PARTS, targetWindow: Window): void;
+	focusPart(part: Parts, targetWindow: Window): void;
 
 	/**
-	 * Returns if the part is visible.
+	 * Returns the target window container or parts HTML element within, if there is one.
 	 */
-	getDimension(part: Parts): Dimension | undefined;
+	getContainer(targetWindow: Window): HTMLElement;
+	getContainer(targetWindow: Window, part: Parts): HTMLElement | undefined;
 
 	/**
-	 * Set part hidden or not
+	 * Returns if the part is visible in the target window.
 	 */
-	setPartHidden(hidden: boolean, part: Exclude<Parts, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
+	isVisible(part: SINGLE_WINDOW_PARTS): boolean;
+	isVisible(part: MULTI_WINDOW_PARTS, targetWindow: Window): boolean;
+	isVisible(part: Parts, targetWindow: Window): boolean;
+
+	/**
+	 * Set part hidden or not in the target window.
+	 */
+	setPartHidden(hidden: boolean, part: Parts): void;
+
+	/**
+	 * Returns whether the layout surface that represents the secondary sidebar is visible.
+	 */
+	isSecondarySideBarVisible(): boolean;
+
+	/**
+	 * Toggles the layout surface that represents the secondary sidebar.
+	 */
+	toggleSecondarySideBar(): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
@@ -177,29 +624,89 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleMaximizedPanel(): void;
 
 	/**
-	 * Returns true if the window has a border.
-	 */
-	hasWindowBorder(): boolean;
-
-	/**
-	 * Returns the window border width.
-	 */
-	getWindowBorderWidth(): number;
-
-	/**
-	 * Returns the window border radius if any.
-	 */
-	getWindowBorderRadius(): string | undefined;
-
-	/**
 	 * Returns true if the panel is maximized.
 	 */
 	isPanelMaximized(): boolean;
 
 	/**
+	 * Emitted with whether the chat part is visible, when that changes. Hiding it with the editor area for a
+	 * maximized panel counts, and nothing is emitted while it stays as it is.
+	 */
+	readonly onDidChangeChatPartVisibility: Event<boolean>;
+
+	/**
+	 * Whether the window has a chat part, shown or not.
+	 */
+	hasChatPart(): boolean;
+
+	/**
+	 * Whether the editor area is hidden so that the chat part takes its space.
+	 */
+	isEditorHiddenByChat(): boolean;
+
+	/**
+	 * Hides the editor area so that the chat part takes its space, or shows it again.
+	 * Hiding requires a visible chat part. Opening an editor, hiding the chat part and
+	 * maximizing the panel show the editor area again.
+	 */
+	setEditorHiddenByChat(hidden: boolean): void;
+
+	/**
+	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.
+	 * Restores the previous layout if the auxiliary sidebar is already maximized.
+	 */
+	toggleMaximizedAuxiliaryBar(): void;
+
+	/**
+	 * Maximizes or restores the auxiliary sidebar.
+	 *
+	 * @returns `true` if there was a change in the maximization state.
+	 */
+	setAuxiliaryBarMaximized(maximized: boolean): boolean;
+
+	/**
+	 * Returns true if the auxiliary sidebar is maximized.
+	 */
+	isAuxiliaryBarMaximized(): boolean;
+
+	/**
+	 * Claims that the auxiliary bar does not offer to maximize, for as long as the returned claim is not disposed.
+	 * Claims stack: the action stays hidden while any claim is held.
+	 */
+	hideAuxiliaryBarMaximize(): IDisposable;
+
+	/**
+	 * Returns true while any claim made with {@link hideAuxiliaryBarMaximize} is held.
+	 */
+	isAuxiliaryBarMaximizeHidden(): boolean;
+
+	/**
+	 * Returns true if the main window has a border.
+	 */
+	hasMainWindowBorder(): boolean;
+
+	/**
+	 * Returns the main window border radius if any.
+	 */
+	getMainWindowBorderRadius(): string | undefined;
+
+	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
+
+	/**
+	 * Docks the chat part beside the view with the given id: it sits immediately beside the editor, on the side of the
+	 * editor where that view's container is, and follows as the view or its container moves or the side bar or panel
+	 * position changes. A view in a panel at the top or bottom, an unknown view, or no anchor keep the chat part on the
+	 * primary side bar's side.
+	 */
+	setChatPartAnchor(anchor: { readonly viewId: string } | undefined): void;
+
+	/**
+	 * Gets the side of the editor the chat part is on, whether the window has a chat part or not.
+	 */
+	getChatPartPosition(): Position.LEFT | Position.RIGHT;
 
 	/**
 	 * Toggles the menu bar visibility.
@@ -227,9 +734,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	setPanelAlignment(alignment: PanelAlignment): void;
 
 	/**
-	 * Gets the maximum possible size for editor.
+	 * Gets the maximum possible size for editor in the given container.
 	 */
-	getMaximumEditorDimensions(): Dimension;
+	getMaximumEditorDimensions(container: HTMLElement): IDimension;
 
 	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
@@ -237,37 +744,136 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleZenMode(): void;
 
 	/**
-	 * Returns whether the centered editor layout is active.
+	 * Returns whether the centered editor layout is active on the main editor part.
 	 */
-	isEditorLayoutCentered(): boolean;
+	isMainEditorLayoutCentered(): boolean;
 
 	/**
-	 * Sets the workbench in and out of centered editor layout.
+	 * Sets the main editor part in and out of centered layout.
 	 */
-	centerEditorLayout(active: boolean): void;
+	centerMainEditorLayout(active: boolean): void;
 
 	/**
-	 * Resizes currently focused part on main access
+	 * Get the provided parts size in the main window.
+	 */
+	getSize(part: Parts): IViewSize;
+
+	/**
+	 * Set the provided parts size in the main window.
+	 */
+	setSize(part: Parts, size: IViewSize): void;
+
+	/**
+	 * Resize the provided part in the main window.
 	 */
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void;
 
 	/**
 	 * Register a part to participate in the layout.
 	 */
-	registerPart(part: Part): void;
+	registerPart(part: Part): IDisposable;
 
 	/**
-	 * Returns whether the window is maximized.
+	 * Returns whether the target window is maximized.
 	 */
-	isWindowMaximized(): boolean;
+	isWindowMaximized(targetWindow: Window): boolean;
 
 	/**
-	 * Updates the maximized state of the window.
+	 * Updates the maximized state of the target window.
 	 */
-	updateWindowMaximizedState(maximized: boolean): void;
+	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void;
 
 	/**
-	 * Returns the next visible view part in a given direction
+	 * Returns the next visible view part in a given direction in the main window.
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
+}
+
+export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
+	if (!hasCustomTitlebar(configurationService)) {
+		return false;
+	}
+
+	const inFullscreen = isFullscreen(window);
+	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
+
+	if (!isWeb) {
+		const showCustomTitleBar = configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && inFullscreen) {
+			return false;
+		}
+	}
+
+	if (!isTitleBarEmpty(configurationService, window)) {
+		return true;
+	}
+
+	// Hide custom title bar when native title bar enabled and custom title bar is empty
+	if (nativeTitleBarEnabled && hasNativeMenu(configurationService)) {
+		return false;
+	}
+
+	// macOS desktop does not need a title bar when full screen
+	if (isMacintosh && isNative) {
+		return !inFullscreen;
+	}
+
+	// non-fullscreen native must show the title bar
+	if (isNative && !inFullscreen) {
+		return true;
+	}
+
+	// if WCO is visible, we have to show the title bar
+	if (isWCOEnabled() && !inFullscreen) {
+		return true;
+	}
+
+	// remaining behavior is based on menubar visibility
+	const menuBarVisibility = !isAuxiliaryWindow(window) ? getMenuBarVisibility(configurationService) : 'hidden';
+	switch (menuBarVisibility) {
+		case 'classic':
+			return !inFullscreen || !!menuBarToggled;
+		case 'compact':
+		case 'hidden':
+			return false;
+		case 'toggle':
+			return !!menuBarToggled;
+		case 'visible':
+			return true;
+		default:
+			return isWeb ? false : !inFullscreen || !!menuBarToggled;
+	}
+}
+
+function isTitleBarEmpty(configurationService: IConfigurationService, window: Window): boolean {
+
+	// with the command center enabled, we should always show
+	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
+		return false;
+	}
+
+	// with the activity bar on top, we should always show
+	const activityBarPosition = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	if (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM) {
+		return false;
+	}
+
+	// with the activity bar hidden, the main window title bar hosts the compact menu, so we should always show
+	if (activityBarPosition === ActivityBarPosition.HIDDEN && !isAuxiliaryWindow(window) && getMenuBarVisibility(configurationService) === 'compact') {
+		return false;
+	}
+
+	// with the editor actions on top, we should always show
+	const editorActionsLocation = configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION);
+	const editorTabsMode = configurationService.getValue<EditorTabsMode>(LayoutSettings.EDITOR_TABS_MODE);
+	if (editorActionsLocation === EditorActionsLocation.TITLEBAR || editorActionsLocation === EditorActionsLocation.DEFAULT && editorTabsMode === EditorTabsMode.NONE) {
+		return false;
+	}
+
+	// with the layout actions on top, we should always show
+	if (configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
+		return false;
+	}
+
+	return true;
 }

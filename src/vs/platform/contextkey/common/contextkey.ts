@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Event } from 'vs/base/common/event';
-import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from 'vs/base/common/platform';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { Scanner, LexingError, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { illegalArgument } from 'vs/base/common/errors';
+import { CharCode } from '../../../base/common/charCode.js';
+import { Event } from '../../../base/common/event.js';
+import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows, isChromeOS } from '../../../base/common/platform.js';
+import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
+import { Scanner, LexingError, Token, TokenType } from './scanner.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { localize } from '../../../nls.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { illegalArgument } from '../../../base/common/errors.js';
 
 const CONSTANT_VALUES = new Map<string, boolean>();
 CONSTANT_VALUES.set('false', false);
@@ -19,6 +19,7 @@ CONSTANT_VALUES.set('true', true);
 CONSTANT_VALUES.set('isMac', isMacintosh);
 CONSTANT_VALUES.set('isLinux', isLinux);
 CONSTANT_VALUES.set('isWindows', isWindows);
+CONSTANT_VALUES.set('isChromeOS', isChromeOS);
 CONSTANT_VALUES.set('isWeb', isWeb);
 CONSTANT_VALUES.set('isMacNative', isMacintosh && !isWeb);
 CONSTANT_VALUES.set('isEdge', isEdge);
@@ -936,11 +937,30 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 		const item = context.getValue(this.key);
 
 		if (Array.isArray(source)) {
-			return source.includes(item as any);
+			// eslint-disable-next-line local/code-no-any-casts
+			if (source.includes(item as any)) {
+				return true;
+			}
+			// On Windows, file paths are case-insensitive so file URI
+			// comparisons must be done in a case-insensitive manner.
+			if (isWindows && typeof item === 'string' && item.startsWith('file:///')) {
+				const itemLower = item.toLowerCase();
+				return source.some(s => typeof s === 'string' && s.toLowerCase() === itemLower);
+			}
+			return false;
 		}
 
 		if (typeof item === 'string' && typeof source === 'object' && source !== null) {
-			return hasOwnProperty.call(source, item);
+			if (hasOwnProperty.call(source, item)) {
+				return true;
+			}
+			// On Windows, file paths are case-insensitive so file URI
+			// property lookups must be done in a case-insensitive manner.
+			if (isWindows && item.startsWith('file:///')) {
+				const itemLower = item.toLowerCase();
+				return Object.keys(source).some(key => key.toLowerCase() === itemLower);
+			}
+			return false;
 		}
 		return false;
 	}
@@ -1209,7 +1229,7 @@ export class ContextKeyGreaterExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
-		return (parseFloat(<any>context.getValue(this.key)) > this.value);
+		return (parseFloat(context.getValue<any>(this.key)) > this.value);
 	}
 
 	public serialize(): string {
@@ -1268,7 +1288,7 @@ export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
-		return (parseFloat(<any>context.getValue(this.key)) >= this.value);
+		return (parseFloat(context.getValue<any>(this.key)) >= this.value);
 	}
 
 	public serialize(): string {
@@ -1328,7 +1348,7 @@ export class ContextKeySmallerExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
-		return (parseFloat(<any>context.getValue(this.key)) < this.value);
+		return (parseFloat(context.getValue<any>(this.key)) < this.value);
 	}
 
 	public serialize(): string {
@@ -1388,7 +1408,7 @@ export class ContextKeySmallerEqualsExpr implements IContextKeyExpression {
 		if (typeof this.value === 'string') {
 			return false;
 		}
-		return (parseFloat(<any>context.getValue(this.key)) <= this.value);
+		return (parseFloat(context.getValue<any>(this.key)) <= this.value);
 	}
 
 	public serialize(): string {
@@ -1524,7 +1544,7 @@ export class ContextKeyNotRegexExpr implements IContextKeyExpression {
 	}
 
 	public serialize(): string {
-		throw new Error('Method not implemented.');
+		return `!(${this._actual.serialize()})`;
 	}
 
 	public keys(): string[] {
@@ -1693,14 +1713,14 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 		}
 
 		// We must distribute any OR expression because we don't support parens
-		// OR extensions will be at the end (due to sorting rules)
+		// OR extensions sort near the end, but `in` and comparison terms sort after them
 		while (expr.length > 1) {
-			const lastElement = expr[expr.length - 1];
-			if (lastElement.type !== ContextKeyExprType.Or) {
+			const orIndex = expr.findLastIndex(e => e.type === ContextKeyExprType.Or);
+			if (orIndex === -1) {
 				break;
 			}
-			// pop the last element
-			expr.pop();
+			// take out the last OR element
+			const lastElement = expr.splice(orIndex, 1)[0] as ContextKeyOrExpr;
 
 			// pop the second to last element
 			const secondToLastElement = expr.pop()!;
@@ -1715,6 +1735,10 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 			);
 
 			if (resultElement) {
+				if (resultElement.type === ContextKeyExprType.False) {
+					// anything && false ==> false
+					return ContextKeyFalseExpr.INSTANCE;
+				}
 				expr.push(resultElement);
 				expr.sort(cmp);
 			}
@@ -1722,6 +1746,17 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 
 		if (expr.length === 1) {
 			return expr[0];
+		}
+
+		if (expr.some(e => e.type === ContextKeyExprType.And)) {
+			// a distributed OR that collapsed into a single AND must not stay nested
+			const terms = expr.flatMap(e => e.type === ContextKeyExprType.And ? e.expr : [e]).sort(cmp);
+			expr.length = 0;
+			for (const term of terms) {
+				if (expr.length === 0 || !expr[expr.length - 1].equals(term)) {
+					expr.push(term);
+				}
+			}
 		}
 
 		// resolve false AND expressions
@@ -2005,6 +2040,10 @@ export class RawContextKey<T extends ContextKeyValue> extends ContextKeyDefinedE
 	public notEqualsTo(value: any): ContextKeyExpression {
 		return ContextKeyNotEqualsExpr.create(this.key, value);
 	}
+
+	public greater(value: any): ContextKeyExpression {
+		return ContextKeyGreaterExpr.create(this.key, value);
+	}
 }
 
 export type ContextKeyValue = null | undefined | boolean | number | string
@@ -2045,7 +2084,7 @@ export type IScopedContextKeyService = IContextKeyService & IDisposable;
 export interface IContextKeyService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeContext: Event<IContextKeyChangeEvent>;
+	readonly onDidChangeContext: Event<IContextKeyChangeEvent>;
 	bufferChangeEvents(callback: Function): void;
 
 	createKey<T extends ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T>;

@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, EventType, getActiveElement, isAncestor, isHTMLElement } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Menu } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { isCancellationError } from 'vs/base/common/errors';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultMenuStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
+import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { Menu } from '../../../base/browser/ui/menu/menu.js';
+import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { combinedDisposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { isPopoverDOMPosition } from '../../../base/browser/ui/contextview/contextview.js';
+import { getMenuActionGroupTitle } from '../../actions/common/actions.js';
+import { IContextViewService } from './contextView.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { INotificationService } from '../../notification/common/notification.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
 
 
 export interface IContextMenuHandlerOptions {
@@ -24,6 +26,7 @@ export interface IContextMenuHandlerOptions {
 export class ContextMenuHandler {
 	private focusToReturn: HTMLElement | null = null;
 	private lastContainer: HTMLElement | null = null;
+	private lastHostedAsPopover = false;
 	private block: HTMLElement | null = null;
 	private blockDisposable: IDisposable | null = null;
 	private options: IContextMenuHandlerOptions = { blockMouse: true };
@@ -39,13 +42,13 @@ export class ContextMenuHandler {
 		this.options = options;
 	}
 
-	showContextMenu(delegate: IContextMenuDelegate): void {
+	showContextMenu(delegate: IContextMenuDelegate): boolean {
 		const actions = delegate.getActions();
 		if (!actions.length) {
-			return; // Don't render an empty context menu
+			return false; // Don't render an empty context menu
 		}
 
-		this.focusToReturn = document.activeElement as HTMLElement;
+		this.focusToReturn = getActiveElement() as HTMLElement;
 
 		let menu: Menu | undefined;
 
@@ -55,9 +58,13 @@ export class ContextMenuHandler {
 			canRelayout: false,
 			anchorAlignment: delegate.anchorAlignment,
 			anchorAxisAlignment: delegate.anchorAxisAlignment,
-
-			render: (container) => {
+			closeAnimation: delegate.closeAnimation,
+			layer: delegate.layer,
+			hostAsPopover: delegate.hostAsPopover,
+			render: (container, context) => {
 				this.lastContainer = container;
+				// A popover-hosted context view handles outside clicks and focus restore itself
+				this.lastHostedAsPopover = !!context && isPopoverDOMPosition(context.domPosition);
 				const className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
 
 				if (className) {
@@ -65,7 +72,7 @@ export class ContextMenuHandler {
 				}
 
 				// Render invisible div to block mouse interaction in the rest of the UI
-				if (this.options.blockMouse) {
+				if (this.options.blockMouse && !this.lastHostedAsPopover) {
 					this.block = container.appendChild($('.context-view-block'));
 					this.block.style.position = 'fixed';
 					this.block.style.cursor = 'initial';
@@ -81,27 +88,29 @@ export class ContextMenuHandler {
 
 				const menuDisposables = new DisposableStore();
 
-				const actionRunner = delegate.actionRunner || new ActionRunner();
+				const actionRunner = delegate.actionRunner || menuDisposables.add(new ActionRunner());
 				actionRunner.onWillRun(evt => this.onActionRun(evt, !delegate.skipTelemetry), this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 				menu = new Menu(container, actions, {
 					actionViewItemProvider: delegate.getActionViewItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 					actionRunner,
-					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
+					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id),
+					getGroupTitle: getMenuActionGroupTitle,
 				},
 					defaultMenuStyles
 				);
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-				menuDisposables.add(addDisposableListener(window, EventType.BLUR, () => this.contextViewService.hideContextView(true)));
-				menuDisposables.add(addDisposableListener(window, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+				const targetWindow = getWindow(container);
+				menuDisposables.add(addDisposableListener(targetWindow, EventType.BLUR, () => this.contextViewService.hideContextView(true)));
+				menuDisposables.add(addDisposableListener(targetWindow, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 					if (e.defaultPrevented) {
 						return;
 					}
 
-					const event = new StandardMouseEvent(e);
+					const event = new StandardMouseEvent(targetWindow, e);
 					let element: HTMLElement | null = event.target;
 
 					// Don't do anything as we are likely creating a context menu
@@ -124,7 +133,14 @@ export class ContextMenuHandler {
 			},
 
 			focus: () => {
-				menu?.focus(!!delegate.autoSelectFirstItem);
+				const selection = getContextMenuAutoSelectItem(delegate, actions);
+				if (typeof selection === 'number') {
+					// The menu adds group headers and removes redundant separators, which can move the selected action
+					const index = menu?.indexOfAction(actions[selection]) ?? -1;
+					menu?.focus(index >= 0 ? index : selection);
+				} else {
+					menu?.focus(selection);
+				}
 			},
 
 			onHide: (didCancel?: boolean) => {
@@ -138,13 +154,15 @@ export class ContextMenuHandler {
 				this.blockDisposable?.dispose();
 				this.blockDisposable = null;
 
-				if (!!this.lastContainer && (getActiveElement() === this.lastContainer || isAncestor(getActiveElement(), this.lastContainer))) {
+				if (!this.lastHostedAsPopover && !!this.lastContainer && (getActiveElement() === this.lastContainer || isAncestor(getActiveElement(), this.lastContainer))) {
 					this.focusToReturn?.focus();
 				}
 
 				this.lastContainer = null;
+				this.lastHostedAsPopover = false;
 			}
-		}, shadowRootElement, !!shadowRootElement);
+		}, shadowRootElement, !!shadowRootElement, delegate.useWindowContainerForShadowRoot);
+		return true;
 	}
 
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {

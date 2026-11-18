@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { ITextBufferFactory, ITextModel, ITextSnapshot } from '../model.js';
+import { ILanguageSelection } from '../languages/language.js';
+import { IResolvableEditorModel } from '../../../platform/editor/common/editor.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 
 export const ITextModelService = createDecorator<ITextModelService>('textModelService');
 
@@ -19,6 +22,13 @@ export interface ITextModelService {
 	 * which should be disposed once not needed anymore.
 	 */
 	createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>>;
+
+	/**
+	 * Creates an in-memory document owned by this service. The returned reference and
+	 * references acquired through its URI keep the document alive. Dispose references,
+	 * not the underlying text model.
+	 */
+	createSyntheticDocument(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null): Promise<IReference<IResolvedTextEditorModel>>;
 
 	/**
 	 * Registers a specific `scheme` content provider.
@@ -39,7 +49,12 @@ export interface ITextModelContentProvider {
 	provideTextContent(resource: URI): Promise<ITextModel | null> | null;
 }
 
-export interface ITextEditorModel extends IEditorModel {
+export interface ITextEditorModel extends IResolvableEditorModel {
+
+	/**
+	 * Emitted when the text model is about to be disposed.
+	 */
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Provides access to the underlying `ITextModel`.
@@ -55,12 +70,17 @@ export interface ITextEditorModel extends IEditorModel {
 	/**
 	 * Signals if this model is readonly or not.
 	 */
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 
 	/**
 	 * The language id of the text model if known.
 	 */
 	getLanguageId(): string | undefined;
+
+	/**
+	 * Find out if this text model has been disposed.
+	 */
+	isDisposed(): boolean;
 }
 
 export interface IResolvedTextEditorModel extends ITextEditorModel {

@@ -3,32 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { ITextModel } from 'vs/editor/common/model';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { MovedText } from './linesDiffComputer.js';
+import { DetailedLineRangeMapping } from './rangeMapping.js';
+import { LinesDiffValidity } from './verifyLinesDiff.js';
+import { ITextModel } from '../model.js';
 
 /**
  * A document diff provider computes the diff between two text models.
+ * @internal
  */
 export interface IDocumentDiffProvider {
 	/**
 	 * Computes the diff between the text models `original` and `modified`.
 	 */
-	computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff>;
+	computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff>;
 
 	/**
 	 * Is fired when settings of the diff algorithm change that could alter the result of the diffing computation.
 	 * Any user of this provider should recompute the diff when this event is fired.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 }
 
 /**
  * Options for the diff computation.
+ * @internal
  */
 export interface IDocumentDiffProviderOptions {
 	/**
-	 * When set to true, the diff should ignore whitespace changes.i
+	 * When set to true, the diff should ignore whitespace changes.
 	 */
 	ignoreTrimWhitespace: boolean;
 
@@ -36,10 +41,18 @@ export interface IDocumentDiffProviderOptions {
 	 * A diff computation should throw if it takes longer than this value.
 	 */
 	maxComputationTimeMs: number;
+
+	/**
+	 * If set, the diff computation should compute moves in addition to insertions and deletions.
+	 */
+	computeMoves: boolean;
+
+	extendToSubwords?: boolean;
 }
 
 /**
  * Represents a diff between two text models.
+ * @internal
  */
 export interface IDocumentDiff {
 	/**
@@ -55,5 +68,36 @@ export interface IDocumentDiff {
 	/**
 	 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
 	 */
-	readonly changes: LineRangeMapping[];
+	readonly changes: readonly DetailedLineRangeMapping[];
+
+	/**
+	 * Sorted by original line ranges.
+	 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
+	 */
+	readonly moves: readonly MovedText[];
+
+	/**
+	 * Whether applying the changes to the original reproduces the modified text.
+	 * Only set if verification was requested, which happens for a sample of diffs.
+	 */
+	readonly validity?: LinesDiffValidity;
+
+	/**
+	 * Why the requested algorithm's result was replaced by the built-in algorithm's result, if it was.
+	 */
+	readonly fallback?: DiffFallbackReason;
 }
+
+/**
+ * Why a diff from `@vscode/diff` was replaced by one from the built-in algorithm:
+ * the package threw, or a sampled verification found its diff invalid.
+ */
+export type DiffFallbackReason = 'error' | 'invalid';
+
+
+export const nullDocumentDiff: IDocumentDiff = Object.freeze({
+	identical: true,
+	quitEarly: false,
+	changes: Object.freeze([]),
+	moves: Object.freeze([])
+});

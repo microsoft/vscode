@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { RenderingContext, RestrictedRenderingContext } from './renderingContext.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
+import { ViewEventHandler } from '../../common/viewEventHandler.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 
 export abstract class ViewPart extends ViewEventHandler {
 
@@ -23,6 +24,9 @@ export abstract class ViewPart extends ViewEventHandler {
 		super.dispose();
 	}
 
+	public onBeforeRender(viewportData: ViewportData): void {
+	}
+
 	public abstract prepareRender(ctx: RenderingContext): void;
 	public abstract render(ctx: RestrictedRenderingContext): void;
 }
@@ -33,10 +37,12 @@ export const enum PartFingerprint {
 	OverflowingContentWidgets,
 	OverflowGuard,
 	OverlayWidgets,
+	OverflowingOverlayWidgets,
 	ScrollableElement,
 	TextArea,
 	ViewLines,
-	Minimap
+	Minimap,
+	ViewLinesGpu
 }
 
 export class PartFingerprints {
@@ -57,7 +63,7 @@ export class PartFingerprints {
 		const result: PartFingerprint[] = [];
 		let resultLen = 0;
 
-		while (child && child !== document.body) {
+		while (child && child !== child.ownerDocument.body) {
 			if (child === stopAt) {
 				break;
 			}

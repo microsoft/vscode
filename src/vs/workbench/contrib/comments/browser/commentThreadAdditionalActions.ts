@@ -3,23 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
+import * as dom from '../../../../base/browser/dom.js';
 
-import { IAction } from 'vs/base/common/actions';
-import { IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IRange } from 'vs/editor/common/core/range';
-import * as languages from 'vs/editor/common/languages';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { IAction } from '../../../../base/common/actions.js';
+import { IMenu, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { CommentFormActions } from './commentFormActions.js';
+import { CommentMenus } from './commentMenus.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 
 export class CommentThreadAdditionalActions<T extends IRange | ICellRange> extends Disposable {
 	private _container: HTMLElement | null;
 	private _buttonBar: HTMLElement | null;
 	private _commentFormActions!: CommentFormActions;
+
+	get domNode(): HTMLElement | null {
+		return this._container;
+	}
 
 	constructor(
 		container: HTMLElement,
@@ -27,6 +33,8 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 		private _contextKeyService: IContextKeyService,
 		private _commentMenus: CommentMenus,
 		private _actionRunDelegate: (() => void) | null,
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IContextMenuService private _contextMenuService: IContextMenuService,
 	) {
 		super();
 
@@ -39,6 +47,21 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 
 	private _showMenu() {
 		this._container?.classList.remove('hidden');
+	}
+
+	/**
+	 * Measures the width the buttons need, which don't wrap.
+	 */
+	measureWidth(): number {
+		if (!this._container || !this._buttonBar || this._container.classList.contains('hidden')) {
+			return 0;
+		}
+		let width = 0;
+		for (const button of this._buttonBar.children) {
+			width += dom.isHTMLElement(button) ? dom.getTotalWidth(button) : 0;
+		}
+		const style = dom.getWindow(this._container).getComputedStyle(this._container);
+		return (parseFloat(style.marginLeft) || 0) + width + (parseFloat(style.marginRight) || 0);
 	}
 
 	private _hideMenu() {
@@ -78,14 +101,14 @@ export class CommentThreadAdditionalActions<T extends IRange | ICellRange> exten
 			this._enableDisableMenu(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
+		this._commentFormActions = new CommentFormActions(this._keybindingService, this._contextKeyService, this._contextMenuService, container, async (action: IAction) => {
 			this._actionRunDelegate?.();
 
 			action.run({
 				thread: this._commentThread,
 				$mid: MarshalledId.CommentThreadInstance
 			});
-		}, 4);
+		}, 4, true);
 
 		this._register(this._commentFormActions);
 		this._commentFormActions.setActions(menu, /*hasOnlySecondaryActions*/ true);

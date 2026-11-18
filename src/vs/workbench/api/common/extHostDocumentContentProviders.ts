@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable } from './extHostTypes.js';
 import type * as vscode from 'vscode';
-import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
-import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { Schemas } from 'vs/base/common/network';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { splitLines } from 'vs/base/common/strings';
+import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import { Schemas } from '../../../base/common/network.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { splitLines } from '../../../base/common/strings.js';
+import { SequencerByKey } from '../../../base/common/async.js';
+import { getComparisonKey } from '../../../base/common/resources.js';
 
 export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
 
@@ -44,33 +46,43 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 
 		let subscription: IDisposable | undefined;
 		if (typeof provider.onDidChange === 'function') {
+
+			const documentUpdateQueue = new SequencerByKey<string>();
+
 			subscription = provider.onDidChange(uri => {
 				if (uri.scheme !== scheme) {
 					this._logService.warn(`Provider for scheme '${scheme}' is firing event for schema '${uri.scheme}' which will be IGNORED`);
 					return;
 				}
-				if (this._documentsAndEditors.getDocument(uri)) {
-					this.$provideTextDocumentContent(handle, uri).then(value => {
-						if (!value && typeof value !== 'string') {
-							return;
-						}
-
-						const document = this._documentsAndEditors.getDocument(uri);
-						if (!document) {
-							// disposed in the meantime
-							return;
-						}
-
-						// create lines and compare
-						const lines = splitLines(value);
-
-						// broadcast event when content changed
-						if (!document.equalLines(lines)) {
-							return this._proxy.$onVirtualDocumentChange(uri, value);
-						}
-
-					}, onUnexpectedError);
+				if (!this._documentsAndEditors.getDocument(uri)) {
+					// ignore event if document isn't open
+					return;
 				}
+
+				documentUpdateQueue.queue(getComparisonKey(uri), async () => {
+					if (!this._documentContentProviders.has(handle)) {
+						return;
+					}
+
+					const value = await this.$provideTextDocumentContent(handle, uri);
+					if (!value && typeof value !== 'string') {
+						return;
+					}
+
+					const document = this._documentsAndEditors.getDocument(uri);
+					if (!document) {
+						// disposed in the meantime
+						return;
+					}
+
+					// create lines and compare
+					const lines = splitLines(value);
+
+					// broadcast event when content changed
+					if (!document.equalLines(lines)) {
+						return this._proxy.$onVirtualDocumentChange(uri, value);
+					}
+				}).catch(onUnexpectedError);
 			});
 		}
 		return new Disposable(() => {

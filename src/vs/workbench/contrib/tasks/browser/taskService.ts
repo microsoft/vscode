@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ITaskSystem } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { ExecutionEngine } from 'vs/workbench/contrib/tasks/common/tasks';
-import { AbstractTaskService, IWorkspaceFolderConfigurationResult } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
-import { ITaskFilter, ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import * as nls from '../../../../nls.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ITaskSystem } from '../common/taskSystem.js';
+import { ExecutionEngine } from '../common/tasks.js';
+import { AbstractTaskService, IWorkspaceFolderConfigurationResult } from './abstractTaskService.js';
+import { ITaskFilter, ITaskService } from '../common/taskService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export class TaskService extends AbstractTaskService {
 	private static readonly ProcessTaskSystemSupportMessage = nls.localize('taskService.processTaskSystem', 'Process task system is not support in the web.');

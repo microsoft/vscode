@@ -3,26 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { PerformanceMark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { FileType } from 'vs/platform/files/common/files';
-import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
-import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
+import { PerformanceMark } from '../../../base/common/performance.js';
+import { isMacintosh, isNative, isTahoeOrNewer, isWeb } from '../../../base/common/platform.js';
+import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
+import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEditorOptions } from '../../editor/common/editor.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { FileType } from '../../files/common/files.js';
+import { ILoggerResource, LogLevel } from '../../log/common/log.js';
+import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
+import { IPartsSplash } from '../../theme/common/themeService.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
 	WIDTH_WITH_VERTICAL_PANEL: 600,
 	HEIGHT: 270
 };
+
+export interface IPoint {
+	readonly x: number;
+	readonly y: number;
+}
+
+export interface IRectangle extends IPoint {
+	readonly width: number;
+	readonly height: number;
+}
 
 export interface IBaseOpenWindowsOptions {
 
@@ -39,6 +51,9 @@ export interface IBaseOpenWindowsOptions {
 	 * If not set, defaults to the remote authority of the current window.
 	 */
 	readonly remoteAuthority?: string | null;
+
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -48,6 +63,7 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly noRecentEntry?: boolean;
 
 	readonly addMode?: boolean;
+	readonly removeMode?: boolean;
 
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
@@ -55,23 +71,187 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 
 	readonly waitMarkerFileURI?: URI;
 
-	readonly forceProfile?: string;
-	readonly forceTempProfile?: boolean;
+	/**
+	 * When set, the opened window is asked to open the chat session identified
+	 * by this resource once it is ready. Used to hand off a session (e.g. from
+	 * the Agents window) so the new window restores both the folder and session.
+	 */
+	readonly chatSessionToOpen?: URI;
 }
 
-export interface IAddFoldersRequest {
+export interface IAddRemoveFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
+	readonly foldersToRemove: UriComponents[];
 }
 
-export interface IOpenedWindow {
+interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
+}
+
+export interface IOpenedMainWindow extends IOpenedWindow {
+	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
+	readonly iconPath?: URI;
+}
+
+export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
+	readonly parentId: number;
+}
+
+export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAuxiliaryWindow): candidate is IOpenedAuxiliaryWindow {
+	return typeof (candidate as IOpenedAuxiliaryWindow).parentId === 'number';
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
+
+export interface IAgentsWindowDraft {
+	readonly inputText: string;
+	/** URI-aware serialized chat attachments, including exported image data. */
+	readonly attachments: string;
+}
+
+export function isAgentsWindowDraft(value: unknown): value is IAgentsWindowDraft {
+	const draft = value as Partial<IAgentsWindowDraft> | undefined;
+	return !!draft && typeof draft.inputText === 'string' && typeof draft.attachments === 'string';
+}
+
+export interface IAgentsWindowNewSessionLink {
+	readonly workspaceUri?: URI;
+	readonly draft: IAgentsWindowDraft;
+}
+
+export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, productUrlProtocol: string): IAgentsWindowNewSessionLink | undefined {
+	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
+	if (parsed.scheme !== productUrlProtocol || parsed.authority !== AGENTS_AUTHORITY || parsed.path !== '/new') {
+		return undefined;
+	}
+
+	const params = new URLSearchParams(parsed.query);
+	const workspace = params.get('workspace');
+	const prompt = params.get('prompt');
+	if (!prompt || workspace === '') {
+		return undefined;
+	}
+
+	try {
+		return {
+			workspaceUri: workspace === null ? undefined : URI.parse(workspace, true),
+			draft: { inputText: prompt, attachments: '[]' },
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Query parameter of a `file` or `vscode-remote` product protocol link naming a
+ * chat session resource to open in the window the link opens.
+ */
+export const CHAT_SESSION_LINK_QUERY_PARAM = 'session';
+
+/**
+ * Query parameter of a `file` or `vscode-remote` product protocol link naming a
+ * Copilot CLI session, by its CLI session id, to open in the window the link
+ * opens. The window decides which provider opens the session, so callers such
+ * as the Copilot CLI's `/code` command do not depend on a provider-specific URI.
+ */
+export const COPILOT_CLI_SESSION_LINK_QUERY_PARAM = 'copilotCliSession';
+
+/**
+ * A chat session to open in the window that a product protocol link opens.
+ */
+export type ChatSessionToOpen =
+	| { readonly kind: 'resource'; readonly resource: string }
+	| { readonly kind: 'copilotCli'; readonly sessionId: string };
+
+/**
+ * Whether `sessionId` is a valid Copilot CLI session id. Mirrors the Copilot CLI
+ * runtime's rule (non-empty ASCII letters, digits, `_` and `-`), with an upper
+ * bound on the length.
+ */
+export function isValidCopilotCliSessionId(sessionId: string): boolean {
+	return /^[A-Za-z0-9_-]{1,256}$/.test(sessionId);
+}
+
+/**
+ * Removes the chat session parameters from the query of a product protocol
+ * link and returns the link without them, along with the chat session to open,
+ * if any.
+ *
+ * Both parameters are always removed, even when their values are invalid, so
+ * that they never reach the window that opens for the link. A link without
+ * either parameter is returned unchanged.
+ */
+export function extractChatSessionToOpen(uri: URI): { readonly uri: URI; readonly chatSessionToOpen: ChatSessionToOpen | undefined } {
+	const params = new URLSearchParams(uri.query);
+	const resource = params.get(CHAT_SESSION_LINK_QUERY_PARAM);
+	const copilotCliSessionId = params.get(COPILOT_CLI_SESSION_LINK_QUERY_PARAM);
+	if (resource === null && copilotCliSessionId === null) {
+		return { uri, chatSessionToOpen: undefined };
+	}
+
+	params.delete(CHAT_SESSION_LINK_QUERY_PARAM);
+	params.delete(COPILOT_CLI_SESSION_LINK_QUERY_PARAM);
+	const uriWithoutChatSession = uri.with({ query: params.toString() });
+
+	if (resource) {
+		return { uri: uriWithoutChatSession, chatSessionToOpen: { kind: 'resource', resource } };
+	}
+
+	if (copilotCliSessionId && isValidCopilotCliSessionId(copilotCliSessionId)) {
+		return { uri: uriWithoutChatSession, chatSessionToOpen: { kind: 'copilotCli', sessionId: copilotCliSessionId } };
+	}
+
+	return { uri: uriWithoutChatSession, chatSessionToOpen: undefined };
+}
+
+export const enum AgentsWindowOpenSource {
+	CommandPalette = 'commandPalette',
+	KeyboardShortcut = 'keyboardShortcut',
+	TitleBar = 'titleBar',
+	ChatTitleBar = 'chatTitleBar',
+	ChatViewTitle = 'chatViewTitle',
+	CurrentChatHandoff = 'currentChatHandoff',
+	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
+	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
+	ContinueInAgentsWindow = 'continueInAgentsWindow',
+	ParallelWorkSameWindow = 'parallelWorkSameWindow',
+	ParallelWorkAllWindows = 'parallelWorkAllWindows',
+	WelcomeTryOut = 'welcomeTryOut',
+	CommandLine = 'commandLine',
+	Link = 'link',
+	AgentsLauncher = 'agentsLauncher',
+	Unknown = 'unknown',
+}
+
+/** The IPC channel on which the main process asks the Agents window to show the Agents Launcher. */
+export const AGENTS_LAUNCHER_IPC_CHANNEL = 'vscode:showAgentsLauncher';
+
+export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
+	switch (value) {
+		case AgentsWindowOpenSource.CommandPalette:
+		case AgentsWindowOpenSource.KeyboardShortcut:
+		case AgentsWindowOpenSource.TitleBar:
+		case AgentsWindowOpenSource.ChatTitleBar:
+		case AgentsWindowOpenSource.ChatViewTitle:
+		case AgentsWindowOpenSource.CurrentChatHandoff:
+		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
+		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
+		case AgentsWindowOpenSource.ContinueInAgentsWindow:
+		case AgentsWindowOpenSource.ParallelWorkSameWindow:
+		case AgentsWindowOpenSource.ParallelWorkAllWindows:
+		case AgentsWindowOpenSource.WelcomeTryOut:
+		case AgentsWindowOpenSource.CommandLine:
+		case AgentsWindowOpenSource.Link:
+		case AgentsWindowOpenSource.AgentsLauncher:
+		case AgentsWindowOpenSource.Unknown:
+			return true;
+		default:
+			return false;
+	}
+}
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
@@ -103,13 +283,58 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
+export const enum MenuSettings {
+	MenuStyle = 'window.menuStyle',
+	MenuBarVisibility = 'window.menuBarVisibility'
+}
+
+export const enum MenuStyleConfiguration {
+	CUSTOM = 'custom',
+	NATIVE = 'native',
+	INHERIT = 'inherit',
+}
+
+export function hasNativeContextMenu(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (isWeb) {
+		return false;
+	}
+
+	const nativeTitle = hasNativeTitlebar(configurationService, titleBarStyle);
+	const windowConfigurations = configurationService.getValue<IWindowSettings | undefined>('window');
+
+	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.NATIVE) {
+		// Do not support native menu with custom title bar
+		if (!isMacintosh && !nativeTitle) {
+			return false;
+		}
+		return true;
+	}
+
+	if (windowConfigurations?.menuStyle === MenuStyleConfiguration.CUSTOM) {
+		return false;
+	}
+
+	return nativeTitle; // Default to inherit from title bar style
+}
+
+export function hasNativeMenu(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (isWeb) {
+		return false;
+	}
+
+	if (isMacintosh) {
+		return true;
+	}
+
+	return hasNativeContextMenu(configurationService, titleBarStyle);
+}
+
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
-	const titleBarStyle = getTitleBarStyle(configurationService);
-	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>(MenuSettings.MenuBarVisibility);
 
-	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+	if (menuBarVisibility === 'default' || (menuBarVisibility === 'compact' && hasNativeMenu(configurationService)) || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -127,7 +352,9 @@ export interface IWindowSettings {
 	readonly restoreWindows: 'preserve' | 'all' | 'folders' | 'one' | 'none';
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
-	readonly titleBarStyle: 'native' | 'custom';
+	readonly titleBarStyle: TitlebarStyle;
+	readonly controlsStyle: WindowControlsStyle;
+	readonly menuStyle: MenuStyleConfiguration;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -137,52 +364,133 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly experimental?: { useSandbox: boolean };
+	readonly newWindowProfile: string;
+	readonly density: IDensitySettings;
+	readonly border: 'off' | 'default' | 'system' | string /* color in RGB or other formats */;
 }
 
-export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
+export interface IDensitySettings {
+	readonly editorTabHeight: 'default' | 'compact';
+	readonly layout: 'default' | 'compact';
+}
+
+export const enum TitleBarSetting {
+	TITLE_BAR_STYLE = 'window.titleBarStyle',
+	CUSTOM_TITLE_BAR_VISIBILITY = 'window.customTitleBarVisibility',
+}
+
+export const enum TitlebarStyle {
+	NATIVE = 'native',
+	CUSTOM = 'custom',
+}
+
+export const enum WindowControlsStyle {
+	NATIVE = 'native',
+	CUSTOM = 'custom',
+	HIDDEN = 'hidden'
+}
+
+export const enum CustomTitleBarVisibility {
+	AUTO = 'auto',
+	WINDOWED = 'windowed',
+	NEVER = 'never',
+}
+
+export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	// Returns if it possible to have a custom title bar in the curren session
+	// Does not imply that the title bar is visible
+	return true;
+}
+
+export function hasNativeTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (!titleBarStyle) {
+		titleBarStyle = getTitleBarStyle(configurationService);
+	}
+
+	return titleBarStyle === TitlebarStyle.NATIVE;
+}
+
+export function getTitleBarStyle(configurationService: IConfigurationService): TitlebarStyle {
 	if (isWeb) {
-		return 'custom';
+		return TitlebarStyle.CUSTOM;
 	}
 
 	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
-			return 'native'; // native tabs on sierra do not work with custom title style
+			return TitlebarStyle.NATIVE; // native tabs on macOS do not work with custom title style
 		}
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
-			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+			return TitlebarStyle.NATIVE; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
 		}
 
 		const style = configuration.titleBarStyle;
-		if (style === 'native' || style === 'custom') {
+		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM) {
 			return style;
 		}
 	}
 
-	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
+	return TitlebarStyle.CUSTOM; // default to custom on all OS
+}
+
+export function getWindowControlsStyle(configurationService: IConfigurationService): WindowControlsStyle {
+	if (isWeb || isMacintosh || getTitleBarStyle(configurationService) === TitlebarStyle.NATIVE) {
+		return WindowControlsStyle.NATIVE; // only supported on Windows/Linux desktop with custom titlebar
+	}
+
+	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
+	const style = configuration?.controlsStyle;
+	if (style === WindowControlsStyle.CUSTOM || style === WindowControlsStyle.HIDDEN) {
+		return style;
+	}
+
+	return WindowControlsStyle.NATIVE; // default to native on all OS
+}
+
+export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
+
+/** Centers macOS traffic lights vertically, optionally keeping their horizontal inset independent of height. */
+export function getMacOSWindowControlsPosition(height: number, osVersion: string, horizontalInset?: number): IPoint | null {
+	const buttonHeight = isTahoeOrNewer(osVersion) ? 14 : 16;
+	const offset = Math.floor((height - buttonHeight) / 2);
+	return !offset && horizontalInset === undefined ? null : { x: horizontalInset ?? offset + 1, y: offset };
 }
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
-	if (!isWindows || isWeb) {
-		return false; // only supported on a desktop Windows instance
+	if (isWeb) {
+		return false; // only supported on desktop instances
 	}
 
-	if (getTitleBarStyle(configurationService) === 'native') {
+	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
 	}
 
-	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.experimental.windowControlsOverlay.enabled');
-	if (typeof configuredUseWindowControlsOverlay === 'boolean') {
-		return configuredUseWindowControlsOverlay;
+	if (!isMacintosh) {
+		const setting = getWindowControlsStyle(configurationService);
+		if (setting === WindowControlsStyle.CUSTOM || setting === WindowControlsStyle.HIDDEN) {
+			return false; // explicitly disabled by choice
+		}
 	}
 
-	// Default to true.
-	return true;
+	return true; // default
 }
+
+export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
+	const windowConfig = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+		return true; // default
+	}
+
+	if (windowConfig.nativeTabs) {
+		return true; // https://github.com/electron/electron/issues/16142
+	}
+
+	return windowConfig.nativeFullScreen !== false;
+}
+
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
 
@@ -250,8 +558,8 @@ export interface INativeOpenFileRequest extends IOpenFileRequest {
 
 export interface INativeRunActionInWindowRequest {
 	readonly id: string;
-	readonly from: 'menu' | 'touchbar' | 'mouse';
-	readonly args?: any[];
+	readonly from: 'menu' | 'touchbar' | 'mouse' | 'systemWideKeybinding';
+	readonly args?: unknown[];
 }
 
 export interface INativeRunKeybindingInWindowRequest {
@@ -274,12 +582,33 @@ export interface IWindowConfiguration {
 export interface IOSConfiguration {
 	readonly release: string;
 	readonly hostname: string;
+	readonly arch: string;
+}
+
+/**
+ * The alternate location a single-folder window was at, persisted so that
+ * the window can start at it again after a reload or restart.
+ */
+export interface IWindowFolderLocation {
+
+	/** The resource of the alternate location. */
+	readonly uri: string;
+
+	/** The label of the alternate location. */
+	readonly label: string;
+
+	/** The identifier of the provider that resolved the alternate location. */
+	readonly providerId: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
+	handle?: VSBuffer;
 
 	machineId: string;
+	sqmId: string;
+	devDeviceId: string;
+	isPortable: boolean;
 
 	execPath: string;
 	backupPath?: string;
@@ -298,12 +627,15 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
+	/** Set when the single-folder `workspace` (its primary location) is at an alternate location. */
+	folderLocation?: IWindowFolderLocation;
+
+	/** Set when the window was meant to start at an alternate location that no longer exists. */
+	folderLocationMissing?: { readonly label: string };
+
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
-	loggers: {
-		global: UriDto<ILoggerResource>[];
-		window: UriDto<ILoggerResource>[];
-	};
+	loggers: UriDto<ILoggerResource>[];
 
 	fullscreen?: boolean;
 	maximized?: boolean;
@@ -311,6 +643,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	colorScheme: IColorScheme;
 	autoDetectHighContrast?: boolean;
 	autoDetectColorScheme?: boolean;
+	isCustomZoomLevel?: boolean;
 
 	perfMarks: PerformanceMark[];
 
@@ -318,6 +651,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
+
+	isSessionsWindow?: boolean;
 }
 
 /**
@@ -325,5 +660,9 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
  * https://github.com/electron/electron/blob/master/docs/api/web-contents.md#contentssetzoomlevellevel
  */
 export function zoomLevelToZoomFactor(zoomLevel = 0): number {
-	return Math.pow(1.2, zoomLevel);
+	return 1.2 ** zoomLevel;
 }
+
+export const DEFAULT_EMPTY_WINDOW_SIZE = { width: 1200, height: 800 } as const;
+export const DEFAULT_WORKSPACE_WINDOW_SIZE = { width: 1440, height: 900 } as const;
+export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;

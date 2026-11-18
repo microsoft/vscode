@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModes, TextDocument, Position, Range, SelectionRange } from './languageModes';
-import { insideRangeButNotSame } from '../utils/positions';
+import { LanguageModes, TextDocument, Position, Range, SelectionRange } from './languageModes.js';
+import { insideRangeButNotSame } from '../utils/positions.js';
 
 export async function getSelectionRanges(languageModes: LanguageModes, document: TextDocument, positions: Position[]) {
 	const htmlMode = languageModes.getMode('html');

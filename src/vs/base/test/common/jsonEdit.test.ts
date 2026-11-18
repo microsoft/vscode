@@ -2,11 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { removeProperty, setProperty } from 'vs/base/common/jsonEdit';
-import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
+import assert from 'assert';
+import { removeProperty, setProperty } from '../../common/jsonEdit.js';
+import { Edit, FormattingOptions } from '../../common/jsonFormatter.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('JSON - edits', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertEdit(content: string, edits: Edit[], expected: string) {
 		assert(edits);
@@ -118,6 +121,20 @@ suite('JSON - edits', () => {
 		assertEdit(content, edits, '{\n  "x": "y"\n}');
 	});
 
+	test('remove only property if ends with comma', () => {
+		let content = '{\n  "x": "y",\n}';
+		let edits = removeProperty(content, ['x'], formatterOptions);
+		assertEdit(content, edits, '{\n}');
+
+		content = '{\n  "x": "y" /* x */, // trailing\n}';
+		edits = removeProperty(content, ['x'], formatterOptions);
+		assertEdit(content, edits, '{ // trailing\n}');
+
+		content = '{\n  "s": {\n    "x": "y",\n  }\n}';
+		edits = removeProperty(content, ['s', 'x'], formatterOptions);
+		assertEdit(content, edits, '{\n  "s": {\n  }\n}');
+	});
+
 	test('insert item at 0', () => {
 		const content = '[\n  2,\n  3\n]';
 		const edits = setProperty(content, [0], 1, formatterOptions);
@@ -188,6 +205,12 @@ suite('JSON - edits', () => {
 		const content = '// This is a comment\n[\n  1,\n  "foo",\n  "bar"\n]';
 		const edits = setProperty(content, [2], undefined, formatterOptions);
 		assertEdit(content, edits, '// This is a comment\n[\n  1,\n  "foo"\n]');
+	});
+
+	test('remove last item in compact array without whitespace', () => {
+		const content = '[1,2]';
+		const edits = setProperty(content, [1], undefined, formatterOptions);
+		assertEdit(content, edits, '[\n  1\n]');
 	});
 
 });

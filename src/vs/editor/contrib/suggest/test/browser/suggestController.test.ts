@@ -3,34 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemInsertTextRule, CompletionItemKind } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { Range } from '../../../../common/core/range.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { CompletionItemInsertTextRule, CompletionItemKind } from '../../../../common/languages.js';
+import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
+import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
+import { SuggestController } from '../../browser/suggestController.js';
+import { ISuggestMemoryService } from '../../browser/suggestMemory.js';
+import { createTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { DeleteLinesAction } from '../../../linesOperations/browser/linesOperations.js';
 
 suite('SuggestController', function () {
 
@@ -41,10 +43,12 @@ suite('SuggestController', function () {
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
 
-
 	teardown(function () {
+
 		disposables.clear();
 	});
+
+	// ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 
@@ -52,7 +56,7 @@ suite('SuggestController', function () {
 			[ILanguageFeaturesService, languageFeaturesService],
 			[ITelemetryService, NullTelemetryService],
 			[ILogService, new NullLogService()],
-			[IStorageService, new InMemoryStorageService()],
+			[IStorageService, disposables.add(new InMemoryStorageService())],
 			[IKeybindingService, new MockKeybindingService()],
 			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 				override computeWordRanges() {
@@ -73,6 +77,10 @@ suite('SuggestController', function () {
 			}],
 			[ILabelService, new class extends mock<ILabelService>() { }],
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+			[IEnvironmentService, new class extends mock<IEnvironmentService>() {
+				override isBuilt: boolean = true;
+				override isExtensionDevelopment: boolean = false;
+			}],
 		);
 
 		model = disposables.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' })));
@@ -84,6 +92,7 @@ suite('SuggestController', function () {
 
 	test('postfix completion reports incorrect position #86984', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -120,6 +129,7 @@ suite('SuggestController', function () {
 	test('use additionalTextEdits sync when possible', async function () {
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -161,6 +171,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -213,6 +224,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -269,6 +281,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -318,6 +331,7 @@ suite('SuggestController', function () {
 		let resolveCallCount = 0;
 		let resolve: Function = () => { };
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -372,6 +386,7 @@ suite('SuggestController', function () {
 
 		const resolve: Function[] = [];
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -429,6 +444,7 @@ suite('SuggestController', function () {
 
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 				return {
 					suggestions: [{
@@ -465,6 +481,7 @@ suite('SuggestController', function () {
 
 	test('Pressing enter on autocomplete should always apply the selected dropdown completion, not a different, hidden one #161883', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 
 				const word = doc.getWordUntilPosition(pos);
@@ -511,6 +528,7 @@ suite('SuggestController', function () {
 
 	test('Fast autocomple typing selects the previous autocomplete suggestion, #71795', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {
 
 				const word = doc.getWordUntilPosition(pos);
@@ -563,5 +581,130 @@ suite('SuggestController', function () {
 
 		controller.acceptSelectedSuggestion(false, false);
 		assert.strictEqual(editor.getValue(), 'for');
+	});
+
+	test.skip('Suggest widget gets orphaned in editor #187779', async function () {
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+
+				const word = doc.getLineContent(pos.lineNumber);
+				const range = new Range(pos.lineNumber, 1, pos.lineNumber, pos.column);
+
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: word,
+						insertText: word,
+						range
+					}]
+				};
+			}
+		}));
+
+		editor.setValue(`console.log(example.)\nconsole.log(EXAMPLE.not)`);
+		editor.setSelection(new Selection(1, 21, 1, 21));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+
+		await p1;
+
+		const p2 = Event.toPromise(controller.model.onDidCancel);
+		new DeleteLinesAction().run(null!, editor);
+
+		await p2;
+	});
+
+	test('Ranges where additionalTextEdits are applied are not appropriate when characters are typed #177591', async function () {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Snippet,
+						label: 'aaa',
+						insertText: 'aaa',
+						range: Range.fromPositions(pos),
+						additionalTextEdits: [{
+							range: Range.fromPositions(pos.delta(0, 10)),
+							text: 'aaa'
+						}]
+					}]
+				};
+			}
+		}));
+
+		{ // PART1 - no typing
+			editor.setValue(`123456789123456789`);
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			const p1 = Event.toPromise(controller.model.onDidSuggest);
+			controller.triggerSuggest();
+
+			const e = await p1;
+			assert.strictEqual(e.completionModel.items.length, 1);
+			assert.strictEqual(e.completionModel.items[0].textLabel, 'aaa');
+
+			controller.acceptSelectedSuggestion(false, false);
+
+			assert.strictEqual(editor.getValue(), 'aaa1234567891aaa23456789');
+		}
+
+		{ // PART2 - typing
+			editor.setValue(`123456789123456789`);
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			const p1 = Event.toPromise(controller.model.onDidSuggest);
+			controller.triggerSuggest();
+
+			const e = await p1;
+			assert.strictEqual(e.completionModel.items.length, 1);
+			assert.strictEqual(e.completionModel.items[0].textLabel, 'aaa');
+
+			editor.trigger('keyboard', 'type', { text: 'aa' });
+
+			controller.acceptSelectedSuggestion(false, false);
+
+			assert.strictEqual(editor.getValue(), 'aaa1234567891aaa23456789');
+		}
+	});
+
+	test.skip('[Bug] "No suggestions" persists while typing if the completion helper is set to return an empty list for empty content#3557', async function () {
+		let requestCount = 0;
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+				requestCount += 1;
+
+				if (requestCount === 1) {
+					return undefined;
+				}
+
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'foo',
+						insertText: 'foo',
+						range: new Range(pos.lineNumber, 1, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+
+		const e1 = await p1;
+		assert.strictEqual(e1.completionModel.items.length, 0);
+		assert.strictEqual(requestCount, 1);
+
+		const p2 = Event.toPromise(controller.model.onDidSuggest);
+		editor.trigger('keyboard', 'type', { text: 'f' });
+
+		const e2 = await p2;
+		assert.strictEqual(e2.completionModel.items.length, 1);
+		assert.strictEqual(requestCount, 2);
+
 	});
 });

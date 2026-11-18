@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
+import { IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export async function findWindowOnFile(windows: ICodeWindow[], fileUri: URI, localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => Promise<IResolvedWorkspace | undefined>): Promise<ICodeWindow | undefined> {
 
@@ -57,6 +57,29 @@ export function findWindowOnWorkspaceOrFolder(windows: ICodeWindow[], folderOrWo
 	}
 
 	return undefined;
+}
+
+/**
+ * Finds the window that opened the path an open request asked for, among the
+ * windows the request used. Only resolved paths are passed, so a request whose
+ * path doesn't exist finds no window, even when windows from the previous
+ * session were restored next to it.
+ */
+export function findWindowOnRequestedPath(windows: ICodeWindow[], requestedPaths: readonly { readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier; readonly fileUri?: URI }[], filesOpenedInWindow: ICodeWindow | undefined): ICodeWindow | undefined {
+	if (requestedPaths.length !== 1) {
+		return undefined;
+	}
+
+	const [{ workspace, fileUri }] = requestedPaths;
+	if (isWorkspaceIdentifier(workspace)) {
+		return findWindowOnWorkspaceOrFolder(windows, workspace.configPath);
+	}
+
+	if (isSingleFolderWorkspaceIdentifier(workspace)) {
+		return findWindowOnWorkspaceOrFolder(windows, workspace.uri);
+	}
+
+	return fileUri ? filesOpenedInWindow : undefined;
 }
 
 

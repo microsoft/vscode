@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json';
-import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter';
+import { createScanner, findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment, SyntaxKind } from './json.js';
+import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter.js';
 
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
 	return setProperty(text, path, undefined, formattingOptions);
 }
 
-export function setProperty(text: string, originalPath: JSONPath, value: any, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number): Edit[] {
+export function setProperty(text: string, originalPath: JSONPath, value: unknown, formattingOptions: FormattingOptions, getInsertionIndex?: (properties: string[]) => number): Edit[] {
 	const path = originalPath.slice();
 	const errors: ParseError[] = [];
 	const root = parseTree(text, errors);
@@ -35,7 +35,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 	if (!parent) {
 		// empty document
 		if (value === undefined) { // delete
-			throw new Error('Can not delete in empty document');
+			return []; // property does not exist, nothing to do
 		}
 		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
 	} else if (parent.type === 'object' && typeof lastSegment === 'string' && Array.isArray(parent.children)) {
@@ -58,6 +58,13 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 						// remove the comma of the next node
 						const next = parent.children[1];
 						removeEnd = next.offset;
+					} else {
+						// remove the trailing comma of the only node
+						const scanner = createScanner(text, true);
+						scanner.setPosition(removeEnd);
+						if (scanner.scan() === SyntaxKind.CommaToken) {
+							removeEnd = scanner.getPosition();
+						}
 					}
 				}
 				return withFormatting(text, { offset: removeBegin, length: removeEnd - removeBegin, content: '' }, formattingOptions);
@@ -108,7 +115,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 				const previous = parent.children[removalIndex - 1];
 				const offset = previous.offset + previous.length;
 				const parentEndOffset = parent.offset + parent.length;
-				edit = { offset, length: parentEndOffset - 2 - offset, content: '' };
+				edit = { offset, length: parentEndOffset - 1 - offset, content: '' };
 			} else {
 				edit = { offset: toRemove.offset, length: parent.children[removalIndex + 1].offset - toRemove.offset, content: '' };
 			}

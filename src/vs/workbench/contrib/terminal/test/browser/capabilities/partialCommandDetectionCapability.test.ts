@@ -3,40 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
-import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
-import { IMarker, Terminal } from 'xterm';
-import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
-
-interface TestTerminal extends Terminal {
-	_core: IXtermCore;
-}
+import type { IMarker, Terminal } from '@xterm/xterm';
+import { deepEqual, deepStrictEqual, strictEqual } from 'assert';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
+import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 
 suite('PartialCommandDetectionCapability', () => {
-	let xterm: TestTerminal;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let xterm: Terminal;
 	let capability: PartialCommandDetectionCapability;
 	let addEvents: IMarker[];
+	let onDidExecuteTextEmitter: Emitter<void>;
 
 	function assertCommands(expectedLines: number[]) {
 		deepStrictEqual(capability.commands.map(e => e.line), expectedLines);
 		deepStrictEqual(addEvents.map(e => e.line), expectedLines);
 	}
 
-	setup(() => {
-		xterm = new Terminal({ allowProposedApi: true, cols: 80 }) as TestTerminal;
-		capability = new PartialCommandDetectionCapability(xterm);
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, logger: TestXtermLogger }) as Terminal);
+		onDidExecuteTextEmitter = store.add(new Emitter<void>());
+		capability = store.add(new PartialCommandDetectionCapability(xterm, onDidExecuteTextEmitter.event));
 		addEvents = [];
-		capability.onCommandFinished(e => addEvents.push(e));
+		store.add(capability.onCommandFinished(e => addEvents.push(e)));
 	});
 
 	test('should not add commands when the cursor position is too close to the left side', async () => {
 		assertCommands([]);
-		xterm._core._onData.fire('\x0d');
+		xterm.input('\x0d');
 		await writeP(xterm, '\r\n');
 		assertCommands([]);
 		await writeP(xterm, 'a');
-		xterm._core._onData.fire('\x0d');
+		xterm.input('\x0d');
 		await writeP(xterm, '\r\n');
 		assertCommands([]);
 	});
@@ -44,12 +49,36 @@ suite('PartialCommandDetectionCapability', () => {
 	test('should add commands when the cursor position is not too close to the left side', async () => {
 		assertCommands([]);
 		await writeP(xterm, 'ab');
-		xterm._core._onData.fire('\x0d');
+		xterm.input('\x0d');
 		await writeP(xterm, '\r\n\r\n');
 		assertCommands([0]);
 		await writeP(xterm, 'cd');
-		xterm._core._onData.fire('\x0d');
+		xterm.input('\x0d');
 		await writeP(xterm, '\r\n');
 		assertCommands([0, 2]);
+	});
+
+	test('onDidExecuteText should cause onDidCommandFinished to fire', async () => {
+		await writeP(xterm, 'cd');
+		onDidExecuteTextEmitter.fire();
+		await writeP(xterm, 'pwd');
+		onDidExecuteTextEmitter.fire();
+		deepEqual(addEvents.length, 2);
+	});
+
+	test('should clear all commands including scrollback', async () => {
+		await writeP(xterm, 'ab');
+		xterm.input('\x0d');
+		await writeP(xterm, '\r\n\r\n');
+		await writeP(xterm, 'cd');
+		xterm.input('\x0d');
+		await writeP(xterm, '\r\n');
+		deepStrictEqual(capability.commands.map(e => e.line), [0, 2]);
+		await writeP(xterm, 'line\r\n'.repeat(xterm.rows));
+		strictEqual(xterm.buffer.active.baseY > 0, true);
+
+		capability.clearCommands();
+
+		deepStrictEqual(capability.commands, []);
 	});
 });

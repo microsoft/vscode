@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+
+.chat-markdown-part {
+
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		line-height: normal;
+	}
+
+	.katex-display .katex {
+		margin: auto;
+		width: fit-content;
+		overflow: hidden;
+	}
+}

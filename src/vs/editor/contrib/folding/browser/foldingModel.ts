@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from './foldingRanges';
-import { hash } from 'vs/base/common/hash';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from '../../../common/model.js';
+import { FoldingRegion, FoldingRegions, ILineRange, FoldRange, FoldSource } from './foldingRanges.js';
+import { hash } from '../../../../base/common/hash.js';
+import { SelectedLines } from './folding.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IRange, Range } from '../../../common/core/range.js';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions;
@@ -27,7 +30,7 @@ interface ILineMemento extends ILineRange {
 
 export type CollapseMemento = ILineMemento[];
 
-export class FoldingModel {
+export class FoldingModel implements IDisposable {
 	private readonly _textModel: ITextModel;
 	private readonly _decorationProvider: IDecorationProvider;
 
@@ -92,11 +95,26 @@ export class FoldingModel {
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: toggledRegions });
 	}
 
-	public removeManualRanges(ranges: ILineRange[]) {
+	public removeManualRanges(ranges: readonly IRange[]) {
+		const rangeIndexesToRemove = new Set<number>();
+		let removeAll = false;
+		for (const range of ranges) {
+			if (Range.isEmpty(range)) {
+				let index = this._regions.findRange(range.startLineNumber);
+				while (index !== -1 && this._regions.getSource(index) === FoldSource.provider) {
+					index = this._regions.getParentIndex(index);
+				}
+				if (index === -1) {
+					removeAll = true;
+				} else {
+					rangeIndexesToRemove.add(index);
+				}
+			}
+		}
 		const newFoldingRanges: FoldRange[] = new Array();
-		const intersects = (foldRange: FoldRange) => {
+		const intersectsSelection = (foldRange: FoldRange) => {
 			for (const range of ranges) {
-				if (!(range.startLineNumber > foldRange.endLineNumber || foldRange.startLineNumber > range.endLineNumber)) {
+				if (!Range.isEmpty(range) && !(range.startLineNumber > foldRange.endLineNumber || foldRange.startLineNumber > range.endLineNumber)) {
 					return true;
 				}
 			}
@@ -104,16 +122,16 @@ export class FoldingModel {
 		};
 		for (let i = 0; i < this._regions.length; i++) {
 			const foldRange = this._regions.toFoldRange(i);
-			if (foldRange.source === FoldSource.provider || !intersects(foldRange)) {
+			if (foldRange.source === FoldSource.provider || (!removeAll && !rangeIndexesToRemove.has(i) && !intersectsSelection(foldRange))) {
 				newFoldingRanges.push(foldRange);
 			}
 		}
 		this.updatePost(FoldingRegions.fromFoldRanges(newFoldingRanges));
 	}
 
-	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
-		const foldedOrManualRanges = this._currentFoldedOrManualRanges(blockedLineNumers);
-		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, foldedOrManualRanges, this._textModel.getLineCount());
+	public update(newRegions: FoldingRegions, selection?: SelectedLines): void {
+		const foldedOrManualRanges = this._currentFoldedOrManualRanges(selection);
+		const newRanges = FoldingRegions.sanitizeAndMerge(newRegions, foldedOrManualRanges, this._textModel.getLineCount(), selection);
 		this.updatePost(FoldingRegions.fromFoldRanges(newRanges));
 	}
 
@@ -141,17 +159,7 @@ export class FoldingModel {
 		this._updateEventEmitter.fire({ model: this });
 	}
 
-	private _currentFoldedOrManualRanges(blockedLineNumers: number[] = []): FoldRange[] {
-
-		const isBlocked = (startLineNumber: number, endLineNumber: number) => {
-			for (const blockedLineNumber of blockedLineNumers) {
-				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
-					return true;
-				}
-			}
-			return false;
-		};
-
+	private _currentFoldedOrManualRanges(selection?: SelectedLines): FoldRange[] {
 		const foldedRanges: FoldRange[] = [];
 		for (let i = 0, limit = this._regions.length; i < limit; i++) {
 			let isCollapsed = this.regions.isCollapsed(i);
@@ -160,7 +168,7 @@ export class FoldingModel {
 				const foldRange = this._regions.toFoldRange(i);
 				const decRange = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
 				if (decRange) {
-					if (isCollapsed && isBlocked(decRange.startLineNumber, decRange.endLineNumber)) {
+					if (isCollapsed && selection?.startsInside(decRange.startLineNumber + 1, decRange.endLineNumber)) {
 						isCollapsed = false; // uncollapse is the range is blocked
 					}
 					foldedRanges.push({
@@ -238,6 +246,7 @@ export class FoldingModel {
 
 	public dispose() {
 		this._decorationProvider.removeDecorations(this._editorDecorationIds);
+		this._updateEventEmitter.dispose();
 	}
 
 	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {

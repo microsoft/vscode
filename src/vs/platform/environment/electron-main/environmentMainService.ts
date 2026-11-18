@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from 'vs/base/common/decorators';
-import { join } from 'vs/base/common/path';
-import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { memoize } from '../../../base/common/decorators.js';
+import { join } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { createStaticIPCHandle } from '../../../base/parts/ipc/node/ipc.net.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../common/environment.js';
+import { NativeEnvironmentService } from '../node/environmentService.js';
+import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentService, IEnvironmentMainService>(IEnvironmentService);
 
@@ -17,9 +18,6 @@ export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentServic
  * environments.
  */
 export interface IEnvironmentMainService extends INativeEnvironmentService {
-
-	// --- NLS cache path
-	readonly cachedLanguagesPath: string;
 
 	// --- backup paths
 	readonly backupHome: string;
@@ -34,12 +32,18 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- config
 	readonly disableUpdates: boolean;
+	readonly isPortable: boolean;
+
+	// TODO@deepak1556 temporary until a real fix lands upstream
+	readonly enableRDPDisplayTracking: boolean;
+
+	unsetSnapExportedVariables(): void;
+	restoreSnapExportedVariables(): void;
 }
 
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
 
-	@memoize
-	get cachedLanguagesPath(): string { return join(this.userDataPath, 'clp'); }
+	private _snapEnv: Record<string, string> = {};
 
 	@memoize
 	get backupHome(): string { return join(this.userDataPath, 'Backups'); }
@@ -54,14 +58,52 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get disableUpdates(): boolean { return !!this.args['disable-updates']; }
 
 	@memoize
-	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
+	get isPortable(): boolean { return !!process.env['VSCODE_PORTABLE']; }
 
 	@memoize
 	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }
+
+	@memoize
+	get enableRDPDisplayTracking(): boolean { return !!this.args['enable-rdp-display-tracking']; }
 
 	@memoize
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
 
 	@memoize
 	get useCodeCache(): boolean { return !!this.codeCachePath; }
+
+	unsetSnapExportedVariables() {
+		if (!isLinux) {
+			return;
+		}
+		for (const key in process.env) {
+			if (key.endsWith('_VSCODE_SNAP_ORIG')) {
+				const originalKey = key.slice(0, -17); // Remove the _VSCODE_SNAP_ORIG suffix
+				if (this._snapEnv[originalKey]) {
+					continue;
+				}
+				// Preserve the original value in case the snap env is re-entered
+				if (process.env[originalKey]) {
+					this._snapEnv[originalKey] = process.env[originalKey]!;
+				}
+				// Copy the original value from before entering the snap env if available,
+				// if not delete the env variable.
+				if (process.env[key]) {
+					process.env[originalKey] = process.env[key];
+				} else {
+					delete process.env[originalKey];
+				}
+			}
+		}
+	}
+
+	restoreSnapExportedVariables() {
+		if (!isLinux) {
+			return;
+		}
+		for (const key in this._snapEnv) {
+			process.env[key] = this._snapEnv[key];
+			delete this._snapEnv[key];
+		}
+	}
 }

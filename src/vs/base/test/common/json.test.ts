@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { createScanner, Node, parse, ParseError, ParseErrorCode, ParseOptions, parseTree, ScanError, SyntaxKind } from 'vs/base/common/json';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
+import assert from 'assert';
+import { createScanner, Node, parse, ParseError, ParseErrorCode, ParseOptions, parseTree, ScanError, SyntaxKind } from '../../common/json.js';
+import { getParseErrorMessage } from '../../common/jsonErrorMessages.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function assertKinds(text: string, ...kinds: SyntaxKind[]): void {
 	const scanner = createScanner(text);
@@ -48,6 +49,7 @@ function assertTree(input: string, expected: any, expectedErrors: number[] = [],
 		if (node.children) {
 			for (const child of node.children) {
 				assert.strictEqual(node, child.parent);
+				// eslint-disable-next-line local/code-no-any-casts
 				delete (<any>child).parent; // delete to avoid recursion in deep equal
 				checkParent(child);
 			}
@@ -59,6 +61,9 @@ function assertTree(input: string, expected: any, expectedErrors: number[] = [],
 }
 
 suite('JSON', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('tokens', () => {
 		assertKinds('{', SyntaxKind.OpenBraceToken);
 		assertKinds('}', SyntaxKind.CloseBraceToken);
@@ -188,6 +193,14 @@ suite('JSON', () => {
 		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} });
 		assertValidParse('{ "hello": { "again": { "inside": 5 }, "world": 1 }}', { hello: { again: { inside: 5 }, world: 1 } });
 		assertValidParse('{ "foo": /*hello*/true }', { foo: true });
+	});
+
+	test('parse: __proto__ own property is preserved without polluting prototype', () => {
+		const errors: ParseError[] = [];
+		const actual = parse('{ "__proto__": { "polluted": true } }', errors);
+
+		assert.deepStrictEqual({ hasOwn: Object.hasOwn(actual, '__proto__'), prototype: Object.getPrototypeOf(actual), errors },
+			{ hasOwn: true, prototype: Object.prototype, errors: [] });
 	});
 
 	test('parse: arrays', () => {

@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IgnoreFile } from '../../common/ignoreFile.js';
 
-function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string, shouldMatch: boolean, traverse: boolean) {
+function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string, shouldMatch: boolean, traverse: boolean, ignoreCase: boolean) {
 	return (prefix: string) => {
 		const isDir = input.endsWith('/');
 		const rawInput = isDir ? input.slice(0, input.length - 1) : input;
 
-		const matcher = new IgnoreFile(ignoreFile, prefix + ignoreFileLocation);
+		const matcher = new IgnoreFile(ignoreFile, prefix + ignoreFileLocation, undefined, ignoreCase);
 		if (traverse) {
 			const traverses = matcher.isPathIncludedInTraversal(prefix + rawInput, isDir);
 
@@ -33,35 +34,36 @@ function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string
 	};
 }
 
-function assertNoTraverses(ignoreFile: string, ignoreFileLocation: string, input: string) {
-	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, false, true);
+function assertNoTraverses(ignoreFile: string, ignoreFileLocation: string, input: string, ignoreCase = false) {
+	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, false, true, ignoreCase);
 
 	runWithPrefix('');
 	runWithPrefix('/someFolder');
 }
 
-function assertTraverses(ignoreFile: string, ignoreFileLocation: string, input: string) {
-	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, true, true);
+function assertTraverses(ignoreFile: string, ignoreFileLocation: string, input: string, ignoreCase = false) {
+	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, true, true, ignoreCase);
 
 	runWithPrefix('');
 	runWithPrefix('/someFolder');
 }
 
-function assertIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, input: string) {
-	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, true, false);
+function assertIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, input: string, ignoreCase = false) {
+	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, true, false, ignoreCase);
 
 	runWithPrefix('');
 	runWithPrefix('/someFolder');
 }
 
-function assertNoIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, input: string) {
-	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, false, false);
+function assertNoIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, input: string, ignoreCase = false) {
+	const runWithPrefix = runAssert(input, ignoreFile, ignoreFileLocation, false, false, ignoreCase);
 
 	runWithPrefix('');
 	runWithPrefix('/someFolder');
 }
 
 suite('Parsing .gitignore files', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('paths with trailing slashes do not match files', () => {
 		const i = 'node_modules/\n';
@@ -563,5 +565,57 @@ suite('Parsing .gitignore files', () => {
 			included: [],
 		});
 
+	});
+
+	test('child negation overrides parent ignore', () => {
+		// Simulates: global gitignore has `.myconfig`, project .gitignore has `!.myconfig/`
+		// The child negation should override the parent positive pattern.
+		const parentIgnore = new IgnoreFile('.myconfig\n', '/');
+		const childIgnore = new IgnoreFile('!.myconfig/\n', '/', parentIgnore);
+
+		// The directory should NOT be ignored (child negates parent)
+		assert(!childIgnore.isArbitraryPathIgnored('/.myconfig', true),
+			'child !.myconfig/ should override parent .myconfig for directories');
+
+		// Files inside the directory should also not be ignored
+		assert(!childIgnore.isArbitraryPathIgnored('/.myconfig/settings/test.md', false),
+			'files inside un-ignored directory should not be ignored');
+
+		// Parent should still ignore when child has no negation
+		const childNoNegation = new IgnoreFile('node_modules/\n', '/', parentIgnore);
+		assert(childNoNegation.isArbitraryPathIgnored('/.myconfig', true),
+			'without negation, parent ignore should still apply for directories');
+		assert(childNoNegation.isArbitraryPathIgnored('/.myconfig/settings/test.md', false),
+			'without negation, files under parent-ignored directory should still be ignored');
+	});
+
+	test('child negation overrides parent ignore for files', () => {
+		// Parent ignores all .log files, child un-ignores important.log
+		const parentIgnore = new IgnoreFile('*.log\n', '/');
+		const childIgnore = new IgnoreFile('!important.log\n', '/', parentIgnore);
+
+		assert(!childIgnore.isArbitraryPathIgnored('/important.log', false),
+			'child !important.log should override parent *.log');
+		assert(childIgnore.isArbitraryPathIgnored('/other.log', false),
+			'other .log files should still be ignored via parent');
+	});
+
+	test('case-insensitive ignore files', () => {
+		const f1 = 'node_modules/\n';
+		assertNoIgnoreMatch(f1, '/', '/Node_Modules/', false);
+		assertIgnoreMatch(f1, '/', '/Node_Modules/', true);
+
+		const f2 = 'NODE_MODULES/\n';
+		assertNoIgnoreMatch(f2, '/', '/Node_Modules/', false);
+		assertIgnoreMatch(f2, '/', '/Node_Modules/', true);
+
+		const f3 = `
+			temp/*
+			!temp/keep
+		`;
+		assertNoIgnoreMatch(f3, '/', '/TEMP/other', false);
+		assertIgnoreMatch(f3, '/', '/temp/KEEP', false);
+		assertIgnoreMatch(f3, '/', '/TEMP/other', true);
+		assertNoIgnoreMatch(f3, '/', '/TEMP/KEEP', true);
 	});
 });

@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { decodeKeybinding, createSimpleKeybinding, KeyCodeChord } from 'vs/base/common/keybindings';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpr, ContextKeyExpression, IContext } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingResolver, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
+import assert from 'assert';
+import { decodeKeybinding, createSimpleKeybinding, KeyCodeChord } from '../../../../base/common/keybindings.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { OS } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ContextKeyExpr, ContextKeyExpression, IContext } from '../../../contextkey/common/contextkey.js';
+import { KeybindingResolver, ResultKind } from '../../common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../common/usLayoutResolvedKeybinding.js';
+import { createUSLayoutResolvedKeybinding } from './keybindingsTestUtils.js';
 
 function createContext(ctx: any) {
 	return {
@@ -22,6 +23,8 @@ function createContext(ctx: any) {
 }
 
 suite('KeybindingResolver', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function kbItem(keybinding: number | number[], command: string, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean): ResolvedKeybindingItem {
 		const resolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS);
@@ -257,6 +260,56 @@ suite('KeybindingResolver', () => {
 			assert.deepStrictEqual(actual, []);
 		});
 
+		test('issue #293802: removal still matches when default when clause becomes more specific', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), ContextKeyExpr.not('withinEditSessionDiff')), true),
+			];
+			const overrides = [
+				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.has('inChatInput'), false),
+			];
+			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+			assert.deepStrictEqual(actual, []);
+		});
+
+		test('removal with more specific when clause does not match broader default', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inChatInput'), true),
+			];
+			const overrides = [
+				kbItem(KeyCode.KeyA, '-command1', null, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), ContextKeyExpr.not('withinEditSessionDiff')), false),
+			];
+			const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+			assert.deepStrictEqual(actual, [
+				kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.has('inChatInput'), true),
+			]);
+		});
+
+		test('issue #338834: removing the chat steer or queue Enter keybinding from the Keyboard Shortcuts editor works', () => {
+			// The default `when` clauses as chatQueueActions.ts builds them, merged with the action precondition
+			const editingQueue = ContextKeyExpr.equals('chatEditingSentRequest', 'q');
+			const editingSteer = ContextKeyExpr.equals('chatEditingSentRequest', 'st');
+			const editingQueueOrSteer = ContextKeyExpr.or(editingQueue, editingSteer)!;
+			const queuingActionsPresent = ContextKeyExpr.and(
+				ContextKeyExpr.not('chatTranscriptProgressActive'),
+				ContextKeyExpr.or(ContextKeyExpr.has('chatSessionRequestInProgress'), editingQueueOrSteer),
+				ContextKeyExpr.notEquals('chatEditingSentRequest', 's'),
+			);
+			const steerIsDefault = ContextKeyExpr.equals('config.chat.requestQueuing.defaultAction', 'steer');
+			const effectiveDefaultIsQueue = ContextKeyExpr.or(ContextKeyExpr.and(steerIsDefault.negate(), editingQueueOrSteer.negate()), editingQueue);
+			const effectiveDefaultIsSteer = ContextKeyExpr.or(ContextKeyExpr.and(steerIsDefault, editingQueueOrSteer.negate()), editingSteer);
+			const precondition = ContextKeyExpr.and(ContextKeyExpr.has('chatInputHasText'), ContextKeyExpr.not('chatTranscriptProgressActive'), ContextKeyExpr.not('chatInputBlocked'));
+
+			const defaults = [
+				kbItem(KeyCode.Enter, 'workbench.action.chat.steerWithMessage', null, ContextKeyExpr.and(precondition, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), queuingActionsPresent, effectiveDefaultIsSteer)), true),
+				kbItem(KeyCode.Enter, 'workbench.action.chat.queueMessage', null, ContextKeyExpr.and(precondition, ContextKeyExpr.and(ContextKeyExpr.has('inChatInput'), queuingActionsPresent, effectiveDefaultIsQueue)), true),
+			];
+			// "Remove Keybinding" writes the serialized default `when`, which is parsed when keybindings.json is read
+			const overrides = defaults.map(kb => kbItem(KeyCode.Enter, `-${kb.command}`, null, ContextKeyExpr.deserialize(kb.when!.serialize()), false));
+
+			const actual = defaults.map((kb, i) => KeybindingResolver.handleRemovals([kb, overrides[i]]).map(kb => kb.command));
+			assert.deepStrictEqual(actual, [[], []]);
+		});
+
 		test('issue #160604: Remove keybindings with when clause does not work', () => {
 			const defaults = [
 				kbItem(KeyCode.KeyA, 'command1', null, undefined, true),
@@ -310,6 +363,71 @@ suite('KeybindingResolver', () => {
 			assertIsNotIncluded('key1 || key2', 'key2');
 			assertIsNotIncluded('', 'key2');
 			assertIsNotIncluded(null, 'key2');
+		});
+	});
+
+	suite('keybinding aliases', () => {
+
+		const alias = { command: 'sessions', source: 'toggleChat', when: ContextKeyExpr.has('agentsWindow') };
+		const toggleChatWhen = ContextKeyExpr.has('chatViewVisible');
+
+		function resolveCommands(defaults: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[], keybindings: number[]) {
+			const aliased = KeybindingResolver.applyAliases(defaults, overrides, [alias]);
+			const resolver = new KeybindingResolver(aliased.defaults, aliased.overrides, () => { });
+			const resolve = (context: object) => keybindings.map(keybinding => {
+				const result = resolver.resolve(createContext(context), [], getDispatchStr(createSimpleKeybinding(keybinding, OS)));
+				return result.kind === ResultKind.KbFound ? result.commandId : null;
+			});
+			return { agentsWindow: resolve({ agentsWindow: true }), editorWindow: resolve({ chatViewVisible: true }) };
+		}
+
+		test('binds the alias to the keybindings of its source, including the user\'s, where the alias applies, outranking the source', () => {
+			const defaults = [kbItem(KeyCode.KeyA, 'toggleChat', null, toggleChatWhen, true)];
+			const overrides = [kbItem(KeyCode.KeyB, 'toggleChat', null, undefined, false)];
+
+			assert.deepStrictEqual(resolveCommands(defaults, overrides, [KeyCode.KeyA, KeyCode.KeyB]), {
+				agentsWindow: ['sessions', 'sessions'],
+				editorWindow: ['toggleChat', 'toggleChat'],
+			});
+		});
+
+		test('removes the keybindings removed from its source, and lets the user remove the keybindings it inherits', () => {
+			const defaults = [
+				kbItem(KeyCode.KeyA, 'openChat', null, undefined, true),
+				kbItem(KeyCode.KeyA, 'sessions', null, alias.when, true),
+			];
+			const overrides = [
+				kbItem(KeyCode.KeyA, '-toggleChat', null, toggleChatWhen, false),
+				kbItem(KeyCode.KeyB, 'toggleChat', null, toggleChatWhen, false),
+				kbItem(KeyCode.KeyC, 'toggleChat', null, toggleChatWhen, false),
+				kbItem(KeyCode.KeyC, '-sessions', null, undefined, false),
+			];
+
+			assert.deepStrictEqual(resolveCommands(defaults, overrides, [KeyCode.KeyA, KeyCode.KeyB, KeyCode.KeyC]), {
+				agentsWindow: ['openChat', 'sessions', null],
+				editorWindow: ['openChat', 'toggleChat', 'toggleChat'],
+			});
+		});
+
+		test('keeps the keybindings it inherits from the user when the removed keybindings of its source share their key', () => {
+			const defaults = [kbItem(KeyCode.KeyA, 'sessions', null, alias.when, true)];
+			// Changing only the when clause in the Keyboard Shortcuts editor removes the default at the same key.
+			const sameKey = [
+				kbItem(KeyCode.KeyA, 'toggleChat', null, ContextKeyExpr.has('other'), false),
+				kbItem(KeyCode.KeyA, '-toggleChat', null, toggleChatWhen, false),
+			];
+			const anyKey = [
+				kbItem(KeyCode.KeyB, 'toggleChat', null, undefined, false),
+				new ResolvedKeybindingItem(undefined, '-toggleChat', null, undefined, false, null, false),
+			];
+
+			assert.deepStrictEqual({
+				sameKey: resolveCommands(defaults, sameKey, [KeyCode.KeyA]).agentsWindow,
+				anyKey: resolveCommands(defaults, anyKey, [KeyCode.KeyA, KeyCode.KeyB]).agentsWindow,
+			}, {
+				sameKey: ['sessions'],
+				anyKey: [null, 'sessions'],
+			});
 		});
 	});
 

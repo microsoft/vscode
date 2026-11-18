@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { LinkedEditingContribution } from 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
-import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { DeleteWordLeft } from 'vs/editor/contrib/wordOperations/browser/wordOperations';
-import { DeleteAllLeftAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
+import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
+import { IPosition, Position } from '../../../../common/core/position.js';
+import { IRange, Range } from '../../../../common/core/range.js';
+import { USUAL_WORD_SEPARATORS } from '../../../../common/core/wordHelper.js';
+import { Handler } from '../../../../common/editorCommon.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { ITextModel } from '../../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { DeleteAllLeftAction } from '../../../linesOperations/browser/linesOperations.js';
+import { LinkedEditingContribution } from '../../browser/linkedEditing.js';
+import { DeleteWordLeft } from '../../../wordOperations/browser/wordOperations.js';
+import { ITestCodeEditor, createCodeEditorServices, instantiateTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { instantiateTextModel } from '../../../../test/common/testTextModel.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -29,6 +31,7 @@ const timeout = 30;
 interface TestEditor {
 	setPosition(pos: Position): Promise<any>;
 	setSelection(sel: IRange): Promise<any>;
+	executeEdits(edits: ISingleEditOperation[]): Promise<unknown>;
 	trigger(source: string | null | undefined, handlerId: string, payload: any): Promise<any>;
 	undo(): void;
 	redo(): void;
@@ -57,6 +60,8 @@ suite('linked editing', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function createMockEditor(text: string | string[]): ITestCodeEditor {
 		const model = disposables.add(instantiateTextModel(instantiationService, typeof text === 'string' ? text : text.join('\n'), languageId, undefined, mockFile));
 		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
@@ -66,7 +71,7 @@ suite('linked editing', () => {
 	function testCase(
 		name: string,
 		initialState: { text: string | string[]; responseWordPattern?: RegExp },
-		operations: (editor: TestEditor) => Promise<void>,
+		operations: (editor: TestEditor, contribution: LinkedEditingContribution) => Promise<void>,
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
@@ -100,11 +105,15 @@ suite('linked editing', () => {
 						editor.setSelection(sel);
 						return linkedEditingContribution.currentUpdateTriggerPromise;
 					},
+					executeEdits(edits: ISingleEditOperation[]) {
+						editor.executeEdits('test', edits);
+						return linkedEditingContribution.currentUpdateTriggerPromise;
+					},
 					trigger(source: string | null | undefined, handlerId: string, payload: any) {
 						if (handlerId === Handler.Type || handlerId === Handler.Paste) {
 							editor.trigger(source, handlerId, payload);
 						} else if (handlerId === 'deleteLeft') {
-							CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, payload);
+							editor.runCommand(CoreEditingCommands.DeleteLeft, payload);
 						} else if (handlerId === 'deleteWordLeft') {
 							instantiationService.invokeFunction((accessor) => (new DeleteWordLeft()).runEditorCommand(accessor, editor, payload));
 						} else if (handlerId === 'deleteAllLeft') {
@@ -115,14 +124,14 @@ suite('linked editing', () => {
 						return linkedEditingContribution.currentSyncTriggerPromise;
 					},
 					undo() {
-						CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+						editor.runCommand(CoreEditingCommands.Undo, null);
 					},
 					redo() {
-						CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
+						editor.runCommand(CoreEditingCommands.Redo, null);
 					}
 				};
 
-				await operations(testEditor);
+				await operations(testEditor, linkedEditingContribution);
 
 				return new Promise<void>((resolve) => {
 					setTimeout(() => {
@@ -221,6 +230,24 @@ suite('linked editing', () => {
 		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
 	}, '<iiooo></iiooo>');
 
+	testCase('Quick inserts with a range update before synchronization', state, async (editor, contribution) => {
+		await editor.setPosition(new Position(1, 2));
+		const firstSync = editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		const secondSync = editor.trigger('keyboard', Handler.Type, { text: 'j' });
+		await contribution.updateRanges();
+		await Promise.all([firstSync, secondSync]);
+		await editor.trigger('keyboard', Handler.Type, { text: 'k' });
+	}, '<ijkooo></ijkooo>');
+
+	testCase('Quick inserts in closing tag with a range update before synchronization', state, async (editor, contribution) => {
+		await editor.setPosition(new Position(1, 8));
+		const firstSync = editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		const secondSync = editor.trigger('keyboard', Handler.Type, { text: 'j' });
+		await contribution.updateRanges();
+		await Promise.all([firstSync, secondSync]);
+		await editor.trigger('keyboard', Handler.Type, { text: 'k' });
+	}, '<ijkooo></ijkooo>');
+
 	testCase('Insert - move - insert', state, async (editor) => {
 		const pos = new Position(1, 2);
 		await editor.setPosition(pos);
@@ -236,6 +263,12 @@ suite('linked editing', () => {
 		await editor.setPosition(new Position(1, 7));
 		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
 	}, '<iooo>i</iooo>');
+
+	testCase('Edits outside the reference range refresh linked editing', state, async (editor) => {
+		await editor.setPosition(new Position(1, 2));
+		await editor.executeEdits([{ range: new Range(1, 8, 1, 11), text: 'other' }]);
+		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+	}, '<iooo></other>');
 
 	/**
 	 * Selection insert
@@ -372,6 +405,15 @@ suite('linked editing', () => {
 		await editor.setPosition(pos);
 		await editor.trigger('keyboard', 'deleteLeft', {});
 	}, '<oo></oo>');
+
+	testCase('Quick deletes with a range update before synchronization', state, async (editor, contribution) => {
+		await editor.setPosition(new Position(1, 5));
+		const firstSync = editor.trigger('keyboard', 'deleteLeft', {});
+		const secondSync = editor.trigger('keyboard', 'deleteLeft', {});
+		await contribution.updateRanges();
+		await Promise.all([firstSync, secondSync]);
+		await editor.trigger('keyboard', 'deleteLeft', {});
+	}, '<></>');
 
 	testCase('Delete - left char then undo', state, async (editor) => {
 		const pos = new Position(1, 5);

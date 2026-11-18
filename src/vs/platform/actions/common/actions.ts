@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Event, MicrotaskEmitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IAction, SubmenuAction } from '../../../base/common/actions.js';
+import { Event, MicrotaskEmitter } from '../../../base/common/event.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from '../../action/common/action.js';
+import { Categories } from '../../action/common/actionCommonCategories.js';
+import { CommandsRegistry, ICommandService } from '../../commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { createDecorator, ServicesAccessor } from '../../instantiation/common/instantiation.js';
+import { IKeybindingRule, KeybindingsRegistry } from '../../keybinding/common/keybindingsRegistry.js';
 
 export interface IMenuItem {
 	command: ICommandAction;
+	/** Alternative command for this menu item. */
 	alt?: ICommandAction;
+	/**
+	 * Menu item is hidden if this expression returns false.
+	 */
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
@@ -29,18 +33,54 @@ export interface ISubmenuItem {
 	submenu: MenuId;
 	icon?: Icon;
 	when?: ContextKeyExpression;
+	/** Submenu item is checked if this expression returns true. */
+	toggled?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
 	isSelection?: boolean;
-	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
+	/**
+	 * A split button shows the first action
+	 * as primary action and the rest of the
+	 * actions in a dropdown.
+	 *
+	 * Use `togglePrimaryAction` to promote
+	 * the action that was last used to be
+	 * the primary action and remember that
+	 * choice.
+	 */
+	isSplitButton?: boolean | {
+		/**
+		 * Will update the primary action based
+		 * on the action that was last run.
+		 */
+		togglePrimaryAction: true;
+		/**
+		 * Restricts which submenu commands can become the primary action.
+		 * Running an eligible command outside the submenu also updates the primary action.
+		 */
+		primaryActionIds?: readonly string[];
+	};
 }
 
-export function isIMenuItem(item: any): item is IMenuItem {
+export function isIMenuItem(item: unknown): item is IMenuItem {
 	return (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: any): item is ISubmenuItem {
+export function isISubmenuItem(item: unknown): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
+}
+
+/**
+ * Describes a menu group: the items whose `group` is {@link IMenuGroup.group}. The menu's owner
+ * describes each group once with {@link IMenuRegistry.appendMenuGroup}; contributors only add items.
+ */
+export interface IMenuGroup {
+	readonly group: string;
+	/**
+	 * A non-interactive header shown above the group's items when the menu is shown as a context
+	 * menu or dropdown, including above the menu's first group. Toolbars do not show it.
+	 */
+	readonly title: string;
 }
 
 export class MenuId {
@@ -52,9 +92,15 @@ export class MenuId {
 	static readonly DebugCallStackContext = new MenuId('DebugCallStackContext');
 	static readonly DebugConsoleContext = new MenuId('DebugConsoleContext');
 	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
+	static readonly NotebookVariablesContext = new MenuId('NotebookVariablesContext');
+	static readonly DebugHoverContext = new MenuId('DebugHoverContext');
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
+	static readonly DebugDisassemblyContext = new MenuId('DebugDisassemblyContext');
+	static readonly DebugCallStackToolbar = new MenuId('DebugCallStackToolbar');
+	static readonly DebugCreateConfiguration = new MenuId('DebugCreateConfiguration');
+	static readonly DebugScopesContext = new MenuId('DebugScopesContext');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContent = new MenuId('EditorContent');
@@ -63,17 +109,32 @@ export class MenuId {
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
 	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly EditorTitleLayout = new MenuId('EditorTitleLayout');
+	static readonly ModalEditorTitle = new MenuId('ModalEditorTitle');
+	static readonly ModalEditorTitleContext = new MenuId('ModalEditorTitleContext');
+	static readonly ModalEditorEditorTitle = new MenuId('ModalEditorEditorTitle');
+	static readonly CompactWindowEditorTitle = new MenuId('CompactWindowEditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
 	static readonly EditorTitleContextShare = new MenuId('EditorTitleContextShare');
 	static readonly EmptyEditorGroup = new MenuId('EmptyEditorGroup');
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
+	static readonly EditorGroupWatermarkToolbar = new MenuId('EditorGroupWatermarkToolbar');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
+	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
+	static readonly EditorTabsBarAddTab = new MenuId('EditorTabsBarAddTab');
+	static readonly EditorTabsBarShowTabsZenModeSubmenu = new MenuId('EditorTabsBarShowTabsZenModeSubmenu');
+	static readonly EditorActionsPositionSubmenu = new MenuId('EditorActionsPositionSubmenu');
+	static readonly DiffEditorViewSubmenu = new MenuId('DiffEditorViewSubmenu');
+	static readonly EditorRenderWhitespaceSubmenu = new MenuId('EditorRenderWhitespaceSubmenu');
+	static readonly EditorSplitMoveSubmenu = new MenuId('EditorSplitMoveSubmenu');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
+	static readonly ExtensionEditorContextMenu = new MenuId('ExtensionEditorContextMenu');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
 	static readonly CommandCenter = new MenuId('CommandCenter');
+	static readonly CommandCenterCenter = new MenuId('CommandCenterCenter');
 	static readonly LayoutControlMenuSubmenu = new MenuId('LayoutControlMenuSubmenu');
 	static readonly LayoutControlMenu = new MenuId('LayoutControlMenu');
 	static readonly MenubarMainMenu = new MenuId('MenubarMainMenu');
@@ -88,6 +149,8 @@ export class MenuId {
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
 	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
 	static readonly PanelPositionMenu = new MenuId('PanelPositionMenu');
+	static readonly ActivityBarPositionMenu = new MenuId('ActivityBarPositionMenu');
+	static readonly NotificationsCenterPositionMenu = new MenuId('NotificationsCenterPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
@@ -95,15 +158,28 @@ export class MenuId {
 	static readonly MenubarSwitchEditorMenu = new MenuId('MenubarSwitchEditorMenu');
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
+	static readonly MenubarTerminalSuggestStatusMenu = new MenuId('MenubarTerminalSuggestStatusMenu');
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
 	static readonly MenubarHomeMenu = new MenuId('MenubarHomeMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
+	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
+	static readonly SCMInputBox = new MenuId('SCMInputBox');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
+	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');
 	static readonly SCMResourceFolderContext = new MenuId('SCMResourceFolderContext');
 	static readonly SCMResourceGroupContext = new MenuId('SCMResourceGroupContext');
 	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
+	static readonly SCMSourceControlInline = new MenuId('SCMSourceControlInline');
+	static readonly SCMSourceControlTitle = new MenuId('SCMSourceControlTitle');
+	static readonly SCMHistoryTitle = new MenuId('SCMHistoryTitle');
+	static readonly SCMHistoryItemContext = new MenuId('SCMHistoryItemContext');
+	static readonly SCMHistoryItemChangeContext = new MenuId('SCMHistoryItemChangeContext');
+	static readonly SCMHistoryItemRefContext = new MenuId('SCMHistoryItemRefContext');
+	static readonly SCMArtifactGroupContext = new MenuId('SCMArtifactGroupContext');
+	static readonly SCMArtifactContext = new MenuId('SCMArtifactContext');
+	static readonly SCMQuickDiffDecorations = new MenuId('SCMQuickDiffDecorations');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly SearchActionMenu = new MenuId('SearchActionContext');
@@ -112,9 +188,17 @@ export class MenuId {
 	static readonly StickyScrollContext = new MenuId('StickyScrollContext');
 	static readonly TestItem = new MenuId('TestItem');
 	static readonly TestItemGutter = new MenuId('TestItemGutter');
+	static readonly TestProfilesContext = new MenuId('TestProfilesContext');
+	static readonly TestMessageContext = new MenuId('TestMessageContext');
+	static readonly TestMessageContent = new MenuId('TestMessageContent');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
+	static readonly TestCallStack = new MenuId('TestCallStack');
+	static readonly TestCoverageFilterItem = new MenuId('TestCoverageFilterItem');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
+	static readonly TitleBar = new MenuId('TitleBar');
+	static readonly TitleBarAdjacentCenter = new MenuId('TitleBarAdjacentCenter');
+	static readonly TitleBarUpdate = new MenuId('TitleBarUpdate');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TitleBarTitleContext = new MenuId('TitleBarTitleContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
@@ -137,23 +221,33 @@ export class MenuId {
 	static readonly CommentThreadCommentContext = new MenuId('CommentThreadCommentContext');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly CommentsViewThreadActions = new MenuId('CommentsViewThreadActions');
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
 	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
 	static readonly InteractiveCellDelete = new MenuId('InteractiveCellDelete');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
+	static readonly InteractiveInputConfig = new MenuId('InteractiveInputConfig');
+	static readonly ReplInputExecute = new MenuId('ReplInputExecute');
+	static readonly IssueReporter = new MenuId('IssueReporter');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
+	static readonly NotebookToolbarContext = new MenuId('NotebookToolbarContext');
+	static readonly NotebookStickyScrollContext = new MenuId('NotebookStickyScrollContext');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellDelete = new MenuId('NotebookCellDelete');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
 	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
 	static readonly NotebookCellExecute = new MenuId('NotebookCellExecute');
+	static readonly NotebookCellExecuteGoTo = new MenuId('NotebookCellExecuteGoTo');
 	static readonly NotebookCellExecutePrimary = new MenuId('NotebookCellExecutePrimary');
 	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
+	static readonly NotebookDiffDocumentMetadata = new MenuId('NotebookDiffDocumentMetadata');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
+	static readonly NotebookOutlineFilter = new MenuId('NotebookOutlineFilter');
+	static readonly NotebookOutlineActionMenu = new MenuId('NotebookOutlineActionMenu');
 	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
 	static readonly NotebookKernelSource = new MenuId('NotebookKernelSource');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
@@ -163,6 +257,7 @@ export class MenuId {
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly TimelineFilterSubMenu = new MenuId('TimelineFilterSubMenu');
 	static readonly AccountsContext = new MenuId('AccountsContext');
+	static readonly SidebarTitle = new MenuId('SidebarTitle');
 	static readonly PanelTitle = new MenuId('PanelTitle');
 	static readonly AuxiliaryBarTitle = new MenuId('AuxiliaryBarTitle');
 	static readonly TerminalInstanceContext = new MenuId('TerminalInstanceContext');
@@ -170,19 +265,98 @@ export class MenuId {
 	static readonly TerminalNewDropdownContext = new MenuId('TerminalNewDropdownContext');
 	static readonly TerminalTabContext = new MenuId('TerminalTabContext');
 	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
-	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
+	static readonly TerminalStickyScrollContext = new MenuId('TerminalStickyScrollContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
+	static readonly InlineEditsActions = new MenuId('InlineEditsActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
 	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
-	static readonly InteractiveSessionContext = new MenuId('InteractiveSessionContext');
-	static readonly InteractiveSessionCodeBlock = new MenuId('InteractiveSessionCodeblock');
-	static readonly InteractiveSessionTitle = new MenuId('InteractiveSessionTitle');
-	static readonly InteractiveSessionExecute = new MenuId('InteractiveSessionExecute');
+	static readonly InlineEditToolbar = new MenuId('InlineEditToolbar');
+	static readonly ChatContext = new MenuId('ChatContext');
+	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
+	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
+	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
+	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
+	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
+	static readonly ChatSubagentContent = new MenuId('ChatSubagentContent');
+	static readonly ChatExecute = new MenuId('ChatExecute');
+	static readonly ChatExecuteQueue = new MenuId('ChatExecuteQueue');
+	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
+	static readonly ChatInput = new MenuId('ChatInput');
+	static readonly ChatScheduledExecute = new MenuId('ChatScheduledExecute');
+	static readonly ChatInputSecondary = new MenuId('ChatInputSecondary');
+	static readonly ChatInputStatus = new MenuId('ChatInputStatus');
+	static readonly ChatInputSide = new MenuId('ChatInputSide');
+	static readonly AutomationsDialogInput = new MenuId('AutomationsDialogInput');
+	static readonly ChatModePicker = new MenuId('ChatModePicker');
+	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
+	static readonly ChatEditingSessionChangesToolbar = new MenuId('ChatEditingSessionChangesToolbar');
+	static readonly ChatEditingSessionTitleToolbar = new MenuId('ChatEditingSessionTitleToolbar');
+	static readonly ChatEditingSessionChangesVersionsSubmenu = new MenuId('ChatEditingSessionChangesVersionsSubmenu');
+	static readonly ChatEditingSessionChangesFileHeaderToolbar = new MenuId('ChatEditingSessionChangesFileHeaderToolbar');
+	static readonly ChatEditingSessionChangesFileHeaderRightToolbar = new MenuId('ChatEditingSessionChangesFileHeaderRightToolbar');
+	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
+	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
+	static readonly ChatEditingDeletedNotebookCell = new MenuId('ChatEditingDeletedNotebookCell');
+	static readonly ChatInputAttachmentToolbar = new MenuId('ChatInputAttachmentToolbar');
+	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
+	static readonly ChatInputResourceAttachmentContext = new MenuId('ChatInputResourceAttachmentContext');
+	static readonly ChatImageContext = new MenuId('ChatImageContext');
+	static readonly ChatInputSymbolAttachmentContext = new MenuId('ChatInputSymbolAttachmentContext');
+	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
+	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
+	static readonly ChatMessageCheckpoint: MenuId = new MenuId('ChatMessageCheckpoint');
+	static readonly ChatMessageRestoreCheckpoint: MenuId = new MenuId('ChatMessageRestoreCheckpoint');
+	static readonly ChatNewMenu = new MenuId('ChatNewMenu');
+	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
+	static readonly ChatTitleBarMenu = new MenuId('ChatTitleBarMenu');
+	static readonly ChatViewMode = new MenuId('ChatViewMode');
+	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
+	static readonly ChatTipContext = new MenuId('ChatTipContext');
+	static readonly ChatTipToolbar = new MenuId('ChatTipToolbar');
+	static readonly ChatToolOutputResourceToolbar = new MenuId('ChatToolOutputResourceToolbar');
+	static readonly ChatTextEditorMenu = new MenuId('ChatTextEditorMenu');
+	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
+	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
+	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
+	static readonly ChatEditorInlineMenu = new MenuId('ChatEditorInlineGutter');
+	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
+	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');
+	static readonly InlineChatEditorAffordance = new MenuId('InlineChatEditorAffordance');
+
+	static readonly AccessibleView = new MenuId('AccessibleView');
+	static readonly MultiDiffEditorContent = new MenuId('MultiDiffEditorContent');
+	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
+	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
+	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
+	static readonly BrowserNavigationToolbar = new MenuId('BrowserNavigationToolbar');
+	static readonly BrowserActionsToolbar = new MenuId('BrowserActionsToolbar');
+	static readonly BrowserChatActionsMenu = new MenuId('BrowserChatActionsMenu');
+	static readonly BrowserEmulationToolbar = new MenuId('BrowserEmulationToolbar');
+	static readonly AgentSessionsViewerFilterSubMenu = new MenuId('AgentSessionsViewerFilterSubMenu');
+	static readonly AgentSessionsExternalFilterSubMenu = new MenuId('AgentSessionsExternalFilterSubMenu');
+	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
+	static readonly AgentSessionSectionContext = new MenuId('AgentSessionSectionContext');
+	static readonly AgentSessionsCreateSubMenu = new MenuId('AgentSessionsCreateSubMenu');
+	static readonly AgentSessionsToolbar = new MenuId('AgentSessionsToolbar');
+	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
+	static readonly AgentSessionSectionToolbar = new MenuId('AgentSessionSectionToolbar');
+	static readonly SessionItemContextMenu = new MenuId('SessionItemContextMenu');
+	static readonly SessionHeaderContext = new MenuId('SessionsSessionHeaderContext');
+	static readonly AgentsTitleBarControlMenu = new MenuId('AgentsTitleBarControlMenu');
+	/** Buttons that extensions contribute to the title bar of the Agents window, left of its built-in buttons. */
+	static readonly AgentsTitleBar = new MenuId('AgentsTitleBar');
+	static readonly AgentsChangesToolbar = new MenuId('AgentsChangesToolbar');
+	static readonly AgentsChangesPrimaryActionSubMenu = new MenuId('AgentsChangesPrimaryActionSubMenu');
+	static readonly AgentsChangeInlineToolbar = new MenuId('AgentsChangeInlineToolbar');
+	static readonly ChatViewSessionTitleNavigationToolbar = new MenuId('ChatViewSessionTitleNavigationToolbar');
+	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
+	static readonly ChatContextUsageActions = new MenuId('ChatContextUsageActions');
+	static readonly MarkerHoverStatusBar = new MenuId('MarkerHoverParticipant.StatusBar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -208,9 +382,17 @@ export class MenuId {
 }
 
 export interface IMenuActionOptions {
-	arg?: any;
+	arg?: unknown;
+	args?: unknown[];
 	shouldForwardArgs?: boolean;
 	renderShortTitle?: boolean;
+}
+
+export interface IMenuItemActionOptions extends IMenuActionOptions {
+	/**
+	 * The {@link IMenuGroup.title title} of the menu group the action belongs to.
+	 */
+	readonly groupTitle?: string;
 }
 
 export interface IMenuChangeEvent {
@@ -222,7 +404,17 @@ export interface IMenuChangeEvent {
 
 export interface IMenu extends IDisposable {
 	readonly onDidChange: Event<IMenuChangeEvent>;
+	/**
+	 * Gets the visible actions grouped by menu group. The actions of a group with a
+	 * {@link IMenuGroup.title title} carry it in their `groupTitle`, which context menus
+	 * show above the group (see {@link getMenuActionGroupTitle}).
+	 */
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
+}
+
+export interface IMenuData {
+	contexts: ReadonlySet<string>;
+	actions: [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -237,12 +429,24 @@ export interface IMenuService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Consider using getMenuActions if you don't need to listen to events.
+	 *
 	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
 	 * have changed (placement, enablement, checked-state). By default it does not send events for
 	 * submenu entries. That is more expensive and must be explicitly enabled with the
 	 * `emitEventsForSubmenuChanges` flag.
 	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+
+	/**
+	 * Gets the actions for the current context without creating a menu.
+	 */
+	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
+
+	/**
+	 * Gets the names of the contexts that this menu listens on.
+	 */
+	getMenuContexts(id: MenuId): ReadonlySet<string>;
 
 	/**
 	 * Reset **all** menu item hidden states.
@@ -304,12 +508,20 @@ export interface IMenuRegistry {
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
+
+	/**
+	 * Describes a group of the menu, such as its title. The menu's owner describes each group once.
+	 * When a group is described more than once, its latest description applies until disposed.
+	 */
+	appendMenuGroup(menu: MenuId, group: IMenuGroup): IDisposable;
+	getMenuGroup(menu: MenuId, group: string): IMenuGroup | undefined;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
 	private readonly _menuItems = new Map<MenuId, LinkedList<IMenuItem | ISubmenuItem>>();
+	private readonly _menuGroups = new Map<MenuId, LinkedList<IMenuGroup>>();
 	private readonly _onDidChangeMenu = new MicrotaskEmitter<IMenuRegistryChangeEvent>({
 		merge: MenuRegistryChangeEvent.merge
 	});
@@ -320,11 +532,11 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		this._commands.set(command.id, command);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			if (this._commands.delete(command.id)) {
 				this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(MenuId.CommandPalette));
 			}
-		});
+		}));
 	}
 
 	getCommand(id: string): ICommandAction | undefined {
@@ -345,7 +557,10 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		}
 		const rm = list.push(item);
 		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
-		return toDisposable(rm);
+		return markAsSingleton(toDisposable(() => {
+			rm();
+			this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
+		}));
 	}
 
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable {
@@ -369,6 +584,30 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 			this._appendImplicitItems(result);
 		}
 		return result;
+	}
+
+	appendMenuGroup(id: MenuId, group: IMenuGroup): IDisposable {
+		let list = this._menuGroups.get(id);
+		if (!list) {
+			list = new LinkedList();
+			this._menuGroups.set(id, list);
+		}
+		// Latest first, so that it applies until disposed
+		const rm = list.unshift(group);
+		this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
+		return markAsSingleton(toDisposable(() => {
+			rm();
+			this._onDidChangeMenu.fire(MenuRegistryChangeEvent.for(id));
+		}));
+	}
+
+	getMenuGroup(id: MenuId, group: string): IMenuGroup | undefined {
+		for (const candidate of this._menuGroups.get(id) ?? []) {
+			if (candidate.group === group) {
+				return candidate;
+			}
+		}
+		return undefined;
 	}
 
 	private _appendImplicitItems(result: Array<IMenuItem | ISubmenuItem>) {
@@ -395,14 +634,19 @@ export class SubmenuItemAction extends SubmenuAction {
 	constructor(
 		readonly item: ISubmenuItem,
 		readonly hideActions: IMenuItemHide | undefined,
-		actions: IAction[],
+		actions: readonly IAction[],
+		checked?: boolean,
+		/** The {@link IMenuGroup.title title} of the menu group the submenu belongs to. */
+		readonly groupTitle?: string,
 	) {
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu');
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu', checked);
 	}
 }
 
 export interface IMenuItemHide {
 	readonly isHidden: boolean;
+	/** Whether the visibility differs from the menu item's default (e.g. a hidden-by-default item that is shown). */
+	readonly isModifiedFromDefault: boolean;
 	readonly hide: IAction;
 	readonly toggle: IAction;
 }
@@ -419,6 +663,8 @@ export class MenuItemAction implements IAction {
 
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction | undefined;
+	/** The {@link IMenuGroup.title title} of the menu group the action belongs to. */
+	readonly groupTitle: string | undefined;
 
 	private readonly _options: IMenuActionOptions | undefined;
 
@@ -432,8 +678,9 @@ export class MenuItemAction implements IAction {
 	constructor(
 		item: ICommandAction,
 		alt: ICommandAction | undefined,
-		options: IMenuActionOptions | undefined,
+		options: IMenuItemActionOptions | undefined,
 		readonly hideActions: IMenuItemHide | undefined,
+		readonly menuKeybinding: IAction | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private _commandService: ICommandService
 	) {
@@ -458,7 +705,7 @@ export class MenuItemAction implements IAction {
 				icon = toggled.icon;
 			}
 
-			if (toggled.title) {
+			if (this.checked && toggled.title) {
 				this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
 			}
 		}
@@ -468,16 +715,19 @@ export class MenuItemAction implements IAction {
 		}
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, undefined, contextKeyService, _commandService) : undefined;
+		this.groupTitle = options?.groupTitle;
 		this._options = options;
 		this.class = icon && ThemeIcon.asClassName(icon);
 
 	}
 
-	run(...args: any[]): Promise<void> {
-		let runArgs: any[] = [];
+	run(...args: unknown[]): Promise<void> {
+		let runArgs: unknown[] = [];
 
-		if (this._options?.arg) {
+		if (this._options?.args) {
+			runArgs = [...runArgs, ...this._options.args];
+		} else if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];
 		}
 
@@ -487,6 +737,14 @@ export class MenuItemAction implements IAction {
 
 		return this._commandService.executeCommand(this.id, ...runArgs);
 	}
+}
+
+/**
+ * Returns the {@link IMenuGroup.title title} of the menu group a menu action belongs to.
+ * Menus pass it as `getGroupTitle` to show a header above each group with a title.
+ */
+export function getMenuActionGroupTitle(action: IAction): string | undefined {
+	return action instanceof MenuItemAction || action instanceof SubmenuItemAction ? action.groupTitle : undefined;
 }
 
 //#region --- IAction2
@@ -503,12 +761,6 @@ interface IAction2CommonOptions extends ICommandAction {
 	 * One keybinding.
 	 */
 	keybinding?: OneOrN<Omit<IKeybindingRule, 'id'>>;
-
-	/**
-	 * Metadata about this command, used for API commands or when
-	 * showing keybindings that have no other UX.
-	 */
-	description?: ICommandHandlerDescription;
 }
 
 interface IBaseAction2Options extends IAction2CommonOptions {
@@ -520,7 +772,7 @@ interface IBaseAction2Options extends IAction2CommonOptions {
 	f1?: false;
 }
 
-interface ICommandPaletteOptions extends IAction2CommonOptions {
+export interface ICommandPaletteOptions extends IAction2CommonOptions {
 
 	/**
 	 * The title of the command that will be displayed in the command palette after the category.
@@ -553,53 +805,61 @@ export interface IAction2F1RequiredOptions {
 
 export abstract class Action2 {
 	constructor(readonly desc: Readonly<IAction2Options>) { }
-	abstract run(accessor: ServicesAccessor, ...args: any[]): void;
+	abstract run(accessor: ServicesAccessor, ...args: unknown[]): void;
 }
 
 export function registerAction2(ctor: { new(): Action2 }): IDisposable {
-	const disposables = new DisposableStore();
+	const disposables: IDisposable[] = []; // not using `DisposableStore` to reduce startup perf cost
 	const action = new ctor();
 
-	const { f1, menu, keybinding, description, ...command } = action.desc;
+	const { f1, menu, keybinding, ...command } = action.desc;
+
+	if (CommandsRegistry.getCommand(command.id)) {
+		throw new Error(`Cannot register two commands with the same id: ${command.id}`);
+	}
 
 	// command
-	disposables.add(CommandsRegistry.registerCommand({
+	disposables.push(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: description,
+		metadata: command.metadata ?? { description: action.desc.title }
 	}));
 
 	// menu
 	if (Array.isArray(menu)) {
 		for (const item of menu) {
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command, precondition: item.precondition === null ? undefined : command.precondition }, ...item }));
+			disposables.push(MenuRegistry.appendMenuItem(item.id, { command: { ...command, precondition: item.precondition === null ? undefined : command.precondition }, ...item }));
 		}
 
 	} else if (menu) {
-		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command, precondition: menu.precondition === null ? undefined : command.precondition }, ...menu }));
+		disposables.push(MenuRegistry.appendMenuItem(menu.id, { command: { ...command, precondition: menu.precondition === null ? undefined : command.precondition }, ...menu }));
 	}
 	if (f1) {
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when: command.precondition }));
-		disposables.add(MenuRegistry.addCommand(command));
+		disposables.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when: command.precondition }));
+		disposables.push(MenuRegistry.addCommand(command));
 	}
 
 	// keybinding
 	if (Array.isArray(keybinding)) {
 		for (const item of keybinding) {
-			disposables.add(KeybindingsRegistry.registerKeybindingRule({
+			disposables.push(KeybindingsRegistry.registerKeybindingRule({
 				...item,
 				id: command.id,
 				when: command.precondition ? ContextKeyExpr.and(command.precondition, item.when) : item.when
 			}));
 		}
 	} else if (keybinding) {
-		disposables.add(KeybindingsRegistry.registerKeybindingRule({
+		disposables.push(KeybindingsRegistry.registerKeybindingRule({
 			...keybinding,
 			id: command.id,
 			when: command.precondition ? ContextKeyExpr.and(command.precondition, keybinding.when) : keybinding.when
 		}));
 	}
 
-	return disposables;
+	return {
+		dispose() {
+			dispose(disposables);
+		}
+	};
 }
 //#endregion

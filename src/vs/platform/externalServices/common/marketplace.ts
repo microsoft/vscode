@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IHeaders } from '../../../base/parts/request/common/request.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { getServiceMachineId } from './serviceMachineId.js';
+import { IFileService } from '../../files/common/files.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IStorageService } from '../../storage/common/storage.js';
+import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
+import { getTelemetryLevel, supportsTelemetry } from '../../telemetry/common/telemetryUtils.js';
 
 export async function resolveMarketplaceHeaders(version: string,
 	productService: IProductService,

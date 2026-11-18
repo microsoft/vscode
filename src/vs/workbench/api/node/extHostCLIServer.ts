@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import * as http from 'http';
+import { createRandomIPCHandle } from '../../../base/parts/ipc/node/ipc.net.js';
+import type * as http from 'http';
 import * as fs from 'fs';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IWindowOpenable, IOpenWindowOptions } from 'vs/platform/window/common/window';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
+import { IExtHostCommands } from '../common/extHostCommands.js';
+import { IWindowOpenable, IOpenWindowOptions } from '../../../platform/window/common/window.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { hasWorkspaceFileExtension } from '../../../platform/workspace/common/workspace.js';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';
@@ -20,6 +20,7 @@ export interface OpenCommandPipeArgs {
 	diffMode?: boolean;
 	mergeMode?: boolean;
 	addMode?: boolean;
+	removeMode?: boolean;
 	gotoLineMode?: boolean;
 	forceReuseWindow?: boolean;
 	waitMarkerFilePath?: string;
@@ -46,43 +47,47 @@ export interface ExtensionManagementPipeArgs {
 export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs;
 
 export interface ICommandsExecuter {
-	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
+	executeCommand<T>(id: string, ...args: unknown[]): Promise<T>;
 }
 
 export class CLIServerBase {
-	private readonly _server: http.Server;
+	private _server: http.Server | undefined = undefined;
+	private _disposed = false;
 
 	constructor(
 		private readonly _commands: ICommandsExecuter,
 		private readonly logService: ILogService,
 		private readonly _ipcHandlePath: string,
 	) {
-		this._server = http.createServer((req, res) => this.onRequest(req, res));
-		this.setup().catch(err => {
-			logService.error(err);
-			return '';
-		});
+		this.setup();
 	}
 
 	public get ipcHandlePath() {
 		return this._ipcHandlePath;
 	}
 
-	private async setup(): Promise<string> {
+	private async setup(): Promise<void> {
 		try {
-			this._server.listen(this.ipcHandlePath);
-			this._server.on('error', err => this.logService.error(err));
-		} catch (err) {
-			this.logService.error('Could not start open from terminal server.');
+			const http = await import('http');
+			if (this._disposed) {
+				return;
+			}
+			this._server = http.createServer((req, res) => this.onRequest(req, res));
+			try {
+				this._server.listen(this.ipcHandlePath);
+				this._server.on('error', err => this.logService.error(err));
+			} catch (err) {
+				this.logService.error('Could not start open from terminal server.');
+			}
+		} catch (error) {
+			this.logService.error('Error setting up CLI server', error);
 		}
-
-		return this._ipcHandlePath;
 	}
 
 	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-		const sendResponse = (statusCode: number, returnObj: any) => {
+		const sendResponse = (statusCode: number, returnObj: string | undefined) => {
 			res.writeHead(statusCode, { 'content-type': 'application/json' });
-			res.end(JSON.stringify(returnObj || null), (err?: any) => err && this.logService.error(err));
+			res.end(JSON.stringify(returnObj || null), (err?: any) => err && this.logService.error(err)); // CodeQL [SM01524] Only the message portion of errors are passed in.
 		};
 
 		const chunks: string[] = [];
@@ -91,7 +96,7 @@ export class CLIServerBase {
 		req.on('end', async () => {
 			try {
 				const data: PipeCommand | any = JSON.parse(chunks.join(''));
-				let returnObj;
+				let returnObj: string | undefined;
 				switch (data.type) {
 					case 'open':
 						returnObj = await this.open(data);
@@ -118,8 +123,8 @@ export class CLIServerBase {
 		});
 	}
 
-	private async open(data: OpenCommandPipeArgs): Promise<string> {
-		const { fileURIs, folderURIs, forceNewWindow, diffMode, mergeMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
+	private async open(data: OpenCommandPipeArgs): Promise<undefined> {
+		const { fileURIs, folderURIs, forceNewWindow, diffMode, mergeMode, addMode, removeMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
 		const urisToOpen: IWindowOpenable[] = [];
 		if (Array.isArray(folderURIs)) {
 			for (const s of folderURIs) {
@@ -144,22 +149,23 @@ export class CLIServerBase {
 			}
 		}
 		const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
-		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
-		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, mergeMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
+		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode && !removeMode;
+		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, mergeMode, addMode, removeMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
 		this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
-
-		return '';
 	}
 
-	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<any> {
+	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<undefined> {
 		for (const uriString of data.uris) {
 			const uri = URI.parse(uriString);
-			const urioOpen = uri.scheme === 'file' ? uri : uriString; // workaround for #112577
-			await this._commands.executeCommand('_remoteCLI.openExternal', urioOpen);
+			if (uri.scheme === 'file') {
+				// skip file:// uris, they refer to the file system of the remote that have no meaning on the local machine
+				continue;
+			}
+			await this._commands.executeCommand('_remoteCLI.openExternal', uriString); // always send the string, workaround for #112577
 		}
 	}
 
-	private async manageExtensions(data: ExtensionManagementPipeArgs): Promise<any> {
+	private async manageExtensions(data: ExtensionManagementPipeArgs): Promise<string | undefined> {
 		const toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\.vsix$/i.test(input) ? URI.parse(input) : input);
 		const commandArgs = {
 			list: data.list,
@@ -167,15 +173,16 @@ export class CLIServerBase {
 			uninstall: toExtOrVSIX(data.uninstall),
 			force: data.force
 		};
-		return await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs);
+		return await this._commands.executeCommand<string | undefined>('_remoteCLI.manageExtensions', commandArgs);
 	}
 
-	private async getStatus(data: StatusPipeArgs) {
-		return await this._commands.executeCommand('_remoteCLI.getSystemStatus');
+	private async getStatus(data: StatusPipeArgs): Promise<string | undefined> {
+		return await this._commands.executeCommand<string | undefined>('_remoteCLI.getSystemStatus');
 	}
 
 	dispose(): void {
-		this._server.close();
+		this._disposed = true;
+		this._server?.close();
 
 		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
 			fs.unlinkSync(this._ipcHandlePath);

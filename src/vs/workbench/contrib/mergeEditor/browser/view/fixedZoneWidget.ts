@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IOverlayWidget, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { h } from '../../../../../base/browser/dom.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ICodeEditor, IOverlayWidget, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser.js';
+import { Event } from '../../../../../base/common/event.js';
 
 export abstract class FixedZoneWidget extends Disposable {
 	private static counter = 0;
@@ -32,6 +33,7 @@ export abstract class FixedZoneWidget extends Disposable {
 			domNode: document.createElement('div'),
 			afterLineNumber: afterLineNumber,
 			heightInPx: height,
+			ordinal: 50000 + 1,
 			onComputedHeight: (height) => {
 				this.widgetDomNode.style.height = `${height}px`;
 			},
@@ -41,7 +43,9 @@ export abstract class FixedZoneWidget extends Disposable {
 		});
 		viewZoneIdsToCleanUp.push(this.viewZoneId);
 
-		this.widgetDomNode.style.left = this.editor.getLayoutInfo().contentLeft + 'px';
+		this._register(Event.runAndSubscribe(this.editor.onDidLayoutChange, () => {
+			this.widgetDomNode.style.left = this.editor.getLayoutInfo().contentLeft + 'px';
+		}));
 
 		this.editor.addOverlayWidget(this.overlayWidget);
 

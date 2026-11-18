@@ -1,0 +1,285 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import '../../../workbench/browser/parts/panel/media/panelpart.css';
+import './media/panelPart.css';
+import { localize } from '../../../nls.js';
+import { IAction, SubmenuAction } from '../../../base/common/actions.js';
+import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ActivePanelContext, PanelFocusContext } from '../../../workbench/common/contextkeys.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { PANEL_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
+import { agentsBadgeBackground, agentsBadgeForeground, agentsBottomPanelBorder, agentsPanelBackground, agentsPanelForeground } from '../../../workbench/contrib/sessions/common/theme.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
+import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
+import { getContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
+import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
+import { Part } from '../../../workbench/browser/part.js';
+import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { Extensions } from '../../../workbench/browser/panecomposite.js';
+import { isPhoneLayout } from '../../../workbench/browser/parts/sessions/mobileLayout.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { getSessionsPartFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { EditorHeaderControl } from '../../../workbench/browser/parts/editor/editorHeaderControl.js';
+
+function getPanelTabBarHeight(showLabels: boolean, compact: boolean): number | undefined {
+	if (!showLabels) {
+		return undefined;
+	}
+
+	return compact ? EditorHeaderControl.COMPACT_HEIGHT : EditorHeaderControl.DEFAULT_HEIGHT;
+}
+
+/**
+ * Panel part specifically for agent sessions workbench.
+ * This is a simplified version of the PanelPart for agent session contexts.
+ */
+export class PanelPart extends AbstractPaneCompositePart {
+
+	//#region IView
+
+	readonly minimumWidth: number = 300;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	readonly minimumHeight: number = 77;
+	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
+	get preferredHeight(): number | undefined {
+		return this.layoutService.mainContainerDimension.height * 0.4;
+	}
+
+	get preferredWidth(): number | undefined {
+		const activeComposite = this.getActivePaneComposite();
+
+		if (!activeComposite) {
+			return undefined;
+		}
+
+		const width = activeComposite.getOptimalWidth();
+		if (typeof width !== 'number') {
+			return undefined;
+		}
+
+		return Math.max(width, 300);
+	}
+
+	//#endregion
+
+	static readonly activePanelSettingsKey = 'workbench.agentsession.panelpart.activepanelid';
+
+	/** Visual margin values for the card-like appearance */
+
+	constructor(
+		@INotificationService notificationService: INotificationService,
+		@IStorageService storageService: IStorageService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService extensionService: IExtensionService,
+		@IMenuService menuService: IMenuService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(
+			Parts.PANEL_PART,
+			{
+				hasTitle: true,
+				trailingSeparator: true,
+				titleHeight: () => getPanelTabBarHeight(
+					configurationService.getValue('workbench.panel.showLabels') !== false,
+					configurationService.getValue<'default' | 'compact'>('window.density.editorTabHeight') === 'compact'
+				)
+			},
+			PanelPart.activePanelSettingsKey,
+			ActivePanelContext.bindTo(contextKeyService),
+			PanelFocusContext.bindTo(contextKeyService),
+			'panel',
+			'panel',
+			undefined,
+			PANEL_TITLE_BORDER,
+			ViewContainerLocation.Panel,
+			Extensions.Panels,
+			AgentsWindowMenus.PanelTitle,
+			notificationService,
+			storageService,
+			contextMenuService,
+			layoutService,
+			keybindingService,
+			hoverService,
+			instantiationService,
+			themeService,
+			viewDescriptorService,
+			contextKeyService,
+			extensionService,
+			menuService,
+			configurationService,
+		);
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			const panelLabelsChanged = e.affectsConfiguration('workbench.panel.showLabels');
+			const editorTabHeightChanged = e.affectsConfiguration('window.density.editorTabHeight');
+			if (panelLabelsChanged || editorTabHeightChanged) {
+				this.updatePanelTabBarStyles();
+				if (panelLabelsChanged) {
+					this.updateCompositeBar(true);
+				}
+				this.relayoutForInsets();
+			}
+		}));
+		this._register(this.layoutService.onDidChangePanelAlignment(() => this.relayoutForInsets()));
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART || e.partId === Parts.EDITOR_PART || e.partId === Parts.AUXILIARYBAR_PART || e.partId === Parts.SESSIONS_PART) {
+				this.relayoutForInsets();
+			}
+		}));
+	}
+
+	override updateStyles(): void {
+		super.updateStyles();
+
+		const container = assertReturnsDefined(this.getContainer());
+		this.updatePanelTabBarStyles();
+
+		// Store background and border as CSS variables for the card styling on .part
+		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
+		container.style.setProperty('--part-border-color', this.getColor(agentsBottomPanelBorder) || 'transparent');
+		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
+		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
+
+		// Clear inline borders - the card appearance uses CSS border-radius instead
+		container.style.borderTopColor = '';
+		container.style.borderTopStyle = '';
+		container.style.borderTopWidth = '';
+	}
+
+	private updatePanelTabBarStyles(): void {
+		const container = this.getContainer();
+		const showLabels = this.configurationService.getValue('workbench.panel.showLabels') !== false;
+		container?.classList.toggle('panel-labels', showLabels);
+
+		const tabBarHeight = getPanelTabBarHeight(showLabels, this.configurationService.getValue<'default' | 'compact'>('window.density.editorTabHeight') === 'compact');
+		if (tabBarHeight === undefined) {
+			this.titleArea?.style.removeProperty('height');
+		} else {
+			this.titleArea?.style.setProperty('height', `${tabBarHeight}px`);
+		}
+	}
+
+	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
+		return {
+			partContainerClass: 'panel',
+			pinnedViewContainersKey: 'workbench.agentsession.panel.pinnedPanels',
+			placeholderViewContainersKey: 'workbench.agentsession.panel.placeholderPanels',
+			viewContainersWorkspaceStateKey: 'workbench.agentsession.panel.viewContainersWorkspaceState',
+			icon: this.configurationService.getValue('workbench.panel.showLabels') === false,
+			orientation: ActionsOrientation.HORIZONTAL,
+			recomputeSizes: true,
+			activityHoverOptions: {
+				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
+			},
+			transformContextMenuActionsForComposite: actions => this.transformContextMenuActionsForComposite(actions),
+			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
+			compositeSize: 0,
+			iconSize: 16,
+			compact: true,
+			overflowActionSize: 44,
+			colors: theme => ({
+				activeBackgroundColor: theme.getColor(agentsPanelBackground),
+				inactiveBackgroundColor: theme.getColor(agentsPanelBackground),
+				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
+				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
+				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
+				badgeBackground: theme.getColor(agentsBadgeBackground),
+				badgeForeground: theme.getColor(agentsBadgeForeground),
+				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
+			})
+		};
+	}
+
+	private transformContextMenuActionsForComposite(actions: IAction[]): IAction[] {
+		if (isPhoneLayout(this.layoutService)) {
+			return actions;
+		}
+
+		const alignmentActions = getContextMenuActions(
+			this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true })
+		).secondary.filter(action => action.id === 'workbench.action.alignPanelCenter' || action.id === 'workbench.action.alignPanelJustify');
+
+		return actions.map(action => action.id === 'moveToMenu'
+			? new SubmenuAction('workbench.action.panel.align', localize('alignPanel', "Align Panel"), alignmentActions)
+			: action);
+	}
+
+	private fillExtraContextMenuActions(_actions: IAction[]): void { }
+
+	override layout(width: number, height: number, top: number, left: number): void {
+		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
+			return;
+		}
+
+		// Layout content with reduced dimensions to account for visual margins and border.
+		const compact = this.layoutService.isModernUICompact();
+		const spacing = this.layoutService.getPanelSpacing();
+		const borderTotal = compact ? 0 : 2;
+		const sessionFrameInset = this.layoutService.isVisible(Parts.SESSIONS_PART)
+			? getSessionsPartFrameInset(this.layoutService.mainContainer, spacing)
+			: 0;
+		const marginTop = compact ? 0 : Math.max(0, spacing - sessionFrameInset);
+		const marginLeft = !compact && !isPhoneLayout(this.layoutService) && !this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			? AGENTS_FLOATING_PANEL_GAP
+			: 0;
+		const editorPaneVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		const marginRight = !compact && this.layoutService.getPanelAlignment() === 'center' && editorPaneVisible
+			? spacing
+			: 0;
+		super.layout(
+			width - marginLeft - marginRight - borderTotal,
+			height - marginTop - borderTotal,
+			top, left
+		);
+
+		// Restore the full grid-allocated dimensions so that Part.relayout() works correctly.
+		Part.prototype.layout.call(this, width, height, top, left);
+	}
+
+	private relayoutForInsets(): void {
+		const dimension = this.dimension;
+		const position = this.contentPosition;
+		if (dimension && position) {
+			this.layout(dimension.width, dimension.height, position.top, position.left);
+		}
+	}
+
+	protected override shouldShowCompositeBar(): boolean {
+		return true;
+	}
+
+	protected getCompositeBarPosition(): CompositeBarPosition {
+		return CompositeBarPosition.TITLE;
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.PANEL_PART
+		};
+	}
+}

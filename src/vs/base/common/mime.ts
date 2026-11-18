@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extname } from 'vs/base/common/path';
+import { extname } from './path.js';
 
 export const Mimes = Object.freeze({
 	text: 'text/plain',
@@ -12,19 +12,22 @@ export const Mimes = Object.freeze({
 	markdown: 'text/markdown',
 	latex: 'text/latex',
 	uriList: 'text/uri-list',
+	html: 'text/html',
 });
 
 interface MapExtToMediaMimes {
-	[index: string]: string;
+	[index: string]: string | string[];
 }
 
-const mapExtToTextMimes: MapExtToMediaMimes = {
+const mapExtToTextMimes: Record<string, string> = {
 	'.css': 'text/css',
 	'.csv': 'text/csv',
 	'.htm': 'text/html',
 	'.html': 'text/html',
 	'.ics': 'text/calendar',
 	'.js': 'text/javascript',
+	'.json': 'application/json',
+	'.map': 'application/json',
 	'.mjs': 'text/javascript',
 	'.txt': 'text/plain',
 	'.xml': 'text/xml'
@@ -34,13 +37,14 @@ const mapExtToTextMimes: MapExtToMediaMimes = {
 const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.aac': 'audio/x-aac',
 	'.avi': 'video/x-msvideo',
+	'.avif': 'image/avif',
 	'.bmp': 'image/bmp',
 	'.flv': 'video/x-flv',
 	'.gif': 'image/gif',
 	'.ico': 'image/x-icon',
-	'.jpe': 'image/jpg',
-	'.jpeg': 'image/jpg',
-	'.jpg': 'image/jpg',
+	'.jpe': ['image/jpg', 'image/jpeg'],
+	'.jpeg': ['image/jpg', 'image/jpeg'],
+	'.jpg': ['image/jpg', 'image/jpeg'],
 	'.m1v': 'video/mpeg',
 	'.m2a': 'audio/mpeg',
 	'.m2v': 'video/mpeg',
@@ -67,6 +71,8 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.ogg': 'audio/ogg',
 	'.opus': 'audio/opus',
 	'.ogv': 'video/ogg',
+	'.otf': 'font/otf',
+	'.pdf': 'application/pdf',
 	'.png': 'image/png',
 	'.psd': 'image/vnd.adobe.photoshop',
 	'.qt': 'video/quicktime',
@@ -75,12 +81,15 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.tga': 'image/x-tga',
 	'.tif': 'image/tiff',
 	'.tiff': 'image/tiff',
+	'.ttf': 'font/ttf',
+	'.wasm': 'application/wasm',
 	'.wav': 'audio/x-wav',
 	'.webm': 'video/webm',
 	'.webp': 'image/webp',
 	'.wma': 'audio/x-ms-wma',
 	'.wmv': 'video/x-ms-wmv',
 	'.woff': 'application/font-woff',
+	'.woff2': 'font/woff2',
 };
 
 export function getMediaOrTextMime(path: string): string | undefined {
@@ -95,13 +104,17 @@ export function getMediaOrTextMime(path: string): string | undefined {
 
 export function getMediaMime(path: string): string | undefined {
 	const ext = extname(path);
-	return mapExtToMediaMimes[ext.toLowerCase()];
+	const mimeType = mapExtToMediaMimes[ext.toLowerCase()];
+	return Array.isArray(mimeType) ? mimeType[0] : mimeType;
 }
 
 export function getExtensionForMimeType(mimeType: string): string | undefined {
-	for (const extension in mapExtToMediaMimes) {
-		if (mapExtToMediaMimes[extension] === mimeType) {
-			return extension;
+	for (const mapping of [mapExtToTextMimes, mapExtToMediaMimes]) {
+		for (const extension in mapping) {
+			const value = mapping[extension];
+			if (Array.isArray(value) ? value.includes(mimeType) : value === mimeType) {
+				return extension;
+			}
 		}
 	}
 
@@ -123,4 +136,11 @@ export function normalizeMimeType(mimeType: string, strict?: true): string | und
 	// https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
 	// media and subtype must ALWAYS be lowercase, parameter not
 	return `${match[1].toLowerCase()}/${match[2].toLowerCase()}${match[3] ?? ''}`;
+}
+
+/**
+ * Whether the provided mime type is a text stream like `stdout`, `stderr`.
+ */
+export function isTextStreamMime(mimeType: string) {
+	return ['application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr'].includes(mimeType);
 }

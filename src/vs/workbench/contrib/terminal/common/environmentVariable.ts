@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { EnvironmentVariableScope, IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { ITerminalStatus } from './terminal.js';
 
 export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
 
@@ -29,10 +30,16 @@ export interface IEnvironmentVariableService {
 	readonly mergedCollection: IMergedEnvironmentVariableCollection;
 
 	/**
+	 * Gets a collection suitable for a terminal running on the provided authority. PATH
+	 * contributions are restricted to the extension host that produced them.
+	 */
+	getMergedCollection(remoteAuthority: string | null | undefined, os: OperatingSystem): IMergedEnvironmentVariableCollection;
+
+	/**
 	 * An event that is fired when an extension's environment variable collection changes, the event
 	 * provides the new merged collection.
 	 */
-	onDidChangeCollections: Event<IMergedEnvironmentVariableCollection>;
+	readonly onDidChangeCollections: Event<IMergedEnvironmentVariableCollection>;
 
 	/**
 	 * Sets an extension's environment variable collection.
@@ -47,9 +54,14 @@ export interface IEnvironmentVariableService {
 
 export interface IEnvironmentVariableCollectionWithPersistence extends IEnvironmentVariableCollection {
 	readonly persistent: boolean;
+	/**
+	 * The extension host that produced this collection. An absent value is a legacy,
+	 * unknown origin and must not be treated as local.
+	 */
+	readonly remoteAuthority?: string | null;
 }
 
 export interface IEnvironmentVariableInfo {
 	readonly requiresAction: boolean;
-	getStatus(): ITerminalStatus;
+	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus;
 }

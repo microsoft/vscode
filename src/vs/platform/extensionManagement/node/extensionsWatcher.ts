@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { ResourceSet } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { DidAddProfileExtensionsEvent, DidRemoveProfileExtensionsEvent, IExtensionsProfileScannerService, ProfileExtensionsEvent } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { INativeServerExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionIdentifier, IExtension, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { Emitter } from '../../../base/common/event.js';
+import { combinedDisposable, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../base/common/map.js';
+import { URI } from '../../../base/common/uri.js';
+import { getIdAndVersion } from '../common/extensionManagementUtil.js';
+import { DidAddProfileExtensionsEvent, DidRemoveProfileExtensionsEvent, IExtensionsProfileScannerService, ProfileExtensionsEvent } from '../common/extensionsProfileScannerService.js';
+import { IExtensionsScannerService } from '../common/extensionsScannerService.js';
+import { INativeServerExtensionManagementService } from './extensionManagementService.js';
+import { ExtensionIdentifier, IExtension, IExtensionIdentifier } from '../../extensions/common/extensions.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 export interface DidChangeProfileExtensionsEvent {
 	readonly added?: { readonly extensions: readonly IExtensionIdentifier[]; readonly profileLocation: URI };
@@ -40,18 +41,18 @@ export class ExtensionsWatcher extends Disposable {
 		private readonly logService: ILogService,
 	) {
 		super();
-		this.initialize().then(null, error => logService.error(error));
+		this.initialize().then(null, error => logService.error('Error while initializing Extensions Watcher', getErrorMessage(error)));
 	}
 
 	private async initialize(): Promise<void> {
 		await this.extensionsScannerService.initializeDefaultProfileExtensions();
-		await this.onDidChangeProfiles(this.userDataProfilesService.profiles, []);
+		await this.onDidChangeProfiles(this.userDataProfilesService.profiles);
 		this.registerListeners();
-		await this.uninstallExtensionsNotInProfiles();
+		await this.deleteExtensionsNotInProfiles();
 	}
 
 	private registerListeners(): void {
-		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e.added, e.removed)));
+		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e.added)));
 		this._register(this.extensionsProfileScannerService.onAddExtensions(e => this.onAddExtensions(e)));
 		this._register(this.extensionsProfileScannerService.onDidAddExtensions(e => this.onDidAddExtensions(e)));
 		this._register(this.extensionsProfileScannerService.onRemoveExtensions(e => this.onRemoveExtensions(e)));
@@ -59,13 +60,8 @@ export class ExtensionsWatcher extends Disposable {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 	}
 
-	private async onDidChangeProfiles(added: readonly IUserDataProfile[], removed: readonly IUserDataProfile[]): Promise<void> {
+	private async onDidChangeProfiles(added: readonly IUserDataProfile[]): Promise<void> {
 		try {
-			await Promise.all(removed.map(profile => {
-				this.extensionsProfileWatchDisposables.deleteAndDispose(profile.id);
-				return this.removeExtensionsFromProfile(profile.extensionsResource);
-			}));
-
 			if (added.length) {
 				await Promise.all(added.map(profile => {
 					this.extensionsProfileWatchDisposables.set(profile.id, combinedDisposable(
@@ -106,7 +102,7 @@ export class ExtensionsWatcher extends Disposable {
 	}
 
 	private async onDidRemoveExtensions(e: DidRemoveProfileExtensionsEvent): Promise<void> {
-		const extensionsToUninstall: IExtension[] = [];
+		const extensionsToDelete: IExtension[] = [];
 		const promises: Promise<void>[] = [];
 		for (const extension of e.extensions) {
 			const key = this.getKey(extension.identifier, extension.version);
@@ -119,7 +115,7 @@ export class ExtensionsWatcher extends Disposable {
 					promises.push(this.extensionManagementService.scanInstalledExtensionAtLocation(extension.location)
 						.then(result => {
 							if (result) {
-								extensionsToUninstall.push(result);
+								extensionsToDelete.push(result);
 							} else {
 								this.logService.info('Extension not found at the location', extension.location.toString());
 							}
@@ -129,8 +125,8 @@ export class ExtensionsWatcher extends Disposable {
 		}
 		try {
 			await Promise.all(promises);
-			if (extensionsToUninstall.length) {
-				await this.uninstallExtensionsNotInProfiles(extensionsToUninstall);
+			if (extensionsToDelete.length) {
+				await this.deleteExtensionsNotInProfiles(extensionsToDelete);
 			}
 		} catch (error) {
 			this.logService.error(error);
@@ -184,20 +180,13 @@ export class ExtensionsWatcher extends Disposable {
 		}
 	}
 
-	private async removeExtensionsFromProfile(removedProfile: URI): Promise<void> {
-		for (const key of [...this.allExtensions.keys()]) {
-			this.removeExtensionWithKey(key, removedProfile);
-		}
-		await this.uninstallExtensionsNotInProfiles();
-	}
-
-	private async uninstallExtensionsNotInProfiles(toUninstall?: IExtension[]): Promise<void> {
-		if (!toUninstall) {
+	private async deleteExtensionsNotInProfiles(toDelete?: IExtension[]): Promise<void> {
+		if (!toDelete) {
 			const installed = await this.extensionManagementService.scanAllUserInstalledExtensions();
-			toUninstall = installed.filter(installedExtension => !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
+			toDelete = installed.filter(installedExtension => !this.allExtensions.has(this.getKey(installedExtension.identifier, installedExtension.manifest.version)));
 		}
-		if (toUninstall.length) {
-			await this.extensionManagementService.markAsUninstalled(...toUninstall);
+		if (toDelete.length) {
+			await this.extensionManagementService.deleteExtensions(...toDelete);
 		}
 	}
 

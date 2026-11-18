@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { StandardMouseEvent } from './mouseEvent.js';
+import { IActionViewItemOptions } from './ui/actionbar/actionViewItems.js';
+import { IActionViewItem } from './ui/actionbar/actionbar.js';
+import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewCloseAnimation } from './ui/contextview/contextview.js';
+import { IAction, IActionRunner } from '../common/actions.js';
+import { ResolvedKeybinding } from '../common/keybindings.js';
+import { OmitOptional } from '../common/types.js';
 
 export interface IContextMenuEvent {
 	readonly shiftKey?: boolean;
@@ -16,8 +18,21 @@ export interface IContextMenuEvent {
 	readonly metaKey?: boolean;
 }
 
+/**
+ * A specific context menu location to position the menu at.
+ * Uses some TypeScript type tricks to prevent allowing to
+ * pass in a `MouseEvent` and force people to use `StandardMouseEvent`.
+ */
+type ContextMenuLocation = OmitOptional<IAnchor> & { getModifierState?: never };
+
 export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number };
+	/**
+	 * The anchor where to position the context view.
+	 * Use a `HTMLElement` to position the view at the element,
+	 * a `StandardMouseEvent` to position it at the mouse position
+	 * or an `ContextMenuLocation` to position it at a specific location.
+	 */
+	getAnchor(): HTMLElement | StandardMouseEvent | ContextMenuLocation;
 	getActions(): readonly IAction[];
 	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
 	getActionViewItem?(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined;
@@ -25,14 +40,43 @@ export interface IContextMenuDelegate {
 	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
+	closeAnimation?: IContextViewCloseAnimation;
 	actionRunner?: IActionRunner;
 	skipTelemetry?: boolean;
-	autoSelectFirstItem?: boolean;
+	/**
+	 * `true` focuses the first enabled action; `false` or `undefined` leaves the menu without a selection.
+	 * A number selects a zero-based index in {@link getActions}, counting separators and each submenu as one item; non-integer or out-of-range indices are ignored.
+	 */
+	autoSelectItem?: boolean | number;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;
+	/**
+	 * Mount the shadow root in the window container instead of `domForShadowRoot`.
+	 * Use this when the provided element is inside a stacking context that cannot contain the menu.
+	 */
+	useWindowContainerForShadowRoot?: boolean;
+	/**
+	 * Host the menu inside `domForShadowRoot` (its owner) as a popover in the top layer,
+	 * so focus stays inside the owner while the menu renders unclipped. Requires
+	 * `domForShadowRoot` and is ignored together with `useWindowContainerForShadowRoot`.
+	 */
+	hostAsPopover?: boolean;
+	/**
+	 * custom context menus with higher layers are rendered higher in z-index order
+	 */
+	layer?: number;
 }
 
 export interface IContextMenuProvider {
 	showContextMenu(delegate: IContextMenuDelegate): void;
+}
+
+/** Normalizes initial selection consistently for HTML and native context menus. */
+export function getContextMenuAutoSelectItem(delegate: IContextMenuDelegate, actions: readonly IAction[]): boolean | number {
+	const selection = delegate.autoSelectItem;
+	if (typeof selection === 'number') {
+		return Number.isInteger(selection) && selection >= 0 && selection < actions.length ? selection : false;
+	}
+	return selection === true;
 }

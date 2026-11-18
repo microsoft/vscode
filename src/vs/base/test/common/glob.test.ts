@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as glob from 'vs/base/common/glob';
-import { sep } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import assert from 'assert';
+import * as glob from '../../common/glob.js';
+import { sep } from '../../common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Glob', () => {
 
@@ -63,14 +64,14 @@ suite('Glob', () => {
 	// 	console.profileEnd();
 	// });
 
-	function assertGlobMatch(pattern: string | glob.IRelativePattern, input: string) {
-		assert(glob.match(pattern, input), `${JSON.stringify(pattern)} should match ${input}`);
-		assert(glob.match(pattern, nativeSep(input)), `${pattern} should match ${nativeSep(input)}`);
+	function assertGlobMatch(pattern: string | glob.IRelativePattern, input: string, ignoreCase?: boolean) {
+		assert(glob.match(pattern, input, { ignoreCase }), `${JSON.stringify(pattern)} should match ${input}`);
+		assert(glob.match(pattern, nativeSep(input), { ignoreCase }), `${pattern} should match ${nativeSep(input)}`);
 	}
 
-	function assertNoGlobMatch(pattern: string | glob.IRelativePattern, input: string) {
-		assert(!glob.match(pattern, input), `${pattern} should not match ${input}`);
-		assert(!glob.match(pattern, nativeSep(input)), `${pattern} should not match ${nativeSep(input)}`);
+	function assertNoGlobMatch(pattern: string | glob.IRelativePattern, input: string, ignoreCase?: boolean) {
+		assert(!glob.match(pattern, input, { ignoreCase }), `${pattern} should not match ${input}`);
+		assert(!glob.match(pattern, nativeSep(input), { ignoreCase }), `${pattern} should not match ${nativeSep(input)}`);
 	}
 
 	test('simple', () => {
@@ -479,10 +480,10 @@ suite('Glob', () => {
 			}
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
-		assert.strictEqual(glob.match(expression, 'test.js', () => false), null);
-		assert.strictEqual(glob.match(expression, 'test.js', name => name === 'te.ts'), null);
-		assert.strictEqual(glob.match(expression, 'test.js'), null);
+		assert.strictEqual('**/*.js', glob.parse(expression)('test.js', undefined, hasSibling));
+		assert.strictEqual(glob.parse(expression)('test.js', undefined, () => false), null);
+		assert.strictEqual(glob.parse(expression)('test.js', undefined, name => name === 'te.ts'), null);
+		assert.strictEqual(glob.parse(expression)('test.js', undefined), null);
 
 		expression = {
 			'**/*.js': {
@@ -490,18 +491,19 @@ suite('Glob', () => {
 			}
 		};
 
-		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
+		assert.strictEqual(glob.parse(expression)('test.js', undefined, hasSibling), null);
 
 		expression = {
+			// eslint-disable-next-line local/code-no-any-casts
 			'**/*.js': {
 			} as any
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
+		assert.strictEqual('**/*.js', glob.parse(expression)('test.js', undefined, hasSibling));
 
 		expression = {};
 
-		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
+		assert.strictEqual(glob.parse(expression)('test.js', undefined, hasSibling), null);
 	});
 
 	test('expression support (multiple)', function () {
@@ -513,14 +515,15 @@ suite('Glob', () => {
 			'**/*.js': { when: '$(basename).ts' },
 			'**/*.as': true,
 			'**/*.foo': false,
+			// eslint-disable-next-line local/code-no-any-casts
 			'**/*.bananas': { bananas: true } as any
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
-		assert.strictEqual('**/*.as', glob.match(expression, 'test.as', hasSibling));
-		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas', hasSibling));
-		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas'));
-		assert.strictEqual(glob.match(expression, 'test.foo', hasSibling), null);
+		assert.strictEqual('**/*.js', glob.parse(expression)('test.js', undefined, hasSibling));
+		assert.strictEqual('**/*.as', glob.parse(expression)('test.as', undefined, hasSibling));
+		assert.strictEqual('**/*.bananas', glob.parse(expression)('test.bananas', undefined, hasSibling));
+		assert.strictEqual('**/*.bananas', glob.parse(expression)('test.bananas', undefined));
+		assert.strictEqual(glob.parse(expression)('test.foo', undefined, hasSibling), null);
 	});
 
 	test('brackets', () => {
@@ -757,6 +760,7 @@ suite('Glob', () => {
 	});
 
 	test('expression with other falsy value', function () {
+		// eslint-disable-next-line local/code-no-any-casts
 		const expr = { '**/*.js': 0 } as any;
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.js');
@@ -775,6 +779,40 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(expr, 'foo/foo'), null);
 	});
 
+	test('expression with two basename globs ignores case', function () {
+		const expr = {
+			'**/BAR': true,
+			'**/BAZ': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'bar', { ignoreCase: true }), '**/BAR');
+		assert.strictEqual(glob.match(expr, 'baz', { ignoreCase: true }), '**/BAZ');
+		assert.strictEqual(glob.match(expr, 'src/bar', { ignoreCase: true }), '**/BAR');
+		assert.strictEqual(glob.match(expr, 'bar'), null);
+	});
+
+	test('expression with cached basename globs ignores case', function () {
+		glob.parse('**/bar', { ignoreCase: true });
+
+		const expr = {
+			'**/BAR': true,
+			'**/BAZ': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'BaR', { ignoreCase: true }), '**/BAR');
+	});
+
+	test('expression cache does not collide with string pattern cache', function () {
+		glob.parse('**/BAR', { ignoreCase: true });
+
+		const expr = {
+			'**/bar': true,
+			'**/baz': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'bar', { ignoreCase: true }), '**/bar');
+	});
+
 	test('expression with two basename globs and a siblings expression', function () {
 		const expr = {
 			'**/bar': true,
@@ -785,19 +823,19 @@ suite('Glob', () => {
 		const siblings = ['foo.ts', 'foo.js', 'foo', 'bar'];
 		const hasSibling = (name: string) => siblings.indexOf(name) !== -1;
 
-		assert.strictEqual(glob.match(expr, 'bar', hasSibling), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo', hasSibling), null);
-		assert.strictEqual(glob.match(expr, 'foo/bar', hasSibling), '**/bar');
+		assert.strictEqual(glob.parse(expr)('bar', undefined, hasSibling), '**/bar');
+		assert.strictEqual(glob.parse(expr)('foo', undefined, hasSibling), null);
+		assert.strictEqual(glob.parse(expr)('foo/bar', undefined, hasSibling), '**/bar');
 		if (isWindows) {
 			// backslash is a valid file name character on posix
-			assert.strictEqual(glob.match(expr, 'foo\\bar', hasSibling), '**/bar');
+			assert.strictEqual(glob.parse(expr)('foo\\bar', undefined, hasSibling), '**/bar');
 		}
-		assert.strictEqual(glob.match(expr, 'foo/foo', hasSibling), null);
-		assert.strictEqual(glob.match(expr, 'foo.js', hasSibling), '**/*.js');
-		assert.strictEqual(glob.match(expr, 'bar.js', hasSibling), null);
+		assert.strictEqual(glob.parse(expr)('foo/foo', undefined, hasSibling), null);
+		assert.strictEqual(glob.parse(expr)('foo.js', undefined, hasSibling), '**/*.js');
+		assert.strictEqual(glob.parse(expr)('bar.js', undefined, hasSibling), null);
 	});
 
-	test('expression with multipe basename globs', function () {
+	test('expression with multiple basename globs', function () {
 		const expr = {
 			'**/bar': true,
 			'{**/baz,**/foo}': true
@@ -1156,4 +1194,209 @@ suite('Glob', () => {
 		assert.ok(!glob.patternsEquals(undefined, ['b']));
 		assert.ok(!glob.patternsEquals(['a'], undefined));
 	});
+
+	test('isEmptyPattern', () => {
+		assert.ok(glob.isEmptyPattern(glob.parse('')));
+		assert.ok(glob.isEmptyPattern(glob.parse(undefined!)));
+		assert.ok(glob.isEmptyPattern(glob.parse(null!)));
+
+		assert.ok(glob.isEmptyPattern(glob.parse({})));
+		assert.ok(glob.isEmptyPattern(glob.parse({ '': true })));
+		assert.ok(glob.isEmptyPattern(glob.parse({ '**/*.js': false })));
+	});
+
+	test('caseInsensitiveMatch', () => {
+		assertNoGlobMatch('PATH/FOO.js', 'path/foo.js');
+		assertGlobMatch('PATH/FOO.js', 'path/foo.js', true);
+		// T1
+		assertNoGlobMatch('**/*.JS', 'bar/foo.js');
+		assertGlobMatch('**/*.JS', 'bar/foo.js', true);
+		// T2
+		assertNoGlobMatch('**/package', 'bar/Package');
+		assertGlobMatch('**/package', 'bar/Package', true);
+		// T3
+		assertNoGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.ts');
+		assertNoGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.js');
+		assertGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.ts', true);
+		assertGlobMatch('{**/*.JS,**/*.TS}', 'bar/foo.js', true);
+		assertNoGlobMatch('{**/BAR,**/BAZ}', 'bar');
+		assertGlobMatch('{**/BAR,**/BAZ}', 'bar', true);
+		// T4
+		assertNoGlobMatch('**/FOO/Bar', 'bar/foo/bar');
+		assertGlobMatch('**/FOO/Bar', 'bar/foo/bar', true);
+		// T5
+		assertNoGlobMatch('FOO/Bar', 'foo/bar');
+		assertGlobMatch('FOO/Bar', 'foo/bar', true);
+		// Other
+		assertNoGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file');
+		assertGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file', true);
+	});
+
+	suite('exclude exceptions', () => {
+
+		function excluded(expression: glob.IExpression, paths: string[], options?: glob.IGlobOptions): Record<string, boolean> {
+			const parsed = glob.parseExcludeExpression(expression, options);
+			const result: Record<string, boolean> = {};
+			for (const path of paths) {
+				result[path] = !!parsed.matches(path);
+			}
+
+			return result;
+		}
+
+		function beneath(expression: glob.IExpression, folders: string[]): Record<string, boolean> {
+			const parsed = glob.parseExcludeExpression(expression);
+			const result: Record<string, boolean> = {};
+			for (const folder of folders) {
+				result[folder] = parsed.couldExceptionMatchBeneath(folder);
+			}
+
+			return result;
+		}
+
+		test('exceptions carve paths and their children out of excludes', () => {
+			assert.deepStrictEqual(excluded({ 'node_modules/*': true, '!node_modules/susa': true }, ['node_modules/a', 'node_modules/susa', 'node_modules/susa/index.js', 'src/a.js']), {
+				'node_modules/a': true,
+				'node_modules/susa': false,
+				'node_modules/susa/index.js': false,
+				'src/a.js': false
+			});
+			assert.deepStrictEqual(excluded({ '*.js': true, '!gulpfile.js': true }, ['a.js', 'gulpfile.js']), {
+				'a.js': true,
+				'gulpfile.js': false
+			});
+			assert.deepStrictEqual(excluded({ '.*': true, '!.editorconfig': true, '!.gitignore': true }, ['.env', '.editorconfig', '.gitignore']), {
+				'.env': true,
+				'.editorconfig': false,
+				'.gitignore': false
+			});
+			assert.deepStrictEqual(excluded({ '**/.vscode': true, '**/.vscode/*': true, '!**/.vscode/launch.json': true }, ['a/.vscode', 'a/.vscode/settings.json', 'a/.vscode/launch.json']), {
+				'a/.vscode': true,
+				'a/.vscode/settings.json': true,
+				'a/.vscode/launch.json': false
+			});
+		});
+
+		test('exceptions on their own exclude nothing', () => {
+			assert.deepStrictEqual(excluded({ '!*.js': true, '!*.ts': true }, ['a.js', 'a.ts', 'a.md']), {
+				'a.js': false,
+				'a.ts': false,
+				'a.md': false
+			});
+		});
+
+		test('exceptions win over excludes beneath them', () => {
+			assert.deepStrictEqual(excluded({ 'node_modules/*': true, '!node_modules/@types': true, 'node_modules/@types/*': true }, ['node_modules/a', 'node_modules/@types/node']), {
+				'node_modules/a': true,
+				'node_modules/@types/node': false
+			});
+		});
+
+		test('disabled and escaped exception keys', () => {
+			assert.deepStrictEqual(excluded({ '*.js': true, '!gulpfile.js': false }, ['gulpfile.js']), { 'gulpfile.js': true });
+			assert.deepStrictEqual(excluded({ '{!}notes.txt': true }, ['!notes.txt', 'notes.txt']), { '!notes.txt': true, 'notes.txt': false });
+			assert.strictEqual(glob.escapeExcludeException('!notes.txt'), '{!}notes.txt');
+			assert.strictEqual(glob.escapeExcludeException('notes.txt'), 'notes.txt');
+		});
+
+		test('exceptions respect ignoreCase', () => {
+			assert.deepStrictEqual(excluded({ 'node_modules': true, 'node_modules/*': true, '!node_modules/@Types': true }, ['node_modules/@types'], { ignoreCase: true }), { 'node_modules/@types': false });
+			assert.deepStrictEqual(excluded({ 'node_modules': true, 'node_modules/*': true, '!node_modules/@Types': true }, ['node_modules/@types']), { 'node_modules/@types': true });
+		});
+
+		test('sibling clauses are subject to exceptions', async () => {
+			const parsed = glob.parseExcludeExpression({ '**/*.js': { when: '$(basename).ts' }, '!keep.js': true });
+			const hasSibling = (name: string) => Promise.resolve(name === 'keep.ts' || name === 'drop.ts');
+			assert.deepStrictEqual([await parsed.matches('keep.js', 'keep.js', hasSibling), await parsed.matches('drop.js', 'drop.js', hasSibling)], [null, '**/*.js']);
+		});
+
+		test('getExcludeExceptions ignores disabled, empty and absolute exceptions', () => {
+			assert.deepStrictEqual(glob.getExcludeExceptions({ 'a': true, '!node_modules/@types/**': true, '!**/Scripts/': true, '!src/*.js': true, '!off': false, '!': true, '!/workspace/keep.js': true }), [
+				'node_modules/@types/**',
+				'**/Scripts',
+				'src/*.js'
+			]);
+		});
+
+		test('evaluateExcludeTreeEntry', () => {
+			const parsed = glob.parseExcludeExpression({ 'node_modules': true, '!node_modules/@types': true });
+			const evaluate = (path: string, isDirectory: boolean, isParentExcluded: boolean, isHidden = false) => glob.evaluateExcludeTreeEntry(parsed, { path, isDirectory, isParentExcluded, isHidden: () => isHidden });
+			assert.deepStrictEqual({
+				excludedFolderLeadingToException: evaluate('node_modules', true, false),
+				excludedFolder: evaluate('node_modules/react', true, true),
+				excludedFile: evaluate('node_modules/a.js', false, true),
+				exceptedFolder: evaluate('node_modules/@types', true, true),
+				hiddenFile: evaluate('dist/a.js', false, false, true),
+				includedFile: evaluate('src/a.js', false, false),
+			}, {
+				excludedFolderLeadingToException: { isExcluded: true, isVisited: true },
+				excludedFolder: { isExcluded: true, isVisited: false },
+				excludedFile: { isExcluded: true, isVisited: false },
+				exceptedFolder: { isExcluded: false, isVisited: true },
+				hiddenFile: { isExcluded: true, isVisited: false },
+				includedFile: { isExcluded: false, isVisited: true },
+			});
+		});
+
+		test('expressions without exceptions parse unchanged', () => {
+			const expression = { '**/node_modules': true };
+			const parsed = glob.parseExcludeExpression(expression);
+			assert.strictEqual(parsed.matches, parsed.matchesExclude);
+			assert.deepStrictEqual(glob.getBasenameTerms(parsed.matches), ['node_modules']);
+		});
+
+		test('couldExceptionMatchBeneath', () => {
+			assert.deepStrictEqual(beneath({ 'node_modules': true, '!node_modules/@types': true }, ['node_modules', 'node_modules/@types', 'node_modules/react', 'src']), {
+				'node_modules': true,
+				'node_modules/@types': true,
+				'node_modules/react': false,
+				'src': false
+			});
+			assert.deepStrictEqual(beneath({ '**/*': true, '!**/Scripts': true }, ['a', 'a/b/c']), { 'a': true, 'a/b/c': true });
+			assert.deepStrictEqual(beneath({ '*.js': true, '!*.ts': true }, ['src']), { 'src': false });
+			assert.deepStrictEqual(beneath({ 'a': true, '!a/*/c/**/d.txt': true }, ['a', 'a/b', 'a/b/c', 'a/b/x', 'a/b/c/e/f']), {
+				'a': true,
+				'a/b': true,
+				'a/b/c': true,
+				'a/b/x': false,
+				'a/b/c/e/f': true
+			});
+			assert.deepStrictEqual(beneath({ 'a': true }, ['a']), { 'a': false });
+			assert.deepStrictEqual(beneath({ 'a': true, '!{a/b,c}/keep.txt': true }, ['a', 'a/b', 'c']), { 'a': true, 'a/b': true, 'c': true });
+			assert.deepStrictEqual(beneath({ 'a': true, '!a/{b/c,d}/keep': true }, ['a/b', 'a/b/c']), { 'a/b': true, 'a/b/c': true });
+			assert.deepStrictEqual(beneath({ '**': true, '!{**,foo}/keep.txt': true }, ['a', 'a/b']), { 'a': true, 'a/b': true });
+			assert.deepStrictEqual(beneath({ 'node_modules': true, '!**.js': true }, ['node_modules', 'node_modules/a/b']), { 'node_modules': false, 'node_modules/a/b': false });
+			assert.deepStrictEqual(beneath({ 'src': true, '!src/**.keep': true }, ['src', 'src/a']), { 'src': true, 'src/a': false });
+		});
+
+		test('exceptions do not re-include version control folders unless an exception names them', () => {
+			const unnamed = glob.parseExcludeExpression({ '**/.git': true, 'third_party': true, '!third_party/lib': true });
+			const named = glob.parseExcludeExpression({ '**/.git': true, '!.git/hooks': true });
+			assert.deepStrictEqual({
+				unnamed: ['third_party/lib/a.js', 'third_party/lib/.git', 'third_party/lib/.git/config'].map(path => unnamed.isExcepted(path)),
+				named: ['.git/hooks/pre-commit', '.git/config'].map(path => named.isExcepted(path)),
+				gitFolder: glob.evaluateExcludeTreeEntry(unnamed, { path: 'third_party/lib/.git', isDirectory: true, isParentExcluded: false }),
+			}, {
+				unnamed: [true, false, false],
+				named: [true, false],
+				gitFolder: { isExcluded: true, isVisited: false },
+			});
+		});
+
+		test('couldExceptionMatchBeneath skips version control folders unless an exception names them', () => {
+			assert.deepStrictEqual({
+				unnamed: beneath({ '**/*': true, '!**/Scripts': true }, ['.git', 'a/.hg/b', 'a']),
+				named: beneath({ '**/*': true, '!**/Scripts': true, '!.git/hooks': true }, ['.git', 'a/.hg/b']),
+				namedInBraces: beneath({ '**/*': true, '!{.git,.hg}/hooks': true }, ['.git', '.hg', '.svn']),
+				wildcard: beneath({ '**/*': true, '!{*,src}/hooks': true }, ['.git', 'src']),
+			}, {
+				unnamed: { '.git': false, 'a/.hg/b': false, 'a': true },
+				named: { '.git': true, 'a/.hg/b': false },
+				namedInBraces: { '.git': true, '.hg': true, '.svn': false },
+				wildcard: { '.git': false, 'src': true },
+			});
+		});
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

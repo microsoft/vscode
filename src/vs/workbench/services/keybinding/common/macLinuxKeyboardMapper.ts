@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding, KeyCodeChord, SingleModifierChord, ScanCodeChord, Keybinding, Chord } from 'vs/base/common/keybindings';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
-import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeUtils, isModifierKey } from '../../../../base/common/keyCodes.js';
+import { ResolvedKeybinding, KeyCodeChord, SingleModifierChord, ScanCodeChord, Keybinding, Chord } from '../../../../base/common/keybindings.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
+import { IKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper.js';
+import { BaseResolvedKeybinding } from '../../../../platform/keybinding/common/baseResolvedKeybinding.js';
+import { IMacLinuxKeyboardMapping, IMacLinuxKeyMapping } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
 
 /**
  * A map from character to key codes.
@@ -418,7 +418,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				_registerAllCombos(0, 0, 0, scanCode, keyCode);
 				this._scanCodeToLabel[scanCode] = KeyCodeUtils.toString(keyCode);
 
-				if (keyCode === KeyCode.Unknown || keyCode === KeyCode.Ctrl || keyCode === KeyCode.Meta || keyCode === KeyCode.Alt || keyCode === KeyCode.Shift) {
+				if (keyCode === KeyCode.Unknown || isModifierKey(keyCode)) {
 					this._scanCodeToDispatch[scanCode] = null; // cannot dispatch on this ScanCode
 				} else {
 					this._scanCodeToDispatch[scanCode] = `[${ScanCodeUtils.toString(scanCode)}]`;

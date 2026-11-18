@@ -15,7 +15,7 @@ async function setupMain() {
 			l10nLog.push(`l10n: Problems loading ${i10lLocation.toString()} : ${e}`);
 		}
 	}
-	await import('./cssServerMain');
+	await import('./cssServerMain.js');
 	l10nLog.forEach(console.log);
 }
 setupMain();

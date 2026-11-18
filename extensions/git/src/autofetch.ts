@@ -6,7 +6,7 @@
 import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent, l10n, env } from 'vscode';
 import { Repository } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
-import { GitErrorCodes } from './api/git';
+import { GitErrorCodes } from './api/git.constants';
 
 export class AutoFetcher {
 
@@ -29,6 +29,8 @@ export class AutoFetcher {
 		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && operation.remote);
 		const onFirstGoodRemoteOperation = onceEvent(onGoodRemoteOperation);
 		onFirstGoodRemoteOperation(this.onFirstGoodRemoteOperation, this, this.disposables);
+
+		env.onDidChangeMeteredConnection(() => this.onConfiguration(), this, this.disposables);
 	}
 
 	private async onFirstGoodRemoteOperation(): Promise<void> {
@@ -47,7 +49,7 @@ export class AutoFetcher {
 		const yes: MessageItem = { title: l10n.t('Yes') };
 		const no: MessageItem = { isCloseAffordance: true, title: l10n.t('No') };
 		const askLater: MessageItem = { title: l10n.t('Ask Me Later') };
-		const result = await window.showInformationMessage(l10n.t('Would you like {0} to [periodically run "git fetch"]({1})?', env.appName, 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
+		const result = await window.showInformationMessage(l10n.t('Would you like {0} to [periodically run "git fetch"]({1})?', env.appName, 'https://go.microsoft.com/fwlink/?linkid=865294'), { notificationId: 'git.autoFetch' }, yes, no, askLater);
 
 		if (result === askLater) {
 			return;
@@ -63,6 +65,11 @@ export class AutoFetcher {
 
 	private onConfiguration(e?: ConfigurationChangeEvent): void {
 		if (e !== undefined && !e.affectsConfiguration('git.autofetch')) {
+			return;
+		}
+
+		if (env.isMeteredConnection) {
+			this.disable();
 			return;
 		}
 

@@ -1,0 +1,1060 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { h } from '../../../../../base/browser/dom.js';
+import { Disposable, IDisposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isAbsolute } from '../../../../../base/common/path.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { isITextModel } from '../../../../../editor/common/model.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IChatAgentService } from '../../common/participants/chatAgents.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { ChatModel, type IChatModel } from '../../common/model/chatModel.js';
+import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
+import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
+import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
+import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
+import { ChatAgentLocation, ChatModeKind, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
+import { isChatViewTitleActionContext, type IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
+import { getLocalChatMigrationTarget, LocalChatMigrationTelemetry, type LocalChatMigrationFailureReason } from '../agentSessions/agentHost/localChatMigrationTelemetry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
+import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
+import { ISCMService } from '../../../scm/common/scm.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
+import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
+import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
+import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
+import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ChatSessionPosition, getResourceForNewChatSession, openChatSession, openChatSessionAndSend } from '../chatSessions/chatSessions.contribution.js';
+import { createImportedConversationStats, importedConversationPrimaryFolder, importedTurnsFromChatModel, resolveImportedCopilotModel, type IImportedConversationStats } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
+import { IAgentHostImportConversationStore } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import type { ModelSelection, Turn } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+
+/**
+ * Extracts the "owner/repo" name-with-owner from a git remote URL.
+ * Supports HTTPS (https://github.com/owner/repo.git) and SSH (git@github.com:owner/repo.git) formats.
+ */
+function extractNwoFromRemoteUrl(remoteUrl: string): string | undefined {
+	const match = remoteUrl.match(/(?:github\.com)[/:](?<owner>[^/]+)\/(?<repo>[^/.]+)/);
+	if (match?.groups) {
+		return `${match.groups.owner}/${match.groups.repo}`;
+	}
+	return undefined;
+}
+
+/**
+ * Resolves GitHub NWO from a local git repository path by reading `.git/config`.
+ * Handles both regular repos and git worktrees.
+ */
+async function resolveGitRemoteNwo(repoPath: string, fileService: IFileService): Promise<string | undefined> {
+	try {
+		const gitPath = `${repoPath}/.git`;
+		const gitUri = URI.file(gitPath);
+
+		let configUri: URI;
+		try {
+			const stat = await fileService.stat(gitUri);
+			if (stat.isDirectory) {
+				// Regular git repo
+				configUri = URI.file(`${gitPath}/config`);
+			} else {
+				// Git worktree — .git is a file with "gitdir: <path>"
+				const gitFile = await fileService.readFile(gitUri);
+				const gitDir = gitFile.value.toString().trim().replace(/^gitdir:\s*/, '');
+				// Resolve relative paths
+				const resolvedGitDir = gitDir.startsWith('/')
+					? gitDir
+					: `${repoPath}/${gitDir}`;
+				// The config is in the common dir (parent of worktree git dirs)
+				// e.g., gitdir points to /repo/.git/worktrees/name, config is at /repo/.git/config
+				const commonDir = resolvedGitDir.replace(/\/worktrees\/[^/]+$/, '');
+				configUri = URI.file(`${commonDir}/config`);
+			}
+		} catch {
+			// .git doesn't exist
+			return undefined;
+		}
+
+		const content = await fileService.readFile(configUri);
+		const configText = content.value.toString();
+
+		// Parse remote "origin" URL from git config
+		const remoteMatch = configText.match(/\[remote\s+"origin"\][^[]*url\s*=\s*(.+)/m);
+		if (remoteMatch?.[1]) {
+			return extractNwoFromRemoteUrl(remoteMatch[1].trim());
+		}
+	} catch {
+		// File not found or not readable
+	}
+	return undefined;
+}
+
+export const enum ActionLocation {
+	ChatWidget = 'chatWidget',
+	Editor = 'editor'
+}
+
+export class ContinueChatInSessionAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.continueChatInSession';
+
+	constructor() {
+		super({
+			id: ContinueChatInSessionAction.ID,
+			title: localize2('continueChatInSession', "Continue Chat in..."),
+			tooltip: localize('continueChatInSession', "Continue Chat in..."),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ChatContextKeys.requestInProgress.negate(),
+				ChatContextKeys.remoteJobCreating.negate(),
+				ChatContextKeys.hasCanDelegateProviders,
+			),
+			menu: [{
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: 3.4,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.hasCanDelegateProviders,
+				),
+			},
+			{
+				id: MenuId.EditorContent,
+				group: 'continueIn',
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(ResourceContextKey.Scheme.key, Schemas.untitled),
+					ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
+					ContextKeyExpr.notEquals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+					ctxHasEditorModification.negate(),
+					ChatContextKeys.hasCanDelegateProviders,
+				),
+			}
+			]
+		});
+	}
+
+	override async run(): Promise<void> {
+		// Handled by a custom action item
+	}
+}
+
+function continueInCopilotFailedMessage(): string {
+	return localize('chat.continueInCopilot.failed', "Couldn't move this chat to Copilot. Your original conversation is still available.");
+}
+
+function continueInCopilotHistoryMissingMessage(): string {
+	return localize('chat.continueInCopilot.historyMissing', "Copilot didn't load the moved conversation. Your original conversation is still available.");
+}
+
+type ChatEnterprisePolicyRecoveryEvent = {
+	action: 'migrate' | 'transcript' | 'newChat';
+	location: 'panel' | 'editor';
+	outcome: 'started' | 'succeeded' | 'failed' | 'cancelled';
+};
+
+type ChatEnterprisePolicyRecoveryClassification = {
+	owner: 'rwoll';
+	comment: 'Tracks attempts and outcomes of the enterprise policy recovery action from Local to Copilot.';
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action migrates a conversation, opens a new chat with the conversation attached as a transcript because the host cannot import it, or opens a new chat with an unsent draft.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether recovery was initiated from the chat panel or an editor.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A started attempt or its success, failure, or cancellation outcome. Concurrent duplicate invocations are counted once.' };
+};
+
+type ChatConversationImportEvent = {
+	source: 'move' | 'continueIn';
+	turns: number;
+	editedFiles: number;
+	skippedResponseParts: number;
+	skippedResponsePartKinds: string;
+	skippedAttachments: number;
+	skippedAttachmentKinds: string;
+	droppedToolOutputs: number;
+};
+
+type ChatConversationImportClassification = {
+	owner: 'vijayupadya';
+	comment: 'Tracks what a Local conversation imported into an Agent Host session had to summarize or leave out, to prioritize closing the gaps. Sent only once the destination session holds the imported conversation; failed or cancelled moves send nothing.';
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the conversation was imported by Move to Copilot or by Continue In.' };
+	turns: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns imported.' };
+	editedFiles: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of edited files summarized as links instead of carrying their edits, counted once per turn.' };
+	skippedResponseParts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of response parts that could not be imported.' };
+	skippedResponsePartKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, sorted code-defined kinds of the response parts that could not be imported.' };
+	skippedAttachments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of request attachments that could not be imported.' };
+	skippedAttachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, sorted code-defined kinds of the attachments that could not be imported.' };
+	droppedToolOutputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of non-text tool result items left out of imported tool calls.' };
+};
+
+function logConversationImport(telemetryService: ITelemetryService, source: ChatConversationImportEvent['source'], stats: IImportedConversationStats): void {
+	telemetryService.publicLog2<ChatConversationImportEvent, ChatConversationImportClassification>('chat.importConversation', {
+		source,
+		turns: stats.turns,
+		editedFiles: stats.editedFiles,
+		skippedResponseParts: stats.skippedResponseParts,
+		skippedResponsePartKinds: [...stats.skippedResponsePartKinds].sort().join(','),
+		skippedAttachments: stats.skippedAttachments,
+		skippedAttachmentKinds: [...stats.skippedAttachmentKinds].sort().join(','),
+		droppedToolOutputs: stats.droppedToolOutputs,
+	});
+}
+
+/**
+ * Whether a session opened by Continue In holds the imported conversation:
+ * its first user requests carry the imported prompts, in order. Opening still
+ * returns a session when the import or the initial send fails, and the host
+ * gives imported turns new ids, so the history itself is what confirms it.
+ */
+export function holdsImportedTurns(destination: IChatModel | undefined, turns: readonly Turn[]): boolean {
+	const requests = destination?.getRequests().filter(request => !request.isSystemInitiated) ?? [];
+	return turns.length > 0 && requests.length >= turns.length && turns.every((turn, index) => requests[index].message.text === turn.message.text);
+}
+
+export class ContinueChatInCopilotAction extends Action2 {
+	private readonly pending = new ResourceMap<Promise<void>>();
+
+	constructor() {
+		super({
+			id: CONTINUE_CHAT_IN_COPILOT_ACTION_ID,
+			title: localize2('chat.continueInCopilot', "Move to Copilot"),
+			precondition: ChatContextKeys.enabled,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context: unknown): Promise<void> {
+		if (!isChatViewTitleActionContext(context)) {
+			throw new Error(continueInCopilotFailedMessage());
+		}
+		const widgets = accessor.get(IChatWidgetService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const sessions = accessor.get(IChatSessionsService);
+		const widget = context.inputUri ? widgets.getWidgetByInputUri(context.inputUri) : widgets.getWidgetBySessionResource(context.sessionResource);
+		if (!widget?.viewModel || !isEqual(widget.viewModel.sessionResource, context.sessionResource)) {
+			throw new Error(continueInCopilotFailedMessage());
+		}
+		const pending = this.pending.get(context.sessionResource);
+		if (pending) {
+			return pending;
+		}
+		const sessionsService = accessor.get(IAgentSessionsService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const managedSettingsService = accessor.get(IManagedSettingsService);
+		const configurationService = accessor.get(IConfigurationService);
+		const chatService = accessor.get(IChatService);
+		const imports = accessor.get(IAgentHostImportConversationStore);
+		const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
+		const folders = accessor.get(IAgentHostNewSessionFolderService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const historyService = accessor.get(IHistoryService);
+		const agentHostService = accessor.get(IAgentHostService);
+		const languageModelsService = accessor.get(ILanguageModelsService);
+		const sourceModel = widget.viewModel.model;
+		const ensureSourceVisible = () => {
+			if (!widget.visible || widget.viewModel?.model !== sourceModel) {
+				throw new CancellationError();
+			}
+		};
+		const resolveModel = (identifier: string) => resolveImportedCopilotModel(languageModelsService, identifier);
+		const importStats = createImportedConversationStats();
+		const sourceTurns = importedTurnsFromChatModel(sourceModel, { resourceUris: agentHostService.resourceUris, resolveModel, stats: importStats });
+		// A host that cannot import history gets the conversation as an attached
+		// transcript instead. That is not a move, so the source is not archived.
+		const transcriptOnly = sourceTurns.length > 0 && !agentHostService.supportsConversationImport;
+		const turns = transcriptOnly ? [] : sourceTurns;
+		const transcript = transcriptOnly ? createDelegationTranscriptAttachment(buildDelegationTranscript(sourceModel.getRequests()), getAgentSessionProviderName(AgentSessionProviders.Local)) : undefined;
+		const input = widget.getInputState();
+		// Continue on the source's custom agent, which Agent Host identifies by the URI of its agent file.
+		const sourceMode = widget.input.currentModeInfo;
+		const agentUri = sourceMode && !sourceMode.isBuiltin ? sourceMode.modeInstructions?.uri : undefined;
+		const draft = {
+			inputText: widget.getInput(),
+			attachments: [...(transcript ? [transcript] : []), ...(input?.attachments ?? [])],
+			selections: input?.selections ?? [],
+			...(agentUri ? { mode: { id: agentUri.toString(), kind: sourceMode?.kind ?? ChatModeKind.Agent } } : {}),
+		};
+		const sidebar = isIChatViewViewContext(widget.viewContext);
+		const openOptions = {
+			type: SessionType.AgentHostCopilot,
+			displayName: localize('chat.continueInCopilot.provider', "Copilot"),
+			position: sidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+			replaceEditorForResource: sidebar ? undefined : context.sessionResource,
+		};
+		const untitledResource = getResourceForNewChatSession(openOptions);
+		let sessionResource = untitledResource;
+		// A Local chat continues in the workspace folder its agent would have run in next.
+		const primaryFolder = sourceModel.hasRequests && getChatSessionType(context.sessionResource) === localChatSessionType
+			? importedConversationPrimaryFolder(sourceModel, workspaceContextService, historyService.getLastActiveWorkspaceRoot())
+			: undefined;
+		const logOutcome = (outcome: ChatEnterprisePolicyRecoveryEvent['outcome']) => telemetryService.publicLog2<ChatEnterprisePolicyRecoveryEvent, ChatEnterprisePolicyRecoveryClassification>('chat.enterprisePolicyRecovery', {
+			action: transcriptOnly ? 'transcript' : turns.length ? 'migrate' : 'newChat',
+			location: sidebar ? 'panel' : 'editor',
+			outcome,
+		});
+		logOutcome('started');
+		const migration = getChatSessionType(context.sessionResource) === localChatSessionType
+			? new LocalChatMigrationTelemetry(telemetryService, {
+				entryPoint: 'move',
+				trigger: (context as IChatViewTitleActionContext & { readonly trigger?: unknown }).trigger === 'automatic' ? 'automatic' : 'manual',
+				policyRequired: requiresCopilotAgentHost(managedSettingsService, configurationService),
+				kind: transcriptOnly ? 'transcript' : turns.length ? 'migrate' : 'newChat',
+				target: SessionType.AgentHostCopilot,
+				location: sidebar ? 'panel' : 'editor',
+				turns: turns.length,
+			})
+			: undefined;
+		// The step the move is at, reported if it fails there.
+		let step: LocalChatMigrationFailureReason = 'unexpected';
+		const fail = (reason: LocalChatMigrationFailureReason, message = continueInCopilotFailedMessage()): Error => {
+			step = reason;
+			return new Error(message);
+		};
+		const work = (async () => {
+			if (sourceModel.requestInProgress.get()) {
+				throw fail('requestInProgress');
+			}
+			let sourceSession = sessionsService.getSession(context.sessionResource);
+			if (turns.length && !sourceSession) {
+				await sessionsService.model.resolve(getChatSessionType(context.sessionResource));
+				sourceSession = sessionsService.getSession(context.sessionResource);
+				if (!sourceSession) {
+					throw fail('sourceMissing');
+				}
+			}
+			// A transcript-only continuation keeps the source, and remote windows allow
+			// manually moving archived chats so chats stranded by earlier remote moves can recover.
+			const canContinueArchived = transcriptOnly || agentHostService.clientConnectionKind === AgentHostClientConnectionKind.RemoteExtensionHost;
+			if (!canContinueArchived && sourceSession?.isArchived()) {
+				throw fail('sourceArchived');
+			}
+			step = 'targetUnavailable';
+			if (!await sessions.canResolveChatSession(SessionType.AgentHostCopilot)) {
+				throw fail('targetUnavailable');
+			}
+			ensureSourceVisible();
+			// Recorded for the new chat itself, so every lookup of its folder agrees, without becoming the window's default.
+			if (primaryFolder) {
+				folders.setFolder(untitledResource, primaryFolder, { updateDefault: false });
+			}
+			if (turns.length) {
+				const selectedModel = widget.input.selectedLanguageModel.get()?.identifier;
+				const model = (selectedModel ? resolveModel(selectedModel) : undefined) ?? turns.at(-1)?.message.model;
+				imports.set(untitledResource, { turns, title: sourceModel.title, ...(model ? { model } : {}) });
+				try {
+					step = 'prepareFailed';
+					if (!await provisional.getOrCreate(untitledResource, COPILOT_CLI_AGENT_PROVIDER_ID, folders.resolveNewSessionPrimary(untitledResource))) {
+						throw fail('prepareFailed');
+					}
+					ensureSourceVisible();
+					// The host imports the conversation when the session item is created.
+					step = 'importFailed';
+					const item = await sessions.createNewChatSessionItem(openOptions.type, { prompt: '', untitledResource }, CancellationToken.None);
+					if (item) {
+						sessionResource = item.resource;
+					}
+					if (!item || !provisional.get(sessionResource)) {
+						throw fail('sessionNotCreated');
+					}
+				} finally {
+					await provisional.disposeSession(untitledResource);
+				}
+			}
+			try {
+				ensureSourceVisible();
+			} catch (error) {
+				if (turns.length) {
+					step = 'unexpected';
+					await sessions.deleteChatSessionItem(sessionResource, CancellationToken.None);
+					provisional.releaseSession(sessionResource);
+				}
+				throw error;
+			}
+			if (turns.length) {
+				sessions.registerSessionResourceAlias(untitledResource, sessionResource);
+				sessions.notifySessionMaterialized?.(sessionResource);
+			}
+			step = 'openFailed';
+			const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(innerAccessor, { ...openOptions, sessionResource }));
+			const destination = opened && chatService.getSession(opened);
+			if (!opened || !destination || !widgets.getWidgetBySessionResource(opened)) {
+				throw fail('openFailed');
+			}
+			// Only archive the source once the destination actually holds the moved
+			// history. System-initiated requests are not moved turns: a failed load
+			// renders as one, which would otherwise satisfy a one-turn source.
+			if (destination.getRequests().filter(request => !request.isSystemInitiated).length < turns.length) {
+				throw fail('historyMissing', continueInCopilotHistoryMissingMessage());
+			}
+			step = 'unexpected';
+			destination.inputModel.setState(draft);
+			if (turns.length && sourceSession) {
+				provisional.releaseSession(sessionResource);
+				sourceSession.setArchived(true);
+			}
+		})();
+		this.pending.set(context.sessionResource, work);
+		try {
+			await work;
+			logOutcome('succeeded');
+			migration?.succeeded();
+			// Reported only once the destination holds every moved turn.
+			if (turns.length) {
+				logConversationImport(telemetryService, 'move', importStats);
+			}
+		} catch (error) {
+			logOutcome(isCancellationError(error) ? 'cancelled' : 'failed');
+			if (isCancellationError(error)) {
+				migration?.cancelled();
+			} else {
+				migration?.failed(step);
+			}
+			folders.clear(untitledResource);
+			throw error;
+		} finally {
+			imports.take(untitledResource);
+			imports.take(sessionResource);
+			this.pending.delete(context.sessionResource);
+		}
+	}
+}
+
+export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionViewItem {
+	constructor(
+		action: MenuItemAction,
+		private readonly location: ActionLocation,
+		@IActionWidgetService actionWidgetService: IActionWidgetService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ISCMService scmService: ISCMService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+	) {
+		super(action, {
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, scmService, workspaceContextService, location),
+			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
+			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
+		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+	}
+
+	protected static getActionBarActions(openerService: IOpenerService) {
+		const learnMoreUrl = 'https://aka.ms/vscode-agent-handoff';
+		return [{
+			id: 'workbench.action.chat.continueChatInSession.learnMore',
+			label: localize('chat.learnMore', "Learn More"),
+			tooltip: localize('chat.learnMore', "Learn More"),
+			class: undefined,
+			enabled: true,
+			run: async () => {
+				await openerService.open(URI.parse(learnMoreUrl));
+			}
+		}];
+	}
+
+	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, scmService: ISCMService, workspaceContextService: IWorkspaceContextService, location: ActionLocation): IActionWidgetDropdownActionProvider {
+		return {
+			getActions: () => {
+				const actions: IActionWidgetDropdownAction[] = [];
+				const contributions = chatSessionsService.getAllChatSessionContributions();
+				const folders = workspaceContextService.getWorkspace().folders;
+				let hasGitRepo = false;
+				if (folders.length > 0) {
+					for (const repo of scmService.repositories) {
+						if (repo.provider.rootUri && workspaceContextService.getWorkspaceFolder(repo.provider.rootUri)) {
+							hasGitRepo = true;
+							break;
+						}
+					}
+				}
+
+				// Continue in Background
+				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
+				if (backgroundContrib && backgroundContrib.canDelegate) {
+					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, location));
+				}
+
+				// Continue in Cloud (disabled when no git repository)
+				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
+				if (cloudContrib && cloudContrib.canDelegate) {
+					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location, hasGitRepo));
+				}
+
+				// Continue in any agent host session (local `agent-host-*` or remote
+				// `remote-*`), e.g. Copilot CLI / Codex / Claude agent-host sessions.
+				for (const contrib of contributions) {
+					if (contrib.canDelegate && isAgentHostTarget(contrib.type)) {
+						actions.push(this.toAction(contrib.type, contrib, instantiationService, location));
+					}
+				}
+
+				// Offer actions to enter setup if we have no contributions
+				if (actions.length === 0) {
+					actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));
+					actions.push(this.toSetupAction(AgentSessionProviders.Cloud, instantiationService));
+				}
+
+				return actions;
+			}
+		};
+	}
+
+	private static toAction(provider: AgentSessionTarget, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation, enabled: boolean = true): IActionWidgetDropdownAction {
+		const providerName = getAgentSessionProviderName(provider);
+		// For dynamically-registered agent host providers, getAgentSessionProviderName
+		// falls back to the raw session type; prefer the contribution's display name.
+		const label = providerName === provider ? (contrib.displayName ?? providerName) : providerName;
+		return {
+			id: contrib.type,
+			enabled,
+			icon: getAgentSessionProviderIcon(provider),
+			class: undefined,
+			description: `@${contrib.name}`,
+			label,
+			tooltip: localize('continueSessionIn', "Continue in {0}", label),
+			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
+			run: () => instantiationService.invokeFunction(accessor => {
+				if (location === ActionLocation.Editor) {
+					return new CreateRemoteAgentJobFromEditorAction().run(accessor, contrib);
+				}
+				return new CreateRemoteAgentJobAction().run(accessor, contrib);
+			})
+		};
+	}
+
+	private static toSetupAction(provider: AgentSessionProviders, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
+		return {
+			id: provider,
+			enabled: true,
+			icon: getAgentSessionProviderIcon(provider),
+			class: undefined,
+			label: getAgentSessionProviderName(provider),
+			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
+			run: () => instantiationService.invokeFunction(accessor => {
+				const commandService = accessor.get(ICommandService);
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			})
+		};
+	}
+
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
+		if (this.location === ActionLocation.Editor) {
+			const view = h('span.action-widget-delegate-label', [
+				h('span', { className: ThemeIcon.asClassName(Codicon.forward) }),
+				h('span', [localize('continueInEllipsis', "Continue in...")])
+			]);
+			element.appendChild(view.root);
+			return null;
+		} else {
+			const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.forward;
+			element.classList.add(...ThemeIcon.asClassNameArray(icon));
+			return super.renderLabel(element);
+		}
+	}
+}
+
+const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
+
+const MAX_DELEGATION_TRANSCRIPT_LENGTH = 20_000;
+
+/**
+ * Minimal shape of a chat request needed to build a delegation transcript.
+ * Kept structural so {@link buildDelegationTranscript} can be unit-tested
+ * without constructing a full chat model.
+ */
+export interface IDelegationTranscriptRequest {
+	readonly message: { readonly text: string };
+	readonly response?: { readonly response?: { getMarkdown(): string } };
+}
+
+/**
+ * Builds a plain-text transcript of a prior conversation for handing off
+ * (delegating) to another session type. The transcript is truncated to the
+ * most recent {@link maxLength} characters to avoid exceeding the target
+ * model's token limits.
+ */
+export function buildDelegationTranscript(requests: readonly IDelegationTranscriptRequest[], maxLength: number = MAX_DELEGATION_TRANSCRIPT_LENGTH): string {
+	let transcript = requests.map(req => {
+		const userMsg = `User: ${req.message.text}`;
+		const respMsg = req.response?.response ? `Assistant: ${req.response.response.getMarkdown()}` : '';
+		return respMsg ? `${userMsg}\n${respMsg}` : userMsg;
+	}).join('\n\n');
+	if (transcript.length > maxLength) {
+		transcript = transcript.substring(transcript.length - maxLength);
+	}
+	return transcript;
+}
+
+/**
+ * Wraps a conversation transcript as a paste attachment so it can be passed via
+ * `attachedContext` to a delegated session, keeping the user's prompt clean.
+ * Returns `undefined` when the transcript is empty.
+ */
+export function createDelegationTranscriptAttachment(transcript: string, sourceName: string): IChatRequestPasteVariableEntry | undefined {
+	if (!transcript) {
+		return undefined;
+	}
+	const transcriptName = localize('chat.delegation.transcriptName', "Previous conversation");
+	const transcriptContent = localize('chat.delegation.transcriptContent', "The following is the conversation history from a previous {0} session. Continue working on it.\n\n{1}", sourceName, transcript);
+	return toPasteVariableEntry(transcriptName, transcriptContent, {
+		id: `chat-delegation-transcript-${generateUuid()}`,
+		icon: Codicon.history,
+		language: 'markdown',
+		pastedLines: transcriptName,
+		fileName: transcriptName,
+	});
+}
+
+export class CreateRemoteAgentJobAction {
+	constructor() { }
+
+	private openUntitledEditor(commandService: ICommandService, continuationTarget: ResolvedChatSessionsExtensionPoint) {
+		commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`);
+	}
+
+	/**
+	 * Extracts the GitHub "owner/repo" NWO from the source session by checking
+	 * multiple data sources: chat model repoData, session metadata, and session options.
+	 */
+	private async extractRepoNwoFromSession(agentSessionsService: IAgentSessionsService, chatSessionsService: IChatSessionsService, fileService: IFileService, sessionResource: URI, chatModel: ChatModel): Promise<string | undefined> {
+		// 1. Try chat model's repoData (populated when local git repo exists)
+		const repoData = chatModel.repoData;
+		if (repoData?.remoteUrl) {
+			const nwo = extractNwoFromRemoteUrl(repoData.remoteUrl);
+			if (nwo) {
+				return nwo;
+			}
+		}
+
+		// 2. Try agent session metadata (populated by session providers)
+		const agentSession = agentSessionsService.getSession(sessionResource);
+		if (agentSession?.metadata) {
+			const metadata = agentSession.metadata;
+
+			// Cloud sessions set name/owner in metadata
+			const owner = metadata.owner as string | undefined;
+			const name = metadata.name as string | undefined;
+			if (owner && name) {
+				return `${owner}/${name}`;
+			}
+
+			// Background sessions may set repositoryNwo directly
+			const repositoryNwo = metadata.repositoryNwo as string | undefined;
+			if (repositoryNwo?.includes('/')) {
+				return repositoryNwo;
+			}
+
+			// Background sessions may set repositoryUrl
+			const repositoryUrl = metadata.repositoryUrl as string | undefined;
+			if (repositoryUrl) {
+				const nwo = extractNwoFromRemoteUrl(repositoryUrl);
+				if (nwo) {
+					return nwo;
+				}
+			}
+
+			// Background sessions set workingDirectoryPath — resolve git remote from it
+			const workingDir = (metadata.workingDirectoryPath ?? metadata.repositoryPath ?? metadata.worktreePath) as string | undefined;
+			if (workingDir) {
+				const nwo = await resolveGitRemoteNwo(workingDir, fileService);
+				if (nwo) {
+					return nwo;
+				}
+			}
+		}
+
+		// 3. Try session options (repository picker selection)
+		// Cloud sessions use 'repositories', sessions window uses 'repository'
+		for (const optionId of ['repositories', 'repository']) {
+			const repoOption = chatSessionsService.getSessionOption(sessionResource, optionId);
+			if (repoOption) {
+				const optionValue = typeof repoOption === 'string' ? repoOption : (repoOption as { id: string }).id;
+				if (optionValue) {
+					// Check if it's already a "owner/repo" NWO (exactly two segments)
+					const segments = optionValue.split('/').filter(Boolean);
+					if (segments.length === 2) {
+						return optionValue;
+					}
+					// Try extracting NWO from a URL
+					const nwo = extractNwoFromRemoteUrl(optionValue);
+					if (nwo) {
+						return nwo;
+					}
+					// Try parsing as URI (e.g. github-remote-file://github/owner/repo/...)
+					try {
+						const uri = URI.parse(optionValue);
+						if (uri.authority === 'github') {
+							const parts = uri.path.split('/').filter(Boolean);
+							if (parts.length >= 2) {
+								return `${parts[0]}/${parts[1]}`;
+							}
+						}
+					} catch { /* ignore */ }
+					// Local filesystem path — resolve git remote
+					if (isAbsolute(optionValue)) {
+						const nwoFromGit = await resolveGitRemoteNwo(optionValue, fileService);
+						if (nwoFromGit) {
+							return nwoFromGit;
+						}
+					}
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	async run(accessor: ServicesAccessor, continuationTarget: ResolvedChatSessionsExtensionPoint, _widget?: IChatWidget) {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const commandService = accessor.get(ICommandService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const chatAgentService = accessor.get(IChatAgentService);
+		const chatService = accessor.get(IChatService);
+		const editorService = accessor.get(IEditorService);
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
+		const fileService = accessor.get(IFileService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const agentHostService = accessor.get(IAgentHostService);
+		const languageModelsService = accessor.get(ILanguageModelsService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const managedSettingsService = accessor.get(IManagedSettingsService);
+		const configurationService = accessor.get(IConfigurationService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const historyService = accessor.get(IHistoryService);
+		const newSessionFolderService = accessor.get(IAgentHostNewSessionFolderService);
+
+		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
+
+		try {
+			remoteJobCreatingKey.set(true);
+
+			const widget = _widget ?? widgetService.lastFocusedWidget;
+			if (!widget || !widget.viewModel) {
+				return this.openUntitledEditor(commandService, continuationTarget);
+			}
+
+			// todo@connor4312: remove 'as' cast
+			const chatModel = widget.viewModel.model as ChatModel;
+			if (!chatModel) {
+				return;
+			}
+
+			const sessionResource = widget.viewModel.sessionResource;
+			const chatRequests = chatModel.getRequests();
+			let userPrompt = widget.getInput();
+			if (!userPrompt) {
+				if (!chatRequests.length) {
+					return this.openUntitledEditor(commandService, continuationTarget);
+				}
+				userPrompt = 'implement this.';
+			}
+
+			const attachedContext = widget.input.getAttachedAndImplicitContext();
+			widget.input.acceptInput(true);
+
+			// For inline editor mode, add selection or cursor information
+			if (widget.location === ChatAgentLocation.EditorInline) {
+				const activeEditor = editorService.activeTextEditorControl;
+				if (activeEditor) {
+					const model = activeEditor.getModel();
+					let activeEditorUri: URI | undefined = undefined;
+					if (model && isITextModel(model)) {
+						activeEditorUri = model.uri as URI;
+					}
+					const selection = activeEditor.getSelection();
+					if (activeEditorUri && selection) {
+						attachedContext.add({
+							kind: 'file',
+							id: 'vscode.implicit.selection',
+							name: basename(activeEditorUri),
+							value: {
+								uri: activeEditorUri,
+								range: selection
+							},
+						});
+					}
+				}
+			}
+
+			const continuationTargetType = continuationTarget.type;
+
+			// When source and target session types differ, open a new session of
+			// the target type and hand off the prior conversation as an attachment
+			// (history-import) instead of sending to the current (incompatible)
+			// session resource. This happens for any cross-type delegation in the
+			// sessions window, and whenever either the source or the target is an
+			// agent host session (e.g. Copilot CLI / Codex / Claude agent host),
+			// so delegation works from anything to any agent host session and from
+			// any agent host session to any target.
+			const isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService);
+			// Resolve a source session type that also covers dynamically-registered
+			// agent host providers (e.g. `agent-host-codex`), which are not part of
+			// the AgentSessionProviders enum.
+			const sourceSessionType = getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource);
+			const handoffToNewSession = isSessionsWindow || isAgentHostTarget(continuationTargetType) || (!!sourceSessionType && isAgentHostTarget(sourceSessionType));
+			if (handoffToNewSession && sourceSessionType && sourceSessionType !== continuationTargetType) {
+				const isSidebar = isIChatViewViewContext(widget.viewContext);
+
+				// Build the prior conversation transcript so context is preserved.
+				// Agent host targets consume it as an attachment (keeping the user's
+				// prompt clean); other targets (e.g. the Cloud coding agent) don't
+				// process paste attachments, so for those we inline it into the prompt.
+				const transcript = buildDelegationTranscript(chatRequests);
+				const sourceContribution = chatSessionsService.getAllChatSessionContributions().find(c => c.type === sourceSessionType || getAgentSessionProvider(c.type) === sourceSessionType);
+				const sourceName = sourceContribution?.displayName ?? getAgentSessionProviderName(sourceSessionType);
+				const continuationContext = attachedContext.asArray();
+				let handoffPrompt = userPrompt;
+				// Continuing a local chat into Copilot CLI (main window) imports the
+				// prior conversation as real, editable turns seeded into the new
+				// session, instead of handing it over as a read-only transcript
+				// attachment. The turns are threaded through the normal
+				// `openChatSession` flow so the session lifecycle (model picker,
+				// config chips, etc.) is unchanged. Hosts that cannot import fall
+				// back to the transcript attachment.
+				const importStats = createImportedConversationStats();
+				const importConversationTurns = (continuationTargetType === SessionType.AgentHostCopilot && !isSessionsWindow && agentHostService.supportsConversationImport)
+					? importedTurnsFromChatModel(chatModel, { resourceUris: agentHostService.resourceUris, resolveModel: identifier => resolveImportedCopilotModel(languageModelsService, identifier), stats: importStats })
+					: undefined;
+				// Carry the source session's selected model so the imported session
+				// resumes on the same model rather than the host default. The raw
+				// model id (`metadata.id`) matches the Copilot catalog shared by the
+				// local models and Copilot CLI.
+				const importConversationModelId = importConversationTurns ? widget.input.selectedLanguageModel.get()?.metadata.id : undefined;
+				const importConversationModel: ModelSelection | undefined = importConversationModelId ? { id: importConversationModelId } : undefined;
+				if (transcript && !importConversationTurns) {
+					if (isAgentHostTarget(continuationTargetType)) {
+						const transcriptAttachment = createDelegationTranscriptAttachment(transcript, sourceName);
+						if (transcriptAttachment) {
+							continuationContext.unshift(transcriptAttachment);
+						}
+					} else {
+						handoffPrompt = localize('chat.delegation.inlinePrompt', "The following is the conversation history from a previous {0} session. Continue working on it.\n\n{1}\n\nUser: {2}", sourceName, transcript, userPrompt);
+					}
+				}
+
+				// Extract repository info from the source session to pass to the target session
+				const initialSessionOptions = new Map<string, string>();
+				const repoNwo = await this.extractRepoNwoFromSession(agentSessionsService, chatSessionsService, fileService, sessionResource, chatModel);
+				if (repoNwo) {
+					initialSessionOptions.set('repositories', repoNwo);
+				}
+
+				// Agent host targets are delegated generically (no per-session-type
+				// command). In the Agents window a single registered command creates
+				// the target session through the session management service; in the
+				// main window we open the session directly. Both paths carry the
+				// transcript as an attachment.
+				if (isAgentHostTarget(continuationTargetType)) {
+					// A Local conversation continued in an agent host is a move of that chat, reported like Move to Copilot.
+					const migration = sourceSessionType === AgentSessionProviders.Local && chatRequests.length
+						? new LocalChatMigrationTelemetry(telemetryService, {
+							entryPoint: 'continueIn',
+							trigger: 'manual',
+							policyRequired: requiresCopilotAgentHost(managedSettingsService, configurationService),
+							kind: importConversationTurns ? 'migrate' : 'transcript',
+							target: getLocalChatMigrationTarget(continuationTargetType),
+							location: isSessionsWindow ? 'agentsWindow' : isSidebar ? 'panel' : 'editor',
+							turns: importConversationTurns?.length ?? 0,
+						})
+						: undefined;
+					try {
+						if (isSessionsWindow) {
+							const delegationRequest: IAgentHostDelegationRequest = {
+								type: continuationTargetType,
+								displayName: continuationTarget.displayName,
+								prompt: handoffPrompt,
+								attachedContext: continuationContext,
+							};
+							await commandService.executeCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, delegationRequest);
+							migration?.succeeded();
+						} else {
+							const newChatOpenOptions = {
+								type: continuationTargetType,
+								displayName: continuationTarget.displayName,
+								position: isSidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+								// Replace the source chat editor in place so switching harness
+								// feels like the same chat continues rather than opening a new
+								// tab. The source (local) session stays in chat history and is
+								// recoverable. The sidebar path already swaps in place via
+								// `loadSession`, so it needs no replacement. Pass the source
+								// resource (not a bare flag) so the correct editor is resolved
+								// at replace time even if the active editor changed meanwhile.
+								replaceEditorForResource: isSidebar ? undefined : sessionResource,
+							};
+							const newChatResource = getResourceForNewChatSession(newChatOpenOptions);
+							// A Local conversation continues in the workspace folder its agent would have run in next,
+							// recorded for the new chat itself without becoming the window's default.
+							const primaryFolder = sourceSessionType === AgentSessionProviders.Local && chatRequests.length
+								? importedConversationPrimaryFolder(chatModel, workspaceContextService, historyService.getLastActiveWorkspaceRoot())
+								: undefined;
+							if (primaryFolder) {
+								newSessionFolderService.setFolder(newChatResource, primaryFolder, { updateDefault: false });
+							}
+							const openResult = await instantiationService.invokeFunction(innerAccessor => openChatSessionAndSend(
+								innerAccessor,
+								{ ...newChatOpenOptions, sessionResource: newChatResource },
+								{
+									prompt: handoffPrompt,
+									attachedContext: continuationContext,
+									initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
+									importConversation: importConversationTurns ? { turns: importConversationTurns, model: importConversationModel, title: chatModel.title } : undefined,
+								}
+							));
+							if (!openResult) {
+								newSessionFolderService.clear(newChatResource);
+								migration?.failed('openFailed');
+							} else if (openResult.sendOutcome === 'rejected' || openResult.sendOutcome === 'failed') {
+								// The new chat stays open, but neither the transcript nor the draft reached it.
+								migration?.failed('sendFailed');
+							} else if (importConversationTurns && !holdsImportedTurns(chatService.getSession(openResult.resource), importConversationTurns)) {
+								migration?.failed('historyMissing');
+							} else {
+								migration?.succeeded();
+								// Reported only once the new session holds the imported conversation.
+								if (importConversationTurns) {
+									logConversationImport(telemetryService, 'continueIn', importStats);
+								}
+							}
+						}
+					} catch (error) {
+						if (isCancellationError(error)) {
+							migration?.cancelled();
+						} else {
+							migration?.failed('unexpected');
+						}
+						throw error;
+					}
+					return;
+				}
+
+				// Non-agent-host targets (e.g. Cloud / Background) continue to use
+				// their per-session-type new-session command.
+				const actionId = isSidebar
+					? `workbench.action.chat.openNewSessionSidebar.${continuationTargetType}`
+					: `${NEW_CHAT_SESSION_ACTION_ID}.${continuationTargetType}`;
+				await commandService.executeCommand(actionId, {
+					prompt: handoffPrompt,
+					attachedContext: continuationContext,
+					initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
+				});
+				return;
+			}
+
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
+			const requestParser = instantiationService.createInstance(ChatRequestParser);
+			const context = { sessionType: getChatSessionType(sessionResource) };
+			// Add the request to the model first
+			const parsedRequest = requestParser.parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), userPrompt, ChatAgentLocation.Chat, context);
+			const addedRequest = chatModel.addRequest(
+				parsedRequest,
+				{ variables: attachedContext.asArray() },
+				0,
+				undefined,
+				defaultAgent
+			);
+
+			await chatService.removeRequest(sessionResource, addedRequest.id);
+			const sendResult = await chatService.sendRequest(sessionResource, userPrompt, {
+				agentIdSilent: continuationTargetType,
+				attachedContext: attachedContext.asArray(),
+				...widget.getSelectedModelRequestOptions(),
+				...widget.getModeRequestOptions()
+			});
+
+			if (ChatSendResult.isSent(sendResult)) {
+				await widget.handleDelegationExitIfNeeded(defaultAgent, sendResult.data.agent);
+			}
+		} catch (e) {
+			console.error('[Delegation] Error creating remote coding agent job', e);
+			throw e;
+		} finally {
+			remoteJobCreatingKey.set(false);
+		}
+	}
+}
+
+class CreateRemoteAgentJobFromEditorAction {
+	constructor() { }
+
+	async run(accessor: ServicesAccessor, continuationTarget: ResolvedChatSessionsExtensionPoint) {
+
+		try {
+			const editorService = accessor.get(IEditorService);
+			const activeEditor = editorService.activeTextEditorControl;
+			const commandService = accessor.get(ICommandService);
+
+			if (!activeEditor) {
+				return;
+			}
+			const model = activeEditor.getModel();
+			if (!model || !isITextModel(model)) {
+				return;
+			}
+			const uri = model.uri;
+			const attachedContext = [toPromptFileVariableEntry(uri, PromptFileVariableKind.PromptFile, undefined, false, [])];
+			const prompt = `Follow instructions in [${basename(uri)}](${uri.toString()}).`;
+			await commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`, { prompt, attachedContext });
+		} catch (e) {
+			console.error('Error creating remote agent job from editor', e);
+			throw e;
+		}
+	}
+}
+
+export class ContinueChatInSessionActionRendering extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.continueChatInSessionActionRendering';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		const disposable = actionViewItemService.register(MenuId.EditorContent, ContinueChatInSessionAction.ID, (action, options, instantiationService2) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(ChatContinueInSessionActionItem, action, ActionLocation.Editor);
+		});
+		markAsSingleton(disposable);
+	}
+}

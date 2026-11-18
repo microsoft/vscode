@@ -1,0 +1,950 @@
+[
+  {
+    "name": "/review [inline] [javascript] - Binary search with correct stop condition - (gpt-4.1-2025-04-14)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "/review [inline] [javascript] - Binary search with incorrect stop condition - (gpt-4.1-2025-04-14)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "/review [inline] [python] - Bank account with lock acquisition - (gpt-4.1-2025-04-14)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "/review [inline] [python] - Bank account with missing lock acquisition - (gpt-4.1-2025-04-14)",
+    "contentFilterCount": 0,
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
+  },
+  {
+    "name": "/review [inline] [typescript] - InstantiationService this scoping bug - (gpt-4.1-2025-04-14)",
+    "contentFilterCount": 0,
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
+  },
+  {
+    "name": "/review [inline] [typescript] - InstantiationService this scoping fixed - (gpt-4.1-2025-04-14)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [json] - make changes in package.json",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [markdown] - mixed product icons (60kb) - modify & insert",
+    "contentFilterCount": 0,
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
+  },
+  {
+    "name": "codeMapper [context] [markdown] - sorted product icons (60kb) - modify & insert",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - add import",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - add new function at location 1",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - break up function, large file",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - does not delete random parts of code (big file)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - does not remove stale imports #11766",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - modify function",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - move to class",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - other tests updated similarly",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [typescript] - replace statement with ident change",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "codeMapper [context] [yaml] - looping in short yaml file",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Debug config to command [context] - cargo run platform-specific",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Debug config to command [context] - node subdirectory and arg",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.5
+  },
+  {
+    "name": "Debug config to command [context] - node test",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Debug config to command [context] - opening a browser",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.55
+  },
+  {
+    "name": "Debug config to command [context] - python3 subdirectory and arg",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.825
+  },
+  {
+    "name": "Debug tools list [context] - c",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.27999999999999997
+  },
+  {
+    "name": "Debug tools list [context] - csharp",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.475
+  },
+  {
+    "name": "Debug tools list [context] - elixir",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0
+  },
+  {
+    "name": "Debug tools list [context] - go",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Debug tools list [context] - javascript",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.25
+  },
+  {
+    "name": "Debug tools list [context] - lua",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.55
+  },
+  {
+    "name": "Debug tools list [context] - python",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.25
+  },
+  {
+    "name": "Debug tools list [context] - ruby",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.25
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 0)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 1)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 10)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 2)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 3)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 4)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 6)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 7)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 8)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 9)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 0)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 1)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 10)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 2)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 3)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 4)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 6)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 7)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 8)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 9)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "git commit message [external] [python] - Generated commit messages do not bias to conventional commit style",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "git commit message [external] [python] - Generates a conventional commit message for a bug fix",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "git commit message [external] [python] - Generates a simple commit message",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [cpp] - [MustHave] 8-cppIndividual-1-point.cpp",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1,
+    "attributes": {
+      "CompScore1": 1,
+      "CompScore2": 0,
+      "CompScore3": 1
+    }
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [cpp] - [MustHave] 8-cppIndividual-2-collection-farewell",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1,
+    "attributes": {
+      "CompScore1": 1,
+      "CompScore2": 0.5,
+      "CompScore3": 0.5
+    }
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [cpp] - [MustHave] 9-cppProject-add-header-expect-implementation",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1,
+    "attributes": {
+      "CompScore1": 1,
+      "CompScore2": 0.66,
+      "CompScore3": 0.5
+    }
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [cpp] - [MustHave] 9-cppProject-add-implementation-expect-header",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1,
+    "attributes": {
+      "CompScore1": 1,
+      "CompScore2": 0,
+      "CompScore3": 1
+    }
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [java] - [MustHave] 6-vscode-remote-try-java-part-1",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1,
+    "attributes": {
+      "CompScore1": 1,
+      "CompScore2": 1,
+      "CompScore3": 0.75
+    }
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [java] - [MustHave] 6-vscode-remote-try-java-part-2",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1,
+    "attributes": {
+      "CompScore1": 1,
+      "CompScore2": 1,
+      "CompScore3": 0.75
+    }
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [python] - Notebook 10-update-name-in-same-cell-of-notebook",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.1
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [python] - Notebook 11-update-name-in-next-cell-of-notebook",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 0.1
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [typescript] - [MustHave] 1-point.ts",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1,
+    "attributes": {
+      "CompScore1": 1,
+      "CompScore2": 0.5,
+      "CompScore3": 0
+    }
+  },
+  {
+    "name": "InlineEdit GoldenScenario ([xtab]) [external] [typescript] - [NiceToHave] 2-helloworld-sample-remove-generic-parameter",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1,
+    "attributes": {
+      "CompScore1": 0
+    }
+  },
+  {
+    "name": "notebook (edit) [inline] [python] - /fix notebook exection ImportError",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (edit) [inline] [python] - data cleansing",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (edit) [inline] [python] - dataframe",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (edit) [inline] [python] - edit notebook code should not duplicate the content",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (edit) [inline] [python] - group by",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (edit) [inline] [python] - plot",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (edit) [inline] [python] - set index",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (edit) [inline] [python] - variables",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix AttributeError: can't set attribute",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix can only concatenate list (not \"str\") to list",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix Missing import, name 'array' is not defined",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix name conflict with builtin function",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix notebook execution ImportError, insert at top",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix numpy, unsupported operand types",
+    "contentFilterCount": 0,
+    "passCount": 1,
+    "failCount": 9,
+    "score": 0.1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix Tensorflow InvalidArgumentError",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix Tensorflow model has not yet been built",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix TypeError: can only concatenate str (not \"int\") to str",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix TypeError: Index does not support mutable operations",
+    "contentFilterCount": 0,
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix TypeError: str object is not an iterator",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix UnboundLocalError, local variable referenced before assignment",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix runtime) [inline] [python] - /fix ValueError: The truth value of an array with more than one element is ambiguous",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - (AML-10-29) instance of bool has no to_string member",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - (AML-10-35) can not access member",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - (AML-10-36) can not be assigned 2",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - (AML-10-4) parameter already assigned",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - (AML-10-48) can not be assigned 3",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - (AML-10-58) not defined",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - (AML-8-110) not defined",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - (AML-8-73) no value for argument in function call",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - all Annotated types should include at least two type arguments",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - async cannot be used in a non-async function",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - await cannot be used in a non-async function",
+    "contentFilterCount": 0,
+    "passCount": 7,
+    "failCount": 3,
+    "score": 0.7
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - bad token",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - Bar does not define a do_something2 method",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - cannot instantiate abstract class",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - general type issue",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - optional member access",
+    "contentFilterCount": 0,
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - should not generate an error for variables declared in outer scopes",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - unbound variable",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (fix) [inline] [python] - undefined variable",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (generate runtime) [inline] [python] - generate code uses obselete variable",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (generate) [inline] [markdown] - edit markdown cell should support code example",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (generate) [inline] [python] - create a model to predict the likelihood of a flight being delayed",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (generate) [inline] [python] - How many items were orderd in total?",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "notebook (generate) [inline] [python] - Which was the most-ordered item",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "PR Title and Description [context] - Multiple commits without issue information",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - non-tree-sitter language",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename a function at its definition",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename a function call - definition in different file",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename a function call - definition in same file",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename a SCREAMING_SNAKE_CASE enum member",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename a variable reference within a function",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename class - same file",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename class name - CSS",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename class reference - same file",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename follows naming convention _ - rename a function (with underscore) at its definition",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename method with field-awareness",
+    "contentFilterCount": 0,
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
+  },
+  {
+    "name": "Rename suggestions [external] - rename type definition",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename type definition when it is used in the same file",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename type reference - same file",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - rename type reference - same file with 2 possible defs",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "Rename suggestions [external] - respect context: infer name based on existing code - enum member",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "settingsEditorSearchResultsSelector [external] - Selects expected agent mode setting",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  }
+]

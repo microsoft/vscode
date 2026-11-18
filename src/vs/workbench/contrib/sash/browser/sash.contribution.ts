@@ -3,24 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { SashSettingsController } from 'vs/workbench/contrib/sash/browser/sash';
-import { isIOS } from 'vs/base/common/platform';
+import { MAX_TIMEOUT_DELAY } from '../../../../base/common/async.js';
+import { isIOS } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { SashGrippersController, SashSettingsController } from './sash.js';
 
 // Sash size contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SashSettingsController, LifecyclePhase.Restored);
+registerWorkbenchContribution2(SashSettingsController.ID, SashSettingsController, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SashGrippersController.ID, SashGrippersController, WorkbenchPhase.AfterRestored);
 
 // Sash size configuration contribution
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		properties: {
+			'workbench.sash.autoHideGrippers': {
+				type: 'boolean',
+				default: true,
+				markdownDescription: localize('sashAutoHideGrippers', "Controls whether sash grippers between views and editors hide when the mouse is idle and reappear when the mouse moves. Use {0} to configure the delay. Disable to keep grippers visible. Mouse movement inside nested frames embedded in webviews, such as Simple Browser pages, is not detected. Hover and drag feedback is unaffected.", '`#workbench.sash.autoHideGrippersDelay#`')
+			},
+			'workbench.sash.autoHideGrippersDelay': {
+				type: 'number',
+				default: 2000,
+				minimum: 0,
+				maximum: MAX_TIMEOUT_DELAY,
+				markdownDescription: localize('sashAutoHideGrippersDelay', "Controls how long to wait in milliseconds without mouse movement before fading out sash grippers. Applies when {0} is enabled.", '`#workbench.sash.autoHideGrippers#`')
+			},
 			'workbench.sash.size': {
 				type: 'number',
 				default: isIOS ? 20 : 4,

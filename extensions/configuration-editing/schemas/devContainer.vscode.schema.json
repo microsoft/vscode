@@ -10,16 +10,20 @@
 					"properties": {
 						"extensions": {
 							"type": "array",
-							"description": "An array of extensions that should be installed into the container.",
+							"description": "An array of extensions that should be installed into the container. A minus '-' in front of the extension id removes it from the list of extensions to be installed.",
 							"items": {
 								"type": "string",
-								"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
-								"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
+								"pattern": "^-?([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
+								"errorMessage": "Expected format: '${publisher}.${name}', '-${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 							}
 						},
 						"settings": {
 							"$ref": "vscode://schemas/settings/machine",
 							"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
+						},
+						"mcp": {
+							"$ref": "vscode://schemas/mcp",
+							"description": "Model Context Protocol server configurations"
 						},
 						"devPort": {
 							"type": "integer",
@@ -31,11 +35,11 @@
 		},
 		"extensions": {
 			"type": "array",
-			"description": "An array of extensions that should be installed into the container.",
+			"description": "An array of extensions that should be installed into the container. A minus '-' in front of the extension id removes it from the list of extensions to be installed.",
 			"items": {
 				"type": "string",
-				"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
-				"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
+				"pattern": "^-?([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)((@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)|@prerelease)?$",
+				"errorMessage": "Expected format: '${publisher}.${name}', '-${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
 			},
 			"deprecated": true,
 			"deprecationMessage": "Use 'customizations/vscode/extensions' instead"

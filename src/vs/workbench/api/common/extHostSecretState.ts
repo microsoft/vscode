@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostSecretStateShape, MainContext, MainThreadSecretStateShape } from 'vs/workbench/api/common/extHost.protocol';
-import { Emitter } from 'vs/base/common/event';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ExtHostSecretStateShape, MainContext, MainThreadSecretStateShape } from './extHost.protocol.js';
+import { Emitter } from '../../../base/common/event.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 
 export class ExtHostSecretState implements ExtHostSecretStateShape {
 	private _proxy: MainThreadSecretStateShape;
@@ -31,6 +31,10 @@ export class ExtHostSecretState implements ExtHostSecretStateShape {
 
 	delete(extensionId: string, key: string): Promise<void> {
 		return this._proxy.$deletePassword(extensionId, key);
+	}
+
+	keys(extensionId: string): Promise<string[]> {
+		return this._proxy.$getKeys(extensionId);
 	}
 }
 

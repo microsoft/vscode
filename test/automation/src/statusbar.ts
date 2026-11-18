@@ -13,9 +13,20 @@ export const enum StatusBarElement {
 	INDENTATION_STATUS = 4,
 	ENCODING_STATUS = 5,
 	EOL_STATUS = 6,
-	LANGUAGE_STATUS = 7,
-	FEEDBACK_ICON = 8
+	LANGUAGE_STATUS = 7
 }
+
+// Status bar items in the editor area can shift right when a new neighbor
+// (e.g. the language status `{}` provided by extensions) is inserted
+// asynchronously. Clicks on these items must use a stability-aware path to
+// avoid TOCTOU races between the position lookup and click dispatch.
+const EDITOR_AREA_ITEMS: ReadonlySet<StatusBarElement> = new Set([
+	StatusBarElement.SELECTION_STATUS,
+	StatusBarElement.INDENTATION_STATUS,
+	StatusBarElement.ENCODING_STATUS,
+	StatusBarElement.EOL_STATUS,
+	StatusBarElement.LANGUAGE_STATUS,
+]);
 
 export class StatusBar {
 
@@ -28,7 +39,12 @@ export class StatusBar {
 	}
 
 	async clickOn(element: StatusBarElement): Promise<void> {
-		await this.code.waitAndClick(this.getSelector(element));
+		const selector = this.getSelector(element);
+		if (EDITOR_AREA_ITEMS.has(element)) {
+			await this.code.robustClick(selector);
+		} else {
+			await this.code.waitAndClick(selector);
+		}
 	}
 
 	async waitForEOL(eol: string): Promise<string> {
@@ -36,15 +52,15 @@ export class StatusBar {
 	}
 
 	async waitForStatusbarText(title: string, text: string): Promise<void> {
-		await this.code.waitForTextContent(`${this.mainSelector} .statusbar-item[title="${title}"]`, text);
+		await this.code.waitForTextContent(`${this.mainSelector} .statusbar-item[aria-label="${title}"]`, text);
 	}
 
 	private getSelector(element: StatusBarElement): string {
 		switch (element) {
 			case StatusBarElement.BRANCH_STATUS:
-				return `.statusbar-item[id^="status.scm."] .codicon.codicon-git-branch`;
+				return `.statusbar-item[id="status.scm.0"] .codicon`;
 			case StatusBarElement.SYNC_STATUS:
-				return `.statusbar-item[id^="status.scm."] .codicon.codicon-sync`;
+				return `.statusbar-item[id="status.scm.1"] .codicon.codicon-sync`;
 			case StatusBarElement.PROBLEMS_STATUS:
 				return `.statusbar-item[id="status.problems"]`;
 			case StatusBarElement.SELECTION_STATUS:
@@ -57,8 +73,6 @@ export class StatusBar {
 				return `.statusbar-item[id="status.editor.eol"]`;
 			case StatusBarElement.LANGUAGE_STATUS:
 				return `.statusbar-item[id="status.editor.mode"]`;
-			case StatusBarElement.FEEDBACK_ICON:
-				return `.statusbar-item[id="status.feedback"]`;
 			default:
 				throw new Error(element);
 		}

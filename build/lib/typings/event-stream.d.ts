@@ -1,7 +1,7 @@
 declare module "event-stream" {
 	import { Stream } from 'stream';
 	import { ThroughStream as _ThroughStream } from 'through';
-	import * as File from 'vinyl';
+	import File from 'vinyl';
 
 	export interface ThroughStream extends _ThroughStream {
 		queue(data: File | null): any;
@@ -23,5 +23,5 @@ declare module "event-stream" {
 	function mapSync<I, O>(cb: (data: I) => O): ThroughStream;
 	function map<I, O>(cb: (data: I, cb: (err?: Error, data?: O) => void) => O): ThroughStream;
 
-	function readable(asyncFunction: (this: ThroughStream, ...args: any[]) => any): any;
+	function readable(asyncFunction: (this: ThroughStream, ...args: unknown[]) => any): any;
 }

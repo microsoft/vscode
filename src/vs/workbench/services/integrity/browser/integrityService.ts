@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IIntegrityService, IntegrityTestResult } from '../common/integrity.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export class IntegrityService implements IIntegrityService {
 

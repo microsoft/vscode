@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./aria';
+import * as dom from '../../dom.js';
+import './aria.css';
 
 // Use a max length since we are inserting the whole msg in the DOM and that can cause browsers to freeze for long messages #94233
 const MAX_MESSAGE_LENGTH = 20000;
@@ -32,7 +31,6 @@ export function setARIAContainer(parent: HTMLElement) {
 	const createStatusContainer = () => {
 		const element = document.createElement('div');
 		element.className = 'monaco-status';
-		element.setAttribute('role', 'complementary');
 		element.setAttribute('aria-live', 'polite');
 		element.setAttribute('aria-atomic', 'true');
 		ariaContainer.appendChild(element);
@@ -69,16 +67,12 @@ export function status(msg: string): void {
 		return;
 	}
 
-	if (isMacintosh) {
-		alert(msg); // VoiceOver does not seem to support status role
+	if (statusContainer.textContent !== msg) {
+		dom.clearNode(statusContainer2);
+		insertMessage(statusContainer, msg);
 	} else {
-		if (statusContainer.textContent !== msg) {
-			dom.clearNode(statusContainer2);
-			insertMessage(statusContainer, msg);
-		} else {
-			dom.clearNode(statusContainer);
-			insertMessage(statusContainer2, msg);
-		}
+		dom.clearNode(statusContainer);
+		insertMessage(statusContainer2, msg);
 	}
 }
 

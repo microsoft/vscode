@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { marked } from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
-import { isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import assert from 'assert';
+import { mainWindow } from '../../browser/window.js';
+import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
+import { escapeMarkdownLinkText, IMarkdownString, MarkdownString, removeMarkdownEscapes } from '../../common/htmlContent.js';
+import { toDisposable } from '../../common/lifecycle.js';
+import * as marked from '../../common/marked/marked.js';
+import { parse } from '../../common/marshalling.js';
+import { isWeb } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { DeferredPromise } from '../../common/async.js';
+import { FileAccess } from '../../common/network.js';
+import { addDisposableListener } from '../../browser/dom.js';
+import { errorHandler } from '../../common/errors.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 function strToNode(str: string): HTMLElement {
 	return new DOMParser().parseFromString(str, 'text/html').body.firstChild as HTMLElement;
@@ -23,39 +30,322 @@ function assertNodeEquals(actualNode: HTMLElement, expectedHtml: string) {
 }
 
 suite('MarkdownRenderer', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('Sanitization', () => {
 		test('Should not render images with unknown schemes', () => {
 			const markdown = { value: `![image](no-such://example.com/cat.gif)` };
-			const result: HTMLElement = renderMarkdown(markdown).element;
+			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
+		});
+
+		test('Strips links with disallowed schemes (default config)', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
+			// No <a> element should remain because the scheme isn't allowed.
+			assert.strictEqual(result.querySelector('a'), null);
+		});
+
+		test('Preserves link when scheme is allowed via allowedLinkSchemes.augment', () => {
+			const markdown = { value: `Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)` };
+			const result: HTMLElement = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					allowedLinkSchemes: { augment: ['vscode-agent-host'] },
+				},
+			})).element;
+			const anchor = result.querySelector('a');
+			assert.ok(anchor, 'expected <a> to be preserved when scheme is allowed');
+			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
+		});
+
+		test('Only allows inline-block display style on spans', () => {
+			const markdown = new MarkdownString(
+				'<span style="display:inline-block;">allowed</span><span style="display:block;">blocked</span>',
+				{ supportHtml: true },
+			);
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			assert.strictEqual(result.innerHTML, '<p><span style="display:inline-block;">allowed</span><span>blocked</span></p>');
+		});
+
+		test('Transforms parsed link targets without changing labels, titles, or code', () => {
+			const markdown = { value: '`[same](file:///same)` [a[b].ts](file:///same "file:///same") ![image](file:///same|width=10,height=20)' };
+			const result = store.add(renderMarkdown(markdown, {
+				transformUri: href => href === 'file:///same' ? 'https://example.com/a.ts' : href,
+			})).element;
+			const anchor = result.querySelector('a');
+			assert.deepStrictEqual(
+				{
+					anchorCount: result.querySelectorAll('a').length,
+					text: anchor?.textContent,
+					href: anchor?.dataset.href,
+					title: anchor?.title,
+					image: result.querySelector('img')?.src,
+					imageWidth: result.querySelector('img')?.getAttribute('width'),
+					imageHeight: result.querySelector('img')?.getAttribute('height'),
+				},
+				{
+					anchorCount: 1,
+					text: 'a[b].ts',
+					href: 'https://example.com/a.ts',
+					title: 'file:///same',
+					image: 'https://example.com/a.ts',
+					imageWidth: '10',
+					imageHeight: '20',
+				},
+			);
 		});
 	});
 
 	suite('Images', () => {
+		test('resolves only sanitized media through the registered browser transport', async () => {
+			const read: string[] = [];
+			const resource = URI.parse('test-filesystem://connection/image.png?metadata=original');
+			const resolved = new DeferredPromise<{ object: URI; dispose(): void }>();
+			let disposed = false;
+			store.add(FileAccess.registerBrowserUriProvider('test-filesystem', {
+				resolve: uri => {
+					read.push(uri.toString());
+					return resolved.p;
+				},
+			}));
+			const result = store.add(renderMarkdown({ value: `![Image](${resource.toString()}) ![Blocked](https://attacker.test/image.png)` }, {
+				sanitizerConfig: {
+					allowedMediaSchemes: { augment: ['test-filesystem'] },
+					remoteImageIsAllowed: uri => uri.scheme === 'test-filesystem',
+					replaceWithPlaintext: true,
+				},
+			}));
+			const image = result.element.querySelector('img')!;
+			const before = image.getAttribute('src');
+			await resolved.complete({ object: URI.parse('data:image/png;base64,AA=='), dispose: () => { disposed = true; } });
+			await Promise.resolve();
+			const source = image.getAttribute('src');
+			result.dispose();
+			assert.deepStrictEqual({ before, source, resource: image.getAttribute('data-src'), read, disposed }, {
+				before: null, source: 'data:image/png;base64,AA==', resource: resource.toString(), read: [resource.toString()], disposed: true,
+			});
+		});
+
+		test('a disposed render never activates a pending media source', async () => {
+			const resolved = new DeferredPromise<{ object: URI; dispose(): void }>();
+			let disposed = false;
+			store.add(FileAccess.registerBrowserUriProvider('test-filesystem', { resolve: () => resolved.p }));
+			const result = renderMarkdown({ value: '![Image](test-filesystem://connection/image.png)' }, {
+				sanitizerConfig: { allowedMediaSchemes: { augment: ['test-filesystem'] } },
+			});
+			const image = result.element.querySelector('img')!;
+			result.dispose();
+			await resolved.complete({ object: URI.parse('data:image/png;base64,AA=='), dispose: () => { disposed = true; } });
+			await Promise.resolve();
+			assert.deepStrictEqual({ source: image.getAttribute('src'), disposed }, { source: null, disposed: true });
+		});
+
+		test('custom media policy checks the URI metadata before activating a source', () => {
+			const href = 'test-filesystem://connection/image.png';
+			let resolutions = 0;
+			store.add(FileAccess.registerBrowserUriProvider('test-filesystem', {
+				resolve: async () => { resolutions++; return { object: URI.parse('data:image/png;base64,AA=='), dispose: () => { } }; },
+			}));
+			const result = store.add(renderMarkdown({
+				value: `![Image](${href})`,
+				uris: { [href]: URI.parse('https://attacker.test/image.png') },
+			}, {
+				sanitizerConfig: {
+					allowedMediaSchemes: { augment: ['test-filesystem'] },
+					remoteImageIsAllowed: uri => uri.scheme === 'test-filesystem',
+					replaceWithPlaintext: true,
+				},
+			}));
+			assert.deepStrictEqual({ images: result.element.querySelectorAll('img').length, resolutions }, { images: 0, resolutions: 0 });
+		});
+
+		test('failed resource reads report an image error without reporting a product error', async () => {
+			let unexpectedErrors = 0;
+			let heightChanges = 0;
+			store.add(toDisposable(errorHandler.addListener(() => unexpectedErrors++)));
+			const error = new Error('Image file is unavailable');
+			store.add(FileAccess.registerBrowserUriProvider('test-filesystem', { resolve: async () => { throw error; } }));
+			const result = store.add(renderMarkdown({ value: '![Image](test-filesystem://connection/image.png)' }, {
+				sanitizerConfig: { allowedMediaSchemes: { augment: ['test-filesystem'] } },
+				asyncRenderCallback: () => heightChanges++,
+			}));
+			const image = result.element.querySelector('img')!;
+			const failed = new DeferredPromise<Event>();
+			store.add(addDisposableListener(image, 'error', event => failed.complete(event)));
+			const event = await failed.p;
+			assert.deepStrictEqual({
+				error: event instanceof ErrorEvent ? event.error : undefined,
+				source: image.getAttribute('src'),
+				alt: image.alt,
+				unexpectedErrors,
+				heightChanges,
+			}, { error, source: null, alt: 'Image', unexpectedErrors: 0, heightChanges: 1 });
+		});
+
 		test('image rendering conforms to default', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
-			const result: HTMLElement = renderMarkdown(markdown).element;
+			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assertNodeEquals(result, '<div><p><img title="caption" alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image rendering conforms to default without title', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif)` };
-			const result: HTMLElement = renderMarkdown(markdown).element;
+			const result: HTMLElement = store.add(renderMarkdown(markdown)).element;
 			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
+		test('disallowed remote images are rendered as plaintext', () => {
+			const checkedUris: string[] = [];
+			const markdown = { value: '![image](https://example.com/collect?secret=value)' };
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: uri => {
+						checkedUris.push(uri.toString());
+						return false;
+					},
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.deepStrictEqual({
+				checkedUris,
+				html: result.innerHTML,
+			}, {
+				checkedUris: ['https://example.com/collect?secret%3Dvalue'],
+				html: '<p>&lt;img src="https://example.com/collect?secret=value" alt="image"&gt;</p>',
+			});
+		});
+
+		test('network-backed file images are rendered as plaintext', () => {
+			const markdownSources = [
+				{ value: '![image](file://remote-host/share/image.png)' },
+				new MarkdownString('<img src="file://remote-host/share/image.png">', { supportHtml: true }),
+			];
+			const results = markdownSources.map(markdown => store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element);
+
+			assert.deepStrictEqual(
+				results.map(result => ({
+					imageCount: result.querySelectorAll('img').length,
+					text: result.textContent,
+				})),
+				[
+					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png" alt="image">' },
+					{ imageCount: 0, text: '<img src="file://remote-host/share/image.png">' },
+				]
+			);
+		});
+
+		test('remote image validation checks mapped destinations', () => {
+			const destinations = [
+				'https://example.com/image.png',
+				'file://remote-host/share/image.png',
+				'vscode-remote://ssh-remote+host/other-image.png',
+			];
+			const source = 'file:///image.png';
+			const checkedUris: string[] = [];
+			const results = destinations.map(destination => store.add(renderMarkdown({
+				value: `![image](${source})`,
+				uris: { [source]: URI.parse(destination) },
+			}, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: uri => {
+						checkedUris.push(uri.toString());
+						return false;
+					},
+					replaceWithPlaintext: true,
+				},
+			})).element);
+
+			assert.deepStrictEqual({
+				checkedUris,
+				imageCounts: results.map(result => result.querySelectorAll('img').length),
+			}, {
+				checkedUris: destinations.map(destination => URI.parse(destination).toString()),
+				imageCounts: [0, 0, 0],
+			});
+		});
+
+		test('local file images mapped by a remote extension host remain allowed', () => {
+			const source = 'file:///images/image.png';
+			const result = store.add(renderMarkdown({
+				value: `![image](${source})`,
+				uris: { [source]: URI.parse('vscode-remote://ssh-remote+host/images/image.png') },
+			}, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img[src]').length, 1);
+		});
+
+		test('relative image with a network-backed file base URI is rendered as plaintext', () => {
+			const markdown = new MarkdownString('![image](image.png)');
+			markdown.baseUri = URI.parse('file://remote-host/share/base.md');
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.deepStrictEqual({
+				imageCount: result.querySelectorAll('img').length,
+				text: result.textContent,
+			}, {
+				imageCount: 0,
+				text: '<img src="image.png" alt="image">',
+			});
+		});
+
+		test('relative image with a local file base URI remains allowed', () => {
+			const markdown = new MarkdownString('![image](image.png)');
+			markdown.baseUri = URI.file('/images/base.md');
+			const result = store.add(renderMarkdown(markdown, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img').length, 1);
+		});
+
+		test('local file image remains allowed by remote image validation', () => {
+			if (isWeb) {
+				return;
+			}
+			const localImage = URI.file('/images/cat.gif');
+			const result = store.add(renderMarkdown({ value: `![image](${localImage.toString()})` }, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img').length, 1);
+		});
+
 		test('image width from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` }).element;
+			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` })).element;
 			assertNodeEquals(result, `<div><p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image height from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=100 'caption')` }).element;
+			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](http://example.com/cat.gif|height=100 'caption')` })).element;
 			assertNodeEquals(result, `<div><p><img height="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image width and height from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` }).element;
+			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` })).element;
 			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
@@ -63,8 +353,8 @@ suite('MarkdownRenderer', () => {
 			if (isWeb) {
 				return;
 			}
-			const result: HTMLElement = renderMarkdown({ value: `![image](file:///images/cat.gif)` }).element;
-			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image"></p></div>');
+			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](file:///images/cat.gif)` })).element;
+			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image" data-src="file:///images/cat.gif"></p></div>');
 		});
 	});
 
@@ -78,10 +368,10 @@ suite('MarkdownRenderer', () => {
 		test('asyncRenderCallback should be invoked for code blocks', () => {
 			const markdown = { value: '```js\n1 + 1;\n```' };
 			return new Promise<void>(resolve => {
-				renderMarkdown(markdown, {
+				store.add(renderMarkdown(markdown, {
 					asyncRenderCallback: resolve,
 					codeBlockRenderer: simpleCodeBlockRenderer
-				});
+				}));
 			});
 		});
 
@@ -93,7 +383,7 @@ suite('MarkdownRenderer', () => {
 					codeBlockRenderer: simpleCodeBlockRenderer
 				});
 				result.dispose();
-				setTimeout(resolve, 50);
+				setTimeout(resolve, 10);
 			});
 		});
 
@@ -112,22 +402,30 @@ suite('MarkdownRenderer', () => {
 				setTimeout(() => {
 					result.dispose();
 					resolveCodeBlockRendering(document.createElement('code'));
-					setTimeout(resolve, 50);
-				}, 50);
+					setTimeout(resolve, 10);
+				}, 10);
 			});
 		});
 
 		test('Code blocks should use leading language id (#157793)', async () => {
 			const markdown = { value: '```js some other stuff\n1 + 1;\n```' };
 			const lang = await new Promise<string>(resolve => {
-				renderMarkdown(markdown, {
+				store.add(renderMarkdown(markdown, {
 					codeBlockRenderer: async (lang, value) => {
 						resolve(lang);
 						return simpleCodeBlockRenderer(lang, value);
 					}
-				});
+				}));
 			});
 			assert.strictEqual(lang, 'js');
+		});
+
+		test('Code block placeholders keep their class, other HTML does not get it', () => {
+			const markdown = new MarkdownString('```js\n1 + 1;\n```\n\n<div class="code">a</div><div class="monaco-button" data-code="x">b</div>', { supportHtml: true });
+			const result = store.add(renderMarkdown(markdown, {
+				codeBlockRenderer: () => new Promise<HTMLElement>(() => { }),
+			}));
+			assert.deepStrictEqual([...result.element.querySelectorAll('div')].map(div => div.className), ['code', '', '']);
 		});
 	});
 
@@ -137,7 +435,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			const result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
@@ -145,7 +443,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
 
-			const result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
@@ -153,7 +451,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			const result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
@@ -161,8 +459,8 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown(`[$(zap)-link](#link)`);
 
-			const result: HTMLElement = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<p><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
+			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
+			assert.strictEqual(result.innerHTML, `<p><a href="" title="#link" draggable="false" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></p>`);
 		});
 
 		test('render icon in table', () => {
@@ -172,7 +470,7 @@ suite('MarkdownRenderer', () => {
 |--------|----------------------|
 | $(zap) | [$(zap)-link](#link) |`);
 
-			const result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<table>
 <thead>
 <tr>
@@ -182,7 +480,7 @@ suite('MarkdownRenderer', () => {
 </thead>
 <tbody><tr>
 <td><span class="codicon codicon-zap"></span></td>
-<td><a data-href="#link" href="" title="#link"><span class="codicon codicon-zap"></span>-link</a></td>
+<td><a href="" title="#link" draggable="false" data-href="#link"><span class="codicon codicon-zap"></span>-link</a></td>
 </tr>
 </tbody></table>
 `);
@@ -192,7 +490,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
 			mds.appendMarkdown(`<a>$(sync)</a>`);
 
-			const result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-sync"></span></p>`);
 		});
 	});
@@ -203,7 +501,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			const result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
@@ -211,15 +509,136 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			const result: HTMLElement = renderMarkdown(mds).element;
+			const result: HTMLElement = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
+		});
+	});
+
+	suite('Alerts', () => {
+		test('Should render alert with data-severity attribute and icon', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This is a note alert', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote[data-severity="note"]');
+			assert.ok(blockquote, 'Should have blockquote with data-severity="note"');
+			assert.ok(result.innerHTML.includes('This is a note alert'), 'Should contain alert text');
+			assert.ok(result.innerHTML.includes('codicon-info'), 'Should contain info icon');
+		});
+
+		test('Should render regular blockquote when supportAlertSyntax is disabled', () => {
+			const markdown = new MarkdownString('> [!NOTE]\n> This should be a regular blockquote');
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.ok(blockquote, 'Should have blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+			assert.ok(result.innerHTML.includes('[!NOTE]'), 'Should contain literal [!NOTE] text');
+		});
+
+		test('Should not transform blockquotes without alert syntax', () => {
+			const markdown = new MarkdownString('> This is a regular blockquote', { supportAlertSyntax: true });
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			const blockquote = result.querySelector('blockquote');
+			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+		});
+	});
+
+	suite('Code block reuse', () => {
+		function createCodeBlock(_language: string, text: string): HTMLElement {
+			const element = mainWindow.document.createElement('pre');
+			element.textContent = text;
+			return element;
+		}
+
+		function normalizedHtml(element: HTMLElement): string {
+			const clone = element.cloneNode(true) as HTMLElement;
+			for (const block of clone.querySelectorAll('[data-code]')) {
+				block.removeAttribute('data-code');
+			}
+			return clone.outerHTML;
+		}
+
+		const first = '```test\nfirst\n```';
+		const second = '```test\nsecond\n```';
+		const quoted = '> ```test\n> first\n> ```';
+		const list = '- First\n\n  ```test\n  first\n  ```\n\n- Second\n\n  ```test\n  second\n  ```';
+
+		for (const { name, before, after } of [
+			{ name: 'appended content in a shared ancestor', before: list, after: `Intro\n\n${list}\n\n  More text\n\n- Last` },
+			{ name: 'changed ancestor attributes', before: `3. Diagram\n\n   \`\`\`test\n   first\n   \`\`\``, after: `1. Diagram\n\n   \`\`\`test\n   first\n   \`\`\`` },
+			{ name: 'changed nesting', before: quoted, after: first },
+			{ name: 'split ancestors', before: list, after: '- First\n\n  ```test\n  first\n  ```\n\nOutside\n\n- Second\n\n  ```test\n  second\n  ```' },
+			{ name: 'reordered code blocks', before: `${first}\n\n${second}`, after: `${second}\n\n${first}` },
+			{ name: 'removed code blocks', before: `${first}\n\n${second}`, after: second },
+			{ name: 'changed code blocks', before: `${first}\n\n${second}`, after: `${first}\n\n\`\`\`test\nchanged\n\`\`\`` },
+		]) {
+			test(`matches a fresh render after ${name}`, () => {
+				const codeBlocks = new Map<string, HTMLElement>();
+				const options = {
+					codeBlockRendererSync: (language: string, text: string) => {
+						let element = codeBlocks.get(text);
+						if (!element) {
+							element = createCodeBlock(language, text);
+							codeBlocks.set(text, element);
+						}
+						return element;
+					},
+				};
+				const initial = store.add(renderMarkdown({ value: before }, options));
+				initial.dispose();
+				const updated = store.add(renderMarkdown({ value: after }, options, initial.element));
+				const fresh = store.add(renderMarkdown({ value: after }, { codeBlockRendererSync: createCodeBlock }));
+				assert.strictEqual(normalizedHtml(updated.element), normalizedHtml(fresh.element));
+			});
+		}
+
+		test('keeps reused code blocks and their ancestors mounted', () => {
+			const codeBlocks: HTMLElement[] = [];
+			const initial = store.add(renderMarkdown({ value: list }, {
+				codeBlockRendererSync: (language, text) => {
+					const element = createCodeBlock(language, text);
+					codeBlocks.push(element);
+					return element;
+				},
+			}));
+			mainWindow.document.body.appendChild(initial.element);
+			store.add(toDisposable(() => initial.element.remove()));
+			const parents = codeBlocks.map(block => block.parentElement);
+			const listElement = initial.element.querySelector('ul');
+			const records: MutationRecord[] = [];
+			const observer = new mainWindow.MutationObserver(mutations => records.push(...mutations));
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(initial.element, { childList: true, subtree: true });
+			initial.dispose();
+
+			store.add(renderMarkdown({ value: `Intro\n\n${list}\n\n  More text` }, {
+				codeBlockRendererSync: (_language, text) => {
+					const block = codeBlocks.find(block => block.textContent === text);
+					assert.ok(block);
+					return block;
+				},
+			}, initial.element));
+
+			const removedNodes = [...records, ...observer.takeRecords()].flatMap(record => Array.from(record.removedNodes));
+			assert.deepStrictEqual({
+				parentsPreserved: codeBlocks.every((block, index) => block.parentElement === parents[index]),
+				listPreserved: initial.element.querySelector('ul') === listElement,
+				blocksConnected: codeBlocks.every(block => block.isConnected),
+				codeBlockDisconnected: removedNodes.some(node => codeBlocks.some(block => node.contains(block))),
+			}, {
+				parentsPreserved: true,
+				listPreserved: true,
+				blocksConnected: true,
+				codeBlockDisconnected: false,
+			});
 		});
 	});
 
 	test('npm Hover Run Script not working #90855', function () {
 
 		const md: IMarkdownString = JSON.parse('{"value":"[Run Script](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsers%5C%5Cjrieken%5C%5CCode%5C%5C_sample%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22echo%22%7D \\"Run the script as a task\\")","supportThemeIcons":false,"isTrusted":true,"uris":{"__uri_e49443":{"$mid":1,"fsPath":"c:\\\\Users\\\\jrieken\\\\Code\\\\_sample\\\\foo\\\\package.json","_sep":1,"external":"file:///c%3A/Users/jrieken/Code/_sample/foo/package.json","path":"/c:/Users/jrieken/Code/_sample/foo/package.json","scheme":"file"},"command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsers%5C%5Cjrieken%5C%5CCode%5C%5C_sample%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22echo%22%7D":{"$mid":1,"path":"npm.runScriptFromHover","scheme":"command","query":"{\\"documentUri\\":\\"__uri_e49443\\",\\"script\\":\\"echo\\"}"}}}');
-		const element = renderMarkdown(md).element;
+		const element = store.add(renderMarkdown(md)).element;
 
 		const anchor = element.querySelector('a')!;
 		assert.ok(anchor);
@@ -238,7 +657,7 @@ suite('MarkdownRenderer', () => {
 			supportHtml: true
 		});
 
-		const result: HTMLElement = renderMarkdown(md).element;
+		const result: HTMLElement = store.add(renderMarkdown(md)).element;
 		assert.strictEqual(result.innerHTML, `<p>command1 command2</p>`);
 	});
 
@@ -248,24 +667,283 @@ suite('MarkdownRenderer', () => {
 			supportHtml: true,
 		});
 
-		const result: HTMLElement = renderMarkdown(md).element;
-		assert.strictEqual(result.innerHTML, `<p><a data-href="command:doFoo" href="" title="command:doFoo">command1</a> <a data-href="command:doFoo" href="">command2</a></p>`);
+		const result: HTMLElement = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+	});
+
+	test('appendLink: no target or title can change the link structure', () => {
+		// Deterministic fuzzing with the pieces that matter to the Markdown parser.
+		const pieces = [
+			'\\', '\\\\', '(', ')', '[', ']', '<', '>', '"', '\'', '`', '*', '_', '!', '#', '&#41;', '&quot;', '&', ' ', '\t',
+			'\n', '\n\n', '\r\n', '\u00a0', '\u2028', '\u000b', '\u0000', 'a', 'command:foo', '[run](command:foo)', 'https://x.y/',
+		];
+		let state = 0x5eed;
+		const random = (max: number) => { // mulberry32
+			state = (state + 0x6d2b79f5) | 0;
+			let t = Math.imul(state ^ (state >>> 15), 1 | state);
+			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+			return ((t ^ (t >>> 14)) >>> 0) % max;
+		};
+		const generate = () => Array.from({ length: random(8) }, () => pieces[random(pieces.length)]).join('');
+
+		const knownTargets = [
+			'https://safe.example/\\\\)[run](command:foo#\\\\)',
+			'https://safe.example/a\t[run](command:foo',
+			'https://safe.example/a\u00a0[run](command:foo',
+		];
+		const knownTitles = ['C:\\temp\\', 'a\\"b', '"', '\\'];
+		// Text after the link that a title or target could swallow
+		const suffix = ' and foo") and "bar") (suffix)';
+
+		const failures: unknown[] = [];
+		let generatedTargets = 0;
+		let generatedTitles = 0;
+		for (let i = 0; i < 2000; i++) {
+			const path = generate();
+			const target = knownTargets[i] ?? `https://safe.example/${path}`;
+			const title = knownTitles[i] ?? (random(2) ? generate() : undefined);
+			generatedTargets += path ? 1 : 0;
+			generatedTitles += title ? 1 : 0;
+
+			const md = new MarkdownString('', true).appendLink(target, 'label', title).appendMarkdown(suffix);
+			const element = store.add(renderMarkdown(md)).element;
+			const anchors = [...element.querySelectorAll('a')].map(a => ({ text: a.textContent, href: a.dataset.href, title: a.getAttribute('title') }));
+			// The renderer unescapes hrefs once more, and titles lose surrounding whitespace. The
+			// sanitizer removes attributes that look like the end of a comment or CDATA section;
+			// without its href, the link is rendered as plain text.
+			const removedBySanitizer = (value: string) => /((--!?|\])>)|<\/(style|title)/i.test(value);
+			const expectedHref = removeMarkdownEscapes(target.replace(/[\s\x00-\x1f\x7f]/g, ch => encodeURIComponent(ch)));
+			const normalizedTitle = title?.replace(/\r\n|[\r\n]/g, ' ').replace(/\0/g, '\uFFFD').trim();
+			const expectedTitle = normalizedTitle && removedBySanitizer(normalizedTitle) ? null : normalizedTitle;
+			const expected = {
+				text: `label${suffix}`,
+				anchors: removedBySanitizer(expectedHref) ? [] : [{
+					text: 'label',
+					href: expectedHref,
+					title: title ? expectedTitle : anchors[0]?.title,
+				}],
+			};
+			const actual = { text: element.textContent, anchors };
+			if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+				failures.push({ target, title, markdown: md.value, actual, expected });
+			}
+		}
+		assert.deepStrictEqual({ failures: failures.slice(0, 3), failureCount: failures.length, coverage: generatedTargets > 1500 && generatedTitles > 700 }, { failures: [], failureCount: 0, coverage: true });
+	});
+
+	test('escapeMarkdownLinkText: link text renders literally', () => {
+		const pieces = [
+			'\\', '\\\\', '(', ')', '[', ']', '<', '>', '"', '\'', '`', '``', '*', '_', '~~', '!', '#', '&#41;', '&quot;', '&', '-', ' ', '\t',
+			'\n', '\n\n', '\r\n', '\u00a0', '<command:foo>', '<https://x.y>', 'https://x.y', 'www.x.y', 'a@b.cd', '[run](command:foo)', '![i](command:foo)', '$(zap)', 'a',
+		];
+		let state = 0x1abe1;
+		const random = (max: number) => { // mulberry32
+			state = (state + 0x6d2b79f5) | 0;
+			let t = Math.imul(state ^ (state >>> 15), 1 | state);
+			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+			return ((t ^ (t >>> 14)) >>> 0) % max;
+		};
+
+		const failures: unknown[] = [];
+		for (let i = 0; i < 2000; i++) {
+			const text = 'x' + Array.from({ length: random(8) }, () => pieces[random(pieces.length)]).join('') + 'x';
+			const md = new MarkdownString('', true).appendLink('https://safe.example/', escapeMarkdownLinkText(text)).appendMarkdown(' (suffix)');
+			const element = store.add(renderMarkdown(md)).element;
+			const actual = {
+				anchors: [...element.querySelectorAll('a')].map(a => ({ text: a.textContent, href: a.dataset.href })),
+				formatting: element.querySelectorAll('img, code, em, strong, del').length,
+			};
+			const expected = {
+				anchors: [{ text: text.replace(/\r\n|[\r\n]/g, ' '), href: 'https://safe.example/' }],
+				formatting: 0,
+			};
+			if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+				failures.push({ text, markdown: md.value, actual });
+			}
+		}
+		assert.deepStrictEqual({ failures: failures.slice(0, 3), failureCount: failures.length }, { failures: [], failureCount: 0 });
+	});
+
+	test('Should remove relative links if there is no base url', () => {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a>`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+
+		const result = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p>text bar</p>`);
+	});
+
+	test('Should support relative links if baseurl is set', () => {
+		const md = new MarkdownString(`[text](./foo) <a href="./bar">bar</a> <img src="cat.gif">`, {
+			isTrusted: true,
+			supportHtml: true,
+		});
+		md.baseUri = URI.parse('https://example.com/path/');
+
+		const result = store.add(renderMarkdown(md)).element;
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="./foo" draggable="false" data-href="https://example.com/path/foo">text</a> <a href="" data-href="https://example.com/path/bar">bar</a> <img src="https://example.com/path/cat.gif"></p>`);
+	});
+
+	suite('Copy-safe hrefs', () => {
+		// Rich-text copy resolved empty hrefs against the workbench document, so every pasted
+		// link became a `workbench.html` URL. Clicks still route through `data-href`.
+		test('keeps the real href only for targets that resolve elsewhere', () => {
+			const md = new MarkdownString(`[web](https://example.com/page) [mail](mailto:user@example.com) [run](command:doFoo) [file](file:///home/user/a.ts) [ref](http://_vscodecontentref_/0)`, { isTrusted: true });
+
+			const result = store.add(renderMarkdown(md, { actionHandler: () => { } })).element;
+			assert.deepStrictEqual(
+				Array.from(result.querySelectorAll('a'), a => [a.getAttribute('href'), a.getAttribute('data-href'), a.getAttribute('draggable')]),
+				[
+					['https://example.com/page', 'https://example.com/page', 'false'],
+					['mailto:user@example.com', 'mailto:user@example.com', 'false'],
+					['', 'command:doFoo', 'false'],
+					['', 'file:///home/user/a.ts', 'false'],
+					['', 'http://_vscodecontentref_/0', 'false'],
+				]);
+		});
+
+		test('leaves the href empty when nothing intercepts clicks', () => {
+			// Without an action handler the anchor would navigate natively, bypassing the opener.
+			const md = new MarkdownString(`[web](https://example.com/page)`, {});
+
+			const anchor = store.add(renderMarkdown(md)).element.querySelector('a')!;
+			assert.deepStrictEqual(
+				[anchor.getAttribute('href'), anchor.getAttribute('data-href')],
+				['', 'https://example.com/page']);
+		});
+
+		test('keeps the resolved href for relative links against an https baseUri', () => {
+			const md = new MarkdownString(`[text](./foo)`, { isTrusted: true });
+			md.baseUri = URI.parse('https://example.com/path/');
+
+			const anchor = store.add(renderMarkdown(md, { actionHandler: () => { } })).element.querySelector('a')!;
+			assert.deepStrictEqual(
+				[anchor.getAttribute('href'), anchor.getAttribute('data-href')],
+				['https://example.com/path/foo', 'https://example.com/path/foo']);
+		});
+	});
+
+	test('Should use decoded file path as title for file:// links', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()})`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, fileUri.fsPath);
+	});
+
+	test('Should include fragment in title for file:// links with line numbers', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()}#L42)`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, `${fileUri.fsPath}#L42`);
+	});
+
+	test('Should not override explicit title for file:// links', () => {
+		const fileUri = URI.file('/home/user/project/lib.d.ts');
+		const md = new MarkdownString(`[log](${fileUri.toString()} "Go to definition")`, {});
+
+		const result = store.add(renderMarkdown(md)).element;
+		const anchor = result.querySelector('a')!;
+		assert.ok(anchor);
+		assert.strictEqual(anchor.title, 'Go to definition');
 	});
 
 	suite('PlaintextMarkdownRender', () => {
 
 		test('test code, blockquote, heading, list, listitem, paragraph, table, tablerow, tablecell, strong, em, br, del, text are rendered plaintext', () => {
-			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
-			const expected = 'code\nquote\nheading\nlist\ntable table2 one two \nbold\nitalic\ndel\nsome text\n';
-			const result: string = renderMarkdownAsPlaintext(markdown);
+			const markdown = { value: '`code`\n>quote\n# heading\n- list\n\ntable | table2\n--- | --- \none | two\n\n\nbo**ld**\n_italic_\n~~del~~\nsome text' };
+			const expected = 'code\nquote\nheading\nlist\n\ntable table2\none two\nbold\nitalic\ndel\nsome text';
+			const result: string = renderAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
 		});
 
 		test('test html, hr, image, link are rendered plaintext', () => {
 			const markdown = { value: '<div>html</div>\n\n---\n![image](imageLink)\n[text](textLink)' };
-			const expected = '\ntext\n';
-			const result: string = renderMarkdownAsPlaintext(markdown);
+			const expected = 'text';
+			const result: string = renderAsPlaintext(markdown);
 			assert.strictEqual(result, expected);
+		});
+
+		test(`Should not remove html inside of code blocks`, () => {
+			const markdown = {
+				value: [
+					'```html',
+					'<form>html</form>',
+					'```',
+				].join('\n')
+			};
+			const expected = [
+				'```',
+				'<form>html</form>',
+				'```',
+			].join('\n');
+			const result: string = renderAsPlaintext(markdown, { includeCodeBlocksFences: true });
+			assert.strictEqual(result, expected);
+		});
+
+		test('replaces the code blocks that codeBlockText describes, also inside a list item or a block quote, and keeps the others', () => {
+			const markdown = {
+				value: [
+					'Before', '', '```chart v1', '<Bar value="1" />', '```', '',
+					'- item `a`', '  ```chart', '  <Bar value="2" />', '  ```', '- item `b`', '  ```ts', '  let b = 1 < 2;', '  ```', '',
+					'> quote', '>', '> ```chart', '> <Bar value="3" />', '> ```', '',
+					'```ts', 'const a = 1 < 2;', '```',
+				].join('\n')
+			};
+			const calls: string[][] = [];
+			const codeBlockText = (languageId: string, text: string, raw: string) => {
+				calls.push([languageId, text, raw]);
+				return languageId === 'chart' ? `Chart <${text.length}> & more` : undefined;
+			};
+			assert.deepStrictEqual({
+				fenced: renderAsPlaintext(markdown, { includeCodeBlocksFences: true, codeBlockText }).split('\n').filter(line => line),
+				plain: renderAsPlaintext(markdown, { codeBlockText }).split('\n').filter(line => line),
+				withoutSyntax: renderAsPlaintext(markdown, { omitMarkdownSyntax: true, codeBlockText }).split('\n').filter(line => line),
+				calls: calls.slice(0, 5),
+			}, {
+				// A list item and a block quote are emitted as their source, apart from the blocks that are described.
+				fenced: ['Before', 'Chart <17> & more', 'item `a`', 'Chart <17> & more', 'item `b`', '```ts', 'let b = 1 < 2;', '```', 'quote', 'Chart <17> & more', '```', 'const a = 1 < 2;', '```'],
+				plain: ['Before', 'Chart <17> & more', 'item `a`', 'Chart <17> & more', 'item `b`', '```ts', 'let b = 1 < 2;', '```', 'quote', 'Chart <17> & more', 'const a = 1 < 2;'],
+				withoutSyntax: ['Before', 'Chart <17> & more', 'item a', 'Chart <17> & more', 'item b', 'let b = 1 < 2;', 'quote', 'Chart <17> & more', 'const a = 1 < 2;'],
+				calls: [
+					['chart', '<Bar value="1" />', '```chart v1\n<Bar value="1" />\n```'],
+					['chart', '<Bar value="2" />', '```chart\n<Bar value="2" />\n```'],
+					['ts', 'let b = 1 < 2;', '```ts\nlet b = 1 < 2;\n```'],
+					['chart', '<Bar value="3" />', '```chart\n<Bar value="3" />\n```'],
+					['ts', 'const a = 1 < 2;', '```ts\nconst a = 1 < 2;\n```'],
+				],
+			});
+		});
+
+		test('does not double-escape entities inside code spans', () => {
+			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
+			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');
+		});
+
+		test('reduces inline syntax inside list items when omitMarkdownSyntax is set', () => {
+			// A list item's content arrives as a text token carrying inline tokens. By default the
+			// item is emitted as raw source, so a link keeps its target; opting in reduces it to
+			// the text a reader actually sees.
+			const markdown = { value: '- Added [src/](/some/path/to/src)\n- Uses **bold** and `code`' };
+
+			assert.strictEqual(
+				renderAsPlaintext(markdown),
+				'Added [src/](/some/path/to/src)\n\nUses **bold** and `code`',
+				'default output is unchanged');
+			assert.strictEqual(
+				renderAsPlaintext(markdown, { omitMarkdownSyntax: true }),
+				'Added src/\n\nUses bold and code');
+		});
+
+		test('separates a nested list from the item holding it when omitMarkdownSyntax is set', () => {
+			const markdown = { value: '- outer\n    - inner [link](/target)' };
+			assert.strictEqual(renderAsPlaintext(markdown, { omitMarkdownSyntax: true }), 'outer\ninner link');
 		});
 	});
 
@@ -274,7 +952,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, {});
 			mds.appendMarkdown('a<b>b</b>c');
 
-			const result = renderMarkdown(mds).element;
+			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>abc</p>`);
 		});
 
@@ -282,7 +960,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendMarkdown('a<b>b</b>c');
 
-			const result = renderMarkdown(mds).element;
+			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
 		});
 
@@ -290,7 +968,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendMarkdown('a<b onclick="alert(1)">b</b><script>alert(2)</script>c');
 
-			const result = renderMarkdown(mds).element;
+			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
 		});
 
@@ -298,7 +976,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendText('a<b>b</b>c');
 
-			const result = renderMarkdown(mds).element;
+			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>`);
 		});
 
@@ -310,7 +988,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendMarkdown(`<img src="http://example.com/cat.gif">`);
 
-			const result = renderMarkdown(mds).element;
+			const result = store.add(renderMarkdown(mds)).element;
 			assert.strictEqual(result.innerHTML, `<img src="http://example.com/cat.gif">`);
 		});
 
@@ -322,8 +1000,19 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendMarkdown(`<img src="file:///images/cat.gif">`);
 
-			const result = renderMarkdown(mds).element;
-			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+			const result = store.add(renderMarkdown(mds)).element;
+			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif" data-src="file:///images/cat.gif">`);
+		});
+
+		test('Should only allow checkbox inputs', () => {
+			const mds = new MarkdownString(
+				'text: <input type="text">\ncheckbox:<input type="checkbox">',
+				{ supportHtml: true });
+
+			const result = store.add(renderMarkdown(mds)).element;
+
+			// Inputs should always be disabled too
+			assert.strictEqual(result.innerHTML, `<p>text: \ncheckbox:<input type="checkbox" disabled=""></p>`);
 		});
 	});
 
@@ -338,15 +1027,15 @@ suite('MarkdownRenderer', () => {
 
 		suite('table', () => {
 			test('complete table', () => {
-				const tokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(completeTable);
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.equal(newTokens, tokens);
 			});
 
 			test('full header only', () => {
 				const incompleteTable = '| a | b |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -354,40 +1043,46 @@ suite('MarkdownRenderer', () => {
 
 			test('full header only with trailing space', () => {
 				const incompleteTable = '| a | b | ';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
-				ignoreRaw(newTokens, completeTableTokens);
+				if (newTokens) {
+					ignoreRaw(newTokens, completeTableTokens);
+				}
 				assert.deepStrictEqual(newTokens, completeTableTokens);
 			});
 
 			test('incomplete header', () => {
 				const incompleteTable = '| a | b';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				ignoreRaw(newTokens, completeTableTokens);
+				if (newTokens) {
+					ignoreRaw(newTokens, completeTableTokens);
+				}
 				assert.deepStrictEqual(newTokens, completeTableTokens);
 			});
 
 			test('incomplete header one column', () => {
 				const incompleteTable = '| a ';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(incompleteTable + '|\n| --- |');
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(incompleteTable + '|\n| --- |');
 
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				ignoreRaw(newTokens, completeTableTokens);
+				if (newTokens) {
+					ignoreRaw(newTokens, completeTableTokens);
+				}
 				assert.deepStrictEqual(newTokens, completeTableTokens);
 			});
 
 			test('full header with extras', () => {
 				const incompleteTable = '| a **bold** | b _italics_ |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(incompleteTable + '\n| --- | --- |');
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -396,8 +1091,8 @@ suite('MarkdownRenderer', () => {
 			test('full header with leading text', () => {
 				// Parsing this gives one token and one 'text' subtoken
 				const incompleteTable = 'here is a table\n| a | b |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(incompleteTable + '\n| --- | --- |');
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -406,8 +1101,8 @@ suite('MarkdownRenderer', () => {
 			test('full header with leading other stuff', () => {
 				// Parsing this gives one token and one 'text' subtoken
 				const incompleteTable = '```js\nconst xyz = 123;\n```\n| a | b |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(incompleteTable + '\n| --- | --- |');
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -415,8 +1110,8 @@ suite('MarkdownRenderer', () => {
 
 			test('full header with incomplete separator', () => {
 				const incompleteTable = '| a | b |\n| ---';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -424,8 +1119,8 @@ suite('MarkdownRenderer', () => {
 
 			test('full header with incomplete separator 2', () => {
 				const incompleteTable = '| a | b |\n| --- |';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -433,8 +1128,8 @@ suite('MarkdownRenderer', () => {
 
 			test('full header with incomplete separator 3', () => {
 				const incompleteTable = '| a | b |\n|';
-				const tokens = marked.lexer(incompleteTable);
-				const completeTableTokens = marked.lexer(completeTable);
+				const tokens = marked.marked.lexer(incompleteTable);
+				const completeTableTokens = marked.marked.lexer(completeTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, completeTableTokens);
@@ -442,7 +1137,7 @@ suite('MarkdownRenderer', () => {
 
 			test('not a table', () => {
 				const incompleteTable = '| a | b |\nsome text';
-				const tokens = marked.lexer(incompleteTable);
+				const tokens = marked.marked.lexer(incompleteTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, tokens);
@@ -450,80 +1145,26 @@ suite('MarkdownRenderer', () => {
 
 			test('not a table 2', () => {
 				const incompleteTable = '| a | b |\n| --- |\nsome text';
-				const tokens = marked.lexer(incompleteTable);
+				const tokens = marked.marked.lexer(incompleteTable);
 
 				const newTokens = fillInIncompleteTokens(tokens);
 				assert.deepStrictEqual(newTokens, tokens);
 			});
 		});
 
-		suite('codeblock', () => {
-			test('complete code block', () => {
-				const completeCodeblock = '```js\nconst xyz = 123;\n```';
-				const tokens = marked.lexer(completeCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-				assert.equal(newTokens, tokens);
-			});
-
-			test('code block header only', () => {
-				const incompleteCodeblock = '```js';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header no lang', () => {
-				const incompleteCodeblock = '```';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header and some code', () => {
-				const incompleteCodeblock = '```js\nconst';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header with leading text', () => {
-				const incompleteCodeblock = 'some text\n```js';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-
-			test('code block header with leading text and some code', () => {
-				const incompleteCodeblock = 'some text\n```js\nconst';
-				const tokens = marked.lexer(incompleteCodeblock);
-				const newTokens = fillInIncompleteTokens(tokens);
-
-				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
-				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
-			});
-		});
-
 		function simpleMarkdownTestSuite(name: string, delimiter: string): void {
 			test(`incomplete ${name}`, () => {
 				const incomplete = `${delimiter}code`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + delimiter);
+				const completeTokens = marked.marked.lexer(incomplete + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`complete ${name}`, () => {
 				const text = `leading text ${delimiter}code${delimiter} trailing text`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -531,16 +1172,25 @@ suite('MarkdownRenderer', () => {
 
 			test(`${name} with leading text`, () => {
 				const incomplete = `some text and ${delimiter}some code`;
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + delimiter);
+				const completeTokens = marked.marked.lexer(incomplete + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`${name} with trailing space`, () => {
+				const incomplete = `some text and ${delimiter}some code `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`single loose "${delimiter}"`, () => {
 				const text = `some text and ${delimiter}by itself\nmore text here`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -548,33 +1198,300 @@ suite('MarkdownRenderer', () => {
 
 			test(`incomplete ${name} after newline`, () => {
 				const text = `some text\nmore text here and ${delimiter}text`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + delimiter);
+				const completeTokens = marked.marked.lexer(text + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test.skip(`incomplete ${name} in list`, () => {
-				const text = `- list item one\n- list item two and ${delimiter}text`;
-				const tokens = marked.lexer(text);
+			test(`incomplete after complete ${name}`, () => {
+				const text = `leading text ${delimiter}code${delimiter} trailing text and ${delimiter}another`;
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + delimiter);
+				const completeTokens = marked.marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`incomplete ${name} in list`, () => {
+				const text = `- list item one\n- list item two and ${delimiter}text`;
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`incomplete ${name} in asterisk list`, () => {
+				const text = `* list item one\n* list item two and ${delimiter}text`;
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`incomplete ${name} in numbered list`, () => {
+				const text = `1. list item one\n2. list item two and ${delimiter}text`;
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(text + delimiter);
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		}
+
+		suite('list', () => {
+			test('list with complete codeblock', () => {
+				const list = `-
+	\`\`\`js
+	let x = 1;
+	\`\`\`
+- list item two
+`;
+				const tokens = marked.marked.lexer(list);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test.skip('list with incomplete codeblock', () => {
+				const incomplete = `- list item one
+
+	\`\`\`js
+	let x = 1;`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '\n	```');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with subitems', () => {
+				const list = `- hello
+	- sub item
+- text
+	newline for some reason
+`;
+				const tokens = marked.marked.lexer(list);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('ordered list with subitems', () => {
+				const list = `1. hello
+	- sub item
+2. text
+	newline for some reason
+`;
+				const tokens = marked.marked.lexer(list);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('list with stuff', () => {
+				const list = `- list item one \`codespan\` **bold** [link](http://microsoft.com) more text`;
+				const tokens = marked.marked.lexer(list);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('list with incomplete link text', () => {
+				const incomplete = `- list item one
+- item two [link`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete link target', () => {
+				const incomplete = `- list item one
+- item two [link](`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with incomplete link target', () => {
+				const incomplete = `1. list item one
+2. item two [link](`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with extra whitespace', () => {
+				const incomplete = `1. list item one
+2. item two [link](`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with extra whitespace', () => {
+				const incomplete = `- list item one
+- item two [link](`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete link with other stuff', () => {
+				const incomplete = `- list item one
+- item two [\`link`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '\`](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with incomplete link with other stuff', () => {
+				const incomplete = `1. list item one
+1. item two [\`link`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '\`](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with bold incomplete link target', () => {
+				const incomplete = `- list item one
+- **[link](http://microsoft`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('ordered list with bold incomplete link target', () => {
+				const incomplete = `1. list item one
+2. **[link](http://microsoft`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete subitem', () => {
+				const incomplete = `1. list item one
+	- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('list with incomplete nested subitem', () => {
+				const incomplete = `1. list item one
+	- item 2
+		- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '&nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('text with start of list is not a heading', () => {
+				const incomplete = `hello\n- `;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('even more text with start of list is not a heading', () => {
+				const incomplete = `# hello\n\ntext\n-`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ' &nbsp;');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		});
+
+		suite('blockquote', () => {
+			test('incomplete double star', () => {
+				const incomplete = '> **text';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete double star before trailing quote-only lines', () => {
+				const incomplete = '> **text\n>\n>';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer('> **text**\n>\n>');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('preserves reference links when completing inline tokens', () => {
+				const incomplete = '[id]: https://example.com\n\n> [label][id] **text';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		});
 
 		suite('codespan', () => {
 			simpleMarkdownTestSuite('codespan', '`');
 
 			test(`backtick between letters`, () => {
 				const text = 'a`b';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeCodespanTokens = marked.lexer(text + '`');
+				const completeCodespanTokens = marked.marked.lexer(text + '`');
 				assert.deepStrictEqual(newTokens, completeCodespanTokens);
+			});
+
+			test(`nested pattern`, () => {
+				const text = 'sldkfjsd `abc __def__ ghi';
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(text + '`');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('codespan inside <body> wrapped markdown', () => {
+				// The chat content renderer wraps `supportHtml` markdown in
+				// `<body>...</body>` so dompurify keeps leading comments. That
+				// makes `</body>` the literal last token — the paragraph with
+				// the bare backtick is no longer at the end. The fixup must
+				// still close the codespan while preserving the trailing html.
+				const text = '<body>\n\nCreated isolated worktree for branch `xyz\n\n</body>';
+				const tokens = marked.marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer('<body>\n\nCreated isolated worktree for branch `xyz`\n\n</body>');
+				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
 
@@ -583,19 +1500,19 @@ suite('MarkdownRenderer', () => {
 
 			test(`star between letters`, () => {
 				const text = 'sldkfjsd a*b';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + '*');
+				const completeTokens = marked.marked.lexer(text + '*');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test(`nested pattern`, () => {
 				const text = 'sldkfjsd *abc __def__ ghi';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + '*');
+				const completeTokens = marked.marked.lexer(text + '*');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -605,10 +1522,20 @@ suite('MarkdownRenderer', () => {
 
 			test(`double star between letters`, () => {
 				const text = 'a**b';
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(text + '**');
+				const completeTokens = marked.marked.lexer(text + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			// TODO trim these patterns from end
+			test.skip(`ending in doublestar`, () => {
+				const incomplete = `some text and **`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete.trimEnd() + '**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 		});
@@ -618,7 +1545,7 @@ suite('MarkdownRenderer', () => {
 
 			test(`underscore between letters`, () => {
 				const text = `this_not_italics`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -630,7 +1557,7 @@ suite('MarkdownRenderer', () => {
 
 			test(`double underscore between letters`, () => {
 				const text = `this__not__bold`;
-				const tokens = marked.lexer(text);
+				const tokens = marked.marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -640,34 +1567,142 @@ suite('MarkdownRenderer', () => {
 		suite('link', () => {
 			test('incomplete link text', () => {
 				const incomplete = 'abc [text';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('incomplete link target', () => {
 				const incomplete = 'foo [text](http://microsoft';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + ')');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
-			test.skip('incomplete link in list', () => {
-				const incomplete = '- [text';
-				const tokens = marked.lexer(incomplete);
+			test('incomplete link target 2', () => {
+				const incomplete = 'foo [text](http://microsoft.com';
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
-				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target inside parentheses', () => {
+				const incomplete = '([text](http://microsoft.com';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with extra stuff', () => {
+				const incomplete = '[before `text` after](http://microsoft.com';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with extra stuff and incomplete arg', () => {
+				const incomplete = '[before `text` after](http://microsoft.com "more text ';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '")');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with incomplete arg', () => {
+				const incomplete = 'foo [text](http://microsoft.com "more text here ';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '")');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with incomplete arg 2', () => {
+				const incomplete = '[text](command:vscode.openRelativePath "arg';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '")');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with complete arg', () => {
+				const incomplete = 'foo [text](http://microsoft.com "more text here"';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('link text with incomplete codespan', () => {
+				const incomplete = `text [\`codespan`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '`](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('link text with incomplete stuff', () => {
+				const incomplete = `text [more text \`codespan\` text **bold`;
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '**](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('Looks like incomplete link target but isn\'t', () => {
+				const complete = '**bold** `codespan` text](';
+				const tokens = marked.marked.lexer(complete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(complete);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link in list', () => {
+				const incomplete = '- [text';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '](https://microsoft.com)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target inside bold', () => {
+				const incomplete = '**[text](http://microsoft';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + ')**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with arg inside bold', () => {
+				const incomplete = '**[text](http://microsoft.com "more text ';
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.marked.lexer(incomplete + '")**');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
 			test('square brace between letters', () => {
 				const incomplete = 'a[b';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -675,7 +1710,15 @@ suite('MarkdownRenderer', () => {
 
 			test('square brace on previous line', () => {
 				const incomplete = 'text[\nmore text';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('square braces in text', () => {
+				const incomplete = 'hello [what] is going on';
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);
@@ -683,7 +1726,7 @@ suite('MarkdownRenderer', () => {
 
 			test('complete link', () => {
 				const incomplete = 'text [link](http://microsoft.com)';
-				const tokens = marked.lexer(incomplete);
+				const tokens = marked.marked.lexer(incomplete);
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				assert.deepStrictEqual(newTokens, tokens);

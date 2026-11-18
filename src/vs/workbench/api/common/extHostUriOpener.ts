@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import * as languages from 'vs/editor/common/languages';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import * as languages from '../../../editor/common/languages.js';
+import { ViewColumn } from '../../../platform/editor/common/editor.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import type * as vscode from 'vscode';
-import { ExtHostUriOpenersShape, IMainContext, MainContext, MainThreadUriOpenersShape } from './extHost.protocol';
+import { ExtHostUriOpenersShape, IMainContext, MainContext, MainThreadUriOpenersShape } from './extHost.protocol.js';
 
 
 export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
@@ -61,14 +62,15 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		return opener.canOpenExternalUri(uri, token);
 	}
 
-	async $openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void> {
+	async $openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents; viewColumn?: ViewColumn }, token: CancellationToken): Promise<void> {
 		const opener = this._openers.get(id);
 		if (!opener) {
 			throw new Error(`Unknown opener id: '${id}'`);
 		}
 
 		return opener.openExternalUri(URI.revive(context.resolvedUri), {
-			sourceUri: URI.revive(context.sourceUri)
+			sourceUri: URI.revive(context.sourceUri),
+			viewColumn: context.viewColumn
 		}, token);
 	}
 }

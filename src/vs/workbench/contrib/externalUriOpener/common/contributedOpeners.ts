@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { updateContributedOpeners } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../common/memento.js';
+import { updateContributedOpeners } from './configuration.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 interface RegisteredExternalOpener {
 	readonly extensionId: string;
@@ -16,7 +16,7 @@ interface RegisteredExternalOpener {
 }
 
 interface OpenersMemento {
-	[id: string]: RegisteredExternalOpener;
+	[id: string]: RegisteredExternalOpener | undefined;
 }
 
 export class ContributedExternalUriOpenersStore extends Disposable {
@@ -24,7 +24,7 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 	private static readonly STORAGE_ID = 'externalUriOpeners';
 
 	private readonly _openers = new Map<string, RegisteredExternalOpener>();
-	private readonly _memento: Memento;
+	private readonly _memento: Memento<OpenersMemento>;
 	private _mementoObject: OpenersMemento;
 
 	constructor(
@@ -36,7 +36,9 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 		this._memento = new Memento(ContributedExternalUriOpenersStore.STORAGE_ID, storageService);
 		this._mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		for (const [id, value] of Object.entries(this._mementoObject || {})) {
-			this.add(id, value.extensionId, { isCurrentlyRegistered: false });
+			if (value) {
+				this.add(id, value.extensionId, { isCurrentlyRegistered: false });
+			}
 		}
 
 		this.invalidateOpenersOnExtensionsChanged();

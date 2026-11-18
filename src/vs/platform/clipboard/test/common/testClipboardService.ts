@@ -3,14 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { URI } from '../../../../base/common/uri.js';
+import { IClipboardService } from '../../common/clipboardService.js';
 
 export class TestClipboardService implements IClipboardService {
+	readImage(): Promise<Uint8Array> {
+		throw new Error('Method not implemented.');
+	}
+
+	private image: Uint8Array | undefined = undefined;
+
+	async writeImage(data: Uint8Array | Promise<Uint8Array>): Promise<void> {
+		this.image = await data;
+	}
+
+	/**
+	 * The image most recently written with {@link writeImage}.
+	 */
+	get writtenImage(): Uint8Array | undefined {
+		return this.image;
+	}
 
 	_serviceBrand: undefined;
 
 	private text: string | undefined = undefined;
+
+	triggerPaste(): Promise<void> | undefined {
+		return Promise.resolve();
+	}
 
 	async writeText(text: string, type?: string): Promise<void> {
 		this.text = text;

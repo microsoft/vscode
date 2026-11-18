@@ -3,28 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
-import * as https from 'https';
+import type * as http from 'http';
+import type * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Promises } from 'vs/base/common/async';
-import { streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
-import * as streams from 'vs/base/common/stream';
-import { isBoolean, isNumber } from 'vs/base/common/types';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { AbstractRequestService, IRequestService } from 'vs/platform/request/common/request';
-import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
+import { Promises, timeout } from '../../../base/common/async.js';
+import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
+import * as streams from '../../../base/common/stream.js';
+import { isBoolean, isNumber } from '../../../base/common/types.js';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
+import { ILogService } from '../../log/common/log.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService, systemCertificatesNodeDefault } from '../common/request.js';
+import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
-interface IHTTPConfiguration {
-	proxy?: string;
-	proxyStrictSSL?: boolean;
-	proxyAuthorization?: string;
+const TRANSIENT_ERROR_CODES = new Set([
+	'EAI_AGAIN',     // DNS lookup timed out
+	'ECONNREFUSED',  // Connection refused by server
+	'EHOSTDOWN',     // Host is down
+	'EHOSTUNREACH',  // No route to host
+	'ENETDOWN',      // Network is down
+	'ENETUNREACH',   // Network is unreachable
+	'EPROTO'         // Protocol error (TLS/SSL handshake failure)
+]);
+
+const IDEMPOTENT_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
+const ORIGIN_CREDENTIAL_HEADERS = new Set(['authorization', 'cookie', 'cookie2']);
+
+function isTransientError(error: unknown): boolean {
+	if (error instanceof Error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		return !!code && TRANSIENT_ERROR_CODES.has(code);
+	}
+	return false;
 }
 
 export interface IRawRequestFunction {
@@ -52,12 +67,12 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	private shellEnvErrorLogged?: boolean;
 
 	constructor(
+		private readonly machine: 'local' | 'remote',
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService,
-		@ILoggerService loggerService: ILoggerService
+		@ILogService logService: ILogService,
 	) {
-		super(!!environmentService.isRemoteServer, loggerService);
+		super(logService);
 		this.configure();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('http')) {
@@ -67,11 +82,9 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	}
 
 	private configure() {
-		const config = this.configurationService.getValue<IHTTPConfiguration | undefined>('http');
-
-		this.proxyUrl = config?.proxy;
-		this.strictSSL = !!config?.proxyStrictSSL;
-		this.authorization = config?.proxyAuthorization;
+		this.proxyUrl = this.getConfigValue<string>('http.proxy');
+		this.strictSSL = !!this.getConfigValue<boolean>('http.proxyStrictSSL');
+		this.authorization = this.getConfigValue<string>('http.proxyAuthorization');
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -103,12 +116,54 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 			};
 		}
 
-		return this.logAndRequest(options.isChromiumNetwork ? 'electron' : 'node', options, () => nodeRequest(options, token));
+		return this.logAndRequest(options, () => nodeRequest(options, token));
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {
 		return undefined; // currently not implemented in node
 	}
+
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return undefined; // currently not implemented in node
+	}
+
+	async lookupKerberosAuthorization(urlStr: string): Promise<string | undefined> {
+		try {
+			const spnConfig = this.getConfigValue<string>('http.proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(urlStr, spnConfig, this.logService, 'RequestService#lookupKerberosAuthorization');
+			return 'Negotiate ' + response;
+		} catch (err) {
+			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication failed', err);
+			return undefined;
+		}
+	}
+
+	async loadCertificates(): Promise<string[]> {
+		const proxyAgent = await import('@vscode/proxy-agent');
+		return proxyAgent.loadSystemCertificates({
+			loadSystemCertificatesFromNode: () => this.getConfigValue<boolean>('http.systemCertificatesNode', systemCertificatesNodeDefault),
+			log: this.logService,
+		});
+	}
+
+	private getConfigValue<T>(key: string, fallback?: T): T | undefined {
+		if (this.machine === 'remote') {
+			return this.configurationService.getValue<T>(key);
+		}
+		const values = this.configurationService.inspect<T>(key);
+		return values.userLocalValue ?? values.defaultValue ?? fallback;
+	}
+}
+
+export async function lookupKerberosAuthorization(urlStr: string, spnConfig: string | undefined, logService: ILogService, logPrefix: string) {
+	const importKerberos = await import('kerberos');
+	const kerberos = importKerberos.default || importKerberos;
+	const url = new URL(urlStr);
+	const spn = spnConfig
+		|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
+	logService.debug(`${logPrefix} Kerberos authentication lookup`, `proxyURL:${url}`, `spn:${spn}`);
+	const client = await kerberos.initializeClient(spn);
+	return client.step('');
 }
 
 async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
@@ -118,14 +173,83 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 	return module.request;
 }
 
+function resolveRedirectTarget(currentUrl: string, location: string): { url: string; crossOrigin: boolean } | undefined {
+	try {
+		const current = new URL(currentUrl);
+		const target = new URL(location, current);
+		if (target.protocol === 'http:' || target.protocol === 'https:') {
+			return { url: target.toString(), crossOrigin: current.origin !== target.origin };
+		}
+	} catch {
+		// An invalid redirect is returned to the caller without following it.
+	}
+	return undefined;
+}
+
+function stripRedirectHeaders(headers: IHeaders | undefined, crossOrigin: boolean, removeBody: boolean): IHeaders | undefined {
+	if (!headers || (!crossOrigin && !removeBody)) {
+		return headers;
+	}
+	const result: IHeaders = {};
+	for (const name of Object.keys(headers)) {
+		const normalizedName = name.toLowerCase();
+		if (crossOrigin && ORIGIN_CREDENTIAL_HEADERS.has(normalizedName)) {
+			continue;
+		}
+		switch (normalizedName) {
+			case 'content-type':
+			case 'content-encoding':
+			case 'content-language':
+			case 'content-location':
+			case 'content-length':
+			case 'origin':
+				if (removeBody) {
+					continue;
+				}
+				break;
+		}
+		result[name] = headers[name];
+	}
+	return result;
+}
+
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	const maxRetries = 3;
+	let lastError: Error | undefined;
+	const isIdempotent = IDEMPOTENT_HTTP_METHODS_REGEX.test(options.type || 'GET');
+
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		try {
+			return await nodeRequestAttempt(options, token);
+		} catch (error) {
+			lastError = error as Error;
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+
+			if (!isIdempotent || !isTransientError(error) || attempt === maxRetries) {
+				throw error;
+			}
+
+			await timeout(100 * attempt, token);
+		}
+	}
+
+	throw lastError;
+}
+
+async function nodeRequestAttempt(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
 		const endpoint = parseUrl(options.url!);
+		const hasOriginCredentials = !!endpoint.auth || options.user !== undefined || options.password !== undefined
+			|| Object.keys(options.headers ?? {}).some(name => ORIGIN_CREDENTIAL_HEADERS.has(name.toLowerCase()));
+		const manualRedirects = !options.isChromiumNetwork || isNumber(options.followRedirects) || hasOriginCredentials;
+		const followRedirects = isNumber(options.followRedirects) ? options.followRedirects : options.isChromiumNetwork ? 20 : 3;
 		const rawRequest = options.getRawRequest
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
-		const opts: https.RequestOptions = {
+		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached'; redirect?: 'manual'; url?: string } = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
@@ -140,14 +264,42 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 			opts.auth = options.user + ':' + options.password;
 		}
 
-		const req = rawRequest(opts, (res: http.IncomingMessage) => {
-			const followRedirects: number = isNumber(options.followRedirects) ? options.followRedirects : 3;
-			if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && followRedirects > 0 && res.headers['location']) {
+		if (options.disableCache) {
+			opts.cache = 'no-store';
+		}
+
+		if (options.isChromiumNetwork) {
+			if (manualRedirects) {
+				opts.redirect = 'manual';
+			}
+			// Electron reparses Node-style paths as URLs, which changes leading double slashes.
+			opts.url = options.url;
+		}
+
+		const followRedirect = (statusCode: number | undefined, location: string | undefined, method = options.type): boolean => {
+			const target = statusCode && statusCode >= 300 && statusCode < 400 && followRedirects > 0 && location
+				? resolveRedirectTarget(options.url!, location)
+				: undefined;
+			if (target) {
+				const removeBody = method !== (options.type || 'GET') && (method === 'GET' || method === 'HEAD');
 				nodeRequest({
 					...options,
-					url: res.headers['location'],
-					followRedirects: followRedirects - 1
+					url: target.url,
+					type: method,
+					data: removeBody ? undefined : options.data,
+					followRedirects: followRedirects - 1,
+					headers: stripRedirectHeaders(options.headers, target.crossOrigin, removeBody),
+					user: target.crossOrigin ? undefined : options.user,
+					password: target.crossOrigin ? undefined : options.password
 				}, token).then(resolve, reject);
+				return true;
+			}
+			return false;
+		};
+
+		const req = rawRequest(opts, (res: http.IncomingMessage) => {
+			if (!options.isChromiumNetwork && followRedirect(res.statusCode, res.headers['location'])) {
+				res.resume();
 			} else {
 				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
 
@@ -160,14 +312,39 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 					stream = res.pipe(createGunzip());
 				}
 
-				resolve({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
+				resolve({ res, stream: streamToBufferReadableStream(stream) } satisfies IRequestContext);
 			}
 		});
 
 		req.on('error', reject);
 
+		if (options.isChromiumNetwork && manualRedirects) {
+			req.on('redirect', (statusCode: number, method: string, redirectUrl: string, headers: IHeaders) => {
+				// Abort synchronously so Chromium cannot follow with the original credentials.
+				req.abort();
+				if (!followRedirect(statusCode, redirectUrl, method)) {
+					resolve({ res: { statusCode, headers }, stream: streams.emptyStream() });
+				}
+			});
+		}
+
+		// Handle timeout
 		if (options.timeout) {
-			req.setTimeout(options.timeout);
+			// Chromium network requests do not support the `timeout` option
+			if (options.isChromiumNetwork) {
+				// Use Node's setTimeout for Chromium network requests
+				const timeout = setTimeout(() => {
+					req.abort();
+					reject(new Error(`Request timeout after ${options.timeout}ms`));
+				}, options.timeout);
+
+				// Clear timeout when request completes
+				req.on('response', () => clearTimeout(timeout));
+				req.on('error', () => clearTimeout(timeout));
+				req.on('abort', () => clearTimeout(timeout));
+			} else {
+				req.setTimeout(options.timeout);
+			}
 		}
 
 		// Chromium will abort the request if forbidden headers are set.
@@ -185,10 +362,15 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		req.end();
 
-		token.onCancellationRequested(() => {
+		const cancellationListener = token.onCancellationRequested(() => {
+			cancellationListener.dispose();
 			req.abort();
 
 			reject(new CancellationError());
 		});
+
+		req.on('response', () => cancellationListener.dispose());
+		req.on('error', () => cancellationListener.dispose());
+		req.on('abort', () => cancellationListener.dispose());
 	});
 }

@@ -6,8 +6,8 @@
 import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue, SettingsEditor } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
-export function setup() {
-	describe('Terminal Editors', () => {
+export function setup(options?: { skipSuite: boolean }) {
+	(options?.skipSuite ? describe.skip : describe)('Terminal Editors', () => {
 		let app: Application;
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
@@ -29,13 +29,6 @@ export function setup() {
 			const color = 'Cyan';
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
 			await terminal.assertSingleTab({ color }, true);
-		});
-
-		it('should update icon of the tab', async () => {
-			await terminal.runCommand(TerminalCommandId.CreateNewEditor);
-			const icon = 'symbol-method';
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
-			await terminal.assertSingleTab({ icon }, true);
 		});
 
 		it('should rename the tab', async () => {
@@ -82,6 +75,8 @@ export function setup() {
 			await terminal.createTerminal('editor');
 			await terminal.assertEditorGroupCount(1);
 			await terminal.assertTerminalViewHidden();
+			await app.code.driver.mouseMove(0, 0);
+			await app.code.driver.waitForElement('.monaco-hover', { state: 'detached' });
 			await app.workbench.settingsEditor.clearUserSettings();
 		});
 	});

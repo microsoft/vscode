@@ -42,7 +42,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 	private provideCompletionItemsInternal(document: vscode.TextDocument, position: vscode.Position, context: vscode.CompletionContext): Thenable<vscode.CompletionList | undefined> | undefined {
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
-		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
+		const excludedLanguages = emmetConfig.excludeLanguages ? emmetConfig.excludeLanguages : [];
 		if (excludedLanguages.includes(document.languageId)) {
 			return;
 		}
@@ -52,8 +52,8 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), mappedLanguages, excludedLanguages);
 
 		if (!emmetMode
-			|| emmetConfig['showExpandedAbbreviation'] === 'never'
-			|| ((isSyntaxMapped || emmetMode === 'jsx') && emmetConfig['showExpandedAbbreviation'] !== 'always')) {
+			|| emmetConfig.showExpandedAbbreviation === 'never'
+			|| ((isSyntaxMapped || emmetMode === 'jsx') && emmetConfig.showExpandedAbbreviation !== 'always')) {
 			return;
 		}
 
@@ -135,7 +135,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const offset = document.offsetAt(position);
 		if (isStyleSheet(document.languageId) && context.triggerKind !== vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
 			validateLocation = true;
-			const usePartialParsing = vscode.workspace.getConfiguration('emmet')['optimizeStylesheetParsing'] === true;
+			const usePartialParsing = vscode.workspace.getConfiguration('emmet').optimizeStylesheetParsing === true;
 			rootNode = usePartialParsing && document.lineCount > 1000 ? parsePartialStylesheet(document, position) : <Stylesheet>getRootNode(document, true);
 			if (!rootNode) {
 				return;
@@ -187,13 +187,6 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			const config = getEmmetConfiguration(syntax!);
 			const result = helper.doComplete(toLSTextDocument(document), position, syntax, config);
 
-			// https://github.com/microsoft/vscode/issues/86941
-			if (result && result.items && result.items.length === 1) {
-				if (result.items[0].label === 'widows: ;') {
-					return undefined;
-				}
-			}
-
 			const newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {
 				result.items.forEach((item: any) => {
@@ -207,7 +200,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 					newItem.filterText = item.filterText;
 					newItem.sortText = item.sortText;
 
-					if (emmetConfig['showSuggestionsAsSnippets'] === true) {
+					if (emmetConfig.showSuggestionsAsSnippets === true) {
 						newItem.kind = vscode.CompletionItemKind.Snippet;
 					}
 					newItems.push(newItem);

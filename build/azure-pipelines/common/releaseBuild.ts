@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ClientSecretCredential } from '@azure/identity';
 import { CosmosClient } from '@azure/cosmos';
-import { retry } from './retry';
+import { retry } from './retry.ts';
 
 function getEnv(name: string): string {
 	const result = process.env[name];
@@ -41,12 +40,12 @@ async function getConfig(client: CosmosClient, quality: string): Promise<Config>
 	return res.resources[0] as Config;
 }
 
-async function main(force: boolean): Promise<void> {
+async function main(force: boolean): Promise<'released' | 'skipped'> {
 	const commit = getEnv('BUILD_SOURCEVERSION');
 	const quality = getEnv('VSCODE_QUALITY');
 
-	const aadCredentials = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
-	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, aadCredentials });
+	const { cosmosDBAccessToken } = JSON.parse(getEnv('PUBLISH_AUTH_TOKENS'));
+	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
 
 	if (!force) {
 		const config = await getConfig(client, quality);
@@ -54,8 +53,7 @@ async function main(force: boolean): Promise<void> {
 		console.log('Quality config:', config);
 
 		if (config.frozen) {
-			console.log(`Skipping release because quality ${quality} is frozen.`);
-			return;
+			return 'skipped';
 		}
 	}
 
@@ -63,12 +61,23 @@ async function main(force: boolean): Promise<void> {
 
 	const scripts = client.database('builds').container(quality).scripts;
 	await retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
+	return 'released';
 }
 
 const [, , force] = process.argv;
 
-main(force === 'true').then(() => {
-	console.log('Build successfully released');
+console.log(process.argv);
+
+main(/^true$/i.test(force)).then(result => {
+	if (result === 'skipped') {
+		// The step still succeeds, but the build must not read as released
+		const quality = getEnv('VSCODE_QUALITY');
+		console.log(`##vso[task.logissue type=warning]Build not released, since quality ${quality} is frozen. Release it manually once the quality is unfrozen.`);
+		console.log('##vso[build.addbuildtag]release-skipped-frozen');
+		console.log(`Build NOT released: quality ${quality} is frozen`);
+	} else {
+		console.log('Build successfully released');
+	}
 	process.exit(0);
 }, err => {
 	console.error(err);

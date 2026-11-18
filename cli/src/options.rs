@@ -7,9 +7,9 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::constants::{APPLICATION_NAME_MAP, PRODUCT_NAME_LONG_MAP, SERVER_NAME_MAP};
+use crate::constants::SERVER_NAME_MAP;
 
-#[derive(clap::ArgEnum, Copy, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(clap::ValueEnum, Copy, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Quality {
 	#[serde(rename = "stable")]
 	Stable,
@@ -38,30 +38,12 @@ impl Quality {
 		}
 	}
 
-	/// Product long name
-	pub fn get_long_name(&self) -> &'static str {
-		PRODUCT_NAME_LONG_MAP
-			.as_ref()
-			.and_then(|m| m.get(self))
-			.map(|s| s.as_str())
-			.unwrap_or("Code - OSS")
-	}
-
-	/// Product application name
-	pub fn get_application_name(&self) -> &'static str {
-		APPLICATION_NAME_MAP
-			.as_ref()
-			.and_then(|m| m.get(self))
-			.map(|s| s.as_str())
-			.unwrap_or("code")
-	}
-
 	/// Server application name
 	pub fn server_entrypoint(&self) -> String {
 		let mut server_name = SERVER_NAME_MAP
 			.as_ref()
 			.and_then(|m| m.get(self))
-			.map(|s| s.as_str())
+			.map(|s| s.server_application_name.as_str())
 			.unwrap_or("code-server-oss")
 			.to_string();
 
@@ -83,19 +65,18 @@ impl TryFrom<&str> for Quality {
 	type Error = String;
 
 	fn try_from(s: &str) -> Result<Self, Self::Error> {
-		match s {
+		match s.to_ascii_lowercase().as_str() {
 			"stable" => Ok(Quality::Stable),
 			"insiders" | "insider" => Ok(Quality::Insiders),
 			"exploration" => Ok(Quality::Exploration),
 			_ => Err(format!(
-				"Unknown quality: {}. Must be one of stable, insiders, or exploration.",
-				s
+				"Unknown quality: {s}. Must be one of stable, insiders, or exploration."
 			)),
 		}
 	}
 }
 
-#[derive(clap::ArgEnum, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(clap::ValueEnum, Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TelemetryLevel {
 	Off,
 	Crash,
@@ -111,5 +92,56 @@ impl fmt::Display for TelemetryLevel {
 			TelemetryLevel::Error => write!(f, "error"),
 			TelemetryLevel::All => write!(f, "all"),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_quality_try_from() {
+		assert_eq!(Quality::try_from("stable").unwrap(), Quality::Stable);
+		assert_eq!(Quality::try_from("Stable").unwrap(), Quality::Stable);
+		assert_eq!(Quality::try_from("STABLE").unwrap(), Quality::Stable);
+
+		assert_eq!(Quality::try_from("insiders").unwrap(), Quality::Insiders);
+		assert_eq!(Quality::try_from("Insiders").unwrap(), Quality::Insiders);
+		assert_eq!(Quality::try_from("insider").unwrap(), Quality::Insiders);
+		assert_eq!(Quality::try_from("INSIDER").unwrap(), Quality::Insiders);
+
+		assert_eq!(
+			Quality::try_from("exploration").unwrap(),
+			Quality::Exploration
+		);
+		assert_eq!(
+			Quality::try_from("Exploration").unwrap(),
+			Quality::Exploration
+		);
+
+		assert!(Quality::try_from("unknown").is_err());
+	}
+
+	#[test]
+	fn test_quality_display_and_names() {
+		assert_eq!(Quality::Stable.get_machine_name(), "stable");
+		assert_eq!(Quality::Stable.get_capitalized_name(), "Stable");
+		assert_eq!(format!("{}", Quality::Stable), "Stable");
+
+		assert_eq!(Quality::Insiders.get_machine_name(), "insiders");
+		assert_eq!(Quality::Insiders.get_capitalized_name(), "Insiders");
+		assert_eq!(format!("{}", Quality::Insiders), "Insiders");
+
+		assert_eq!(Quality::Exploration.get_machine_name(), "exploration");
+		assert_eq!(Quality::Exploration.get_capitalized_name(), "Exploration");
+		assert_eq!(format!("{}", Quality::Exploration), "Exploration");
+	}
+
+	#[test]
+	fn test_telemetry_level_display() {
+		assert_eq!(format!("{}", TelemetryLevel::Off), "off");
+		assert_eq!(format!("{}", TelemetryLevel::Crash), "crash");
+		assert_eq!(format!("{}", TelemetryLevel::Error), "error");
+		assert_eq!(format!("{}", TelemetryLevel::All), "all");
 	}
 }

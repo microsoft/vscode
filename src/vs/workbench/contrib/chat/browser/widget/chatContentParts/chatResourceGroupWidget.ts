@@ -1,0 +1,297 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as dom from '../../../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { extname as pathExtname } from '../../../../../../base/common/path.js';
+import { basename, extname, joinPath } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { localize, localize2 } from '../../../../../../nls.js';
+import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../../platform/files/common/files.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileConstants.js';
+import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../../common/model/chatModel.js';
+import { IChatRequestVariableEntry, isImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
+import { IChatImageBase64Data } from '../../attachments/chatAttachmentWidgets.js';
+import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
+import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
+
+export interface IChatToolOutputResourceToolbarContext {
+	parts: IChatCollapsibleIODataPart[];
+}
+
+/**
+ * Delay in milliseconds before decoding base64 image data.
+ * This avoids expensive decode operations during scrolling.
+ */
+const IMAGE_DECODE_DELAY_MS = 100;
+
+/**
+ * A reusable widget for rendering a group of resource data parts (files, images)
+ * with image previews, attachment pills, and shared save actions.
+ *
+ * Inline image results bypass deferred attachment thumbnails while retaining the shared resource actions.
+ */
+export class ChatResourceGroupWidget extends Disposable {
+	public readonly domNode: HTMLElement;
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	constructor(
+		parts: IChatCollapsibleIODataPart[],
+		private readonly _options: { showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin; imageDimensions?: ResourceMap<dom.IDimension> } | undefined,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IFileService private readonly _fileService: IFileService,
+	) {
+		super();
+
+		const el = dom.h('.chat-collapsible-io-resource-group', [
+			dom.h('.chat-collapsible-io-resource-items@items'),
+			dom.h('.chat-collapsible-io-resource-actions@actions'),
+		]);
+
+		this.domNode = el.root;
+		this._fillInResourceGroup(parts, el.items, el.actions);
+	}
+
+	private async _fillInResourceGroup(parts: IChatCollapsibleIODataPart[], itemsContainer: HTMLElement, actionsContainer: HTMLElement) {
+		// Only ordinary attachment thumbnails use the deferred file-placeholder path.
+		const entries: IChatRequestVariableEntry[] = [];
+		const imageBase64Data = new Map<string, IChatImageBase64Data>();
+		const deferredImageParts: { index: number; part: IChatCollapsibleIODataPart; mimeType: string }[] = [];
+
+		for (let i = 0; i < parts.length; i++) {
+			const part = parts[i];
+			const name = part.name ?? basename(part.uri);
+			const imageMimeType = getResourceImageMimeType(part);
+			if (imageMimeType) {
+				if (this._options?.imagePresentation === 'inline') {
+					const id = generateUuid();
+					if (part.base64Value !== undefined) {
+						imageBase64Data.set(id, { data: part.base64Value, mimeType: imageMimeType });
+					}
+					const value = part.base64Value === undefined ? part.value : undefined;
+					entries.push({ kind: 'image', id, name, value: value ?? part.uri, mimeType: imageMimeType, isURL: !value && part.base64Value === undefined, references: [{ kind: 'reference', reference: part.uri }] });
+				} else if (part.base64Value) {
+					// Defer base64 decode - use file placeholder for now
+					entries.push({ kind: 'file', id: generateUuid(), name, fullName: part.uri.path, value: part.uri });
+					deferredImageParts.push({ index: i, part, mimeType: imageMimeType });
+				} else if (part.value) {
+					entries.push({ kind: 'image', id: generateUuid(), name, value: part.value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+				} else {
+					const value = await this._fileService.readFile(part.uri).then(f => f.value.buffer, () => undefined);
+					if (!value) {
+						entries.push({ kind: 'file', id: generateUuid(), name, fullName: part.uri.path, value: part.uri });
+					} else {
+						entries.push({ kind: 'image', id: generateUuid(), name, value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+					}
+				}
+			} else {
+				entries.push({ kind: 'file', id: generateUuid(), name, fullName: part.uri.path, value: part.uri });
+			}
+		}
+
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		const attachments = this._register(this._instantiationService.createInstance(
+			ChatAttachmentsContentPart,
+			{
+				variables: entries,
+				// Tool output files and images, which no session-aware attachment widget renders.
+				sessionResource: undefined,
+				limit: 5,
+				contentReferences: undefined,
+				domNode: undefined,
+				showImageInHover: this._options?.showImageInHover,
+				imagePresentation: this._options?.imagePresentation,
+				imageReveal: this._options?.imageReveal,
+				imageDimensions: this._options?.imageDimensions,
+				imageBase64Data,
+			}
+		));
+
+		attachments.contextMenuHandler = (attachment, event) => {
+			if (isImageVariableEntry(attachment)) {
+				return;
+			}
+			const index = entries.indexOf(attachment);
+			const part = parts[index];
+			if (part) {
+				event.preventDefault();
+				event.stopPropagation();
+
+				this._contextMenuService.showContextMenu({
+					menuId: MenuId.ChatToolOutputResourceContext,
+					menuActionOptions: { shouldForwardArgs: true },
+					getAnchor: () => ({ x: event.pageX, y: event.pageY }),
+					getActionsContext: () => ({ parts: [part] } satisfies IChatToolOutputResourceToolbarContext),
+				});
+			}
+		};
+
+		itemsContainer.appendChild(attachments.domNode!);
+		this._onDidChangeHeight.fire();
+
+		const toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, MenuId.ChatToolOutputResourceToolbar, {
+			menuOptions: {
+				shouldForwardArgs: true,
+			},
+		}));
+		toolbar.context = { parts } satisfies IChatToolOutputResourceToolbarContext;
+
+		// Second pass: decode base64 images asynchronously and update in place
+		if (deferredImageParts.length > 0) {
+			this._register(disposableTimeout(() => {
+				for (const { index, part, mimeType } of deferredImageParts) {
+					try {
+						const value = decodeBase64(part.base64Value!).buffer;
+						entries[index] = { kind: 'image', id: generateUuid(), name: part.name ?? basename(part.uri), value, mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+					} catch {
+						// Keep the file placeholder on decode failure
+					}
+				}
+
+				// Update attachments in place
+				attachments.updateVariables(entries);
+				this._onDidChangeHeight.fire();
+			}, IMAGE_DECODE_DELAY_MS));
+		}
+	}
+}
+
+function getResourceImageMimeType(part: IChatCollapsibleIODataPart): string | undefined {
+	if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
+		return part.mimeType;
+	}
+
+	const extension = extname(part.uri).slice(1).toLowerCase();
+	return CHAT_ATTACHABLE_IMAGE_MIME_TYPES[extension];
+}
+
+
+class SaveResourcesAction extends Action2 {
+	public static readonly ID = 'chat.toolOutput.save';
+	constructor() {
+		super({
+			id: SaveResourcesAction.ID,
+			title: localize2('chat.saveResources', "Save..."),
+			icon: Codicon.cloudDownload,
+			menu: [{
+				id: MenuId.ChatToolOutputResourceToolbar,
+				group: 'navigation',
+				order: 1
+			}, {
+				id: MenuId.ChatToolOutputResourceContext,
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context: IChatToolOutputResourceToolbarContext) {
+		const fileDialog = accessor.get(IFileDialogService);
+		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const commandService = accessor.get(ICommandService);
+		const labelService = accessor.get(ILabelService);
+		const defaultFilepath = await fileDialog.defaultFilePath();
+
+		const savePart = async (part: IChatCollapsibleIODataPart, target: URI) => {
+			try {
+				if (part.kind === 'data') {
+					await fileService.copy(part.uri, target, true);
+				} else {
+					// MCP doesn't support streaming data, so no sense trying
+					const contents = await fileService.readFile(part.uri);
+					await fileService.writeFile(target, contents.value);
+				}
+			} catch (e) {
+				notificationService.error(localize('chat.saveResources.error', "Failed to save {0}: {1}", basename(part.uri), e));
+			}
+		};
+
+		const withProgress = async (thenReveal: URI, todo: (() => Promise<void>)[]) => {
+			await progressService.withProgress({
+				location: ProgressLocation.Notification,
+				delay: 5_000,
+				title: localize('chat.saveResources.progress', "Saving resources..."),
+			}, async report => {
+				for (const task of todo) {
+					await task();
+					report.report({ increment: 1, total: todo.length });
+				}
+			});
+
+			if (workspaceContextService.isInsideWorkspace(thenReveal)) {
+				commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, thenReveal);
+			} else {
+				notificationService.info(localize('chat.saveResources.reveal', "Saved resources to {0}", labelService.getUriLabel(thenReveal)));
+			}
+		};
+
+		if (context.parts.length === 1) {
+			const part = context.parts[0];
+			const uri = await fileDialog.pickFileToSave(joinPath(defaultFilepath, part.name ?? basename(part.uri)));
+			if (!uri) {
+				return;
+			}
+			await withProgress(uri, [() => savePart(part, uri)]);
+		} else {
+			const uris = await fileDialog.showOpenDialog({
+				title: localize('chat.saveResources.title', "Pick folder to save resources"),
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				defaultUri: workspaceContextService.getWorkspace().folders[0]?.uri,
+			});
+
+			if (!uris?.length) {
+				return;
+			}
+
+			const folder = uris[0];
+			const caseSensitive = fileService.hasCapability(folder, FileSystemProviderCapabilities.PathCaseSensitive);
+			const nameKey = (name: string) => caseSensitive ? name : name.toLowerCase();
+			const reservedNames = new Set(context.parts.map(part => nameKey(part.name ?? basename(part.uri))));
+			const usedNames = new Set<string>();
+			const saves = context.parts.map(part => {
+				const name = part.name ?? basename(part.uri);
+				let targetName = name;
+				if (usedNames.has(nameKey(targetName))) {
+					const extension = pathExtname(name);
+					const stem = name.slice(0, name.length - extension.length);
+					let suffix = 2;
+					do {
+						targetName = `${stem}-${suffix++}${extension}`;
+					} while (reservedNames.has(nameKey(targetName)) || usedNames.has(nameKey(targetName)));
+				}
+				usedNames.add(nameKey(targetName));
+				return () => savePart(part, joinPath(folder, targetName));
+			});
+			await withProgress(folder, saves);
+		}
+	}
+}
+
+registerAction2(SaveResourcesAction);

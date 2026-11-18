@@ -1,0 +1,102 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Codicon } from '../../../../base/common/codicons.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ActiveEditorContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { CodeReviewService } from './codeReviewService.js';
+import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+
+registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
+
+const CODE_REVIEW_QUERY = '/code-review';
+
+const desktopDetailPanel = DesktopLayoutContext;
+
+const desktopCodeReviewWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+	desktopDetailPanel,
+	IsTopRightEditorGroupContext,
+	SessionWorkspaceIsVirtualContext.toNegated(),
+	SessionIsCreatedContext,
+	SessionHasChangesContext,
+);
+
+class RunSessionCodeReviewAction extends Action2 {
+
+	static readonly ID = 'sessions.codeReview.run';
+
+	constructor() {
+		super({
+			id: RunSessionCodeReviewAction.ID,
+			title: localize2('sessions.runCodeReview', "Run Code Review"),
+			tooltip: localize('sessions.runCodeReview.tooltip', "Run Code Review"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.codeReview,
+			precondition: ContextKeyExpr.or(ChatContextKeys.hasAgentSessionChanges, SessionHasChangesContext),
+			menu: {
+				// First in the header row of the Changes editor, before the More Actions menu of its diff actions.
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'navigation',
+				order: 10,
+				when: desktopCodeReviewWhen,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
+		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionChangesService = accessor.get(ISessionChangesService);
+
+		const candidateResource = URI.isUri(sessionResource)
+			? sessionResource
+			: resolveSessionCommandTarget(accessor, [])?.session?.resource;
+		const resource = candidateResource
+			? sessionChangesService.getSessionResource(candidateResource) ?? candidateResource
+			: undefined;
+		if (!resource) {
+			return;
+		}
+
+		const session = sessionManagementService.getSession(resource);
+		if (!session) {
+			return;
+		}
+
+		if (session.capabilities.get().supportsMultipleChats) {
+			if (session.status.get() === SessionStatus.Untitled) {
+				await sessionManagementService.sendNewChatRequest(session, { query: CODE_REVIEW_QUERY });
+			} else {
+				// sendNewChatRequest only starts pending sessions; an existing session gets a new chat instead.
+				// forceNew keeps any unsent draft chat (and its composed input) untouched.
+				const chat = await sessionManagementService.createNewChatInSession(session, { forceNew: true });
+				if (chat) {
+					await sessionManagementService.sendRequest(session, chat, { query: CODE_REVIEW_QUERY });
+				}
+			}
+		} else {
+			chatWidgetService.getWidgetBySessionResource(session.resource)?.acceptInput(CODE_REVIEW_QUERY);
+		}
+	}
+}
+
+registerAction2(RunSessionCodeReviewAction);

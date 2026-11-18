@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { Orientation, OrthogonalEdge, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Dimension } from '../../dom.js';
+import { Orientation, OrthogonalEdge, Sash, SashState } from '../sash/sash.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { DisposableStore } from '../../../common/lifecycle.js';
 
 
 export interface IResizeEvent {
 	dimension: Dimension;
 	done: boolean;
+	reset?: 'width' | 'height';
 	north?: boolean;
 	east?: boolean;
 	south?: boolean;
@@ -23,10 +24,10 @@ export class ResizableHTMLElement {
 	readonly domNode: HTMLElement;
 
 	private readonly _onDidWillResize = new Emitter<void>();
-	readonly onDidWillResize: Event<void> = this._onDidWillResize.event;
+	get onDidWillResize() { return this._onDidWillResize.event; }
 
 	private readonly _onDidResize = new Emitter<IResizeEvent>();
-	readonly onDidResize: Event<IResizeEvent> = this._onDidResize.event;
+	get onDidResize() { return this._onDidResize.event; }
 
 	private readonly _northSash: Sash;
 	private readonly _eastSash: Sash;
@@ -104,13 +105,13 @@ export class ResizableHTMLElement {
 		this._sashListener.add(Event.any(this._eastSash.onDidReset, this._westSash.onDidReset)(e => {
 			if (this._preferredSize) {
 				this.layout(this._size.height, this._preferredSize.width);
-				this._onDidResize.fire({ dimension: this._size, done: true });
+				this._onDidResize.fire({ dimension: this._size, done: true, reset: 'width' });
 			}
 		}));
 		this._sashListener.add(Event.any(this._northSash.onDidReset, this._southSash.onDidReset)(e => {
 			if (this._preferredSize) {
 				this.layout(this._preferredSize.height, this._size.width);
-				this._onDidResize.fire({ dimension: this._size, done: true });
+				this._onDidResize.fire({ dimension: this._size, done: true, reset: 'height' });
 			}
 		}));
 	}

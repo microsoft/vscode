@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app } from 'electron';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { whenDeleted } from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IURLService } from 'vs/platform/url/common/url';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IWindowSettings } from 'vs/platform/window/common/window';
-import { IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { IProtocolUrl } from 'vs/platform/url/electron-main/url';
+import { coalesce } from '../../../base/common/arrays.js';
+import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { whenDeleted } from '../../../base/node/pfs.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IURLService } from '../../url/common/url.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
+import { IWindowSettings } from '../../window/common/window.js';
+import { IOpenConfiguration, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { IProtocolUrl } from '../../url/electron-main/url.js';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -45,6 +46,7 @@ export class LaunchMainService implements ILaunchMainService {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IURLService private readonly urlService: IURLService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 	) { }
 
 	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
@@ -59,7 +61,8 @@ export class LaunchMainService implements ILaunchMainService {
 		// is not in the foreground and since we got instructed
 		// to open a new window from another instance, we ensure
 		// that the app has focus.
-		if (isMacintosh) {
+		// A hidden instance running extension tests must never activate the app.
+		if (isMacintosh && !isHiddenWindowMode(this.environmentMainService)) {
 			app.focus({ steal: true });
 		}
 
@@ -70,7 +73,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Create a window if there is none
 			if (this.windowsMainService.getWindowCount() === 0) {
-				const window = firstOrDefault(await this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP }));
+				const window = (await this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP })).at(0);
 				if (window) {
 					whenWindowReady = window.ready();
 				}
@@ -111,6 +114,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		const context = isLaunchedFromCli(userEnv) ? OpenContext.CLI : OpenContext.DESKTOP;
+
 		let usedWindows: ICodeWindow[] = [];
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
@@ -119,7 +123,18 @@ export class LaunchMainService implements ILaunchMainService {
 		const baseConfig: IOpenConfiguration = {
 			context,
 			cli: args,
-			userEnv,
+			/**
+			 * When opening a new window from a second instance that sent args and env
+			 * over to this instance, we want to preserve the environment only if that second
+			 * instance was spawned from the CLI or used the `--preserve-env` flag (example:
+			 * when using `open -n "VSCode.app" --args --preserve-env WORKSPACE_FOLDER`).
+			 *
+			 * This is done to ensure that the second window gets treated exactly the same
+			 * as the first window, for example, it gets the same resolved user shell environment.
+			 *
+			 * https://github.com/microsoft/vscode/issues/194736
+			 */
+			userEnv: (args['preserve-env'] || context === OpenContext.CLI) ? userEnv : undefined,
 			waitMarkerFileURI,
 			remoteAuthority,
 			forceProfile: args.profile,
@@ -127,8 +142,13 @@ export class LaunchMainService implements ILaunchMainService {
 		};
 
 		// Special case extension development
-		if (!!args.extensionDevelopmentPath) {
+		if (args.extensionDevelopmentPath) {
 			await this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
+		}
+
+		// Agents window
+		else if (args['agents']) {
+			usedWindows = await this.windowsMainService.openAgentsWindow(baseConfig);
 		}
 
 		// Start without file/folder arguments
@@ -136,7 +156,7 @@ export class LaunchMainService implements ILaunchMainService {
 			let openNewWindow = false;
 
 			// Force new window
-			if (args['new-window'] || args['unity-launch'] || baseConfig.forceProfile || baseConfig.forceTempProfile) {
+			if (args['new-window'] || baseConfig.forceProfile || baseConfig.forceTempProfile) {
 				openNewWindow = true;
 			}
 
@@ -196,6 +216,7 @@ export class LaunchMainService implements ILaunchMainService {
 				diffMode: args.diff,
 				mergeMode: args.merge,
 				addMode: args.add,
+				removeMode: args.remove,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
 				gotoLineMode: args.goto
 			});

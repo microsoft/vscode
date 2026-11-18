@@ -1,0 +1,48 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "PEER_READY".
+    response:
+      content: PEER_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://codex/${uuid_0}?chat=${uuid_1}" and relationship "independent", then reply exactly "moved".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: move_session
+          input:
+            session: agent-host-session://codex/${uuid_0}?chat=${uuid_1}
+            relationship: independent
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call move_session exactly once with session "agent-host-session://codex/${uuid_0}?chat=${uuid_1}" and relationship "independent", then reply exactly "moved".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: move_session
+              input:
+                session: agent-host-session://codex/${uuid_0}?chat=${uuid_1}
+                relationship: independent
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Nested session moved to its own session (agent-host-session://ahp-session/${uuid_2}).
+    response:
+      content: moved
+      stopReason: end_turn

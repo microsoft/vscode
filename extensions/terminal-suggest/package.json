@@ -1,0 +1,55 @@
+{
+  "name": "terminal-suggest",
+  "publisher": "vscode",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.1",
+  "private": true,
+  "license": "MIT",
+  "icon": "./media/icon.png",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "enabledApiProposals": [
+    "terminalCompletionProvider",
+    "terminalShellEnv"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "terminal.integrated.suggest.clearCachedGlobals",
+        "category": "Terminal",
+        "title": "%terminal.integrated.suggest.clearCachedGlobals%"
+      }
+    ],
+    "terminal": {
+      "completionProviders": [
+        {
+          "description": "Show suggestions for commands, arguments, flags, and file paths based upon the Fig spec."
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "pnpm exec gulp compile-extension:terminal-suggest",
+    "watch": "pnpm exec gulp watch-extension:terminal-suggest",
+    "pull-zshbuiltins": "node ./scripts/pullZshBuiltins.ts",
+    "pull-fishbuiltins": "node ./scripts/pullFishBuiltins.ts"
+  },
+  "main": "./out/terminalSuggestMain",
+  "activationEvents": [
+    "onTerminalShellIntegration:*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "mocha": "^10.8.2"
+  }
+}

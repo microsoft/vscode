@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
-import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { MinimapCharRendererFactory } from '../../../browser/viewParts/minimap/minimapCharRendererFactory.js';
+import { Constants } from '../../../browser/viewParts/minimap/minimapCharSheet.js';
+import { RGBA8 } from '../../../common/core/misc/rgba.js';
 
 suite('MinimapCharRenderer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sampleD = [
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xD0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x78, 0x00, 0x00, 0x00, 0x00,

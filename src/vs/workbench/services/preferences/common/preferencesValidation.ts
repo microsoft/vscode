@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { JSONSchemaType } from 'vs/base/common/jsonSchema';
-import { Color } from 'vs/base/common/color';
-import { isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import * as nls from '../../../../nls.js';
+import { JSONSchemaType } from '../../../../base/common/jsonSchema.js';
+import { Color } from '../../../../base/common/color.js';
+import { isObject, isUndefinedOrNull, isString, isStringArray } from '../../../../base/common/types.js';
+import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 type Validator<T> = { enabled: boolean; isValid: (value: T) => boolean; message: string };
 
@@ -112,11 +112,30 @@ function valueValidatesAsType(value: any, type: string): boolean {
 	return true;
 }
 
+function toRegExp(pattern: string): RegExp {
+	try {
+		// The u flag allows support for better Unicode matching,
+		// but deprecates some patterns such as [\s-9]
+		// Ref https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Character_class#description
+		return new RegExp(pattern, 'u');
+	} catch (e) {
+		try {
+			return new RegExp(pattern);
+		} catch (e) {
+			// If the pattern can't be parsed even without the 'u' flag,
+			// just log the error to avoid rendering the entire Settings editor blank.
+			// Ref https://github.com/microsoft/vscode/issues/195054
+			console.error(nls.localize('regexParsingError', "Error parsing the following regex both with and without the u flag:"), pattern);
+			return /.*/;
+		}
+	}
+}
+
 function getStringValidators(prop: IConfigurationPropertySchema) {
 	const uriRegex = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	let patternRegex: RegExp | undefined;
 	if (typeof prop.pattern === 'string') {
-		patternRegex = new RegExp(prop.pattern);
+		patternRegex = toRegExp(prop.pattern);
 	}
 
 	return [
@@ -272,7 +291,7 @@ function getArrayValidator(prop: IConfigurationPropertySchema): ((value: any) =>
 					}
 
 					if (typeof propItems.pattern === 'string') {
-						const patternRegex = new RegExp(propItems.pattern);
+						const patternRegex = toRegExp(propItems.pattern);
 						arrayValue.forEach(v => {
 							if (!patternRegex.test(v)) {
 								message +=
@@ -320,19 +339,32 @@ function getArrayValidator(prop: IConfigurationPropertySchema): ((value: any) =>
 
 function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
 	if (prop.type === 'object') {
-		const { properties, patternProperties, additionalProperties } = prop;
+		const { properties, patternProperties, additionalProperties, propertyNames } = prop;
 		return value => {
 			if (!value) {
 				return null;
 			}
 
 			const errors: string[] = [];
+			let propertyNamesErrorShown = false;
 
 			if (!isObject(value)) {
 				errors.push(nls.localize('validations.objectIncorrectType', 'Incorrect type. Expected an object.'));
 			} else {
 				Object.keys(value).forEach((key: string) => {
 					const data = value[key];
+
+					// Validate propertyNames.pattern - show error message once
+					if (propertyNames?.pattern && !propertyNamesErrorShown) {
+						const patternRegex = toRegExp(propertyNames.pattern);
+						if (!patternRegex.test(key)) {
+							const errorMessage = propertyNames.patternErrorMessage ||
+								nls.localize('validations.propertyNamePattern', 'Property name must match pattern `{0}`.', propertyNames.pattern);
+							errors.push(errorMessage + '\n');
+							propertyNamesErrorShown = true;
+						}
+					}
+
 					if (properties && key in properties) {
 						const errorMessage = getErrorsForSchema(properties[key], data);
 						if (errorMessage) {
@@ -373,6 +405,18 @@ function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) =
 	}
 
 	return null;
+}
+
+/**
+ * Validates a single property name against the propertyNames.pattern schema.
+ * Returns true if the key is valid, false otherwise.
+ */
+export function validatePropertyName(propertyNames: IConfigurationPropertySchema['propertyNames'], key: string): boolean {
+	if (!propertyNames?.pattern) {
+		return true;
+	}
+	const patternRegex = toRegExp(propertyNames.pattern);
+	return patternRegex.test(key);
 }
 
 function getErrorsForSchema(propertySchema: IConfigurationPropertySchema, data: any): string | null {

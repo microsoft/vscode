@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse } from 'vs/base/common/path';
-import { debounce, throttle } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ProcessItem } from 'vs/base/common/processes';
-import { listProcesses } from 'vs/base/node/ps';
-import { ILogService } from 'vs/platform/log/common/log';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { parse } from '../../../base/common/path.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { ProcessItem } from '../../../base/common/processes.js';
+import { listProcesses } from '../../../base/node/ps.js';
+import { ILogService } from '../../log/common/log.js';
 
 const enum Constants {
 	/**
@@ -25,12 +25,10 @@ const enum Constants {
 export const ignoreProcessNames: string[] = [];
 
 /**
- * Monitors a process for child processes, checking at differing times depending on input and output
- * calls into the monitor.
+ * Monitors child processes at different intervals after input and output.
+ * Pending checks are canceled when the monitor is disposed.
  */
 export class ChildProcessMonitor extends Disposable {
-	private _isDisposed: boolean = false;
-
 	private _hasChildProcesses: boolean = false;
 	private set hasChildProcesses(value: boolean) {
 		if (this._hasChildProcesses !== value) {
@@ -50,35 +48,51 @@ export class ChildProcessMonitor extends Disposable {
 	 */
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
+	private readonly _refreshActiveScheduler = this._register(new RunOnceScheduler(() => this._refreshActive(), Constants.ActiveDebounceDuration));
+	private readonly _refreshInactiveScheduler = this._register(new RunOnceScheduler(() => this._refreshInactive(), Constants.InactiveThrottleDuration));
+	private _lastInactiveRefreshTime = -Number.MAX_VALUE;
+
 	constructor(
-		private readonly _pid: number,
+		private _pid: number,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 	}
 
-	override dispose() {
-		this._isDisposed = true;
-		super.dispose();
+	/**
+	 * Updates the pid to monitor. This is needed when the pid is not available
+	 * immediately after spawn (e.g. node-pty deferred conpty connection).
+	 */
+	setPid(pid: number): void {
+		this._pid = pid;
 	}
 
 	/**
 	 * Input was triggered on the process.
 	 */
 	handleInput() {
-		this._refreshActive();
+		if (!this._store.isDisposed) {
+			this._refreshActiveScheduler.schedule();
+		}
 	}
 
 	/**
 	 * Output was triggered on the process.
 	 */
 	handleOutput() {
-		this._refreshInactive();
+		if (this._store.isDisposed || this._refreshInactiveScheduler.isScheduled()) {
+			return;
+		}
+		const delay = this._lastInactiveRefreshTime + Constants.InactiveThrottleDuration - Date.now();
+		if (delay <= 0) {
+			this._refreshInactive();
+		} else {
+			this._refreshInactiveScheduler.schedule(delay);
+		}
 	}
 
-	@debounce(Constants.ActiveDebounceDuration)
 	private async _refreshActive(): Promise<void> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		try {
@@ -89,9 +103,9 @@ export class ChildProcessMonitor extends Disposable {
 		}
 	}
 
-	@throttle(Constants.InactiveThrottleDuration)
 	private _refreshInactive(): void {
-		this._refreshActive();
+		this._lastInactiveRefreshTime = Date.now();
+		this._refreshActiveScheduler.schedule();
 	}
 
 	private _processContainsChildren(processItem: ProcessItem): boolean {

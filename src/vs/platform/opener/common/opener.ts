@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IEditorOptions, ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IEditorOptions, ITextEditorSelection, ViewColumn } from '../../editor/common/editor.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
+
+export const defaultExternalUriOpenerId = 'default';
 
 export type OpenInternalOptions = {
 
@@ -42,8 +43,18 @@ export type OpenInternalOptions = {
 export type OpenExternalOptions = {
 	readonly openExternal?: boolean;
 	readonly allowTunneling?: boolean;
+	/**
+	 * Allows contributed external URI openers. These openers are tried before validators,
+	 * which validate the resolved URI only when falling back to the default external opener.
+	 */
 	readonly allowContributedOpeners?: boolean | string;
 	readonly fromWorkspace?: boolean;
+	readonly skipValidation?: boolean;
+	/**
+	 * The window the link was activated in, such as the window of a web page that opens it. Contributed external openers
+	 * open in that window, rather than in the window that appears to have focus.
+	 */
+	readonly sourceWindowId?: number;
 };
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
@@ -58,8 +69,17 @@ export interface IOpener {
 	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
 }
 
+export interface IExternalUriOpenContext {
+	readonly sourceUri: URI;
+	/** The URL before resolution or port forwarding, preserving its original encoding when opened as a string. */
+	readonly sourceHref: string;
+	readonly viewColumn?: ViewColumn;
+	/** The window the link was activated in; see {@link OpenExternalOptions.sourceWindowId}. */
+	readonly sourceWindowId?: number;
+}
+
 export interface IExternalOpener {
-	openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
+	openExternal(href: string, ctx: IExternalUriOpenContext & { preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
 	dispose?(): void;
 }
 
@@ -82,7 +102,7 @@ export interface IOpenerService {
 
 	/**
 	 * Register a participant that can validate if the URI resource be opened.
-	 * Validators are run before openers.
+	 * Validators run before openers unless contributed external URI openers are enabled.
 	 */
 	registerValidator(validator: IValidator): IDisposable;
 
@@ -115,18 +135,6 @@ export interface IOpenerService {
 	 * @throws whenever resolvers couldn't resolve this resource externally.
 	 */
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
-}
-
-export function matchesScheme(target: URI | string, scheme: string): boolean {
-	if (URI.isUri(target)) {
-		return equalsIgnoreCase(target.scheme, scheme);
-	} else {
-		return startsWithIgnoreCase(target, scheme + ':');
-	}
-}
-
-export function matchesSomeScheme(target: URI | string, ...schemes: string[]): boolean {
-	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
 /**

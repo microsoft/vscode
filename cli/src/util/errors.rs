@@ -41,7 +41,7 @@ impl From<reqwest::Error> for WrappedError {
 				"error requesting {}",
 				e.url().map_or("<unknown>", |u| u.as_str())
 			),
-			original: format!("{}", e),
+			original: format!("{e}"),
 		}
 	}
 }
@@ -53,7 +53,7 @@ where
 {
 	WrappedError {
 		message: message.into(),
-		original: format!("{:?}", original),
+		original: format!("{original:?}"),
 	}
 }
 
@@ -64,7 +64,7 @@ where
 {
 	WrappedError {
 		message: message.into(),
-		original: format!("{}", original),
+		original: format!("{original}"),
 	}
 }
 
@@ -93,10 +93,7 @@ impl StatusError {
 		let body = res.text().await.map_err(|e| {
 			wrap(
 				e,
-				format!(
-					"failed to read response body on {} code from {}",
-					status_code, url
-				),
+				format!("failed to read response body on {status_code} code from {url}"),
 			)
 		})?;
 
@@ -105,16 +102,6 @@ impl StatusError {
 			status_code,
 			body,
 		})
-	}
-}
-
-// When the user has not consented to the licensing terms in using the Launcher
-#[derive(Debug)]
-pub struct MissingLegalConsent(pub String);
-
-impl std::fmt::Display for MissingLegalConsent {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.0)
 	}
 }
 
@@ -196,7 +183,7 @@ pub struct InvalidTunnelName(pub String);
 
 impl std::fmt::Display for InvalidTunnelName {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "{}", &self.0)
+		write!(f, "{}", self.0)
 	}
 }
 
@@ -208,7 +195,7 @@ impl std::fmt::Display for TunnelCreationFailed {
 		write!(
 			f,
 			"Could not create tunnel with name: {}\nReason: {}",
-			&self.0, &self.1
+			self.0, self.1
 		)
 	}
 }
@@ -218,7 +205,7 @@ pub struct TunnelHostFailed(pub String);
 
 impl std::fmt::Display for TunnelHostFailed {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "{}", &self.0)
+		write!(f, "{}", self.0)
 	}
 }
 
@@ -227,7 +214,7 @@ pub struct ExtensionInstallFailed(pub String);
 
 impl std::fmt::Display for ExtensionInstallFailed {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Extension install failed: {}", &self.0)
+		write!(f, "Extension install failed: {}", self.0)
 	}
 }
 
@@ -281,7 +268,7 @@ impl std::fmt::Display for InvalidRequestedVersion {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
             f,
-            "The reqested version is invalid, expected one of 'stable', 'insiders', version number (x.y.z), or absolute path.",
+            "The requested version is invalid. Expected 'stable', 'insiders', a version number (x.y.z), or an absolute path.",
         )
 	}
 }
@@ -300,7 +287,7 @@ pub struct CannotForwardControlPort();
 
 impl std::fmt::Display for CannotForwardControlPort {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Cannot forward or unforward port {}.", CONTROL_PORT)
+		write!(f, "Cannot forward or unforward port {CONTROL_PORT}.")
 	}
 }
 
@@ -314,25 +301,11 @@ impl std::fmt::Display for ServerHasClosed {
 }
 
 #[derive(Debug)]
-pub struct UpdatesNotConfigured(pub String);
-
-impl UpdatesNotConfigured {
-	pub fn no_url() -> Self {
-		UpdatesNotConfigured("no service url".to_owned())
-	}
-}
-
-impl std::fmt::Display for UpdatesNotConfigured {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Update service is not configured: {}", self.0)
-	}
-}
-#[derive(Debug)]
 pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Already registered the service. Run `{} tunnel service uninstall` to unregister it first", APPLICATION_NAME)
+		write!(f, "Already registered the service. Run `{APPLICATION_NAME} tunnel service uninstall` to unregister it first")
 	}
 }
 
@@ -442,6 +415,26 @@ macro_rules! makeAnyError {
     };
 }
 
+#[derive(Debug)]
+pub struct DbusConnectFailedError(pub String);
+
+impl Display for DbusConnectFailedError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		let mut str = String::new();
+		str.push_str("Error creating dbus session. This command uses systemd for managing services, you should check that systemd is installed and under your user.");
+
+		if std::env::var("WSL_DISTRO_NAME").is_ok() {
+			str.push_str("\n\nTo enable systemd on WSL, check out: https://devblogs.microsoft.com/commandline/systemd-support-is-now-available-in-wsl/.\n\n");
+		}
+
+		str.push_str("If running `systemctl status` works, systemd is ok, but your session dbus may not be. You might need to:\n\n- Install the `dbus-user-session` package, and reboot if it was not installed\n- Start the user dbus session with `systemctl --user enable dbus --now`.\n\nThe error encountered was: ");
+		str.push_str(&self.0);
+		str.push('\n');
+
+		write!(f, "{str}")
+	}
+}
+
 /// Internal errors in the VS Code CLI.
 /// Note: other error should be migrated to this type gradually
 #[derive(Error, Debug)]
@@ -458,6 +451,8 @@ pub enum CodeError {
 	SingletonLockedProcessExited(u32),
 	#[error("no tunnel process is currently running")]
 	NoRunningTunnel,
+	#[error("no agent host process is currently running")]
+	NoRunningAgentHost,
 	#[error("rpc call failed: {0:?}")]
 	TunnelRpcCallFailed(ResponseError),
 	#[cfg(windows)]
@@ -475,17 +470,76 @@ pub enum CodeError {
 
 	#[error("platform not currently supported: {0}")]
 	UnsupportedPlatform(String),
-	#[error("This machine not meet {name}'s prerequisites, expected either...: {bullets}")]
+	#[error("This machine does not meet {name}'s prerequisites, expected either...\n{bullets}")]
 	PrerequisitesFailed { name: &'static str, bullets: String },
 	#[error("failed to spawn process: {0:?}")]
 	ProcessSpawnFailed(std::io::Error),
-
+	#[error("failed to handshake spawned process: {0:?}")]
+	ProcessSpawnHandshakeFailed(std::io::Error),
 	#[error("download appears corrupted, please retry ({0})")]
 	CorruptDownload(&'static str),
+	#[error("port forwarding is not available in this context")]
+	PortForwardingNotAvailable,
+	#[error("'auth' call required")]
+	ServerAuthRequired,
+	#[error("challenge not yet issued")]
+	AuthChallengeNotIssued,
+	#[error("challenge token is invalid")]
+	AuthChallengeBadToken,
+	#[error("unauthorized client refused")]
+	AuthMismatch,
+	#[error("keyring communication timed out after 5s")]
+	KeyringTimeout,
+	#[error("no host is connected to the tunnel relay")]
+	NoTunnelEndpoint,
+	#[error("could not parse `host`: {0}")]
+	InvalidHostAddress(std::net::AddrParseError),
+	#[error("could not start server on the given host/port: {0}")]
+	CouldNotListenOnInterface(std::io::Error),
+	#[error(
+		"Run this command again with --accept-server-license-terms to indicate your agreement."
+	)]
+	NeedsInteractiveLegalConsent,
+	#[error("Sorry, you cannot use this CLI without accepting the terms.")]
+	DeniedLegalConset,
+	#[error("The server is not yet downloaded, try again shortly.")]
+	ServerNotYetDownloaded,
+	#[error("An error was encountered downloading the server, please retry: {0}")]
+	ServerDownloadError(String),
+	#[error("Updates are are not available: {0}")]
+	UpdatesNotConfigured(&'static str),
+	// todo: can be specialized when update service is moved to CodeErrors
+	#[error("Could not check for update: {0}")]
+	UpdateCheckFailed(String),
+	#[error("Could not read connection token file: {0}")]
+	CouldNotReadConnectionTokenFile(std::io::Error),
+	#[error("Could not write connection token file: {0}")]
+	CouldNotCreateConnectionTokenFile(std::io::Error),
+	#[error("A tunnel with the name {0} exists and is in-use. Please pick a different name or stop the existing tunnel.")]
+	TunnelActiveAndInUse(String),
+	#[error("Timed out looking for port/socket")]
+	ServerOriginTimeout,
+	#[error("Server exited without writing port/socket: {0}")]
+	ServerUnexpectedExit(String),
+	#[error("Server binary is not executable: {0}")]
+	ServerNotExecutable(String),
+	#[error("no agent host could be reached: {0}")]
+	NoAgentHostReachable(String),
+	#[error("no session matching \"{0}\" was found on any discovered agent host")]
+	SessionNotFoundOnAnyHost(String),
+	#[error("could not confirm whether session \"{0}\" exists: {1} could not be searched")]
+	IncompleteSessionSearch(String, String),
+	#[error("multiple live standalone agent hosts are registered ({0}); pass --instance-id to select one")]
+	AmbiguousAgentHostInstance(String),
+	#[error("no live standalone agent host with instance id \"{0}\" was found")]
+	UnknownAgentHostInstance(String),
+	#[error("no live agent host endpoint with instance id \"{0}\" was found (it may not be running, or may have just exited)")]
+	UnknownAgentHostRelayTarget(String),
+	#[error("multiple live agent host endpoints are registered with instance id \"{0}\"; this indicates registry corruption")]
+	AmbiguousAgentHostRelayTarget(String),
 }
 
 makeAnyError!(
-	MissingLegalConsent,
 	MismatchConnectionToken,
 	DevTunnelError,
 	StatusError,
@@ -508,12 +562,12 @@ makeAnyError!(
 	ServerHasClosed,
 	ServiceAlreadyRegistered,
 	WindowsNeedsElevation,
-	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
 	OAuthError,
 	InvalidRpcDataError,
-	CodeError
+	CodeError,
+	DbusConnectFailedError
 );
 
 impl From<reqwest::Error> for AnyError {

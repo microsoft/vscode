@@ -4,26 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, JumpListCategory, JumpListItem } from 'electron';
-import { coalesce } from 'vs/base/common/arrays';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { basename, extUriBiasedIgnorePathCase, originalFSPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { ResourceMap } from 'vs/base/common/map';
+import { coalesce } from '../../../base/common/arrays.js';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { Emitter, Event as CommonEvent } from '../../../base/common/event.js';
+import { normalizeDriveLetter, splitRecentLabel } from '../../../base/common/labels.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { join } from '../../../base/common/path.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, originalFSPath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { Promises } from '../../../base/node/pfs.js';
+import { localize } from '../../../nls.js';
+import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, restoreRecentlyOpened, toStoreData } from '../common/workspaces.js';
+import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from '../../workspace/common/workspace.js';
+import { getWorkspaceIdentifier } from '../common/workspaceIdentifier.js';
+import { IWorkspacesManagementMainService } from './workspacesManagementMainService.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -36,7 +42,7 @@ export interface IWorkspacesHistoryMainService {
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	removeRecentlyOpened(paths: URI[]): Promise<void>;
-	clearRecentlyOpened(): Promise<void>;
+	clearRecentlyOpened(options?: { confirm?: boolean }): Promise<void>;
 }
 
 export class WorkspacesHistoryMainService extends Disposable implements IWorkspacesHistoryMainService {
@@ -54,7 +60,10 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -102,7 +111,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					files.push(recent);
 
 					// Add to recent documents (Windows only, macOS later)
-					if (isWindows && recent.fileUri.scheme === Schemas.file) {
+					// Skip in portable mode to avoid leaving traces on the machine
+					// Skip in the sessions app to avoid polluting the jump list
+					if (isWindows && recent.fileUri.scheme === Schemas.file && !this.environmentMainService.isPortable) {
 						app.addRecentDocument(recent.fileUri.fsPath);
 					}
 				}
@@ -110,7 +121,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		const mergedEntries = await this.mergeEntriesFromStorage({ workspaces, files });
-		workspaces = mergedEntries.workspaces;
+		workspaces = this.canonicalizeAgentSessionsWorkspaces(mergedEntries.workspaces);
 		files = mergedEntries.files;
 
 		if (workspaces.length > WorkspacesHistoryMainService.MAX_TOTAL_RECENT_ENTRIES) {
@@ -125,7 +136,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._onDidChangeRecentlyOpened.fire();
 
 		// Schedule update to recent documents on macOS dock
-		if (isMacintosh) {
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (isMacintosh && !this.environmentMainService.isPortable) {
 			this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
 		}
 	}
@@ -151,22 +163,81 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			this._onDidChangeRecentlyOpened.fire();
 
 			// Schedule update to recent documents on macOS dock
-			if (isMacintosh) {
+			// Skip in portable mode to avoid leaving traces on the machine
+			if (isMacintosh && !this.environmentMainService.isPortable) {
 				this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
 			}
 		}
 	}
 
-	async clearRecentlyOpened(): Promise<void> {
+	async clearRecentlyOpened(options?: { confirm?: boolean }): Promise<void> {
+		if (options?.confirm) {
+			const { response } = await this.dialogMainService.showMessageBox({
+				type: 'warning',
+				buttons: [
+					localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+				],
+				message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
+				detail: localize('confirmClearDetail', "This action is irreversible!"),
+				cancelId: 1
+			});
+
+			if (response !== 0) {
+				return;
+			}
+		}
+
 		await this.saveRecentlyOpened({ workspaces: [], files: [] });
-		app.clearRecentDocuments();
+
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (!this.environmentMainService.isPortable) {
+			app.clearRecentDocuments();
+		}
 
 		// Event
 		this._onDidChangeRecentlyOpened.fire();
 	}
 
 	async getRecentlyOpened(): Promise<IRecentlyOpened> {
-		return this.mergeEntriesFromStorage();
+		const recentlyOpened = await this.mergeEntriesFromStorage();
+
+		return {
+			workspaces: this.canonicalizeAgentSessionsWorkspaces(recentlyOpened.workspaces),
+			files: recentlyOpened.files
+		};
+	}
+
+	private canonicalizeAgentSessionsWorkspaces(workspaces: Array<IRecentWorkspace | IRecentFolder>): Array<IRecentWorkspace | IRecentFolder> {
+		const result: Array<IRecentWorkspace | IRecentFolder> = [];
+		let agentsWindowAdded = false;
+
+		for (const recent of workspaces) {
+			if (isRecentWorkspace(recent) && this.isAgentSessionsWorkspace(recent.workspace)) {
+				if (!agentsWindowAdded) {
+					agentsWindowAdded = true;
+					result.push({
+						workspace: getWorkspaceIdentifier(this.environmentMainService.agentSessionsWorkspace),
+						label: localize('agentsWindowRecentWorkspace', "Agents Window")
+					});
+				}
+			} else {
+				result.push(recent);
+			}
+		}
+
+		return result;
+	}
+
+	private isAgentSessionsWorkspace(workspace: IWorkspaceIdentifier): boolean {
+		if (isEqual(workspace.configPath, this.environmentMainService.agentSessionsWorkspace)) {
+			return true;
+		}
+
+		// Recents can retain Agents workspaces from other profile and worktree user-data directories.
+		const agentSessionsWorkspace = this.environmentMainService.agentSessionsWorkspace;
+		return basename(workspace.configPath) === basename(agentSessionsWorkspace)
+			&& basename(dirname(workspace.configPath)) === basename(dirname(agentSessionsWorkspace));
 	}
 
 	private async mergeEntriesFromStorage(existingEntries?: IRecentlyOpened): Promise<IRecentlyOpened> {
@@ -223,7 +294,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		let storedRecentlyOpened: object | undefined = undefined;
 
 		// First try with storage service
-		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION);
+		const storedRecentlyOpenedRaw = this.applicationStorageMainService.get(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
 		if (typeof storedRecentlyOpenedRaw === 'string') {
 			try {
 				storedRecentlyOpened = JSON.parse(storedRecentlyOpenedRaw);
@@ -240,8 +311,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		// Wait for global storage to be ready
 		await this.applicationStorageMainService.whenReady;
 
-		// Store in global storage (but do not sync since this is mainly local paths)
-		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		// Store in application shared storage (but do not sync since this is mainly local paths)
+		this.applicationStorageMainService.store(WorkspacesHistoryMainService.RECENTLY_OPENED_STORAGE_KEY, JSON.stringify(toStoreData(recent)), StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 	}
 
 	private location(recent: IRecent): URI {
@@ -276,12 +347,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; 		// prefer higher number of workspaces...
 	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; 	// ...over number of files
 
-	private static readonly MAX_WINDOWS_JUMP_LIST_ENTRIES = 7;
-
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
 		'COMMIT_EDITMSG',
-		'MERGE_MSG'
+		'MERGE_MSG',
+		'git-rebase-todo'
 	];
 
 	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
@@ -291,8 +361,18 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			return; // only on windows
 		}
 
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (this.environmentMainService.isPortable) {
+			return;
+		}
+
 		await this.updateWindowsJumpList();
 		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.updateWindowsJumpList();
+			}
+		}));
 	}
 
 	private async updateWindowsJumpList(): Promise<void> {
@@ -301,32 +381,49 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		const jumpList: JumpListCategory[] = [];
+		let recentWorkspaces = this.getWindowsJumpListWorkspaces((await this.getRecentlyOpened()).workspaces);
 
 		// Tasks
+		const tasks: JumpListItem[] = [
+			{
+				type: 'task',
+				title: localize('newWindow', "New Window"),
+				description: localize('newWindowDesc', "Opens a new window"),
+				program: process.execPath,
+				args: '-n', // force new window
+				iconPath: process.execPath,
+				iconIndex: 0
+			}
+		];
+
+		// Agents Window (hidden when AI features are disabled)
+		if (this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true) {
+			tasks.push({
+				type: 'task',
+				title: localize('agentsWindow', "Agents Window"),
+				description: localize('openAgentsWindowDesc', "Opens the Agents Window"),
+				program: process.execPath,
+				args: '--agents',
+				iconPath: join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico'),
+				iconIndex: 0
+			});
+		}
+
 		jumpList.push({
 			type: 'tasks',
-			items: [
-				{
-					type: 'task',
-					title: localize('newWindow', "New Window"),
-					description: localize('newWindowDesc', "Opens a new window"),
-					program: process.execPath,
-					args: '-n', // force new window
-					iconPath: process.execPath,
-					iconIndex: 0
-				}
-			]
+			items: tasks
 		});
 
 		// Recent Workspaces
-		if ((await this.getRecentlyOpened()).workspaces.length > 0) {
+		if (recentWorkspaces.length > 0) {
 
 			// The user might have meanwhile removed items from the jump list and we have to respect that
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
 			// by the user! See https://github.com/microsoft/vscode/issues/15052
+			const jumpListSettings = app.getJumpListSettings();
 			const toRemove: URI[] = [];
-			for (const item of app.getJumpListSettings().removedItems) {
+			for (const item of jumpListSettings.removedItems) {
 				const args = item.args;
 				if (args) {
 					const match = /^--(folder|file)-uri\s+"([^"]+)"$/.exec(args);
@@ -336,10 +433,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 				}
 			}
 			await this.removeRecentlyOpened(toRemove);
+			recentWorkspaces = this.getWindowsJumpListWorkspaces((await this.getRecentlyOpened()).workspaces);
 
-			// Add entries
+			// Add entries up to the slot count Explorer requested (jumpListSettings.minItems).
 			let hasWorkspaces = false;
-			const items: JumpListItem[] = coalesce((await this.getRecentlyOpened()).workspaces.slice(0, WorkspacesHistoryMainService.MAX_WINDOWS_JUMP_LIST_ENTRIES).map(recent => {
+			const items: JumpListItem[] = coalesce(recentWorkspaces.slice(0, jumpListSettings.minItems).map(recent => {
 				const workspace = isRecentWorkspace(recent) ? recent.workspace : recent.folderUri;
 
 				const { title, description } = this.getWindowsJumpListLabel(workspace, recent.label);
@@ -386,11 +484,15 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 	}
 
+	private getWindowsJumpListWorkspaces(workspaces: Array<IRecentWorkspace | IRecentFolder>): Array<IRecentWorkspace | IRecentFolder> {
+		return workspaces.filter(recent => isRecentFolder(recent) || !this.isAgentSessionsWorkspace(recent.workspace));
+	}
+
 	private getWindowsJumpListLabel(workspace: IWorkspaceIdentifier | URI, recentLabel: string | undefined): { title: string; description: string } {
 
 		// Prefer recent label
 		if (recentLabel) {
-			return { title: splitName(recentLabel).name, description: recentLabel };
+			return { title: splitRecentLabel(recentLabel).name, description: recentLabel };
 		}
 
 		// Single Folder

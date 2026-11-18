@@ -8,7 +8,10 @@ use std::process::Command;
 
 use clap::Parser;
 use cli::{
-	commands::{args, internal_wsl, tunnels, update, version, CommandContext},
+	commands::{
+		agent_endpoints, agent_host, agent_kill, agent_logs, agent_ps, agent_relay, agent_stop,
+		args, serve_web, tunnels, update, version, CommandContext,
+	},
 	constants::get_default_user_agent,
 	desktop, log,
 	state::LauncherPaths,
@@ -19,8 +22,6 @@ use cli::{
 	},
 };
 use legacy_args::try_parse_legacy;
-use opentelemetry::sdk::trace::TracerProvider as SdkTracerProvider;
-use opentelemetry::trace::TracerProvider;
 
 #[tokio::main]
 async fn main() -> Result<(), std::convert::Infallible> {
@@ -36,7 +37,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 		});
 
 	let core = parsed.core();
-	let context_paths = LauncherPaths::new(&core.global_options.cli_data_dir).unwrap();
+	let context_paths = LauncherPaths::migrate(core.global_options.cli_data_dir.clone()).unwrap();
 	let context_args = core.clone();
 
 	// gets a command context without installing the global logger
@@ -65,9 +66,6 @@ async fn main() -> Result<(), std::convert::Infallible> {
 			..
 		}) => match cmd {
 			args::StandaloneCommands::Update(args) => update::update(context!(), args).await,
-			args::StandaloneCommands::Wsl(args) => match args.command {
-				args::WslCommands::Serve => internal_wsl::serve(context!()).await,
-			},
 		},
 		args::AnyCli::Standalone(args::StandaloneCli { core: c, .. })
 		| args::AnyCli::Integrated(args::IntegratedCli { core: c, .. }) => match c.subcommand {
@@ -98,7 +96,46 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				args::VersionSubcommand::Show => version::show(context!()).await,
 			},
 
-			Some(args::Commands::Tunnel(tunnel_args)) => match tunnel_args.subcommand {
+			Some(args::Commands::CommandShell(cs_args)) => {
+				tunnels::command_shell(context!(), cs_args).await
+			}
+
+			Some(args::Commands::ServeWeb(sw_args)) => {
+				serve_web::serve_web(context!(), sw_args).await
+			}
+
+			Some(args::Commands::Agent(agent_args)) => match agent_args
+				.subcommand
+				.unwrap_or(args::AgentSubcommand::Host(agent_args.host_args))
+			{
+				args::AgentSubcommand::Sandbox(sandbox_args) => {
+					cli::commands::agent_certificate::run(context!(), sandbox_args).await
+				}
+				args::AgentSubcommand::Ps(ps_args) => agent_ps::agent_ps(context!(), ps_args).await,
+				args::AgentSubcommand::Host(ah_args) if ah_args.tunnel => {
+					tunnels::serve(context_no_logger(), ah_args.into()).await
+				}
+				args::AgentSubcommand::Host(ah_args) => {
+					agent_host::agent_host(context!(), ah_args).await
+				}
+				args::AgentSubcommand::Stop(stop_args) => {
+					agent_stop::agent_stop(context!(), stop_args).await
+				}
+				args::AgentSubcommand::Kill(kill_args) => {
+					agent_kill::agent_kill(context!(), kill_args).await
+				}
+				args::AgentSubcommand::Logs(logs_args) => {
+					agent_logs::agent_logs(context!(), logs_args).await
+				}
+				args::AgentSubcommand::Endpoints(endpoints_args) => {
+					agent_endpoints::agent_endpoints(context!(), endpoints_args).await
+				}
+				args::AgentSubcommand::Relay(relay_args) => {
+					agent_relay::agent_relay(context!(), relay_args).await
+				}
+			},
+
+			Some(args::Commands::Tunnel(mut tunnel_args)) => match tunnel_args.subcommand.take() {
 				Some(args::TunnelSubcommand::Prune) => tunnels::prune(context!()).await,
 				Some(args::TunnelSubcommand::Unregister) => tunnels::unregister(context!()).await,
 				Some(args::TunnelSubcommand::Kill) => tunnels::kill(context!()).await,
@@ -111,7 +148,10 @@ async fn main() -> Result<(), std::convert::Infallible> {
 					tunnels::user(context!(), user_command).await
 				}
 				Some(args::TunnelSubcommand::Service(service_args)) => {
-					tunnels::service(context_no_logger(), service_args).await
+					tunnels::service(context_no_logger(), tunnel_args, service_args).await
+				}
+				Some(args::TunnelSubcommand::ForwardInternal(forward_args)) => {
+					tunnels::forward(context_no_logger(), forward_args).await
 				}
 				None => tunnels::serve(context_no_logger(), tunnel_args.serve_args).await,
 			},
@@ -131,10 +171,10 @@ fn make_logger(core: &args::CliCore) -> log::Logger {
 		core.global_options.log.unwrap_or(log::Level::Info)
 	};
 
-	let tracer = SdkTracerProvider::builder().build().tracer("codecli");
-	let mut log = log::Logger::new(tracer, log_level);
+	let mut log = log::Logger::new(log_level);
 	if let Some(f) = &core.global_options.log_to_file {
-		log = log.tee(log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
+		log = log
+			.with_sink(log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
 	}
 
 	log
@@ -144,7 +184,7 @@ fn print_and_exit<E>(err: E) -> !
 where
 	E: std::fmt::Display,
 {
-	log::emit(log::Level::Error, "", &format!("{}", err));
+	log::emit(log::Level::Error, "", &format!("{err}"));
 	std::process::exit(1);
 }
 

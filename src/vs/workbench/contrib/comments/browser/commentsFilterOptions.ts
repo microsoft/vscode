@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFilter, matchesFuzzy, matchesFuzzy2 } from 'vs/base/common/filters';
-import * as strings from 'vs/base/common/strings';
+import { IFilter, matchesFuzzy, matchesFuzzy2 } from '../../../../base/common/filters.js';
+import * as strings from '../../../../base/common/strings.js';
 
 export class FilterOptions {
 

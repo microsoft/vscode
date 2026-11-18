@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier, isThenable, RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { assertNever } from 'vs/base/common/assert';
-import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { URI } from 'vs/base/common/uri';
+import { Barrier, isThenable, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { assertNever } from '../../../../base/common/assert.js';
+import { applyTestItemUpdate, ITestItem, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from './testTypes.js';
+import { TestId } from './testId.js';
+import { URI } from '../../../../base/common/uri.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 
 /**
  * @private
@@ -23,6 +24,7 @@ interface CollectionItem<T> {
 	 */
 	expandLevels?: number;
 	resolveBarrier?: Barrier;
+	resolveError?: string;
 }
 
 export const enum TestItemEventOp {
@@ -129,7 +131,7 @@ const diffableProps: { [K in keyof ITestItem]?: (a: ITestItem[K], b: ITestItem[K
 	},
 };
 
-const diffableEntries = Object.entries(diffableProps) as readonly [keyof ITestItem, (a: any, b: any) => boolean][];
+const diffableEntries = Object.entries(diffableProps) as readonly [keyof ITestItem, (a: unknown, b: unknown) => boolean][];
 
 const diffTestItems = (a: ITestItem, b: ITestItem) => {
 	let output: Record<string, unknown> | undefined;
@@ -185,8 +187,13 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 	 * Handler used for expanding test items.
 	 */
 	public set resolveHandler(handler: undefined | ((item: T | undefined) => void)) {
+		const changed = this._resolveHandler !== handler;
 		this._resolveHandler = handler;
 		for (const test of this.tree.values()) {
+			if (test.resolveError !== undefined || (changed && test.resolveBarrier?.isOpen() === false)) {
+				test.resolveBarrier = undefined;
+				this.setResolveError(test, undefined);
+			}
 			this.updateExpandability(test);
 		}
 	}
@@ -271,7 +278,7 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			return !r.isOpen()
 				? r.wait().then(() => this.expandChildren(internal, levels - 1))
 				: this.expandChildren(internal, levels - 1);
-		} else if (internal.expand === TestItemExpandState.Expanded) {
+		} else if (internal.expand === TestItemExpandState.Expanded || internal.expand === TestItemExpandState.BusyExpanding) {
 			return internal.resolveBarrier?.isOpen() === false
 				? internal.resolveBarrier.wait().then(() => this.expandChildren(internal, levels - 1))
 				: this.expandChildren(internal, levels - 1);
@@ -317,7 +324,9 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 					op: TestDiffOpType.Update,
 					item: {
 						extId: internal.fullId.toString(),
-						item: evt.update,
+						item: evt.update.error === null && internal.resolveError !== undefined
+							? { ...evt.update, error: internal.resolveError }
+							: evt.update,
 					}
 				});
 				break;
@@ -392,10 +401,14 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 		const oldChildren = this.options.getChildren(internal.actual);
 		const oldActual = internal.actual;
-		const update = diffTestItems(this.options.toITestItem(oldActual), this.options.toITestItem(actual));
+		const oldItem = { ...this.options.toITestItem(oldActual) };
+		oldItem.error ??= internal.resolveError ?? null;
+		const update = diffTestItems(oldItem, this.options.toITestItem(actual));
 		this.options.getApiFor(oldActual).listener = undefined;
 
 		internal.actual = actual;
+		internal.resolveBarrier = undefined;
+		internal.resolveError = undefined;
 		internal.expand = TestItemExpandState.NotExpandable; // updated by `connectItemAndChildren`
 
 		if (update) {
@@ -414,6 +427,19 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 			if (!this.options.getChildren(actual).get(child.id)) {
 				this.removeItem(TestId.joinToString(fullId, child.id));
 			}
+		}
+
+		// Re-expand the element if it was previous expanded (#207574)
+		const expandLevels = internal.expandLevels;
+		if (expandLevels !== undefined) {
+			// Wait until a microtask to allow the extension to finish setting up
+			// properties of the element and children before we ask it to expand.
+			queueMicrotask(() => {
+				if (internal.expand === TestItemExpandState.Expandable) {
+					internal.expandLevels = undefined;
+					this.expand(fullId.toString(), expandLevels);
+				}
+			});
 		}
 
 		// Mark ranges in the document as synced (#161320)
@@ -551,8 +577,18 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		this.pushExpandStateUpdate(internal);
 
 		const barrier = internal.resolveBarrier = new Barrier();
+		const isCurrent = () => this.tree.get(internal.fullId.toString()) === internal && internal.resolveBarrier === barrier;
 		const applyError = (err: Error) => {
 			console.error(`Unhandled error in resolveHandler of test controller "${this.options.controllerId}"`, err);
+			if (isCurrent()) {
+				this.setResolveError(internal, toErrorMessage(err));
+			}
+		};
+		const finish = () => {
+			barrier.open();
+			if (isCurrent()) {
+				this.updateExpandability(internal);
+			}
 		};
 
 		let r: Thenable<void> | undefined | void;
@@ -563,16 +599,25 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 
 		if (isThenable(r)) {
-			r.catch(applyError).then(() => {
-				barrier.open();
-				this.updateExpandability(internal);
-			});
+			r.catch(applyError).then(finish);
 		} else {
-			barrier.open();
-			this.updateExpandability(internal);
+			finish();
 		}
 
-		return internal.resolveBarrier;
+		return barrier;
+	}
+
+	private setResolveError(internal: CollectionItem<T>, error: string | undefined) {
+		const providerError = this.options.toITestItem(internal.actual).error;
+		const previousError = providerError ?? internal.resolveError ?? null;
+		internal.resolveError = error;
+		const currentError = providerError ?? error ?? null;
+		if (currentError !== previousError) {
+			this.pushDiff({
+				op: TestDiffOpType.Update,
+				item: { extId: internal.fullId.toString(), item: { error: currentError } },
+			});
+		}
 	}
 
 	private pushExpandStateUpdate(internal: CollectionItem<T>) {

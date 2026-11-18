@@ -3,11 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use chrono::Local;
-use opentelemetry::{
-	sdk::trace::{Tracer, TracerProvider},
-	trace::{SpanBuilder, Tracer as TraitTracer, TracerProvider as TracerProviderTrait},
-};
+use jiff::Zoned;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::{
@@ -26,20 +22,19 @@ pub fn next_counter() -> u32 {
 }
 
 // Log level
-#[derive(clap::ArgEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(
+	clap::ValueEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize, Default,
+)]
 pub enum Level {
 	Trace = 0,
 	Debug,
 	#[default]
- Info,
+	Info,
 	Warn,
 	Error,
 	Critical,
 	Off,
 }
-
-
 
 impl fmt::Display for Level {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -104,7 +99,6 @@ pub fn new_rpc_prefix() -> String {
 // Base logger implementation
 #[derive(Clone)]
 pub struct Logger {
-	tracer: Arc<Tracer>,
 	sink: Vec<Box<dyn LogSink>>,
 	prefix: Option<String>,
 }
@@ -150,7 +144,7 @@ impl LogSink for StdioLogSink {
 	}
 
 	fn write_result(&self, message: &str) {
-		println!("{}", message);
+		println!("{message}");
 	}
 }
 
@@ -160,9 +154,21 @@ pub struct FileLogSink {
 	file: Arc<std::sync::Mutex<std::fs::File>>,
 }
 
+const FILE_LOG_SIZE_LIMIT: u64 = 1024 * 1024 * 10; // 10MB
+
 impl FileLogSink {
 	pub fn new(level: Level, path: &Path) -> std::io::Result<Self> {
-		let file = std::fs::File::create(path)?;
+		// Truncate the service log occasionally to avoid growing infinitely
+		if matches!(path.metadata(), Ok(m) if m.len() > FILE_LOG_SIZE_LIMIT) {
+			// ignore errors, can happen if another process is writing right now
+			let _ = std::fs::remove_file(path);
+		}
+
+		let file = std::fs::OpenOptions::new()
+			.append(true)
+			.create(true)
+			.open(path)?;
+
 		Ok(Self {
 			level,
 			file: Arc::new(std::sync::Mutex::new(file)),
@@ -188,26 +194,16 @@ impl LogSink for FileLogSink {
 impl Logger {
 	pub fn test() -> Self {
 		Self {
-			tracer: Arc::new(TracerProvider::builder().build().tracer("codeclitest")),
 			sink: vec![],
 			prefix: None,
 		}
 	}
 
-	pub fn new(tracer: Tracer, level: Level) -> Self {
+	pub fn new(level: Level) -> Self {
 		Self {
-			tracer: Arc::new(tracer),
 			sink: vec![Box::new(StdioLogSink { level })],
 			prefix: None,
 		}
-	}
-
-	pub fn span(&self, name: &str) -> SpanBuilder {
-		self.tracer.span_builder(format!("serverlauncher/{}", name))
-	}
-
-	pub fn tracer(&self) -> &Tracer {
-		&self.tracer
 	}
 
 	pub fn emit(&self, level: Level, message: &str) {
@@ -226,8 +222,8 @@ impl Logger {
 	pub fn prefixed(&self, prefix: &str) -> Logger {
 		Logger {
 			prefix: Some(match &self.prefix {
-				Some(p) => format!("{}{} ", p, prefix),
-				None => format!("{} ", prefix),
+				Some(p) => format!("{p}{prefix} "),
+				None => format!("{prefix} "),
 			}),
 			..self.clone()
 		}
@@ -271,7 +267,7 @@ pub struct DownloadLogger<'a> {
 	logger: &'a Logger,
 }
 
-impl<'a> crate::util::io::ReportCopyProgress for DownloadLogger<'a> {
+impl crate::util::io::ReportCopyProgress for DownloadLogger<'_> {
 	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
 		if total_bytes > 0 {
 			self.logger.emit(
@@ -293,30 +289,38 @@ impl<'a> crate::util::io::ReportCopyProgress for DownloadLogger<'a> {
 	}
 }
 
+fn format_timestamp(current: &Zoned) -> String {
+	format!(
+		"{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+		current.year(),
+		current.month(),
+		current.day(),
+		current.hour(),
+		current.minute(),
+		current.second(),
+	)
+}
+
 fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String {
-	let current = Local::now();
-	let timestamp = current.format("%Y-%m-%d %H:%M:%S").to_string();
+	let timestamp = format_timestamp(&Zoned::now());
 
 	let name = level.name().unwrap();
 
 	if use_colors {
 		if let Some(c) = level.color_code() {
-			return format!(
-				"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\n",
-				timestamp, c, name, prefix, message
-			);
+			return format!("\x1b[2m[{timestamp}]\x1b[0m {c}{name}\x1b[0m {prefix}{message}\n");
 		}
 	}
 
-	format!("[{}] {} {}{}\n", timestamp, name, prefix, message)
+	format!("[{timestamp}] {name} {prefix}{message}\n")
 }
 
 pub fn emit(level: Level, prefix: &str, message: &str) {
-	let line = format(level, prefix, message, true);
-	if level == Level::Trace {
-		print!("\x1b[2m{}\x1b[0m", line);
+	let line = format(level, prefix, message, *COLORS_ENABLED);
+	if level == Level::Trace && *COLORS_ENABLED {
+		print!("\x1b[2m{line}\x1b[0m");
 	} else {
-		print!("{}", line);
+		print!("{line}");
 	}
 }
 
@@ -344,8 +348,7 @@ impl log::Log for RustyLogger {
 
 		// exclude noisy log modules:
 		let src = match record.module_path() {
-			Some("russh::cipher") => return,
-			Some("russh::negotiation") => return,
+			Some("russh::cipher" | "russh::negotiation" | "russh::kex::dh") => return,
 			Some(s) => s,
 			None => "<unknown>",
 		};
@@ -415,41 +418,28 @@ macro_rules! warning {
      };
  }
 
-#[macro_export]
-macro_rules! span {
-	($logger:expr, $span:expr, $func:expr) => {{
-		use opentelemetry::trace::TraceContextExt;
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use jiff::civil::date;
+	use jiff::tz::{Offset, TimeZone};
 
-		let span = $span.start($logger.tracer());
-		let cx = opentelemetry::Context::current_with_span(span);
-		let guard = cx.clone().attach();
-		let t = $func;
-
-		if let Err(e) = &t {
-			cx.span().record_error(e);
+	#[test]
+	fn timestamp_format_matches_legacy() {
+		for year in [-9999, -2025, -999, -24, -1, 0, 1, 24, 999, 2024, 9999] {
+			for offset_seconds in [-43_200, -25_200, 0, 20_700, 50_400] {
+				let current = date(year, 7, 9)
+					.at(1, 2, 3, 456_789_123)
+					.to_zoned(TimeZone::fixed(
+						Offset::from_seconds(offset_seconds).unwrap(),
+					))
+					.unwrap();
+				assert_eq!(
+					format_timestamp(&current),
+					current.strftime("%Y-%m-%d %H:%M:%S").to_string(),
+					"year={year}, offset={offset_seconds}"
+				);
+			}
 		}
-
-		std::mem::drop(guard);
-
-		t
-	}};
-}
-
-#[macro_export]
-macro_rules! spanf {
-	($logger:expr, $span:expr, $func:expr) => {{
-		use opentelemetry::trace::{FutureExt, TraceContextExt};
-
-		let span = $span.start($logger.tracer());
-		let cx = opentelemetry::Context::current_with_span(span);
-		let t = $func.with_context(cx.clone()).await;
-
-		if let Err(e) = &t {
-			cx.span().record_error(e);
-		}
-
-		cx.span().end();
-
-		t
-	}};
+	}
 }

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, expressionsAreEqualWithConstantSubstitution } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, implies } from '../../contextkey/common/contextkey.js';
+import { IKeybindingAlias } from './keybindingsRegistry.js';
+import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 //#region resolution-result
 
@@ -27,7 +28,7 @@ export type ResolutionResult =
 
 // util definitions to make working with the above types easier within this module:
 
-const NoMatchingKb: ResolutionResult = { kind: ResultKind.NoMatchingKb };
+export const NoMatchingKb: ResolutionResult = { kind: ResultKind.NoMatchingKb };
 const MoreChordsNeeded: ResolutionResult = { kind: ResultKind.MoreChordsNeeded };
 function KbFound(commandId: string | null, commandArgs: any, isBubble: boolean): ResolutionResult {
 	return { kind: ResultKind.KbFound, commandId, commandArgs, isBubble };
@@ -103,7 +104,14 @@ export class KeybindingResolver {
 			if (!defaultKb.when) {
 				return false;
 			}
-			if (!expressionsAreEqualWithConstantSubstitution(when, defaultKb.when)) {
+
+			// Use implication instead of strict equality so that a removal still matches
+			// when the default keybinding's when clause becomes more specific across
+			// updates (e.g. "inChatInput" → "inChatInput && !withinEditSessionDiff").
+			// See https://github.com/microsoft/vscode/issues/293802
+			const defaultWhen = defaultKb.when.substituteConstants();
+			const removalWhen = when.substituteConstants();
+			if (!KeybindingResolver.whenIsEntirelyIncluded(defaultWhen, removalWhen)) {
 				return false;
 			}
 		}
@@ -165,6 +173,41 @@ export class KeybindingResolver {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Binds the command of each alias to the keybindings of its source, right after them, so that it outranks the source
+	 * where the alias applies. The bindings are defaults of the alias's command, which the user can remove or rebind.
+	 * Removing a keybinding of the source removes the default keybindings of the alias's command at that key, but not
+	 * those inherited from the user's keybindings of the source, which may rebind that key.
+	 */
+	public static applyAliases(defaults: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[], aliases: readonly IKeybindingAlias[]): { defaults: ResolvedKeybindingItem[]; overrides: ResolvedKeybindingItem[] } {
+		if (aliases.length === 0) {
+			return { defaults, overrides };
+		}
+
+		const inherit = (rules: ResolvedKeybindingItem[]) => {
+			const result: ResolvedKeybindingItem[] = [];
+			for (const rule of rules) {
+				result.push(rule);
+				for (const alias of aliases) {
+					if (rule.command === alias.source) {
+						result.push(new ResolvedKeybindingItem(rule.resolvedKeybinding, alias.command, undefined, alias.when, true, rule.extensionId, rule.isBuiltinExtension));
+					}
+				}
+			}
+			return result;
+		};
+
+		// A removal's when clause describes where the source applies, so it removes the alias's keybindings wherever the alias applies.
+		const sourceRemovals = defaults.concat(overrides).filter(rule => aliases.some(alias => rule.command === `-${alias.source}`));
+		const isRemovedWithSource = (rule: ResolvedKeybindingItem) => aliases.some(alias => rule.command === alias.command
+			&& sourceRemovals.some(removal => removal.command === `-${alias.source}` && KeybindingResolver._isTargetedForRemoval(rule, removal.chords, undefined)));
+
+		return {
+			defaults: inherit(defaults).filter(rule => !isRemovedWithSource(rule)),
+			overrides: inherit(overrides),
+		};
 	}
 
 	private _addKeyPress(keypress: string, item: ResolvedKeybindingItem): void {
@@ -281,12 +324,12 @@ export class KeybindingResolver {
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService): ResolvedKeybindingItem | null {
+	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService, enforceContextCheck = false): ResolvedKeybindingItem | null {
 		const items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
 		}
-		if (items.length === 1) {
+		if (items.length === 1 && !enforceContextCheck) {
 			return items[0];
 		}
 
@@ -297,11 +340,15 @@ export class KeybindingResolver {
 			}
 		}
 
+		if (enforceContextCheck) {
+			return null;
+		}
+
 		return items[items.length - 1];
 	}
 
 	/**
-	 * Looks up a keybinding trigged as a result of pressing a sequence of chords - `[...currentChords, keypress]`
+	 * Looks up a keybinding triggered as a result of pressing a sequence of chords - `[...currentChords, keypress]`
 	 *
 	 * Example: resolving 3 chords pressed sequentially - `cmd+k cmd+p cmd+i`:
 	 * 	`currentChords = [ 'cmd+k' , 'cmd+p' ]` and `keypress = `cmd+i` - last pressed chord

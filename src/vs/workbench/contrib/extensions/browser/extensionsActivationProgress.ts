@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
+import { localize } from '../../../../nls.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export class ExtensionActivationProgress implements IWorkbenchContribution {
 
@@ -23,6 +25,7 @@ export class ExtensionActivationProgress implements IWorkbenchContribution {
 
 		const options = {
 			location: ProgressLocation.Window,
+			telemetry: NotificationTelemetryId.ExtensionsActivation,
 			title: localize('activation', "Activating Extensions...")
 		};
 
@@ -39,7 +42,7 @@ export class ExtensionActivationProgress implements IWorkbenchContribution {
 
 			count++;
 
-			Promise.race([e.activation, timeout(5000)]).finally(() => {
+			Promise.race([e.activation, timeout(5000, CancellationToken.None)]).finally(() => {
 				if (--count === 0) {
 					deferred!.complete(undefined);
 					deferred = undefined;

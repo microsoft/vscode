@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncDescriptor } from './descriptors';
-import { BrandedService, ServiceIdentifier } from './instantiation';
+import { SyncDescriptor } from './descriptors.js';
+import { BrandedService, ServiceIdentifier } from './instantiation.js';
 
 const _registry: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
 
 export const enum InstantiationType {
 	/**
-	 * Instantiate this service as soon as a consumer depdends on it. _Note_ that this
+	 * Instantiate this service as soon as a consumer depends on it. _Note_ that this
 	 * is more costly as some upfront work is done that is likely not needed
 	 */
 	Eager = 0,
@@ -26,7 +26,7 @@ export function registerSingleton<T, Services extends BrandedService[]>(id: Serv
 export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, descriptor: SyncDescriptor<any>): void;
 export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, ctorOrDescriptor: { new(...services: Services): T } | SyncDescriptor<any>, supportsDelayedInstantiation?: boolean | InstantiationType): void {
 	if (!(ctorOrDescriptor instanceof SyncDescriptor)) {
-		ctorOrDescriptor = new SyncDescriptor<T>(ctorOrDescriptor as new (...args: any[]) => T, [], Boolean(supportsDelayedInstantiation));
+		ctorOrDescriptor = new SyncDescriptor<T>(ctorOrDescriptor as new (...args: unknown[]) => T, [], Boolean(supportsDelayedInstantiation));
 	}
 
 	_registry.push([id, ctorOrDescriptor]);

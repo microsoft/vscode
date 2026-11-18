@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-editor .input-cell-container:focus-within .input-editor-container>.monaco-editor {
+	outline: solid 1px var(--vscode-notebook-focusedCellBorder);
+}
+
+.interactive-editor .input-cell-container .input-editor-container>.monaco-editor {
+	outline: solid 1px var(--vscode-notebook-inactiveFocusedCellBorder);
+}
+
+.interactive-editor .input-cell-container .input-focus-indicator {
+	top: 8px;
+}
+
+.interactive-editor .input-cell-container .monaco-editor-background,
+.interactive-editor .input-cell-container .margin-view-overlays {
+	background-color: var(--vscode-notebook-cellEditorBackground, var(--vscode-editor-background));
+}

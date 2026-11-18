@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { FileRename, RequestType } from 'vscode-languageclient';
 import type * as lsp from 'vscode-languageserver-types';
@@ -11,12 +10,12 @@ import type * as md from 'vscode-markdown-languageservice';
 
 
 export type ResolvedDocumentLinkTarget =
-	| { readonly kind: 'file'; readonly uri: vscode.Uri; position?: lsp.Position; fragment?: string }
+	| { readonly kind: 'file'; readonly uri: vscode.Uri; positionOrRange?: lsp.Position | lsp.Range; fragment?: string }
 	| { readonly kind: 'folder'; readonly uri: vscode.Uri }
 	| { readonly kind: 'external'; readonly uri: vscode.Uri };
 
 //#region From server
-export const parse = new RequestType<{ uri: string }, Token[], any>('markdown/parse');
+export const parse = new RequestType<{ uri: string; text?: string }, md.Token[], any>('markdown/parse');
 
 export const fs_readFile = new RequestType<{ uri: string }, number[], any>('markdown/fs/readFile');
 export const fs_readDirectory = new RequestType<{ uri: string }, [string, { isDirectory: boolean }][], any>('markdown/fs/readDirectory');
@@ -32,7 +31,10 @@ export const findMarkdownFilesInWorkspace = new RequestType<{}, string[], any>('
 export const getReferencesToFileInWorkspace = new RequestType<{ uri: string }, lsp.Location[], any>('markdown/getReferencesToFileInWorkspace');
 export const getEditForFileRenames = new RequestType<Array<FileRename>, { participatingRenames: readonly FileRename[]; edit: lsp.WorkspaceEdit }, any>('markdown/getEditForFileRenames');
 
+export const prepareUpdatePastedLinks = new RequestType<{ uri: string; ranges: lsp.Range[] }, string, any>('markdown/prepareUpdatePastedLinks');
+export const getUpdatePastedLinksEdit = new RequestType<{ pasteIntoDoc: string; metadata: string; edits: lsp.TextEdit[] }, lsp.TextEdit[] | undefined, any>('markdown/getUpdatePastedLinksEdit');
+
 export const fs_watcher_onChange = new RequestType<{ id: number; uri: string; kind: 'create' | 'change' | 'delete' }, void, any>('markdown/fs/watcher/onChange');
 
-export const resolveLinkTarget = new RequestType<{ linkText: string; uri: string }, ResolvedDocumentLinkTarget, any>('markdown/resolveLinkTarget');
+export const resolveLinkTarget = new RequestType<{ linkText: string; uri: string }, ResolvedDocumentLinkTarget | undefined, any>('markdown/resolveLinkTarget');
 //#endregion

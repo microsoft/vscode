@@ -1,0 +1,313 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IconPathDto } from '../../common/extHost.protocol.js';
+import { ChatPromptReference, ChatRequestModeInstructions, ChatResponseVoiceProgressPart, ChatToolInvocationPart, IconPath } from '../../common/extHostTypeConverters.js';
+import { ChatReferenceBinaryData, ChatResponseVoiceProgressPart as ExtHostChatResponseVoiceProgressPart, ChatSubagentToolInvocationData, ChatToolInvocationPart as ExtHostChatToolInvocationPart, ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { IElementVariableEntry } from '../../../contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
+import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
+
+suite('extHostTypeConverters', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('converts voice progress to hidden chat progress', () => {
+		assert.deepStrictEqual(
+			ChatResponseVoiceProgressPart.from(new ExtHostChatResponseVoiceProgressPart('investigating', 'Investigating the relevant code.')),
+			{ kind: 'voiceProgress', id: 'investigating', value: 'Investigating the relevant code.' }
+		);
+	});
+
+	suite('IconPath', function () {
+		suite('from', function () {
+			test('undefined', function () {
+				assert.strictEqual(IconPath.from(undefined), undefined);
+			});
+
+			test('ThemeIcon', function () {
+				const themeIcon = new ThemeIcon('account', new ThemeColor('testing.iconForeground'));
+				assert.strictEqual(IconPath.from(themeIcon), themeIcon);
+			});
+
+			test('URI', function () {
+				const uri = URI.parse('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+				assert.strictEqual(IconPath.from(uri), uri);
+			});
+
+			test('string', function () {
+				const str = '/path/to/icon.png';
+				// eslint-disable-next-line local/code-no-any-casts
+				const r1 = IconPath.from(str as any) as any as URI;
+				assert.ok(URI.isUri(r1));
+				assert.strictEqual(r1.scheme, 'file');
+				assert.strictEqual(r1.path, str);
+			});
+
+			test('dark only', function () {
+				const input = { dark: URI.file('/path/to/dark.png') };
+				// eslint-disable-next-line local/code-no-any-casts
+				const result = IconPath.from(input as any) as unknown as { dark: URI; light: URI };
+				assert.strictEqual(typeof result, 'object');
+				assert.ok('light' in result && 'dark' in result);
+				assert.ok(URI.isUri(result.light));
+				assert.ok(URI.isUri(result.dark));
+				assert.strictEqual(result.dark.toString(), input.dark.toString());
+				assert.strictEqual(result.light.toString(), input.dark.toString());
+			});
+
+			test('dark/light', function () {
+				const input = { light: URI.file('/path/to/light.png'), dark: URI.file('/path/to/dark.png') };
+				const result = IconPath.from(input);
+				assert.strictEqual(typeof result, 'object');
+				assert.ok('light' in result && 'dark' in result);
+				assert.ok(URI.isUri(result.light));
+				assert.ok(URI.isUri(result.dark));
+				assert.strictEqual(result.dark.toString(), input.dark.toString());
+				assert.strictEqual(result.light.toString(), input.light.toString());
+			});
+
+			test('dark/light strings', function () {
+				const input = { light: '/path/to/light.png', dark: '/path/to/dark.png' };
+				// eslint-disable-next-line local/code-no-any-casts
+				const result = IconPath.from(input as any) as unknown as IconPathDto;
+				assert.strictEqual(typeof result, 'object');
+				assert.ok('light' in result && 'dark' in result);
+				assert.ok(URI.isUri(result.light));
+				assert.ok(URI.isUri(result.dark));
+				assert.strictEqual(result.dark.path, input.dark);
+				assert.strictEqual(result.light.path, input.light);
+			});
+
+			test('invalid object', function () {
+				const invalidObject = { foo: 'bar' };
+				// eslint-disable-next-line local/code-no-any-casts
+				const result = IconPath.from(invalidObject as any);
+				assert.strictEqual(result, undefined);
+			});
+
+			test('light only', function () {
+				const input = { light: URI.file('/path/to/light.png') };
+				// eslint-disable-next-line local/code-no-any-casts
+				const result = IconPath.from(input as any);
+				assert.strictEqual(result, undefined);
+			});
+		});
+
+		suite('to', function () {
+			test('undefined', function () {
+				assert.strictEqual(IconPath.to(undefined), undefined);
+			});
+
+			test('ThemeIcon', function () {
+				const themeIcon = new ThemeIcon('account');
+				assert.strictEqual(IconPath.to(themeIcon), themeIcon);
+			});
+
+			test('URI', function () {
+				const uri: UriComponents = { scheme: 'data', path: 'image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==' };
+				const result = IconPath.to(uri);
+				assert.ok(URI.isUri(result));
+				assert.strictEqual(result.toString(), URI.revive(uri).toString());
+			});
+
+			test('dark/light', function () {
+				const input: { light: UriComponents; dark: UriComponents } = {
+					light: { scheme: 'file', path: '/path/to/light.png' },
+					dark: { scheme: 'file', path: '/path/to/dark.png' }
+				};
+				const result = IconPath.to(input);
+				assert.strictEqual(typeof result, 'object');
+				assert.ok('light' in result && 'dark' in result);
+				assert.ok(URI.isUri(result.light));
+				assert.ok(URI.isUri(result.dark));
+				assert.strictEqual(result.dark.toString(), URI.revive(input.dark).toString());
+				assert.strictEqual(result.light.toString(), URI.revive(input.light).toString());
+			});
+		});
+	});
+
+	suite('ChatPromptReference', function () {
+		test('expands an element with a screenshot into text and binary references', async function () {
+			const variable: IElementVariableEntry = {
+				id: 'element-1',
+				name: 'button#submit',
+				kind: 'element',
+				value: '<button id="submit">Submit</button>',
+				imageData: new Uint8Array([1, 2, 3]),
+				imageMimeType: 'image/jpeg',
+			};
+
+			const references = ChatPromptReference.toReferences(variable, [], new NullLogService());
+			const binaryReference = references[1].value;
+			assert.ok(binaryReference instanceof ChatReferenceBinaryData);
+
+			assert.deepStrictEqual({
+				references: references.map(reference => ({
+					id: reference.id,
+					name: reference.name,
+					value: typeof reference.value === 'string'
+						? reference.value
+						: reference.value instanceof ChatReferenceBinaryData ? 'ChatReferenceBinaryData' : undefined,
+				})),
+				mimeType: binaryReference.mimeType,
+				data: Array.from(await binaryReference.data()),
+			}, {
+				references: [
+					{ id: 'element-1', name: 'button#submit', value: '<button id="submit">Submit</button>' },
+					{ id: 'element-1-screenshot', name: 'button#submit screenshot', value: 'ChatReferenceBinaryData' },
+				],
+				mimeType: 'image/jpeg',
+				data: [1, 2, 3],
+			});
+		});
+	});
+
+	suite('ChatRequestModeInstructions', function () {
+		test('to returns undefined for undefined input', function () {
+			assert.strictEqual(ChatRequestModeInstructions.to(undefined), undefined);
+		});
+
+		test('from returns undefined for undefined input', function () {
+			assert.strictEqual(ChatRequestModeInstructions.from(undefined), undefined);
+		});
+
+		test('to converts IChatRequestModeInstructions to API type', function () {
+			const uri = URI.parse('file:///custom-agent');
+			const input: IChatRequestModeInstructions = {
+				uri,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [{
+					kind: 'tool',
+					id: 'tool1',
+					name: 'tool1',
+					value: undefined,
+					range: { start: 0, endExclusive: 5 },
+				}],
+				allowedSubagents: ['agent1', 'agent2'],
+				metadata: { key: 'value' },
+				isBuiltin: false,
+			};
+
+			const result = ChatRequestModeInstructions.to(input)!;
+			assert.deepStrictEqual(result, {
+				uri,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [{ name: 'tool1', range: [0, 5] }],
+				allowedSubagents: ['agent1', 'agent2'],
+				metadata: { key: 'value' },
+				isBuiltin: false,
+			});
+		});
+
+		test('to handles Dto with UriComponents', function () {
+			const input: Dto<IChatRequestModeInstructions> = {
+				uri: { scheme: 'file', path: '/custom-agent' } as UriComponents,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [],
+				allowedSubagents: undefined,
+				metadata: undefined,
+				isBuiltin: true,
+			};
+
+			const result = ChatRequestModeInstructions.to(input)!;
+			assert.ok(URI.isUri(result.uri));
+			assert.strictEqual(result.name, 'test-mode');
+			assert.strictEqual(result.isBuiltin, true);
+			assert.deepStrictEqual(result.toolReferences, []);
+		});
+
+		test('from converts API type to IChatRequestModeInstructions', function () {
+			const uri = URI.parse('file:///custom-agent');
+			const input = {
+				uri,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [{ name: 'tool1', range: [0, 5] as [number, number] }],
+				metadata: { key: 'value' },
+				isBuiltin: false,
+			};
+
+			const result = ChatRequestModeInstructions.from(input)!;
+			assert.deepStrictEqual(result, {
+				uri,
+				name: 'test-mode',
+				content: 'test content',
+				toolReferences: [{
+					kind: 'tool',
+					id: 'tool1',
+					name: 'tool1',
+					value: undefined,
+					range: { start: 0, endExclusive: 5 },
+				}],
+				allowedSubagents: undefined,
+				metadata: { key: 'value' },
+				isBuiltin: false,
+			});
+		});
+
+		test('from handles missing toolReferences', function () {
+			const input = {
+				name: 'test-mode',
+				content: 'test content',
+			};
+
+			const result = ChatRequestModeInstructions.from(input)!;
+			assert.deepStrictEqual(result.toolReferences, []);
+		});
+
+		test('roundtrip from -> to preserves data', function () {
+			const uri = URI.parse('file:///custom-agent');
+			const apiInput = {
+				uri,
+				name: 'roundtrip-mode',
+				content: 'roundtrip content',
+				toolReferences: [
+					{ name: 'tool1' },
+					{ name: 'tool2', range: [10, 20] as [number, number] },
+				],
+				metadata: { flag: true },
+				isBuiltin: false,
+			};
+
+			const internal = ChatRequestModeInstructions.from(apiInput)!;
+			const backToApi = ChatRequestModeInstructions.to(internal)!;
+
+			assert.strictEqual(backToApi.name, apiInput.name);
+			assert.strictEqual(backToApi.content, apiInput.content);
+			assert.strictEqual(backToApi.isBuiltin, apiInput.isBuiltin);
+			assert.strictEqual(backToApi.uri?.toString(), uri.toString());
+			assert.strictEqual(backToApi.toolReferences?.length, 2);
+			assert.strictEqual(backToApi.toolReferences?.[0].name, 'tool1');
+			assert.strictEqual(backToApi.toolReferences?.[0].range, undefined);
+			assert.strictEqual(backToApi.toolReferences?.[1].name, 'tool2');
+			assert.deepStrictEqual(backToApi.toolReferences?.[1].range, [10, 20]);
+		});
+	});
+
+	suite('ChatToolInvocationPart', function () {
+		test('converts subagent data with its model name', function () {
+			const data = new ChatSubagentToolInvocationData('Run tests', 'execution', 'npm test', 'Passed');
+			data.modelName = 'Execution Model';
+			const part = new ExtHostChatToolInvocationPart('execution_subagent', 'tool-call-id');
+			(part as unknown as { toolSpecificData: ChatSubagentToolInvocationData }).toolSpecificData = data;
+
+			assert.deepStrictEqual(ChatToolInvocationPart.from(part as unknown as Parameters<typeof ChatToolInvocationPart.from>[0]).toolSpecificData, {
+				kind: 'subagent',
+				description: 'Run tests',
+				agentName: 'execution',
+				prompt: 'npm test',
+				result: 'Passed',
+				modelName: 'Execution Model',
+			});
+		});
+	});
+});

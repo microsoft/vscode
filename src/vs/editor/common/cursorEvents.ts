@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from './core/position.js';
+import { Selection } from './core/selection.js';
 
 /**
  * Describes the reason the cursor has changed its position.
@@ -56,7 +56,7 @@ export interface ICursorPositionChangedEvent {
 	 */
 	readonly reason: CursorChangeReason;
 	/**
-	 * Source of the call that caused the event.
+	 * Source of the call that caused the event. Possible sources include `'mouse'`, `'keyboard'`, and `'api'`.
 	 */
 	readonly source: string;
 }
@@ -85,7 +85,7 @@ export interface ICursorSelectionChangedEvent {
 	 */
 	readonly oldModelVersionId: number;
 	/**
-	 * Source of the call that caused the event.
+	 * Source of the call that caused the event. Possible sources include `'mouse'`, `'keyboard'`, and `'api'`.
 	 */
 	readonly source: string;
 	/**

@@ -9,15 +9,15 @@ import { MarkdownContributionProvider, MarkdownContributions } from '../markdown
 import { githubSlugifier } from '../slugify';
 import { nulLogger } from './nulLogging';
 
-const emptyContributions = new class implements MarkdownContributionProvider {
+export const emptyContributions = new class implements MarkdownContributionProvider {
 	readonly extensionUri = vscode.Uri.file('/');
 	readonly contributions = MarkdownContributions.Empty;
 
-	private readonly _onContributionsChanged = new vscode.EventEmitter<this>();
-	readonly onContributionsChanged = this._onContributionsChanged.event;
+	readonly #onContributionsChanged = new vscode.EventEmitter<this>();
+	readonly onContributionsChanged = this.#onContributionsChanged.event;
 
 	dispose() {
-		this._onContributionsChanged.dispose();
+		this.#onContributionsChanged.dispose();
 	}
 };
 

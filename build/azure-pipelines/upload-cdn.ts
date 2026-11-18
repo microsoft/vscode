@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
-import * as filter from 'gulp-filter';
-import * as gzip from 'gulp-gzip';
-import * as mime from 'mime';
-import { ClientSecretCredential } from '@azure/identity';
-const azure = require('gulp-azure-storage');
+import es from 'event-stream';
+import Vinyl from 'vinyl';
+import vfs from 'vinyl-fs';
+import { filter, gzip, azureStorage } from '../lib/gulp/facade.ts';
+import mime from 'mime';
+import { ClientAssertionCredential } from '@azure/identity';
+import { VinylStat } from '../lib/util.ts';
+import { getWebCdnConfiguration, validateMobileWebCdnIdentity } from './web/cdnConfiguration.ts';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 mime.define({
 	'application/typescript': ['ts'],
@@ -70,34 +70,38 @@ const MimeTypesToCompress = new Set([
 function wait(stream: es.ThroughStream): Promise<void> {
 	return new Promise<void>((c, e) => {
 		stream.on('end', () => c());
-		stream.on('error', (err: any) => e(err));
+		stream.on('error', (err) => e(err));
 	});
 }
 
 async function main(): Promise<void> {
+	const configuration = getWebCdnConfiguration(process.argv.slice(2), process.env.VSCODE_QUALITY, commit);
+	if (configuration.mobile) {
+		await validateMobileWebCdnIdentity(configuration.source, process.env.VSCODE_QUALITY!, commit!);
+	}
 	const files: string[] = [];
 	const options = (compressed: boolean) => ({
 		account: process.env.AZURE_STORAGE_ACCOUNT,
 		credential,
-		container: process.env.VSCODE_QUALITY,
-		prefix: commit + '/',
+		container: '$web',
+		prefix: configuration.prefix,
 		contentSettings: {
 			contentEncoding: compressed ? 'gzip' : undefined,
 			cacheControl: 'max-age=31536000, public'
 		}
 	});
 
-	const all = vfs.src('**', { cwd: '../vscode-web', base: '../vscode-web', dot: true })
+	const all = vfs.src(configuration.patterns, { cwd: configuration.source, base: configuration.source, dot: true })
 		.pipe(filter(f => !f.isDirectory()));
 
 	const compressed = all
 		.pipe(filter(f => MimeTypesToCompress.has(mime.lookup(f.path))))
 		.pipe(gzip({ append: false }))
-		.pipe(azure.upload(options(true)));
+		.pipe(azureStorage.upload(options(true)));
 
 	const uncompressed = all
 		.pipe(filter(f => !MimeTypesToCompress.has(mime.lookup(f.path))))
-		.pipe(azure.upload(options(false)));
+		.pipe(azureStorage.upload(options(false)));
 
 	const out = es.merge(compressed, uncompressed)
 		.pipe(es.through(function (f) {
@@ -112,12 +116,12 @@ async function main(): Promise<void> {
 	const listing = new Vinyl({
 		path: 'files.txt',
 		contents: Buffer.from(files.join('\n')),
-		stat: { mode: 0o666 } as any
+		stat: new VinylStat({ mode: 0o666 })
 	});
 
 	const filesOut = es.readArray([listing])
 		.pipe(gzip({ append: false }))
-		.pipe(azure.upload(options(true)));
+		.pipe(azureStorage.upload(options(true)));
 
 	console.log(`Uploading: files.txt (${files.length} files)`); // debug
 	await wait(filesOut);

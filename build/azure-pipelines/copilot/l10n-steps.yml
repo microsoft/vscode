@@ -1,0 +1,14 @@
+steps:
+  # Check out the private microsoft/vscode-extensions-loc repository using the
+  # agent's GitHub App (Monaco) credentials instead of cloning it with a PAT.
+  # The repository resource is declared in the top-level pipeline (resources.repositories).
+  - checkout: vscode_loc
+    path: s/.build/vscode-extensions-loc
+    fetchDepth: 1
+    sparseCheckoutDirectories: out/GitHub.copilot-chat
+    retryCountOnTaskFailure: 3
+    displayName: Checkout microsoft/vscode-extensions-loc
+
+  - script: node build/azure-pipelines/copilot/importTranslations.ts $(Build.SourcesDirectory)/.build/vscode-extensions-loc
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Import localized strings

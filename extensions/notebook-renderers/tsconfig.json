@@ -1,10 +1,16 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./out",
 		"lib": [
+			"es2024",
 			"dom"
-		]
+		],
+		"types": [
+			"node"
+		],
+		"skipLibCheck": true
 	},
 	"include": [
 		"src/**/*",

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument } from 'vscode-languageserver';
+import { TextDocument } from 'vscode-json-languageservice';
 
 export interface LanguageModelCache<T> {
 	get(document: TextDocument): T;
@@ -15,7 +15,7 @@ export function getLanguageModelCache<T>(maxEntries: number, cleanupIntervalTime
 	let languageModels: { [uri: string]: { version: number; languageId: string; cTime: number; languageModel: T } } = {};
 	let nModels = 0;
 
-	let cleanupInterval: NodeJS.Timer | undefined = undefined;
+	let cleanupInterval: NodeJS.Timeout | undefined = undefined;
 	if (cleanupIntervalTimeInSec > 0) {
 		cleanupInterval = setInterval(() => {
 			const cutoffTime = Date.now() - cleanupIntervalTimeInSec * 1000;
@@ -45,7 +45,7 @@ export function getLanguageModelCache<T>(maxEntries: number, cleanupIntervalTime
 				nModels++;
 			}
 
-			if (nModels === maxEntries) {
+			if (nModels > maxEntries) {
 				let oldestTime = Number.MAX_VALUE;
 				let oldestUri = null;
 				for (const uri in languageModels) {

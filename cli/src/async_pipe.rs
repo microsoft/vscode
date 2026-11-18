@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{constants::APPLICATION_NAME, util::errors::CodeError};
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpListener;
 use uuid::Uuid;
 
 // todo: we could probably abstract this into some crate, if one doesn't already exist
@@ -39,9 +43,10 @@ cfg_if::cfg_if! {
 			pipe.into_split()
 		}
 	} else {
-		use tokio::{time::sleep, io::{AsyncRead, AsyncWrite, ReadBuf}};
+		use tokio::{time::sleep, io::ReadBuf};
 		use tokio::net::windows::named_pipe::{ClientOptions, ServerOptions, NamedPipeClient, NamedPipeServer};
-		use std::{time::Duration, pin::Pin, task::{Context, Poll}, io};
+		use std::task::{Context, Poll};
+		use std::{time::Duration, io};
 		use pin_project::pin_project;
 
 		#[pin_project(project = AsyncPipeProj)]
@@ -171,7 +176,7 @@ cfg_if::cfg_if! {
 	}
 }
 
-/// Gets a random name for a pipe/socket on the paltform
+/// Gets a random name for a pipe/socket on the platform
 pub fn get_socket_name() -> PathBuf {
 	cfg_if::cfg_if! {
 		if #[cfg(unix)] {
@@ -179,5 +184,49 @@ pub fn get_socket_name() -> PathBuf {
 		} else {
 			PathBuf::from(format!(r"\\.\pipe\{}-{}", APPLICATION_NAME, Uuid::new_v4()))
 		}
+	}
+}
+
+pub type AcceptedRW = (
+	Box<dyn AsyncRead + Send + Unpin>,
+	Box<dyn AsyncWrite + Send + Unpin>,
+);
+
+pub trait AsyncRWAccepter {
+	fn accept_rw(
+		&mut self,
+	) -> Pin<Box<dyn Future<Output = Result<AcceptedRW, CodeError>> + Send + '_>>;
+}
+
+impl AsyncRWAccepter for AsyncPipeListener {
+	fn accept_rw(
+		&mut self,
+	) -> Pin<Box<dyn Future<Output = Result<AcceptedRW, CodeError>> + Send + '_>> {
+		Box::pin(async move {
+			let pipe = self.accept().await?;
+			let (read, write) = socket_stream_split(pipe);
+			Ok((
+				Box::new(read) as Box<dyn AsyncRead + Send + Unpin>,
+				Box::new(write) as Box<dyn AsyncWrite + Send + Unpin>,
+			))
+		})
+	}
+}
+
+impl AsyncRWAccepter for TcpListener {
+	fn accept_rw(
+		&mut self,
+	) -> Pin<Box<dyn Future<Output = Result<AcceptedRW, CodeError>> + Send + '_>> {
+		Box::pin(async move {
+			let (stream, _) = self
+				.accept()
+				.await
+				.map_err(CodeError::AsyncPipeListenerFailed)?;
+			let (read, write) = tokio::io::split(stream);
+			Ok((
+				Box::new(read) as Box<dyn AsyncRead + Send + Unpin>,
+				Box::new(write) as Box<dyn AsyncWrite + Send + Unpin>,
+			))
+		})
 	}
 }

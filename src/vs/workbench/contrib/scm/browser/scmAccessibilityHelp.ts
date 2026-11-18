@@ -1,0 +1,152 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { localize } from '../../../../nls.js';
+import { AccessibleViewType, AccessibleContentProvider, IAccessibleViewContentProvider, AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { FocusedViewContext, SidebarFocusContext } from '../../../common/contextkeys.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { HISTORY_VIEW_PANE_ID, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, VIEW_PANE_ID } from '../common/scm.js';
+import { hasSCMStructuralDiffProvider } from '../common/scmStructuralDiff.js';
+
+export class SCMAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly name = 'scm';
+	readonly type = AccessibleViewType.Help;
+	readonly priority = 100;
+	readonly when = ContextKeyExpr.or(
+		ContextKeyExpr.and(ContextKeyExpr.equals('activeViewlet', 'workbench.view.scm'), SidebarFocusContext),
+		ContextKeyExpr.equals(FocusedViewContext.key, REPOSITORIES_VIEW_PANE_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, VIEW_PANE_ID),
+		ContextKeyExpr.equals(FocusedViewContext.key, HISTORY_VIEW_PANE_ID)
+	);
+
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
+		const commandService = accessor.get(ICommandService);
+		const scmViewService = accessor.get(ISCMViewService);
+		const viewsService = accessor.get(IViewsService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		return new SCMAccessibilityHelpContentProvider(commandService, scmViewService, viewsService, languageFeaturesService, configurationService);
+	}
+}
+
+class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessibleViewContentProvider {
+	readonly id = AccessibleViewProviderId.SourceControl;
+	readonly verbositySettingKey = AccessibilityVerbositySettingId.SourceControl;
+	readonly options = { type: AccessibleViewType.Help };
+
+	private _focusedView: string | undefined;
+
+	constructor(
+		@ICommandService private readonly _commandService: ICommandService,
+		@ISCMViewService private readonly _scmViewService: ISCMViewService,
+		@IViewsService private readonly _viewsService: IViewsService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
+		super();
+		this._focusedView = this._viewsService.getFocusedViewName();
+	}
+
+	onClose(): void {
+		switch (this._focusedView) {
+			case 'Source Control':
+				this._commandService.executeCommand('workbench.scm');
+				break;
+			case 'Source Control Repositories':
+				this._commandService.executeCommand('workbench.scm.repositories');
+				break;
+			case 'Source Control Graph':
+				this._commandService.executeCommand('workbench.scm.history');
+				break;
+			default:
+				this._commandService.executeCommand('workbench.view.scm');
+		}
+	}
+
+	provideContent(): string {
+		const content: string[] = [];
+
+		// Active Repository State
+		if (this._scmViewService.visibleRepositories.length > 1) {
+			const repositoryList = this._scmViewService.visibleRepositories.map(r => r.provider.name).join(', ');
+			content.push(localize('state-msg1', "Visible repositories: {0}", repositoryList));
+		}
+
+		const focusedRepository = this._scmViewService.focusedRepository;
+		if (focusedRepository) {
+			content.push(localize('state-msg2', "Repository: {0}", focusedRepository.provider.name));
+
+			// History Item Reference
+			const currentHistoryItemRef = focusedRepository.provider.historyProvider.get()?.historyItemRef.get();
+			if (currentHistoryItemRef) {
+				content.push(localize('state-msg3', "History item reference: {0}", currentHistoryItemRef.name));
+			}
+
+			// Commit Message
+			if (focusedRepository.input.visible && focusedRepository.input.enabled && focusedRepository.input.value !== '') {
+				content.push(localize('state-msg4', "Commit message: {0}", focusedRepository.input.value));
+			}
+
+			// Action Button
+			const actionButton = focusedRepository.provider.actionButton.get();
+			if (actionButton) {
+				const label = actionButton.command.tooltip ?? actionButton.command.title;
+				const enablementLabel = actionButton.enabled ? localize('enabled', "enabled") : localize('disabled', "disabled");
+				content.push(localize('state-msg5', "Action button: {0}, {1}", label, enablementLabel));
+			}
+
+			// Resource Groups
+			const resourceGroups: string[] = [];
+			for (const resourceGroup of focusedRepository.provider.groups) {
+				resourceGroups.push(`${resourceGroup.label} (${resourceGroup.resources.length} resource(s))`);
+			}
+
+			focusedRepository.provider.groups.map(g => g.label).join(', ');
+			content.push(localize('state-msg6', "Resource groups: {0}", resourceGroups.join(', ')));
+		}
+
+		// Source Control Repositories
+		content.push(localize('scm-repositories-msg1', "Use the \"Source Control: Focus on Source Control Repositories View\" command to open the Source Control Repositories view."));
+		content.push(localize('scm-repositories-msg2', "The Source Control Repositories view lists all repositories from the workspace and is only shown when the workspace contains more than one repository."));
+		content.push(localize('scm-repositories-msg3', "Once the Source Control Repositories view is opened you can:"));
+		content.push(localize('scm-repositories-msg4', " - Use the up/down arrow keys to navigate the list of repositories."));
+		content.push(localize('scm-repositories-msg5', " - Use the Enter or Space keys to select a repository."));
+		content.push(localize('scm-repositories-msg6', " - Use Shift + up/down keys to select multiple repositories."));
+
+		// Source Control
+		content.push(localize('scm-msg1', "Use the \"Source Control: Focus on Source Control View\" command to open the Source Control view."));
+		content.push(localize('scm-msg2', "The Source Control view displays the resource groups and resources of the repository. If the workspace contains more than one repository it will list the resource groups and resources of the repositories selected in the Source Control Repositories view."));
+		content.push(localize('scm-msg3', "Once the Source Control view is opened you can:"));
+		content.push(localize('scm-msg4', " - Use the up/down arrow keys to navigate the list of repositories, resource groups and resources."));
+		content.push(localize('scm-msg5', " - Use the Space key to expand or collapse a resource group."));
+		if (this._configurationService.getValue<boolean>('scm.structuralDiff.enabled') === true && hasSCMStructuralDiffProvider(this._languageFeaturesService)) {
+			content.push(localize('scm-structural-toggle', " - Toggle \"Show Structural Diff\" in the \"View & Sort\" menu to show or hide changed symbols below files."));
+			content.push(localize('scm-structural-msg1', " - When \"Show Structural Diff\" is enabled, files with a structural diff provider can be expanded with the right arrow key to show changed symbols. Structural descendants expand automatically to reveal changed leaves. Use the left arrow key to collapse them."));
+			content.push(localize('scm-structural-staged', " - For Git, staged structural changes compare HEAD with the index, while unstaged structural changes compare the index with the working file. Both versions of the file and a provider that supports their document types are required."));
+			content.push(localize('scm-structural-msg2', " - Press Enter on a changed symbol to open its file diff at that symbol. Deleted symbols open on the original side, or where they were deleted when the diff is shown inline. File-level actions continue to apply to file rows."));
+			content.push(localize('scm-structural-status', " - Changed symbols use A for additions, D for deletions, M for modifications, and R for renames. Their status is included in the accessible label. Unchanged containers have no status marker."));
+			content.push(localize('scm-structural-annotations', " - Modified symbols indicate whether their declaration, implementation, or both changed. These details are included in accessible labels."));
+			content.push(localize('scm-structural-rename', " - Detected renames appear with the new symbol name and an R status marker, without a change annotation. The original and new names are included in the hover and accessible label."));
+		}
+
+		// Source Control Graph
+		content.push(localize('scm-graph-msg1', "Use the \"Source Control: Focus on Source Control Graph View\" command to open the Source Control Graph view."));
+		content.push(localize('scm-graph-msg2', "The Source Control Graph view displays a graph history items of the repository. If the workspace contains more than one repository it will list the history items of the active repository."));
+		content.push(localize('scm-graph-msg3', "Once the Source Control Graph view is opened you can:"));
+		content.push(localize('scm-graph-msg4', " - Use the up/down arrow keys to navigate the list of history items."));
+		content.push(localize('scm-graph-msg5', " - Use the Space key to open the history item details in the multi-file diff editor."));
+
+		return content.join('\n');
+	}
+}

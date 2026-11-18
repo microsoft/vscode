@@ -2,25 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { sep } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { SnippetParser, Variable, VariableResolver } from '../../browser/snippetParser.js';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from '../../browser/snippetVariables.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { toWorkspaceFolders } from '../../../../../platform/workspaces/common/workspaces.js';
 
 suite('Snippet Variables Resolver', function () {
+
 
 	const labelService = new class extends mock<ILabelService>() {
 		override getUriLabel(uri: URI) {
@@ -48,6 +50,9 @@ suite('Snippet Variables Resolver', function () {
 		model.dispose();
 	});
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+
 	function assertVariableResolve(resolver: VariableResolver, varName: string, expected?: string) {
 		const snippet = new SnippetParser().parse(`$${varName}`);
 		const variable = <Variable>snippet.children[0];
@@ -71,6 +76,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME', 'text.txt');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'TM_DIRECTORY', '/foo/files');
+			assertVariableResolve(resolver, 'TM_DIRECTORY_BASE', 'files');
 			assertVariableResolve(resolver, 'TM_FILEPATH', '/foo/files/text.txt');
 		}
 
@@ -81,6 +87,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'TM_DIRECTORY', '/abc/def');
+			assertVariableResolve(resolver, 'TM_DIRECTORY_BASE', 'def');
 			assertVariableResolve(resolver, 'TM_FILEPATH', '/abc/def/ghi');
 		}
 
@@ -89,6 +96,7 @@ suite('Snippet Variables Resolver', function () {
 			disposables.add(createTextModel('', undefined, undefined, URI.parse('mem:fff.ts')))
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
+		assertVariableResolve(resolver, 'TM_DIRECTORY_BASE', '');
 		assertVariableResolve(resolver, 'TM_FILEPATH', 'fff.ts');
 
 		disposables.dispose();
@@ -270,7 +278,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'cLIPBOARD', undefined);
 	});
 
-	test('Add variable to insert value from clipboard to a snippet #40153', function () {
+	test('Add variable to insert value from clipboard to a snippet #40153, 2', function () {
 
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1', 1, 2, true), 'CLIPBOARD', 'line1');
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');
@@ -301,11 +309,35 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_HOUR');
 		assertVariableResolve3(resolver, 'CURRENT_MINUTE');
 		assertVariableResolve3(resolver, 'CURRENT_SECOND');
+		assertVariableResolve3(resolver, 'CURRENT_MILLISECOND');
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_SECONDS_UNIX');
+		assertVariableResolve3(resolver, 'CURRENT_MILLISECONDS_UNIX');
+		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_OFFSET');
+		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_NAME');
+	});
+
+	test('Time-based snippet variables have deterministic millisecond and unix values', function () {
+		const now = Date.UTC(2024, 3, 15, 12, 34, 56, 7);
+		const clock = sinon.useFakeTimers({ now });
+		store.add(toDisposable(() => clock.restore()));
+		const resolver = new TimeBasedVariableResolver;
+		const expectedDate = new Date(now);
+		const pad = (value: number, length: number) => String(value).padStart(length, '0');
+
+		assertVariableResolve(resolver, 'CURRENT_YEAR', String(expectedDate.getFullYear()));
+		assertVariableResolve(resolver, 'CURRENT_YEAR_SHORT', String(expectedDate.getFullYear()).slice(-2));
+		assertVariableResolve(resolver, 'CURRENT_MONTH', pad(expectedDate.getMonth() + 1, 2));
+		assertVariableResolve(resolver, 'CURRENT_DATE', pad(expectedDate.getDate(), 2));
+		assertVariableResolve(resolver, 'CURRENT_HOUR', pad(expectedDate.getHours(), 2));
+		assertVariableResolve(resolver, 'CURRENT_MINUTE', pad(expectedDate.getMinutes(), 2));
+		assertVariableResolve(resolver, 'CURRENT_SECOND', pad(expectedDate.getSeconds(), 2));
+		assertVariableResolve(resolver, 'CURRENT_MILLISECOND', pad(expectedDate.getMilliseconds(), 3));
+		assertVariableResolve(resolver, 'CURRENT_SECONDS_UNIX', String(Math.floor(now / 1000)));
+		assertVariableResolve(resolver, 'CURRENT_MILLISECONDS_UNIX', String(now));
 	});
 
 	test('Time-based snippet variables resolve to the same values even as time progresses', async function () {
@@ -317,25 +349,26 @@ suite('Snippet Variables Resolver', function () {
 			$CURRENT_HOUR
 			$CURRENT_MINUTE
 			$CURRENT_SECOND
+			$CURRENT_MILLISECOND
 			$CURRENT_DAY_NAME
 			$CURRENT_DAY_NAME_SHORT
 			$CURRENT_MONTH_NAME
 			$CURRENT_MONTH_NAME_SHORT
 			$CURRENT_SECONDS_UNIX
+			$CURRENT_MILLISECONDS_UNIX
+			$CURRENT_TIMEZONE_OFFSET
+			$CURRENT_TIMEZONE_NAME
 		`;
 
 		const clock = sinon.useFakeTimers();
-		try {
-			const resolver = new TimeBasedVariableResolver;
+		store.add(toDisposable(() => clock.restore()));
+		const resolver = new TimeBasedVariableResolver;
 
-			const firstResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
-			clock.tick((365 * 24 * 3600 * 1000) + (24 * 3600 * 1000) + (3661 * 1000));  // 1 year + 1 day + 1 hour + 1 minute + 1 second
-			const secondResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
+		const firstResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
+		clock.tick((365 * 24 * 3600 * 1000) + (24 * 3600 * 1000) + (3661 * 1000));  // 1 year + 1 day + 1 hour + 1 minute + 1 second
+		const secondResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
 
-			assert.strictEqual(firstResolve.toString(), secondResolve.toString(), `Time-based snippet variables resolved differently`);
-		} finally {
-			clock.restore();
-		}
+		assert.strictEqual(firstResolve.toString(), secondResolve.toString(), `Time-based snippet variables resolved differently`);
 	});
 
 	test('creating snippet - format-condition doesn\'t work #53617', function () {
@@ -361,6 +394,7 @@ suite('Snippet Variables Resolver', function () {
 			getCompleteWorkspace = this._throw;
 			getWorkspace(): IWorkspace { return workspace; }
 			getWorkbenchState = this._throw;
+			hasWorkspaceData = this._throw;
 			getWorkspaceFolder = this._throw;
 			isCurrentWorkspace = this._throw;
 			isInsideWorkspace = this._throw;

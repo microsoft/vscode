@@ -74,9 +74,11 @@ interface StandardTsServerRequests {
 	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
 	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
 	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
-	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestionsResponse];
-	'getEditsForMoveToFileRefactor': [Proto.GetEditsForMoveToFileRefactorRequestArgs, Proto.GetEditsForMoveToFileRefactorResponse];
+	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestions];
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
+	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
+	'getPasteEdits': [Proto.GetPasteEditsRequestArgs, Proto.GetPasteEditsResponse];
+	'preparePasteEdits': [Proto.PreparePasteEditsRequestArgs, Proto.PreparePasteEditsResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -86,6 +88,7 @@ interface NoResponseTsServerRequests {
 	'compilerOptionsForInferredProjects': [Proto.SetCompilerOptionsForInferredProjectsArgs, null];
 	'reloadProjects': [null, null];
 	'configurePlugin': [Proto.ConfigurePluginRequest, Proto.ConfigurePluginResponse];
+	'watchChange': [Proto.Request, null];
 }
 
 interface AsyncTsServerRequests {
@@ -148,7 +151,7 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
-	toOpenTsFilePath(document: vscode.TextDocument, options?: {
+	toOpenTsFilePath(document: vscode.TextDocument | vscode.Uri, options?: {
 		suppressAlertOnFailure?: boolean;
 	}): string | undefined;
 
@@ -157,7 +160,7 @@ export interface ITypeScriptServiceClient {
 	 */
 	hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean;
 
-	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
+	getWorkspaceRootForResource(resource: vscode.Uri): vscode.Uri | undefined;
 
 	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion; usedApiVersion: API }>;
 	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;

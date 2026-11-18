@@ -3,12 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { localize } from '../../../../nls.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { allApiProposals, ApiProposalName } from '../../../../platform/extensions/common/extensionsApiProposals.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from '../../extensionManagement/common/extensionFeatures.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Mutable } from '../../../../base/common/types.js';
+import { extensionsAllowedAnyApiProposal } from './extensionsProposedApiExceptions.js';
 
 export class ExtensionsProposedApi {
 
@@ -54,12 +62,9 @@ export class ExtensionsProposedApi {
 		}
 	}
 
-	private doUpdateEnabledApiProposals(_extension: IExtensionDescription): void {
+	private doUpdateEnabledApiProposals(extension: Mutable<IExtensionDescription>): void {
 
-		// this is a trick to make the extension description writeable...
-		type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
-		const extension = <Writeable<IExtensionDescription>>_extension;
-		const key = ExtensionIdentifier.toKey(_extension.identifier);
+		const key = ExtensionIdentifier.toKey(extension.identifier);
 
 		// warn about invalid proposal and remove them from the list
 		if (isNonEmptyArray(extension.enabledApiProposals)) {
@@ -73,6 +78,11 @@ export class ExtensionsProposedApi {
 		}
 
 
+		if (extensionsAllowedAnyApiProposal.has(key)) {
+			// hard-coded exception: the extension uses the proposals it declares
+			return;
+		}
+
 		if (this._productEnabledExtensions.has(key)) {
 			// NOTE that proposals that are listed in product.json override whatever is declared in the extension
 			// itself. This is needed for us to know what proposals are used "in the wild". Merging product.json-proposals
@@ -85,7 +95,7 @@ export class ExtensionsProposedApi {
 			const extensionSet = new Set(extension.enabledApiProposals);
 			const diff = new Set([...extensionSet].filter(a => !productSet.has(a)));
 			if (diff.size > 0) {
-				this._logService.error(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
+				this._logService.error(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOSES): ${[...extensionSet].join('\n')}\nproduct.json (WINS): ${[...productSet].join('\n')}\nDELTA: ${[...diff].join('\n')}`);
 
 				if (this._environmentService.isExtensionDevelopment) {
 					this._logService.error(`Proceeding with EXTRA proposals (${[...diff].join(', ')}) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.`);
@@ -110,3 +120,35 @@ export class ExtensionsProposedApi {
 		}
 	}
 }
+
+class ApiProposalsMarkdowneRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+
+	readonly type = 'markdown';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.originalEnabledApiProposals?.length || !!manifest.enabledApiProposals?.length;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
+		const enabledApiProposals = manifest.originalEnabledApiProposals ?? manifest.enabledApiProposals ?? [];
+		const data = new MarkdownString();
+		if (enabledApiProposals.length) {
+			for (const proposal of enabledApiProposals) {
+				data.appendMarkdown(`- \`${proposal}\`\n`);
+			}
+		}
+		return {
+			data,
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'enabledApiProposals',
+	label: localize('enabledProposedAPIs', "API Proposals"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ApiProposalsMarkdowneRenderer),
+});

@@ -1,0 +1,3862 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { getWorktreeFilterKey } from '../../../common/sessionWorktreeFolders.js';
+import { AgentSessionsWorktreeOpener } from '../../../browser/agentSessions/agentSessionsWorktreeOpener.js';
+import { IChatViewHostService, IChatViewHostShownSession } from '../../../browser/chatViewHost.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionsService, IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
+import { TestChatWidgetService, TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../common/localChatAvailability.js';
+import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
+import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+
+class StaticChatSessionItemController implements IChatSessionItemController {
+	readonly onDidChangeChatSessionItems = Event.None;
+
+	constructor(
+		private sessionItems: readonly IChatSessionItem[],
+	) { }
+
+	get items(): readonly IChatSessionItem[] {
+		return this.sessionItems;
+	}
+
+	async refresh(): Promise<void> { }
+
+	setItems(sessionItems: readonly IChatSessionItem[]): void {
+		this.sessionItems = sessionItems;
+	}
+}
+
+
+suite('AgentSessions', () => {
+
+	suite('AgentSessionsViewModel', () => {
+
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let mockLifecycleService: TestLifecycleService;
+		let viewModel: AgentSessionsModel;
+		let instantiationService: TestInstantiationService;
+
+		function createViewModel(): AgentSessionsModel {
+			return disposables.add(instantiationService.createInstance(
+				AgentSessionsModel,
+			));
+		}
+
+		function registerContribution(type: string): void {
+			disposables.add(mockChatSessionsService.registerChatSessionContribution({ type, name: type, displayName: type, description: type }));
+		}
+
+		function recordRefreshReasons(): (ChatSessionRefreshReason | undefined)[] {
+			const reasons: (ChatSessionRefreshReason | undefined)[] = [];
+			disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+				onDidChangeChatSessionItems: Event.None,
+				items: [],
+				async refresh(_token, reason) {
+					reasons.push(reason);
+				},
+			}));
+			return reasons;
+		}
+
+		function createSessionsControl(model: AgentSessionsModel): AgentSessionsControl {
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = model;
+				override readonly onDidChangeSessionArchivedState = Event.None;
+			});
+			instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+				override readonly pendingResponseVersion = observableValue(this, 0);
+				override hasPendingResponse = () => false;
+			});
+			return disposables.add(instantiationService.createInstance(AgentSessionsControl, document.createElement('div'), {
+				source: 'test',
+				overrideStyles: {},
+				filter: {
+					onDidChange: Event.None, exclude: () => false,
+					getExcludes: () => ({ providers: [], states: [], archived: false, read: false, automation: true, repositoryGroupCapped: true }),
+					isDefault: () => true, reset: () => { },
+				},
+				createNewChat: () => { },
+				getHoverPosition: () => HoverPosition.BELOW,
+				trackActiveEditorSession: () => false,
+			}));
+		}
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			mockLifecycleService = disposables.add(new TestLifecycleService());
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, mockLifecycleService);
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should initialize with empty sessions', () => {
+			viewModel = createViewModel();
+
+			assert.strictEqual(viewModel.sessions.length, 0);
+		});
+
+		test('should resolve sessions from controllers', async () => {
+			return runWithFakedTimers({}, async () => {
+				const chatSessionType = chatSessionTestType;
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						label: 'Test Session 1'
+					}),
+					makeSimpleSessionItem('session-2', {
+						label: 'Test Session 2'
+					})
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionType, controller);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 2);
+				assert.strictEqual(viewModel.sessions[0].resource.toString(), `${chatSessionTestType}://session-1`);
+				assert.strictEqual(viewModel.sessions[0].label, 'Test Session 1');
+				assert.strictEqual(viewModel.sessions[1].resource.toString(), `${chatSessionTestType}://session-2`);
+				assert.strictEqual(viewModel.sessions[1].label, 'Test Session 2');
+			});
+		});
+
+		test('keeps automation sessions available to the sessions list without exposing them to other consumers', async () => {
+			return runWithFakedTimers({}, async () => {
+				const ordinary = makeSimpleSessionItem('ordinary', { label: 'Ordinary Session' });
+				const automation = makeSimpleSessionItem('automation', {
+					label: 'Automation Run',
+					metadata: { isAutomation: true },
+				});
+				const controller = new StaticChatSessionItemController([ordinary, automation]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					visible: viewModel.sessions.map(session => session.label),
+					listCandidates: viewModel.sessionsIncludingAutomationRuns.map(session => session.label),
+					automationLookup: viewModel.getSession(automation.resource)?.label,
+				}, {
+					visible: ['Ordinary Session'],
+					listCandidates: ['Ordinary Session', 'Automation Run'],
+					automationLookup: 'Automation Run',
+				});
+			});
+		});
+
+		test('deduplicates legacy Automation twins before exposing sessions for filtering', async () => {
+			return runWithFakedTimers({}, async () => {
+				const legacy = makeSimpleSessionItem('shared', {
+					resource: URI.parse('copilotcli:/shared'),
+					label: 'Legacy Automation Twin',
+				});
+				const automation = makeSimpleSessionItem('shared', {
+					resource: URI.parse('agent-host-copilotcli:/shared'),
+					label: 'Automation Run',
+					metadata: { isAutomation: true },
+				});
+				const ordinary = makeSimpleSessionItem('ordinary', {
+					resource: URI.parse('agent-host-copilotcli:/ordinary'),
+					label: 'Ordinary Session',
+				});
+				mockChatSessionsService.registerChatSessionItemController('copilotcli', new StaticChatSessionItemController([legacy]));
+				mockChatSessionsService.registerChatSessionItemController('agent-host-copilotcli', new StaticChatSessionItemController([automation, ordinary]));
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					visible: viewModel.sessions.map(session => session.label),
+					listCandidates: viewModel.sessionsIncludingAutomationRuns.map(session => session.label),
+					legacyLookup: viewModel.getSession(legacy.resource)?.label,
+					automationLookup: viewModel.getSession(automation.resource)?.label,
+				}, {
+					visible: ['Ordinary Session'],
+					listCandidates: ['Automation Run', 'Ordinary Session'],
+					legacyLookup: 'Legacy Automation Twin',
+					automationLookup: 'Automation Run',
+				});
+			});
+		});
+
+		test('preserves a registered provider\'s sessions when a sibling provider refreshes with a partial list', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Two providers registered only as item controllers (no static
+				// contribution) — mirrors the agent host (`agent-host-copilotcli`),
+				// which is neither built-in nor a static contribution.
+				const siblingController = new StaticChatSessionItemController([makeSimpleSessionItem('eh-1', { resource: URI.parse('type-eh://eh-1') })]);
+				const agentHostController = new StaticChatSessionItemController([makeSimpleSessionItem('ah-1', { resource: URI.parse('type-agenthost://ah-1') })]);
+				mockChatSessionsService.registerChatSessionItemController('type-eh', siblingController);
+				mockChatSessionsService.registerChatSessionItemController('type-agenthost', agentHostController);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 2);
+
+				// The sibling provider refreshes with a partial (here empty) list — as
+				// the extension-host Copilot CLI provider does mid-migration. This must
+				// NOT drop the other provider's rows (regression: they used to vanish).
+				siblingController.setItems([]);
+				await viewModel.resolve('type-eh');
+
+				assert.deepStrictEqual(viewModel.sessions.map(s => s.resource.toString()), ['type-agenthost://ah-1']);
+			});
+		});
+
+		test('keeps rows of a provider that registered while a sibling provider was still activating', async () => {
+			return runWithFakedTimers({}, async () => {
+				const activated = new DeferredPromise<void>();
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-cloud', {
+					onDidChangeChatSessionItems: Event.None,
+					items: [],
+					refresh: () => activated.p,
+				}));
+				viewModel = createViewModel();
+				// Registration reads the provider's items once its initial refresh completes, which
+				// waits for its extension to activate.
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: 'type-cloud' });
+				await timeout(1_000);
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-agenthost', new StaticChatSessionItemController([makeSimpleSessionItem('ah-1', { resource: URI.parse('type-agenthost://ah-1') })])));
+				await viewModel.resolve('type-agenthost');
+				const beforeActivation = viewModel.sessions.map(s => s.resource.toString());
+
+				activated.complete();
+				await viewModel.resolve('type-cloud');
+
+				assert.deepStrictEqual({ beforeActivation, afterActivation: viewModel.sessions.map(s => s.resource.toString()) }, {
+					beforeActivation: ['type-agenthost://ah-1'],
+					afterActivation: ['type-agenthost://ah-1'],
+				});
+			});
+		});
+
+		test('should preserve change summaries when lazy refresh omits changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						changes: { files: 2, insertions: 8, deletions: 3 },
+					}),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				controller.setItems([makeSimpleSessionItem('session-1', { changes: undefined })]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(viewModel.sessions[0].changes, { files: 2, insertions: 8, deletions: 3 });
+			});
+		});
+
+		test('should demote hydrated changes when lazy refresh omits changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1', {
+						changes: [
+							{ modifiedUri: URI.file('/first'), insertions: 3, deletions: 1 },
+							{ modifiedUri: URI.file('/second'), insertions: 5, deletions: 2 },
+						],
+					}),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				controller.setItems([makeSimpleSessionItem('session-1', { changes: undefined })]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(viewModel.sessions[0].changes, { files: 2, insertions: 8, deletions: 3 });
+			});
+		});
+
+		test('should resolve sessions from multiple controllers', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller1 = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
+
+				registerContribution('type-1');
+				registerContribution('type-2');
+				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
+				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
+
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 2);
+				const uris = viewModel.sessions.map(s => s.resource.toString()).sort();
+				assert.deepStrictEqual(uris, [
+					`${chatSessionTestType}://session-1`,
+					`${chatSessionTestType}://session-2`,
+				]);
+			});
+		});
+
+		test('should fire onWillResolve and onDidResolve events', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				let willResolveFired = false;
+				let didResolveFired = false;
+
+				disposables.add(viewModel.onWillResolve(provider => {
+					willResolveFired = true;
+					assert.strictEqual(typeof provider, 'string', 'onWillResolve should carry the provider');
+					assert.strictEqual(didResolveFired, false, 'onDidResolve should not fire before onWillResolve completes');
+				}));
+
+				disposables.add(viewModel.onDidResolve(provider => {
+					didResolveFired = true;
+					assert.strictEqual(typeof provider, 'string', 'onDidResolve should carry the provider');
+					assert.strictEqual(willResolveFired, true, 'onWillResolve should fire before onDidResolve');
+				}));
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(willResolveFired, true, 'onWillResolve should have fired');
+				assert.strictEqual(didResolveFired, true, 'onDidResolve should have fired');
+			});
+		});
+
+		test('should fire onDidChangeSessions event after resolving', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				let sessionsChangedFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					sessionsChangedFired = true;
+				}));
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(sessionsChangedFired, true, 'onDidChangeSessions should have fired');
+			});
+		});
+
+		test('should handle session with all properties', async () => {
+			return runWithFakedTimers({}, async () => {
+				const created = Date.now();
+				const lastRequestEnded = created + 1000;
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-1'),
+					label: 'Test Session',
+					description: new MarkdownString('**Bold** description'),
+					status: ChatSessionStatus.Completed,
+					tooltip: 'Session tooltip',
+					iconPath: ThemeIcon.fromId('check'),
+					timing: { created, lastRequestStarted: created, lastRequestEnded },
+					changes: { files: 1, insertions: 10, deletions: 5 }
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 1);
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.resource.toString(), 'test://session-1');
+				assert.strictEqual(session.label, 'Test Session');
+				assert.ok(session.description instanceof MarkdownString);
+				if (session.description instanceof MarkdownString) {
+					assert.strictEqual(session.description.value, '**Bold** description');
+				}
+				assert.strictEqual(session.status, ChatSessionStatus.Completed);
+				assert.strictEqual(session.timing.created, created);
+				assert.strictEqual(session.timing.lastRequestEnded, lastRequestEnded);
+				assert.deepStrictEqual(session.changes, { files: 1, insertions: 10, deletions: 5 });
+			});
+		});
+
+		test('should handle resolve with specific provider', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller1 = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
+
+				registerContribution('type-1');
+				registerContribution('type-2');
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-1', controller1));
+				disposables.add(mockChatSessionsService.registerChatSessionItemController('type-2', controller2));
+
+				viewModel = createViewModel();
+
+				// First resolve all
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 2);
+
+				// Now resolve only type-1
+				await viewModel.resolve('type-1');
+				// Per-provider resolution preserves sessions from other providers
+				assert.strictEqual(viewModel.sessions.length, 2);
+			});
+		});
+
+		test('should handle resolve with multiple specific controllers', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller1 = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				const controller2 = new StaticChatSessionItemController([makeSimpleSessionItem('session-2')]);
+
+				registerContribution('type-1');
+				registerContribution('type-2');
+				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
+				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
+
+				viewModel = createViewModel();
+
+				await viewModel.resolve(['type-1', 'type-2']);
+
+				assert.strictEqual(viewModel.sessions.length, 2);
+			});
+		});
+
+		for (const initialRefreshPending of [false, true]) {
+			test(`reads a registered provider without refreshing it again (initial refresh ${initialRefreshPending ? 'pending' : 'complete'})`, async () => {
+				return runWithFakedTimers({}, async () => {
+					const initialRefresh = new DeferredPromise<void>();
+					const initialItem = makeSimpleSessionItem('session-1', { label: 'Initial' });
+					const resolvedLabels: (string | undefined)[] = [];
+					let refreshCount = 0;
+					const controller = new class extends StaticChatSessionItemController {
+						override async refresh(): Promise<void> {
+							if (++refreshCount === 1) {
+								await initialRefresh.p;
+								this.setItems([initialItem]);
+							} else {
+								this.setItems([{ ...initialItem, label: 'Updated' }]);
+							}
+						}
+					}([]);
+					mockChatSessionsService.resolveChatSessionItem = async () => {
+						const item = mockChatSessionsService.getRegisteredChatSessionItemProviders().includes(chatSessionTestType) ? controller.items[0] : undefined;
+						resolvedLabels.push(item?.label);
+						return item;
+					};
+
+					viewModel = createViewModel();
+					viewModel.observeSession(initialItem.resource);
+					const registration = disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+					if (!initialRefreshPending) {
+						await initialRefresh.complete();
+					}
+
+					const resolving = Event.toPromise(viewModel.onWillResolve);
+					const registered = Event.toPromise(viewModel.onDidResolve);
+					mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+					if (initialRefreshPending) {
+						await resolving;
+						await initialRefresh.complete();
+					}
+					await registered;
+					const afterRegistration = { refreshCount, labels: viewModel.sessions.map(session => session.label), resolvedLabels: [...resolvedLabels] };
+
+					await viewModel.resolve(chatSessionTestType);
+					const afterExplicitRefresh = { refreshCount, labels: viewModel.sessions.map(session => session.label), resolvedLabels: [...resolvedLabels] };
+
+					const removed = Event.toPromise(viewModel.onDidResolve);
+					registration.dispose();
+					mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+					await removed;
+
+					assert.deepStrictEqual({
+						afterRegistration,
+						afterExplicitRefresh,
+						afterRemoval: { refreshCount, labels: viewModel.sessions.map(session => session.label), resolvedLabels },
+					}, {
+						afterRegistration: { refreshCount: 1, labels: ['Initial'], resolvedLabels: [undefined, 'Initial'] },
+						afterExplicitRefresh: { refreshCount: 2, labels: ['Updated'], resolvedLabels: [undefined, 'Initial', 'Updated'] },
+						afterRemoval: { refreshCount: 2, labels: [], resolvedLabels: [undefined, 'Initial', 'Updated', undefined] },
+					});
+				});
+			});
+		}
+
+		for (const trigger of ['explicit', 'availability']) {
+			test(`preserves an ${trigger} refresh across a coalesced provider notification`, async () => {
+				return runWithFakedTimers({}, async () => {
+					let refreshCount = 0;
+					const controller = new class extends StaticChatSessionItemController {
+						override async refresh(): Promise<void> {
+							this.setItems([makeSimpleSessionItem('session-1', { label: `Refresh ${++refreshCount}` })]);
+						}
+					}([]);
+
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+					viewModel = createViewModel();
+
+					const refreshed = Event.toPromise(viewModel.onDidResolve);
+					if (trigger === 'explicit') {
+						void viewModel.resolve(chatSessionTestType);
+					} else {
+						mockChatSessionsService.fireDidChangeAvailability();
+					}
+					mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+					await refreshed;
+					const afterRefresh = { refreshCount, labels: viewModel.sessions.map(session => session.label) };
+
+					const reread = Event.toPromise(viewModel.onDidResolve);
+					mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+					await reread;
+
+					assert.deepStrictEqual({
+						afterRefresh,
+						afterNotification: { refreshCount, labels: viewModel.sessions.map(session => session.label) },
+					}, {
+						afterRefresh: { refreshCount: 2, labels: ['Refresh 2'] },
+						afterNotification: { refreshCount: 2, labels: ['Refresh 2'] },
+					});
+				});
+			});
+		}
+
+		test('initial model resolution uses an automatic refresh', () => runWithFakedTimers({}, async () => {
+			const reasons = recordRefreshReasons();
+			instantiationService.stub(IChatService, new class extends mock<IChatService>() { }());
+			const service = disposables.add(instantiationService.createInstance(AgentSessionsService));
+			await Event.toPromise(service.model.onDidResolve);
+
+			assert.deepStrictEqual(reasons, ['initial', 'automatic']);
+		}));
+
+		for (const source of ['availability', 'workspace', 'trust'] as const) {
+			test(`${source} changes use automatic refresh without changing explicit refresh`, () => runWithFakedTimers({}, async () => {
+				const reasons = recordRefreshReasons();
+				const workspaceChanged = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+				const trustChanged = disposables.add(new Emitter<boolean>());
+				instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+					override readonly onDidChangeWorkspaceFolders = workspaceChanged.event;
+				}());
+				instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+					override readonly onDidChangeTrust = trustChanged.event;
+				}());
+				viewModel = createViewModel();
+
+				const refreshed = Event.toPromise(viewModel.onDidResolve);
+				if (source === 'availability') {
+					mockChatSessionsService.fireDidChangeAvailability();
+				} else if (source === 'workspace') {
+					workspaceChanged.fire({ added: [], removed: [], changed: [] });
+				} else {
+					trustChanged.fire(true);
+				}
+				await refreshed;
+				await viewModel.resolve(chatSessionTestType);
+
+				assert.deepStrictEqual(reasons, ['initial', 'automatic', 'manual']);
+			}));
+		}
+
+		for (const order of [['automatic', 'manual'], ['manual', 'automatic']] as const) {
+			test(`manual refresh takes precedence when coalescing ${order.join(' then ')}`, () => runWithFakedTimers({}, async () => {
+				const reasons = recordRefreshReasons();
+				viewModel = createViewModel();
+				const control = createSessionsControl(viewModel);
+				const refreshes = order.map(reason => control.refresh(reason));
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+				await Promise.all(refreshes);
+
+				assert.deepStrictEqual(reasons, ['initial', 'manual']);
+			}));
+		}
+
+		test('automatic control refresh still refreshes providers without a freshness policy', () => runWithFakedTimers({}, async () => {
+			let refreshCount = 0;
+			registerContribution(chatSessionTestType);
+			disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+				onDidChangeChatSessionItems: Event.None,
+				items: [],
+				async refresh() { refreshCount++; },
+			}));
+			viewModel = createViewModel();
+			const control = createSessionsControl(viewModel);
+			await control.refresh('automatic');
+			await control.refresh('automatic');
+			await control.refresh();
+
+			assert.strictEqual(refreshCount, 4);
+		}));
+
+		for (const followUpRefresh of [false, true]) {
+			test(`preserves manual refresh errors consumed by a queued reread${followUpRefresh ? ' with a later successful refresh' : ''}`, () => runWithFakedTimers({}, async () => {
+				const runningStarted = new DeferredPromise<void>();
+				const finishRunning = new DeferredPromise<void>();
+				const queuedStarted = new DeferredPromise<void>();
+				const finishQueued = new DeferredPromise<void>();
+				const refreshError = new Error('refresh failed');
+				const reasons: (ChatSessionRefreshReason | undefined)[] = [];
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+					onDidChangeChatSessionItems: Event.None,
+					items: [],
+					async refresh(_token, reason) {
+						reasons.push(reason);
+						if (reasons.length === 2) {
+							void runningStarted.complete();
+							await finishRunning.p;
+						} else if (reasons.length === 3) {
+							void queuedStarted.complete();
+							await finishQueued.p;
+							throw refreshError;
+						}
+					},
+				}));
+				viewModel = createViewModel();
+
+				const running = viewModel.resolve(chatSessionTestType);
+				await runningStarted.p;
+				mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType: chatSessionTestType });
+				await timeout(501);
+
+				const manual = viewModel.resolve(chatSessionTestType, error => { throw error; });
+				const settled = Promise.allSettled([running, manual]);
+				await finishRunning.complete();
+				await queuedStarted.p;
+				const followUp = followUpRefresh ? viewModel.resolve(chatSessionTestType, error => { throw error; }) : undefined;
+				await finishQueued.complete();
+				await followUp;
+				const results = await settled;
+
+				assert.deepStrictEqual({ reasons, results }, {
+					reasons: followUpRefresh ? ['initial', 'manual', 'manual', 'manual'] : ['initial', 'manual', 'manual'],
+					results: [
+						{ status: 'fulfilled', value: undefined },
+						{ status: 'rejected', reason: refreshError },
+					],
+				});
+			}));
+		}
+
+		test('reports coalesced refresh errors once to each caller', () => runWithFakedTimers({}, async () => {
+			const refreshError = new Error('refresh failed');
+			let refreshCount = 0;
+			disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, {
+				onDidChangeChatSessionItems: Event.None,
+				items: [],
+				async refresh() {
+					if (++refreshCount > 1) {
+						throw refreshError;
+					}
+				},
+			}));
+			viewModel = createViewModel();
+			const firstErrors: unknown[] = [];
+			const secondErrors: unknown[] = [];
+
+			await Promise.all([
+				viewModel.resolve(chatSessionTestType, error => firstErrors.push(error)),
+				viewModel.resolve(chatSessionTestType, error => secondErrors.push(error)),
+			]);
+
+			assert.deepStrictEqual({ refreshCount, firstErrors, secondErrors }, {
+				refreshCount: 2,
+				firstErrors: [refreshError],
+				secondErrors: [refreshError],
+			});
+		}));
+
+		test('should respond to onDidChangeAvailability event', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				const sessionsChangedPromise = Event.toPromise(viewModel.onDidChangeSessions);
+
+				// Trigger event - this should automatically call resolve
+				mockChatSessionsService.fireDidChangeAvailability();
+
+				// Wait for the sessions to be resolved
+				await sessionsChangedPromise;
+
+				assert.strictEqual(viewModel.sessions.length, 1);
+			});
+		});
+
+		test('should respond to onDidChangeSessionItems event', async () => {
+			return runWithFakedTimers({}, async () => {
+				const testSession = makeSimpleSessionItem('session-1');
+				const controller = new StaticChatSessionItemController([testSession]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				const sessionsChangedPromise = Event.toPromise(viewModel.onDidChangeSessions);
+
+				// Trigger event - this should automatically call resolve
+				mockChatSessionsService.fireDidChangeSessionItems({ addedOrUpdated: [testSession] });
+
+				// Wait for the sessions to be resolved
+				await sessionsChangedPromise;
+
+				assert.strictEqual(viewModel.sessions.length, 1);
+			});
+		});
+
+		test('should maintain provider reference in session view model', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 1);
+				assert.strictEqual(viewModel.sessions[0].providerType, chatSessionTestType);
+			});
+		});
+
+		test('should handle empty provider results', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 0);
+			});
+		});
+
+		test('should handle sessions with different statuses', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					{
+						resource: URI.parse('test://session-failed'),
+						label: 'Failed Session',
+						status: ChatSessionStatus.Failed,
+						timing: makeNewSessionTiming()
+					},
+					{
+						resource: URI.parse('test://session-completed'),
+						label: 'Completed Session',
+						status: ChatSessionStatus.Completed,
+						timing: makeNewSessionTiming()
+					},
+					{
+						resource: URI.parse('test://session-inprogress'),
+						label: 'In Progress Session',
+						status: ChatSessionStatus.InProgress,
+						timing: makeNewSessionTiming()
+					}
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 3);
+				assert.strictEqual(viewModel.sessions[0].status, ChatSessionStatus.Failed);
+				assert.strictEqual(viewModel.sessions[1].status, ChatSessionStatus.Completed);
+				assert.strictEqual(viewModel.sessions[2].status, ChatSessionStatus.InProgress);
+			});
+		});
+
+		test('should replace sessions on re-resolve', async () => {
+			return runWithFakedTimers({}, async () => {
+				let sessionCount = 1;
+				let _items: IChatSessionItem[] = [];
+
+				const controller: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						_items = [];
+						for (let i = 0; i < sessionCount; i++) {
+							_items.push(makeSimpleSessionItem(`session-${i + 1}`));
+						}
+					},
+					get items() { return _items; }
+				};
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 1);
+
+				sessionCount = 3;
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 3);
+			});
+		});
+
+		test('should handle local agent session type specially', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([{
+					resource: LocalChatSessionUri.forSession('local-session'),
+					label: 'Local Session',
+					timing: makeNewSessionTiming()
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(localChatSessionType, controller);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 1);
+				assert.strictEqual(viewModel.sessions[0].providerType, localChatSessionType);
+			});
+		});
+
+		test('should correctly construct resource URIs for sessions', async () => {
+			return runWithFakedTimers({}, async () => {
+				const resource = URI.parse('custom://my-session/path');
+
+				const controller = new StaticChatSessionItemController([{
+					resource: resource,
+					label: 'Test Session',
+					timing: makeNewSessionTiming()
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions.length, 1);
+				assert.strictEqual(viewModel.sessions[0].resource.toString(), resource.toString());
+			});
+		});
+
+		test('should throttle multiple rapid resolve calls', async () => {
+			return runWithFakedTimers({}, async () => {
+				let controllerCallCount = 0;
+
+				const controller: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => { controllerCallCount++; },
+					get items() {
+						return [makeSimpleSessionItem('session-1')];
+					}
+				};
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				// Registering calls a refresh initially
+				assert.strictEqual(controllerCallCount, 1);
+
+				viewModel = createViewModel();
+
+				// Make multiple rapid resolve calls
+				const resolvePromises = [
+					viewModel.resolve(undefined),
+					viewModel.resolve(undefined),
+					viewModel.resolve(undefined)
+				];
+
+				await Promise.all(resolvePromises);
+
+				// Should only call controller once more due to throttling
+				assert.strictEqual(controllerCallCount, 2);
+				assert.strictEqual(viewModel.sessions.length, 1);
+			});
+		});
+
+		test('should preserve sessions from non-resolved controllers', async () => {
+			return runWithFakedTimers({}, async () => {
+				let controller1CallCount = 0;
+				let controller2CallCount = 0;
+				let _items1: IChatSessionItem[] = [];
+				let _items2: IChatSessionItem[] = [];
+
+				const controller1: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						controller1CallCount++;
+						_items1 = [{
+							resource: URI.parse('test://session-1'),
+							label: `Session 1 (call ${controller1CallCount})`,
+							timing: makeNewSessionTiming()
+						}];
+					},
+					get items() { return _items1; }
+				};
+
+				const controller2: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						controller2CallCount++;
+						_items2 = [{
+							resource: URI.parse('test://session-2'),
+							label: `Session 2 (call ${controller2CallCount})`,
+							timing: makeNewSessionTiming()
+						}];
+					},
+					get items() { return _items2; }
+				};
+
+				registerContribution('type-1');
+				registerContribution('type-2');
+				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
+				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
+
+				viewModel = createViewModel();
+
+				// First resolve all
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 2);
+				assert.strictEqual(controller1CallCount, 2); // One from registration and one from resolve
+				assert.strictEqual(controller2CallCount, 2); // One from registration and one from resolve
+
+				// Now resolve only type-2
+				await viewModel.resolve('type-2');
+
+				// Per-provider resolution: type-1 sessions are preserved
+				assert.strictEqual(viewModel.sessions.length, 2);
+				// Controller 1 should not be called again
+				assert.strictEqual(controller1CallCount, 2);
+				// Controller 2 should be called again
+				assert.strictEqual(controller2CallCount, 3);
+			});
+		});
+
+		test('should resolve providers independently (per-provider delayers)', async () => {
+			return runWithFakedTimers({}, async () => {
+				let controller1RefreshCount = 0;
+				let controller2RefreshCount = 0;
+				let _items1: IChatSessionItem[] = [];
+				let _items2: IChatSessionItem[] = [];
+
+				const controller1: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						controller1RefreshCount++;
+						_items1 = [makeSimpleSessionItem('session-1', { label: `Session 1 v${controller1RefreshCount}` })];
+					},
+					get items() { return _items1; }
+				};
+
+				const controller2: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						controller2RefreshCount++;
+						_items2 = [makeSimpleSessionItem('session-2', { label: `Session 2 v${controller2RefreshCount}` })];
+					},
+					get items() { return _items2; }
+				};
+
+				registerContribution('type-1');
+				registerContribution('type-2');
+				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
+				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
+
+				viewModel = createViewModel();
+
+				// Resolve all to populate both providers
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 2);
+
+				// Resolve only type-1: should refresh only type-1, preserve type-2
+				const type1RefreshBefore = controller1RefreshCount;
+				const type2RefreshBefore = controller2RefreshCount;
+				await viewModel.resolve('type-1');
+
+				assert.strictEqual(controller1RefreshCount, type1RefreshBefore + 1);
+				assert.strictEqual(controller2RefreshCount, type2RefreshBefore); // not refreshed
+				assert.strictEqual(viewModel.sessions.length, 2); // type-2 session preserved
+
+				// Resolve only type-2: should refresh only type-2, preserve type-1
+				await viewModel.resolve('type-2');
+				assert.strictEqual(controller2RefreshCount, type2RefreshBefore + 1);
+				assert.strictEqual(viewModel.sessions.length, 2); // type-1 session preserved
+			});
+		});
+
+		test('should accumulate providers when resolve is called with different provider types', async () => {
+			return runWithFakedTimers({}, async () => {
+				let resolveCount = 0;
+				const resolvedProviders: (string | undefined)[] = [];
+				let _items1: IChatSessionItem[] = [];
+				let _items2: IChatSessionItem[] = [];
+
+				const controller1: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						resolveCount++;
+						resolvedProviders.push('type-1');
+						_items1 = [makeSimpleSessionItem('session-1')];
+					},
+					get items() { return _items1; }
+				};
+
+				const controller2: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						resolveCount++;
+						resolvedProviders.push('type-2');
+						_items2 = [{
+							resource: URI.parse('test://session-2'),
+							label: 'Session 2',
+							timing: makeNewSessionTiming()
+						}];
+					},
+					get items() { return _items2; }
+				};
+
+				registerContribution('type-1');
+				registerContribution('type-2');
+				mockChatSessionsService.registerChatSessionItemController('type-1', controller1);
+				mockChatSessionsService.registerChatSessionItemController('type-2', controller2);
+
+				viewModel = createViewModel();
+
+				// Call resolve with different types rapidly - they should accumulate
+				const promise1 = viewModel.resolve('type-1');
+				const promise2 = viewModel.resolve(['type-2']);
+
+				await Promise.all([promise1, promise2]);
+
+				// Both providers should be resolved
+				assert.strictEqual(viewModel.sessions.length, 2);
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - Helper Functions', () => {
+		const disposables = new DisposableStore();
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('isLocalAgentSessionItem should identify local sessions', () => {
+			const localSession: IAgentSession = {
+				providerType: localChatSessionType,
+				providerLabel: 'Local',
+				icon: Codicon.chatSparkle,
+				resource: URI.parse('test://local-1'),
+				label: 'Local',
+				description: 'test',
+				timing: makeNewSessionTiming(),
+				status: ChatSessionStatus.Completed,
+				isArchived: () => false,
+				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
+				isRead: () => false,
+				isMarkedUnread: () => false,
+				setRead: read => { }
+			};
+
+			const remoteSession: IAgentSession = {
+				providerType: 'remote',
+				providerLabel: 'Remote',
+				icon: Codicon.chatSparkle,
+				resource: URI.parse('test://remote-1'),
+				label: 'Remote',
+				description: 'test',
+				timing: makeNewSessionTiming(),
+				status: ChatSessionStatus.Completed,
+				isArchived: () => false,
+				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
+				isRead: () => false,
+				isMarkedUnread: () => false,
+				setRead: read => { }
+			};
+
+			assert.strictEqual(isLocalAgentSessionItem(localSession), true);
+			assert.strictEqual(isLocalAgentSessionItem(remoteSession), false);
+		});
+
+		test('isAgentSession should identify session view models', () => {
+			const session: IAgentSession = {
+				providerType: 'test',
+				providerLabel: 'Local',
+				icon: Codicon.chatSparkle,
+				resource: URI.parse('test://test-1'),
+				label: 'Test',
+				description: 'test',
+				timing: makeNewSessionTiming(),
+				status: ChatSessionStatus.Completed,
+				isArchived: () => false,
+				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
+				isRead: () => false,
+				isMarkedUnread: () => false,
+				setRead: read => { }
+			};
+
+			// Test with a session object
+			assert.strictEqual(isAgentSession(session), true);
+
+			// Test with a sessions container - pass as session to see it returns false
+			const sessionOrContainer: IAgentSession = session;
+			assert.strictEqual(isAgentSession(sessionOrContainer), true);
+		});
+
+		test('isAgentSessionsViewModel should identify sessions view models', () => {
+			const session: IAgentSession = {
+				providerType: 'test',
+				providerLabel: 'Local',
+				icon: Codicon.chatSparkle,
+				resource: URI.parse('test://test-1'),
+				label: 'Test',
+				description: 'test',
+				timing: makeNewSessionTiming(),
+				status: ChatSessionStatus.Completed,
+				isArchived: () => false,
+				setArchived: archived => { },
+				isPinned: () => false,
+				setPinned: pinned => { },
+				isRead: () => false,
+				isMarkedUnread: () => false,
+				setRead: read => { }
+			};
+
+			// Test with actual view model
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			const lifecycleService = disposables.add(new TestLifecycleService());
+			instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+			instantiationService.stub(ILifecycleService, lifecycleService);
+			const actualViewModel = disposables.add(instantiationService.createInstance(
+				AgentSessionsModel,
+			));
+			assert.strictEqual(isAgentSessionsModel(actualViewModel), true);
+
+			// Test with session object
+			assert.strictEqual(isAgentSessionsModel(session), false);
+		});
+	});
+
+	suite('AgentSessionsFilter', () => {
+		const disposables = new DisposableStore();
+		const storageKey = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let modelSessions: IAgentSession[];
+		let onDidChangeModelSessions: Emitter<void>;
+
+		function createSession(overrides: Partial<IAgentSession> = {}): IAgentSession {
+			return {
+				providerType: chatSessionTestType,
+				providerLabel: 'Test Provider',
+				icon: Codicon.chatSparkle,
+				resource: URI.parse('test://session'),
+				label: 'Test Session',
+				timing: makeNewSessionTiming(),
+				status: ChatSessionStatus.Completed,
+				isArchived: () => false,
+				setArchived: () => { },
+				isPinned: () => false,
+				setPinned: () => { },
+				isRead: () => false,
+				isMarkedUnread: () => false,
+				setRead: read => { },
+				...overrides
+			};
+		}
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			modelSessions = [];
+			onDidChangeModelSessions = disposables.add(new Emitter<void>());
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override get sessions() { return modelSessions; }
+					override readonly onDidChangeSessions = onDidChangeModelSessions.event;
+				}();
+			}());
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		test('offers no worktree folder whose sessions are all archived, shows all while the selected one\'s are, and the selected one again as one is unarchived', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterArchivedTest');
+			let archived = new Set<string>();
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path }, isArchived: () => archived.has(name) });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			const second = inFolder('second', '/work/vscode.worktrees/second');
+			archived = new Set(['main', 'first', 'second']);
+			modelSessions = [main, first, second];
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
+			const options = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => `${item.command.title}${(item.command.toggled as ContextKeyExpression).serialize() === 'true' ? ' (checked)' : ''}`);
+			const shown = () => [main, first, second].filter(session => !filter.exclude(session)).map(session => session.resource.authority);
+			const allArchived = options();
+			archived = new Set();
+			onDidChangeModelSessions.fire();
+			const item = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).find(candidate => candidate.command.title === 'first')!;
+			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(item.command.id)!.handler(accessor));
+			const selected = { options: options(), shown: shown() };
+			archived = new Set(['first']);
+			onDidChangeModelSessions.fire();
+			const lastArchived = { options: options(), shown: shown(), isDefault: filter.isDefault() };
+			archived = new Set();
+			onDidChangeModelSessions.fire();
+
+			assert.deepStrictEqual({ allArchived, selected, lastArchived, unarchived: { options: options(), shown: shown() } }, {
+				allArchived: [],
+				selected: { options: ['All Worktrees', 'vscode', 'first (checked)', 'second'], shown: ['first'] },
+				lastArchived: { options: ['All Worktrees (checked)', 'vscode', 'second'], shown: ['main', 'first', 'second'], isDefault: true },
+				unarchived: { options: ['All Worktrees', 'vscode', 'first (checked)', 'second'], shown: ['first'] },
+			});
+		});
+
+		test('shows the sessions of all worktree folders or of the one selected, with a single checkmark, until All Worktrees or reset', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterTest');
+			const inFolder = (name: string, metadata: { [key: string]: unknown }) => createSession({ resource: URI.parse(`test://${name}`), metadata });
+			const main = inFolder('main', { workingDirectoryPath: '/work/vscode' });
+			const first = inFolder('first', { workingDirectoryPath: '/work/vscode.worktrees/first' });
+			const second = inFolder('second', { worktreePath: '/elsewhere/second', repositoryPath: '/work/vscode' });
+			const chat = createSession({ resource: URI.parse('test://chat') });
+			modelSessions = [main, chat];
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
+			const submenu = () => MenuRegistry.getMenuItems(filterMenuId).some(item => !isIMenuItem(item) && item.submenu === worktreesMenuId);
+			const checked = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).filter(item => (item.command.toggled as ContextKeyExpression).serialize() === 'true').map(item => item.command.title);
+			const pick = (title: string) => {
+				const item = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).find(candidate => candidate.command.title === title)!;
+				instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(item.command.id)!.handler(accessor));
+			};
+			// Chats without a folder never hide
+			const shown = () => ({ checked: checked(), shown: [main, first, second, chat].filter(session => !filter.exclude(session)).map(session => session.resource.authority), isDefault: filter.isDefault() });
+
+			const withoutWorktrees = { submenu: submenu() };
+			modelSessions = [main, first, second, chat];
+			onDidChangeModelSessions.fire();
+			const offered = { submenu: submenu(), options: MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => item.command.title), ...shown() };
+			pick('first');
+			const firstOnly = shown();
+			pick('second');
+			const secondOnly = shown();
+			pick('All Worktrees');
+			const all = shown();
+			pick('first');
+			filter.reset();
+			const reset = shown();
+			pick('second');
+			// Its last session goes: the folder is no longer offered, and all folders show again
+			modelSessions = [main, first, chat];
+			onDidChangeModelSessions.fire();
+			const stale = { ...shown(), shown: [main, first, chat].filter(session => !filter.exclude(session)).map(session => session.resource.authority) };
+
+			const everything = { checked: ['All Worktrees'], shown: ['main', 'first', 'second', 'chat'], isDefault: true };
+			assert.deepStrictEqual({ withoutWorktrees, offered, firstOnly, secondOnly, all, reset, stale }, {
+				withoutWorktrees: { submenu: false },
+				offered: { submenu: true, options: ['All Worktrees', 'vscode', 'first', 'second'], ...everything },
+				firstOnly: { checked: ['first'], shown: ['first', 'chat'], isDefault: false },
+				secondOnly: { checked: ['second'], shown: ['second', 'chat'], isDefault: false },
+				all: everything,
+				reset: everything,
+				stale: { checked: ['All Worktrees'], shown: ['main', 'first', 'chat'], isDefault: true },
+			});
+		});
+
+		test('tells its consumers as the selected worktree folder comes to apply or no longer does, as its sessions arrive or go', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterEffectiveTest');
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path } });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			const second = inFolder('second', '/work/vscode.worktrees/second');
+			// A folder selected before, whose sessions are not there yet, as at startup
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase) }), StorageScope.PROFILE, StorageTarget.USER);
+			modelSessions = [main, second];
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			// As the Chat view's toolbar shows the list filtered
+			const filtered: boolean[] = [];
+			disposables.add(filter.onDidChange(() => filtered.push(!filter.isDefault())));
+			const initial = !filter.isDefault();
+
+			modelSessions = [main, first, second];
+			onDidChangeModelSessions.fire();
+			const arrived = [...filtered];
+			// Another session in a known folder changes nothing it shows
+			modelSessions = [main, first, second, inFolder('another', '/work/vscode')];
+			onDidChangeModelSessions.fire();
+			const unchanged = [...filtered];
+			modelSessions = [main, second];
+			onDidChangeModelSessions.fire();
+
+			assert.deepStrictEqual({ initial, arrived, unchanged, gone: filtered }, {
+				initial: false,
+				arrived: [true],
+				unchanged: [true],
+				gone: [true, false],
+			});
+		});
+
+		test('tells only of the worktree folders the user picks, not of All Worktrees nor of a stored one that applies again', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterPickTest');
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path } });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			// Stored before, its sessions not there yet, as at startup
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase) }), StorageScope.PROFILE, StorageTarget.USER);
+			modelSessions = [main];
+			const picked: string[] = [];
+			disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId, onDidPickWorktree: worktree => picked.push(worktree) }));
+			modelSessions = [main, first];
+			onDidChangeModelSessions.fire();
+			const late = [...picked];
+			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
+			const pick = (title: string) => {
+				const item = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).find(candidate => candidate.command.title === title)!;
+				instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(item.command.id)!.handler(accessor));
+			};
+			pick('All Worktrees');
+			pick('vscode');
+
+			assert.deepStrictEqual({ late, picks: picked }, {
+				late: [],
+				picks: [getWorktreeFilterKey(URI.file('/work/vscode'), extUriBiasedIgnorePathCase)],
+			});
+		});
+
+		test('opens the session of a picked worktree folder shown last, else its most recent one not archived, and nothing while the shown one works in it', async () => {
+			const archivedNow = new Set<string>();
+			const inFolder = (name: string, path: string, created: number, isArchived = false) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path }, timing: { created, lastRequestStarted: undefined, lastRequestEnded: undefined }, isArchived: () => isArchived || archivedNow.has(name) });
+			const main = inFolder('main', '/work/vscode', 100);
+			const older = inFolder('older', '/work/vscode.worktrees/first', 10);
+			const newer = inFolder('newer', '/work/vscode.worktrees/first', 20);
+			// The most recent of the folder, but archived
+			const archived = inFolder('archived', '/work/vscode.worktrees/first', 90, true);
+			const second = inFolder('second', '/work/vscode.worktrees/second', 50);
+			modelSessions = [main, older, newer, archived, second];
+			const shown = observableValue<IChatViewHostShownSession | undefined>('shown', { resource: main.resource, reason: 'open' });
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession: shown }));
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override get sessions() { return modelSessions; }
+					override readonly onDidChangeSessions = onDidChangeModelSessions.event;
+				}();
+				override getSession(resource: URI) { return modelSessions.find(session => session.resource.toString() === resource.toString()); }
+			}());
+			const opened: string[] = [];
+			class RecordingOpener extends AgentSessionsWorktreeOpener {
+				protected override async openAgentSession(session: IAgentSession): Promise<void> {
+					opened.push(session.resource.authority);
+				}
+			}
+			const opener = disposables.add(instantiationService.createInstance(RecordingOpener));
+			const first = getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase);
+			const show = (session: IAgentSession) => shown.set({ resource: session.resource, reason: 'open' }, undefined);
+
+			await opener.open(first);
+			const mostRecent = [...opened];
+			show(older);
+			show(second);
+			await opener.open(first);
+			const remembered = opened.slice(mostRecent.length);
+			show(newer);
+			await opener.open(first);
+			const alreadyShown = opened.slice(mostRecent.length + remembered.length);
+			// The remembered one is archived, then works in another folder: the folder's most recent one opens instead
+			show(older);
+			show(second);
+			archivedNow.add('older');
+			await opener.open(first);
+			archivedNow.delete('older');
+			modelSessions = modelSessions.map(session => session === older ? inFolder('older', '/work/vscode.worktrees/second', 10) : session);
+			await opener.open(first);
+
+			assert.deepStrictEqual({ mostRecent, remembered, alreadyShown, fallback: opened.slice(mostRecent.length + remembered.length + alreadyShown.length) }, {
+				mostRecent: ['newer'],
+				remembered: ['older'],
+				alreadyShown: [],
+				fallback: ['newer', 'newer'],
+			});
+		});
+
+		test('remembers the session shown of a worktree folder also once where it works becomes known after it shows', async () => {
+			const inFolder = (name: string, path: string | undefined, created: number) => createSession({ resource: URI.parse(`test://${name}`), metadata: path ? { workingDirectoryPath: path } : undefined, timing: { created, lastRequestStarted: undefined, lastRequestEnded: undefined } });
+			// Shown before its first request made known where it works
+			const started = inFolder('started', undefined, 10);
+			const newer = inFolder('newer', '/work/vscode.worktrees/first', 20);
+			const elsewhere = inFolder('elsewhere', '/work/vscode.worktrees/second', 30);
+			modelSessions = [started, newer, elsewhere];
+			const shown = observableValue<IChatViewHostShownSession | undefined>('shown', { resource: started.resource, reason: 'open' });
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession: shown }));
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override get sessions() { return modelSessions; }
+					override readonly onDidChangeSessions = onDidChangeModelSessions.event;
+				}();
+				override getSession(resource: URI) { return modelSessions.find(session => session.resource.toString() === resource.toString()); }
+			}());
+			const opened: string[] = [];
+			class RecordingOpener extends AgentSessionsWorktreeOpener {
+				protected override async openAgentSession(session: IAgentSession): Promise<void> {
+					opened.push(session.resource.authority);
+				}
+			}
+			const opener = disposables.add(instantiationService.createInstance(RecordingOpener));
+			const known = inFolder('started', '/work/vscode.worktrees/first', 10);
+			modelSessions = [known, newer, elsewhere];
+			onDidChangeModelSessions.fire();
+			shown.set({ resource: elsewhere.resource, reason: 'open' }, undefined);
+			await opener.open(getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase));
+
+			assert.deepStrictEqual(opened, ['started']);
+		});
+
+		test('shows all worktree folders for the hidden folders that earlier builds stored', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterLegacyTest');
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path } });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			modelSessions = [main, first];
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktrees: [getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'), extUriBiasedIgnorePathCase)] }), StorageScope.PROFILE, StorageTarget.USER);
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
+			const checked = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).filter(item => (item.command.toggled as ContextKeyExpression).serialize() === 'true').map(item => item.command.title);
+
+			assert.deepStrictEqual({ checked, shown: [main, first].filter(session => !filter.exclude(session)).map(session => session.resource.authority), isDefault: filter.isDefault() }, {
+				checked: ['All Worktrees'],
+				shown: ['main', 'first'],
+				isDefault: true,
+			});
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should initialize with default excludes', () => {
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			// Default: archived sessions should NOT be excluded unless grouped by capped
+			const archivedSession = createSession({
+				isArchived: () => true
+			});
+			const activeSession = createSession({
+				isArchived: () => false
+			});
+
+			assert.strictEqual(filter.exclude(archivedSession), false);
+			assert.strictEqual(filter.exclude(activeSession), false);
+		});
+
+		test('hides local chats while a feature hides them, and shows them again once it no longer does', () => {
+			const availability = disposables.add(new LocalChatAvailabilityService());
+			instantiationService.stub(ILocalChatAvailabilityService, availability);
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId: MenuId.ViewTitle }));
+			let changes = 0;
+			disposables.add(filter.onDidChange(() => changes++));
+			const local = createSession({ providerType: AgentSessionProviders.Local });
+			const other = createSession();
+
+			const shown = [filter.exclude(local), filter.exclude(other)];
+			const hide = availability.hide();
+			const hidden = [filter.exclude(local), filter.exclude(other)];
+			hide.dispose();
+
+			assert.deepStrictEqual({ shown, hidden, again: filter.exclude(local), changes }, { shown: [false, false], hidden: [true, false], again: false, changes: 2 });
+		});
+
+		test('should hide automation sessions by default and persist the filter choice', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const automationSession = createSession({
+				metadata: { isAutomation: true }
+			});
+			const ordinarySession = createSession();
+			const createFilter = () => disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const initial = createFilter();
+			const defaults = [initial.exclude(automationSession), initial.exclude(ordinarySession)];
+			storageService.store(storageKey, JSON.stringify({
+				providers: [],
+				states: [],
+				archived: true,
+				read: false,
+				repositoryGroupCapped: true,
+				automation: false,
+			}), StorageScope.PROFILE, StorageTarget.USER);
+			const shown = initial.exclude(automationSession);
+			initial.dispose();
+			const restored = createFilter();
+			const reloaded = restored.exclude(automationSession);
+			restored.reset();
+
+			assert.deepStrictEqual({ defaults, shown, reloaded, reset: restored.exclude(automationSession) }, {
+				defaults: [true, false],
+				shown: false,
+				reloaded: false,
+				reset: true,
+			});
+		});
+
+		test('should keep automation sessions hidden when restoring older filter preferences', () => {
+			const storageService = instantiationService.get(IStorageService);
+			storageService.store(storageKey, JSON.stringify({
+				providers: [],
+				states: [],
+				archived: false,
+				read: false,
+				repositoryGroupCapped: true,
+			}), StorageScope.PROFILE, StorageTarget.USER);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			assert.strictEqual(filter.exclude(createSession({ metadata: { isAutomation: true } })), true);
+		});
+
+		test('should filter out sessions from excluded provider', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const session1 = createSession({
+				providerType: 'type-1',
+				resource: URI.parse('test://session-1')
+			});
+
+			const session2 = createSession({
+				providerType: 'type-2',
+				resource: URI.parse('test://session-2')
+			});
+
+			// Initially, no sessions should be filtered by provider
+			assert.strictEqual(filter.exclude(session1), false);
+			assert.strictEqual(filter.exclude(session2), false);
+
+			// Exclude type-1 by setting it in storage
+			const excludes = {
+				providers: ['type-1'],
+				states: [],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			// After excluding type-1, session1 should be filtered but not session2
+			assert.strictEqual(filter.exclude(session1), true);
+			assert.strictEqual(filter.exclude(session2), false);
+		});
+
+		test('should filter out multiple excluded controllers', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const session1 = createSession({ providerType: 'type-1' });
+			const session2 = createSession({ providerType: 'type-2' });
+			const session3 = createSession({ providerType: 'type-3' });
+
+			// Exclude type-1 and type-2
+			const excludes = {
+				providers: ['type-1', 'type-2'],
+				states: [],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			assert.strictEqual(filter.exclude(session1), true);
+			assert.strictEqual(filter.exclude(session2), true);
+			assert.strictEqual(filter.exclude(session3), false);
+		});
+
+		test('should not exclude archived sessions when not capped', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const archivedSession = createSession({
+				resource: URI.parse('test://archived-session'),
+				isArchived: () => true
+			});
+
+			const activeSession = createSession({
+				resource: URI.parse('test://active-session'),
+				isArchived: () => false
+			});
+
+			// By default, archived sessions should NOT be filtered when not capped
+			assert.strictEqual(filter.exclude(archivedSession), false);
+			assert.strictEqual(filter.exclude(activeSession), false);
+
+			// Exclude archived by setting archived to true in storage
+			const excludes = {
+				providers: [],
+				states: [],
+				archived: true
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			// Archived exclusion only applies when grouped by capped
+			assert.strictEqual(filter.exclude(archivedSession), false);
+			assert.strictEqual(filter.exclude(activeSession), false);
+		});
+
+		test('should filter out sessions with excluded status', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const failedSession = createSession({
+				resource: URI.parse('test://failed-session'),
+				status: ChatSessionStatus.Failed
+			});
+
+			const completedSession = createSession({
+				resource: URI.parse('test://completed-session'),
+				status: ChatSessionStatus.Completed
+			});
+
+			const inProgressSession = createSession({
+				resource: URI.parse('test://inprogress-session'),
+				status: ChatSessionStatus.InProgress
+			});
+
+			// Initially, no sessions should be filtered by status (archived is default exclude)
+			assert.strictEqual(filter.exclude(failedSession), false);
+			assert.strictEqual(filter.exclude(completedSession), false);
+			assert.strictEqual(filter.exclude(inProgressSession), false);
+
+			// Exclude failed status by setting it in storage
+			const excludes = {
+				providers: [],
+				states: [ChatSessionStatus.Failed],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			// After excluding failed status, only failedSession should be filtered
+			assert.strictEqual(filter.exclude(failedSession), true);
+			assert.strictEqual(filter.exclude(completedSession), false);
+			assert.strictEqual(filter.exclude(inProgressSession), false);
+		});
+
+		test('should filter out multiple excluded statuses', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const failedSession = createSession({ status: ChatSessionStatus.Failed });
+			const completedSession = createSession({ status: ChatSessionStatus.Completed });
+			const inProgressSession = createSession({ status: ChatSessionStatus.InProgress });
+
+			// Exclude failed and in-progress
+			const excludes = {
+				providers: [],
+				states: [ChatSessionStatus.Failed, ChatSessionStatus.InProgress],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			assert.strictEqual(filter.exclude(failedSession), true);
+			assert.strictEqual(filter.exclude(completedSession), false);
+			assert.strictEqual(filter.exclude(inProgressSession), true);
+		});
+
+		test('should combine multiple filter conditions', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const session1 = createSession({
+				providerType: 'type-1',
+				status: ChatSessionStatus.Failed,
+				isArchived: () => true
+			});
+
+			const session2 = createSession({
+				providerType: 'type-2',
+				status: ChatSessionStatus.Completed,
+				isArchived: () => false
+			});
+
+			// Exclude type-1, failed status, and archived
+			const excludes = {
+				providers: ['type-1'],
+				states: [ChatSessionStatus.Failed],
+				archived: true
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			// session1 should be excluded for multiple reasons
+			assert.strictEqual(filter.exclude(session1), true);
+			// session2 should not be excluded
+			assert.strictEqual(filter.exclude(session2), false);
+		});
+
+		test('should emit onDidChange when excludes are updated', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			let changeEventFired = false;
+			disposables.add(filter.onDidChange(() => {
+				changeEventFired = true;
+			}));
+
+			// Update excludes
+			const excludes = {
+				providers: ['type-1'],
+				states: [],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			assert.strictEqual(changeEventFired, true);
+		});
+
+		test('should handle storage updates from other windows', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const session = createSession({ providerType: 'type-1' });
+
+			// Initially not excluded
+			assert.strictEqual(filter.exclude(session), false);
+
+			// Simulate storage update from another window
+			const excludes = {
+				providers: ['type-1'],
+				states: [],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			// Should now be excluded
+			assert.strictEqual(filter.exclude(session), true);
+		});
+
+		test('should register provider filter actions', () => {
+			const controller = new StaticChatSessionItemController([]);
+
+			mockChatSessionsService.registerChatSessionItemController('custom-type-1', controller);
+
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			// Filter should work with custom provider
+			const session = createSession({ providerType: 'custom-type-1' });
+			assert.strictEqual(filter.exclude(session), false);
+		});
+
+		test('should handle providers registered after filter creation', () => {
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const chatSessionType = 'new-type';
+			const controller = new StaticChatSessionItemController([]);
+
+			// Register provider after filter creation
+			mockChatSessionsService.registerChatSessionItemController(chatSessionType, controller);
+			mockChatSessionsService.fireDidChangeItemsProviders({ chatSessionType });
+
+			// Filter should work with new provider
+			const session = createSession({ providerType: 'new-type' });
+			assert.strictEqual(filter.exclude(session), false);
+		});
+
+		test('should not exclude when all filters are disabled', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const session = createSession({
+				providerType: 'type-1',
+				status: ChatSessionStatus.Failed,
+				isArchived: () => true
+			});
+
+			// Disable all filters
+			const excludes = {
+				providers: [],
+				states: [],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			// Nothing should be excluded
+			assert.strictEqual(filter.exclude(session), false);
+		});
+
+		test('should handle empty provider list in storage', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const session = createSession({ providerType: 'type-1' });
+
+			// Set empty provider list
+			const excludes = {
+				providers: [],
+				states: [],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			assert.strictEqual(filter.exclude(session), false);
+		});
+
+		test('should handle different MenuId contexts', () => {
+			const storageService = instantiationService.get(IStorageService);
+
+			// Create two filters with different menu IDs
+			const filter1 = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const filter2 = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewItemContext }
+			));
+
+			const session = createSession({ providerType: 'type-1' });
+
+			// Set excludes only for ViewTitle
+			const excludes = {
+				providers: ['type-1'],
+				states: [],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			// filter1 should exclude the session
+			assert.strictEqual(filter1.exclude(session), true);
+			// filter2 should also exclude the session (shared storage key)
+			assert.strictEqual(filter2.exclude(session), true);
+		});
+
+		test('should handle malformed storage data gracefully', () => {
+			const storageService = instantiationService.get(IStorageService);
+
+			// Store malformed JSON
+			storageService.store(storageKey, 'invalid json', StorageScope.PROFILE, StorageTarget.USER);
+
+			// Filter should still be created with default excludes
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const archivedSession = createSession({ isArchived: () => true });
+			// Default behavior: archived should NOT be excluded
+			assert.strictEqual(filter.exclude(archivedSession), false);
+		});
+
+		test('should prioritize archived check first', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const session = createSession({
+				providerType: 'type-1',
+				status: ChatSessionStatus.Completed,
+				isArchived: () => true
+			});
+
+			// Set excludes for provider and status, but include archived
+			const excludes = {
+				providers: ['type-1'],
+				states: [ChatSessionStatus.Completed],
+				archived: true
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			// Should be excluded due to archived (checked first)
+			assert.strictEqual(filter.exclude(session), true);
+		});
+
+		test('should handle all three status types correctly', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const completedSession = createSession({ status: ChatSessionStatus.Completed });
+			const inProgressSession = createSession({ status: ChatSessionStatus.InProgress });
+			const failedSession = createSession({ status: ChatSessionStatus.Failed });
+
+			// Exclude all statuses
+			const excludes = {
+				providers: [],
+				states: [ChatSessionStatus.Completed, ChatSessionStatus.InProgress, ChatSessionStatus.Failed],
+				archived: false
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			assert.strictEqual(filter.exclude(completedSession), true);
+			assert.strictEqual(filter.exclude(inProgressSession), true);
+			assert.strictEqual(filter.exclude(failedSession), true);
+		});
+
+		test('should exclude sessions from non-allowed providers when allowedProviders is set', () => {
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{
+					filterMenuId: MenuId.ViewTitle,
+					allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
+				}
+			));
+
+			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
+			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
+			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
+			const localSession = createSession({ providerType: AgentSessionProviders.Local });
+
+			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background should be allowed');
+			assert.strictEqual(filter.exclude(cloudSession), false, 'Cloud should be allowed');
+			assert.strictEqual(filter.exclude(claudeSession), true, 'Claude should be excluded');
+			assert.strictEqual(filter.exclude(codexSession), true, 'Codex should be excluded');
+			assert.strictEqual(filter.exclude(localSession), true, 'Local should be excluded');
+		});
+
+		test('should not exclude any provider when allowedProviders is not set', () => {
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
+			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
+			const unknownSession = createSession({ providerType: 'some-unknown-type' });
+
+			assert.strictEqual(filter.exclude(claudeSession), false);
+			assert.strictEqual(filter.exclude(codexSession), false);
+			assert.strictEqual(filter.exclude(unknownSession), false);
+		});
+
+		test('should still apply user excludes on top of allowedProviders', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{
+					filterMenuId: MenuId.ViewTitle,
+					allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
+				}
+			));
+
+			// User excludes Cloud via storage
+			const excludes = {
+				providers: [AgentSessionProviders.Cloud],
+				states: [],
+				archived: false,
+				read: false,
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
+			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.AgentHostClaude });
+
+			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background is allowed and not user-excluded');
+			assert.strictEqual(filter.exclude(cloudSession), true, 'Cloud is allowed but user-excluded');
+			assert.strictEqual(filter.exclude(claudeSession), true, 'Claude is not in allowedProviders');
+		});
+	});
+
+	suite('AgentSessionsViewModel - Session Archiving', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		class MutableArchiveChatSessionItemController implements IChatSessionItemController {
+			readonly onDidChangeChatSessionItems = Event.None;
+			readonly archiveUpdates: boolean[] = [];
+
+			constructor(private sessionItem: IChatSessionItem) { }
+
+			get items(): readonly IChatSessionItem[] {
+				return [this.sessionItem];
+			}
+
+			async refresh(): Promise<void> { }
+
+			setChatSessionItemArchived(_resource: URI, archived: boolean): void {
+				this.archiveUpdates.push(archived);
+			}
+
+			setProviderArchived(archived: boolean): IChatSessionItem {
+				return this.sessionItem = { ...this.sessionItem, archived };
+			}
+		}
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should archive and unarchive sessions', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isArchived(), false);
+
+				// Archive the session
+				session.setArchived(true);
+				assert.strictEqual(session.isArchived(), true);
+
+				// Unarchive the session
+				session.setArchived(false);
+				assert.strictEqual(session.isArchived(), false);
+			});
+		});
+
+		test('should fire onDidChangeSessions when archiving', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				let changeEventFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventFired = true;
+				}));
+
+				session.setArchived(true);
+				assert.strictEqual(changeEventFired, true);
+			});
+		});
+
+		test('should not fire onDidChangeSessions when archiving with same value', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setArchived(true);
+
+				let changeEventFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventFired = true;
+				}));
+
+				// Try to archive again with same value
+				session.setArchived(true);
+				assert.strictEqual(changeEventFired, false);
+			});
+		});
+
+		test('should ignore stale local state for controller-owned archived state', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: true });
+				instantiationService.get(IStorageService).store(
+					'agentSessions.state.cache',
+					JSON.stringify([{ resource: item.resource.toString(), archived: false }]),
+					StorageScope.WORKSPACE,
+					StorageTarget.MACHINE,
+				);
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				const session = viewModel.sessions[0];
+				session.setArchived(false);
+
+				assert.deepStrictEqual({
+					beforeProviderUpdate: session.isArchived(),
+					archiveUpdates: controller.archiveUpdates,
+				}, {
+					beforeProviderUpdate: true,
+					archiveUpdates: [false],
+				});
+			});
+		});
+
+		test('should not create a local overlay for controller-owned archive writes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: false });
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					archived: viewModel.sessions[0].isArchived(),
+					archiveUpdates: controller.archiveUpdates,
+				}, {
+					archived: false,
+					archiveUpdates: [true],
+				});
+			});
+		});
+
+		test('should fire archive state changes only for effective provider transitions', async () => {
+			return runWithFakedTimers({}, async () => {
+				const item = makeSimpleSessionItem('session-1', { archived: false });
+				const controller = new MutableArchiveChatSessionItemController(item);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const archivedEvents: boolean[] = [];
+				disposables.add(viewModel.onDidChangeSessionArchivedState(session => archivedEvents.push(session.isArchived())));
+
+				const archivedItem = controller.setProviderArchived(true);
+				let sessionsChanged = Event.toPromise(viewModel.onDidChangeSessions);
+				mockChatSessionsService.fireDidChangeSessionItems({ addedOrUpdated: [archivedItem] });
+				await sessionsChanged;
+
+				const unchangedItem = controller.setProviderArchived(true);
+				sessionsChanged = Event.toPromise(viewModel.onDidChangeSessions);
+				mockChatSessionsService.fireDidChangeSessionItems({ addedOrUpdated: [unchangedItem] });
+				await sessionsChanged;
+
+				assert.deepStrictEqual({
+					archived: viewModel.sessions[0].isArchived(),
+					archivedEvents,
+				}, {
+					archived: true,
+					archivedEvents: [true],
+				});
+			});
+		});
+
+		test('should preserve archived state from provider', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-1'),
+					label: 'Test Session',
+					archived: true,
+					timing: makeNewSessionTiming()
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isArchived(), true);
+			});
+		});
+
+		test('should override provider archived state with user preference', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-1'),
+					label: 'Test Session',
+					archived: true,
+					timing: makeNewSessionTiming()
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isArchived(), true);
+
+				// User unarchives
+				session.setArchived(false);
+				assert.strictEqual(session.isArchived(), false);
+
+				// Re-resolve should preserve user preference
+				await viewModel.resolve(undefined);
+				const sessionAfterResolve = viewModel.sessions[0];
+				assert.strictEqual(sessionAfterResolve.isArchived(), false);
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - legacyResource migration', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		function uris() {
+			return {
+				oldUri: URI.parse(`${chatSessionTestType}://legacy-1`),
+				newUri: URI.parse(`${chatSessionTestType}://current-1`),
+			};
+		}
+
+		function makeItem(resource: URI, overrides?: Partial<IChatSessionItem>): IChatSessionItem {
+			return {
+				resource,
+				label: `Session ${resource.path}`,
+				timing: makeNewSessionTiming(),
+				...overrides,
+			};
+		}
+
+		test('migrates archived state forward from legacyResource to current resource', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// 1. Provider initially emits item under the legacy URI; user archives it.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+
+				// 2. Provider URI shape changes; new emission carries legacyResource pointing
+				//    at the old URI. Host should adopt the archived state forward.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.deepStrictEqual(
+					{ resource: session.resource.toString(), archived: session.isArchived() },
+					{ resource: newUri.toString(), archived: true },
+				);
+			});
+		});
+
+		test('migrates pinned state forward (not just archived)', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.deepStrictEqual(
+					{ pinned: session.isPinned(), archived: session.isArchived() },
+					{ pinned: true, archived: false },
+				);
+			});
+		});
+
+		test('migrates unread marker forward (read state, not just archived/pinned)', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// Stage 1: mark the old URI explicitly as unread.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setRead(false);
+				assert.strictEqual(viewModel.sessions[0].isMarkedUnread(), true, 'pre-condition: legacy URI marked unread');
+
+				// Stage 2: provider URI shape changes; expect the unread marker to migrate
+				// forward. This proves resolveStateEntry routing covers ALL per-resource
+				// state (archive, pin, read), not just archived/pinned.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isMarkedUnread(), true);
+			});
+		});
+
+		test('does nothing when no host state exists under legacyResource', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri, archived: true })]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				// Falls back to provider-supplied archived bit; no migration needed.
+				assert.strictEqual(viewModel.sessions[0].isArchived(), true);
+			});
+		});
+
+		test('own state wins when both legacy and current URI have host state', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// Stage 1: archive under old URI.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+
+				// Stage 2: emit new URI (no legacyResource yet) and explicitly toggle archive
+				// so that host state is established under the new URI (setArchived no-ops on
+				// values matching the current effective state, so we toggle through true).
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri)]),
+				);
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+				viewModel.sessions[0].setArchived(false);
+
+				// Stage 3: re-emit with legacyResource pointing at the (still-archived) old URI.
+				// Own (new) entry must win.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+
+		test('ignores legacyResource equal to the current resource', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { newUri } = uris();
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: newUri, archived: false })]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				// Sanity: no infinite loop, falls back to provider value.
+				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+
+		test('migrates cross-scheme state only through an explicit controller-owned identity', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { newUri } = uris();
+				const previous = URI.parse('previous-provider:/conversation');
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, new StaticChatSessionItemController([makeItem(previous)]));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+				viewModel.sessions[0].setRead(false);
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, new class extends StaticChatSessionItemController {
+					getPreviousSessionResource(): URI { return previous; }
+				}([makeItem(newUri)]));
+				await viewModel.resolve(undefined);
+				const session = viewModel.sessions[0];
+				assert.deepStrictEqual({ resource: session.resource.toString(), pinned: session.isPinned(), read: session.isRead() }, {
+					resource: newUri.toString(), pinned: true, read: false,
+				});
+			});
+		});
+
+		test('ignores legacyResource with a different scheme', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { newUri } = uris();
+				// Pre-archive an item under a different scheme to seed host state there.
+				const otherScheme = URI.parse('other-scheme://legacy-1');
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(otherScheme)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+
+				// New emission references the other-scheme legacy URI; migration must be refused.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: otherScheme })]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+
+		test('post-migration setArchived writes under current resource and frees the legacy slot', async () => {
+			return runWithFakedTimers({}, async () => {
+				const { oldUri, newUri } = uris();
+				// Stage 1: archive under old URI.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(true);
+
+				// Stage 2: migrate to new URI.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(newUri, { legacyResource: oldUri })]),
+				);
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setArchived(false);
+
+				// Stage 3: provider re-emits the old URI (e.g. backend rollback). Its host
+				// state should be empty — the legacy entry was consumed by the migration,
+				// and setArchived(false) wrote to the new URI, not the legacy one.
+				mockChatSessionsService.registerChatSessionItemController(
+					chatSessionTestType,
+					new StaticChatSessionItemController([makeItem(oldUri)]),
+				);
+				await viewModel.resolve(undefined);
+
+				assert.strictEqual(viewModel.sessions[0].isArchived(), false);
+			});
+		});
+
+		suite('migrated Copilot CLI sessions', () => {
+
+			const legacyUri = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/sess-1' });
+			const twinUri = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/sess-1' });
+
+			function pinnedRows(): { resource: string; pinned: boolean }[] {
+				return viewModel.sessions.map(session => ({ resource: session.resource.toString(), pinned: session.isPinned() }));
+			}
+
+			async function pinLegacyThenMigrate(): Promise<void> {
+				mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, new StaticChatSessionItemController([makeItem(legacyUri)]));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions[0].setPinned(true);
+
+				// Migrated: the agent host lists the twin and the legacy row is deduped away.
+				mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new StaticChatSessionItemController([makeItem(twinUri)]));
+				await viewModel.resolve(undefined);
+			}
+
+			test('copies the pin to the agent-host twin and keeps it on the legacy row', async () => {
+				return runWithFakedTimers({}, async () => {
+					await pinLegacyThenMigrate();
+					const migrated = pinnedRows();
+
+					// Migration turned off again: the twin is gone and the legacy row is listed.
+					mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new StaticChatSessionItemController([]));
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual({ migrated, reverted: pinnedRows() }, {
+						migrated: [{ resource: twinUri.toString(), pinned: true }],
+						reverted: [{ resource: legacyUri.toString(), pinned: true }],
+					});
+				});
+			});
+
+			test('a pin change on the twin wins over the legacy pin', async () => {
+				return runWithFakedTimers({}, async () => {
+					await pinLegacyThenMigrate();
+					viewModel.sessions[0].setPinned(false);
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual(pinnedRows(), [{ resource: twinUri.toString(), pinned: false }]);
+				});
+			});
+
+			test('lists one local row through discovery, adoption, refresh and legacy provider removal', async () => {
+				return runWithFakedTimers({}, async () => {
+					const legacyController = new StaticChatSessionItemController([makeItem(legacyUri)]);
+					const hostController = new StaticChatSessionItemController([]);
+					const legacyRegistration = disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, legacyController));
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, hostController));
+					viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+					const rows = () => viewModel.sessions.map(session => session.resource.toString());
+					await viewModel.resolve(undefined);
+					const beforeDiscovery = rows();
+
+					hostController.setItems([{ ...makeItem(twinUri), metadata: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } }]);
+					await viewModel.resolve(COPILOT_CLI_LOCAL_AH_SCHEME);
+					const discovered = rows();
+					await viewModel.resolve(COPILOT_CLI_EH_SCHEME);
+					const staleLegacyRefresh = rows();
+
+					hostController.setItems([makeItem(twinUri)]);
+					await viewModel.resolve(COPILOT_CLI_LOCAL_AH_SCHEME);
+					const adopted = rows();
+					legacyRegistration.dispose();
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual({
+						beforeDiscovery, discovered, staleLegacyRefresh, adopted, legacyProviderRemoved: rows(),
+					}, {
+						beforeDiscovery: [legacyUri.toString()],
+						discovered: [legacyUri.toString()],
+						staleLegacyRefresh: [legacyUri.toString()],
+						adopted: [twinUri.toString()],
+						legacyProviderRemoved: [twinUri.toString()],
+					});
+				});
+			});
+
+			test('shows the live, archived legacy row instead of its un-opened twin', async () => {
+				return runWithFakedTimers({}, async () => {
+					/** The real host owns archive state for the twin, which it reads from the legacy marker. */
+					class ArchivingController extends StaticChatSessionItemController {
+						setChatSessionItemArchived(): void { }
+					}
+					const legacyController = new StaticChatSessionItemController([makeItem(legacyUri)]);
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, legacyController));
+					viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+					await viewModel.resolve(undefined);
+					viewModel.sessions[0].setArchived(true);
+
+					// The extension host is still running the conversation when the host discovers the un-opened twin.
+					legacyController.setItems([makeItem(legacyUri, { status: ChatSessionStatus.InProgress })]);
+					disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new ArchivingController([
+						{ ...makeItem(twinUri), archived: false, metadata: { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } },
+					])));
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual(viewModel.sessions.map(session => ({
+						resource: session.resource.toString(),
+						status: session.status,
+						archived: session.isArchived(),
+					})), [{ resource: legacyUri.toString(), status: ChatSessionStatus.InProgress, archived: true }]);
+				});
+			});
+
+			test('a peer chat of the twin does not inherit the legacy pin', async () => {
+				return runWithFakedTimers({}, async () => {
+					await pinLegacyThenMigrate();
+					const peerUri = twinUri.with({ fragment: 'new-peer' });
+					mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, new StaticChatSessionItemController([makeItem(twinUri), makeItem(peerUri)]));
+					await viewModel.resolve(undefined);
+
+					assert.deepStrictEqual(pinnedRows(), [
+						{ resource: twinUri.toString(), pinned: true },
+						{ resource: peerUri.toString(), pinned: false },
+					]);
+				});
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - Session Read State', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+			const storageService = instantiationService.get(IStorageService);
+			storageService.store('agentSessions.readDateBaseline2', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should mark session as read and unread', async () => {
+			return runWithFakedTimers({}, async () => {
+				const futureSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-1'),
+					label: 'Session 1',
+					timing: futureSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+
+				// Mark as read
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				// Mark as unread
+				session.setRead(false);
+				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isMarkedUnread(), true);
+			});
+		});
+
+		test('should report isMarkedUnread only when explicitly marked unread', async () => {
+			return runWithFakedTimers({}, async () => {
+				const futureSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-1'),
+					label: 'Session 1',
+					timing: futureSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+
+				// Naturally unread session is NOT marked unread (no explicit user action)
+				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isMarkedUnread(), false);
+
+				// Mark as read, then explicitly mark as unread
+				session.setRead(true);
+				assert.strictEqual(session.isMarkedUnread(), false);
+
+				session.setRead(false);
+				assert.strictEqual(session.isMarkedUnread(), true);
+			});
+		});
+
+		test('should fire onDidChangeSessions when marking as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(false); // ensure it's unread first
+
+				let changeEventFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventFired = true;
+				}));
+
+				session.setRead(true);
+				assert.strictEqual(changeEventFired, true);
+			});
+		});
+
+		test('should not fire onDidChangeSessions when marking as read with same value', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(true);
+
+				let changeEventFired = false;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventFired = true;
+				}));
+
+				// Try to mark as read again with same value
+				session.setRead(true);
+				assert.strictEqual(changeEventFired, false);
+			});
+		});
+
+		test('should preserve read state after re-resolve', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				// Re-resolve should preserve read state
+				await viewModel.resolve(undefined);
+				const sessionAfterResolve = viewModel.sessions[0];
+				assert.strictEqual(sessionAfterResolve.isRead(), true);
+			});
+		});
+
+		test('should consider sessions before initial date as read by default', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Without migration, all sessions are unread by default
+				const oldSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: Date.UTC(2025, 10 /* November */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://old-session'),
+					label: 'Old Session',
+					timing: oldSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Sessions are unread by default (migration already happened in setup)
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should consider sessions after initial date as unread by default', async () => {
+			return runWithFakedTimers({}, async () => {
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://new-session'),
+					label: 'New Session',
+					timing: newSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Sessions after the initial date should be considered unread
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should use endTime for read state comparison when available', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with startTime before initial date but endTime after
+				const sessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 1),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-with-endtime'),
+					label: 'Session With EndTime',
+					timing: sessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Should use lastRequestEnded (December 10) which is after the initial date
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should use startTime for read state comparison when endTime is not available', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with only startTime
+				const sessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: undefined,
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-no-endtime'),
+					label: 'Session Without EndTime',
+					timing: sessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Sessions are unread by default
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should treat archived sessions as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://new-session'),
+					label: 'New Session',
+					timing: newSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Session after the initial date should be unread by default
+				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isArchived(), false);
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Archived sessions should always be considered read
+				assert.strictEqual(session.isArchived(), true);
+				assert.strictEqual(session.isRead(), true);
+			});
+		});
+
+		test('should mark session as read when archiving', async () => {
+			return runWithFakedTimers({}, async () => {
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://new-session'),
+					label: 'New Session',
+					timing: newSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), false);
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Should be read after archiving (archived sessions are always read)
+				assert.strictEqual(session.isRead(), true);
+
+				// Unarchive the session
+				session.setArchived(false);
+
+				// After unarchiving, the read state depends on the stored read date vs session timing.
+				// When archiving marked the session as read, the read date was set to the test's
+				// faked Date.now() which may be earlier than the session's lastRequestEnded,
+				// so the session may appear unread again based on the time comparison.
+				assert.strictEqual(session.isArchived(), false);
+			});
+		});
+
+		test('should fire onDidChangeSessions when archiving an unread session', async () => {
+			return runWithFakedTimers({}, async () => {
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://new-session'),
+					label: 'New Session',
+					timing: newSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), false);
+
+				let changeEventCount = 0;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventCount++;
+				}));
+
+				// Archive the session (which also marks as read)
+				session.setArchived(true);
+
+				// Fires twice: once for setting read state, once for setting archived state
+				assert.strictEqual(changeEventCount, 2);
+			});
+		});
+
+		test('should not fire onDidChangeSessions when archiving an already read session', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with timing
+				const oldSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: Date.UTC(2025, 10 /* November */, 2),
+				};
+
+				const chatSessionType = chatSessionTestType;
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://old-session'),
+					label: 'Old Session',
+					timing: oldSessionTiming,
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Mark session as read first
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				let changeEventCount = 0;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventCount++;
+				}));
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Should fire only once for archived state change since session is already read
+				assert.strictEqual(changeEventCount, 1);
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - Provider-owned Read State', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		class OpenChatWidgetService extends TestChatWidgetService {
+			private readonly widget = new class extends mock<IChatWidget>() { };
+
+			constructor(private readonly openSessionResource: URI) {
+				super();
+			}
+
+			override getWidgetBySessionResource(resource: URI): IChatWidget | undefined {
+				return isEqual(resource, this.openSessionResource) ? this.widget : undefined;
+			}
+		}
+
+		/** Mirrors the Agent Host controller: records the mutation, then echoes it back. */
+		class ReadOwningController implements IChatSessionItemController {
+			private readonly _onDidChangeChatSessionItems = disposables.add(new Emitter<IChatSessionItemsDelta>());
+			readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
+
+			readonly mutations: { resource: string; isRead: boolean }[] = [];
+
+			constructor(private _items: IChatSessionItem[]) { }
+
+			get items(): readonly IChatSessionItem[] {
+				return this._items;
+			}
+
+			async refresh(): Promise<void> { }
+
+			setItems(items: IChatSessionItem[]): void {
+				this._items = items;
+				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+			}
+
+			setChatSessionItemRead(resource: URI, isRead: boolean): void {
+				this.mutations.push({ resource: resource.toString(), isRead });
+				this._items = this._items.map(item => isEqual(item.resource, resource) ? { ...item, isRead } : item);
+				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+			}
+		}
+
+		const sessionTiming: IChatSessionItem['timing'] = {
+			created: Date.UTC(2026, 1 /* February */, 1),
+			lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+			lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+		};
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+			const storageService = instantiationService.get(IStorageService);
+			storageService.store('agentSessions.readDateBaseline2', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('keeps an open session read when a later provider unread update arrives', async () => {
+			return runWithFakedTimers({}, async () => {
+				const resource = URI.parse('test-type://owned-session');
+				const controller = new ReadOwningController([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+				instantiationService.stub(IChatWidgetService, new OpenChatWidgetService(resource));
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				controller.setItems([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: false,
+				}]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+					isRead: true,
+					isMarkedUnread: false,
+				});
+			});
+		});
+
+		test('preserves an explicit unread update for an open session', async () => {
+			return runWithFakedTimers({}, async () => {
+				const resource = URI.parse('test-type://owned-session');
+				const controller = new ReadOwningController([{
+					resource,
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+				instantiationService.stub(IChatWidgetService, new OpenChatWidgetService(resource));
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				viewModel.sessions[0].setRead(false);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: false }],
+					isRead: false,
+					isMarkedUnread: true,
+				});
+			});
+		});
+
+		test('reads the provider value and routes mutations back to it', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: false,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const initial = {
+					isRead: viewModel.sessions[0].isRead(),
+					isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+				};
+
+				viewModel.sessions[0].setRead(true);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					initial,
+					mutations: controller.mutations,
+					afterMarkRead: {
+						isRead: viewModel.sessions[0].isRead(),
+						isMarkedUnread: viewModel.sessions[0].isMarkedUnread(),
+					},
+				}, {
+					initial: { isRead: false, isMarkedUnread: true },
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+					afterMarkRead: { isRead: true, isMarkedUnread: false },
+				});
+			});
+		});
+
+		test('provider unread wins over the local heuristics', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					// Old enough that the local baseline heuristic would call it read.
+					timing: { created: 1, lastRequestStarted: 1, lastRequestEnded: 1 },
+					isRead: false,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined); // pick up the provider echo
+
+				// The migration hands the locally-read state to the provider rather
+				// than overriding it locally, keeping the provider authoritative.
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+				}, {
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+					isRead: true,
+				});
+			});
+		});
+
+		test('does not migrate a session the provider already reports as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: sessionTiming,
+					isRead: true,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual(controller.mutations, []);
+			});
+		});
+
+		test('hands a migrated Copilot CLI session\'s legacy read state to the agent host', async () => {
+			return runWithFakedTimers({}, async () => {
+				const legacyRead = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/read' });
+				const legacyUnread = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/unread' });
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_EH_SCHEME, new StaticChatSessionItemController([
+					{ resource: legacyRead, label: 'Read', timing: sessionTiming },
+					{ resource: legacyUnread, label: 'Unread', timing: sessionTiming },
+				])));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				viewModel.sessions.find(session => isEqual(session.resource, legacyRead))!.setRead(true);
+				viewModel.sessions.find(session => isEqual(session.resource, legacyUnread))!.setRead(false);
+
+				// The agent host lists both twins as unread before they are opened.
+				const controller = new ReadOwningController(['/read', '/unread'].map(path => ({
+					resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path }),
+					label: path,
+					timing: sessionTiming,
+					isRead: false,
+				})));
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, controller));
+				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined); // pick up the provider echo
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					twins: viewModel.sessions.map(session => ({ resource: session.resource.toString(), isRead: session.isRead() })),
+				}, {
+					mutations: [{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/read`, isRead: true }],
+					twins: [
+						{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/read`, isRead: true },
+						{ resource: `${COPILOT_CLI_LOCAL_AH_SCHEME}:/unread`, isRead: false },
+					],
+				});
+			});
+		});
+
+		test('keeps a migrated Copilot CLI session\'s read state locally until it is opened, because the host drops read toggles', async () => {
+			return runWithFakedTimers({}, async () => {
+				/** Mirrors the real host: read toggles on an un-opened adoptable row are dropped. */
+				class DroppingController extends ReadOwningController {
+					override setChatSessionItemRead(resource: URI, isRead: boolean): void {
+						const item = this.items.find(candidate => isEqual(candidate.resource, resource));
+						if (item?.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true) {
+							this.mutations.push({ resource: resource.toString(), isRead });
+							return;
+						}
+						super.setChatSessionItemRead(resource, isRead);
+					}
+				}
+				const legacy = (path: string) => URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path });
+				const twin = (path: string) => URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path });
+				// Earlier window: the user marked /unread unread and read /read in the legacy list.
+				instantiationService.get(IStorageService).store('agentSessions.state.cache', JSON.stringify([
+					{ resource: legacy('/unread').toString(), read: -1 },
+					{ resource: legacy('/read').toString(), read: Date.UTC(2026, 1 /* February */, 3) },
+				]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				// The host announces both un-opened twins: /unread with its default read, /read as unread.
+				const adoptable = { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
+				const controller = new DroppingController([
+					{ resource: twin('/unread'), label: 'Unread', timing: sessionTiming, isRead: true, metadata: adoptable },
+					{ resource: twin('/read'), label: 'Read', timing: sessionTiming, isRead: false, metadata: adoptable },
+				]);
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(COPILOT_CLI_LOCAL_AH_SCHEME, controller));
+				const rows = () => viewModel.sessions.map(session => ({ resource: session.resource.toString(), isRead: session.isRead() }));
+
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+				const initial = rows();
+
+				// A later toggle is kept locally too.
+				viewModel.sessions.find(session => isEqual(session.resource, twin('/unread')))!.setRead(true);
+				const afterMarkRead = rows();
+				const mutationsBeforeOpen = [...controller.mutations];
+
+				// Opening adopts: the host owns read state from then on, and the
+				// one-shot hand-off now promotes the legacy read date.
+				controller.setItems([
+					{ resource: twin('/unread'), label: 'Unread', timing: sessionTiming, isRead: true },
+					{ resource: twin('/read'), label: 'Read', timing: sessionTiming, isRead: false },
+				]);
+				await viewModel.resolve(undefined);
+				await viewModel.resolve(undefined); // pick up the provider echo
+
+				assert.deepStrictEqual({ initial, afterMarkRead, mutationsBeforeOpen, afterOpen: rows(), mutationsAfterOpen: controller.mutations.slice(mutationsBeforeOpen.length) }, {
+					initial: [
+						{ resource: twin('/unread').toString(), isRead: false },
+						{ resource: twin('/read').toString(), isRead: true },
+					],
+					afterMarkRead: [
+						{ resource: twin('/unread').toString(), isRead: true },
+						{ resource: twin('/read').toString(), isRead: true },
+					],
+					mutationsBeforeOpen: [],
+					afterOpen: [
+						{ resource: twin('/unread').toString(), isRead: true },
+						{ resource: twin('/read').toString(), isRead: true },
+					],
+					mutationsAfterOpen: [{ resource: twin('/read').toString(), isRead: true }],
+				});
+			});
+		});
+
+		test('defers migration until the provider has reported a value', async () => {
+			return runWithFakedTimers({}, async () => {
+				// A session carried over from a cache predating the field reports
+				// `undefined`; consuming the one-shot flag here would lose the
+				// hand-off for good.
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: { created: 1, lastRequestStarted: 1, lastRequestEnded: 1 },
+					isRead: undefined,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const beforeReport = controller.mutations.length;
+
+				controller.setItems([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: { created: 1, lastRequestStarted: 1, lastRequestEnded: 1 },
+					isRead: false,
+				}]);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					beforeReport,
+					mutations: controller.mutations,
+				}, {
+					beforeReport: 0,
+					mutations: [{ resource: 'test-type://owned-session', isRead: true }],
+				});
+			});
+		});
+
+		test('does not resurrect read state on a later refresh after marking unread', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new ReadOwningController([{
+					resource: URI.parse('test-type://owned-session'),
+					label: 'Owned Session',
+					timing: { created: 1, lastRequestStarted: 1, lastRequestEnded: 1 },
+					isRead: false,
+				}]);
+
+				disposables.add(mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller));
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined); // migration promotes to read
+				await viewModel.resolve(undefined); // pick up the provider echo
+
+				viewModel.sessions[0].setRead(false);
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					mutations: controller.mutations,
+					isRead: viewModel.sessions[0].isRead(),
+				}, {
+					mutations: [
+						{ resource: 'test-type://owned-session', isRead: true },
+						{ resource: 'test-type://owned-session', isRead: false },
+					],
+					isRead: false,
+				});
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - State Tracking', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should track status transitions', async () => {
+			return runWithFakedTimers({}, async () => {
+				let sessionStatus = ChatSessionStatus.InProgress;
+				let _items: IChatSessionItem[] = [];
+
+				const controller: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						_items = [{
+							resource: URI.parse('test://session-1'),
+							label: 'Test Session',
+							status: sessionStatus,
+							timing: makeNewSessionTiming()
+						}];
+					},
+					get items() { return _items; }
+				};
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions[0].status, ChatSessionStatus.InProgress);
+
+				// Change status
+				sessionStatus = ChatSessionStatus.Completed;
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions[0].status, ChatSessionStatus.Completed);
+			});
+		});
+
+		test('should clean up state tracking for removed sessions', async () => {
+			return runWithFakedTimers({}, async () => {
+				let includeSessions = true;
+				let _items: IChatSessionItem[] = [];
+
+				const controller: IChatSessionItemController = {
+					onDidChangeChatSessionItems: Event.None,
+					refresh: async () => {
+						if (includeSessions) {
+							_items = [makeSimpleSessionItem('session-1')];
+						} else {
+							_items = [];
+						}
+					},
+					get items() { return _items; }
+				};
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 1);
+
+				// Remove sessions
+				includeSessions = false;
+				await viewModel.resolve(undefined);
+				assert.strictEqual(viewModel.sessions.length, 0);
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - Provider Icons and Names', () => {
+		const disposables = new DisposableStore();
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should return correct name for Local provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.Local);
+			assert.ok(name.length > 0);
+		});
+
+		test('should return detailed Local provider description', () => {
+			const description = getAgentSessionProviderDescription(AgentSessionProviders.Local);
+			assert.strictEqual(description, 'Run tasks within VS Code\'s long-standing proprietary agent harness. The agent works in VS Code\'s extension host, iterates via chat, and works interactively to implement changes on your main workspace.');
+		});
+
+		test('should return correct name for Background provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.Background);
+			assert.ok(name.length > 0);
+		});
+
+		test('should return correct name for Cloud provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.Cloud);
+			assert.ok(name.length > 0);
+		});
+
+		test('should return correct icon for Local provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Local);
+			assert.strictEqual(icon.id, Codicon.vm.id);
+		});
+
+		test('should return correct icon for Background provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
+			assert.strictEqual(icon.id, Codicon.copilot.id);
+		});
+
+		test('should return correct icon for Cloud provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Cloud);
+			assert.strictEqual(icon.id, Codicon.cloud.id);
+		});
+
+		test('should return correct icon for AgentHostCopilot provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(icon.id, Codicon.copilot.id);
+		});
+
+		test('should return simplified AgentHostCopilot name', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(name, 'Copilot');
+		});
+
+		test('should return detailed AgentHostCopilot provider description', () => {
+			const description = getAgentSessionProviderDescription(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(description, 'Run tasks using the Copilot SDK, which is the agent experience shared consistently across GitHub Copilot products. The agent works in the Agent Host, which lets sessions continue in the background, independently of an editor window.');
+		});
+
+		test('should return correct name for Growth provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.Growth);
+			assert.strictEqual(name, 'Growth');
+		});
+
+		test('should return correct icon for Growth provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Growth);
+			assert.strictEqual(icon.id, Codicon.lightbulb.id);
+		});
+
+		test('should return correct name for AgentHostClaude provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(name, 'Claude');
+		});
+
+		test('should return correct icon for AgentHostClaude provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(icon.id, Codicon.claude.id);
+		});
+
+		test('should return correct name for AgentHostCodex provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(name, 'Codex');
+		});
+
+		test('should return correct icon for AgentHostCodex provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(icon.id, Codicon.openai.id);
+		});
+
+		test('should resolve AgentHostClaude provider from session type', () => {
+			const provider = getAgentSessionProvider(AgentSessionProviders.AgentHostClaude);
+			assert.strictEqual(provider, AgentSessionProviders.AgentHostClaude);
+		});
+
+		test('should resolve AgentHostCodex provider from session type', () => {
+			const provider = getAgentSessionProvider(AgentSessionProviders.AgentHostCodex);
+			assert.strictEqual(provider, AgentSessionProviders.AgentHostCodex);
+		});
+
+		test('should handle Local provider type in model', async () => {
+			return runWithFakedTimers({}, async () => {
+				const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+				const mockChatSessionsService = new MockChatSessionsService();
+				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(AgentSessionProviders.Local, controller);
+				const viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.providerType, AgentSessionProviders.Local);
+				assert.strictEqual(session.icon.id, Codicon.vm.id);
+				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(AgentSessionProviders.Local));
+			});
+		});
+
+		test('should handle Background provider type in model', async () => {
+			return runWithFakedTimers({}, async () => {
+				const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+				const mockChatSessionsService = new MockChatSessionsService();
+				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(AgentSessionProviders.Background, controller);
+				const viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.providerType, AgentSessionProviders.Background);
+				assert.strictEqual(session.icon.id, Codicon.copilot.id);
+				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(AgentSessionProviders.Background));
+			});
+		});
+
+		test('should handle Cloud provider type in model', async () => {
+			return runWithFakedTimers({}, async () => {
+				const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+				const mockChatSessionsService = new MockChatSessionsService();
+				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(AgentSessionProviders.Cloud, controller);
+				const viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.providerType, AgentSessionProviders.Cloud);
+				assert.strictEqual(session.icon.id, Codicon.cloud.id);
+				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(AgentSessionProviders.Cloud));
+			});
+		});
+
+		test('should use custom icon from session item', async () => {
+			return runWithFakedTimers({}, async () => {
+				const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+				const mockChatSessionsService = new MockChatSessionsService();
+				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+
+				const customIcon = ThemeIcon.fromId('beaker');
+				const controller = new StaticChatSessionItemController([{
+					resource: URI.parse('test://session-1'),
+					label: 'Test Session',
+					iconPath: customIcon,
+					timing: makeNewSessionTiming()
+				}]);
+
+				mockChatSessionsService.registerChatSessionItemController('custom-type', controller);
+				const viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.icon.id, customIcon.id);
+			});
+		});
+
+		test('should use default icon for custom provider without iconPath', async () => {
+			return runWithFakedTimers({}, async () => {
+				const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+				const mockChatSessionsService = new MockChatSessionsService();
+				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController('custom-type', controller);
+				const viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.icon.id, Codicon.terminal.id);
+			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - getAgentCanContinueIn', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should return false for Local provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Local);
+			assert.strictEqual(result, false);
+		});
+
+		test('should return true for Cloud provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Cloud);
+			assert.strictEqual(result, true);
+		});
+
+		test('should return false for Growth provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Growth);
+			assert.strictEqual(result, false);
+		});
+
+		test('should return true for the Copilot agent host provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.AgentHostCopilot);
+			assert.strictEqual(result, true);
+		});
+
+		test('should return true for dynamically registered agent host session types', () => {
+			assert.strictEqual(getAgentCanContinueIn('agent-host-codex'), true);
+			assert.strictEqual(getAgentCanContinueIn('agent-host-claude'), true);
+			assert.strictEqual(getAgentCanContinueIn('remote-myauthority-copilot'), true);
+		});
+
+		test('should return false for unknown extension-host session types', () => {
+			assert.strictEqual(getAgentCanContinueIn('some-extension-session'), false);
+		});
+	});
+
+	suite('AgentSessionsViewModel - Cancellation and Lifecycle', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let mockLifecycleService: TestLifecycleService;
+		let instantiationService: TestInstantiationService;
+		let viewModel: AgentSessionsModel;
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			mockLifecycleService = disposables.add(new TestLifecycleService());
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, mockLifecycleService);
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should not resolve if lifecycle will shutdown', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				// Set willShutdown to true
+				mockLifecycleService.willShutdown = true;
+
+				await viewModel.resolve(undefined);
+
+				// Should not resolve sessions
+				assert.strictEqual(viewModel.sessions.length, 0);
+			});
+		});
+	});
+
+	suite('AgentSessionsFilter - Dynamic Provider Registration', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override readonly sessions = [];
+					override readonly onDidChangeSessions = Event.None;
+				}();
+			}());
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should respond to onDidChangeAvailability', () => {
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			disposables.add(filter.onDidChange(() => {
+				// Event handler registered to verify filter responds to availability changes
+			}));
+
+			// Trigger availability change
+			mockChatSessionsService.fireDidChangeAvailability();
+
+			// Filter should update its actions (internally)
+			// We can't directly test action registration but we verified event handling
+		});
+	});
+
+}); // End of Agent Sessions suite
+
+const chatSessionTestType = 'test-type';
+
+function makeSimpleSessionItem(id: string, overrides?: Partial<IChatSessionItem>): IChatSessionItem {
+	return {
+		resource: URI.parse(`${chatSessionTestType}://${id}`),
+		label: `Session ${id}`,
+		timing: makeNewSessionTiming(),
+		...overrides
+	};
+}
+
+function makeNewSessionTiming(options?: {
+	created?: number;
+	lastRequestStarted?: number | undefined;
+	lastRequestEnded?: number | undefined;
+}): IChatSessionItem['timing'] {
+	const now = Date.now();
+	return {
+		created: options?.created ?? now,
+		lastRequestStarted: options?.lastRequestStarted,
+		lastRequestEnded: options?.lastRequestEnded,
+	};
+}

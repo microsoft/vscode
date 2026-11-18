@@ -1,0 +1,2 @@
+// This file is determined to be Windows-1252 unless candidateDetectEncoding is set.
+‚±‚ñ‚É‚¿‚Í

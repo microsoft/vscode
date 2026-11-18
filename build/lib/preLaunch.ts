@@ -2,19 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-// @ts-check
-
-import * as path from 'path';
+import path from 'path';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
+import { getPnpmCommand } from './pnpm.ts';
 
-const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
-const rootDir = path.resolve(__dirname, '..', '..');
+const rootDir = path.resolve(import.meta.dirname, '..', '..');
 
-function runProcess(command: string, args: ReadonlyArray<string> = []) {
+function runPnpm(args: ReadonlyArray<string>, env: NodeJS.ProcessEnv = process.env) {
+	const pnpm = getPnpmCommand();
 	return new Promise<void>((resolve, reject) => {
-		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env });
+		const child = spawn(pnpm.command, [...pnpm.args, ...args], { cwd: rootDir, stdio: 'inherit', env, shell: pnpm.shell });
 		child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
 		child.on('error', reject);
 	});
@@ -31,17 +29,22 @@ async function exists(subdir: string) {
 
 async function ensureNodeModules() {
 	if (!(await exists('node_modules'))) {
-		await runProcess(yarn);
+		// pnpm doesn't pass --frozen-lockfile on to the installs of the separate install roots that
+		// the postinstall runs; the environment variable reaches them.
+		await runPnpm(['install', '--frozen-lockfile'], { ...process.env, PNPM_CONFIG_FROZEN_LOCKFILE: 'true' });
 	}
 }
 
 async function getElectron() {
-	await runProcess(yarn, ['electron']);
+	const { shouldDownloadElectron } = await import('./electronVersion.ts');
+	if (shouldDownloadElectron(rootDir)) {
+		await runPnpm(['run', 'electron']);
+	}
 }
 
 async function ensureCompiled() {
 	if (!(await exists('out'))) {
-		await runProcess(yarn, ['compile']);
+		await runPnpm(['run', 'compile']);
 	}
 }
 
@@ -51,11 +54,11 @@ async function main() {
 	await ensureCompiled();
 
 	// Can't require this until after dependencies are installed
-	const { getBuiltInExtensions } = require('./builtInExtensions');
+	const { getBuiltInExtensions } = await import('./builtInExtensions.ts');
 	await getBuiltInExtensions();
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().catch(err => {
 		console.error(err);
 		process.exit(1);

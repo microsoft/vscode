@@ -3,25 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsList';
-import { localize } from 'vs/nls';
-import { isAncestor, trackFocus } from 'vs/base/browser/dom';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
-import { INotificationViewItem } from 'vs/workbench/common/notifications';
-import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
-import { CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import './media/notificationsList.css';
+import { localize } from '../../../../nls.js';
+import { $, addDisposableListener, getWindow, isAncestorOfActiveElement, scheduleAtNextAnimationFrame, trackFocus } from '../../../../base/browser/dom.js';
+import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListAccessibilityProvider, IListOptions } from '../../../../base/browser/ui/list/listWidget.js';
+import { NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
+import { INotificationViewItem } from '../../../common/notifications.js';
+import { NotificationsListDelegate, NotificationRenderer } from './notificationsViewer.js';
+import { CopyNotificationMessageAction } from './notificationsActions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { assertReturnsAllDefined } from '../../../../base/common/types.js';
+import { NotificationFocusedContext } from '../../../common/contextkeys.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
+import { NotificationActionRunner } from './notificationsCommands.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logNotificationExpansion, logNotificationShown, NotificationTelemetrySurface } from '../../../common/notificationTelemetry.js';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
-	widgetAriaLabel?: string;
+	readonly widgetAriaLabel?: string;
+	readonly telemetrySurface?: NotificationTelemetrySurface;
 }
 
 export class NotificationsList extends Disposable {
@@ -31,23 +37,37 @@ export class NotificationsList extends Disposable {
 	private listDelegate: NotificationsListDelegate | undefined;
 	private viewModel: INotificationViewItem[] = [];
 	private isVisible: boolean | undefined;
+	private telemetryVisible = false;
+	private readonly visibilityUpdate = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly options: INotificationsListOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
 
-	show(focus?: boolean): void {
-		if (this.isVisible) {
-			if (focus) {
-				const list = assertIsDefined(this.list);
-				list.domFocus();
-			}
+	updateNotificationHeights(): void {
+		if (!this.list) {
+			return;
+		}
 
+		const focus = this.list.getFocus();
+		const focusedIndex = focus[0];
+		const focusRelativeTop = typeof focusedIndex === 'number' ? this.list.getRelativeTop(focusedIndex) : null;
+		this.list.splice(0, this.viewModel.length, this.viewModel);
+		if (typeof focusRelativeTop === 'number') {
+			this.list.reveal(focusedIndex, focusRelativeTop);
+		}
+		this.list.setFocus(focus);
+		this.scheduleVisibilityUpdate();
+	}
+
+	show(): void {
+		if (this.isVisible) {
 			return; // already visible
 		}
 
@@ -58,21 +78,14 @@ export class NotificationsList extends Disposable {
 
 		// Make visible
 		this.isVisible = true;
-
-		// Focus
-		if (focus) {
-			const list = assertIsDefined(this.list);
-			list.domFocus();
-		}
 	}
 
 	private createNotificationsList(): void {
 
 		// List Container
-		this.listContainer = document.createElement('div');
-		this.listContainer.classList.add('notifications-list-container');
+		this.listContainer = $('.notifications-list-container');
 
-		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
+		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner, this.options.telemetrySurface));
 
 		// Notification Renderer
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
@@ -80,8 +93,8 @@ export class NotificationsList extends Disposable {
 		// List
 		const listDelegate = this.listDelegate = new NotificationsListDelegate(this.listContainer);
 		const options = this.options;
-		const list = this.list = <WorkbenchList<INotificationViewItem>>this._register(this.instantiationService.createInstance(
-			WorkbenchList,
+		const list = this.list = this._register(this.instantiationService.createInstance(
+			WorkbenchList<INotificationViewItem>,
 			'NotificationsList',
 			this.listContainer,
 			listDelegate,
@@ -93,21 +106,7 @@ export class NotificationsList extends Disposable {
 				overrideStyles: {
 					listBackground: NOTIFICATIONS_BACKGROUND
 				},
-				accessibilityProvider: {
-					getAriaLabel(element: INotificationViewItem): string {
-						if (!element.source) {
-							return localize('notificationAriaLabel', "{0}, notification", element.message.raw);
-						}
-
-						return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
-					},
-					getWidgetAriaLabel(): string {
-						return options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
-					},
-					getRole(): AriaRole {
-						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
-					}
-				}
+				accessibilityProvider: this.instantiationService.createInstance(NotificationAccessibilityProvider, options)
 			}
 		));
 
@@ -127,14 +126,21 @@ export class NotificationsList extends Disposable {
 		})));
 
 		// Toggle on double click
-		this._register((list.onMouseDblClick(event => (event.element as INotificationViewItem).toggle())));
+		this._register(list.onMouseDblClick(event => {
+			if (event.element) {
+				logNotificationExpansion(this.telemetryService, event.element, !event.element.expanded, this.options.telemetrySurface);
+				event.element.toggle();
+			}
+		}));
+		this._register(list.onDidScroll(() => this.scheduleVisibilityUpdate()));
+		this._register(addDisposableListener(getWindow(this.container).document, 'visibilitychange', () => this.scheduleVisibilityUpdate()));
 
 		// Clear focus when DOM focus moves out
 		// Use document.hasFocus() to not clear the focus when the entire window lost focus
 		// This ensures that when the focus comes back, the notification is still focused
 		const listFocusTracker = this._register(trackFocus(list.getHTMLElement()));
 		this._register(listFocusTracker.onDidBlur(() => {
-			if (document.hasFocus()) {
+			if (getWindow(this.listContainer).document.hasFocus()) {
 				list.setFocus([]);
 			}
 		}));
@@ -155,8 +161,8 @@ export class NotificationsList extends Disposable {
 	}
 
 	updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
-		const [list, listContainer] = assertAllDefined(this.list, this.listContainer);
-		const listHasDOMFocus = isAncestor(document.activeElement, listContainer);
+		const [list, listContainer] = assertReturnsAllDefined(this.list, this.listContainer);
+		const listHasDOMFocus = isAncestorOfActiveElement(listContainer);
 
 		// Remember focus and relative top of that item
 		const focusedIndex = list.getFocus()[0];
@@ -204,6 +210,7 @@ export class NotificationsList extends Disposable {
 		if (this.isVisible && listHasDOMFocus) {
 			list.domFocus();
 		}
+		this.scheduleVisibilityUpdate();
 	}
 
 	updateNotificationHeight(item: INotificationViewItem): void {
@@ -212,12 +219,59 @@ export class NotificationsList extends Disposable {
 			return;
 		}
 
-		const [list, listDelegate] = assertAllDefined(this.list, this.listDelegate);
+		const [list, listDelegate] = assertReturnsAllDefined(this.list, this.listDelegate);
 		list.updateElementHeight(index, listDelegate.getHeight(item));
 		list.layout();
+		this.scheduleVisibilityUpdate();
+	}
+
+	/** Called after the owning surface finishes layout, not while toasts are being measured. */
+	setTelemetryVisibility(visible: boolean): void {
+		this.telemetryVisible = visible;
+		if (visible) {
+			this.scheduleVisibilityUpdate();
+		} else {
+			this.visibilityUpdate.clear();
+		}
+	}
+
+	private scheduleVisibilityUpdate(): void {
+		if (!this.telemetryVisible || !this.options.telemetrySurface || this.visibilityUpdate.value) {
+			return;
+		}
+		this.visibilityUpdate.value = scheduleAtNextAnimationFrame(getWindow(this.container), () => {
+			this.visibilityUpdate.clear();
+			this.reportVisibleNotifications();
+		});
+	}
+
+	private reportVisibleNotifications(): void {
+		const list = this.list;
+		const surface = this.options.telemetrySurface;
+		const targetWindow = getWindow(this.container);
+		if (!list || !surface || !this.telemetryVisible || !this.container.isConnected || targetWindow.document.hidden || list.renderHeight <= 0) {
+			return;
+		}
+
+		const bounds = list.getHTMLElement().getBoundingClientRect();
+		const top = list.scrollTop + Math.max(0, -bounds.top);
+		const bottom = list.scrollTop + Math.min(list.renderHeight, targetWindow.innerHeight - bounds.top);
+		if (bounds.width <= 0 || bounds.right <= 0 || bounds.left >= targetWindow.innerWidth || bottom <= top) {
+			return;
+		}
+		for (let index = list.firstVisibleIndex; index < list.length; index++) {
+			const itemTop = list.getElementTop(index);
+			if (itemTop >= bottom) {
+				break;
+			}
+			if (itemTop + list.getElementHeight(index) > top) {
+				logNotificationShown(this.telemetryService, list.element(index), surface);
+			}
+		}
 	}
 
 	hide(): void {
+		this.setTelemetryVisibility(false);
 		if (!this.isVisible || !this.list) {
 			return; // already hidden
 		}
@@ -233,8 +287,8 @@ export class NotificationsList extends Disposable {
 	}
 
 	focusFirst(): void {
-		if (!this.isVisible || !this.list) {
-			return; // hidden
+		if (!this.list) {
+			return; // not created yet
 		}
 
 		this.list.focusFirst();
@@ -242,11 +296,11 @@ export class NotificationsList extends Disposable {
 	}
 
 	hasFocus(): boolean {
-		if (!this.isVisible || !this.listContainer) {
-			return false; // hidden
+		if (!this.listContainer) {
+			return false; // not created yet
 		}
 
-		return isAncestor(document.activeElement, this.listContainer);
+		return isAncestorOfActiveElement(this.listContainer);
 	}
 
 	layout(width: number, maxHeight?: number): void {
@@ -258,6 +312,7 @@ export class NotificationsList extends Disposable {
 			}
 
 			this.list.layout();
+			this.scheduleVisibilityUpdate();
 		}
 	}
 
@@ -265,5 +320,36 @@ export class NotificationsList extends Disposable {
 		this.hide();
 
 		super.dispose();
+	}
+}
+
+export class NotificationAccessibilityProvider implements IListAccessibilityProvider<INotificationViewItem> {
+
+	constructor(
+		private readonly _options: INotificationsListOptions,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) { }
+
+	getAriaLabel(element: INotificationViewItem): string {
+		let accessibleViewHint: string | undefined;
+		const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
+		if (this._configurationService.getValue('accessibility.verbosity.notification')) {
+			accessibleViewHint = keybinding ? localize('notificationAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('notificationAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
+		}
+
+		if (!element.source) {
+			return withSeverityPrefix(accessibleViewHint ? localize('notificationAriaLabelHint', "{0}, notification, {1}", element.message.raw, accessibleViewHint) : localize('notificationAriaLabel', "{0}, notification", element.message.raw), element.severity);
+		}
+
+		return withSeverityPrefix(accessibleViewHint ? localize('notificationWithSourceAriaLabelHint', "{0}, source: {1}, notification, {2}", element.message.raw, element.source, accessibleViewHint) : localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source), element.severity);
+	}
+
+	getWidgetAriaLabel(): string {
+		return this._options.widgetAriaLabel ?? localize('notificationsList', "Notifications List");
+	}
+
+	getRole(): AriaRole {
+		return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
 	}
 }

@@ -1,0 +1,59 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.terminal-voice {
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
+	padding: 2px;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	white-space: nowrap;
+	z-index: 1000;
+}
+
+.terminal-voice.codicon.codicon-mic-filled {
+	display: flex;
+	align-items: center;
+	width: 16px;
+	height: 16px;
+}
+
+.terminal-voice.recording.codicon.codicon-mic-filled {
+	color: var(--vscode-activityBarBadge-background);
+	animation: ani-terminal-speech 1s infinite;
+	cursor: pointer;
+	pointer-events: auto;
+}
+
+@keyframes ani-terminal-speech {
+	0% {
+		color: var(--vscode-terminalCursor-background);
+	}
+
+	50% {
+		color: var(--vscode-activityBarBadge-background);
+	}
+
+	100% {
+		color: var(--vscode-terminalCursor-background);
+	}
+}
+
+/* Live (in-progress) dictation transcript. Match the chat input and editor
+ * dictation surfaces: render in the input placeholder color so it reads as
+ * provisional text rather than the static italic ghost-text style, keeping all
+ * three speech surfaces consistent while words stream in. */
+.terminal-voice-progress-text {
+	color: var(--vscode-input-placeholderForeground);
+	z-index: 1000;
+}
+
+/* First-use "Preparing…/Downloading… X%" hint shown while the on-device model
+ * loads. Italic so it reads as a status message rather than dictated speech. */
+.terminal-voice-preparing-text {
+	font-style: italic;
+	color: var(--vscode-input-placeholderForeground);
+	z-index: 1000;
+}

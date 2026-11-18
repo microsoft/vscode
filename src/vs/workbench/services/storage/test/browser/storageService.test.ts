@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Storage } from 'vs/base/parts/storage/common/storage';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { createSuite } from 'vs/platform/storage/test/common/storageService.test';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfile, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { BrowserStorageService, IndexedDBStorageDatabase } from 'vs/workbench/services/storage/browser/storageService';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { deepStrictEqual, rejects, strictEqual } from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IStorageChangeEvent, Storage } from '../../../../../base/parts/storage/common/storage.js';
+import { flakySuite } from '../../../../../base/test/common/testUtils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { createSuite } from '../../../../../platform/storage/test/common/storageService.test.js';
+import { IUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { BrowserStorageService, IndexedDBStorageDatabase } from '../../browser/storageService.js';
+import { UserDataProfileService } from '../../../userDataProfile/common/userDataProfileService.js';
 
 async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
 	const disposables = new DisposableStore();
@@ -37,19 +36,22 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const inMemoryExtraProfile: IUserDataProfile = {
 		id: 'id',
 		name: 'inMemory',
-		shortName: 'inMemory',
 		isDefault: false,
 		location: inMemoryExtraProfileRoot,
 		globalStorageHome: joinPath(inMemoryExtraProfileRoot, 'globalStorageHome'),
 		settingsResource: joinPath(inMemoryExtraProfileRoot, 'settingsResource'),
 		keybindingsResource: joinPath(inMemoryExtraProfileRoot, 'keybindingsResource'),
 		tasksResource: joinPath(inMemoryExtraProfileRoot, 'tasksResource'),
+		mcpResource: joinPath(inMemoryExtraProfileRoot, 'mcp.json'),
+		languageModelsResource: joinPath(inMemoryExtraProfileRoot, 'chatLanguageModels.json'),
 		snippetsHome: joinPath(inMemoryExtraProfileRoot, 'snippetsHome'),
+		promptsHome: joinPath(inMemoryExtraProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryExtraProfileRoot, 'extensionsResource'),
-		cacheHome: joinPath(inMemoryExtraProfileRoot, 'cache')
+		cacheHome: joinPath(inMemoryExtraProfileRoot, 'cache'),
+		agentPluginsHome: joinPath(inMemoryExtraProfileRoot, 'agentPluginsHome'),
 	};
 
-	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, new UserDataProfileService(inMemoryExtraProfile, new UserDataProfilesService(TestEnvironmentService, fileService, new UriIdentityService(fileService), logService)), logService));
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, disposables.add(new UserDataProfileService(inMemoryExtraProfile)), logService));
 
 	await storageService.initialize();
 
@@ -73,6 +75,8 @@ flakySuite('StorageService (browser)', function () {
 			disposables.clear();
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 flakySuite('StorageService (browser specific)', () => {
@@ -110,6 +114,39 @@ flakySuite('StorageService (browser specific)', () => {
 			}
 		});
 	});
+
+	test('application database access shares storage state and fallback', async () => {
+		storageService.store('key', 'first', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await storageService.flush();
+		const before = await storageService.getApplicationStorageValue('key');
+		const result = await storageService.compareAndSwapApplicationStorage('key', 'first', 'second');
+
+		deepStrictEqual({
+			before,
+			result,
+			serviceValue: storageService.get('key', StorageScope.APPLICATION),
+		}, {
+			before: 'first',
+			result: { swapped: true, currentValue: 'second' },
+			serviceValue: 'second',
+		});
+	});
+	test('application-shared compare-and-swap stays machine-local and publishes the new value', async () => {
+		const result = await storageService.compareAndSwapApplicationSharedValue('shared-claim', undefined, 'owner');
+		const rejected = await storageService.compareAndSwapApplicationSharedValue('shared-claim', undefined, 'other');
+		deepStrictEqual({
+			result, rejected,
+			value: await storageService.readApplicationSharedValue('shared-claim'),
+			cached: storageService.get('shared-claim', StorageScope.APPLICATION_SHARED),
+			machine: storageService.keys(StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE).includes('shared-claim'),
+			synced: storageService.keys(StorageScope.APPLICATION_SHARED, StorageTarget.USER).includes('shared-claim'),
+		}, {
+			result: { swapped: true, currentValue: 'owner' }, rejected: { swapped: false, currentValue: 'owner' },
+			value: 'owner', cached: 'owner', machine: true, synced: false,
+		});
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 flakySuite('IndexDBStorageDatabase (browser)', () => {
@@ -117,13 +154,17 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 	const id = 'workspace-storage-db-test';
 	const logService = new NullLogService();
 
+	const disposables = new DisposableStore();
+
 	teardown(async () => {
-		const storage = await IndexedDBStorageDatabase.create({ id }, logService);
+		const storage = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
 		await storage.clear();
+
+		disposables.clear();
 	});
 
 	test('Basics', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		let storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -145,7 +186,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -168,7 +209,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -196,7 +237,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -208,8 +249,74 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		strictEqual(storage.items.size, 0);
 	});
 
+	test('compareAndSwap', async () => {
+		const database = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		await database.updateItems({ insert: new Map([['key', 'first'], ['unrelated', 'sentinel']]) });
+
+		const rejected = await database.compareAndSwap('key', 'stale', 'second');
+		const accepted = await database.compareAndSwap('key', 'first', 'second');
+		const items = await database.getItems();
+		const value = await database.getValue('key');
+
+		deepStrictEqual({
+			rejected,
+			accepted,
+			value,
+			unrelated: items.get('unrelated'),
+		}, {
+			rejected: { swapped: false, currentValue: 'first' },
+			accepted: { swapped: true, currentValue: 'second' },
+			value: 'second',
+			unrelated: 'sentinel',
+		});
+	});
+
+	test('compareAndSwap rejects after close without modifying stored values', async () => {
+		const database = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		await database.updateItems({ insert: new Map([['key', 'first'], ['unrelated', 'sentinel']]) });
+		await database.close();
+
+		await rejects(database.compareAndSwap('key', 'first', 'second'));
+
+		const reopened = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		const items = await reopened.getItems();
+		deepStrictEqual({
+			value: items.get('key'),
+			unrelated: items.get('unrelated'),
+		}, {
+			value: 'first',
+			unrelated: 'sentinel',
+		});
+	});
+
+	test('compareAndSwap is atomic across database connections', async () => {
+		const databaseA = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		const databaseB = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		await databaseA.updateItems({ insert: new Map([['key', 'first']]) });
+
+		const results = await Promise.all([
+			databaseA.compareAndSwap('key', 'first', 'second'),
+			databaseB.compareAndSwap('key', 'first', 'third'),
+		]);
+		const finalValue = (await databaseA.getItems()).get('key');
+		const winner = results.find(result => result.swapped);
+		const loser = results.find(result => !result.swapped);
+
+		deepStrictEqual({
+			swappedCount: results.filter(result => result.swapped).length,
+			finalValue,
+			winnerValue: winner?.currentValue,
+			loserValue: loser?.currentValue,
+		}, {
+			swappedCount: 1,
+			finalValue: winner?.currentValue,
+			winnerValue: winner?.currentValue,
+			loserValue: winner?.currentValue,
+		});
+	});
+
 	test('Clear', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		let storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -219,13 +326,13 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		const db = await IndexedDBStorageDatabase.create({ id }, logService);
-		storage = new Storage(db);
+		const db = disposables.add(await IndexedDBStorageDatabase.create({ id }, logService));
+		storage = disposables.add(new Storage(db));
 
 		await storage.init();
 		await db.clear();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -238,7 +345,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 	});
 
 	test('Inserts and Deletes at the same time', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		let storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -248,7 +355,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -260,7 +367,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
+		storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
 
 		await storage.init();
 
@@ -269,4 +376,31 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		strictEqual(storage.get('barNumber'), undefined);
 		strictEqual(storage.get('barBoolean'), undefined);
 	});
+
+	test('Storage change event', async () => {
+		const storage = disposables.add(new Storage(disposables.add(await IndexedDBStorageDatabase.create({ id }, logService))));
+		let storageChangeEvents: IStorageChangeEvent[] = [];
+		disposables.add(storage.onDidChangeStorage(e => storageChangeEvents.push(e)));
+
+		await storage.init();
+
+		storage.set('notExternal', 42);
+		let storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'notExternal');
+		strictEqual(storageValueChangeEvent?.external, false);
+		storageChangeEvents = [];
+
+		storage.set('isExternal', 42, true);
+		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'isExternal');
+		strictEqual(storageValueChangeEvent?.external, true);
+
+		storage.delete('notExternal');
+		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'notExternal');
+		strictEqual(storageValueChangeEvent?.external, false);
+
+		storage.delete('isExternal', true);
+		storageValueChangeEvent = storageChangeEvents.find(e => e.key === 'isExternal');
+		strictEqual(storageValueChangeEvent?.external, true);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

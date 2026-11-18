@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-java/blob/master/grammars/java.cson",
+		"This file has been converted from https://github.com/redhat-developer/vscode-java/blob/master/language-support/java/java.tmLanguage.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/29f977dc42a7e2568b39bb6fb34c4ef108eb59b3",
+	"version": "https://github.com/redhat-developer/vscode-java/commit/28e59628a8ea73b35cf96ad018d929f8a10eabe4",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -1379,6 +1379,17 @@
 		"properties": {
 			"patterns": [
 				{
+					"match": "(\\.)\\s*(new)",
+					"captures": {
+						"1": {
+							"name": "punctuation.separator.period.java"
+						},
+						"2": {
+							"name": "keyword.control.new.java"
+						}
+					}
+				},
+				{
 					"match": "(\\.)\\s*([a-zA-Z_$][\\w$]*)(?=\\s*\\.\\s*[a-zA-Z_$][\\w$]*)",
 					"captures": {
 						"1": {
@@ -1427,59 +1438,64 @@
 					"include": "#storage-modifiers"
 				},
 				{
-					"include": "#generics"
-				},
-				{
 					"include": "#comments"
 				},
 				{
-					"begin": "(record)\\s+([\\w$]+)(<[\\w$]+>)?(\\()",
+					"begin": "(record)\\s+([\\w$]+)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.java"
 						},
 						"2": {
 							"name": "entity.name.type.record.java"
-						},
-						"3": {
-							"patterns": [
-								{
-									"include": "#generics"
-								}
-							]
-						},
-						"4": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.java"
 						}
 					},
-					"end": "\\)",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.java"
-						}
-					},
-					"name": "meta.record.identifier.java",
+					"end": "(?=\\{)",
+					"name": "meta.record.header.java",
 					"patterns": [
 						{
-							"include": "#code"
-						}
-					]
-				},
-				{
-					"begin": "(implements)\\s",
-					"beginCaptures": {
-						"1": {
-							"name": "storage.modifier.implements.java"
-						}
-					},
-					"end": "(?=\\s*\\{)",
-					"name": "meta.definition.class.implemented.interfaces.java",
-					"patterns": [
-						{
-							"include": "#object-types-inherited"
+							"include": "#generics"
 						},
 						{
 							"include": "#comments"
+						},
+						{
+							"begin": "\\(",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.definition.parameters.begin.bracket.round.java"
+								}
+							},
+							"end": "\\)",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.parameters.end.bracket.round.java"
+								}
+							},
+							"name": "meta.record.parameters.java",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
+						},
+						{
+							"begin": "(implements)\\s",
+							"beginCaptures": {
+								"1": {
+									"name": "storage.modifier.implements.java"
+								}
+							},
+							"end": "(?=\\s*\\{)",
+							"name": "meta.definition.class.implemented.interfaces.java",
+							"patterns": [
+								{
+									"include": "#object-types-inherited"
+								},
+								{
+									"include": "#comments"
+								}
+							]
 						}
 					]
 				},
@@ -1572,6 +1588,27 @@
 		"strings": {
 			"patterns": [
 				{
+					"begin": "\"\"\"",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.begin.java"
+						}
+					},
+					"end": "\"\"\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.end.java"
+						}
+					},
+					"name": "string.quoted.triple.java",
+					"patterns": [
+						{
+							"match": "(\\\\\"\"\")(?!\")|(\\\\.)",
+							"name": "constant.character.escape.java"
+						}
+					]
+				},
+				{
 					"begin": "\"",
 					"beginCaptures": {
 						"0": {
@@ -1632,6 +1669,9 @@
 				{
 					"match": "[a-zA-Z$_][\\.a-zA-Z0-9$_]*",
 					"name": "storage.type.java"
+				},
+				{
+					"include": "#comments"
 				}
 			]
 		},

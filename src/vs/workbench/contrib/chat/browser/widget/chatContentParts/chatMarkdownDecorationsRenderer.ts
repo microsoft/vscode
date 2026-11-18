@@ -1,0 +1,326 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as dom from '../../../../../../base/browser/dom.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { escape } from '../../../../../../base/common/strings.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../../base/common/uuid.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
+import { contentRefUrl } from '../../../common/widget/annotations.js';
+import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../common/widget/chatColors.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../../../common/requestParser/chatParserTypes.js';
+import { IChatMarkdownContent, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { IChatWidgetService } from '../../chat.js';
+import { ISessionSummaryHoverService } from '../../agentSessions/sessionSummaryHoverService.js';
+import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { InlineAnchorWidget, renderFileAnchor } from './chatInlineAnchorWidget.js';
+import { ChatRichLinkDecorator } from './chatRichLink.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKindFromValue } from '../../../common/attachments/chatVariableEntries.js';
+
+/** For rendering slash commands, variables */
+const decorationRefUrl = `http://_vscodedecoration_`;
+
+/** For rendering agent decorations with hover */
+const agentRefUrl = `http://_chatagent_`;
+
+/** For rendering agent decorations with hover */
+const agentSlashRefUrl = `http://_chatslash_`;
+
+export function agentToMarkdown(agent: IChatAgentData, sessionResource: URI, isClickable: boolean, accessor: ServicesAccessor): string {
+	const chatAgentNameService = accessor.get(IChatAgentNameService);
+	const chatAgentService = accessor.get(IChatAgentService);
+
+	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent);
+	let name = `${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
+	const isDupe = isAllowed && chatAgentService.agentHasDupeName(agent.id);
+	if (isDupe) {
+		name += ` (${agent.publisherDisplayName})`;
+	}
+
+	const args: IAgentWidgetArgs = { agentId: agent.id, sessionResource, name, isClickable };
+	return `[${agent.name}](${agentRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
+}
+
+interface IAgentWidgetArgs {
+	sessionResource: URI;
+	agentId: string;
+	name: string;
+	isClickable?: boolean;
+}
+
+export function agentSlashCommandToMarkdown(agent: IChatAgentData, command: IChatAgentCommand, sessionResource: URI): string {
+	const text = `${chatSubcommandLeader}${command.name}`;
+	const args: ISlashCommandWidgetArgs = { agentId: agent.id, command: command.name, sessionResource };
+	return `[${text}](${agentSlashRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
+}
+
+interface ISlashCommandWidgetArgs {
+	agentId: string;
+	command: string;
+	sessionResource: URI;
+}
+
+export interface IDecorationWidgetArgs {
+	title?: string;
+	/** The index of the request part whose attachment is shown as a pill in place of the decoration. */
+	inlineAttachment?: number;
+}
+
+/**
+ * Renders the attachment of a request part as a pill inline with the request's
+ * text, see {@link ChatMarkdownDecorationsRenderer.convertParsedRequestToMarkdown}.
+ * Returns `undefined` when the part has no pill, so it shows as a decoration.
+ */
+export type ChatInlineAttachmentRenderer = (partIndex: number, store: DisposableStore) => HTMLElement | undefined;
+
+export class ChatMarkdownDecorationsRenderer extends Disposable {
+	private readonly richLinkDecorator: Lazy<ChatRichLinkDecorator>;
+
+	constructor(
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ILogService private readonly logService: ILogService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IChatService private readonly chatService: IChatService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
+	) {
+		super();
+		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService, sessionSummaryHoverService)));
+	}
+
+	/**
+	 * @param inlineAttachmentParts The indices of the parts whose attachments are
+	 * shown as pills inline with the text, by a {@link ChatInlineAttachmentRenderer}.
+	 */
+	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest, inlineAttachmentParts?: ReadonlySet<number>): MarkdownString {
+		const markdown = new MarkdownString();
+		let result = '';
+		parsedRequest.parts.forEach((part, index) => {
+			if (part instanceof ChatRequestTextPart) {
+				result += part.text;
+			} else if (part instanceof ChatRequestAgentPart) {
+				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, sessionResource, false, accessor));
+			} else {
+				result += this.genericDecorationToMarkdown(part, inlineAttachmentParts?.has(index) ? index : undefined, markdown);
+			}
+		});
+
+		markdown.value = result;
+		return markdown;
+	}
+
+	private genericDecorationToMarkdown(part: IParsedChatRequestPart, inlineAttachment: number | undefined, markdown: MarkdownString): string {
+		const text = escapeMarkdownSyntaxTokens(escape(part.text));
+		if (part instanceof ChatRequestDynamicVariablePart && getAgentHostCompletionReferenceKindFromValue(part.data) === AgentHostCompletionReferenceKind.Skill && !isUUID(part.id)) {
+			const uri = URI.parse(part.id, true);
+			const query = `vscodeLinkType=skill${uri.query ? `&${uri.query}` : ''}`;
+			const href = `${contentRefUrl}/skill-${encodeURIComponent(uri.toString()).replace(/\(/g, '%28').replace(/\)/g, '%29')}`;
+			// Use markdown's resource map so custom schemes retain the normal sanitization path.
+			(markdown.uris ??= {})[href] = uri.with({ query });
+			return `[${text}](${href})`;
+		}
+		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
+			part.data :
+			undefined;
+		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
+			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
+				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
+					part instanceof ChatRequestSlashPromptPart ? part.name :
+						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
+							'';
+
+		const args: IDecorationWidgetArgs = inlineAttachment === undefined ? { title } : { title, inlineAttachment };
+		const encodedArgs = encodeURIComponent(JSON.stringify(args)).replace(/\(/g, '%28').replace(/\)/g, '%29');
+		return `[${text}](${decorationRefUrl}?${encodedArgs})`;
+	}
+
+	/**
+	 * @param renderInlineAttachment Renders the pills of decorations that stand
+	 * for an attachment shown inline with a request's text.
+	 */
+	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement, renderInlineAttachment?: ChatInlineAttachmentRenderer): IDisposable {
+		const store = new DisposableStore();
+		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
+		const skillWidgetOptions = { linkTypes: ['skill'] };
+		const skillLinks = new Set(Object.entries(content.content.uris ?? {})
+			.filter(([key]) => key.startsWith(`${contentRefUrl}/skill-`))
+			.map(([, uri]) => URI.revive(uri).toString()));
+		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
+		element.querySelectorAll('a').forEach(a => {
+			const href = a.getAttribute('data-href');
+			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, href && skillLinks.has(href) ? skillWidgetOptions : fileWidgetOptions)) {
+				return;
+			}
+			if (href) {
+				if (href.startsWith(agentRefUrl)) {
+					let args: IAgentWidgetArgs | undefined;
+					try {
+						args = JSON.parse(decodeURIComponent(href.slice(agentRefUrl.length + 1)));
+					} catch (e) {
+						this.logService.error('Invalid chat widget render data JSON', toErrorMessage(e));
+					}
+
+					if (args) {
+						a.replaceWith(this.renderAgentWidget(args, store));
+					}
+				} else if (href.startsWith(agentSlashRefUrl)) {
+					let args: ISlashCommandWidgetArgs | undefined;
+					try {
+						args = JSON.parse(decodeURIComponent(href.slice(agentRefUrl.length + 1)));
+					} catch (e) {
+						this.logService.error('Invalid chat slash command render data JSON', toErrorMessage(e));
+					}
+
+					if (args) {
+						a.replaceWith(this.renderSlashCommandWidget(a.textContent!, args, store));
+					}
+				} else if (href.startsWith(decorationRefUrl)) {
+					let args: IDecorationWidgetArgs | undefined;
+					try {
+						args = JSON.parse(decodeURIComponent(href.slice(decorationRefUrl.length + 1)));
+					} catch (e) { }
+
+					const pill = typeof args?.inlineAttachment === 'number' ? renderInlineAttachment?.(args.inlineAttachment, store) : undefined;
+					a.replaceWith(pill ?? this.renderResourceWidget(a.textContent!, args, store));
+				} else if (href.startsWith(contentRefUrl)) {
+					this.renderFileWidget(content, href, a, store);
+				} else if (href.startsWith('command:')) {
+					this.injectKeybindingHint(a, href, this.keybindingService);
+				} else if (richLinksEnabled || href.toLowerCase().startsWith(`${AGENT_HOST_SESSION_LINK_SCHEME}:`)) {
+					this.richLinkDecorator.value.decorate(a, href, store);
+				}
+			}
+		});
+
+		return store;
+	}
+
+	private renderAgentWidget(args: IAgentWidgetArgs, store: DisposableStore): HTMLElement {
+		const nameWithLeader = `${chatAgentLeader}${args.name}`;
+		let container: HTMLElement;
+		if (args.isClickable) {
+			container = dom.$('span.chat-agent-widget');
+			const button = store.add(new Button(container, {
+				buttonBackground: asCssVariable(chatSlashCommandBackground),
+				buttonForeground: asCssVariable(chatSlashCommandForeground),
+				buttonHoverBackground: undefined
+			}));
+			button.label = nameWithLeader;
+			store.add(button.onDidClick(() => {
+				const agent = this.chatAgentService.getAgent(args.agentId);
+				const widget = this.chatWidgetService.getWidgetBySessionResource(args.sessionResource) || this.chatWidgetService.lastFocusedWidget;
+				if (!widget || !agent) {
+					return;
+				}
+
+				this.chatService.sendRequest(widget.viewModel!.sessionResource, agent.metadata.sampleRequest ?? '',
+					{
+						location: widget.location,
+						agentId: agent.id,
+						...widget.getSelectedModelRequestOptions(),
+						modeInfo: widget.input.currentModeInfo
+					});
+			}));
+		} else {
+			container = this.renderResourceWidget(nameWithLeader, undefined, store);
+		}
+
+		const agent = this.chatAgentService.getAgent(args.agentId);
+		const hover: Lazy<ChatAgentHover> = new Lazy(() => store.add(this.instantiationService.createInstance(ChatAgentHover)));
+		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, () => {
+			hover.value.setAgent(args.agentId);
+			return hover.value.domNode;
+		}, agent && getChatAgentHoverOptions(() => agent, this.commandService)));
+		return container;
+	}
+
+	private renderSlashCommandWidget(name: string, args: ISlashCommandWidgetArgs, store: DisposableStore): HTMLElement {
+		const container = dom.$('span.chat-agent-widget.chat-command-widget');
+		const agent = this.chatAgentService.getAgent(args.agentId);
+		const button = store.add(new Button(container, {
+			buttonBackground: asCssVariable(chatSlashCommandBackground),
+			buttonForeground: asCssVariable(chatSlashCommandForeground),
+			buttonHoverBackground: undefined
+		}));
+		button.label = name;
+		store.add(button.onDidClick(() => {
+			const widget = this.chatWidgetService.getWidgetBySessionResource(args.sessionResource) || this.chatWidgetService.lastFocusedWidget;
+			if (!widget || !agent) {
+				return;
+			}
+
+			const command = agent.slashCommands.find(c => c.name === args.command);
+			this.chatService.sendRequest(widget.viewModel!.sessionResource, command?.sampleRequest ?? '', {
+				location: widget.location,
+				agentId: agent.id,
+				slashCommand: args.command,
+				...widget.getSelectedModelRequestOptions(),
+				modeInfo: widget.input.currentModeInfo
+			});
+		}));
+
+		return container;
+	}
+
+	private renderFileWidget(content: IChatMarkdownContent, href: string, a: HTMLAnchorElement, store: DisposableStore): void {
+		// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
+		const fullUri = URI.parse(href);
+
+		const data = content.inlineReferences?.[fullUri.path.slice(1)];
+		if (!data) {
+			this.logService.error('Invalid chat widget render data JSON');
+			return;
+		}
+
+		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined, undefined));
+		store.add(this.chatMarkdownAnchorService.register(inlineAnchor));
+	}
+
+	private renderResourceWidget(name: string, args: IDecorationWidgetArgs | undefined, store: DisposableStore): HTMLElement {
+		const container = dom.$('span.chat-resource-widget');
+		const alias = dom.$('span', undefined, name);
+		if (args?.title) {
+			store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, args.title));
+		}
+
+		container.appendChild(alias);
+		return container;
+	}
+
+	private injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingService: IKeybindingService): void {
+		const command = href.match(/command:([^\)]+)/)?.[1];
+		if (command) {
+			a.textContent = keybindingService.appendKeybinding(a.textContent || '', command);
+		}
+	}
+}

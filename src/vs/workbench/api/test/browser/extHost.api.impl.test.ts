@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { originalFSPath } from 'vs/base/common/resources';
-import { isWindows } from 'vs/base/common/platform';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { originalFSPath } from '../../../../base/common/resources.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { getTerminalInternalOptions } from '../../common/extHost.api.impl.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 
 suite('ExtHost API', function () {
 	test('issue #51387: originalFSPath', function () {
@@ -18,4 +21,12 @@ suite('ExtHost API', function () {
 			assert.strictEqual(originalFSPath(URI.revive(JSON.parse(JSON.stringify(URI.file('c:\\test'))))).charAt(0), 'c');
 		}
 	});
+
+	test('TerminalOptions.isRemoteResolverTerminal requires terminalRemoteResolver proposal', () => {
+		const options = { isRemoteResolverTerminal: true };
+		assert.throws(() => getTerminalInternalOptions(nullExtensionDescription, options), /CANNOT use API proposal: terminalRemoteResolver/);
+		assert.deepStrictEqual(getTerminalInternalOptions({ ...nullExtensionDescription, enabledApiProposals: ['terminalRemoteResolver'] }, options), { isRemoteResolverTerminal: true });
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

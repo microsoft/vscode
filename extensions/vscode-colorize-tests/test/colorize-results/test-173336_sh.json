@@ -8,9 +8,11 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "punctuation.definition.comment: #8B949E",
+			"2026-light": "punctuation.definition.comment: #6E7781"
 		}
 	},
 	{
@@ -22,205 +24,235 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"dark_plus_experimental": "comment: #6A9955",
+			"dark_modern": "comment: #6A9955",
 			"hc_light": "comment: #515151",
-			"light_plus_experimental": "comment: #008000"
+			"light_modern": "comment: #008000",
+			"2026-dark": "comment: #8B949E",
+			"2026-light": "comment: #6E7781"
 		}
 	},
 	{
 		"c": "cmd",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell variable.other.assignment.shell",
+		"t": "source.shell variable.other.assignment.shell",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080",
+			"2026-dark": "variable.other: #C9D1D9",
+			"2026-light": "variable.other: #1F2328"
 		}
 	},
 	{
 		"c": "=",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell keyword.operator.assignment.shell",
+		"t": "source.shell keyword.operator.assignment.shell",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_plus_experimental": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
 			"hc_light": "keyword.operator: #000000",
-			"light_plus_experimental": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell punctuation.shell",
+		"t": "source.shell punctuation.definition.array.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell",
+		"t": "source.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
 		"c": "'",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
+		"t": "source.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
 		"c": "ls",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell string.quoted.single.shell",
+		"t": "source.shell string.quoted.single.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
 		"c": "'",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell string.quoted.single.shell punctuation.definition.string.end.shell",
+		"t": "source.shell string.quoted.single.shell punctuation.definition.string.end.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell",
+		"t": "source.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
 		"c": "'",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
+		"t": "source.shell string.quoted.single.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
 		"c": "-la",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell string.quoted.single.shell",
+		"t": "source.shell string.quoted.single.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
 		"c": "'",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell string.quoted.single.shell punctuation.definition.string.end.shell",
+		"t": "source.shell string.quoted.single.shell punctuation.definition.string.end.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell",
+		"t": "source.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.shell meta.statement.shell meta.expression.assignment.shell punctuation.shell",
+		"t": "source.shell punctuation.definition.array.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
 		"c": "if",
-		"t": "source.shell meta.scope.if-block.shell keyword.control.shell",
+		"t": "source.shell meta.scope.if-block.shell keyword.control.if.shell",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -232,23 +264,27 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
 		"c": "((",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.arithmetic.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.arithmetic.double.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -260,9 +296,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -274,9 +312,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -288,9 +328,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -302,9 +344,11 @@
 			"dark_vs": "keyword.operator: #D4D4D4",
 			"light_vs": "keyword.operator: #000000",
 			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_plus_experimental": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
 			"hc_light": "keyword.operator: #000000",
-			"light_plus_experimental": "keyword.operator: #000000"
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -316,9 +360,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080",
+			"2026-dark": "variable.other: #C9D1D9",
+			"2026-light": "variable.other: #1F2328"
 		}
 	},
 	{
@@ -330,23 +376,27 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell meta.parameter-expansion",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell meta.parameter-expansion keyword.operator.expansion.shell",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -358,9 +408,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -372,9 +424,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -386,23 +440,27 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
 		"c": "))",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.arithmetic.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.arithmetic.double.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -414,9 +472,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -428,9 +488,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -442,9 +504,11 @@
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -456,9 +520,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -470,9 +536,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_plus_experimental": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name: #FFA657",
+			"2026-light": "entity.name: #953800"
 		}
 	},
 	{
@@ -484,9 +552,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_plus_experimental": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name: #FFA657",
+			"2026-light": "entity.name: #953800"
 		}
 	},
 	{
@@ -498,9 +568,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_plus_experimental": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name: #FFA657",
+			"2026-light": "entity.name: #953800"
 		}
 	},
 	{
@@ -512,9 +584,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080",
+			"2026-dark": "variable.other: #C9D1D9",
+			"2026-light": "variable.other: #1F2328"
 		}
 	},
 	{
@@ -526,23 +600,27 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_plus_experimental": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name: #FFA657",
+			"2026-light": "entity.name: #953800"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command meta.parameter-expansion",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.function.call entity.name.command meta.parameter-expansion keyword.operator.expansion.shell",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function: #DCDCAA",
-			"hc_light": "entity.name.function: #5E2CBC",
-			"light_plus_experimental": "entity.name.function: #795E26"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -554,9 +632,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_plus_experimental": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name: #FFA657",
+			"2026-light": "entity.name: #953800"
 		}
 	},
 	{
@@ -568,9 +648,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_plus_experimental": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name: #FFA657",
+			"2026-light": "entity.name: #953800"
 		}
 	},
 	{
@@ -582,9 +664,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "entity.name.function: #DCDCAA",
-			"dark_plus_experimental": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",
-			"light_plus_experimental": "entity.name.function: #795E26"
+			"light_modern": "entity.name.function: #795E26",
+			"2026-dark": "entity.name: #FFA657",
+			"2026-light": "entity.name: #953800"
 		}
 	},
 	{
@@ -596,9 +680,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -610,9 +696,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "support.function: #DCDCAA",
-			"dark_plus_experimental": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
 			"hc_light": "support.function: #5E2CBC",
-			"light_plus_experimental": "support.function: #795E26"
+			"light_modern": "support.function: #795E26",
+			"2026-dark": "support.function: #DCDCAA",
+			"2026-light": "support.function: #795E26"
 		}
 	},
 	{
@@ -624,9 +712,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -638,9 +728,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -652,9 +744,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -666,9 +760,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -680,9 +776,11 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
+			"dark_modern": "default: #CCCCCC",
 			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"light_modern": "default: #3B3B3B",
+			"2026-dark": "default: #BBBEBF",
+			"2026-light": "default: #202020"
 		}
 	},
 	{
@@ -694,9 +792,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -708,9 +808,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -722,9 +824,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -736,9 +840,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "variable: #9CDCFE",
-			"dark_plus_experimental": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
 			"hc_light": "variable: #001080",
-			"light_plus_experimental": "variable: #001080"
+			"light_modern": "variable: #001080",
+			"2026-dark": "variable.other: #C9D1D9",
+			"2026-light": "variable.other: #1F2328"
 		}
 	},
 	{
@@ -750,23 +856,27 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.argument.shell string.quoted.double.shell meta.parameter-expansion",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.statement.command.shell meta.argument.shell string.quoted.double.shell meta.parameter-expansion keyword.operator.expansion.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000",
+			"2026-dark": "keyword.operator: #D4D4D4",
+			"2026-light": "keyword.operator: #000000"
 		}
 	},
 	{
@@ -778,9 +888,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -792,9 +904,11 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
@@ -806,23 +920,27 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_modern": "string: #A31515",
+			"2026-dark": "string: #A5D6FF",
+			"2026-light": "string: #0A3069"
 		}
 	},
 	{
 		"c": "fi",
-		"t": "source.shell meta.scope.if-block.shell keyword.control.shell",
+		"t": "source.shell meta.scope.if-block.shell keyword.control.fi.shell",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_plus_experimental": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
-			"light_plus_experimental": "keyword.control: #AF00DB"
+			"light_modern": "keyword.control: #AF00DB",
+			"2026-dark": "keyword.control: #C586C0",
+			"2026-light": "keyword.control: #AF00DB"
 		}
 	}
 ]

@@ -5,6 +5,7 @@
 
 import { promises as fs } from 'fs';
 import { createServer, Server } from 'net';
+import { dirname } from 'path';
 import * as vscode from 'vscode';
 
 const enum State {
@@ -32,6 +33,8 @@ const TEXT_STATE_DESCRIPTION = {
 	[State.Smart]: vscode.l10n.t("Auto attach when running scripts that aren't in a node_modules folder"),
 	[State.OnlyWithFlag]: vscode.l10n.t('Only auto attach when the `--inspect` flag is given')
 };
+
+const TEXT_TOGGLE_TITLE = vscode.l10n.t('Toggle Auto Attach');
 const TEXT_TOGGLE_WORKSPACE = vscode.l10n.t('Toggle auto attach in this workspace');
 const TEXT_TOGGLE_GLOBAL = vscode.l10n.t('Toggle auto attach on this machine');
 const TEXT_TEMP_DISABLE = vscode.l10n.t('Temporarily disable auto attach in this session');
@@ -72,8 +75,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				e.affectsConfiguration(`${SETTING_SECTION}.${SETTING_STATE}`) ||
 				[...SETTINGS_CAUSE_REFRESH].some(setting => e.affectsConfiguration(setting))
 			) {
-				updateAutoAttach(State.Disabled);
-				updateAutoAttach(readCurrentState());
+				refreshAutoAttachVars();
 			}
 		}),
 	);
@@ -83,6 +85,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export async function deactivate(): Promise<void> {
 	await destroyAttachServer();
+}
+
+function refreshAutoAttachVars() {
+	updateAutoAttach(State.Disabled);
+	updateAutoAttach(readCurrentState());
 }
 
 function getDefaultScope(info: ReturnType<vscode.WorkspaceConfiguration['inspect']>) {
@@ -129,7 +136,8 @@ async function toggleAutoAttachSetting(context: vscode.ExtensionContext, scope?:
 	quickPick.activeItems = isTemporarilyDisabled
 		? [items[0]]
 		: quickPick.items.filter(i => 'state' in i && i.state === current);
-	quickPick.title = isGlobalScope ? TEXT_TOGGLE_GLOBAL : TEXT_TOGGLE_WORKSPACE;
+	quickPick.title = TEXT_TOGGLE_TITLE;
+	quickPick.placeholder = isGlobalScope ? TEXT_TOGGLE_GLOBAL : TEXT_TOGGLE_WORKSPACE;
 	quickPick.buttons = [
 		{
 			iconPath: new vscode.ThemeIcon(isGlobalScope ? 'folder' : 'globe'),
@@ -204,8 +212,22 @@ async function createAttachServer(context: vscode.ExtensionContext) {
 		return undefined;
 	}
 
-	server = createServerInner(ipcAddress).catch(err => {
-		console.error(err);
+	server = createServerInner(ipcAddress).catch(async err => {
+		console.error('[debug-auto-launch] Error creating auto attach server: ', err);
+
+		if (process.platform !== 'win32') {
+			// On macOS, and perhaps some Linux distros, the temporary directory can
+			// sometimes change. If it looks like that's the cause of a listener
+			// error, automatically refresh the auto attach vars.
+			try {
+				await fs.access(dirname(ipcAddress));
+			} catch {
+				console.error('[debug-auto-launch] Refreshing variables from error');
+				refreshAutoAttachVars();
+				return undefined;
+			}
+		}
+
 		return undefined;
 	});
 
@@ -264,7 +286,7 @@ async function destroyAttachServer() {
 
 interface CachedIpcState {
 	ipcAddress: string;
-	jsDebugPath: string;
+	jsDebugPath: string | undefined;
 	settingsValue: string;
 }
 
@@ -369,7 +391,7 @@ async function getIpcAddress(context: vscode.ExtensionContext) {
 		ipcAddress,
 		jsDebugPath,
 		settingsValue,
-	} as CachedIpcState);
+	} satisfies CachedIpcState);
 
 	return ipcAddress;
 }

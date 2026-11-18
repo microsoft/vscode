@@ -6,13 +6,17 @@
 use std::{fmt, path::PathBuf};
 
 use crate::{constants, log, options, tunnels::code_server::CodeServerArgs};
-use clap::{ArgEnum, Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
-const HELP_COMMANDS: &str = "Usage: {name} [options][paths...]
+const HELP_COMMANDS: &str = concatcp!(
+	"Usage: ",
+	constants::APPLICATION_NAME,
+	" [options][paths...]
 
-To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')";
+To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')"
+);
 
 const STANDALONE_TEMPLATE: &str = concatcp!(
 	CLI_NAME,
@@ -52,6 +56,7 @@ const VERSION: &str = concatcp!(NUMBER_IN_VERSION, " (commit ", COMMIT_IN_VERSIO
 #[clap(
    help_template = INTEGRATED_TEMPLATE,
    long_about = None,
+	 name = constants::APPLICATION_NAME,
    version = VERSION,
  )]
 pub struct IntegratedCli {
@@ -59,7 +64,7 @@ pub struct IntegratedCli {
 	pub core: CliCore,
 }
 
-/// Common CLI shared between intergated and standalone interfaces.
+/// Common CLI shared between integrated and standalone interfaces.
 #[derive(Args, Debug, Default, Clone)]
 pub struct CliCore {
 	/// One or more files, folders, or URIs to open.
@@ -84,6 +89,7 @@ pub struct CliCore {
    help_template = STANDALONE_TEMPLATE,
    long_about = None,
    version = VERSION,
+	 name = constants::APPLICATION_NAME,
  )]
 pub struct StandaloneCli {
 	#[clap(flatten)]
@@ -146,22 +152,6 @@ impl<'a> From<&'a CliCore> for CodeServerArgs {
 pub enum StandaloneCommands {
 	/// Updates the CLI.
 	Update(StandaloneUpdateArgs),
-
-	/// Internal commands for WSL serving.
-	#[clap(hide = true)]
-	Wsl(WslArgs),
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct WslArgs {
-	#[clap(subcommand)]
-	pub command: WslCommands,
-}
-
-#[derive(Subcommand, Debug, Clone)]
-pub enum WslCommands {
-	/// Runs the WSL server on stdin/out
-	Serve,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -187,6 +177,395 @@ pub enum Commands {
 
 	/// Changes the version of the editor you're using.
 	Version(VersionArgs),
+
+	/// Runs a local web version of VS Code.
+	#[clap(about = concatcp!("Runs a local web version of ", constants::PRODUCT_NAME_LONG))]
+	ServeWeb(ServeWebArgs),
+
+	/// Runs the control server on process stdin/stdout
+	#[clap(hide = true)]
+	CommandShell(CommandShellArgs),
+
+	/// Manage agent host sessions.
+	#[clap(name = "agent")]
+	Agent(Box<AgentArgs>),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct ServeWebArgs {
+	/// Host to listen on, defaults to 'localhost'
+	#[clap(long)]
+	pub host: Option<String>,
+	// The path to a socket file for the server to listen to.
+	#[clap(long)]
+	pub socket_path: Option<String>,
+	/// Port to listen on. If 0 is passed a random free port is picked.
+	#[clap(long, default_value_t = 8000)]
+	pub port: u16,
+	/// A secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
+	/// Run without a connection token. Only use this if the connection is secured by other means.
+	#[clap(long)]
+	pub without_connection_token: bool,
+	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
+	#[clap(long)]
+	pub accept_server_license_terms: bool,
+	/// Specifies the path under which the web UI and the code server is provided.
+	#[clap(long)]
+	pub server_base_path: Option<String>,
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+	/// The workspace folder to open when no input is specified in the browser URL.
+	#[clap(long)]
+	pub default_folder: Option<String>,
+	/// The workspace to open when no input is specified in the browser URL.
+	#[clap(long)]
+	pub default_workspace: Option<String>,
+	/// Disables telemetry.
+	#[clap(long)]
+	pub disable_telemetry: bool,
+	/// Use a specific commit SHA for the client.
+	#[clap(long)]
+	pub commit_id: Option<String>,
+}
+
+#[derive(Args, Debug, Clone, Default)]
+pub struct AgentHostArgs {
+	/// Host the agent host should bind on. Defaults to 'localhost'. Pass
+	/// `0.0.0.0` to expose the agent host on all interfaces (paired with
+	/// a connection token unless `--without-connection-token` is set).
+	#[clap(long)]
+	pub host: Option<String>,
+	/// Port the agent host should bind on. If 0 (the default) the OS
+	/// picks a free ephemeral port; the chosen port is recorded in the
+	/// shared agent-host endpoint registry.
+	#[clap(long, default_value_t = 0)]
+	pub port: u16,
+	/// A secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token: Option<String>,
+	/// A file containing a secret that must be included with all requests.
+	#[clap(long)]
+	pub connection_token_file: Option<String>,
+	/// Run without a connection token. Only use this if the connection is secured by other means.
+	#[clap(long)]
+	pub without_connection_token: bool,
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+
+	/// Overrides the resolved user data directory used to home the local
+	/// agent-host endpoint registry
+	/// (`<user-data-dir>/agent-host/local-endpoint/entries/`, the directory of
+	/// per-instance entry files editor windows also publish to). Defaults to
+	/// the platform user data directory (honoring `VSCODE_PORTABLE` /
+	/// `VSCODE_APPDATA` when set), matching the editor's own resolution rules.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
+
+	/// Stop any agent host already running on this machine and start a
+	/// fresh one. Without this flag, the command reuses an existing live
+	/// supervisor when its configuration is compatible, and errors out
+	/// when the requested `--host` / `--port` / `--connection-token`
+	/// differ from what's already running.
+	#[clap(long)]
+	pub replace: bool,
+
+	/// Always start a brand new standalone supervisor, even if one is
+	/// already registered and would normally be reused. Unlike
+	/// `--replace`, this never kills or removes any existing registry
+	/// entry (editor or standalone) — the new supervisor simply
+	/// publishes its own additional entry alongside whatever is already
+	/// there. Useful for remote scenarios (e.g. "Start New Dedicated
+	/// Agent Host") that must guarantee a fresh, independent instance
+	/// regardless of what else is running.
+	#[clap(long)]
+	pub new_instance: bool,
+
+	/// Run a newly started agent host supervisor in the foreground instead
+	/// of detaching it, keeping its logs attached to this terminal and
+	/// stopping it on Ctrl-C. Useful for debugging. An existing compatible
+	/// supervisor is still reused, so combine this with `--replace` or
+	/// `--new-instance` to guarantee a supervisor is actually started here.
+	#[clap(long)]
+	pub foreground: bool,
+
+	/// Alias for `code tunnel`: expose remote editor and agent host access.
+	#[clap(
+		long,
+		group = "remote_host",
+		conflicts_with_all = [
+			"host", "port", "connection_token", "connection_token_file",
+			"without_connection_token", "replace", "new_instance", "foreground", "idle_timeout"
+		]
+	)]
+	pub tunnel: bool,
+	/// Register this agent host as a GitHub environment.
+	/// Runs in the background unless `--foreground` is passed.
+	#[clap(
+		long,
+		group = "remote_host",
+		conflicts_with_all = [
+			"host", "port", "connection_token", "connection_token_file",
+			"without_connection_token", "replace", "new_instance", "idle_timeout",
+			"random_name", "tunnel_id", "host_token", "cluster", "tunnel_name"
+		]
+	)]
+	pub github_environment: bool,
+	/// Restrict access to a project directory. Repeat for multiple projects. Defaults to all local filesystems.
+	#[clap(long, requires = "github_environment", conflicts_with = "tunnel")]
+	pub github_environment_root: Vec<PathBuf>,
+	/// Sets the machine name for the tunnel or GitHub environment.
+	#[clap(long, requires = "remote_host")]
+	pub name: Option<String>,
+	/// Randomly name the machine for the tunnel.
+	#[clap(long, requires = "tunnel")]
+	pub random_name: bool,
+	/// Accept the server license terms when starting a tunnel or GitHub environment.
+	#[clap(long, requires = "remote_host")]
+	pub accept_server_license_terms: bool,
+
+	/// Automatically terminate this supervisor once no client has been
+	/// connected for this many seconds. The idle timer starts once the
+	/// supervisor is ready, is cancelled/paused for as long as at least
+	/// one client is connected or the agent host server is running, and
+	/// restarts from the full duration each time the last of those goes
+	/// away. The server only stops itself after it has had no running
+	/// agent sessions and no clients for a while, so in-progress sessions
+	/// are never cut short. Unset (the default) means unlimited: a
+	/// manually started local host never self-terminates.
+	#[clap(long)]
+	pub idle_timeout: Option<u64>,
+
+	/// Optional details to connect to an existing tunnel.
+	#[clap(flatten, next_help_heading = Some("ADVANCED TUNNEL OPTIONS"))]
+	pub existing_tunnel: ExistingTunnelArgs,
+}
+
+impl From<AgentHostArgs> for TunnelServeArgs {
+	fn from(args: AgentHostArgs) -> Self {
+		Self {
+			server_args: BaseServerArgs {
+				server_data_dir: args.server_data_dir,
+				..Default::default()
+			},
+			tunnel: args.existing_tunnel,
+			name: args.name,
+			random_name: args.random_name,
+			user_data_dir: args.user_data_dir,
+			accept_server_license_terms: args.accept_server_license_terms,
+			..Default::default()
+		}
+	}
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentArgs {
+	#[clap(subcommand)]
+	pub subcommand: Option<AgentSubcommand>,
+
+	/// Agent host arguments used when no subcommand is given.
+	#[clap(flatten)]
+	pub host_args: AgentHostArgs,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentSubcommand {
+	/// Manage sandbox certificate trust on this computer as the current OS user.
+	Sandbox(AgentSandboxArgs),
+
+	/// Start an agent host server, with optional remote access.
+	Host(AgentHostArgs),
+
+	/// List active sessions on a running agent host.
+	Ps(AgentPsArgs),
+
+	/// Cancel the active turn of a session.
+	Stop(AgentStopArgs),
+
+	/// Forcefully kill the running agent host process tree.
+	Kill(AgentKillArgs),
+
+	/// Stream live session events.
+	Logs(AgentLogsArgs),
+
+	/// Print every live agent host endpoint as a single JSON document.
+	/// Machine-readable: intended for consumption over an already
+	/// authenticated transport (e.g. SSH), since the output includes each
+	/// endpoint's connection token.
+	Endpoints(AgentEndpointsArgs),
+
+	/// Relay stdin/stdout to a single live agent host endpoint's raw
+	/// socket/pipe or TCP connection, with no WebSocket interpretation and
+	/// no banner output. Intended to be used as an SSH `ProxyCommand`-style
+	/// bridge to reach `editor`-owned (socket/pipe) endpoints remotely.
+	#[clap(hide = true)]
+	Relay(AgentRelayArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentSandboxArgs {
+	#[clap(subcommand)]
+	pub subcommand: AgentSandboxSubcommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentSandboxSubcommand {
+	/// Manage the credential-proxy CA in this user's COPILOT_HOME.
+	Ca(AgentCertificateArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentCertificateArgs {
+	#[clap(subcommand)]
+	pub subcommand: AgentCertificateSubcommand,
+
+	/// Accept the VS Code Server license terms without prompting.
+	#[clap(long, global = true)]
+	pub accept_server_license_terms: bool,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentCertificateSubcommand {
+	/// Create the CA if missing, without changing OS trust. Prints its public certificate path.
+	Create,
+	/// Trust this user's existing CA. OS authorization may still be required.
+	Trust {
+		/// Confirm changing OS trust without a CLI confirmation. Does not bypass OS authorization.
+		#[clap(long)]
+		yes: bool,
+	},
+	/// Remove OS trust for this user's CA, retaining the stored CA and private key.
+	Remove {
+		/// Confirm removing OS trust without a CLI confirmation. Does not bypass OS authorization.
+		#[clap(long)]
+		yes: bool,
+	},
+	/// Check OS trust without changing the CA. Exit codes: 0 trusted, 3 missing, 4 unsupported, 5 rotation needed, 1 error.
+	Status,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentEndpointsArgs {
+	/// Overrides the resolved user data directory used to locate the
+	/// shared agent host registry. Defaults to the platform user data
+	/// directory, matching every other `code agent` subcommand.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentRelayArgs {
+	/// The `instanceId` of the live registry endpoint to relay to, as
+	/// shown by `code agent endpoints` / `code agent ps`.
+	pub instance_id: String,
+
+	/// Overrides the resolved user data directory used to locate the
+	/// shared agent host registry.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
+}
+
+/// Discovery/connection target shared by every agent-host command that
+/// can either auto-discover a local instance or target one explicitly:
+/// `code agent ps|stop|logs`. `--user-data-dir` scopes automatic
+/// discovery to a specific registry (see
+/// [`crate::commands::agent_discovery::discover_live_endpoints`]);
+/// `--address`/`--tunnel` bypass discovery entirely and connect to
+/// exactly one explicit target (see
+/// [`crate::commands::agent::connect_explicit`]). Passing neither
+/// `--address` nor `--tunnel` means "discover automatically", not
+/// "connect nowhere" — every consumer of this struct must branch on that
+/// itself.
+#[derive(Args, Debug, Clone)]
+pub struct AgentDiscoveryArgs {
+	/// Directory containing the shared agent host registry used for automatic discovery.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
+
+	/// WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret).
+	/// If omitted, the CLI discovers a locally running agent host automatically.
+	#[clap(long)]
+	pub address: Option<String>,
+
+	/// Connect via a named dev tunnel instead of the local address.
+	#[clap(long)]
+	pub tunnel: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentPsArgs {
+	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
+	#[clap(flatten)]
+	pub discovery: AgentDiscoveryArgs,
+
+	/// Output results as JSON instead of a human-readable table.
+	#[clap(long)]
+	pub json: bool,
+
+	/// Show all sessions, including idle and archived ones.
+	#[clap(long, short)]
+	pub all: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentStopArgs {
+	/// Session URI to cancel the active turn of (e.g. copilot:/<uuid>).
+	pub session: String,
+
+	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
+	#[clap(flatten)]
+	pub discovery: AgentDiscoveryArgs,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentLogsArgs {
+	/// Session URI to stream events for (e.g. copilot:/<uuid>).
+	pub session: String,
+
+	/// Discovery/connection target; see [`AgentDiscoveryArgs`].
+	#[clap(flatten)]
+	pub discovery: AgentDiscoveryArgs,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct AgentKillArgs {
+	/// Directory containing the shared agent host registry used for automatic discovery.
+	#[clap(long)]
+	pub user_data_dir: Option<String>,
+
+	/// Instance ID of the standalone agent host to kill, as shown when
+	/// multiple are running. Required to select non-interactively when
+	/// more than one live standalone agent host is registered.
+	#[clap(long)]
+	pub instance_id: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CommandShellArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
+	/// Listen on a socket instead of stdin/stdout.
+	#[clap(long)]
+	pub on_socket: bool,
+	/// Listen on a host/port instead of stdin/stdout.
+	#[clap(long, num_args = 0..=2, default_missing_value = "0")]
+	pub on_port: Vec<u16>,
+	/// Listen on a host/port instead of stdin/stdout.
+	#[clap[long]]
+	pub on_host: Option<String>,
+	/// Require the given token string to be given in the handshake.
+	#[clap(long, env = "VSCODE_CLI_REQUIRE_TOKEN")]
+	pub require_token: Option<String>,
+	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
+	#[clap(long, hide = true)]
+	pub parent_process_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -213,6 +592,8 @@ pub enum ExtensionSubcommand {
 	Install(InstallExtensionArgs),
 	/// Uninstall an extension.
 	Uninstall(UninstallExtensionArgs),
+	/// Update the installed extensions.
+	Update,
 }
 
 impl ExtensionSubcommand {
@@ -224,15 +605,18 @@ impl ExtensionSubcommand {
 					target.push("--show-versions".to_string());
 				}
 				if let Some(category) = &args.category {
-					target.push(format!("--category={}", category));
+					target.push(format!("--category={category}"));
 				}
 			}
 			ExtensionSubcommand::Install(args) => {
 				for id in args.id_or_path.iter() {
-					target.push(format!("--install-extension={}", id));
+					target.push(format!("--install-extension={id}"));
 				}
 				if args.pre_release {
 					target.push("--pre-release".to_string());
+				}
+				if args.donot_include_pack_and_dependencies {
+					target.push("do-not-include-pack-dependencies".to_string());
 				}
 				if args.force {
 					target.push("--force".to_string());
@@ -240,8 +624,11 @@ impl ExtensionSubcommand {
 			}
 			ExtensionSubcommand::Uninstall(args) => {
 				for id in args.id.iter() {
-					target.push(format!("--uninstall-extension={}", id));
+					target.push(format!("--uninstall-extension={id}"));
 				}
+			}
+			ExtensionSubcommand::Update => {
+				target.push("--update-extensions".to_string());
 			}
 		}
 	}
@@ -270,6 +657,10 @@ pub struct InstallExtensionArgs {
 	/// Installs the pre-release version of the extension
 	#[clap(long)]
 	pub pre_release: bool,
+
+	/// Don't include installing pack and dependencies of the extension
+	#[clap(long)]
+	pub donot_include_pack_and_dependencies: bool,
 
 	/// Update to the latest version of the extension if it's already installed.
 	#[clap(long)]
@@ -303,7 +694,7 @@ pub enum VersionSubcommand {
 #[derive(Args, Debug, Clone)]
 pub struct UseVersionArgs {
 	/// The version of the editor you want to use. Can be "stable", "insiders",
-	/// a version number, or an absolute path to an existing install.
+	/// or an absolute path to an existing install.
 	#[clap(value_name = "stable | insiders | x.y.z | path")]
 	pub name: String,
 
@@ -377,11 +768,11 @@ impl EditorOptions {
 			target.push("--wait".to_string());
 		}
 		if let Some(locale) = &self.locale {
-			target.push(format!("--locale={}", locale));
+			target.push(format!("--locale={locale}"));
 		}
 		if !self.enable_proposed_api.is_empty() {
 			for id in self.enable_proposed_api.iter() {
-				target.push(format!("--enable-proposed-api={}", id));
+				target.push(format!("--enable-proposed-api={id}"));
 			}
 		}
 		self.code_options.add_code_args(target);
@@ -411,17 +802,17 @@ pub struct DesktopCodeOptions {
 #[derive(Args, Debug, Clone)]
 pub struct OutputFormatOptions {
 	/// Set the data output formats.
-	#[clap(arg_enum, long, value_name = "format", default_value_t = OutputFormat::Text)]
+	#[clap(value_enum, long, value_name = "format", default_value_t = OutputFormat::Text)]
 	pub format: OutputFormat,
 }
 
 impl DesktopCodeOptions {
 	pub fn add_code_args(&self, target: &mut Vec<String>) {
 		if let Some(extensions_dir) = &self.extensions_dir {
-			target.push(format!("--extensions-dir={}", extensions_dir));
+			target.push(format!("--extensions-dir={extensions_dir}"));
 		}
 		if let Some(user_data_dir) = &self.user_data_dir {
-			target.push(format!("--user-data-dir={}", user_data_dir));
+			target.push(format!("--user-data-dir={user_data_dir}"));
 		}
 	}
 }
@@ -441,7 +832,7 @@ pub struct GlobalOptions {
 	pub log_to_file: Option<PathBuf>,
 
 	/// Log level to use.
-	#[clap(long, arg_enum, value_name = "level", global = true)]
+	#[clap(long, value_enum, value_name = "level", global = true)]
 	pub log: Option<log::Level>,
 
 	/// Disable telemetry for the current command, even if it was previously
@@ -450,7 +841,7 @@ pub struct GlobalOptions {
 	pub disable_telemetry: bool,
 
 	/// Sets the initial telemetry level
-	#[clap(arg_enum, long, global = true, hide = true)]
+	#[clap(value_enum, long, global = true, hide = true)]
 	pub telemetry_level: Option<options::TelemetryLevel>,
 }
 
@@ -460,13 +851,13 @@ impl GlobalOptions {
 			target.push("--verbose".to_string());
 		}
 		if let Some(log) = self.log {
-			target.push(format!("--log={}", log));
+			target.push(format!("--log={log}"));
 		}
 		if self.disable_telemetry {
 			target.push("--disable-telemetry".to_string());
 		}
 		if let Some(telemetry_level) = &self.telemetry_level {
-			target.push(format!("--telemetry-level={}", telemetry_level));
+			target.push(format!("--telemetry-level={telemetry_level}"));
 		}
 	}
 }
@@ -486,7 +877,7 @@ pub struct EditorTroubleshooting {
 	pub disable_extension: Vec<String>,
 
 	/// Turn sync on or off.
-	#[clap(arg_enum, long, value_name = "on | off")]
+	#[clap(value_enum, long, value_name = "on | off")]
 	pub sync: Option<SyncState>,
 
 	/// Allow debugging and profiling of extensions. Check the developer tools for the connection URI.
@@ -516,16 +907,16 @@ impl EditorTroubleshooting {
 			target.push("--disable-extensions".to_string());
 		}
 		for id in self.disable_extension.iter() {
-			target.push(format!("--disable-extension={}", id));
+			target.push(format!("--disable-extension={id}"));
 		}
 		if let Some(sync) = &self.sync {
-			target.push(format!("--sync={}", sync));
+			target.push(format!("--sync={sync}"));
 		}
 		if let Some(port) = &self.inspect_extensions {
-			target.push(format!("--inspect-extensions={}", port));
+			target.push(format!("--inspect-extensions={port}"));
 		}
 		if let Some(port) = &self.inspect_brk_extensions {
-			target.push(format!("--inspect-brk-extensions={}", port));
+			target.push(format!("--inspect-brk-extensions={port}"));
 		}
 		if self.disable_gpu {
 			target.push("--disable-gpu".to_string());
@@ -536,7 +927,7 @@ impl EditorTroubleshooting {
 	}
 }
 
-#[derive(ArgEnum, Clone, Copy, Debug)]
+#[derive(ValueEnum, Clone, Copy, Debug)]
 pub enum SyncState {
 	On,
 	Off,
@@ -551,7 +942,7 @@ impl fmt::Display for SyncState {
 	}
 }
 
-#[derive(ArgEnum, Clone, Copy, Debug)]
+#[derive(ValueEnum, Clone, Copy, Debug)]
 pub enum OutputFormat {
 	Json,
 	Text,
@@ -560,6 +951,7 @@ pub enum OutputFormat {
 #[derive(Args, Clone, Debug, Default)]
 pub struct ExistingTunnelArgs {
 	/// Name you'd like to assign preexisting tunnel to use to connect the tunnel
+	/// Old option, new code should just use `--name`.
 	#[clap(long, hide = true)]
 	pub tunnel_name: Option<String>,
 
@@ -578,6 +970,9 @@ pub struct ExistingTunnelArgs {
 
 #[derive(Args, Debug, Clone, Default)]
 pub struct TunnelServeArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
 	/// Optional details to connect to an existing tunnel
 	#[clap(flatten, next_help_heading = Some("ADVANCED OPTIONS"))]
 	pub tunnel: ExistingTunnelArgs,
@@ -601,6 +996,75 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Overrides the resolved user data directory used to home the local
+	/// agent-host endpoint registry
+	/// (`<user-data-dir>/agent-host/local-endpoint/entries/`, the directory of
+	/// per-instance entry files editor windows also publish to). Defaults to
+	/// the platform user data directory (honoring `VSCODE_PORTABLE` /
+	/// `VSCODE_APPDATA` when set), matching the editor's own resolution rules.
+	#[clap(long, hide = true)]
+	pub user_data_dir: Option<String>,
+
+	/// Emit machine-readable status lines on stdout for a parent process
+	/// (the editor) to consume, in addition to the human-readable banner.
+	#[clap(
+		long,
+		hide = true,
+		env = "VSCODE_CLI_MACHINE_STATUS",
+		action = clap::ArgAction::Set,
+		num_args = 0..=1,
+		default_value = "false",
+		default_missing_value = "true",
+		value_parser = clap::builder::BoolishValueParser::new()
+	)]
+	pub machine_status: bool,
+
+	/// Serve only the editor's own agent host through this tunnel: the
+	/// selection gateway pins every client to the live `editor` endpoint in
+	/// the registry and refuses to start a dedicated agent host. Intended for
+	/// tunnels whose lifetime is bound to the editor that started them, where
+	/// a dedicated agent host would outlive the tunnel and be unreachable.
+	#[clap(long, hide = true)]
+	pub delegate_to_editor: bool,
+}
+
+#[derive(Args, Debug, Clone, Default)]
+pub struct BaseServerArgs {
+	/// Requests that extensions be preloaded and installed on connecting servers.
+	#[clap(long)]
+	pub install_extension: Vec<String>,
+
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+
+	/// Set the root path for extensions.
+	#[clap(long)]
+	pub extensions_dir: Option<String>,
+
+	/// Reconnection grace time in seconds. Defaults to 10800 (3 hours).
+	#[clap(long)]
+	pub reconnection_grace_time: Option<u32>,
+}
+
+impl BaseServerArgs {
+	pub fn apply_to(&self, csa: &mut CodeServerArgs) {
+		csa.install_extensions
+			.extend_from_slice(&self.install_extension);
+
+		if let Some(d) = &self.server_data_dir {
+			csa.server_data_dir = Some(d.clone());
+		}
+
+		if let Some(d) = &self.extensions_dir {
+			csa.extensions_dir = Some(d.clone());
+		}
+
+		if let Some(t) = self.reconnection_grace_time {
+			csa.reconnection_grace_time = Some(t);
+		}
+	}
 }
 
 #[derive(Args, Debug, Clone)]
@@ -623,7 +1087,7 @@ pub enum TunnelSubcommand {
 	/// Restarts any running tunnel on the system.
 	Restart,
 
-	/// Gets whether there is a tunnel running on the current machineiou.
+	/// Gets whether there is a tunnel running on the current machine.
 	Status,
 
 	/// Rename the name of this machine associated with port forwarding service.
@@ -638,6 +1102,10 @@ pub enum TunnelSubcommand {
 	/// (Preview) Manages the tunnel when installed as a system service,
 	#[clap(subcommand)]
 	Service(TunnelServiceSubCommands),
+
+	/// (Preview) Forwards local port using the dev tunnel
+	#[clap(hide = true)]
+	ForwardInternal(TunnelForwardArgs),
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -661,12 +1129,26 @@ pub struct TunnelServiceInstallArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct TunnelRenameArgs {
 	/// The name you'd like to rename your machine to.
 	pub name: String,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TunnelForwardArgs {
+	/// One or more ports to forward.
+	pub ports: Vec<u16>,
+
+	/// Login args -- used for convenience so the forwarding call is a single action.
+	#[clap(flatten)]
+	pub login: LoginArgs,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -683,18 +1165,371 @@ pub enum TunnelUserSubCommands {
 
 #[derive(Args, Debug, Clone)]
 pub struct LoginArgs {
-	/// An access token to store for authentication. Note: this will not be
-	/// refreshed if it expires!
-	#[clap(long, requires = "provider")]
+	/// An access token to store for authentication.
+	#[clap(long, requires = "provider", env = "VSCODE_CLI_ACCESS_TOKEN")]
 	pub access_token: Option<String>,
 
+	/// An access token to store for authentication.
+	#[clap(long, requires = "access_token", env = "VSCODE_CLI_REFRESH_TOKEN")]
+	pub refresh_token: Option<String>,
+
 	/// The auth provider to use. If not provided, a prompt will be shown.
-	#[clap(arg_enum, long)]
+	#[clap(value_enum, long)]
 	pub provider: Option<AuthProvider>,
 }
 
-#[derive(clap::ArgEnum, Debug, Clone, Copy)]
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
 pub enum AuthProvider {
 	Microsoft,
 	Github,
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{AgentHostArgs, AgentSubcommand, Commands, IntegratedCli, TunnelServeArgs};
+	use clap::Parser;
+
+	const MACHINE_STATUS_ENV: &str = "VSCODE_CLI_MACHINE_STATUS";
+
+	#[test]
+	fn agent_certificate_commands_are_local_and_require_an_operation() {
+		for operation in ["create", "trust", "remove", "status"] {
+			let cli = IntegratedCli::try_parse_from(["code", "agent", "sandbox", "ca", operation])
+				.unwrap();
+			assert!(
+				matches!(cli.core.subcommand, Some(Commands::Agent(args)) if matches!(args.subcommand, Some(AgentSubcommand::Sandbox(_))))
+			);
+		}
+		for args in [
+			vec!["code", "agent", "sandbox", "ca"],
+			vec!["code", "agent", "sandbox", "ca", "trust", "other-user.pem"],
+			vec!["code", "agent", "sandbox", "ca", "remove", "other-user.pem"],
+			vec![
+				"code", "agent", "sandbox", "ca", "remove", "--tunnel", "remote",
+			],
+			vec![
+				"code", "agent", "sandbox", "ca", "create", "--tunnel", "remote",
+			],
+			vec!["code", "agent", "sandbox", "ca", "status", "--yes"],
+		] {
+			assert!(IntegratedCli::try_parse_from(args).is_err());
+		}
+		for operation in ["trust", "remove"] {
+			let cli = IntegratedCli::try_parse_from([
+				"code",
+				"agent",
+				"sandbox",
+				"ca",
+				operation,
+				"--yes",
+				"--accept-server-license-terms",
+			])
+			.unwrap();
+			let Some(Commands::Agent(agent)) = cli.core.subcommand else {
+				panic!("expected agent");
+			};
+			let Some(AgentSubcommand::Sandbox(sandbox)) = agent.subcommand else {
+				panic!("expected sandbox");
+			};
+			let super::AgentSandboxSubcommand::Ca(ca) = sandbox.subcommand;
+			assert!(ca.accept_server_license_terms);
+			assert!(matches!(
+				(operation, ca.subcommand),
+				(
+					"trust",
+					super::AgentCertificateSubcommand::Trust { yes: true }
+				) | (
+					"remove",
+					super::AgentCertificateSubcommand::Remove { yes: true }
+				)
+			));
+		}
+	}
+
+	fn parse_machine_status(args: &[&str]) -> bool {
+		let cli = IntegratedCli::try_parse_from(args).unwrap();
+		let Some(Commands::Tunnel(tunnel_args)) = cli.core.subcommand else {
+			panic!("expected tunnel arguments");
+		};
+
+		tunnel_args.serve_args.machine_status
+	}
+
+	fn parse_agent_host_args(args: &[&str]) -> AgentHostArgs {
+		let cli = IntegratedCli::try_parse_from(args).unwrap();
+		let Some(Commands::Agent(args)) = cli.core.subcommand else {
+			panic!("expected agent arguments");
+		};
+		match args.subcommand {
+			Some(AgentSubcommand::Host(args)) => args,
+			None => args.host_args,
+			_ => panic!("expected agent host arguments"),
+		}
+	}
+
+	#[test]
+	fn agent_github_environment_accepts_remote_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--github-environment",
+				"--foreground",
+				"--name",
+				"build-machine",
+				"--github-environment-root",
+				"project-a",
+				"--github-environment-root",
+				"project-b",
+				"--user-data-dir",
+				"profile",
+				"--server-data-dir",
+				"server-data",
+				"--accept-server-license-terms",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert_eq!(
+				(
+					args.github_environment,
+					args.foreground,
+					args.name.as_deref(),
+					args.github_environment_root,
+					args.accept_server_license_terms
+				),
+				(
+					true,
+					true,
+					Some("build-machine"),
+					vec!["project-a".into(), "project-b".into()],
+					true
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn agent_github_environment_rejects_incompatible_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			for options in [
+				vec!["--tunnel"],
+				vec!["--host", "0.0.0.0"],
+				vec!["--port", "0"],
+				vec!["--connection-token", "token"],
+				vec!["--connection-token-file", "token"],
+				vec!["--without-connection-token"],
+				vec!["--replace"],
+				vec!["--new-instance"],
+				vec!["--idle-timeout", "300"],
+				vec!["--random-name"],
+				vec!["--tunnel-id", "id"],
+				vec!["--host-token", "token"],
+				vec!["--cluster", "cluster"],
+				vec!["--tunnel-name", "name"],
+			] {
+				let mut argv = command.clone();
+				argv.push("--github-environment");
+				argv.extend(options);
+				assert_eq!(
+					IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+					clap::error::ErrorKind::ArgumentConflict,
+					"{argv:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn github_environment_options_require_hosting() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command.clone();
+			argv.extend(["--github-environment-root", "project"]);
+			assert!(IntegratedCli::try_parse_from(&argv).is_err());
+			let mut argv = command;
+			argv.extend(["--tunnel", "--github-environment-root", "project"]);
+			assert!(IntegratedCli::try_parse_from(&argv).is_err());
+		}
+	}
+
+	#[test]
+	fn github_environment_rejects_token_file_option() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--github-environment",
+				"--github-environment-token-file",
+				"token",
+			]);
+			assert_eq!(
+				IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+				clap::error::ErrorKind::UnknownArgument,
+				"{argv:?}"
+			);
+		}
+	}
+
+	#[test]
+	fn agent_tunnel_alias_forwards_tunnel_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--tunnel",
+				"--name",
+				"my-machine",
+				"--random-name",
+				"--server-data-dir",
+				"server-data",
+				"--user-data-dir",
+				"user-data",
+				"--tunnel-id",
+				"existing-id",
+				"--host-token",
+				"host-token",
+				"--cluster",
+				"cluster",
+				"--tunnel-name",
+				"existing-name",
+				"--accept-server-license-terms",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert!(args.tunnel);
+			let args = TunnelServeArgs::from(args);
+			assert_eq!(
+				(
+					args.name.as_deref(),
+					args.random_name,
+					args.server_args.server_data_dir.as_deref(),
+					args.user_data_dir.as_deref(),
+					args.tunnel.tunnel_id.as_deref(),
+					args.tunnel.host_token.as_deref(),
+					args.tunnel.cluster.as_deref(),
+					args.tunnel.tunnel_name.as_deref(),
+					args.accept_server_license_terms,
+					args.delegate_to_editor,
+				),
+				(
+					Some("my-machine"),
+					true,
+					Some("server-data"),
+					Some("user-data"),
+					Some("existing-id"),
+					Some("host-token"),
+					Some("cluster"),
+					Some("existing-name"),
+					true,
+					false,
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn agent_tunnel_alias_rejects_local_host_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			for options in [
+				vec!["--host", "0.0.0.0"],
+				vec!["--port", "0"],
+				vec!["--connection-token", "token"],
+				vec!["--connection-token-file", "token-file"],
+				vec!["--without-connection-token"],
+				vec!["--replace"],
+				vec!["--new-instance"],
+				vec!["--foreground"],
+				vec!["--idle-timeout", "300"],
+			] {
+				let mut argv = command.clone();
+				argv.push("--tunnel");
+				argv.extend(options);
+				assert_eq!(
+					IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+					clap::error::ErrorKind::ArgumentConflict,
+					"{argv:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn agent_host_without_tunnel_still_accepts_local_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--host",
+				"0.0.0.0",
+				"--port",
+				"1234",
+				"--connection-token",
+				"token",
+				"--replace",
+				"--new-instance",
+				"--foreground",
+				"--idle-timeout",
+				"300",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert_eq!(
+				(
+					args.tunnel,
+					args.host.as_deref(),
+					args.port,
+					args.connection_token.as_deref(),
+					args.replace,
+					args.new_instance,
+					args.foreground,
+					args.idle_timeout,
+				),
+				(
+					false,
+					Some("0.0.0.0"),
+					1234,
+					Some("token"),
+					true,
+					true,
+					true,
+					Some(300)
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn tunnel_rejects_agent_host_only_mode() {
+		assert_eq!(
+			IntegratedCli::try_parse_from(["code", "tunnel", "--agent-host-only"])
+				.unwrap_err()
+				.kind(),
+			clap::error::ErrorKind::UnknownArgument
+		);
+	}
+
+	/// Mutates process-global environment, which `cargo test` runs in parallel
+	/// with every other test. This is only safe because no other test reads
+	/// `VSCODE_CLI_MACHINE_STATUS`; if a second env-dependent test is added
+	/// here, serialize them (a shared mutex) rather than letting them race.
+	#[test]
+	fn parses_machine_status_from_flag_and_environment() {
+		let previous_value = std::env::var_os(MACHINE_STATUS_ENV);
+		std::env::remove_var(MACHINE_STATUS_ENV);
+
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "1");
+		assert!(parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "0");
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "false");
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::remove_var(MACHINE_STATUS_ENV);
+		assert!(parse_machine_status(&[
+			"code",
+			"tunnel",
+			"--machine-status"
+		]));
+
+		match previous_value {
+			Some(value) => std::env::set_var(MACHINE_STATUS_ENV, value),
+			None => std::env::remove_var(MACHINE_STATUS_ENV),
+		}
+	}
 }

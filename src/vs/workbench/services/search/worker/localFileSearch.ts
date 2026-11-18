@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
-import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
-import * as paths from 'vs/base/common/path';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
-import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
-import { createRegExp } from 'vs/base/common/strings';
-import { Promises } from 'vs/base/common/async';
-import { ExtUri } from 'vs/base/common/resources';
+import * as glob from '../../../../base/common/glob.js';
+import { UriComponents, URI } from '../../../../base/common/uri.js';
+import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../base/common/worker/webWorker.js';
+import { ILocalFileSearchWorker, LocalFileSearchWorkerHost, IWorkerFileSearchComplete, IWorkerFileSystemDirectoryHandle, IWorkerFileSystemHandle, IWorkerTextSearchComplete } from '../common/localFileSearchWorkerTypes.js';
+import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from '../common/search.js';
+import * as paths from '../../../../base/common/path.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { getFileResults } from '../common/getFileResults.js';
+import { IgnoreFile } from '../common/ignoreFile.js';
+import { createRegExp } from '../../../../base/common/strings.js';
+import { Promises } from '../../../../base/common/async.js';
+import { ExtUri } from '../../../../base/common/resources.js';
+import { revive } from '../../../../base/common/marshalling.js';
 
 const PERF = false;
 
@@ -47,22 +48,21 @@ const time = async <T>(name: string, task: () => Promise<T> | T) => {
 	return r;
 };
 
-/**
- * Called on the worker side
- * @internal
- */
-export function create(host: ILocalFileSearchSimpleWorkerHost): IRequestHandler {
-	return new LocalFileSearchSimpleWorker(host);
+export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestHandler {
+	return new LocalFileSearchWorker(workerServer);
 }
 
-export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker, IRequestHandler {
-	_requestHandlerBrand: any;
+export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorkerServerRequestHandler {
+	_requestHandlerBrand: void = undefined;
 
+	private readonly host: LocalFileSearchWorkerHost;
 	cancellationTokens: Map<number, CancellationTokenSource> = new Map();
 
-	constructor(private host: ILocalFileSearchSimpleWorkerHost) { }
+	constructor(workerServer: IWebWorkerServer) {
+		this.host = LocalFileSearchWorkerHost.getChannel(workerServer);
+	}
 
-	cancelQuery(queryId: number): void {
+	$cancelQuery(queryId: number): void {
 		this.cancellationTokens.get(queryId)?.cancel();
 	}
 
@@ -72,7 +72,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		return source;
 	}
 
-	async listDirectory(handle: IWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete> {
+	async $listDirectory(handle: IWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete> {
 		const revivedFolderQuery = reviveFolderQuery(folderQuery);
 		const extUri = new ExtUri(() => ignorePathCasing);
 
@@ -107,7 +107,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		};
 	}
 
-	async searchDirectory(handle: IWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete> {
+	async $searchDirectory(handle: IWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete> {
 		const revivedQuery = reviveFolderQuery(folderQuery);
 		const extUri = new ExtUri(() => ignorePathCasing);
 
@@ -138,8 +138,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 				const bytes = new Uint8Array(contents);
 				const fileResults = getFileResults(bytes, pattern, {
-					afterContext: query.afterContext ?? 0,
-					beforeContext: query.beforeContext ?? 0,
+					surroundingContext: query.surroundingContext ?? 0,
 					previewOptions: query.previewOptions,
 					remainingResultQuota: query.maxResults ? (query.maxResults - resultCount) : 10000,
 				});
@@ -153,7 +152,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 						resource: URI.joinPath(revivedQuery.folder, file.path),
 						results: fileResults,
 					};
-					this.host.sendTextSearchMatch(match, queryId);
+					this.host.$sendTextSearchMatch(match, queryId);
 					results.push(match);
 				}
 			};
@@ -174,24 +173,18 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 	}
 
-	private async walkFolderQuery(handle: IWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
+	private async walkFolderQuery(handle: IWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => Promise<unknown> | unknown, token: CancellationToken): Promise<void> {
 
-		const folderExcludes = glob.parse(folderQuery.excludePattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression;
+		const ignoreGlobCase = queryProps.ignoreGlobCase || folderQuery.ignoreGlobCase;
+		const globOptions = { trimForExclusions: true, ignoreCase: ignoreGlobCase };
+		const folderExcludes = folderQuery.excludePattern?.map(excludePattern => glob.parseExcludeExpression(excludePattern.pattern ?? {}, globOptions)) ?? [];
+		const queryExclude = queryProps.excludePattern && glob.parseExcludeExpression(queryProps.excludePattern, { ignoreCase: queryProps.ignoreGlobCase });
+		const excludes = queryExclude ? [...folderExcludes, queryExclude] : folderExcludes;
 
-		// For folders, only check if the folder is explicitly excluded so walking continues.
-		const isFolderExcluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
-			path = path.slice(1);
-			if (folderExcludes(path, basename, hasSibling)) { return true; }
-			if (pathExcludedInQuery(queryProps, path)) { return true; }
-			return false;
-		};
-
-		// For files ensure the full check takes place.
-		const isFileIncluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
-			path = path.slice(1);
-			if (folderExcludes(path, basename, hasSibling)) { return false; }
-			if (!pathIncludedInQuery(queryProps, path, extUri)) { return false; }
-			return true;
+		const excludeEvaluator: glob.IExcludeTreeEvaluator = {
+			matchesExclude: (path, basename, hasSibling) => excludes.some(exclude => exclude.matchesExclude(path, basename, hasSibling)),
+			isExcepted: (path, basename) => excludes.some(exclude => exclude.isExcepted(path, basename)),
+			couldExceptionMatchBeneath: path => excludes.some(exclude => exclude.couldExceptionMatchBeneath(path)),
 		};
 
 		const processFile = (file: FileSystemFileHandle, prior: string): FileNode => {
@@ -214,7 +207,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			return handle.kind === 'file';
 		};
 
-		const processDirectory = async (directory: IWorkerFileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile): Promise<DirNode> => {
+		const processDirectory = async (directory: IWorkerFileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile, isParentExcluded = false): Promise<DirNode> => {
 
 			if (!folderQuery.disregardIgnoreFiles) {
 				const ignoreFiles = await Promise.all([
@@ -226,7 +219,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 					if (!file) { return; }
 
 					const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
-					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile);
+					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile, ignoreGlobCase);
 				}));
 			}
 
@@ -248,16 +241,23 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 					}
 
 					const path = prior + basename;
-
-					if (ignoreFile && !ignoreFile.isPathIncludedInTraversal(path, handle.kind === 'directory')) {
+					const relativePath = path.slice(1);
+					const isDirectory = isFileSystemDirectoryHandle(handle);
+					const { isExcluded, isVisited } = glob.evaluateExcludeTreeEntry(excludeEvaluator, {
+						path: relativePath,
+						basename,
+						isDirectory,
+						isParentExcluded,
+						isHidden: () => !!ignoreFile && !ignoreFile.isPathIncludedInTraversal(path, isDirectory),
+						hasSibling: query => sibilings.has(query),
+					});
+					if (!isVisited) {
 						continue;
 					}
 
-					const hasSibling = (query: string) => sibilings.has(query);
-
-					if (isFileSystemDirectoryHandle(handle) && !isFolderExcluded(path, basename, hasSibling)) {
-						dirs.push(processDirectory(handle, path + '/', ignoreFile));
-					} else if (isFileSystemFileHandle(handle) && isFileIncluded(path, basename, hasSibling)) {
+					if (isFileSystemDirectoryHandle(handle)) {
+						dirs.push(processDirectory(handle, path + '/', ignoreFile, isExcluded));
+					} else if (isFileSystemFileHandle(handle) && !isExcluded && isIncludedByQuery(queryProps, relativePath, extUri)) {
 						files.push(processFile(handle, path));
 					}
 				}
@@ -271,7 +271,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			};
 		};
 
-		const resolveDirectory = async (directory: DirNode, onFile: (f: FileNode) => any) => {
+		const resolveDirectory = async (directory: DirNode, onFile: (f: FileNode) => Promise<unknown> | unknown) => {
 			if (token.isCancellationRequested) { return; }
 
 			await Promise.all(
@@ -303,10 +303,12 @@ function createSearchRegExp(options: IPatternInfo): RegExp {
 }
 
 function reviveFolderQuery(folderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...folderQuery,
+	// @todo: andrea - try to see why we can't just call 'revive' here
+	return revive({
+		...revive(folderQuery),
+		excludePattern: folderQuery.excludePattern?.map(ep => ({ folder: URI.revive(ep.folder), pattern: ep.pattern })),
 		folder: URI.revive(folderQuery.folder),
-	};
+	});
 }
 
 function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommonQueryProps<URI> {
@@ -318,20 +320,13 @@ function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommon
 }
 
 
-function pathExcludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
-		return true;
-	}
-	return false;
-}
-
-function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path)) {
-		return false;
-	}
-
+/**
+ * Checks the include patterns and search paths of the query. Excludes are evaluated during the walk.
+ */
+function isIncludedByQuery(queryProps: ICommonQueryProps<URI>, path: string, extUri: ExtUri): boolean {
+	const globOptions = queryProps.ignoreGlobCase ? { ignoreCase: true } : undefined;
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, path)) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, path, globOptions)) {
 			return true;
 		}
 
@@ -343,7 +338,7 @@ function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: string, e
 				const uri = URI.file(path);
 				if (extUri.isEqualOrParent(uri, searchPath)) {
 					const relPath = paths.relative(searchPath.path, uri.path);
-					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath, globOptions);
 				} else {
 					return false;
 				}

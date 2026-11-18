@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { IProcessEnvironment } from './platform.js';
 
 /**
  * Options to be passed to the external program or shell.
@@ -102,10 +102,10 @@ export interface ProcessItem {
  * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
  */
 export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve: string[]): void {
-	const set = preserve.reduce((set, key) => {
+	const set = preserve.reduce<Record<string, boolean>>((set, key) => {
 		set[key] = true;
 		return set;
-	}, {} as Record<string, boolean>);
+	}, {});
 	const keysToRemove = [
 		/^ELECTRON_.+$/,
 		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).+$/,
@@ -136,20 +136,16 @@ export function removeDangerousEnvVariables(env: IProcessEnvironment | undefined
 		return;
 	}
 
-	// Unset `DEBUG`, as an invalid value might lead to process crashes
-	// See https://github.com/microsoft/vscode/issues/130072
-	delete env['DEBUG'];
-
-	if (isMacintosh) {
-		// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
-		// See https://github.com/microsoft/vscode/issues/104525
-		// See https://github.com/microsoft/vscode/issues/105848
-		delete env['DYLD_LIBRARY_PATH'];
-	}
-
-	if (isLinux) {
-		// Unset `LD_PRELOAD`, as it might lead to process crashes
-		// See https://github.com/microsoft/vscode/issues/134177
-		delete env['LD_PRELOAD'];
+	const dangerousEnvVariables = new Set([
+		'DEBUG',
+		'NODE_OPTIONS',
+		'VSCODE_NODE_OPTIONS',
+		'LD_PRELOAD',
+		'DYLD_INSERT_LIBRARIES'
+	]);
+	for (const key of Object.keys(env)) {
+		if (dangerousEnvVariables.has(key.toUpperCase())) {
+			delete env[key];
+		}
 	}
 }

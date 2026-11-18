@@ -6,18 +6,18 @@
 import * as os from 'os';
 import * as fs from 'fs';
 import * as net from 'net';
-import { FileAccess } from 'vs/base/common/network';
-import { run as runCli } from 'vs/server/node/remoteExtensionHostAgentCli';
-import { createServer as doCreateServer, IServerAPI } from 'vs/server/node/remoteExtensionHostAgentServer';
-import { parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
-import { join, dirname } from 'vs/base/common/path';
+import { FileAccess } from '../../base/common/network.js';
+import { run as runCli } from './remoteExtensionHostAgentCli.js';
+import { createServer as doCreateServer, IServerAPI } from './remoteExtensionHostAgentServer.js';
+import { parseArgs, ErrorReporter } from '../../platform/environment/node/argv.js';
+import { join, dirname } from '../../base/common/path.js';
 import { performance } from 'perf_hooks';
-import { serverOptions } from 'vs/server/node/serverEnvironmentService';
-import product from 'vs/platform/product/common/product';
-import * as perf from 'vs/base/common/performance';
+import { serverOptions } from './serverEnvironmentService.js';
+import product from '../../platform/product/common/product.js';
+import * as perf from '../../base/common/performance.js';
 
 perf.mark('code/server/codeLoaded');
-(<any>global).vscodeServerCodeLoadedTime = performance.now();
+(global as unknown as { vscodeServerCodeLoadedTime?: number }).vscodeServerCodeLoadedTime = performance.now();
 
 const errorReporter: ErrorReporter = {
 	onMultipleValues: (id: string, usedValue: string) => {
@@ -35,9 +35,11 @@ const errorReporter: ErrorReporter = {
 };
 
 const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
+// CLIs set this for servers that predate agent host discovery through the endpoint registry; keep it from child processes.
+delete process.env['VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN'];
 
 const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
-const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
+const USER_DATA_PATH = args['user-data-dir'] || join(REMOTE_DATA_FOLDER, 'data');
 const APP_SETTINGS_HOME = join(USER_DATA_PATH, 'User');
 const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');
 const LOCAL_HISTORY_HOME = join(APP_SETTINGS_HOME, 'History');
@@ -51,7 +53,7 @@ args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'ext
 [REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME, LOCAL_HISTORY_HOME].forEach(f => {
 	try {
 		if (!fs.existsSync(f)) {
-			fs.mkdirSync(f, { mode: 0o700 });
+			fs.mkdirSync(f, { mode: 0o700, recursive: true });
 		}
 	} catch (err) { console.error(err); }
 });

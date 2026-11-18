@@ -11,12 +11,13 @@ The JSON Language server provides language-specific smarts for editing, validati
 ### Server capabilities
 
 The JSON language server supports requests on documents of language id `json` and `jsonc`.
+
 - `json` documents are parsed and validated following the [JSON specification](https://tools.ietf.org/html/rfc7159).
 - `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`). JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
 
 The server implements the following capabilities of the language server protocol:
 
-- [Code completion](https://microsoft.github.io/language-server-protocol/specification#textDocument_completion) for JSON properties and values based on the document's [JSON schema](http://json-schema.org/) or based on existing properties and values used at other places in the document. JSON schemas are configured through the server configuration options.
+- [Inline Suggestion](https://microsoft.github.io/language-server-protocol/specification#textDocument_completion) for JSON properties and values based on the document's [JSON schema](http://json-schema.org/) or based on existing properties and values used at other places in the document. JSON schemas are configured through the server configuration options.
 - [Hover](https://microsoft.github.io/language-server-protocol/specification#textDocument_hover) for values based on descriptions in the document's [JSON schema](http://json-schema.org/).
 - [Document Symbols](https://microsoft.github.io/language-server-protocol/specification#textDocument_documentSymbol) for quick navigation to properties in the document.
 - [Document Colors](https://microsoft.github.io/language-server-protocol/specification#textDocument_documentColor) for showing color decorators on values representing colors and [Color Presentation](https://microsoft.github.io/language-server-protocol/specification#textDocument_colorPresentation) for color presentation information to support color pickers. The location of colors is defined by the document's [JSON schema](http://json-schema.org/). All values marked with `"format": "color-hex"` (VSCode specific, non-standard JSON Schema extension) are considered color values. The supported color formats are `#rgb[a]` and `#rrggbb[aa]`.
@@ -25,18 +26,18 @@ The server implements the following capabilities of the language server protocol
 - Semantic Selection for semantic selection for one or multiple cursor positions.
 - [Goto Definition](https://microsoft.github.io/language-server-protocol/specification#textDocument_definition) for $ref references in JSON schemas
 - [Diagnostics (Validation)](https://microsoft.github.io/language-server-protocol/specification#textDocument_publishDiagnostics) are pushed for all open documents
-   - syntax errors
-   - structural validation based on the document's [JSON schema](http://json-schema.org/).
+  - syntax errors
+  - structural validation based on the document's [JSON schema](http://json-schema.org/).
 
 In order to load JSON schemas, the JSON server uses NodeJS `http` and `fs` modules. For all other features, the JSON server only relies on the documents and settings provided by the client through the LSP.
 
-### Client requirements:
+### Client requirements
 
 The JSON language server expects the client to only send requests and notifications for documents of language id `json` and `jsonc`.
 
 The JSON language server has the following dependencies on the client's capabilities:
 
-- Code completion requires that the client capability has *snippetSupport*. If not supported by the client, the server will not offer the completion capability.
+- Inline suggestion requires that the client capability has *snippetSupport*. If not supported by the client, the server will not offer the completion capability.
 - Formatting support requires the client to support *dynamicRegistration* for *rangeFormatting*. If not supported by the client, the server will not offer the format capability.
 
 ## Configuration
@@ -56,8 +57,8 @@ Clients may send a `workspace/didChangeConfiguration` notification to notify the
 The server supports the following settings:
 
 - http
-   - `proxy`: The URL of the proxy server to use when fetching schema. When undefined or empty, no proxy is used.
-   - `proxyStrictSSL`: Whether the proxy server certificate should be verified against the list of supplied CAs.
+  - `proxy`: The URL of the proxy server to use when fetching schema. When undefined or empty, no proxy is used.
+  - `proxyStrictSSL`: Whether the proxy server certificate should be verified against the list of supplied CAs.
 
 - json
   - `format`
@@ -72,6 +73,7 @@ The server supports the following settings:
   - `resultLimit`: The max number of color decorators and outline symbols to be computed (for performance reasons)
   - `jsonFoldingLimit`: The max number of folding ranges to be computed for json documents (for performance reasons)
   - `jsoncFoldingLimit`: The max number of folding ranges to be computed for jsonc documents (for performance reasons)
+
 ```json
     {
         "http": {
@@ -88,7 +90,7 @@ The server supports the following settings:
                         "foo.json",
                         "*.superfoo.json"
                     ],
-                    "url": "http://json.schemastore.org/foo",
+                    "url": "http://www.schemastore.org/foo",
                     "schema": {
                         "type": "array"
                     }
@@ -103,6 +105,7 @@ The server supports the following settings:
 [JSON schemas](http://json-schema.org/) are essential for code assist, hovers, color decorators to work and are required for structural validation.
 
 To find the schema for a given JSON document, the server uses the following mechanisms:
+
 - JSON documents can define the schema URL using a `$schema` property
 - The settings define a schema association based on the documents URL. Settings can either associate a schema URL to a file or path pattern, and they can directly provide a schema.
 - Additionally, schema associations can also be provided by a custom 'schemaAssociations' configuration call.
@@ -115,9 +118,9 @@ The `initializationOptions.handledSchemaProtocols` initialization option defines
 
 ```ts
 let clientOptions: LanguageClientOptions = {
-		initializationOptions: {
-			handledSchemaProtocols: ['file'] // language server should only try to load file URLs
-		}
+  initializationOptions: {
+   handledSchemaProtocols: ['file'] // language server should only try to load file URLs
+  }
         ...
 }
 ```
@@ -132,6 +135,7 @@ If `handledSchemaProtocols` is not set, the JSON language server will load the f
 Requests for schemas with URLs not handled by the server are forwarded to the client through an LSP request. This request is a JSON language server-specific, non-standardized, extension to the LSP.
 
 Request:
+
 - method: 'vscode/content'
 - params: `string` - The schema URL to request.
 - response: `string` - The content of the schema with the given URL
@@ -146,6 +150,7 @@ The server will, as a response, clear the schema content from the cache and relo
 In addition to the settings, schemas associations can also be provided through a notification from the client to the server. This notification is a JSON language server-specific, non-standardized, extension to the LSP.
 
 Notification:
+
 - method: 'json/schemaAssociations'
 - params: `ISchemaAssociations` or `ISchemaAssociation[]` defined as follows
 
@@ -183,11 +188,14 @@ interface ISchemaAssociation {
 }
 
 ```
+
 `ISchemaAssociations`
-  - keys: a file names or file path (separated by `/`). `*` can be used as a wildcard.
-  - values: An array of schema URLs
+
+- keys: a file names or file path (separated by `/`). `*` can be used as a wildcard.
+- values: An array of schema URLs
 
 Notification:
+
 - method: 'json/schemaContent'
 - params: `string` the URL of the schema that has changed.
 
@@ -226,6 +234,7 @@ The source code of the JSON language server can be found in the [VSCode reposito
 File issues and pull requests in the [VSCode GitHub Issues](https://github.com/microsoft/vscode/issues). See the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) on how to build and run from source.
 
 Most of the functionality of the server is located in libraries:
+
 - [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) contains the JSON parser and scanner.
 - [vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice) contains the implementation of all features as a re-usable library.
 - [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) contains the implementation of language server for NodeJS.

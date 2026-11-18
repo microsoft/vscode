@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { createTextModel } from '../testTextModel.js';
 
 suite('Editor Model - Model Edit Operation', () => {
 	const LINE1 = 'My First Line';
@@ -30,6 +31,8 @@ suite('Editor Model - Model Edit Operation', () => {
 	teardown(() => {
 		model.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
 		const range = new Range(

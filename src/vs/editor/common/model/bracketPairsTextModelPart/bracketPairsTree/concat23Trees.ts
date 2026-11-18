@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode, AstNodeKind, ListAstNode } from './ast';
+import { AstNode, AstNodeKind, ListAstNode } from './ast.js';
 
 /**
  * Concatenates a list of (2,3) AstNode's into a single (2,3) AstNode.
@@ -106,7 +106,7 @@ function concat(node1: AstNode, node2: AstNode): AstNode {
  * Returns the new root.
 */
 function append(list: ListAstNode, nodeToAppend: AstNode): AstNode {
-	list = list.toMutable() as ListAstNode;
+	list = list.toMutable();
 	let curNode: AstNode = list;
 	const parents: ListAstNode[] = [];
 	let nodeToAppendOfCorrectHeight: AstNode | undefined;
@@ -155,7 +155,7 @@ function append(list: ListAstNode, nodeToAppend: AstNode): AstNode {
  * Returns the new root.
 */
 function prepend(list: ListAstNode, nodeToAppend: AstNode): AstNode {
-	list = list.toMutable() as ListAstNode;
+	list = list.toMutable();
 	let curNode: AstNode = list;
 	const parents: ListAstNode[] = [];
 	// assert nodeToInsert.listHeight <= curNode.listHeight

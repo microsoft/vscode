@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { readFileSync } from 'fs';
+import assert from 'assert';
+import { readFileSync, promises } from 'fs';
 import { tmpdir } from 'os';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { Promises, writeFileSync } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { FileStorage, SaveStrategy } from 'vs/platform/state/node/stateService';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Promises, writeFileSync } from '../../../../base/node/pfs.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { flakySuite, getRandomTestPath } from '../../../../base/test/node/testUtils.js';
+import { IFileService } from '../../../files/common/files.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { FileStorage, SaveStrategy } from '../../node/stateService.js';
 
 flakySuite('StateService', () => {
 
@@ -24,21 +26,22 @@ flakySuite('StateService', () => {
 	let logService: ILogService;
 	let diskFileSystemProvider: DiskFileSystemProvider;
 
+	const disposables = new DisposableStore();
+
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'statemainservice');
 
 		logService = new NullLogService();
 
-		fileService = new FileService(logService);
-		diskFileSystemProvider = new DiskFileSystemProvider(logService);
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		fileService = disposables.add(new FileService(logService));
+		diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
 
-		return Promises.mkdir(testDir, { recursive: true });
+		return promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {
-		fileService.dispose();
-		diskFileSystemProvider.dispose();
+		disposables.clear();
 
 		return Promises.rm(testDir);
 	});
@@ -47,7 +50,7 @@ flakySuite('StateService', () => {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		let service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService));
 		await service.init();
 
 		service.setItem('some.key', 'some.value');
@@ -62,7 +65,7 @@ flakySuite('StateService', () => {
 
 		await service.close();
 
-		service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService));
 		await service.init();
 
 		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
@@ -103,13 +106,15 @@ flakySuite('StateService', () => {
 		assert.strictEqual(service.getItem('some.setItems.key3'), undefined);
 		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
 		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
+
+		return service.close();
 	});
 
 	test('Basics (immediate strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService);
+		let service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService));
 		await service.init();
 
 		service.setItem('some.key', 'some.value');
@@ -124,7 +129,7 @@ flakySuite('StateService', () => {
 
 		await service.close();
 
-		service = new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService);
+		service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService));
 		await service.init();
 
 		assert.strictEqual(service.getItem('some.other.key'), 'some.other.value');
@@ -165,13 +170,15 @@ flakySuite('StateService', () => {
 		assert.strictEqual(service.getItem('some.setItems.key3'), undefined);
 		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
 		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
+
+		return service.close();
 	});
 
 	test('Multiple ops are buffered and applied', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		let service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService));
 		await service.init();
 
 		service.setItem('some.key1', 'some.value1');
@@ -187,20 +194,22 @@ flakySuite('StateService', () => {
 
 		await service.close();
 
-		service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService));
 		await service.init();
 
 		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
 		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		return service.close();
 	});
 
 	test('Multiple ops (Immediate Strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		let service = new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService);
+		let service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService));
 		await service.init();
 
 		service.setItem('some.key1', 'some.value1');
@@ -216,20 +225,22 @@ flakySuite('StateService', () => {
 
 		await service.close();
 
-		service = new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService);
+		service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.IMMEDIATE, logService, fileService));
 		await service.init();
 
 		assert.strictEqual(service.getItem('some.key1'), 'some.value1');
 		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		return service.close();
 	});
 
 	test('Used before init', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		const service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService));
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');
@@ -248,13 +259,15 @@ flakySuite('StateService', () => {
 		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		return service.close();
 	});
 
 	test('Used after close', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		const service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService));
 
 		await service.init();
 
@@ -271,14 +284,14 @@ flakySuite('StateService', () => {
 		assert.ok(contents.includes('some.value1'));
 		assert.ok(!contents.includes('some.marker'));
 
-		await service.close();
+		return service.close();
 	});
 
 	test('Closed before init', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
-		const service = new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService);
+		const service = disposables.add(new FileStorage(URI.file(storageFile), SaveStrategy.DELAYED, logService, fileService));
 
 		service.setItem('some.key1', 'some.value1');
 		service.setItem('some.key2', 'some.value2');
@@ -290,4 +303,6 @@ flakySuite('StateService', () => {
 		const contents = readFileSync(storageFile).toString();
 		assert.strictEqual(contents.length, 0);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

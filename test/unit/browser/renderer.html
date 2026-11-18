@@ -31,38 +31,203 @@
 			}
 		});
 
+		const urlParams = new URLSearchParams(window.location.search);
+		const isCI = urlParams.get('ci');
+
+		const $globalThis = globalThis;
+		const setTimeout0IsFaster = (typeof $globalThis.postMessage === 'function' && !$globalThis.importScripts);
+
+		/**
+		 * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
+		 *
+		 * Works similarly to `setTimeout(0)` but doesn't suffer from the 4ms artificial delay
+		 * that browsers set when the nesting level is > 5.
+		 */
+		const setTimeout0 = (() => {
+			if (setTimeout0IsFaster) {
+				const pending = [];
+
+				$globalThis.addEventListener('message', (e) => {
+					if (e.data && e.data.vscodeScheduleAsyncWork) {
+						for (let i = 0, len = pending.length; i < len; i++) {
+							const candidate = pending[i];
+							if (candidate.id === e.data.vscodeScheduleAsyncWork) {
+								pending.splice(i, 1);
+								candidate.callback();
+								return;
+							}
+						}
+					}
+				});
+				let lastId = 0;
+				return (callback) => {
+					const myId = ++lastId;
+					pending.push({
+						id: myId,
+						callback: callback
+					});
+					$globalThis.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
+				};
+			}
+			return (callback) => setTimeout(callback);
+		})();
+
+		Mocha.Runner.immediately = setTimeout0;
+
 		mocha.setup({
 			ui: 'tdd',
-			timeout: 5000
+			timeout: isCI ? 30000 : 5000
 		});
 	</script>
 
-	<!-- Depending on --build or not, load loader from known locations -->
-	<script src="../../../out/vs/loader.js"></script>
-	<script src="../../../out-build/vs/loader.js"></script>
-
 	<script>
-		const urlParams = new URLSearchParams(window.location.search);
 		const isBuild = urlParams.get('build');
+		const out = !!isBuild ? 'out-build' : 'out';
+		const tasks =[];
 
 		// configure loader
 		const baseUrl = window.location.href;
-		require.config({
-			catchError: true,
-			baseUrl: new URL('../../../src', baseUrl).href,
-			paths: {
-				vs: new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
+
+		// generate import map
+		const importMapParent = document.currentScript.parentNode;
+		const importMap = {
+			imports: {
+				vs: new URL(`../../../${out}/vs`, baseUrl).href,
 				assert: new URL('../assert.js', baseUrl).href,
-				sinon: new URL('../../../node_modules/sinon/pkg/sinon.js', baseUrl).href,
-				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test.js', baseUrl).href,
-				xterm: new URL('../../../node_modules/xterm/lib/xterm.js', baseUrl).href,
+				sinon: new URL('../../../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
+				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
+				'@xterm/xterm': new URL('../../../node_modules/@xterm/xterm/lib/xterm.js', baseUrl).href,
 				'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js', baseUrl).href,
 				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
 			}
+		}
+		// FileAccess resolves test assets from src, but generated crypto is emitted only to the output tree.
+		const agentHostCryptoPath = 'vs/platform/agentHost/browser/agentHostCryptoModule.js';
+		importMap.imports[new URL(`../../../src/${agentHostCryptoPath}`, baseUrl).href] = new URL(`../../../${out}/${agentHostCryptoPath}`, baseUrl).href;
+
+		// ---- CSS tricks
+
+		// A full run loads every test file into this one page, so each test sees the stylesheets of all the others.
+		// Load every product stylesheet up front so that a run of only some test files (a PR test plan, or one
+		// worker's share) sees the same global styles. Test fixture stylesheets are data, not workbench styles.
+		// They are imported one at a time in a fixed order, so equal-specificity rules cascade the same way in every
+		// worker, and the tests start only once every imported stylesheet has loaded.
+		const productCssUrls = [];
+		const isTestFixtureCss = cssModule => /(^|\/)test\//.test(cssModule);
+		const preloadProductCss = async () => {
+			productCssUrls.sort();
+			for (const cssUrl of productCssUrls) {
+				await import(cssUrl);
+			}
+			await whenCssImportsLoaded(new Set(productCssUrls));
+		};
+		// `@import` rules load asynchronously and an `@import` has no load event, its style sheet appears once loaded.
+		const whenCssImportsLoaded = async (cssUrls, timeoutMs = 30_000) => {
+			const deadline = Date.now() + timeoutMs;
+			const isPending = rule => rule instanceof CSSImportRule && cssUrls.has(rule.href) && !rule.styleSheet;
+			while (cssStyle && [...cssStyle.sheet.cssRules].some(isPending) && Date.now() < deadline) {
+				await new Promise(resolve => setTimeout(resolve, 10));
+			}
+		};
+		let cssStyle;
+
+		const cssDataBase64 = urlParams.get('_devCssData');
+		if (typeof cssDataBase64 === 'string') {
+
+			const style = document.createElement('style');
+			style.type = 'text/css';
+			document.head.appendChild(style);
+			cssStyle = style;
+			globalThis._VSCODE_CSS_LOAD = function (url) {
+				// debugger;
+				style.sheet.insertRule(`@import url(${url});`);
+			};
+
+			const cssData = Uint8Array.from(atob(cssDataBase64), c => c.charCodeAt(0));
+			tasks.push(new Response(new Blob([cssData], {type:'application/octet-binary'}).stream().pipeThrough(new DecompressionStream('gzip'))).text().then(value => {
+				const cssModules = value.split(',');
+				for (const cssModule of cssModules) {
+					const cssUrl = new URL(`../../../${out}/${cssModule}`, baseUrl).href;
+					const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+					const blob = new Blob([jsSrc], { type: 'application/javascript' });
+					importMap.imports[cssUrl] = URL.createObjectURL(blob);
+					if (!isTestFixtureCss(cssModule)) {
+						productCssUrls.push(cssUrl);
+					}
+				}
+			}).catch(err => {
+				console.error(err);
+			}));
+		}
+
+		const initPromise = Promise.allSettled(tasks).then(() => {
+
+			const rawImportMap = JSON.stringify(importMap, undefined, 2);
+			const importMapScript = document.createElement('script');
+			importMapScript.type = 'importmap';
+			importMapScript.textContent = rawImportMap;
+			importMapParent.appendChild(importMapScript);
+
+			return preloadProductCss();
+
+		}).then(() => {
+			const bootstrapScript = document.createElement('script');
+			bootstrapScript.type = 'module';
+			bootstrapScript.textContent = document.getElementById('bootstrap').textContent
+			document.getElementById('bootstrap').remove();
+			document.body.append(bootstrapScript);
 		});
+
+		// set up require
+
+		globalThis._VSCODE_FILE_ROOT = new URL('../../../src', baseUrl).href;
+		globalThis.require = {
+			paths: {
+				xterm: new URL('../../../node_modules/xterm', baseUrl).href,
+				'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd', baseUrl).href,
+				jschardet: new URL('../../../node_modules/jschardet', baseUrl).href
+			}
+		}
 	</script>
 
 	<script>
+		const ambiguousRunnables = new Set();
+
+		function runnableKey(runnable) {
+			return JSON.stringify([runnable.type === 'test' ? 'test' : 'suite', runnable.file, runnable.titlePath()]);
+		}
+
+		function prepareTestsForRerun(targets) {
+			const runnables = new Set();
+			function collect(suite) {
+				for (const runnable of [suite, ...suite.tests]) {
+					const key = runnableKey(runnable);
+					if (runnables.has(key)) {
+						ambiguousRunnables.add(key);
+					} else {
+						runnables.add(key);
+					}
+				}
+				suite.suites.forEach(collect);
+			}
+			// Detect duplicates before selection, including pending tests and suites.
+			collect(mocha.suite);
+			if (!targets) {
+				return;
+			}
+			function select(suite) {
+				suite.tests = suite.tests.filter(test => targets.some(target => {
+					const titlePath = test.titlePath();
+					return test.file === target.file
+						&& (target.kind !== 'test' || titlePath.length === target.titlePath.length)
+						&& target.titlePath.every((title, index) => title === titlePath[index]);
+				}));
+				suite.suites.forEach(select);
+			}
+			// A full-title grep cannot distinguish sibling names or different suite ancestry.
+			select(mocha.suite);
+		}
+
 		function serializeSuite(suite) {
 			return {
 				root: suite.root,
@@ -87,6 +252,13 @@
 				speed: runnable.speed,
 				duration: runnable.duration,
 				currentRetry: runnable.currentRetry(),
+				// the test file (module) for the runner to rerun. Root-level hooks have none,
+				// because their failure stops the whole run
+				file: runnable.file,
+				// a failed test is rerun by itself, a failed hook with the rest of its suite
+				type: runnable.type,
+				parentTitlePath: runnable.parent?.titlePath() ?? [],
+				ambiguous: ambiguousRunnables.has(runnableKey(runnable.type === 'hook' ? runnable.parent : runnable))
 			};
 		}
 		function serializeError(err) {
@@ -114,24 +286,124 @@
 			runner.on('pending', test => window.mocha_report('pending', serializeRunnable(test)));
 		};
 
-		window.loadAndRun = async function loadAndRun({ modules, grep }, manual = false) {
-			// load
-			await Promise.all(modules.map(module => new Promise((resolve, reject) => {
-				require([module], resolve, err => {
-					console.log("BAD " + module + JSON.stringify(err, undefined, '\t'));
-					// console.log(module);
-					resolve({});
+		const remoteMethods = [
+			'__readFileInTests',
+			'__writeFileInTests',
+			'__readDirInTests',
+			'__unlinkInTests',
+			'__mkdirPInTests',
+		];
+
+		for (const method of remoteMethods) {
+			const prefix = window.location.pathname.split('/')[1];
+			globalThis[method] = async (...args) => {
+				const res = await fetch(`/${prefix}/remoteMethod/${method}`, {
+					body: JSON.stringify(args),
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' }
 				});
-			})));
-			// await new Promise((resolve, reject) => {
-			// 	require(modules, resolve, err => {
-			// 		console.log(err);
-			// 		reject(err);
-			// 	});
-			// });
+
+				return res.json();
+			}
+		}
+
+		// How this page claims the test files it runs as a worker of a parallel run (see parallel.ts),
+		// whose runner adds `parallelTestFiles` to the page. Mocha asks for the next suite to run
+		// synchronously, so the claims are synchronous requests.
+		function createTestFileClaims() {
+			const prefix = window.location.pathname.split('/')[1];
+			const maxAttempts = 3;
+			const call = (method, ...args) => {
+				for (let attempt = 1; ; attempt++) {
+					const request = new XMLHttpRequest();
+					let failure;
+					try {
+						request.open('POST', `/${prefix}/testFileClaims/${method}`, false);
+						request.setRequestHeader('Content-Type', 'application/json');
+						request.send(JSON.stringify(args));
+						if (request.status === 200) {
+							return JSON.parse(request.responseText);
+						}
+						failure = `${request.status} ${request.responseText}`;
+					} catch (error) {
+						// a synchronous request throws when its response does not arrive, which happens on busy machines
+						failure = String(error);
+					}
+					// the runner answers a repeated request as before
+					if (attempt < maxAttempts) {
+						console.warn(`Failed to ${method} test files (${failure}), retrying`);
+						continue;
+					}
+					// mocha does not report an error that it gets when it asks for the next suite, but stops the run
+					const error = new Error(`Failed to ${method} test files after ${maxAttempts} attempts: ${failure}`);
+					_rejectTestRun(error);
+					throw error;
+				}
+			};
+			return {
+				start: fileCount => call('start', fileCount),
+				claim: file => call('claim', file),
+				claimAll: () => call('claimAll'),
+				recordRun: files => call('recordRun', files),
+			};
+		}
+
+		async function loadModules(modules) {
+			for (const file of modules) {
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
+				let m;
+				try {
+					m = await import(`../../../${out}/${file}.js`);
+				} catch (err) {
+					console.error(`Failed to load test module '${file}'`, err);
+					throw err;
+				}
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
+			}
+		}
+
+		let _resolveTestData;
+		let _resolveTestRun;
+		let _rejectTestRun;
+		globalThis._VSCODE_TEST_RUN = new Promise(resolve => _resolveTestData = resolve)
+
+		window.loadAndRun = async function loadAndRun(data, manual = false) {
+			return new Promise((resolve, reject) => {
+				_resolveTestRun = resolve;
+				_rejectTestRun = reject;
+				_resolveTestData({data, manual});
+			});
+		}
+
+		const modules = new URL(window.location.href).searchParams.getAll('m');
+		if (Array.isArray(modules) && modules.length > 0) {
+			console.log('MANUALLY running tests', modules);
+
+			loadAndRun(modules, true).then(() => console.log('done'), err => console.log(err));
+		}
+	</script>
+
+	<script type="text" id="bootstrap">
+		const {data: {modules, grep, rerunTargets, claimTestFiles, isolationProbes}, manual} = await globalThis._VSCODE_TEST_RUN
+
+		try {
+			// load
+			const testFiles = claimTestFiles ? parallelTestFiles.trackTestFiles(mocha.suite) : undefined;
+			const { installRegistryLeakCheck } = await import(`../../../${out}/vs/platform/actions/test/common/registryLeakCheck.js`);
+			installRegistryLeakCheck(mocha.suite);
+			const { installIsolationCheck, defaultIsolationDetectors, animationFrameQueueDetector } = await import(`../../../${out}/vs/base/test/browser/isolationCheck.js`);
+			const { menuChangeListenerDetector } = await import(`../../../${out}/vs/platform/actions/test/common/menuChangeListenerDetector.js`);
+			// The animation frame probe changes when queued runners run, so only reporting runs use it.
+			installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...(isolationProbes ? [animationFrameQueueDetector] : [])]);
+			await loadModules(modules);
+			prepareTestsForRerun(rerunTargets);
+			if (testFiles) {
+				parallelTestFiles.distributeTestFiles(mocha.suite, testFiles, createTestFileClaims());
+			}
 
 			// run
-			return new Promise((resolve, reject) => {
+			await new Promise((resolve, reject) => {
 				if (grep) {
 					mocha.grep(grep);
 				}
@@ -141,13 +413,10 @@
 				}
 				mocha.run(failCount => resolve(failCount === 0));
 			});
-		}
 
-		const modules = new URL(window.location.href).searchParams.getAll('m');
-		if (Array.isArray(modules) && modules.length > 0) {
-			console.log('MANUALLY running tests', modules);
-
-			loadAndRun(modules, true).then(() => console.log('done'), err => console.log(err));
+			_resolveTestRun();
+		} catch (err) {
+			_rejectTestRun(err);
 		}
 	</script>
 </body>

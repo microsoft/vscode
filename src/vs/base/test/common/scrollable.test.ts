@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SmoothScrollingOperation, SmoothScrollingUpdate } from 'vs/base/common/scrollable';
+import assert from 'assert';
+import { SmoothScrollingOperation, SmoothScrollingUpdate } from '../../common/scrollable.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 class TestSmoothScrollingOperation extends SmoothScrollingOperation {
 
@@ -31,6 +32,8 @@ suite('SmoothScrollingOperation', () => {
 	const VIEWPORT_HEIGHT = 800;
 	const ANIMATION_DURATION = 125;
 	const LINE_HEIGHT = 20;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function extractLines(scrollable: TestSmoothScrollingOperation, now: number): [number, number] {
 		const scrollTop = scrollable.testTick(now).scrollTop;

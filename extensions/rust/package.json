@@ -2,15 +2,16 @@
   "name": "rust",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dustypomerleau/rust-syntax syntaxes/rust.tmLanguage.json ./syntaxes/rust.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammar.mjs"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {

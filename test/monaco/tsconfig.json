@@ -7,9 +7,14 @@
 		"noUnusedLocals": true,
 		"outDir": "out",
 		"sourceMap": true,
+		"skipLibCheck": true,
 		"declaration": true,
+		"types": [
+			"mocha",
+			"node"
+		],
 		"lib": [
-			"es2016",
+			"esnext", // for #201187
 			"dom"
 		]
 	},

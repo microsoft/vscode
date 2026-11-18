@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { getKeyboardLayoutId, IKeyboardLayoutInfo } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { isWindows, isLinux } from '../../../../base/common/platform.js';
+import { getKeyboardLayoutId, IKeyboardLayoutInfo } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
 
 function deserializeMapping(serializedMapping: ISerializedMapping) {
 	const mapping = serializedMapping;

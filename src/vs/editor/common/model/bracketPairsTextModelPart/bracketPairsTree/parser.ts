@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast';
-import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
-import { SmallImmutableSet } from './smallImmutableSet';
-import { lengthIsZero, lengthLessThan } from './length';
-import { concat23Trees, concat23TreesOfSameHeight } from './concat23Trees';
-import { NodeReader } from './nodeReader';
-import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer';
+import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast.js';
+import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper.js';
+import { SmallImmutableSet } from './smallImmutableSet.js';
+import { lengthIsZero, lengthLessThan } from './length.js';
+import { concat23Trees, concat23TreesOfSameHeight } from './concat23Trees.js';
+import { NodeReader } from './nodeReader.js';
+import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer.js';
 
 /**
  * Non incrementally built ASTs are immutable.
@@ -60,7 +60,7 @@ class Parser {
 		this._itemsConstructed = 0;
 		this._itemsFromCache = 0;
 
-		let result = this.parseList(SmallImmutableSet.getEmpty());
+		let result = this.parseList(SmallImmutableSet.getEmpty(), 0);
 		if (!result) {
 			result = ListAstNode.getEmpty();
 		}
@@ -70,6 +70,7 @@ class Parser {
 
 	private parseList(
 		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
+		level: number,
 	): AstNode | null {
 		const items: AstNode[] = [];
 
@@ -86,7 +87,7 @@ class Parser {
 					break;
 				}
 
-				child = this.parseChild(openedBracketIds);
+				child = this.parseChild(openedBracketIds, level + 1);
 			}
 
 			if (child.kind === AstNodeKind.List && child.childrenLength === 0) {
@@ -129,6 +130,7 @@ class Parser {
 
 	private parseChild(
 		openedBracketIds: SmallImmutableSet<number>,
+		level: number,
 	): AstNode {
 		this._itemsConstructed++;
 
@@ -142,8 +144,13 @@ class Parser {
 				return token.astNode as TextAstNode;
 
 			case TokenKind.OpeningBracket: {
+				if (level > 300) {
+					// To prevent stack overflows
+					return new TextAstNode(token.length);
+				}
+
 				const set = openedBracketIds.merge(token.bracketIds);
-				const child = this.parseList(set);
+				const child = this.parseList(set, level + 1);
 
 				const nextToken = this.tokenizer.peek();
 				if (

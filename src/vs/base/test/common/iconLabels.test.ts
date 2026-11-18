@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IMatch } from 'vs/base/common/filters';
-import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
+import assert from 'assert';
+import { emptyMatches, IMatch } from '../../common/filters.js';
+import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from '../../common/iconLabels.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 interface IIconFilter {
 	// Returns null if word doesn't match.
@@ -21,6 +22,12 @@ function filterOk(filter: IIconFilter, word: string, target: IParsedLabelWithIco
 }
 
 suite('Icon Labels', () => {
+	test('empty queries share matches without applying icon or whitespace offsets', () => {
+		for (const label of ['', 'Hello', ' Hello', '$(zap)', '$(zap) ', '$(zap) Hello', '$(zap) $(zap) Hello']) {
+			assert.strictEqual(matchesFuzzyIconAware('', parseLabelWithIcons(label)), emptyMatches);
+		}
+		assert.deepStrictEqual(emptyMatches, [{ start: 0, end: 0 }]);
+	});
 
 	test('Can get proper aria labels', () => {
 		// note, the spaces in the results are important
@@ -110,4 +117,6 @@ suite('Icon Labels', () => {
 		assert.strictEqual(markdownEscapeEscapedIcons('$(Hello) World'), '$(Hello) World');
 		assert.strictEqual(markdownEscapeEscapedIcons('\\$(Hello) World'), '\\\\$(Hello) World');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

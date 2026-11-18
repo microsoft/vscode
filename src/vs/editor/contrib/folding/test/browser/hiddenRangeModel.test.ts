@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { IRange } from 'vs/editor/common/core/range';
-import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
-import { HiddenRangeModel } from 'vs/editor/contrib/folding/browser/hiddenRangeModel';
-import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestDecorationProvider } from './foldingModel.test';
+import assert from 'assert';
+import { IRange } from '../../../../common/core/range.js';
+import { FoldingModel } from '../../browser/foldingModel.js';
+import { HiddenRangeModel } from '../../browser/hiddenRangeModel.js';
+import { computeRanges } from '../../browser/indentRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { TestDecorationProvider } from './foldingModel.test.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 
 interface ExpectedRange {
@@ -17,6 +18,8 @@ interface ExpectedRange {
 }
 
 suite('Hidden Range Model', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	function r(startLineNumber: number, endLineNumber: number): ExpectedRange {
 		return { startLineNumber, endLineNumber };
 	}
@@ -38,10 +41,9 @@ suite('Hidden Range Model', () => {
 		/* 9*/	'  }',
 		/* 10*/	'}'];
 
-		const textModel = createTextModel(lines.join('\n'));
+		const textModel = store.add(createTextModel(lines.join('\n')));
 		const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
-		const hiddenRangeModel = new HiddenRangeModel(foldingModel);
-
+		const hiddenRangeModel = store.add(new HiddenRangeModel(foldingModel));
 		assert.strictEqual(hiddenRangeModel.hasRanges(), false);
 
 		const ranges = computeRanges(textModel, false, undefined);
@@ -90,10 +92,5 @@ suite('Hidden Range Model', () => {
 		assert.strictEqual(hiddenRangeModel.isHidden(8), false);
 		assert.strictEqual(hiddenRangeModel.isHidden(9), false);
 		assert.strictEqual(hiddenRangeModel.isHidden(10), false);
-
-		textModel.dispose();
-
 	});
-
-
 });

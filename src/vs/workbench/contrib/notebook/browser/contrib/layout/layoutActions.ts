@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { localize2 } from '../../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookActionContext, NOTEBOOK_ACTIONS_CATEGORY } from '../../controller/coreActions.js';
+import { NotebookSetting } from '../../../common/notebookCommon.js';
 
 const TOGGLE_CELL_TOOLBAR_POSITION = 'notebook.toggleCellToolbarPosition';
 
@@ -16,7 +16,7 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_CELL_TOOLBAR_POSITION,
-			title: { value: localize('notebook.toggleCellToolbarPosition', "Toggle Cell Toolbar Position"), original: 'Toggle Cell Toolbar Position' },
+			title: localize2('notebook.toggleCellToolbarPosition', 'Toggle Cell Toolbar Position'),
 			menu: [{
 				id: MenuId.NotebookCellTitle,
 				group: 'View',

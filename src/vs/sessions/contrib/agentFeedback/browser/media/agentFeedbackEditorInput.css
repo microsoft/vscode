@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .line-numbers.agent-feedback-glyph {
+	cursor: pointer;
+	z-index: 10;
+}
+
+/* The button replaces the hovered line number, so hide the digits it would otherwise only partially cover. */
+.monaco-editor .line-numbers.agent-feedback-glyph.line-hover {
+	color: transparent;
+}
+
+/* Fixed width, aligned with the end of the line numbers, so the button doesn't grow with the line-number column. */
+.monaco-editor .line-numbers.agent-feedback-glyph.line-hover::before {
+	content: var(--vscode-icon-plus-content);
+	font-family: var(--vscode-icon-plus-font-family);
+	font-size: var(--vscode-codiconFontSize);
+	position: absolute;
+	inset: 0 0 0 auto;
+	width: var(--vscode-spacing-size200);
+	z-index: 10;
+	color: var(--vscode-editorGutter-commentGlyphForeground, var(--vscode-foreground));
+	background-color: var(--vscode-editorGutter-commentRangeForeground);
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+}

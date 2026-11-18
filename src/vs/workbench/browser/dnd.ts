@@ -3,37 +3,283 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { DragAndDropObserver, EventType, addDisposableListener } from 'vs/base/browser/dom';
-import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
-import { coalesce } from 'vs/base/common/arrays';
-import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { stringify } from 'vs/base/common/marshalling';
-import { Mimes } from 'vs/base/common/mime';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
-import { basename, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat, LocalSelectionTransfer, createDraggedEditorInputFromRawResourcesData, extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { extractSelection } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
+import './media/dnd.css';
+import { DataTransfers, IDragAndDropData } from '../../base/browser/dnd.js';
+import { $, DragAndDropObserver, EventType, addDisposableListener, append, getActiveWindow, getWindow, onDidRegisterWindow } from '../../base/browser/dom.js';
+import { DragMouseEvent } from '../../base/browser/mouseEvent.js';
+import { renderFormattedText } from '../../base/browser/formattedTextRenderer.js';
+import { IListDragAndDrop } from '../../base/browser/ui/list/list.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../../base/browser/ui/list/listView.js';
+import { ITreeDragOverReaction } from '../../base/browser/ui/tree/tree.js';
+import { coalesce } from '../../base/common/arrays.js';
+import { UriList, VSDataTransfer } from '../../base/common/dataTransfer.js';
+import { Emitter, Event } from '../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, toDisposable } from '../../base/common/lifecycle.js';
+import { stringify } from '../../base/common/marshalling.js';
+import { Mimes } from '../../base/common/mime.js';
+import { FileAccess, Schemas } from '../../base/common/network.js';
+import { isMacintosh, isWindows } from '../../base/common/platform.js';
+import { basename, isEqual } from '../../base/common/resources.js';
+import { URI } from '../../base/common/uri.js';
+import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat, LocalSelectionTransfer, createDraggedEditorInputFromRawResourcesData, extractEditorsAndFilesDropData } from '../../platform/dnd/browser/dnd.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../platform/label/common/label.js';
+import { extractSelection, withSelection } from '../../platform/opener/common/opener.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IRectangle, IWindowOpenable } from '../../platform/window/common/window.js';
+import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolderCreationData, IWorkspacesService } from '../../platform/workspaces/common/workspaces.js';
+import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput } from '../common/editor.js';
+import { IEditorGroup } from '../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
+import { IHostService } from '../services/host/browser/host.js';
+import { ITextFileService } from '../services/textfile/common/textfiles.js';
+import { IWorkspaceEditingService } from '../services/workspaces/common/workspaceEditing.js';
+import { IEditorOptions } from '../../platform/editor/common/editor.js';
+import { mainWindow } from '../../base/browser/window.js';
+import { BroadcastDataChannel } from '../../base/browser/broadcast.js';
+
+/**
+ * An input, such as a chat input, that takes the drags it accepts before the placement targets of the pane that
+ * encloses it, such as a grid that opens what is dropped on it.
+ */
+export interface IInputDropTarget {
+
+	/** Whether the input takes the drag: placement takes a drag that the input does not, also over the input. */
+	accepts(event: DragEvent): boolean;
+
+	/**
+	 * The element around the input, such as the whole chat widget of a chat input, whose drags the input takes too where
+	 * nothing around it takes them, such as a drag that a placement overlay lets through while a key is held. Only the
+	 * input itself when not set.
+	 */
+	readonly area?: HTMLElement;
+
+	/**
+	 * What a placement overlay that covers the input says over it, such as that a drag over it attaches what is dragged,
+	 * as formatted text (see {@link renderFormattedText}). With a `passThroughModifier`, the key that lets the drag
+	 * through the overlay into the input's {@link area} where it is, it also says that holding that key does the same.
+	 */
+	getHint(passThroughModifier: string | undefined): string;
+}
+
+const inputDropTargets = new Map<HTMLElement, IInputDropTarget>();
+
+/** Registers an input that takes the drags it accepts before its enclosing pane's placement targets. */
+export function registerInputDropTarget(element: HTMLElement, target: IInputDropTarget): IDisposable {
+	inputDropTargets.set(element, target);
+	return toDisposable(() => {
+		if (inputDropTargets.get(element) === target) {
+			inputDropTargets.delete(element);
+		}
+	});
+}
+
+/**
+ * Whether the drag is over a registered input that takes it: `element` is (in) such an input, or the drag's position is
+ * over one, such as while an overlay covers it. With a `scope`, only inputs inside it count for the position: an input
+ * that something else covers, such as a modal over the main editor area, does not.
+ */
+export function isInputDropTarget(element: HTMLElement, event: DragEvent, scope?: HTMLElement): boolean {
+	return isRegisteredDropTarget(inputDropTargets, element, event, scope, input => !!inputDropTargets.get(input)?.accepts(event));
+}
+
+const contentDropTargets = new Set<HTMLElement>();
+
+/**
+ * Registers the content of an editor, such as a view shown as an editor, that handles the drops in its center: editors
+ * and groups dragged over it still split its group at the edges, and every other drop is the content's.
+ */
+export function registerContentDropTarget(element: HTMLElement): IDisposable {
+	contentDropTargets.add(element);
+	return toDisposable(() => contentDropTargets.delete(element));
+}
+
+/**
+ * Whether `element` is (in) registered content that handles drops, or `point` is over it; see {@link isInputDropTarget}
+ * for `scope`.
+ */
+export function isContentDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }, scope?: HTMLElement): boolean {
+	return isRegisteredDropTarget(contentDropTargets, element, point, scope);
+}
+
+const passThroughDropTargets = new Map<HTMLElement, (event: DragEvent) => boolean>();
+
+/**
+ * Registers a pane, such as the editor area, whose placement overlay lets the drags that `letsThrough` tells through to
+ * what it covers, such as a drag dropped into an editor while a key is held.
+ */
+export function registerPassThroughDropTarget(element: HTMLElement, letsThrough: (event: DragEvent) => boolean): IDisposable {
+	passThroughDropTargets.set(element, letsThrough);
+	return toDisposable(() => {
+		if (passThroughDropTargets.get(element) === letsThrough) {
+			passThroughDropTargets.delete(element);
+		}
+	});
+}
+
+/**
+ * Whether the drag reaches `element` as a pane around it lets it through, such as the chat of a chat editor while the key
+ * to drop into the editor is held: an input there that takes the drag shows so, as it does with the drag over it.
+ */
+export function isPassThroughDrag(element: HTMLElement, event: DragEvent): boolean {
+	for (const [pane, letsThrough] of passThroughDropTargets) {
+		if (pane.contains(element) && letsThrough(event)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** The key, as it shows, that lets a drag through a placement overlay while it is held (see {@link isPassThroughModifierHeld}). */
+export const PASS_THROUGH_MODIFIER_LABEL = isMacintosh ? '⇧' : 'Shift';
+
+/** Whether the key that lets a drag through a placement overlay is held, such as to drop into an editor or to attach to a chat. */
+export function isPassThroughModifierHeld(event: DragEvent): boolean {
+	return event.shiftKey;
+}
+
+/**
+ * Whether a placement overlay over `scope` lets the drag through to an input under it, such as a chat input that attaches
+ * what is dragged: the {@link PASS_THROUGH_MODIFIER_LABEL key} is held, and the drag is over the
+ * {@link IInputDropTarget.area area} of a registered input inside `scope` that takes it, where {@link InputDropTargetHints}
+ * says so.
+ */
+export function isPassThroughToInputDrag(event: DragEvent, scope: HTMLElement): boolean {
+	if (!isPassThroughModifierHeld(event)) {
+		return false;
+	}
+	for (const [input, target] of inputDropTargets) {
+		if (scope.contains(input) && isOver(target.area ?? input, event) && target.accepts(event)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * @param accepts whether a registered target takes the drag; asked last, for the targets under the drag only, as it runs
+ * on every `dragover` and can cost more than the position checks.
+ */
+function isRegisteredDropTarget(targets: ReadonlySet<HTMLElement> | ReadonlyMap<HTMLElement, unknown>, element: HTMLElement, point: { readonly clientX: number; readonly clientY: number } | undefined, scope: HTMLElement | undefined, accepts?: (target: HTMLElement) => boolean): boolean {
+	for (let target: HTMLElement | null = element; target; target = target.parentElement) {
+		if (targets.has(target) && (!accepts || accepts(target))) {
+			return true;
+		}
+	}
+	if (point) {
+		for (const target of targets.keys()) {
+			if ((!scope || scope.contains(target)) && target.ownerDocument === element.ownerDocument && isOver(target, point) && (!accepts || accepts(target))) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/** Whether `point` is over `element`, which shows. */
+function isOver(element: HTMLElement, point: { readonly clientX: number; readonly clientY: number }): boolean {
+	const bounds = element.getBoundingClientRect();
+	return bounds.width > 0 && bounds.height > 0
+		&& point.clientX >= bounds.left && point.clientX <= bounds.right && point.clientY >= bounds.top && point.clientY <= bounds.bottom;
+}
+
+interface IInputDropTargetHint {
+	readonly element: HTMLElement;
+	readonly label: HTMLElement;
+	text: string | undefined;
+}
+
+/**
+ * Shows, on a placement overlay that covers the registered inputs inside `scope` that take the drag, where they are: an
+ * outline around each with its {@link IInputDropTarget.getHint hint}. The overlay takes the drag until it moves over such
+ * an input, which then takes it instead (see {@link isInputDropTarget}).
+ */
+export class InputDropTargetHints extends Disposable {
+
+	private readonly element: HTMLElement;
+	private readonly hints = new Map<HTMLElement, IInputDropTargetHint>();
+
+	private _inputTakesPassThrough = false;
+
+	/**
+	 * Whether, where the drag last was, an input takes the drag that the `passThroughModifier` lets through: its hint says
+	 * so, in place of what the overlay says holding the key does.
+	 */
+	get inputTakesPassThrough(): boolean {
+		return this._inputTakesPassThrough;
+	}
+
+	/**
+	 * @param passThroughModifier the key, as it shows, that lets a drag through the overlay to what the overlay covers,
+	 * such as into an editor, while it is held
+	 */
+	constructor(private readonly scope: HTMLElement, overlay: HTMLElement, private readonly passThroughModifier?: string) {
+		super();
+
+		this.element = append(overlay, $('.input-drop-target-hints', { 'aria-hidden': 'true' }));
+		this._register(toDisposable(() => this.element.remove()));
+	}
+
+	/** Shows the hints over the inputs that take the drag, or none without a drag, such as for one that no input takes. */
+	update(event: DragEvent | undefined): void {
+		// Measures everything before it changes the DOM, as this runs on every `dragover`: the window then lays out once,
+		// not once per input.
+		const layouts = new Map<HTMLElement, { readonly rect: DOMRect; readonly borderRadius: string; readonly text: string }>();
+		let inputTakesPassThrough = false;
+		const bounds = this.element.getBoundingClientRect();
+		if (event) {
+			for (const [input, target] of inputDropTargets) {
+				if (!this.scope.contains(input)) {
+					continue;
+				}
+				const rect = input.getBoundingClientRect();
+				if (rect.width <= 0 || rect.height <= 0 || !target.accepts(event)) {
+					continue;
+				}
+
+				// The drag that the key lets through goes to what is under it: the input takes it there inside its area only.
+				const takesPassThrough = !!this.passThroughModifier && isOver(target.area ?? input, event);
+				inputTakesPassThrough ||= takesPassThrough;
+				layouts.set(input, {
+					rect,
+					// Shaped as the input is, whose corners depend on where it shows and on what is docked on it.
+					borderRadius: getWindow(input).getComputedStyle(input).borderRadius,
+					text: target.getHint(takesPassThrough ? this.passThroughModifier : undefined),
+				});
+			}
+		}
+		this._inputTakesPassThrough = inputTakesPassThrough;
+
+		for (const [input, hint] of this.hints) {
+			if (!layouts.has(input)) {
+				hint.element.remove();
+				this.hints.delete(input);
+			}
+		}
+
+		for (const [input, { rect, borderRadius, text }] of layouts) {
+			let hint = this.hints.get(input);
+			if (!hint) {
+				const element = append(this.element, $('.input-drop-target-hint'));
+				hint = { element, label: append(element, $('span.input-drop-target-hint-label')), text: undefined };
+				this.hints.set(input, hint);
+			}
+
+			if (hint.text !== text) {
+				hint.text = text;
+				renderFormattedText(text, undefined, hint.label);
+			}
+
+			hint.element.style.top = `${rect.top - bounds.top}px`;
+			hint.element.style.left = `${rect.left - bounds.left}px`;
+			hint.element.style.width = `${rect.width}px`;
+			hint.element.style.height = `${rect.height}px`;
+			hint.element.style.borderRadius = borderRadius;
+		}
+	}
+}
 
 //#region Editor / Resources DND
 
@@ -46,7 +292,6 @@ export class DraggedEditorGroupIdentifier {
 
 	constructor(readonly identifier: GroupIdentifier) { }
 }
-
 
 export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
@@ -91,18 +336,29 @@ export class ResourcesDropHandler {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 	}
 
-	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
+	async handleDrop(event: DragEvent, targetWindow: Window, resolveTargetGroup?: () => IEditorGroup | undefined, afterDrop?: (targetGroup: IEditorGroup | undefined) => void, options?: IEditorOptions): Promise<void> {
 		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, event));
 		if (!editors.length) {
 			return;
 		}
 
 		// Make the window active to handle the drop properly within
-		await this.hostService.focus();
+		await this.hostService.focus(targetWindow);
+
+		// Check for registered drop handlers
+		const dndRegistry = Registry.as<IDragAndDropContributionRegistry>(Extensions.DragAndDropContribution);
+		for (const { resource } of editors) {
+			if (resource) {
+				const handled = await this.instantiationService.invokeFunction(accessor => dndRegistry.handleResourceDrop(resource, accessor));
+				if (handled) {
+					return;
+				}
+			}
+		}
 
 		// Check for workspace file / folder being dropped if we are allowed to do so
 		if (this.options.allowWorkspaceOpen) {
@@ -122,19 +378,19 @@ export class ResourcesDropHandler {
 		}
 
 		// Open in Editor
-		const targetGroup = resolveTargetGroup();
+		const targetGroup = resolveTargetGroup?.();
 		await this.editorService.openEditors(editors.map(editor => ({
 			...editor,
 			resource: editor.resource,
 			options: {
 				...editor.options,
-				pinned: true,
-				index: targetIndex
+				...options,
+				pinned: true
 			}
 		})), targetGroup, { validateTrust: true });
 
 		// Finish with provided function
-		afterDrop(targetGroup);
+		afterDrop?.(targetGroup);
 	}
 
 	private async handleWorkspaceDrop(resources: URI[]): Promise<boolean> {
@@ -167,9 +423,6 @@ export class ResourcesDropHandler {
 			return false;
 		}
 
-		// Pass focus to window
-		this.hostService.focus();
-
 		// Open in separate windows if we drop workspaces or just one folder
 		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {
 			await this.hostService.openWindow(toOpen);
@@ -189,10 +442,10 @@ export class ResourcesDropHandler {
 	}
 }
 
-export function fillEditorsDragData(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent): void {
+export function fillEditorsDragData(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void {
 	if (resourcesOrEditors.length === 0 || !event.dataTransfer) {
 		return;
 	}
@@ -204,7 +457,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	// Extract resources from URIs or Editors that
 	// can be handled by the file service
-	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
+	const resources = coalesce(resourcesOrEditors.map((resourceOrEditor): IResourceStat | undefined => {
 		if (URI.isUri(resourceOrEditor)) {
 			return { resource: resourceOrEditor };
 		}
@@ -217,24 +470,31 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			return undefined; // editor without resource
 		}
 
-		return resourceOrEditor;
+		return {
+			resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource,
+			isDirectory: resourceOrEditor.isDirectory,
+			selection: resourceOrEditor.selection,
+		};
 	}));
+
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
+	if (!options?.disableStandardTransfer) {
 
-	// Text: allows to paste into text-capable areas
-	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
+		// Text: allows to paste into text-capable areas
+		const lineDelimiter = isWindows ? '\r\n' : '\n';
+		event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
 
-	// Download URL: enables support to drag a tab as file to desktop
-	// Requirements:
-	// - Chrome/Edge only
-	// - only a single file is supported
-	// - only file:/ resources are supported
-	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
-	if (firstFile) {
-		const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
-		if (firstFileUri.scheme === Schemas.file) {
-			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
+		// Download URL: enables support to drag a tab as file to desktop
+		// Requirements:
+		// - Chrome/Edge only
+		// - only a single file is supported
+		// - only file:/ resources are supported
+		const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
+		if (firstFile) {
+			const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
+			if (firstFileUri.scheme === Schemas.file) {
+				event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
+			}
 		}
 	}
 
@@ -267,7 +527,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			const { selection, uri } = extractSelection(resourceOrEditor);
 			editor = { resource: uri, options: selection ? { selection } : undefined };
 		} else if (!resourceOrEditor.isDirectory) {
-			editor = { resource: resourceOrEditor.resource };
+			editor = {
+				resource: resourceOrEditor.resource,
+				options: {
+					selection: resourceOrEditor.selection,
+				}
+			};
 		}
 
 		if (!editor) {
@@ -294,8 +559,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 						editor.encoding = textFileModel.getEncoding();
 					}
 
-					// contents (only if dirty)
-					if (typeof editor.contents !== 'string' && textFileModel.isDirty()) {
+					// contents (only if dirty and not too large)
+					if (typeof editor.contents !== 'string' && textFileModel.isDirty() && !textFileModel.textEditorModel.isTooLargeForHeapOperation()) {
 						editor.contents = textFileModel.textEditorModel.getValue();
 					}
 				}
@@ -327,6 +592,36 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	if (draggedEditors.length) {
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
+	}
+
+	// Add a URI list entry
+	const draggedDirectories: URI[] = fileSystemResources.filter(({ isDirectory }) => isDirectory).map(({ resource }) => resource);
+	if (draggedEditors.length || draggedDirectories.length) {
+		const uriListEntries: URI[] = [...draggedDirectories];
+		for (const editor of draggedEditors) {
+			if (editor.resource) {
+				uriListEntries.push(editor.options?.selection ? withSelection(editor.resource, editor.options.selection) : editor.resource);
+			} else if (isResourceDiffEditorInput(editor)) {
+				if (editor.modified.resource) {
+					uriListEntries.push(editor.modified.resource);
+				}
+			} else if (isResourceSideBySideEditorInput(editor)) {
+				if (editor.primary.resource) {
+					uriListEntries.push(editor.primary.resource);
+				}
+			} else if (isResourceMergeEditorInput(editor)) {
+				uriListEntries.push(editor.result.resource);
+			}
+		}
+
+		// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=239745, we can only set
+		// a single uri for the real `text/uri-list` type. Otherwise all uris end up joined together
+		// However we write the full uri-list to an internal type so that other parts of VS Code
+		// can use the full list.
+		if (!options?.disableStandardTransfer) {
+			event.dataTransfer.setData(Mimes.uriList, UriList.create(uriListEntries.slice(0, 1)));
+		}
+		event.dataTransfer.setData(DataTransfers.INTERNAL_URI_LIST, UriList.create(uriListEntries));
 	}
 }
 
@@ -402,6 +697,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	static get INSTANCE(): CompositeDragAndDropObserver {
 		if (!CompositeDragAndDropObserver.instance) {
 			CompositeDragAndDropObserver.instance = new CompositeDragAndDropObserver();
+			markAsSingleton(CompositeDragAndDropObserver.instance);
 		}
 
 		return CompositeDragAndDropObserver.instance;
@@ -428,7 +724,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	private readDragData(type: ViewType): CompositeDragAndDropData | undefined {
 		if (this.transferData.hasData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype)) {
 			const data = this.transferData.getData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype);
-			if (data && data[0]) {
+			if (data?.[0]) {
 				return new CompositeDragAndDropData(type, data[0].id);
 			}
 		}
@@ -443,23 +739,20 @@ export class CompositeDragAndDropObserver extends Disposable {
 	registerTarget(element: HTMLElement, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
 		const disposableStore = new DisposableStore();
 		disposableStore.add(new DragAndDropObserver(element, {
-			onDragEnd: e => {
-				// no-op
-			},
 			onDragEnter: e => {
 				e.preventDefault();
 
 				if (callbacks.onDragEnter) {
 					const data = this.readDragData('composite') || this.readDragData('view');
 					if (data) {
-						callbacks.onDragEnter({ eventData: e, dragAndDropData: data! });
+						callbacks.onDragEnter({ eventData: e, dragAndDropData: data });
 					}
 				}
 			},
 			onDragLeave: e => {
 				const data = this.readDragData('composite') || this.readDragData('view');
 				if (callbacks.onDragLeave && data) {
-					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragLeave({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDrop: e => {
@@ -469,10 +762,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
+					callbacks.onDrop({ eventData: e, dragAndDropData: data });
 
 					// Fire drag event in case drop handler destroys the dragged element
-					this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+					this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDragOver: e => {
@@ -484,7 +777,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDragOver({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragOver({ eventData: e, dragAndDropData: data });
 				}
 			}
 		}));
@@ -498,10 +791,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 		if (callbacks.onDragEnd) {
 			this.onDragEnd.event(e => {
 				callbacks.onDragEnd!(e);
-			});
+			}, this, disposableStore);
 		}
 
-		return this._register(disposableStore);
+		return disposableStore;
 	}
 
 	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType; id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
@@ -509,16 +802,15 @@ export class CompositeDragAndDropObserver extends Disposable {
 
 		const disposableStore = new DisposableStore();
 
-		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
-			const { id, type } = draggedItemProvider();
-			this.writeDragData(id, type);
-
-			e.dataTransfer?.setDragImage(element, 0, 0);
-
-			this.onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
-		}));
-
 		disposableStore.add(new DragAndDropObserver(element, {
+			onDragStart: e => {
+				const { id, type } = draggedItemProvider();
+				this.writeDragData(id, type);
+
+				e.dataTransfer?.setDragImage(element, 0, 0);
+
+				this.onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
+			},
 			onDragEnd: e => {
 				const { type } = draggedItemProvider();
 				const data = this.readDragData(type);
@@ -526,7 +818,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+				this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 			},
 			onDragEnter: e => {
 				if (callbacks.onDragEnter) {
@@ -536,7 +828,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					}
 
 					if (data) {
-						callbacks.onDragEnter({ eventData: e, dragAndDropData: data! });
+						callbacks.onDragEnter({ eventData: e, dragAndDropData: data });
 					}
 				}
 			},
@@ -546,7 +838,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				callbacks.onDragLeave?.({ eventData: e, dragAndDropData: data! });
+				callbacks.onDragLeave?.({ eventData: e, dragAndDropData: data });
 			},
 			onDrop: e => {
 				if (callbacks.onDrop) {
@@ -555,10 +847,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
+					callbacks.onDrop({ eventData: e, dragAndDropData: data });
 
 					// Fire drag event in case drop handler destroys the dragged element
-					this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+					this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDragOver: e => {
@@ -568,7 +860,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDragOver({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragOver({ eventData: e, dragAndDropData: data });
 				}
 			}
 		}));
@@ -585,7 +877,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 			}, this, disposableStore);
 		}
 
-		return this._register(disposableStore);
+		return disposableStore;
 	}
 }
 
@@ -615,23 +907,132 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const resources: URI[] = [];
-		for (const element of (data as ElementsDragAndDropData<T>).elements) {
+		const elements = (data as ElementsDragAndDropData<T>).elements;
+		for (const element of elements) {
 			const resource = this.toResource(element);
 			if (resource) {
 				resources.push(resource);
 			}
 		}
+		this.onWillDragElements(elements, originalEvent);
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	protected onWillDragElements(elements: readonly T[], originalEvent: DragEvent): void {
+		// noop
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		return false;
 	}
 
-	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void { }
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void { }
+
+	dispose(): void { }
 }
 
 //#endregion
+
+class GlobalWindowDraggedOverTracker extends Disposable {
+
+	private static readonly CHANNEL_NAME = 'monaco-workbench-global-dragged-over';
+
+	private readonly broadcaster = this._register(new BroadcastDataChannel<boolean>(GlobalWindowDraggedOverTracker.CHANNEL_NAME));
+
+	constructor() {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window, EventType.DRAG_OVER, () => this.markDraggedOver(false), true));
+			disposables.add(addDisposableListener(window, EventType.DRAG_LEAVE, () => this.clearDraggedOver(false), true));
+		}, { window: mainWindow, disposables: this._store }));
+
+		this._register(this.broadcaster.onDidReceiveData(data => {
+			if (data === true) {
+				this.markDraggedOver(true);
+			} else {
+				this.clearDraggedOver(true);
+			}
+		}));
+	}
+
+	private draggedOver = false;
+	get isDraggedOver(): boolean { return this.draggedOver; }
+
+	private markDraggedOver(fromBroadcast: boolean): void {
+		if (this.draggedOver === true) {
+			return; // alrady marked
+		}
+
+		this.draggedOver = true;
+
+		if (!fromBroadcast) {
+			this.broadcaster.postData(true);
+		}
+	}
+
+	private clearDraggedOver(fromBroadcast: boolean): void {
+		if (this.draggedOver === false) {
+			return; // alrady cleared
+		}
+
+		this.draggedOver = false;
+
+		if (!fromBroadcast) {
+			this.broadcaster.postData(false);
+		}
+	}
+}
+
+const globalDraggedOverTracker = new GlobalWindowDraggedOverTracker();
+
+/**
+ * Returns whether the workbench is currently dragged over in any of
+ * the opened windows (main windows and auxiliary windows).
+ */
+export function isWindowDraggedOver(): boolean {
+	return globalDraggedOverTracker.isDraggedOver;
+}
+
+/**
+ * Where to open a new window for a drag that ended outside of the windows:
+ * centered on the dragged element at the mouse, kept on its display. It is
+ * `undefined` when the drag ended over the focused window, so that a new
+ * window does not open by accident.
+ */
+export async function getNewWindowBoundsAtDragEnd(hostService: IHostService, e: DragEvent, offsetElement: HTMLElement): Promise<Partial<IRectangle> | undefined> {
+	const { point, display } = await hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
+	const window = getActiveWindow();
+	if (window.document.visibilityState === 'visible' && window.document.hasFocus()) {
+		if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
+			return undefined; // refuse to create as long as the mouse was released over active focused window to reduce chance of opening by accident
+		}
+	}
+
+	const offsetX = offsetElement.offsetWidth / 2;
+	const offsetY = 30/* take title bar height into account (approximation) */ + offsetElement.offsetHeight / 2;
+
+	const bounds = {
+		x: point.x - offsetX,
+		y: point.y - offsetY
+	};
+
+	if (display) {
+		if (bounds.x < display.x) {
+			bounds.x = display.x; // prevent overflow to the left
+		}
+
+		if (bounds.y < display.y) {
+			bounds.y = display.y; // prevent overflow to the top
+		}
+	}
+
+	return bounds;
+}

@@ -1,5 +1,5 @@
 name: @@NAME@@
-version: @@VERSION@@
+version: '@@VERSION@@'
 summary: Code editing. Redefined.
 description: |
   Visual Studio Code is a new choice of tool that combines the
@@ -30,15 +30,18 @@ parts:
       - libcurl3-gnutls
       - libcurl3-nss
       - libcurl4
+      - libegl1
       - libdrm2
       - libgbm1
       - libgl1
+      - libgles2
       - libglib2.0-0
       - libgtk-3-0
       - libibus-1.0-5
       - libnss3
       - libpango-1.0-0
       - libsecret-1-0
+      - libwayland-egl1
       - libxcomposite1
       - libxdamage1
       - libxfixes3
@@ -58,6 +61,7 @@ parts:
     override-build: |
       snapcraftctl build
       patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core20/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
+      chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
   cleanup:
     after:
       - code
@@ -70,6 +74,15 @@ parts:
         cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
       done
       patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
+      ARCH_TRIPLET="${SNAPCRAFT_ARCH_TRIPLET:-x86_64-linux-gnu}"
+      for f in \
+        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/copilot-runtime \
+        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/runtime.node \
+        "$SNAPCRAFT_PRIME"/usr/share/@@NAME@@/resources/app/node_modules.asar.unpacked/@microsoft/copilot-sdk-linux-*/prebuilds/linux-*/libssl.so.3; do
+        if [ -f "$f" ]; then
+          patchelf --force-rpath --set-rpath '$ORIGIN:/snap/core20/current/lib/'"$ARCH_TRIPLET" "$f"
+        fi
+      done
 
 
 apps:

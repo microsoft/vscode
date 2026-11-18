@@ -7,7 +7,6 @@ import { getNodeFileFS } from './nodeFs';
 import { Disposable, ExtensionContext, l10n } from 'vscode';
 import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
-import { TextDecoder } from 'util';
 import * as fs from 'fs';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
@@ -18,7 +17,7 @@ let client: AsyncDisposable | undefined;
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 
-	const clientPackageJSON = getPackageInfo(context);
+	const clientPackageJSON = await getPackageInfo(context);
 	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
 
 	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/htmlServerMain`;
@@ -66,10 +65,10 @@ interface IPackageInfo {
 	main: string;
 }
 
-function getPackageInfo(context: ExtensionContext): IPackageInfo {
+async function getPackageInfo(context: ExtensionContext): Promise<IPackageInfo> {
 	const location = context.asAbsolutePath('./package.json');
 	try {
-		return JSON.parse(fs.readFileSync(location).toString());
+		return JSON.parse(await fs.promises.readFile(location, 'utf8'));
 	} catch (e) {
 		console.log(`Problems reading ${location}: ${e}`);
 		return { name: '', version: '', aiKey: '', main: '' };

@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { MainThreadDocumentContentProviders } from 'vs/workbench/api/browser/mainThreadDocumentContentProviders';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { mock } from 'vs/base/test/common/mock';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TextEdit } from 'vs/editor/common/languages';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { MainThreadDocumentContentProviders } from '../../browser/mainThreadDocumentContentProviders.js';
+import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { TextEdit } from '../../../../editor/common/languages.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('MainThreadDocumentContentProviders', function () {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('events are processed properly', function () {
 
@@ -35,9 +38,12 @@ suite('MainThreadDocumentContentProviders', function () {
 			},
 		);
 
+		store.add(model);
+		store.add(providers);
+
 		return new Promise<void>((resolve, reject) => {
 			let expectedEvents = 1;
-			model.onDidChangeContent(e => {
+			store.add(model.onDidChangeContent(e => {
 				expectedEvents -= 1;
 				try {
 					assert.ok(expectedEvents >= 0);
@@ -48,9 +54,52 @@ suite('MainThreadDocumentContentProviders', function () {
 					model.dispose();
 					resolve();
 				}
-			});
+			}));
 			providers.$onVirtualDocumentChange(uri, '1\n2');
 			providers.$onVirtualDocumentChange(uri, '1\n2\n3');
 		});
+	});
+
+	test('model disposed during async operation', async function () {
+		const uri = URI.parse('test:disposed');
+		const model = createTextModel('initial', undefined, undefined, uri);
+
+		let disposeModelDuringEdit = false;
+
+		const providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
+			new class extends mock<IModelService>() {
+				override getModel(_uri: URI) {
+					assert.strictEqual(uri.toString(), _uri.toString());
+					return model;
+				}
+			},
+			new class extends mock<IEditorWorkerService>() {
+				override async computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
+					// Simulate async operation
+					await new Promise(resolve => setTimeout(resolve, 10));
+
+					// Dispose model during the async operation if flag is set
+					if (disposeModelDuringEdit) {
+						model.dispose();
+					}
+
+					return data;
+				}
+			},
+		);
+
+		store.add(model);
+		store.add(providers);
+
+		// First call should work normally
+		await providers.$onVirtualDocumentChange(uri, 'updated');
+		assert.strictEqual(model.getValue(), 'updated');
+
+		// Second call should not throw even though model gets disposed during async operation
+		disposeModelDuringEdit = true;
+		await providers.$onVirtualDocumentChange(uri, 'should not apply');
+
+		// Model should be disposed and value unchanged
+		assert.ok(model.isDisposed());
 	});
 });

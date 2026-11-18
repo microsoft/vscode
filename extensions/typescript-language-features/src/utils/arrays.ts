@@ -20,5 +20,5 @@ export function equals<T>(
 }
 
 export function coalesce<T>(array: ReadonlyArray<T | undefined>): T[] {
-	return <T[]>array.filter(e => !!e);
+	return array.filter((e): e is T => !!e);
 }

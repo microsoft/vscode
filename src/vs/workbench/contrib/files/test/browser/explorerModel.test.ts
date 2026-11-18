@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { isLinux, isWindows, OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { validateFileName } from 'vs/workbench/contrib/files/browser/fileActions';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { toResource } from 'vs/base/test/common/utils';
-import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import assert from 'assert';
+import { join } from '../../../../../base/common/path.js';
+import { isLinux, isWindows, OS } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { validateFileName } from '../../browser/fileActions.js';
+import { ExplorerItem } from '../../common/explorerModel.js';
 
 
 suite('Files - View Model', function () {
 
 	const fileService = new TestFileService();
 	const configService = new TestConfigurationService();
+
 	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
-		return new ExplorerItem(toResource.call(this, path), fileService, configService, undefined, isFolder, false, false, name, mtime);
+		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined, isFolder, false, false, false, name, mtime);
 	}
 
 	const pathService = new TestPathService();
@@ -250,19 +252,19 @@ suite('Files - View Model', function () {
 	});
 
 	test('Merge Local with Disk', function () {
-		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, undefined, true, false, false, 'to', Date.now());
-		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, undefined, true, false, false, 'to', Date.now());
+		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'to', Date.now());
+		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'to', Date.now());
 
 		// Merge Properties
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, configService, undefined, true, false, false, 'foo.html', Date.now()));
+		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'foo.html', Date.now()));
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 
 		// Merge Child with isDirectoryResolved=true
-		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, configService, undefined, true, false, false, 'foo.html', Date.now());
+		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'foo.html', Date.now());
 		merge2.removeChild(child);
 		merge2.addChild(child);
 		merge2._isDirectoryResolved = true;
@@ -275,4 +277,32 @@ suite('Files - View Model', function () {
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.ok(existingChild === merge1.getChild(existingChild!.name));
 	});
+
+	test('getId reflects renames, moves and find filter marks', function () {
+		const d = new Date().getTime();
+		const root = createStat.call(this, '/root', 'root', true, false, 8096, d);
+		const otherRoot = createStat.call(this, '/other', 'other', true, false, 8096, d);
+		const folder = createStat.call(this, '/root/folder', 'folder', true, false, 8096, d);
+		const file = createStat.call(this, '/root/folder/file.txt', 'file.txt', false, false, 8096, d);
+		root.addChild(folder);
+		folder.addChild(file);
+
+		const ids = [file.getId()];
+		folder.rename({ name: 'renamed' });
+		ids.push(file.getId());
+		file.move(otherRoot);
+		ids.push(file.getId());
+		file.markItemAndParentsAsFiltered();
+		ids.push(file.getId());
+
+		const id = (rootPath: string, path: string) => `${toResource.call(this, rootPath).toString()}::${toResource.call(this, path).toString()}`;
+		assert.deepStrictEqual(ids, [
+			id('/root', '/root/folder/file.txt'),
+			id('/root', '/root/renamed/file.txt'),
+			id('/other', '/other/file.txt'),
+			`${id('/other', '/other/file.txt')}::findFilterResult`,
+		]);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

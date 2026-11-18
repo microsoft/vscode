@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IBufferLine, IBufferRange, Terminal } from 'xterm';
-import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { OS } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from './links.js';
+import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { detectLinks } from './terminalLinkParsing.js';
+import { ITerminalBackend, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 const enum Constants {
 	/**
@@ -36,6 +37,8 @@ const enum Constants {
 const fallbackMatchers: RegExp[] = [
 	// Python style error: File "<path>", line <line>
 	/^ *File (?<link>"(?<path>.+)"(, line (?<line>\d+))?)/,
+	// Unknown tool #200166: FILE  <path>:<line>:<col>
+	/^ +FILE +(?<link>(?<path>.+)(?::(?<line>\d+)(?::(?<col>\d+))?)?)/,
 	// Some C++ compile error formats:
 	// C:\foo\bar baz(339) : error ...
 	// C:\foo\bar baz(339,12) : error ...
@@ -49,6 +52,8 @@ const fallbackMatchers: RegExp[] = [
 	// C:\foo/bar baz:339: error ...
 	// C:\foo/bar baz:339:12: error ...     [#178584, Clang]
 	/^(?<link>(?<path>.+):(?<line>\d+)(?::(?<col>\d+))?) ?:/,
+	// PowerShell and cmd prompt
+	/^(?:PS\s+)?(?<link>(?<path>[^>]+))>/,
 	// The whole line is the path
 	/^ *(?<link>(?<path>.+))/
 ];
@@ -67,6 +72,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
 		private readonly _linkResolver: ITerminalLinkResolver,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -86,7 +92,10 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 		const os = this._processManager.os || OS;
 		const parsedLinks = detectLinks(text, os);
+		this._logService.trace('terminalLocalLinkDetector#detect text', text);
+		this._logService.trace('terminalLocalLinkDetector#detect parsedLinks', parsedLinks);
 		for (const parsedLink of parsedLinks) {
+
 			// Don't try resolve any links of excessive length
 			if (parsedLink.path.text.length > Constants.MaxResolvedLinkLength) {
 				continue;
@@ -103,11 +112,12 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
 			const osPath = osPathModule(os);
-			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~')) {
+			const isUri = parsedLink.path.text.startsWith('file://');
+			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~') || isUri) {
 				linkCandidates.push(parsedLink.path.text);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, parsedLink.path.text, osPath);
+					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, parsedLink.path.text, osPath, this._logService);
 					// Only add a single exact link candidate if the cwd is available, this may cause
 					// the link to not be resolved but that should only occur when the actual file does
 					// not exist. Doing otherwise could cause unexpected results where handling via the
@@ -115,8 +125,9 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					if (absolutePath) {
 						linkCandidates.push(...absolutePath);
 					}
-				} else {
-					// Fallback to resolving against the initial cwd, removing any relative directory prefixes
+				}
+				// Fallback to resolving against the initial cwd, removing any relative directory prefixes
+				if (linkCandidates.length === 0) {
 					linkCandidates.push(parsedLink.path.text);
 					if (parsedLink.path.text.match(/^(\.\.[\/\\])+/)) {
 						linkCandidates.push(parsedLink.path.text.replace(/^(\.\.[\/\\])+/, ''));
@@ -126,7 +137,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// If any candidates end with special characters that are likely to not be part of the
 			// link, add a candidate excluding them.
-			const specialEndCharRegex = /[\[\]"']$/;
+			const specialEndCharRegex = /[\[\]"'\.]$/;
 			const trimRangeMap: Map<string, number> = new Map();
 			const specialEndLinkCandidates: string[] = [];
 			for (const candidate of linkCandidates) {
@@ -145,6 +156,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}
 			}
 			linkCandidates.push(...specialEndLinkCandidates);
+			this._logService.trace('terminalLocalLinkDetector#detect linkCandidates', linkCandidates);
 
 			// Validate the path and convert to the outgoing type
 			const simpleLink = await this._validateAndGetLink(undefined, bufferRange, linkCandidates, trimRangeMap);
@@ -154,6 +166,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					parsedLink.prefix?.index ?? parsedLink.path.index,
 					parsedLink.suffix ? parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length : parsedLink.path.index + parsedLink.path.text.length
 				);
+				this._logService.trace('terminalLocalLinkDetector#detect verified link', simpleLink);
 				links.push(simpleLink);
 			}
 
@@ -201,8 +214,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					links.push(simpleLink);
 				}
 
-				// Only match a single fallback matcher
-				break;
 			}
 		}
 
@@ -242,20 +253,13 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 		return links;
 	}
-
-	private _isDirectoryInsideWorkspace(uri: URI) {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
 		for (const link of linkCandidates) {
-			const result = await this._linkResolver.resolveLink(this._processManager, link);
+			let uri: URI | undefined;
+			if (link.startsWith('file://')) {
+				uri = URI.parse(link);
+			}
+			const result = await this._linkResolver.resolveLink(this._processManager, link, uri);
 			if (result) {
 				return result;
 			}
@@ -271,16 +275,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	private async _validateAndGetLink(linkText: string | undefined, bufferRange: IBufferRange, linkCandidates: string[], trimRangeMap?: Map<string, number>): Promise<ITerminalSimpleLink | undefined> {
 		const linkStat = await this._validateLinkCandidates(linkCandidates);
 		if (linkStat) {
-			let type: TerminalBuiltinLinkType;
-			if (linkStat.isDirectory) {
-				if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-					type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-				} else {
-					type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-				}
-			} else {
-				type = TerminalBuiltinLinkType.LocalFile;
-			}
+			const type = getTerminalLinkType(linkStat.uri, linkStat.isDirectory, this._uriIdentityService, this._workspaceContextService);
 
 			// Offset the buffer range if the link range was trimmed
 			const trimRange = trimRangeMap?.get(linkStat.link);
@@ -300,5 +295,25 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			};
 		}
 		return undefined;
+	}
+}
+
+export function getTerminalLinkType(
+	uri: URI,
+	isDirectory: boolean,
+	uriIdentityService: IUriIdentityService,
+	workspaceContextService: IWorkspaceContextService
+): TerminalBuiltinLinkType {
+	if (isDirectory) {
+		// Check if directory is inside workspace
+		const folders = workspaceContextService.getWorkspace().folders;
+		for (let i = 0; i < folders.length; i++) {
+			if (uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
+				return TerminalBuiltinLinkType.LocalFolderInWorkspace;
+			}
+		}
+		return TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+	} else {
+		return TerminalBuiltinLinkType.LocalFile;
 	}
 }

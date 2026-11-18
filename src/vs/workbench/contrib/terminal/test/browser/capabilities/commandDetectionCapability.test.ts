@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok } from 'assert';
-import { Terminal } from 'xterm';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import type { Terminal } from '@xterm/xterm';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
 
 class TestCommandDetectionCapability extends CommandDetectionCapability {
-	clearCommands() {
+	clearCommandsForTest() {
 		this._commands.length = 0;
 	}
 }
 
 suite('CommandDetectionCapability', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let xterm: Terminal;
 	let capability: TestCommandDetectionCapability;
 	let addEvents: ITerminalCommand[];
@@ -34,11 +36,12 @@ suite('CommandDetectionCapability', () => {
 		// Ensure timestamps are set and were captured recently
 		for (const command of capability.commands) {
 			ok(Math.abs(Date.now() - command.timestamp) < 2000);
+			ok(command.id, 'Expected command to have an assigned id');
 		}
 		deepStrictEqual(addEvents, capability.commands);
 		// Clear the commands to avoid re-asserting past commands
 		addEvents.length = 0;
-		capability.clearCommands();
+		capability.clearCommandsForTest();
 	}
 
 	async function printStandardCommand(prompt: string, command: string, output: string, cwd: string | undefined, exitCode: number) {
@@ -54,14 +57,21 @@ suite('CommandDetectionCapability', () => {
 		capability.handleCommandFinished(exitCode);
 	}
 
-	setup(() => {
-		xterm = new Terminal({ allowProposedApi: true, cols: 80 });
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(IContextMenuService, { showContextMenu(delegate: IContextMenuDelegate): void { } } as Partial<IContextMenuService>);
-		instantiationService.stub(ILogService, new NullLogService());
-		capability = instantiationService.createInstance(TestCommandDetectionCapability, xterm);
+	async function printCommandStart(prompt: string) {
+		capability.handlePromptStart();
+		await writeP(xterm, `\r${prompt}`);
+		capability.handleCommandStart();
+	}
+
+
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, logger: TestXtermLogger }));
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		capability = store.add(instantiationService.createInstance(TestCommandDetectionCapability, xterm));
 		addEvents = [];
-		capability.onCommandFinished(e => addEvents.push(e));
+		store.add(capability.onCommandFinished(e => addEvents.push(e)));
 		assertCommands([]);
 	});
 
@@ -74,6 +84,7 @@ suite('CommandDetectionCapability', () => {
 
 	test('should add commands for expected capability method calls', async () => {
 		await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
+		await printCommandStart('$ ');
 		assertCommands([{
 			command: 'echo foo',
 			exitCode: 0,
@@ -82,8 +93,22 @@ suite('CommandDetectionCapability', () => {
 		}]);
 	});
 
+	test('should invalidate all commands when cleared', async () => {
+		await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
+		await printStandardCommand('$ ', 'echo bar', 'bar', undefined, 0);
+		strictEqual(capability.commands.length, 2);
+
+		const invalidatedCommands: ITerminalCommand[] = [];
+		store.add(capability.onCommandInvalidated(commands => invalidatedCommands.push(...commands)));
+		capability.clearCommands();
+
+		deepStrictEqual(capability.commands, []);
+		deepStrictEqual(invalidatedCommands.map(e => e.command), ['echo foo', 'echo bar']);
+	});
+
 	test('should trim the command when command executed appears on the following line', async () => {
 		await printStandardCommand('$ ', 'echo foo\r\n', 'foo', undefined, 0);
+		await printCommandStart('$ ');
 		assertCommands([{
 			command: 'echo foo',
 			exitCode: 0,
@@ -96,6 +121,7 @@ suite('CommandDetectionCapability', () => {
 		test('should add cwd to commands when it\'s set', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', '/home/second', 0);
+			await printCommandStart('$ ');
 			assertCommands([
 				{ command: 'echo foo', exitCode: 0, cwd: '/home', marker: { line: 0 } },
 				{ command: 'echo bar', exitCode: 0, cwd: '/home/second', marker: { line: 2 } }
@@ -104,6 +130,7 @@ suite('CommandDetectionCapability', () => {
 		test('should add old cwd to commands if no cwd sequence is output', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', undefined, 0);
+			await printCommandStart('$ ');
 			assertCommands([
 				{ command: 'echo foo', exitCode: 0, cwd: '/home', marker: { line: 0 } },
 				{ command: 'echo bar', exitCode: 0, cwd: '/home', marker: { line: 2 } }
@@ -112,10 +139,65 @@ suite('CommandDetectionCapability', () => {
 		test('should use an undefined cwd if it\'s not set initially', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', '/home', 0);
+			await printCommandStart('$ ');
 			assertCommands([
 				{ command: 'echo foo', exitCode: 0, cwd: undefined, marker: { line: 0 } },
 				{ command: 'echo bar', exitCode: 0, cwd: '/home', marker: { line: 2 } }
 			]);
 		});
+	});
+
+	test('should not inherit the previous exit code when a duplicate command is interrupted', async () => {
+		await printStandardCommand('$ ', 'echo test', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo test');
+		xterm.input('\x03');
+		await writeP(xterm, '^C');
+		capability.setCommandLine('echo test', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo test', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo test', exitCode: undefined, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
+	test('should inherit the previous exit code for duplicate commands without interruption', async () => {
+		await printStandardCommand('$ ', 'echo ^C', 'test', undefined, 0);
+
+		capability.handlePromptStart();
+		await writeP(xterm, `\r$ `);
+		capability.handleCommandStart();
+		await writeP(xterm, 'echo ^C');
+		capability.setCommandLine('echo ^C', true);
+		capability.handleCommandExecuted();
+		await writeP(xterm, `\r\ntest\r\n`);
+		capability.handleCommandFinished(undefined);
+
+		await printCommandStart('$ ');
+
+		assertCommands([
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 0 } },
+			{ command: 'echo ^C', exitCode: 0, cwd: undefined, marker: { line: 2 } }
+		]);
+	});
+
+	test('should preserve explicit newlines at 80-column wrap boundaries in command output', async () => {
+		const boundaryWidthLine = 'A'.repeat(80);
+		await printStandardCommand('$ ', 'cat content.txt', `${boundaryWidthLine}\r\nafter`, undefined, 0);
+		await printCommandStart('$ ');
+
+		strictEqual(capability.commands.length, 1);
+		const output = capability.commands[0].getOutput();
+		ok(!!output);
+		ok(output.includes(`${boundaryWidthLine}\nafter\n`));
+		ok(!output.includes(`${boundaryWidthLine}after`));
 	});
 });

@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { RefType } from './api/git';
+import { RefType } from './api/git.constants';
 import { Model } from './model';
 
 export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentityProvider, vscode.Disposable {
@@ -13,18 +13,25 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 	private providerRegistration: vscode.Disposable;
 
 	constructor(private model: Model) {
-		this.providerRegistration = vscode.workspace.registerEditSessionIdentityProvider('file', this);
-
-		vscode.workspace.onWillCreateEditSessionIdentity((e) => {
-			e.waitUntil(this._onWillCreateEditSessionIdentity(e.workspaceFolder));
-		});
+		this.providerRegistration = vscode.Disposable.from(
+			vscode.workspace.registerEditSessionIdentityProvider('file', this),
+			vscode.workspace.onWillCreateEditSessionIdentity((e) => {
+				e.waitUntil(
+					this._onWillCreateEditSessionIdentity(e.workspaceFolder).catch(err => {
+						if (err instanceof vscode.CancellationError) {
+							throw err;
+						}
+					})
+				);
+			})
+		);
 	}
 
 	dispose() {
 		this.providerRegistration.dispose();
 	}
 
-	async provideEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, _token: vscode.CancellationToken): Promise<string | undefined> {
+	async provideEditSessionIdentity(workspaceFolder: vscode.WorkspaceFolder, token: vscode.CancellationToken): Promise<string | undefined> {
 		await this.model.openRepository(path.dirname(workspaceFolder.uri.fsPath));
 
 		const repository = this.model.getRepository(workspaceFolder.uri);
@@ -34,8 +41,11 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 			return undefined;
 		}
 
+		const remoteUrl = repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl?.replace(/^(git@[^\/:]+)(:)/i, 'ssh://$1/');
+		const remote = remoteUrl ? await vscode.workspace.getCanonicalUri(vscode.Uri.parse(remoteUrl), { targetScheme: 'https' }, token) : null;
+
 		return JSON.stringify({
-			remote: repository.remotes.find((remote) => remote.name === repository.HEAD?.upstream?.remote)?.pushUrl ?? null,
+			remote: remote?.toString() ?? remoteUrl,
 			ref: repository.HEAD?.upstream?.name ?? null,
 			sha: repository.HEAD?.commit ?? null,
 		});
@@ -78,9 +88,23 @@ export class GitEditSessionIdentityProvider implements vscode.EditSessionIdentit
 
 		await repository.status();
 
-		// If this branch hasn't been published to the remote yet,
-		// ensure that it is published before Continue On is invoked
-		if (!repository.HEAD?.upstream && repository.HEAD?.type === RefType.Head) {
+		if (!repository.HEAD?.commit) {
+			// Handle publishing empty repository with no commits
+
+			const yes = vscode.l10n.t('Yes');
+			const selection = await vscode.window.showInformationMessage(
+				vscode.l10n.t('Would you like to publish this repository to continue working on it elsewhere?'),
+				{ modal: true },
+				yes
+			);
+			if (selection !== yes) {
+				throw new vscode.CancellationError();
+			}
+			await repository.commit('Initial commit', { all: true });
+			await vscode.commands.executeCommand('git.publish');
+		} else if (!repository.HEAD?.upstream && repository.HEAD?.type === RefType.Head) {
+			// If this branch hasn't been published to the remote yet,
+			// ensure that it is published before Continue On is invoked
 
 			const publishBranch = vscode.l10n.t('Publish Branch');
 			const selection = await vscode.window.showInformationMessage(

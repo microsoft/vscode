@@ -16,7 +16,7 @@ export function rndName() {
 export const testFs = new TestFS('fake-fs', true);
 vscode.workspace.registerFileSystemProvider(testFs.scheme, testFs, { isCaseSensitive: testFs.isCaseSensitive });
 
-export async function createRandomFile(contents = '', dir: vscode.Uri | undefined = undefined, ext = ''): Promise<vscode.Uri> {
+export async function createRandomFile(contents: string | Uint8Array = '', dir: vscode.Uri | undefined = undefined, ext = ''): Promise<vscode.Uri> {
 	let fakeFile: vscode.Uri;
 	if (dir) {
 		assert.strictEqual(dir.scheme, testFs.scheme);
@@ -24,7 +24,7 @@ export async function createRandomFile(contents = '', dir: vscode.Uri | undefine
 	} else {
 		fakeFile = vscode.Uri.parse(`${testFs.scheme}:/${rndName() + ext}`);
 	}
-	testFs.writeFile(fakeFile, Buffer.from(contents), { create: true, overwrite: true });
+	testFs.writeFile(fakeFile, typeof contents === 'string' ? Buffer.from(contents) : Buffer.from(contents), { create: true, overwrite: true });
 	return fakeFile;
 }
 
@@ -149,18 +149,6 @@ export async function asPromise<T>(event: vscode.Event<T>, timeout = vscode.env.
 	});
 }
 
-export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
-	for (let i = 0; i < n; i++) {
-		test(`${description} (iteration ${i})`, callback);
-	}
-}
-
-export function suiteRepeat(n: number, description: string, callback: (this: any) => any): void {
-	for (let i = 0; i < n; i++) {
-		suite(`${description} (iteration ${i})`, callback);
-	}
-}
-
 export async function poll<T>(
 	fn: () => Thenable<T>,
 	acceptFn: (result: T) => boolean,
@@ -250,3 +238,7 @@ export class DeferredPromise<T> {
 		});
 	}
 }
+
+export type Mutable<T> = {
+	-readonly [P in keyof T]: T[P];
+};

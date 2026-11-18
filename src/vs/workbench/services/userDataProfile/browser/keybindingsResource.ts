@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { platform, Platform } from 'vs/base/common/platform';
-import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from '../common/userDataProfile.js';
+import { platform, Platform } from '../../../../base/common/platform.js';
+import { ITreeItemCheckboxState, TreeItemCollapsibleState } from '../../../common/views.js';
+import { IUserDataProfile, ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../nls.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 interface IKeybindingsResourceContent {
 	platform: Platform;
@@ -91,8 +92,13 @@ export class KeybindingsResourceTreeItem implements IProfileResourceTreeItem {
 
 	constructor(
 		private readonly profile: IUserDataProfile,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
+
+	isFromDefaultProfile(): boolean {
+		return !this.profile.isDefault && !!this.profile.useDefaultFlags?.keybindings;
+	}
 
 	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
 		return [{
@@ -100,6 +106,9 @@ export class KeybindingsResourceTreeItem implements IProfileResourceTreeItem {
 			resourceUri: this.profile.keybindingsResource,
 			collapsibleState: TreeItemCollapsibleState.None,
 			parent: this,
+			accessibilityInformation: {
+				label: this.uriIdentityService.extUri.basename(this.profile.settingsResource)
+			},
 			command: {
 				id: API_OPEN_EDITOR_COMMAND_ID,
 				title: '',

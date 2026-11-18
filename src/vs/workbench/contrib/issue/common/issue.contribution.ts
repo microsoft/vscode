@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ICommandAction } from 'vs/platform/action/common/action';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IssueReporterData } from 'vs/platform/issue/common/issue';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { ICommandAction } from '../../../../platform/action/common/action.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandMetadata } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IssueReporterData, IWorkbenchIssueService } from './issue.js';
 
 const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 const OpenIssueReporterApiId = 'vscode.openIssueReporter';
 
-const OpenIssueReporterCommandDescription: ICommandHandlerDescription = {
+const OpenIssueReporterCommandMetadata: ICommandMetadata = {
 	description: 'Open the issue reporter and optionally prefill part of the form.',
 	args: [
 		{
@@ -54,17 +56,33 @@ interface OpenIssueReporterArgs {
 	readonly extensionId?: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
+	readonly extensionData?: string;
 }
 
-export class BaseIssueContribution implements IWorkbenchContribution {
+export class BaseIssueContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		super();
+
+		if (!configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
+			this._register(CommandsRegistry.registerCommand({
+				id: 'workbench.action.openIssueReporter',
+				handler: function (accessor) {
+					const data = accessor.get(INotificationService);
+					data.info('Feedback is disabled.');
+
+				},
+			}));
+			return;
+		}
+
 		if (!productService.reportIssueUrl) {
 			return;
 		}
 
-		CommandsRegistry.registerCommand({
+		this._register(CommandsRegistry.registerCommand({
 			id: OpenIssueReporterActionId,
 			handler: function (accessor, args?: string | [string] | OpenIssueReporterArgs) {
 				const data: Partial<IssueReporterData> =
@@ -76,10 +94,10 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 
 				return accessor.get(IWorkbenchIssueService).openReporter(data);
 			},
-			description: OpenIssueReporterCommandDescription
-		});
+			metadata: OpenIssueReporterCommandMetadata
+		}));
 
-		CommandsRegistry.registerCommand({
+		this._register(CommandsRegistry.registerCommand({
 			id: OpenIssueReporterApiId,
 			handler: function (accessor, args?: string | [string] | OpenIssueReporterArgs) {
 				const data: Partial<IssueReporterData> =
@@ -91,27 +109,24 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 
 				return accessor.get(IWorkbenchIssueService).openReporter(data);
 			},
-			description: OpenIssueReporterCommandDescription
-		});
+			metadata: OpenIssueReporterCommandMetadata
+		}));
 
 		const reportIssue: ICommandAction = {
 			id: OpenIssueReporterActionId,
-			title: {
-				value: localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue..."),
-				original: 'Report Issue...'
-			},
+			title: localize2({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue..."),
 			category: Categories.Help
 		};
 
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: reportIssue });
+		this._register(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: reportIssue }));
 
-		MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 			group: '3_feedback',
 			command: {
 				id: OpenIssueReporterActionId,
 				title: localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
 			},
 			order: 3
-		});
+		}));
 	}
 }

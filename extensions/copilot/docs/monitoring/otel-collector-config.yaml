@@ -1,0 +1,50 @@
+# OpenTelemetry Collector configuration for Copilot Chat
+# Receives OTLP from Copilot Chat and exports to multiple backends.
+#
+# Usage:
+#   docker compose -f docs/monitoring/docker-compose.yaml up -d
+#
+# Then set in VS Code or launch.json:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 256
+
+exporters:
+  # Azure Application Insights via connection string
+  # Replace <your-connection-string> with your App Insights connection string
+  azuremonitor:
+    connection_string: "${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+
+  # Debug exporter — prints to collector stdout (useful for troubleshooting)
+  debug:
+    verbosity: basic
+
+  # Local Jaeger for trace visualization
+  otlphttp/jaeger:
+    endpoint: http://jaeger:4318
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [azuremonitor, otlphttp/jaeger, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [azuremonitor, debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [azuremonitor, debug]

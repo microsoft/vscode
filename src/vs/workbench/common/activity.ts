@@ -3,15 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-
-export interface IActivity {
-	id: string;
-	name: string;
-	keybindingId?: string;
-	classNames?: string[];
-	iconUrl?: URI;
-}
-
-export const GLOBAL_ACTIVITY_ID = 'workbench.action.globalActivity';
-export const ACCOUNTS_ACTIVITY_ID = 'workbench.action.accountsActivity';
+export const GLOBAL_ACTIVITY_ID = 'workbench.actions.manage';
+export const ACCOUNTS_ACTIVITY_ID = 'workbench.actions.accounts';
+export const ACCOUNTS_SHARED_SIGN_IN_GROUP = '2_sharedAccountSignIn';

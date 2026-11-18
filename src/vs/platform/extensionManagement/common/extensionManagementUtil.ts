@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isLinux, platform } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { ILogService } from 'vs/platform/log/common/log';
-import { arch } from 'vs/base/common/process';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { compareIgnoreCase } from '../../../base/common/strings.js';
+import * as nls from '../../../nls.js';
+import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, MaliciousExtensionInfo, getTargetPlatform, IExtensionBlockingInfo, ExtensionBlockingOrigin } from './extensionManagement.js';
+import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
+import { IFileService } from '../../files/common/files.js';
+import { isLinux, platform } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { ILogService } from '../../log/common/log.js';
+import { arch } from '../../../base/common/process.js';
+import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
+import { isString } from '../../../base/common/types.js';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -42,7 +45,7 @@ export class ExtensionKey {
 	readonly id: string;
 
 	constructor(
-		identifier: IExtensionIdentifier,
+		readonly identifier: IExtensionIdentifier,
 		readonly version: string,
 		readonly targetPlatform: TargetPlatform = TargetPlatform.UNDEFINED,
 	) {
@@ -53,7 +56,7 @@ export class ExtensionKey {
 		return `${this.id}-${this.version}${this.targetPlatform !== TargetPlatform.UNDEFINED ? `-${this.targetPlatform}` : ''}`;
 	}
 
-	equals(o: any): boolean {
+	equals(o: unknown): boolean {
 		if (!(o instanceof ExtensionKey)) {
 			return false;
 		}
@@ -103,7 +106,7 @@ export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t:
 	return byExtension;
 }
 
-export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
+export function getLocalExtensionTelemetryData(extension: ILocalExtension) {
 	return {
 		id: extension.identifier.id,
 		name: extension.manifest.name,
@@ -120,6 +123,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 	"GalleryExtensionTelemetryData" : {
 		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"extensionVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"publisherName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -132,10 +136,11 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		]
 	}
 */
-export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
+export function getGalleryExtensionTelemetryData(extension: IGalleryExtension) {
 	return {
 		id: new TelemetryTrustedValue(extension.identifier.id),
 		name: new TelemetryTrustedValue(extension.name),
+		extensionVersion: extension.version,
 		galleryId: extension.identifier.uuid,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
@@ -193,4 +198,28 @@ export async function computeTargetPlatform(fileService: IFileService, logServic
 	const targetPlatform = getTargetPlatform(alpineLinux ? 'alpine' : platform, arch);
 	logService.debug('ComputeTargetPlatform:', targetPlatform);
 	return targetPlatform;
+}
+
+export function isMalicious(identifier: IExtensionIdentifier, malicious: ReadonlyArray<MaliciousExtensionInfo>): boolean {
+	return findMatchingMaliciousEntry(identifier, malicious) !== undefined;
+}
+
+export function findMatchingMaliciousEntry(identifier: IExtensionIdentifier, malicious: ReadonlyArray<MaliciousExtensionInfo>): MaliciousExtensionInfo | undefined {
+	return malicious.find(({ extensionOrPublisher }) => {
+		if (isString(extensionOrPublisher)) {
+			return compareIgnoreCase(identifier.id.split('.')[0], extensionOrPublisher) === 0;
+		}
+		return areSameExtensions(identifier, extensionOrPublisher);
+	});
+}
+
+/**
+ * Builds the user facing explanation for a blocked extension. A tenant policy decision and a
+ * marketplace statement are deliberately worded differently, because conflating them either
+ * alarms users about a routine policy decision or understates a genuine marketplace finding.
+ */
+export function getExtensionBlockedMessage(blockingInfo: IExtensionBlockingInfo): IMarkdownString {
+	return new MarkdownString(blockingInfo.origin === ExtensionBlockingOrigin.Policy
+		? nls.localize('blocked by organization policy', "This extension is not allowed by your organization.")
+		: nls.localize('blocked by marketplace', "This extension has been blocked by the Extension Marketplace and must not be used."));
 }

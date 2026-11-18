@@ -1,0 +1,448 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Alternative Notebook (text) Content > Alt Content with Markdown Cells > EOLs 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+import sys
+import os
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+import pandas
+import requests
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+#%% vscode.cell [id=#VSC-e07487cb] [language=python]
+print(sys.executable)
+print(sys.version)"
+`;
+
+exports[`Alternative Notebook (text) Content > Alt Content with Markdown Cells > Generate Alt Content 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")"
+`;
+
+exports[`Alternative Notebook (text) Content > Alt Content with Markdown Cells > No Content 1`] = `""`;
+
+exports[`Alternative Notebook (text) Content > Alt Content with Markdown Cells > No Content without code cells 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=markdown]
+"""
+# This is a sample notebook
+""""
+`;
+
+exports[`Alternative Notebook (text) Content > Alt Content with Markdown Cells > With Markdown Cells 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=markdown]
+"""
+# This is a sample notebook
+"""
+#%% vscode.cell [id=#VSC-bdb3864a] [language=markdown]
+"""
+## Header
+"""
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-e07487cb] [language=markdown]
+"""
+Comments
+"""
+#%% vscode.cell [id=#VSC-53ab90bb] [language=python]
+print("Foo Bar")"
+`;
+
+exports[`Alternative Notebook (text) Content > Alt Content without Markdown Cells > EOLs 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+import sys
+import os
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+import pandas
+import requests
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+#%% vscode.cell [id=#VSC-e07487cb] [language=python]
+print(sys.executable)
+print(sys.version)"
+`;
+
+exports[`Alternative Notebook (text) Content > Alt Content without Markdown Cells > Generate Alt Content 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")"
+`;
+
+exports[`Alternative Notebook (text) Content > Alt Content without Markdown Cells > No Content 1`] = `""`;
+
+exports[`Alternative Notebook (text) Content > Alt Content without Markdown Cells > No Content without code cells 1`] = `""`;
+
+exports[`Alternative Notebook (text) Content > Alt Content without Markdown Cells > With Markdown Cells 1`] = `
+"#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-53ab90bb] [language=python]
+print("Foo Bar")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > insert a code cell and markdown cell 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Foo Bar")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > insert a markdown cell 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > insert cell above 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > insert cell below 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Foo Bar")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > insert cells 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Bar Baz")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > insert cells above 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Bar Baz")
+#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > remove and insert cell 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Foo Bar")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > remove and insert cells 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Bar Baz")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with 1 line > remove cell 1`] = `""`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > insert cell above 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")
+#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > insert cell below 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Foo Bar")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > insert cell middle 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > insert cells 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > insert cells above 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > insert cells middle 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-e07487cb] [language=python]
+# Another Cell
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > remove and insert cell 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > remove and insert cells 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Add/Delete > Cell with multiple line (crlf) > remove first cell 1`] = `
+"#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Hello World")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with 1 line > insert a few lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+print("Another line")
+print("Yet another line")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with 1 line > replace line 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+# Top level imports"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with 1 line > replace text with larger text 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("This is a longer piece of text")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with 1 line > replace text with smaller text 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Foo Bar")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with 1 line > replace while inserting a few lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Foo Bar")
+print("Another line")
+print("Yet another line")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > insert a few lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+print("Another line")
+print("Yet another line")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > merge two lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > remove a line 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > remove two lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > replace line 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+# Top level imports
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > replace multiple lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+# Top level print statements
+print("Say Something")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > replace text with larger text 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("This is a longer piece of text")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > replace text with smaller text 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Foo Bar")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (crlf) > replace while inserting a few lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Foo Bar")
+print("Another line")
+print("Yet another line")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > insert a few lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+print("Another line")
+print("Yet another line")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > merge two lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > remove a line 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > remove two lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Hello World")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > replace line 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+# Top level imports
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > replace multiple lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+# Top level print statements
+print("Say Something")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > replace text with larger text 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("This is a longer piece of text")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > replace text with smaller text 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Foo Bar")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cell with multiple line (lf) > replace while inserting a few lines 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Foo Bar")
+print("Another line")
+print("Yet another line")
+print("Foo Bar")
+print("Bar Baz")
+print("Something Else")"
+`;
+
+exports[`Alternative Notebook (text) Content > Cell Content Changes > Cells with multiple line (lf) > replace text in last cell 1`] = `
+"#%% vscode.cell [id=#VSC-ad3571c0] [language=python]
+print("Foo Bar")
+#%% vscode.cell [id=#VSC-bdb3864a] [language=python]
+print("Bar Baz")
+#%% vscode.cell [id=#VSC-8862d4f3] [language=python]
+print("Bye bye World")
+print("Foo Bar2")
+print("Bar Baz2")
+print("Something Else")"
+`;

@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'path';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
-import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
+import { join } from '../../../base/common/path.js';
+import { connectionTokenCookieName, connectionTokenQueryName } from '../../../base/common/network.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { getRandomTestPath } from '../../../base/test/node/testUtils.js';
+import { MandatoryServerConnectionToken, parseServerConnectionToken, requestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
+import { getRedactedServerParsedArgs, ServerParsedArgs } from '../../node/serverEnvironmentService.js';
 
 suite('parseServerConnectionToken', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function isError(r: ServerConnectionToken | ServerConnectionTokenParseError): r is ServerConnectionTokenParseError {
 		return (r instanceof ServerConnectionTokenParseError);
@@ -25,13 +28,6 @@ suite('parseServerConnectionToken', () => {
 		const result = await parseServerConnectionToken({} as ServerParsedArgs, async () => 'defaultTokenValue');
 		assert.ok(!(result instanceof ServerConnectionTokenParseError));
 		assert.ok(result.type === ServerConnectionTokenType.Mandatory);
-	});
-
-	test('no arguments with --compatibility generates a token that is not mandatory', async () => {
-		const result = await parseServerConnectionToken({ 'compatibility': '1.63' } as ServerParsedArgs, async () => 'defaultTokenValue');
-		assert.ok(!(result instanceof ServerConnectionTokenParseError));
-		assert.ok(result.type === ServerConnectionTokenType.Optional);
-		assert.strictEqual(result.value, 'defaultTokenValue');
 	});
 
 	test('--without-connection-token', async () => {
@@ -56,7 +52,7 @@ suite('parseServerConnectionToken', () => {
 		this.timeout(10000);
 		const testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'server-connection-token');
 		fs.mkdirSync(testDir, { recursive: true });
-		const filename = path.join(testDir, 'connection-token-file');
+		const filename = join(testDir, 'connection-token-file');
 		const connectionToken = `12345-123-abc`;
 		fs.writeFileSync(filename, connectionToken);
 		const result = await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue');
@@ -64,6 +60,33 @@ suite('parseServerConnectionToken', () => {
 		assert.ok(result.type === ServerConnectionTokenType.Mandatory);
 		assert.strictEqual(result.value, connectionToken);
 		fs.rmSync(testDir, { recursive: true, force: true });
+	});
+
+	test('--connection-token-file strips a trailing LF or CRLF and rejects invalid content', async () => {
+		const root = join(process.cwd(), '.build');
+		await fs.promises.mkdir(root, { recursive: true });
+		const directory = await fs.promises.mkdtemp(join(root, 'server-token-'));
+		const filename = join(directory, 'token');
+		try {
+			const results: (ServerConnectionToken | ServerConnectionTokenParseError)[] = [];
+			for (const contents of ['valid-token\n', 'valid-token\r\n', 'invalid token\n']) {
+				await fs.promises.writeFile(filename, contents);
+				results.push(await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue'));
+			}
+			assert.deepStrictEqual(results, [
+				new MandatoryServerConnectionToken('valid-token'),
+				new MandatoryServerConnectionToken('valid-token'),
+				new ServerConnectionTokenParseError(`The connection token defined in '${filename} does not adhere to the characters 0-9, a-z, A-Z, _, or -.`),
+			]);
+		} finally {
+			await fs.promises.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('--connection-token-file reports an unreadable file', async () => {
+		const filename = getRandomTestPath(join(process.cwd(), '.build'), 'missing-token');
+		const result = await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue');
+		assert.deepStrictEqual(result, new ServerConnectionTokenParseError(`Unable to read the connection token file at '${filename}'.`));
 	});
 
 	test('--connection-token', async () => {
@@ -74,11 +97,56 @@ suite('parseServerConnectionToken', () => {
 		assert.strictEqual(result.value, connectionToken);
 	});
 
-	test('--connection-token --compatibility marks a as not mandatory', async () => {
-		const connectionToken = `12345-123-abc`;
-		const result = await parseServerConnectionToken({ 'connection-token': connectionToken, 'compatibility': '1.63' } as ServerParsedArgs, async () => 'defaultTokenValue');
-		assert.ok(!(result instanceof ServerConnectionTokenParseError));
-		assert.ok(result.type === ServerConnectionTokenType.Optional);
-		assert.strictEqual(result.value, connectionToken);
+});
+
+suite('requestHasValidConnectionToken', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const connectionToken = new MandatoryServerConnectionToken('valid token');
+
+	test('validates a decoded query parameter', () => {
+		const searchParams = new URLSearchParams(`${connectionTokenQueryName}=valid+token`);
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers: {} }, searchParams), true);
+	});
+
+	test('rejects repeated query parameters', () => {
+		const searchParams = new URLSearchParams(`${connectionTokenQueryName}=valid+token&${connectionTokenQueryName}=valid+token`);
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers: {} }, searchParams), false);
+	});
+
+	test('falls back to a cookie', () => {
+		const headers = { cookie: `${connectionTokenCookieName}=valid%20token` };
+
+		assert.strictEqual(requestHasValidConnectionToken(connectionToken, { headers }, new URLSearchParams()), true);
+	});
+});
+
+suite('getRedactedServerParsedArgs', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('redacts connection tokens without changing the original arguments', () => {
+		const args = {
+			'connection-token': 'server-token',
+			'agent-host-bridge-connection-token': 'bridge-token',
+			'agent-host-bridge-port': '9000',
+		} as ServerParsedArgs;
+
+		assert.deepStrictEqual({
+			redactedArgs: getRedactedServerParsedArgs(args),
+			args,
+		}, {
+			redactedArgs: {
+				'connection-token': '<redacted>',
+				'agent-host-bridge-connection-token': '<redacted>',
+				'agent-host-bridge-port': '9000',
+			},
+			args: {
+				'connection-token': 'server-token',
+				'agent-host-bridge-connection-token': 'bridge-token',
+				'agent-host-bridge-port': '9000',
+			},
+		});
 	});
 });

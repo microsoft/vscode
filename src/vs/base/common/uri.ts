@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import * as paths from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
+import { CharCode } from './charCode.js';
+import { MarshalledId } from './marshallingIds.js';
+import * as paths from './path.js';
+import { isWindows } from './platform.js';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -22,7 +22,11 @@ function _validateUri(ret: URI, _strict?: boolean): void {
 	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
 	// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
 	if (ret.scheme && !_schemePattern.test(ret.scheme)) {
-		throw new Error('[UriError]: Scheme contains illegal characters.');
+		const matches = [...ret.scheme.matchAll(/[^\w\d+.-]/gu)];
+		const detail = matches.length > 0
+			? ` Found '${matches[0][0]}' at index ${matches[0].index} (${matches.length} total)`
+			: '';
+		throw new Error(`[UriError]: Scheme contains illegal characters.${detail} (len:${ret.scheme.length})`);
 	}
 
 	// path, http://tools.ietf.org/html/rfc3986#section-3.3
@@ -97,11 +101,11 @@ const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
  */
 export class URI implements UriComponents {
 
-	static isUri(thing: any): thing is URI {
+	static isUri(thing: unknown): thing is URI {
 		if (thing instanceof URI) {
 			return true;
 		}
-		if (!thing) {
+		if (!thing || typeof thing !== 'object') {
 			return false;
 		}
 		return typeof (<URI>thing).authority === 'string'
@@ -327,15 +331,22 @@ export class URI implements UriComponents {
 		return new Uri('file', authority, path, _empty, _empty);
 	}
 
-	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
+	/**
+	 * Creates new URI from uri components.
+	 *
+	 * Unless `strict` is `true` the scheme is defaults to be `file`. This function performs
+	 * validation and should be used for untrusted uri components retrieved from storage,
+	 * user input, command arguments etc
+	 */
+	static from(components: UriComponents, strict?: boolean): URI {
 		const result = new Uri(
 			components.scheme,
 			components.authority,
 			components.path,
 			components.query,
 			components.fragment,
+			strict
 		);
-		_validateUri(result, true);
 		return result;
 	}
 
@@ -348,7 +359,7 @@ export class URI implements UriComponents {
 	 */
 	static joinPath(uri: URI, ...pathFragment: string[]): URI {
 		if (!uri.path) {
-			throw new Error(`[UriError]: cannot call joinPath on URI without path`);
+			throw new Error(`[UriError]: cannot call joinPath on URI without path: ${uri.toString()}`);
 		}
 		let newPath: string;
 		if (isWindows && uri.scheme === 'file') {
@@ -380,6 +391,16 @@ export class URI implements UriComponents {
 		return this;
 	}
 
+	/**
+	 * A helper function to revive URIs.
+	 *
+	 * **Note** that this function should only be used when receiving URI#toJSON generated data
+	 * and that it doesn't do any validation. Use {@link URI.from} when received "untrusted"
+	 * uri components such as command arguments or data from storage.
+	 *
+	 * @param data The URI components or URI to revive.
+	 * @returns The revived URI or undefined or null.
+	 */
 	static revive(data: UriComponents | URI): URI;
 	static revive(data: UriComponents | URI | undefined): URI | undefined;
 	static revive(data: UriComponents | URI | null): URI | null;
@@ -391,26 +412,41 @@ export class URI implements UriComponents {
 			return data;
 		} else {
 			const result = new Uri(data);
-			result._formatted = (<UriState>data).external;
-			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
+			result._formatted = (<UriState>data).external ?? null;
+			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath ?? null : null;
 			return result;
 		}
+	}
+
+	[Symbol.for('debug.description')]() {
+		return `URI(${this.toString()})`;
 	}
 }
 
 export interface UriComponents {
 	scheme: string;
-	authority: string;
-	path: string;
-	query: string;
-	fragment: string;
+	authority?: string;
+	path?: string;
+	query?: string;
+	fragment?: string;
+}
+
+export function isUriComponents(thing: unknown): thing is UriComponents {
+	if (!thing || typeof thing !== 'object') {
+		return false;
+	}
+	return typeof (<UriComponents>thing).scheme === 'string'
+		&& (typeof (<UriComponents>thing).authority === 'string' || typeof (<UriComponents>thing).authority === 'undefined')
+		&& (typeof (<UriComponents>thing).path === 'string' || typeof (<UriComponents>thing).path === 'undefined')
+		&& (typeof (<UriComponents>thing).query === 'string' || typeof (<UriComponents>thing).query === 'undefined')
+		&& (typeof (<UriComponents>thing).fragment === 'string' || typeof (<UriComponents>thing).fragment === 'undefined');
 }
 
 interface UriState extends UriComponents {
 	$mid: MarshalledId.Uri;
-	external: string;
-	fsPath: string;
-	_sep: 1 | undefined;
+	external?: string;
+	fsPath?: string;
+	_sep?: 1;
 }
 
 const _pathSepMarker = isWindows ? 1 : undefined;
@@ -441,6 +477,7 @@ class Uri extends URI {
 	}
 
 	override toJSON(): UriComponents {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const res = <UriState>{
 			$mid: MarshalledId.Uri
 		};
@@ -452,10 +489,14 @@ class Uri extends URI {
 		if (this._formatted) {
 			res.external = this._formatted;
 		}
-		// uri components
+		//--- uri components
 		if (this.path) {
 			res.path = this.path;
 		}
+		// TODO
+		// this isn't correct and can violate the UriComponents contract but
+		// this is part of the vscode.Uri API and we shouldn't change how that
+		// works anymore
 		if (this.scheme) {
 			res.scheme = this.scheme;
 		}
@@ -562,21 +603,31 @@ function encodeURIComponentFast(uriComponent: string, isPath: boolean, isAuthori
 }
 
 function encodeURIComponentMinimal(path: string): string {
-	let res: string | undefined = undefined;
-	for (let pos = 0; pos < path.length; pos++) {
+	let pos = path.indexOf('?');
+	const hashPos = path.indexOf('#');
+	if (pos === -1 || (hashPos !== -1 && hashPos < pos)) {
+		pos = hashPos;
+	}
+	if (pos === -1) {
+		return path;
+	}
+
+	let res = path.substring(0, pos);
+	let copyStart = pos;
+	for (; pos < path.length; pos++) {
 		const code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {
-			if (res === undefined) {
-				res = path.substr(0, pos);
+			if (copyStart < pos) {
+				res += path.substring(copyStart, pos);
 			}
 			res += encodeTable[code];
-		} else {
-			if (res !== undefined) {
-				res += path[pos];
-			}
+			copyStart = pos + 1;
 		}
 	}
-	return res !== undefined ? res : path;
+	if (copyStart < path.length) {
+		res += path.substring(copyStart);
+	}
+	return res;
 }
 
 /**
@@ -634,14 +685,14 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			// <user>@<auth>
 			const userinfo = authority.substr(0, idx);
 			authority = authority.substr(idx + 1);
-			idx = userinfo.lastIndexOf(':');
+			idx = userinfo.indexOf(':');
 			if (idx === -1) {
 				res += encoder(userinfo, false, false);
 			} else {
 				// <user>:<pass>@<auth>
 				res += encoder(userinfo.substr(0, idx), false, false);
 				res += ':';
-				res += encoder(userinfo.substr(idx + 1), false, true);
+				res += encoder(userinfo.substr(idx + 1), false, false);
 			}
 			res += '@';
 		}
@@ -656,15 +707,16 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		}
 	}
 	if (path) {
-		// lower-case windows drive letters in /C:/fff or C:/fff
+		// HTTP paths are case-sensitive, even when their first segment resembles a drive letter.
+		const lowerScheme = scheme.toLowerCase();
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
 			const code = path.charCodeAt(1);
-			if (code >= CharCode.A && code <= CharCode.Z) {
+			if (code >= CharCode.A && code <= CharCode.Z && lowerScheme !== 'http' && lowerScheme !== 'https') {
 				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
 			}
 		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
 			const code = path.charCodeAt(0);
-			if (code >= CharCode.A && code <= CharCode.Z) {
+			if (code >= CharCode.A && code <= CharCode.Z && lowerScheme !== 'http' && lowerScheme !== 'https') {
 				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
 			}
 		}

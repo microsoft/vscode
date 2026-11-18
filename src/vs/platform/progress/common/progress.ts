@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotificationPriority } from 'vs/platform/notification/common/notification';
+import { IAction } from '../../../base/common/actions.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { INotificationSource, NotificationPriority } from '../../notification/common/notification.js';
+import type { LegacyExtensionLinkParsing } from '../../notification/common/notificationLegacy.js';
+import { NotificationText } from '../../notification/common/notificationMessage.js';
+import type { NotificationTelemetry } from '../../notification/common/notificationTelemetry.js';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -52,10 +55,14 @@ export const enum ProgressLocation {
 
 export interface IProgressOptions {
 	readonly location: ProgressLocation | string;
-	readonly title?: string;
-	readonly source?: string | { label: string; id: string };
+	/** Used only if this operation is presented as a workbench notification. */
+	readonly telemetry?: NotificationTelemetry;
+	readonly title?: string | NotificationText;
+	/** Preserves link parsing for extension API progress. Core callers must use literal text or `NotificationText`. */
+	readonly legacyExtensionLinkParsing?: LegacyExtensionLinkParsing;
+	readonly source?: string | INotificationSource;
 	readonly total?: number;
-	readonly cancellable?: boolean;
+	readonly cancellable?: boolean | string;
 	readonly buttons?: string[];
 }
 
@@ -65,7 +72,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly secondaryActions?: readonly IAction[];
 	readonly delay?: number;
 	readonly priority?: NotificationPriority;
-	readonly type?: 'syncing' | 'loading';
+	readonly type?: 'loading' | 'syncing';
 }
 
 export interface IProgressDialogOptions extends IProgressOptions {
@@ -77,7 +84,7 @@ export interface IProgressDialogOptions extends IProgressOptions {
 export interface IProgressWindowOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Window;
 	readonly command?: string;
-	readonly type?: 'syncing' | 'loading';
+	readonly type?: 'loading' | 'syncing';
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {
@@ -86,7 +93,7 @@ export interface IProgressCompositeOptions extends IProgressOptions {
 }
 
 export interface IProgressStep {
-	message?: string;
+	message?: string | NotificationText;
 	increment?: number;
 	total?: number;
 }
@@ -114,7 +121,8 @@ export class Progress<T> implements IProgress<T> {
 	private _value?: T;
 	get value(): T | undefined { return this._value; }
 
-	constructor(private callback: (data: T) => void) { }
+	constructor(private callback: (data: T) => unknown) {
+	}
 
 	report(item: T) {
 		this._value = item;
@@ -172,7 +180,7 @@ export class LongRunningOperation extends Disposable {
 	private currentOperationId = 0;
 	private readonly currentOperationDisposables = this._register(new DisposableStore());
 	private currentProgressRunner: IProgressRunner | undefined;
-	private currentProgressTimeout: any;
+	private currentProgressTimeout: Timeout | undefined = undefined;
 
 	constructor(
 		private progressIndicator: IProgressIndicator

@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { cleanMnemonic, Direction, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { asArray } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import 'vs/css!./menubar';
-import * as nls from 'vs/nls';
+import * as browser from '../../browser.js';
+import * as DOM from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { StandardMouseEvent } from '../../mouseEvent.js';
+import { EventType, Gesture, GestureEvent } from '../../touch.js';
+import { cleanMnemonic, HorizontalDirection, IMenuDirection, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, VerticalDirection } from './menu.js';
+import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from '../../../common/actions.js';
+import { asArray } from '../../../common/arrays.js';
+import { RunOnceScheduler } from '../../../common/async.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode, KeyMod, ScanCode, ScanCodeUtils } from '../../../common/keyCodes.js';
+import { ResolvedKeybinding } from '../../../common/keybindings.js';
+import { Disposable, DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { isMacintosh } from '../../../common/platform.js';
+import * as strings from '../../../common/strings.js';
+import './menubar.css';
+import * as nls from '../../../../nls.js';
+import { mainWindow } from '../../window.js';
 
 const $ = DOM.$;
 
@@ -32,7 +32,7 @@ export interface IMenuBarOptions {
 	visibility?: string;
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
-	compactMode?: Direction;
+	compactMode?: IMenuDirection;
 	actionRunner?: IActionRunner;
 	getCompactMenuActions?: () => IAction[];
 }
@@ -88,6 +88,8 @@ export class MenuBar extends Disposable {
 	private numMenusShown: number = 0;
 	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
+	private readonly menuDisposables = this._register(new DisposableStore());
+
 	constructor(private container: HTMLElement, private options: IMenuBarOptions, private menuStyle: IMenuStyles) {
 		super();
 
@@ -116,7 +118,7 @@ export class MenuBar extends Disposable {
 		this._register(DOM.ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, (e) => {
-			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
@@ -146,6 +148,7 @@ export class MenuBar extends Disposable {
 			}
 		}));
 
+		const window = DOM.getWindow(this.container);
 		this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_DOWN, () => {
 			// This mouse event is outside the menubar so it counts as a focus out
 			if (this.isFocused) {
@@ -154,7 +157,7 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_IN, (e) => {
-			const event = e as FocusEvent;
+			const event = e;
 
 			if (event.relatedTarget) {
 				if (!this.container.contains(event.relatedTarget as HTMLElement)) {
@@ -164,7 +167,7 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(this.container, DOM.EventType.FOCUS_OUT, (e) => {
-			const event = e as FocusEvent;
+			const event = e;
 
 			// We are losing focus and there is no related target, e.g. webview case
 			if (!event.relatedTarget) {
@@ -225,7 +228,7 @@ export class MenuBar extends Disposable {
 				this.updateLabels(titleElement, buttonElement, menuBarMenu.label);
 
 				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-					const event = new StandardKeyboardEvent(e as KeyboardEvent);
+					const event = new StandardKeyboardEvent(e);
 					let eventHandled = true;
 
 					if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
@@ -258,7 +261,7 @@ export class MenuBar extends Disposable {
 
 				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 					// Ignore non-left-click
-					const mouseEvent = new StandardMouseEvent(e);
+					const mouseEvent = new StandardMouseEvent(DOM.getWindow(buttonElement), e);
 					if (!mouseEvent.leftButton) {
 						e.preventDefault();
 						return;
@@ -321,7 +324,7 @@ export class MenuBar extends Disposable {
 		buttonElement.style.visibility = 'hidden';
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-			const event = new StandardKeyboardEvent(e as KeyboardEvent);
+			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
 			const triggerKeys = [KeyCode.Enter];
@@ -330,9 +333,9 @@ export class MenuBar extends Disposable {
 			} else {
 				triggerKeys.push(KeyCode.Space);
 
-				if (this.options.compactMode === Direction.Right) {
+				if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
 					triggerKeys.push(KeyCode.RightArrow);
-				} else if (this.options.compactMode === Direction.Left) {
+				} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
 					triggerKeys.push(KeyCode.LeftArrow);
 				}
 			}
@@ -367,7 +370,7 @@ export class MenuBar extends Disposable {
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			// Ignore non-left-click
-			const mouseEvent = new StandardMouseEvent(e);
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(buttonElement), e);
 			if (!mouseEvent.leftButton) {
 				e.preventDefault();
 				return;
@@ -423,9 +426,28 @@ export class MenuBar extends Disposable {
 		if (menuToUpdate && menuToUpdate.length) {
 			menuToUpdate[0].actions = menu.actions;
 		}
+
+		// The overflow menu holds its own submenu actions for menus that do not fit
+		// (or all menus in compact mode), so keep the matching entry in sync
+		const overflowSubmenuId = MenuBar.getOverflowSubmenuId(menu.label);
+		const overflowIndex = this.overflowMenu.actions.findIndex(action => action.id === overflowSubmenuId);
+		if (overflowIndex !== -1) {
+			this.overflowMenu.actions[overflowIndex] = new SubmenuAction(overflowSubmenuId, menu.label, menu.actions);
+		}
+	}
+
+	private static getOverflowSubmenuId(label: string): string {
+		return `menubar.submenu.${label}`;
 	}
 
 	override dispose(): void {
+		// Close an open menu first, so the container (which the host can reuse) is not left marked as open, and the menu's
+		// focused elements are not removed during disposal, which re-enters blur handling. This does not go through the
+		// focus state, so that hosts are not notified (and cannot re-create the menubar) while it is being disposed.
+		if (this.isOpen) {
+			this.cleanupCustomMenu();
+		}
+
 		super.dispose();
 
 		this.menus.forEach(menuBarMenu => {
@@ -506,7 +528,7 @@ export class MenuBar extends Disposable {
 
 
 		// If below minimium menu threshold, show the overflow menu only as hamburger menu
-		if (this.numMenusShown - 1 <= showableMenus.length / 2) {
+		if (this.numMenusShown - 1 <= showableMenus.length / 4) {
 			for (const menuBarMenu of showableMenus) {
 				menuBarMenu.buttonElement.style.visibility = 'hidden';
 			}
@@ -520,7 +542,7 @@ export class MenuBar extends Disposable {
 		if (this.isCompact) {
 			this.overflowMenu.actions = [];
 			for (let idx = this.numMenusShown; idx < this.menus.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${this.menus[idx].label}`, this.menus[idx].label, this.menus[idx].actions || []));
+				this.overflowMenu.actions.push(new SubmenuAction(MenuBar.getOverflowSubmenuId(this.menus[idx].label), this.menus[idx].label, this.menus[idx].actions || []));
 			}
 
 			const compactMenuActions = this.options.getCompactMenuActions?.();
@@ -541,7 +563,7 @@ export class MenuBar extends Disposable {
 
 			this.overflowMenu.actions = [];
 			for (let idx = this.numMenusShown; idx < showableMenus.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${showableMenus[idx].label}`, showableMenus[idx].label, showableMenus[idx].actions || []));
+				this.overflowMenu.actions.push(new SubmenuAction(MenuBar.getOverflowSubmenuId(showableMenus[idx].label), showableMenus[idx].label, showableMenus[idx].actions || []));
 			}
 
 			if (this.overflowMenu.buttonElement.nextElementSibling !== showableMenus[this.numMenusShown].buttonElement) {
@@ -580,17 +602,17 @@ export class MenuBar extends Disposable {
 			const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
 
 			if (escMatch) {
-				titleElement.innerText = '';
+				titleElement.textContent = '';
 				titleElement.append(
 					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
 					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
 					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
 				);
 			} else {
-				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();
+				titleElement.textContent = replaceDoubleEscapes(cleanLabel).trim();
 			}
 		} else {
-			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
+			titleElement.textContent = cleanMenuLabel.replace(/&&/g, '&');
 		}
 
 		const mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
@@ -627,7 +649,7 @@ export class MenuBar extends Disposable {
 		});
 
 		if (!this.overflowLayoutScheduled) {
-			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
+			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.container), () => {
 				this.updateOverflowAction();
 				this.overflowLayoutScheduled = undefined;
 			});
@@ -738,6 +760,12 @@ export class MenuBar extends Disposable {
 				}
 
 				if (this.focusedMenu) {
+					// When the menu is toggled on, it may be in compact state and trying to
+					// focus the first menu. In this case we should focus the overflow instead.
+					if (this.focusedMenu.index === 0 && this.numMenusShown === 0) {
+						this.focusedMenu.index = MenuBar.OVERFLOW_INDEX;
+					}
+
 					if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
 						this.overflowMenu.buttonElement.focus();
 					} else {
@@ -751,6 +779,7 @@ export class MenuBar extends Disposable {
 				}
 
 				if (this.focusedMenu) {
+					this.cleanupCustomMenu();
 					this.showCustomMenu(this.focusedMenu.index, this.openedViaKeyboard);
 				}
 				break;
@@ -783,7 +812,7 @@ export class MenuBar extends Disposable {
 	private setUnfocusedState(): void {
 		if (this.options.visibility === 'toggle' || this.options.visibility === 'hidden') {
 			this.focusState = MenubarState.HIDDEN;
-		} else if (this.options.visibility === 'classic' && browser.isFullscreen()) {
+		} else if (this.options.visibility === 'classic' && browser.isFullscreen(mainWindow)) {
 			this.focusState = MenubarState.HIDDEN;
 		} else {
 			this.focusState = MenubarState.VISIBLE;
@@ -967,6 +996,8 @@ export class MenuBar extends Disposable {
 	}
 
 	private cleanupCustomMenu(): void {
+		this.container.classList.remove('menu-open');
+
 		if (this.focusedMenu) {
 			// Remove focus from the menus first
 			if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
@@ -985,6 +1016,7 @@ export class MenuBar extends Disposable {
 
 			this.focusedMenu = { index: this.focusedMenu.index };
 		}
+		this.menuDisposables.clear();
 	}
 
 	private showCustomMenu(menuIndex: number, selectFirst = true): void {
@@ -995,39 +1027,52 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
-		const menuHolder = $('div.menubar-menu-items-holder', { 'title': '' });
+		const menuHolder = $('div.menubar-menu-items-holder.monaco-menu-container', { 'title': '' });
 
 		customMenu.buttonElement.classList.add('open');
+		this.container.classList.add('menu-open');
 
 		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
-		const titleBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.titleElement);
-
-		if (this.options.compactMode === Direction.Right) {
-			menuHolder.style.top = `${titleBoundingRect.top}px`;
-			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
-		} else if (this.options.compactMode === Direction.Left) {
-			menuHolder.style.top = `${titleBoundingRect.top}px`;
-			menuHolder.style.right = `${this.container.clientWidth}px`;
-			menuHolder.style.left = 'auto';
-		} else {
-			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
-			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;
-		}
+		const containerBoundingRect = this.container.getBoundingClientRect();
 
 		customMenu.buttonElement.appendChild(menuHolder);
+		const menuHolderZoom = DOM.getDomNodeZoomLevel(menuHolder);
+
+		if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
+			menuHolder.style.left = `${(titleBoundingRect.left + containerBoundingRect.width) / menuHolderZoom}px`;
+		} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
+			const windowWidth = DOM.getWindow(this.container).innerWidth;
+			menuHolder.style.right = `${(windowWidth - titleBoundingRect.left) / menuHolderZoom}px`;
+			menuHolder.style.left = 'auto';
+		} else {
+			menuHolder.style.left = `${titleBoundingRect.left / menuHolderZoom}px`;
+		}
+
+		if (this.options.compactMode?.vertical === VerticalDirection.Above) {
+			// TODO@benibenj Do not hardcode the height of the menu holder
+			menuHolder.style.top = `${(titleBoundingRect.top - this.menus.length * 30 + containerBoundingRect.height) / menuHolderZoom}px`;
+		} else if (this.options.compactMode?.vertical === VerticalDirection.Below) {
+			menuHolder.style.top = `${titleBoundingRect.top / menuHolderZoom}px`;
+		} else {
+			menuHolder.style.top = `${titleBoundingRect.bottom / menuHolderZoom}px`;
+		}
 
 		const menuOptions: IMenuOptions = {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
-			expandDirection: this.isCompact ? this.options.compactMode : Direction.Right,
+			ariaLabel: customMenu.buttonElement.getAttribute('aria-label') ?? undefined,
+			expandDirection: this.isCompact ? this.options.compactMode : { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below },
 			useEventAsContext: true
 		};
 
-		const menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
-
-		this._register(menuWidget.onDidCancel(() => {
+		const menuWidget = this.menuDisposables.add(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
+		// Round the edge that meets the title to the device pixel the title's edge is painted at, so the menu neither covers the title nor leaves a gap
+		DOM.alignToDevicePixels(menuHolder, {
+			horizontal: this.options.compactMode?.horizontal === HorizontalDirection.Left ? 'nearestEnd' : 'nearest',
+			vertical: this.options.compactMode?.vertical === VerticalDirection.Above ? 'nearestEnd' : 'nearest'
+		});
+		this.menuDisposables.add(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
 		}));
 

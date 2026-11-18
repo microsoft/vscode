@@ -5,6 +5,7 @@
 
 :root {
 	--vscode-sash-size: 4px;
+	--vscode-sash-hover-size: 4px;
 }
 
 .monaco-sash {
@@ -110,7 +111,7 @@
 	background: transparent;
 }
 
-.monaco-workbench:not(.reduce-motion) .monaco-sash:before {
+.monaco-enable-motion .monaco-sash:before {
 	transition: background-color 0.1s ease-out;
 }
 

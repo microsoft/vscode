@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
@@ -26,18 +26,19 @@ export interface FoundInFrameResult {
 	readonly requestId: number;
 	readonly activeMatchOrdinal: number;
 	readonly matches: number;
-	readonly selectionArea: any;
 	readonly finalUpdate: boolean;
 }
 
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
-	onFoundInFrame: Event<FoundInFrameResult>;
+	readonly onFoundInFrame: Event<FoundInFrameResult>;
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
-	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
+	/** Requests for unavailable hosts or frames are ignored. */
+	findInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
 
-	stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
+	/** Requests for unavailable hosts or frames are ignored. */
+	stopFindInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
 }

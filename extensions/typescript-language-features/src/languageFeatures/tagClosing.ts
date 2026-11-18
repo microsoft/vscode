@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../tsServer/protocol/protocol';
-import { API } from '../tsServer/api';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { Condition, conditionalRegistration, requireMinVersion } from './util/dependentRegistration';
-import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../configuration/documentSelector';
 import { LanguageDescription } from '../configuration/languageDescription';
+import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { Disposable } from '../utils/dispose';
+import { readUnifiedConfig } from '../utils/configuration';
+import { Condition, conditionalRegistration } from './util/dependentRegistration';
 
 class TagClosing extends Disposable {
-	public static readonly minVersion = API.v300;
 
 	private _disposed = false;
-	private _timeout: NodeJS.Timer | undefined = undefined;
+	private _timeout: NodeJS.Timeout | undefined = undefined;
 	private _cancel: vscode.CancellationTokenSource | undefined = undefined;
 
 	constructor(
@@ -151,7 +150,7 @@ function requireActiveDocumentSetting(
 				return false;
 			}
 
-			return !!vscode.workspace.getConfiguration(language.id, editor.document).get('autoClosingTags');
+			return !!readUnifiedConfig<boolean>('autoClosingTags.enabled', true, { scope: editor.document, fallbackSection: language.id, fallbackSubSectionNameOverride: 'autoClosingTags' });
 		},
 		handler => {
 			return vscode.Disposable.from(
@@ -167,7 +166,6 @@ export function register(
 	client: ITypeScriptServiceClient,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, TagClosing.minVersion),
 		requireActiveDocumentSetting(selector.syntax, language)
 	], () => new TagClosing(client));
 }

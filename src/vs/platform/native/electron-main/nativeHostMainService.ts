@@ -3,66 +3,185 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, desktopCapturer, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeImage, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { dirname, join, resolve } from 'vs/base/common/path';
-import { isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { realpath } from 'vs/base/node/extpath';
-import { virtualMachineHint } from 'vs/base/node/id';
-import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
-import { findFreePort } from 'vs/base/node/ports';
-import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { localize } from 'vs/nls';
-import { ISerializableCommandAction } from 'vs/platform/action/common/action';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
-import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
-import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { IStateService } from 'vs/platform/state/node/state';
+import { memoize } from '../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
+import { dirname, isAbsolute, join, posix, resolve, win32 } from '../../../base/common/path.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { AddFirstParameterToFunctions, hasKey } from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { virtualMachineHint } from '../../../base/node/id.js';
+import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
+import { findFreePort, isPortFree } from '../../../base/node/ports.js';
+import { localize } from '../../../nls.js';
+import { ISerializableCommandAction } from '../../action/common/action.js';
+import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
+import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindow, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { excludeOwnWindowSources, getScreenWindowId, getWindowSourceId, OrderedAppWindow, orderAppWindows } from '../common/appWindows.js';
+import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions, IAppWindowCaptureOverlay } from './appWindowCaptureFeedback.js';
+import { captureMacWindow, getMacScreenWindows } from './macScreenWindows.js';
+import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
+import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IPartsSplash } from '../../theme/common/themeService.js';
+import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { IFolderLocationsMainService } from '../../windows/electron-main/folderLocationsMainService.js';
+import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { hasWSLFeatureInstalled } from '../../remote/node/wsl.js';
+import { WindowProfiler } from '../../profiling/electron-main/windowProfiling.js';
+import { IV8Profile } from '../../profiling/common/profiling.js';
+import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
+import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
+import { extract, validateZip, zip, type IFile } from '../../../base/node/zip.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IProxyAuthService } from './auth.js';
+import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
+import { randomPath } from '../../../base/common/extpath.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { GPUCompositingState } from './gpuCompositingState.js';
+import { AgentHostEditorUpdate, AgentsWindowInvitationState, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
-
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly gpuCompositingState: GPUCompositingState;
+	private readonly agentsWindowInvitations: AgentsWindowInvitationState;
+
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IStateService private readonly stateService: IStateService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRequestService private readonly requestService: IRequestService,
+		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService,
+		@IGPUProcessMainService gpuProcessMainService: IGPUProcessMainService,
+		@IApplicationStorageMainService private readonly applicationStorageService: IApplicationStorageMainService,
 	) {
 		super();
+
+		this.gpuCompositingState = this._register(new GPUCompositingState(gpuProcessMainService));
+		this.agentsWindowInvitations = this._register(new AgentsWindowInvitationState(Date.now, applicationStorageService));
+		this.onDidChangeAgentHostEditorState = this.agentsWindowInvitations.onDidChange;
+		this._register(windowsMainService.onDidDestroyWindow(window => this.agentsWindowInvitations.resetWindow(window.id, false)));
+		this._register(lifecycleMainService.onWillLoadWindow(event => this.agentsWindowInvitations.resetWindow(event.window.id, event.reason === LoadReason.RELOAD)));
+
+		// Events
+		{
+			this.onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+
+			this.onDidTriggerWindowSystemContextMenu = Event.any(
+				Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => ({ windowId: window.id, x, y })),
+				Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => ({ windowId: window.id, x, y }))
+			);
+
+			this.onDidMaximizeWindow = Event.any(
+				Event.map(this.windowsMainService.onDidMaximizeWindow, window => window.id),
+				Event.map(this.auxiliaryWindowsMainService.onDidMaximizeWindow, window => window.id)
+			);
+			this.onDidUnmaximizeWindow = Event.any(
+				Event.map(this.windowsMainService.onDidUnmaximizeWindow, window => window.id),
+				Event.map(this.auxiliaryWindowsMainService.onDidUnmaximizeWindow, window => window.id)
+			);
+
+			this.onDidChangeWindowFullScreen = Event.any(
+				Event.map(this.windowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen })),
+				Event.map(this.auxiliaryWindowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen }))
+			);
+
+			this.onDidChangeWindowAlwaysOnTop = Event.any(
+				Event.map(this.windowsMainService.onDidChangeAlwaysOnTop, e => ({ windowId: e.window.id, alwaysOnTop: e.alwaysOnTop })),
+				Event.map(this.auxiliaryWindowsMainService.onDidChangeAlwaysOnTop, e => ({ windowId: e.window.id, alwaysOnTop: e.alwaysOnTop }))
+			);
+
+			this.onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+			this.onDidFocusMainWindow = Event.any(
+				Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
+				Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
+			);
+
+			this.onDidBlurMainOrAuxiliaryWindow = Event.any(
+				this.onDidBlurMainWindow,
+				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
+			);
+			this.onDidFocusMainOrAuxiliaryWindow = Event.any(
+				this.onDidFocusMainWindow,
+				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
+			);
+
+			this.onDidSuspendOS = Event.fromNodeEventEmitter(powerMonitor, 'suspend');
+			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+
+			// Battery power events (macOS and Windows only)
+			this.onDidChangeOnBatteryPower = Event.any(
+				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-ac'), () => false),
+				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-battery'), () => true)
+			);
+
+			// Thermal state events (macOS only)
+			this.onDidChangeThermalState = Event.map(
+				Event.fromNodeEventEmitter<{ state: ThermalState }>(powerMonitor, 'thermal-state-change'),
+				e => e.state
+			);
+
+			// Speed limit events (macOS and Windows only)
+			this.onDidChangeSpeedLimit = Event.map(
+				Event.fromNodeEventEmitter<{ limit: number }>(powerMonitor, 'speed-limit-change'),
+				e => e.limit
+			);
+
+			// Shutdown event (Linux and macOS only)
+			this.onWillShutdownOS = Event.fromNodeEventEmitter(powerMonitor, 'shutdown');
+
+			// Screen lock events (macOS and Windows only)
+			this.onDidLockScreen = Event.fromNodeEventEmitter(powerMonitor, 'lock-screen');
+			this.onDidUnlockScreen = Event.fromNodeEventEmitter(powerMonitor, 'unlock-screen');
+
+			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
+
+			this.onDidChangeGPUCompositing = this.gpuCompositingState.onDidChange;
+
+			this.onDidChangeDisplay = Event.debounce(Event.any(
+				Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
+					// Electron will emit 'display-metrics-changed' events even when actually
+					// going fullscreen, because the dock hides. However, we do not want to
+					// react on this event as there is no change in display bounds.
+					return !(Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea');
+				}),
+				Event.fromNodeEventEmitter(screen, 'display-added'),
+				Event.fromNodeEventEmitter(screen, 'display-removed')
+			), () => { }, 100);
+		}
 	}
 
 
@@ -75,51 +194,108 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Events
 
-	readonly onDidOpenWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
-	readonly onDidTriggerSystemContextMenu = Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidOpenMainWindow: Event<number>;
 
-	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
 
-	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidFocusWindow = Event.any(
-		Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
-		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
-	);
+	readonly onDidMaximizeWindow: Event<number>;
+	readonly onDidUnmaximizeWindow: Event<number>;
 
-	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+	readonly onDidChangeWindowFullScreen: Event<{ readonly windowId: number; readonly fullscreen: boolean }>;
 
-	readonly onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
+	readonly onDidBlurMainWindow: Event<number>;
+	readonly onDidFocusMainWindow: Event<number>;
+
+	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
+	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
+
+	readonly onDidChangeWindowAlwaysOnTop: Event<{ readonly windowId: number; readonly alwaysOnTop: boolean }>;
+
+	readonly onDidSuspendOS: Event<void>;
+	readonly onDidResumeOS: Event<void>;
+
+	readonly onDidChangeOnBatteryPower: Event<boolean>;
+	readonly onDidChangeThermalState: Event<ThermalState>;
+	readonly onDidChangeSpeedLimit: Event<number>;
+	readonly onWillShutdownOS: Event<void>;
+	readonly onDidLockScreen: Event<void>;
+	readonly onDidUnlockScreen: Event<void>;
+
+	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
 	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string; service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
-	readonly onDidChangeDisplay = Event.debounce(Event.any(
-		Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
-			// Electron will emit 'display-metrics-changed' events even when actually
-			// going fullscreen, because the dock hides. However, we do not want to
-			// react on this event as there is no change in display bounds.
-			return !(Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea');
-		}),
-		Event.fromNodeEventEmitter(screen, 'display-added'),
-		Event.fromNodeEventEmitter(screen, 'display-removed')
-	), () => { }, 100);
+	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
+	readonly onDidChangeAgentHostEditorState: Event<IAgentHostEditorState>;
 
 	//#endregion
 
 
 	//#region Window
 
-	async getWindows(): Promise<IOpenedWindow[]> {
-		const windows = this.windowsMainService.getWindows();
+	async getAgentHostEditorState(windowId: number | undefined, legacyEditorSessionCount: number): Promise<IAgentHostEditorState> {
+		await this.applicationStorageService.whenReady;
+		return this.agentsWindowInvitations.initialize(legacyEditorSessionCount);
+	}
 
-		return windows.map(window => ({
+	async updateAgentHostEditorState(windowId: number | undefined, update: AgentHostEditorUpdate): Promise<void> {
+		await this.applicationStorageService.whenReady;
+		const window = typeof windowId === 'number' ? this.windowsMainService.getWindowById(windowId) : undefined;
+		if (window?.config?.isSessionsWindow && update.kind === 'request') {
+			this.agentsWindowInvitations.update(undefined, update);
+			return;
+		}
+		this.agentsWindowInvitations.update(this.getEditorWindowId(windowId), update);
+	}
+
+	async claimAgentsWindowInvitation(windowId: number | undefined, resource: UriComponents, developerMode: boolean): Promise<IAgentsWindowInvitation | undefined> {
+		await this.applicationStorageService.whenReady;
+		return this.agentsWindowInvitations.claim(this.getEditorWindowId(windowId), URI.revive(resource), developerMode);
+	}
+
+	async markAgentsWindowInvitationShown(windowId: number | undefined, id: string): Promise<void> {
+		await this.applicationStorageService.whenReady;
+		this.agentsWindowInvitations.markShown(this.getEditorWindowId(windowId), id);
+	}
+
+	async releaseAgentsWindowInvitation(windowId: number | undefined, id: string): Promise<void> {
+		await this.applicationStorageService.whenReady;
+		this.agentsWindowInvitations.release(this.getEditorWindowId(windowId), id);
+	}
+
+	private getEditorWindowId(windowId: number | undefined): number {
+		const window = typeof windowId === 'number' ? this.windowsMainService.getWindowById(windowId) : undefined;
+		if (!window || window.config?.isSessionsWindow) {
+			throw new Error('Agent Host editor activity requires an editor window.');
+		}
+		return window.id;
+	}
+
+	getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
+	async getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: boolean }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>> {
+		const mainWindows = this.windowsMainService.getWindows().map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
-			dirty: window.isDocumentEdited()
+			dirty: window.isDocumentEdited(),
+			iconPath: window.iconPath
 		}));
+
+		const auxiliaryWindows = [];
+		if (options.includeAuxiliaryWindows) {
+			auxiliaryWindows.push(...this.auxiliaryWindowsMainService.getWindows().map(window => ({
+				id: window.id,
+				parentId: window.parentId,
+				title: window.win?.getTitle() ?? '',
+				filename: window.getRepresentedFilename()
+			})));
+		}
+
+		return [...mainWindows, ...auxiliaryWindows];
 	}
 
 	async getWindowCount(windowId: number | undefined): Promise<number> {
@@ -127,11 +303,27 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async getActiveWindowId(windowId: number | undefined): Promise<number | undefined> {
-		const activeWindow = BrowserWindow.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 		if (activeWindow) {
 			return activeWindow.id;
 		}
 
+		return undefined;
+	}
+
+	async getActiveWindowPosition(): Promise<IRectangle | undefined> {
+		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		if (activeWindow) {
+			return activeWindow.getBounds();
+		}
+		return undefined;
+	}
+
+	async getNativeWindowHandle(fallbackWindowId: number | undefined, windowId: number): Promise<VSBuffer | undefined> {
+		const window = this.windowById(windowId, fallbackWindowId);
+		if (window?.win) {
+			return VSBuffer.wrap(window.win.getNativeWindowHandle());
+		}
 		return undefined;
 	}
 
@@ -147,7 +339,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-			await this.windowsMainService.open({
+			const windows = await this.windowsMainService.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
@@ -158,6 +350,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				diffMode: options.diffMode,
 				mergeMode: options.mergeMode,
 				addMode: options.addMode,
+				removeMode: options.removeMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
 				waitMarkerFileURI: options.waitMarkerFileURI,
@@ -165,6 +358,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				forceProfile: options.forceProfile,
 				forceTempProfile: options.forceTempProfile,
 			});
+
+			// Hand off a chat session to the opened window so it restores both the
+			// folder and the session (e.g. the Agents window "Open in VS Code" flow).
+			// Only meaningful when exactly one window is opened so the session is
+			// not sent to an ambiguous target.
+			const chatSessionToOpen = options.chatSessionToOpen;
+			if (chatSessionToOpen && windows.length === 1) {
+				windows[0].sendWhenReady('vscode:openChatSession', CancellationToken.None, URI.revive(chatSessionToOpen).toString());
+			}
 		}
 	}
 
@@ -175,64 +377,212 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async toggleFullScreen(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
+	async openAgentsWindow(windowId: number | undefined, options?: IOpenAgentsWindowOptions): Promise<void> {
+		const windows = await this.windowsMainService.openAgentsWindow({
+			context: OpenContext.API,
+			contextWindowId: windowId,
+			cli: this.environmentMainService.args,
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.reveal === 'new' ? 'new' : URI.revive(options?.reveal), options?.source, options?.folderUriIsDefault, options?.draft, options?.onboardingSessionResource ? URI.revive(options.onboardingSessionResource) : undefined, options?.revealRemoteAuthority);
+		if (windows.length > 0) {
+			// Transfer focus is a no-op on macOS while VS Code is hidden, e.g. when run from a system-wide keybinding
+			windows[0].focus({ mode: FocusMode.Force });
+		}
+	}
+
+	async showAgentsLauncher(windowId: number | undefined): Promise<void> {
+		this.logService.trace('nativeHostMainService#showAgentsLauncher');
+
+		const agentsWindow = this.windowsMainService.getWindows().find(window => window.config?.isSessionsWindow);
+		if (agentsWindow) {
+			this.logService.trace('nativeHostMainService#showAgentsLauncher: reusing open Agents window');
+			agentsWindow.sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None);
+			return;
+		}
+
+		this.logService.trace('nativeHostMainService#showAgentsLauncher: opening Agents window');
+		const windows = await this.windowsMainService.openAgentsWindow({
+			context: OpenContext.API,
+			contextWindowId: windowId,
+			cli: this.environmentMainService.args,
+		}, undefined, undefined, AgentsWindowOpenSource.AgentsLauncher);
+		if (windows.length > 0) {
+			windows[0].sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None);
+		}
+	}
+
+	async syncSystemWideKeybindings(windowId: number | undefined, keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> {
+		if (typeof windowId !== 'number') {
+			return { failed: [] };
+		}
+		return this.globalKeybindingsMainService.updateKeybindings(windowId, keybindings);
+	}
+
+	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.isFullScreen ?? false;
+	}
+
+	async toggleFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.toggleFullScreen();
 	}
 
-	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
+	async handleTitleDoubleClick(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.handleTitleDoubleClick();
 	}
 
-	async isMaximized(windowId: number | undefined): Promise<boolean> {
-		const window = this.windowById(windowId);
+	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle; readonly workArea: IRectangle }> {
+		const point = screen.getCursorScreenPoint();
+		const display = screen.getDisplayNearestPoint(point);
+
+		return { point, display: display.bounds, workArea: display.workArea };
+	}
+
+	async isMaximized(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.isMaximized() ?? false;
+	}
+
+	async maximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // maximize() would reveal the window
+		}
+
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.maximize();
+	}
+
+	async unmaximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.unmaximize();
+	}
+
+	async minimizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.minimize();
+	}
+
+	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // moveTop() would reveal the window
+		}
+
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.moveTop();
+	}
+
+	async isWindowAlwaysOnTop(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.isAlwaysOnTop() ?? false;
+	}
+
+	async toggleWindowAlwaysOnTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.setAlwaysOnTop(!window.win.isAlwaysOnTop());
+	}
+
+	async setWindowAlwaysOnTop(windowId: number | undefined, alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.setAlwaysOnTop(alwaysOnTop);
+	}
+
+	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeHostOptions): Promise<void> {
+		const window = this.exactWindowById(windowId, options);
 		if (window?.win) {
-			return window.win.isMaximized();
-		}
+			if (window.win.isFullScreen()) {
+				const fullscreenLeftFuture = Event.toPromise(Event.once(Event.fromNodeEventEmitter(window.win, 'leave-full-screen')));
+				window.win.setFullScreen(false);
+				await fullscreenLeftFuture;
+			}
 
-		return false;
-	}
-
-	async maximizeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.maximize();
+			window.win.setBounds(position);
 		}
 	}
 
-	async unmaximizeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.unmaximize();
+	async setWindowFolderLocation(windowId: number | undefined, location: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.codeWindowById(options?.targetWindowId ?? windowId);
+		if (window && isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && !window.remoteAuthority) {
+			this.folderLocationsMainService.updateFolderLocation(window.openedWorkspace.uri, location);
 		}
 	}
 
-	async minimizeWindow(windowId: number | undefined): Promise<void> {
+	async showWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // show() would reveal the window and focus() activate the application
+		}
+
+		const win = this.exactWindowById(windowId, options)?.win;
+		if (!win) {
+			return;
+		}
+		if (win.isMinimized()) {
+			win.restore();
+		}
+		win.show();
+		win.focus();
+	}
+
+	async hideWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		this.exactWindowById(windowId, options)?.win?.hide();
+	}
+
+	async setWindowOpacity(windowId: number | undefined, opacity: number, options?: INativeHostOptions): Promise<void> {
+		this.exactWindowById(windowId, options)?.win?.setOpacity(Math.min(1, Math.max(0, opacity)));
+	}
+
+	async setWindowIgnoreMouseEvents(windowId: number | undefined, ignore: boolean, options?: INativeHostOptions): Promise<void> {
+		this.exactWindowById(windowId, options)?.win?.setIgnoreMouseEvents(ignore, { forward: true });
+	}
+
+	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.updateWindowControls(options);
+	}
+
+	async updateWindowAccentColor(windowId: number | undefined, color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void> {
+		if (!isWindows) {
+			return; // windows only
+		}
+
 		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.minimize();
+		if (!window) {
+			return;
+		}
+
+		let activeWindowAccentColor: string | boolean | null;
+		let inactiveWindowAccentColor: string | boolean | null;
+
+		if (color === 'default') {
+			activeWindowAccentColor = null;
+			inactiveWindowAccentColor = null;
+		} else if (color === 'off') {
+			activeWindowAccentColor = false;
+			inactiveWindowAccentColor = false;
+		} else {
+			activeWindowAccentColor = color;
+			inactiveWindowAccentColor = inactiveColor ?? color;
+		}
+
+		const windows = [window];
+		for (const auxiliaryWindow of this.auxiliaryWindowsMainService.getWindows()) {
+			if (auxiliaryWindow.parentId === windowId) {
+				windows.push(auxiliaryWindow);
+			}
+		}
+
+		for (const window of windows) {
+			window.win?.setAccentColor(window.win.isFocused() ? activeWindowAccentColor : inactiveWindowAccentColor);
 		}
 	}
 
-	async updateWindowControls(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.updateWindowControls(options);
-		}
-	}
-
-	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean }): Promise<void> {
-		if (options && typeof options.windowId === 'number') {
-			windowId = options.windowId;
-		}
-
-		const window = this.windowById(windowId);
-		window?.focus({ force: options?.force ?? false });
+	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { mode?: FocusMode }): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.focus({ mode: options?.mode ?? FocusMode.Transfer });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window?.win) {
 			const [windowWidth, windowHeight] = window.win.getSize();
 			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
@@ -249,7 +599,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): Promise<void> {
-		this.themeMainService.saveWindowSplash(windowId, splash);
+		const window = this.codeWindowById(windowId);
+
+		this.themeMainService.saveWindowSplash(windowId, window?.openedWorkspace, splash);
+	}
+
+	async setBackgroundThrottling(windowId: number | undefined, allowed: boolean): Promise<void> {
+		const window = this.codeWindowById(windowId);
+
+		this.logService.trace(`Setting background throttling for window ${windowId} to '${allowed}'`);
+
+		window?.win?.webContents?.setBackgroundThrottling(isBackgroundThrottlingAllowed(this.environmentMainService, allowed));
 	}
 
 	//#endregion
@@ -264,44 +624,39 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		try {
 			const { symbolicLink } = await SymlinkSupport.stat(source);
 			if (symbolicLink && !symbolicLink.dangling) {
-				const linkTargetRealPath = await realpath(source);
+				const linkTargetRealPath = await Promises.realpath(source);
 				if (target === linkTargetRealPath) {
 					return;
 				}
 			}
-
-			// Different source, delete it first
-			await Promises.unlink(source);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				throw error; // throw on any error but file not found
 			}
 		}
 
+		await this.installShellCommandWithPrivileges(windowId, source, target);
+	}
+
+	private async installShellCommandWithPrivileges(windowId: number | undefined, source: string, target: string): Promise<void> {
+		const { response } = await this.showMessageBox(windowId, {
+			type: 'info',
+			message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
+			buttons: [
+				localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+				localize('cancel', "Cancel")
+			]
+		});
+
+		if (response === 1 /* Cancel */) {
+			throw new CancellationError();
+		}
+
 		try {
-			await Promises.symlink(target, source);
+			const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
+			await promisify(exec)(command);
 		} catch (error) {
-			if (error.code !== 'EACCES' && error.code !== 'ENOENT') {
-				throw error;
-			}
-
-			const { response } = await this.showMessageBox(windowId, {
-				type: 'info',
-				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
-				buttons: [
-					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-					localize('cancel', "Cancel")
-				]
-			});
-
-			if (response === 0 /* OK */) {
-				try {
-					const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
-					await promisify(exec)(command);
-				} catch (error) {
-					throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
-				}
-			}
+			throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
 		}
 	}
 
@@ -309,7 +664,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const { source } = await this.getShellCommandLink();
 
 		try {
-			await Promises.unlink(source);
+			await fs.promises.unlink(source);
 		} catch (error) {
 			switch (error.code) {
 				case 'EACCES': {
@@ -322,13 +677,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						]
 					});
 
-					if (response === 0 /* OK */) {
-						try {
-							const command = `osascript -e "do shell script \\"rm \'${source}\'\\" with administrator privileges"`;
-							await promisify(exec)(command);
-						} catch (error) {
-							throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", source));
-						}
+					if (response === 1 /* Cancel */) {
+						throw new CancellationError();
+					}
+
+					try {
+						const command = `osascript -e "do shell script \\"rm \'${source}\'\\" with administrator privileges"`;
+						await promisify(exec)(command);
+					} catch (error) {
+						throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", source));
 					}
 					break;
 				}
@@ -353,27 +710,23 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return { source, target };
 	}
 
+	//#endregion
+
 	//#region Dialog
 
-	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		return this.dialogMainService.showMessageBox(options, this.toBrowserWindow(windowId));
+	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return this.dialogMainService.showMessageBox(options, window?.win ?? undefined);
 	}
 
-	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		return this.dialogMainService.showSaveDialog(options, this.toBrowserWindow(windowId));
+	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions & INativeHostOptions): Promise<SaveDialogReturnValue> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return this.dialogMainService.showSaveDialog(options, window?.win ?? undefined);
 	}
 
-	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		return this.dialogMainService.showOpenDialog(options, this.toBrowserWindow(windowId));
-	}
-
-	private toBrowserWindow(windowId: number | undefined): BrowserWindow | undefined {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			return window.win;
-		}
-
-		return undefined;
+	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions & INativeHostOptions): Promise<OpenDialogReturnValue> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return this.dialogMainService.showOpenDialog(options, window?.win ?? undefined);
 	}
 
 	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
@@ -424,66 +777,247 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		shell.showItemInFolder(path);
 	}
 
-	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
-		const window = this.windowById(windowId);
+	async startFileDrag(windowId: number | undefined, path: string, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		if (!window?.win || !isAbsolute(path) || !await Promises.exists(path)) {
+			return;
+		}
+		// macOS requires an image under the cursor; the file's own icon shows what the drop adds.
+		const icon = await app.getFileIcon(path, { size: 'normal' });
+		window.win.webContents.startDrag({ file: path, icon });
+	}
+
+	async setRepresentedFilename(windowId: number | undefined, path: string, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setRepresentedFilename(path);
 	}
 
-	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
-		const window = this.windowById(windowId);
+	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setDocumentEdited(edited);
 	}
 
-	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		if (isLinuxSnap) {
-			this.safeSnapOpenExternal(url);
-		} else {
-			shell.openExternal(url);
+	async setApplicationBadge(windowId: number | undefined, badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.setApplicationBadge(badge);
+	}
+
+	async openExternal(windowId: number | undefined, url: string, defaultApplication?: string): Promise<boolean> {
+		this.environmentMainService.unsetSnapExportedVariables();
+		try {
+			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+				this.openExternalBrowser(windowId, url, defaultApplication);
+			} else {
+				this.doOpenShellExternal(windowId, url);
+			}
+		} finally {
+			this.environmentMainService.restoreSnapExportedVariables();
 		}
 
 		return true;
 	}
 
-	private safeSnapOpenExternal(url: string): void {
+	private async openExternalBrowser(windowId: number | undefined, url: string, defaultApplication?: string): Promise<void> {
+		const configuredBrowser = defaultApplication ?? this.configurationService.getValue<string>('workbench.externalBrowser');
+		if (!configuredBrowser) {
+			return this.doOpenShellExternal(windowId, url);
+		}
 
-		// Remove some environment variables before opening to avoid issues...
-		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
-		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
-		const gtkIMModuleFile = process.env['GTK_IM_MODULE_FILE'];
-		const gdkBackend = process.env['GDK_BACKEND'];
-		const gioModuleDir = process.env['GIO_MODULE_DIR'];
-		const gtkExePrefix = process.env['GTK_EXE_PREFIX'];
-		const gsettingsSchemaDir = process.env['GSETTINGS_SCHEMA_DIR'];
-		delete process.env['GDK_PIXBUF_MODULE_FILE'];
-		delete process.env['GDK_PIXBUF_MODULEDIR'];
-		delete process.env['GTK_IM_MODULE_FILE'];
-		delete process.env['GDK_BACKEND'];
-		delete process.env['GIO_MODULE_DIR'];
-		delete process.env['GTK_EXE_PREFIX'];
-		delete process.env['GSETTINGS_SCHEMA_DIR'];
+		if (configuredBrowser.includes(posix.sep) || configuredBrowser.includes(win32.sep)) {
+			const browserPathExists = await Promises.exists(configuredBrowser);
+			if (!browserPathExists) {
+				this.logService.error(`Configured external browser path does not exist: ${configuredBrowser}`);
+				return this.doOpenShellExternal(windowId, url);
+			}
+		}
 
-		shell.openExternal(url);
+		try {
+			const { default: open, apps } = await import('open');
+			const res = await open(url, {
+				app: {
+					// Use `open.apps` helper to allow cross-platform browser
+					// aliases to be looked up properly. Fallback to the
+					// configured value if not found.
+					name: Object.hasOwn(apps, configuredBrowser) ? apps[(configuredBrowser as keyof typeof apps)] : configuredBrowser
+				}
+			});
 
-		// ...but restore them after
-		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
-		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
-		process.env['GTK_IM_MODULE_FILE'] = gtkIMModuleFile;
-		process.env['GDK_BACKEND'] = gdkBackend;
-		process.env['GIO_MODULE_DIR'] = gioModuleDir;
-		process.env['GTK_EXE_PREFIX'] = gtkExePrefix;
-		process.env['GSETTINGS_SCHEMA_DIR'] = gsettingsSchemaDir;
+			if (!isWindows) {
+				// On Linux/macOS, listen to stderr and treat that as failure
+				// for opening the browser to fallback to the default.
+				// On Windows, unfortunately PowerShell seems to always write
+				// to stderr so we cannot use it there
+				// (see also https://github.com/microsoft/vscode/issues/230636)
+				res.stderr?.once('data', (data: Buffer) => {
+					this.logService.error(`Error opening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
+					return this.doOpenShellExternal(windowId, url);
+				});
+			}
+		} catch (error) {
+			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);
+			return this.doOpenShellExternal(windowId, url);
+		}
+	}
+
+	private async doOpenShellExternal(windowId: number | undefined, url: string): Promise<void> {
+		try {
+			await shell.openExternal(url);
+		} catch (error) {
+			let isLink: boolean;
+			let message: string;
+			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+				isLink = true;
+				message = localize('openExternalErrorLinkMessage', "An error occurred opening a link in your default browser.");
+			} else {
+				isLink = false;
+				message = localize('openExternalProgramErrorMessage', "An error occurred opening an external program.");
+			}
+
+			const { response } = await this.dialogMainService.showMessageBox({
+				type: 'error',
+				message,
+				detail: error.message,
+				buttons: isLink ? [
+					localize({ key: 'copyLink', comment: ['&& denotes a mnemonic'] }, "&&Copy Link"),
+					localize('cancel', "Cancel")
+				] : [
+					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")
+				]
+			}, this.windowById(windowId)?.win ?? undefined);
+
+			if (response === 1 /* Cancel */) {
+				return;
+			}
+
+			this.writeClipboardText(windowId, url);
+		}
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
 		return shell.trashItem(fullPath);
 	}
 
+	async getMediaAccessStatus(windowId: number | undefined, mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> {
+		// systemPreferences.getMediaAccessStatus is implemented on macOS only.
+		// On Linux and Windows there's no per-app screen-recording permission
+		// concept; the OS handles capture without an app-level gate, so report
+		// 'granted' so the renderer can proceed straight to getDisplayMedia.
+		if (isMacintosh) {
+			return systemPreferences.getMediaAccessStatus(mediaType);
+		}
+		return 'granted';
+	}
+
+	async requestScreenCaptureAccess(): Promise<boolean> {
+		if (!isMacintosh) {
+			return true;
+		}
+		const status = systemPreferences.getMediaAccessStatus('screen');
+		if (status === 'granted' || status === 'restricted') {
+			return status === 'granted';
+		}
+
+		// Electron has no screen-permission request API; enumerate screens in the application process to request access.
+		await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+		return systemPreferences.getMediaAccessStatus('screen') === 'granted';
+	}
+
+	async getAppWindows(windowId: number | undefined, options?: { readonly interactive?: boolean }): Promise<INativeAppWindows> {
+		const interactive = !!options?.interactive;
+		// Chromium lets the user pick a window in the system's picker in Wayland sessions, even under XWayland. The test is
+		// WebRTC's own (`DesktopCapturer::IsRunningUnderWayland`): without it, Chromium lists the windows through X11.
+		if (isLinux && process.env['XDG_SESSION_TYPE']?.startsWith('wayland') && process.env['WAYLAND_DISPLAY'] && !interactive) {
+			return { kind: 'systemPicker' };
+		}
+		// Listing the windows asks for the permission the first time.
+		if (isMacintosh && systemPreferences.getMediaAccessStatus('screen') !== 'granted' && !interactive) {
+			return { kind: 'permissionRequired' };
+		}
+
+		// Only macOS tells where windows are, and which application is in front.
+		const screenWindows = isMacintosh ? getMacScreenWindows(this.logService) : undefined;
+		let sources: Electron.DesktopCapturerSource[];
+		try {
+			// Thumbnails would capture every window, so none are made.
+			sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: true });
+		} catch (error) {
+			if (isMacintosh && systemPreferences.getMediaAccessStatus('screen') !== 'granted') {
+				return { kind: 'permissionRequired' };
+			}
+			throw error;
+		}
+
+		const ownSourceIds = BrowserWindow.getAllWindows().filter(window => !window.isDestroyed()).map(window => window.getMediaSourceId());
+		const others = excludeOwnWindowSources(sources, ownSourceIds);
+		const screen = await screenWindows;
+		const ordered: OrderedAppWindow<Electron.DesktopCapturerSource>[] = screen ? orderAppWindows(others, screen, process.pid) : others.map(source => ({ source, window: undefined }));
+		// Desktop media sources leave out the windows that the screen doesn't show, which take their application's icon.
+		const appPaths = new Set<string>();
+		for (const { source, window } of ordered) {
+			if (!source && window.appPath) {
+				appPaths.add(window.appPath);
+			}
+		}
+		const appIcons = new Map(await Promise.all(Array.from(appPaths, async path => [path, await this.getAppIconDataUrl(path)] as const)));
+		const windows = ordered.map(({ source, window }): INativeAppWindow => source ? {
+			sourceId: source.id,
+			title: source.name,
+			iconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32, height: 32, quality: 'best' }).toDataURL() : undefined,
+			bounds: window?.bounds,
+		} : {
+			sourceId: getWindowSourceId(window),
+			title: window.title ?? '',
+			iconDataUrl: window.appPath ? appIcons.get(window.appPath) : undefined,
+			bounds: window.bounds,
+		});
+		return { kind: 'windows', windows };
+	}
+
+	/** Returns the icon of the application at the path, at the size of the icons of desktop media sources, as a PNG `data:` URL. */
+	private async getAppIconDataUrl(path: string): Promise<string | undefined> {
+		try {
+			const icon = await app.getFileIcon(path, { size: 'normal' });
+			return icon.isEmpty() ? undefined : icon.toDataURL();
+		} catch (error) {
+			this.logService.trace('[AppWindows] Getting the icon of an application failed:', error);
+			return undefined;
+		}
+	}
+
+	private appWindowCaptureFeedback: AppWindowCaptureFeedback | undefined;
+
+	async captureAppWindow(windowId: number | undefined, window: INativeAppWindow, options?: { readonly feedback?: IAppWindowCaptureFeedbackOptions }): Promise<VSBuffer | undefined> {
+		let overlay: IAppWindowCaptureOverlay | undefined;
+		if (options?.feedback && window.bounds) {
+			this.appWindowCaptureFeedback ??= this._register(new AppWindowCaptureFeedback(this.logService));
+			overlay = this.appWindowCaptureFeedback.show(window.bounds, options.feedback);
+		}
+		const screenWindowId = isMacintosh ? getScreenWindowId(window.sourceId) : undefined;
+		const image = screenWindowId !== undefined ? await captureMacWindow(screenWindowId, this.logService) : undefined;
+		if (!image) {
+			// The caller captures the window another way, which shows the window meanwhile.
+			void overlay?.dim();
+			return undefined;
+		}
+		await overlay?.reveal(image);
+		return VSBuffer.wrap(image);
+	}
+
+	async endAppWindowCaptureFeedback(windowId: number | undefined, screenshot?: { readonly image?: string; readonly destination?: IRectangle; readonly radius?: number }, options?: INativeHostOptions): Promise<void> {
+		let destination: IRectangle | undefined;
+		const content = screenshot?.destination && this.windowById(options?.targetWindowId, windowId)?.win?.getContentBounds();
+		if (screenshot?.destination && content) {
+			destination = { ...screenshot.destination, x: content.x + screenshot.destination.x, y: content.y + screenshot.destination.y };
+		}
+		await this.appWindowCaptureFeedback?.end(screenshot && { image: screenshot.image, destination, radius: screenshot.radius });
+	}
+
 	async isAdmin(): Promise<boolean> {
 		let isAdmin: boolean;
 		if (isWindows) {
-			isAdmin = (await import('native-is-elevated'))();
+			isAdmin = (await import('native-is-elevated')).default();
 		} else {
-			isAdmin = process.getuid() === 0;
+			isAdmin = process.getuid?.() === 0;
 		}
 
 		return isAdmin;
@@ -492,35 +1026,52 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { unlock?: boolean }): Promise<void> {
 		const sudoPrompt = await import('@vscode/sudo-prompt');
 
-		return new Promise<void>((resolve, reject) => {
-			const sudoCommand: string[] = [`"${this.cliPath}"`];
-			if (options?.unlock) {
-				sudoCommand.push('--file-chmod');
-			}
+		const argsFile = randomPath(this.environmentMainService.userDataPath, 'code-elevated');
+		await Promises.writeFile(argsFile, JSON.stringify({ source: source.fsPath, target: target.fsPath }));
 
-			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
-
-			const promptOptions = {
-				name: this.productService.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
-			};
-
-			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
-				if (stdout) {
-					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const sudoCommand: string[] = [`"${this.cliPath}"`];
+				if (options?.unlock) {
+					sudoCommand.push('--file-chmod');
 				}
 
-				if (stderr) {
-					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
-				}
+				sudoCommand.push('--file-write', `"${argsFile}"`);
 
-				if (error) {
-					reject(error);
-				} else {
-					resolve(undefined);
-				}
+				const promptOptions = {
+					name: this.productService.nameLong.replace('-', ''),
+					icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
+				};
+
+				this.logService.trace(`[sudo-prompt] running command: ${sudoCommand.join(' ')}`);
+
+				sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
+					if (stdout) {
+						this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+					}
+
+					if (stderr) {
+						this.logService.error(`[sudo-prompt] received stderr: ${stderr}`);
+					}
+
+					if (error) {
+						reject(error);
+					} else {
+						resolve(undefined);
+					}
+				});
 			});
-		});
+		} finally {
+			await fs.promises.unlink(argsFile);
+		}
+	}
+
+	async isRunningUnderARM64Translation(): Promise<boolean> {
+		if (isLinux || isWindows) {
+			return false;
+		}
+
+		return app.runningUnderARM64Translation;
 	}
 
 	@memoize
@@ -560,6 +1111,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		};
 	}
 
+	async getFreeDiskSpace(_windowId: number | undefined, path: string): Promise<number> {
+		return Promises.getFreeDiskSpace(path);
+	}
+
 	async getOSProperties(): Promise<IOSProperties> {
 		return {
 			arch: arch(),
@@ -574,21 +1129,117 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return virtualMachineHint.value();
 	}
 
-	public async getOSColorScheme(): Promise<IColorScheme> {
+	async isGPUCompositingEnabled(): Promise<boolean> {
+		return this.gpuCompositingState.enabled;
+	}
+
+	async getOSColorScheme(): Promise<IColorScheme> {
 		return this.themeMainService.getColorScheme();
 	}
 
-
 	// WSL
-	public async hasWSLFeatureInstalled(): Promise<boolean> {
+	async hasWSLFeatureInstalled(): Promise<boolean> {
 		return isWindows && hasWSLFeatureInstalled();
 	}
 
+	//#endregion
+
+
+	//#region Screenshots
+
+	async getScreenshot(windowId: number | undefined, rect?: IRectangle, options?: INativeHostOptions): Promise<VSBuffer | undefined> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		const captured = await window?.win?.webContents.capturePage(rect);
+
+		const buf = captured?.toJPEG(95);
+		return buf && VSBuffer.wrap(buf);
+	}
+
+	//#endregion
+
+
+	//#region GitHub mobile upload API
+
+	async uploadFileViaMobileApi(_windowId: number | undefined, token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }> {
+		const { net } = await import('electron');
+
+		// Step 1: Get upload policy
+		const policyResponse = await net.fetch('https://api.github.com/mobile/upload/policy', {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${token}`,
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+			},
+			body: JSON.stringify({
+				name: fileName,
+				size: fileBytes.byteLength,
+				content_type: contentType,
+				repository_id: parseInt(repoId, 10),
+			}),
+		});
+		if (!policyResponse.ok) {
+			const text = await policyResponse.text();
+			throw new Error(`Policy request failed ${policyResponse.status}: ${text.substring(0, 300)}`);
+		}
+		const policy = await policyResponse.json();
+		const asset = policy.asset as Record<string, unknown>;
+
+		// Step 2: Upload to S3 (uses net.fetch which bypasses CORS)
+		const formFields = policy.form as Record<string, string>;
+		const boundary = `----VSCodeUpload${Date.now()}`;
+		let multipartBody = '';
+		for (const [key, value] of Object.entries(formFields)) {
+			multipartBody += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
+		}
+		// Sanitize the filename for multipart header safety: strip CR/LF (which would
+		// terminate the header / inject extra fields) and escape backslashes and double
+		// quotes (RFC 2616 quoted-string semantics).
+		const safeName = String(asset.name).replace(/[\r\n]+/g, ' ').replace(/[\\"]/g, '_');
+		multipartBody += `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeName}"\r\nContent-Type: ${contentType}\r\n\r\n`;
+		const epilogue = `\r\n--${boundary}--\r\n`;
+
+		const preambleBytes = Buffer.from(multipartBody, 'utf-8');
+		const epilogueBytes = Buffer.from(epilogue, 'utf-8');
+		// Pass fileBytes.buffer (Uint8Array) directly to Buffer.concat instead of wrapping
+		// in Buffer.from(...) which would force an extra full-size copy of the payload.
+		const bodyBuffer = Buffer.concat([preambleBytes, fileBytes.buffer, epilogueBytes]);
+
+		const s3Response = await net.fetch(policy.upload_url as string, {
+			method: 'POST',
+			headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+			body: bodyBuffer,
+		});
+		if (s3Response.status !== 204 && s3Response.status !== 201) {
+			const text = await s3Response.text();
+			throw new Error(`S3 upload failed ${s3Response.status}: ${text.substring(0, 300)}`);
+		}
+
+		// Step 3: Confirm upload
+		const confirmResponse = await net.fetch(`https://api.github.com${policy.asset_upload_url}`, {
+			method: 'PUT',
+			headers: {
+				'Authorization': `Bearer ${token}`,
+				'Accept': 'application/json',
+			},
+		});
+		if (!confirmResponse.ok) {
+			const text = await confirmResponse.text();
+			throw new Error(`Asset upload confirmation failed ${confirmResponse.status}: ${text.substring(0, 300)}`);
+		}
+
+		return { fileName, assetUrl: asset.href as string, contentType };
+	}
 
 	//#endregion
 
 
 	//#region Process
+
+	async getProcessId(windowId: number | undefined): Promise<number | undefined> {
+		const window = this.windowById(undefined, windowId);
+		return window?.win?.webContents.getOSProcessId();
+	}
 
 	async killProcess(windowId: number | undefined, pid: number, code: string): Promise<void> {
 		process.kill(pid, code);
@@ -600,7 +1251,24 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Clipboard
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
-		return clipboard.readText(type);
+		this.logService.trace(`readClipboardText in window ${windowId} with type:`, type);
+		const clipboardText = clipboard.readText(type);
+		this.logService.trace(`clipboardText.length :`, clipboardText.length);
+		return clipboardText;
+	}
+
+	async triggerPaste(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		this.logService.trace(`Triggering paste in window ${windowId} with options:`, options);
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.webContents.paste() ?? Promise.resolve();
+	}
+
+	async readImage(): Promise<Uint8Array> {
+		return clipboard.readImage().toPNG();
+	}
+
+	async writeImage(windowId: number | undefined, data: VSBuffer): Promise<void> {
+		clipboard.writeImage(nativeImage.createFromBuffer(Buffer.from(data.buffer)));
 	}
 
 	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
@@ -663,7 +1331,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
-		const window = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		window?.updateTouchBar(items);
 	}
 
@@ -673,16 +1341,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Lifecycle
 
 	async notifyReady(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		window?.setReady();
 	}
 
-	async relaunch(windowId: number | undefined, options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
+	async relaunch(windowId: number | undefined, options?: IRelaunchOptions): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
 	}
 
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
-		const window = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window) {
 
 			// Special case: support `transient` workspaces by preventing
@@ -705,15 +1373,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async closeWindow(windowId: number | undefined): Promise<void> {
-		this.closeWindowById(windowId, windowId);
-	}
-
-	async closeWindowById(currentWindowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
-		const window = this.windowById(targetWindowId);
-		if (window?.win) {
-			return window.win.close();
-		}
+	async closeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.close();
 	}
 
 	async quit(windowId: number | undefined): Promise<void> {
@@ -741,10 +1403,36 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
-		const window = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
 
-		return session?.resolveProxy(url);
+		return session ? session.resolveProxy(url) : app.resolveProxy(url);
+	}
+
+	async resolveProxyWithPackage(_windowId: number | undefined, url: string): Promise<IOSProxy[]> {
+		const { resolveProxy } = await import('@vscode/os-proxy-resolver');
+		return resolveProxy(url);
+	}
+
+	async readProxyConfigWithPackage(_windowId: number | undefined): Promise<IOSProxyConfig> {
+		const { readProxyConfig } = await import('@vscode/os-proxy-resolver');
+		return readProxyConfig();
+	}
+
+	async lookupAuthorization(_windowId: number | undefined, authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this.proxyAuthService.lookupAuthorization(authInfo);
+	}
+
+	async lookupKerberosAuthorization(_windowId: number | undefined, url: string): Promise<string | undefined> {
+		return this.requestService.lookupKerberosAuthorization(url);
+	}
+
+	async loadCertificates(_windowId: number | undefined): Promise<string[]> {
+		return this.requestService.loadCertificates();
+	}
+
+	isPortFree(windowId: number | undefined, port: number): Promise<boolean> {
+		return isPortFree(port, 1_000);
 	}
 
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
@@ -756,34 +1444,171 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Development
 
-	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.webContents.openDevTools(options);
+	private gpuInfoWindowId: number | undefined;
+	private contentTracingWindowId: number | undefined;
+
+	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // undocked DevTools would be shown and activate the application
+		}
+
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.webContents.openDevTools(options?.mode ? { mode: options.mode, activate: options.activate } : undefined);
+	}
+
+	async toggleDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // undocked DevTools would be shown and activate the application
+		}
+
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.webContents.toggleDevTools();
+	}
+
+	async openDevToolsWindow(windowId: number | undefined, url: string): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
+		const parentWindow = this.codeWindowById(windowId);
+		if (!parentWindow) {
+			return;
+		}
+
+		this.openChildWindow(parentWindow.win, url);
+	}
+
+	private openChildWindow(parentWindow: BrowserWindow | null, url: string, overrideWindowOptions: Electron.BrowserWindowConstructorOptions = {}): BrowserWindow {
+		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
+
+		const windowOptions: Electron.BrowserWindowConstructorOptions = {
+			...options,
+			parent: parentWindow ?? undefined,
+			...overrideWindowOptions
+		};
+
+		const window = new BrowserWindow(windowOptions);
+		window.setMenuBarVisibility(false);
+		window.loadURL(url);
+
+		window.once('ready-to-show', () => window.show());
+
+		return window;
+	}
+
+	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
+		const parentWindow = this.codeWindowById(windowId);
+		if (!parentWindow) {
+			return;
+		}
+
+		if (typeof this.gpuInfoWindowId !== 'number') {
+			const gpuInfoWindow = this.openChildWindow(parentWindow.win, 'chrome://gpu');
+			gpuInfoWindow.once('close', () => this.gpuInfoWindowId = undefined);
+
+			this.gpuInfoWindowId = gpuInfoWindow.id;
+		}
+
+		if (typeof this.gpuInfoWindowId === 'number') {
+			const window = BrowserWindow.fromId(this.gpuInfoWindowId);
+			if (window?.isMinimized()) {
+				window?.restore();
+			}
+			window?.focus();
 		}
 	}
 
-	async toggleDevTools(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			const contents = window.win.webContents;
-			contents.toggleDevTools();
+	async openContentTracingWindow(): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
+		if (typeof this.contentTracingWindowId !== 'number') {
+			// Disable ready-to-show event with paintWhenInitiallyHidden to
+			// customize content tracing window below.
+			const contentTracingWindow = this.openChildWindow(null, 'chrome://tracing', {
+				paintWhenInitiallyHidden: false,
+				webPreferences: {
+					backgroundThrottling: false
+				}
+			});
+			contentTracingWindow.webContents.once('did-finish-load', async () => {
+				// Mock window.prompt to support save action from the tracing UI
+				// since Electron by default doesn't provide the api.
+				// See requestFilename_ implementation under
+				// https://source.chromium.org/chromium/chromium/src/+/main:third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view.html;l=334-379
+				await contentTracingWindow.webContents.executeJavaScript(`
+					window.prompt = () => '';
+					null
+				`);
+				contentTracingWindow.show();
+			});
+			contentTracingWindow.once('close', () => this.contentTracingWindowId = undefined);
+			this.contentTracingWindowId = contentTracingWindow.id;
+		}
+
+		if (typeof this.contentTracingWindowId === 'number') {
+			const window = BrowserWindow.fromId(this.contentTracingWindowId);
+			if (window?.isMinimized()) {
+				window?.restore();
+			}
+			window?.focus();
 		}
 	}
 
-	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
-			window.win.webContents.sendInputEvent(event);
-		}
-	}
+	private _isTracing = false;
 
-	async enableSandbox(windowId: number | undefined, enabled: boolean): Promise<void> {
-		if (enabled) {
-			this.stateService.setItem('window.experimental.useSandbox', true);
+	async startTracing(windowId: number | undefined, categories: string, options?: IStartTracingOptions): Promise<void> {
+		if (this._isTracing) {
+			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
+		}
+
+		if (options?.enableHeapProfiling) {
+			await contentTracing.enableHeapProfiling();
+			await contentTracing.startRecording({
+				recording_mode: 'record-until-full',
+				included_categories: categories.split(','),
+				memory_dump_config: {
+					triggers: [
+						{ mode: 'detailed', type: 'periodic_interval', periodic_interval_ms: 10000 }
+					]
+				}
+			});
 		} else {
-			this.stateService.removeItem('window.experimental.useSandbox');
+			const traceOptions = ['record-until-full', 'enable-sampling'];
+
+			await contentTracing.startRecording({
+				categoryFilter: categories,
+				traceOptions: traceOptions.join(',')
+			});
 		}
+
+		this._isTracing = true;
+	}
+
+	async stopTracing(windowId: number | undefined): Promise<void> {
+		if (!this._isTracing && !this.environmentMainService.args.trace) {
+			return; // no tracing in progress
+		}
+
+		this._isTracing = false;
+
+		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
+
+		// Inform user to report an issue
+		await this.dialogMainService.showMessageBox({
+			type: 'info',
+			message: localize('trace.message', "Successfully created the trace file"),
+			detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+			buttons: [localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
+		}, BrowserWindow.getFocusedWindow() ?? undefined);
+
+		// Show item in explorer
+		this.showItemInFolder(undefined, path);
 	}
 
 	//#endregion
@@ -791,16 +1616,85 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	// #region Performance
 
 	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
-		const win = this.windowById(windowId);
-		if (!win || !win.win) {
+		const window = this.codeWindowById(windowId);
+		if (!window?.win) {
 			throw new Error();
 		}
-		const profiler = new WindowProfiler(win.win, session, this.logService);
+
+		const profiler = new WindowProfiler(window.win, session, this.logService);
 		const result = await profiler.inspect(duration);
 		return result;
 	}
 
 	// #endregion
+
+	//#region Toast Notifications
+
+	private readonly activeToasts = this._register(new DisposableMap<string>());
+	private readonly activeToastDedupeKeys = new Map<string, string>();
+
+	async showToast(windowId: number | undefined, options: IToastOptions): Promise<IToastResult> {
+		if (!Notification.isSupported()) {
+			return { supported: false, clicked: false };
+		}
+		if (options.dedupeKey && this.activeToastDedupeKeys.has(options.dedupeKey)) {
+			return { supported: true, suppressed: true, clicked: false };
+		}
+
+		const toast = new Notification({
+			title: options.title,
+			body: options.body,
+			silent: options.silent,
+			actions: options.actions?.map(action => ({
+				type: 'button',
+				text: action
+			}))
+		});
+
+		const disposables = new DisposableStore();
+		this.activeToasts.set(options.id, disposables);
+		if (options.dedupeKey) {
+			this.activeToastDedupeKeys.set(options.dedupeKey, options.id);
+		}
+
+		const cts = new CancellationTokenSource();
+
+		disposables.add(toDisposable(() => {
+			this.activeToasts.deleteAndDispose(options.id);
+			if (options.dedupeKey && this.activeToastDedupeKeys.get(options.dedupeKey) === options.id) {
+				this.activeToastDedupeKeys.delete(options.dedupeKey);
+			}
+			toast.removeAllListeners();
+			toast.close();
+			cts.dispose(true);
+		}));
+
+		return new Promise<IToastResult>(r => {
+			const resolve = (result: IToastResult) => {
+				r(result);				// first return the result before...
+				disposables.dispose();	// ...disposing which would invalidate the result object
+			};
+
+			disposables.add(cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false })));
+
+			toast.on('click', () => resolve({ supported: true, clicked: true }));
+			toast.on('action', (_event, actionIndex) => resolve({ supported: true, clicked: true, actionIndex }));
+			toast.on('close', () => resolve({ supported: true, clicked: false }));
+			toast.on('failed', () => resolve({ supported: false, clicked: false }));
+
+			toast.show();
+		});
+	}
+
+	async clearToast(windowId: number | undefined, toastId: string): Promise<void> {
+		this.activeToasts.deleteAndDispose(toastId);
+	}
+
+	async clearToasts(): Promise<void> {
+		this.activeToasts.clearAndDisposeAll();
+	}
+
+	//#endregion
 
 	//#region Registry (windows)
 
@@ -819,11 +1713,216 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
-	private windowById(windowId: number | undefined): ICodeWindow | undefined {
+	//#region Zip
+
+	private readonly zipOperations = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _onDidProgressZipFile = this._register(new Emitter<INativeZipProgress>());
+	readonly onDidProgressZipFile = this._onDidProgressZipFile.event;
+
+	async cancelZipFile(windowId: number | undefined, operationId: string): Promise<void> {
+		this.zipOperations.get(`${windowId}:${operationId}`)?.cancel();
+	}
+
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<INativeZipResult> {
+		const zipFiles: IFile[] = [];
+		const skippedFiles: INativeZipResult['skippedFiles'][number][] = [];
+		const onSourceError = (path: string, error: Error) => {
+			skippedFiles.push({ path, error: getErrorMessage(error) });
+			this.logService.warn(`[NativeHostMainService] Skipping ZIP entry '${path}' because its source could not be read`, error);
+		};
+		const temporaryDirectories: string[] = [];
+		const maxSize = options?.maxSize;
+		const operationId = options?.operationId;
+		const operationKey = operationId ? `${windowId}:${operationId}` : undefined;
+		const cancellation = new CancellationTokenSource();
+		if (operationKey) {
+			if (this.zipOperations.has(operationKey)) {
+				cancellation.dispose();
+				throw new Error('ZIP operation ID is already in use');
+			}
+			this.zipOperations.set(operationKey, cancellation);
+		}
+		try {
+			for (const file of files) {
+				if (cancellation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				if (hasKey(file, { contents: true })) {
+					zipFiles.push(file);
+					continue;
+				}
+				if (hasKey(file, { sourceArchive: true })) {
+					const sourceArchive = URI.revive(file.sourceArchive);
+					if (sourceArchive.scheme !== Schemas.file) {
+						throw new Error(`Cannot merge non-local archive '${sourceArchive.toString()}'`);
+					}
+					const temporaryDirectory = join(this.environmentMainService.tmpDir.fsPath, `vscode-zip-merge-${randomPath()}`);
+					temporaryDirectories.push(temporaryDirectory);
+					const archiveSize = (await fs.promises.stat(sourceArchive.fsPath)).size;
+					if (maxSize !== undefined && archiveSize > maxSize) {
+						throw new Error(`ZIP is too large to merge (${archiveSize} bytes; limit ${maxSize} bytes)`);
+					}
+					if (options) {
+						await validateZip(sourceArchive.fsPath, {
+							maxEntries: options.maxEntries,
+							maxUncompressedSize: maxSize,
+						});
+					}
+					await extract(sourceArchive.fsPath, temporaryDirectory, {}, cancellation.token);
+					zipFiles.push(...await collectZipFiles(temporaryDirectory));
+					continue;
+				}
+				const source = URI.revive(file.source);
+				if (source.scheme !== Schemas.file) {
+					throw new Error(`Cannot add non-local resource '${source.toString()}' to a zip file`);
+				}
+				zipFiles.push({ path: file.path, localPath: source.fsPath, localPathSize: file.size, skipSourceErrors: file.skipSourceErrors, compress: file.compress });
+			}
+
+			const paths = new Set<string>();
+			let uncompressedSize = 0;
+			const availableZipFiles: IFile[] = [];
+			for (const file of zipFiles) {
+				if (cancellation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				let fileSize = 0;
+				if (file.contents !== undefined) {
+					fileSize = typeof file.contents === 'string' ? Buffer.byteLength(file.contents) : file.contents.byteLength;
+				} else if (file.localPath) {
+					try {
+						const size = (await fs.promises.stat(file.localPath)).size;
+						fileSize = file.localPathSize === undefined ? size : Math.min(size, file.localPathSize);
+					} catch (error) {
+						if (file.skipSourceErrors) {
+							onSourceError(file.path, error instanceof Error ? error : new Error(String(error)));
+							continue;
+						}
+						throw error;
+					}
+				}
+				if (paths.has(file.path)) {
+					throw new Error(`Duplicate ZIP entry '${file.path}'`);
+				}
+				paths.add(file.path);
+				availableZipFiles.push(file);
+				uncompressedSize += fileSize;
+				if (maxSize !== undefined && uncompressedSize > maxSize) {
+					throw new Error(`ZIP expands beyond the allowed size (${uncompressedSize} bytes; limit ${maxSize} bytes)`);
+				}
+			}
+			if (options && availableZipFiles.length > options.maxEntries) {
+				throw new Error(`ZIP contains too many entries (${availableZipFiles.length}; limit ${options.maxEntries})`);
+			}
+			let lastReport = 0;
+			await zip(zipPath.fsPath, availableZipFiles, {
+				token: operationId ? cancellation.token : undefined,
+				onSourceError,
+				onProgress: operationId ? (bytes, path) => {
+					const now = Date.now();
+					if (bytes === uncompressedSize || now - lastReport >= 100) {
+						lastReport = now;
+						this._onDidProgressZipFile.fire({ operationId, bytes, total: uncompressedSize, path });
+					}
+				} : undefined,
+			});
+			if (maxSize !== undefined) {
+				const zipSize = (await fs.promises.stat(zipPath.fsPath)).size;
+				if (zipSize > maxSize) {
+					await fs.promises.rm(zipPath.fsPath, { force: true });
+					throw new Error(`ZIP is too large (${zipSize} bytes; limit ${maxSize} bytes)`);
+				}
+			}
+			return { skippedFiles };
+		} finally {
+			if (operationKey) {
+				this.zipOperations.deleteAndDispose(operationKey);
+			} else {
+				cancellation.dispose();
+			}
+			await Promise.all(temporaryDirectories.map(directory => Promises.rm(directory)));
+		}
+	}
+
+	//#endregion
+
+
+	//#region Power
+
+	async getSystemIdleState(windowId: number | undefined, idleThreshold: number): Promise<SystemIdleState> {
+		return powerMonitor.getSystemIdleState(idleThreshold);
+	}
+
+	async getSystemIdleTime(windowId: number | undefined): Promise<number> {
+		return powerMonitor.getSystemIdleTime();
+	}
+
+	async getCurrentThermalState(windowId: number | undefined): Promise<ThermalState> {
+		return powerMonitor.getCurrentThermalState();
+	}
+
+	async isOnBatteryPower(windowId: number | undefined): Promise<boolean> {
+		return powerMonitor.isOnBatteryPower();
+	}
+
+	async startPowerSaveBlocker(windowId: number | undefined, type: PowerSaveBlockerType): Promise<number> {
+		return powerSaveBlocker.start(type);
+	}
+
+	async stopPowerSaveBlocker(windowId: number | undefined, id: number): Promise<boolean> {
+		return powerSaveBlocker.stop(id);
+	}
+
+	async isPowerSaveBlockerStarted(windowId: number | undefined, id: number): Promise<boolean> {
+		return powerSaveBlocker.isStarted(id);
+	}
+
+	//#endregion
+
+	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId) ?? this.codeWindowById(fallbackCodeWindowId);
+	}
+
+	/**
+	 * The window `options` target, or else the calling window. Unlike {@link windowById}, a target that no longer exists
+	 * resolves to no window rather than to the caller, which a request meant for a closed auxiliary window must not change.
+	 */
+	private exactWindowById(windowId: number | undefined, options?: INativeHostOptions): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this.windowById(typeof options?.targetWindowId === 'number' ? options.targetWindowId : windowId);
+	}
+
+	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
 		}
 
 		return this.windowsMainService.getWindowById(windowId);
 	}
+
+	private auxiliaryWindowById(windowId: number | undefined): IAuxiliaryWindow | undefined {
+		if (typeof windowId !== 'number') {
+			return undefined;
+		}
+
+		const contents = webContents.fromId(windowId);
+		if (!contents) {
+			return undefined;
+		}
+
+		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
+	}
+}
+
+async function collectZipFiles(root: string, relative = ''): Promise<IFile[]> {
+	const entries = await fs.promises.readdir(join(root, relative), { withFileTypes: true });
+	const files: IFile[] = [];
+	for (const entry of entries) {
+		const path = relative ? posix.join(relative, entry.name) : entry.name;
+		if (entry.isDirectory()) {
+			files.push(...await collectZipFiles(root, path));
+		} else if (entry.isFile()) {
+			files.push({ path, localPath: join(root, path) });
+		}
+	}
+	return files;
 }

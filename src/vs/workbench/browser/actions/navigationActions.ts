@@ -3,20 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IComposite } from 'vs/workbench/common/composite';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { localize2 } from '../../../nls.js';
+import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from '../../services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { Action2, IAction2Options, registerAction2 } from '../../../platform/actions/common/actions.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { Direction } from '../../../base/browser/ui/grid/grid.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IPaneComposite } from '../../common/panecomposite.js';
+import { IComposite } from '../../common/composite.js';
+import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../common/views.js';
+import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { getActiveWindow } from '../../../base/browser/dom.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+
+export const NAVIGATE_VIEW_COMMANDS = {
+	left: 'workbench.action.navigateLeft',
+	right: 'workbench.action.navigateRight',
+	up: 'workbench.action.navigateUp',
+	down: 'workbench.action.navigateDown',
+} as const;
+
+interface IViewNavigationCommand {
+	readonly direction: Direction;
+	readonly commandId: string;
+	readonly when: ContextKeyExpression;
+}
+
+const viewNavigationCommands: IViewNavigationCommand[] = [];
+
+export function registerViewNavigationCommand(direction: Direction, commandId: string, when: ContextKeyExpression): IDisposable {
+	const command = { direction, commandId, when };
+	viewNavigationCommands.unshift(command);
+	return toDisposable(() => {
+		const index = viewNavigationCommands.indexOf(command);
+		if (index !== -1) {
+			viewNavigationCommands.splice(index, 1);
+		}
+	});
+}
 
 abstract class BaseNavigationAction extends Action2 {
 
@@ -27,12 +58,21 @@ abstract class BaseNavigationAction extends Action2 {
 		super(options);
 	}
 
-	run(accessor: ServicesAccessor): void {
+	run(accessor: ServicesAccessor): void | Promise<unknown> {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const viewNavigationCommand = viewNavigationCommands.find(command =>
+			command.direction === this.direction && contextKeyService.contextMatchesRules(command.when));
+		if (viewNavigationCommand) {
+			return accessor.get(ICommandService).executeCommand(viewNavigationCommand.commandId);
+		}
+
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
-		const isEditorFocus = layoutService.hasFocus(Parts.EDITOR_PART);
+		// The chat part shows editors too: focus in it is not focus in the editor area
+		const isChatFocus = layoutService.hasFocus(Parts.CHAT_PART);
+		const isEditorFocus = !isChatFocus && layoutService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = layoutService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = layoutService.hasFocus(Parts.SIDEBAR_PART);
 		const isAuxiliaryBarFocus = layoutService.hasFocus(Parts.AUXILIARYBAR_PART);
@@ -47,6 +87,10 @@ abstract class BaseNavigationAction extends Action2 {
 			neighborPart = layoutService.getVisibleNeighborPart(Parts.EDITOR_PART, this.direction);
 		}
 
+		if (isChatFocus) {
+			neighborPart = layoutService.getVisibleNeighborPart(Parts.CHAT_PART, this.direction);
+		}
+
 		if (isPanelFocus) {
 			neighborPart = layoutService.getVisibleNeighborPart(Parts.PANEL_PART, this.direction);
 		}
@@ -59,7 +103,10 @@ abstract class BaseNavigationAction extends Action2 {
 			neighborPart = neighborPart = layoutService.getVisibleNeighborPart(Parts.AUXILIARYBAR_PART, this.direction);
 		}
 
-		if (neighborPart === Parts.EDITOR_PART) {
+		if (neighborPart === Parts.EDITOR_PART && isChatFocus) {
+			// The last active editor group can be one of the chat part's: the editor area is the main one
+			layoutService.focusPart(Parts.EDITOR_PART, mainWindow);
+		} else if (neighborPart === Parts.EDITOR_PART) {
 			if (!this.navigateBackToEditorGroup(this.toGroupDirection(this.direction), editorGroupService)) {
 				this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST, editorGroupService);
 			}
@@ -69,6 +116,8 @@ abstract class BaseNavigationAction extends Action2 {
 			this.navigateToPanel(layoutService, paneCompositeService);
 		} else if (neighborPart === Parts.AUXILIARYBAR_PART) {
 			this.navigateToAuxiliaryBar(layoutService, paneCompositeService);
+		} else if (neighborPart === Parts.CHAT_PART) {
+			layoutService.focusPart(Parts.CHAT_PART);
 		}
 	}
 
@@ -192,8 +241,8 @@ registerAction2(class extends BaseNavigationAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.navigateLeft',
-			title: { value: localize('navigateLeft', "Navigate to the View on the Left"), original: 'Navigate to the View on the Left' },
+			id: NAVIGATE_VIEW_COMMANDS.left,
+			title: localize2('navigateLeft', 'Navigate to the View on the Left'),
 			category: Categories.View,
 			f1: true
 		}, Direction.Left);
@@ -204,8 +253,8 @@ registerAction2(class extends BaseNavigationAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.navigateRight',
-			title: { value: localize('navigateRight', "Navigate to the View on the Right"), original: 'Navigate to the View on the Right' },
+			id: NAVIGATE_VIEW_COMMANDS.right,
+			title: localize2('navigateRight', 'Navigate to the View on the Right'),
 			category: Categories.View,
 			f1: true
 		}, Direction.Right);
@@ -216,8 +265,8 @@ registerAction2(class extends BaseNavigationAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.navigateUp',
-			title: { value: localize('navigateUp', "Navigate to the View Above"), original: 'Navigate to the View Above' },
+			id: NAVIGATE_VIEW_COMMANDS.up,
+			title: localize2('navigateUp', 'Navigate to the View Above'),
 			category: Categories.View,
 			f1: true
 		}, Direction.Up);
@@ -228,8 +277,8 @@ registerAction2(class extends BaseNavigationAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.navigateDown',
-			title: { value: localize('navigateDown', "Navigate to the View Below"), original: 'Navigate to the View Below' },
+			id: NAVIGATE_VIEW_COMMANDS.down,
+			title: localize2('navigateDown', 'Navigate to the View Below'),
 			category: Categories.View,
 			f1: true
 		}, Direction.Down);
@@ -253,28 +302,47 @@ abstract class BaseFocusAction extends Action2 {
 	}
 
 	private findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Parts, next: boolean): Parts {
+		const activeWindow = getActiveWindow();
+		const windowIsAuxiliary = isAuxiliaryWindow(activeWindow);
+
 		let neighbour: Parts;
-		switch (part) {
-			case Parts.EDITOR_PART:
-				neighbour = next ? Parts.PANEL_PART : Parts.SIDEBAR_PART;
-				break;
-			case Parts.PANEL_PART:
-				neighbour = next ? Parts.STATUSBAR_PART : Parts.EDITOR_PART;
-				break;
-			case Parts.STATUSBAR_PART:
-				neighbour = next ? Parts.ACTIVITYBAR_PART : Parts.PANEL_PART;
-				break;
-			case Parts.ACTIVITYBAR_PART:
-				neighbour = next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART;
-				break;
-			case Parts.SIDEBAR_PART:
-				neighbour = next ? Parts.EDITOR_PART : Parts.ACTIVITYBAR_PART;
-				break;
-			default:
-				neighbour = Parts.EDITOR_PART;
+		if (windowIsAuxiliary) {
+			switch (part) {
+				case Parts.EDITOR_PART:
+					neighbour = Parts.STATUSBAR_PART;
+					break;
+				default:
+					neighbour = Parts.EDITOR_PART;
+			}
+		} else {
+			switch (part) {
+				case Parts.EDITOR_PART:
+					neighbour = next ? Parts.PANEL_PART : Parts.CHAT_PART;
+					break;
+				case Parts.CHAT_PART:
+					neighbour = next ? Parts.EDITOR_PART : Parts.SIDEBAR_PART;
+					break;
+				case Parts.PANEL_PART:
+					neighbour = next ? Parts.AUXILIARYBAR_PART : Parts.EDITOR_PART;
+					break;
+				case Parts.AUXILIARYBAR_PART:
+					neighbour = next ? Parts.STATUSBAR_PART : Parts.PANEL_PART;
+					break;
+				case Parts.STATUSBAR_PART:
+					neighbour = next ? Parts.ACTIVITYBAR_PART : Parts.AUXILIARYBAR_PART;
+					break;
+				case Parts.ACTIVITYBAR_PART:
+					neighbour = next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART;
+					break;
+				case Parts.SIDEBAR_PART:
+					neighbour = next ? Parts.CHAT_PART : Parts.ACTIVITYBAR_PART;
+					break;
+				default:
+					neighbour = Parts.EDITOR_PART;
+			}
 		}
 
-		if (layoutService.isVisible(neighbour) || neighbour === Parts.EDITOR_PART) {
+		if (layoutService.isVisible(neighbour, activeWindow) || neighbour === Parts.EDITOR_PART) {
 			return neighbour;
 		}
 
@@ -283,7 +351,10 @@ abstract class BaseFocusAction extends Action2 {
 
 	private focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
 		let currentlyFocusedPart: Parts | undefined;
-		if (editorService.activeEditorPane?.hasFocus() || layoutService.hasFocus(Parts.EDITOR_PART)) {
+		// The chat part shows editors too: focus in it is not focus in the editor area
+		if (layoutService.hasFocus(Parts.CHAT_PART)) {
+			currentlyFocusedPart = Parts.CHAT_PART;
+		} else if (editorService.activeEditorPane?.hasFocus() || layoutService.hasFocus(Parts.EDITOR_PART)) {
 			currentlyFocusedPart = Parts.EDITOR_PART;
 		} else if (layoutService.hasFocus(Parts.ACTIVITYBAR_PART)) {
 			currentlyFocusedPart = Parts.ACTIVITYBAR_PART;
@@ -291,11 +362,13 @@ abstract class BaseFocusAction extends Action2 {
 			currentlyFocusedPart = Parts.STATUSBAR_PART;
 		} else if (layoutService.hasFocus(Parts.SIDEBAR_PART)) {
 			currentlyFocusedPart = Parts.SIDEBAR_PART;
+		} else if (layoutService.hasFocus(Parts.AUXILIARYBAR_PART)) {
+			currentlyFocusedPart = Parts.AUXILIARYBAR_PART;
 		} else if (layoutService.hasFocus(Parts.PANEL_PART)) {
 			currentlyFocusedPart = Parts.PANEL_PART;
 		}
 
-		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbour(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART);
+		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbour(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART, getActiveWindow());
 	}
 }
 
@@ -304,7 +377,7 @@ registerAction2(class extends BaseFocusAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusNextPart',
-			title: { value: localize('focusNextPart', "Focus Next Part"), original: 'Focus Next Part' },
+			title: localize2('focusNextPart', 'Focus Next Part'),
 			category: Categories.View,
 			f1: true,
 			keybinding: {
@@ -320,7 +393,7 @@ registerAction2(class extends BaseFocusAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusPreviousPart',
-			title: { value: localize('focusPreviousPart', "Focus Previous Part"), original: 'Focus Previous Part' },
+			title: localize2('focusPreviousPart', 'Focus Previous Part'),
 			category: Categories.View,
 			f1: true,
 			keybinding: {

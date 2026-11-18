@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { deepClone } from 'vs/base/common/objects';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { IExtensionManifest, IConfiguration } from 'vs/platform/extensions/common/extensions';
+import assert from 'assert';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ILocalizedString } from '../../../action/common/action.js';
+import { IConfigurationNode } from '../../../configuration/common/configurationRegistry.js';
+import { localizeManifest } from '../../common/extensionNls.js';
+import { IExtensionManifest } from '../../../extensions/common/extensions.js';
+import { NullLogger } from '../../../log/common/log.js';
 
 const manifest: IExtensionManifest = {
 	name: 'test',
@@ -44,8 +47,10 @@ const manifest: IExtensionManifest = {
 };
 
 suite('Localize Manifest', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	test('replaces template strings', function () {
 		const localizedManifest = localizeManifest(
+			store.add(new NullLogger()),
 			deepClone(manifest),
 			{
 				'test.command.title': 'Test Command',
@@ -58,11 +63,12 @@ suite('Localize Manifest', () => {
 		assert.strictEqual(localizedManifest.contributes?.commands?.[0].title, 'Test Command');
 		assert.strictEqual(localizedManifest.contributes?.commands?.[0].category, 'Test Category');
 		assert.strictEqual(localizedManifest.contributes?.authentication?.[0].label, 'Test Authentication');
-		assert.strictEqual((localizedManifest.contributes?.configuration as IConfiguration).title, 'Test Configuration');
+		assert.strictEqual((localizedManifest.contributes?.configuration as IConfigurationNode).title, 'Test Configuration');
 	});
 
 	test('replaces template strings with fallback if not found in translations', function () {
 		const localizedManifest = localizeManifest(
+			store.add(new NullLogger()),
 			deepClone(manifest),
 			{},
 			{
@@ -76,11 +82,12 @@ suite('Localize Manifest', () => {
 		assert.strictEqual(localizedManifest.contributes?.commands?.[0].title, 'Test Command');
 		assert.strictEqual(localizedManifest.contributes?.commands?.[0].category, 'Test Category');
 		assert.strictEqual(localizedManifest.contributes?.authentication?.[0].label, 'Test Authentication');
-		assert.strictEqual((localizedManifest.contributes?.configuration as IConfiguration).title, 'Test Configuration');
+		assert.strictEqual((localizedManifest.contributes?.configuration as IConfigurationNode).title, 'Test Configuration');
 	});
 
 	test('replaces template strings - command title & categories become ILocalizedString', function () {
 		const localizedManifest = localizeManifest(
+			store.add(new NullLogger()),
 			deepClone(manifest),
 			{
 				'test.command.title': 'Befehl test',
@@ -105,7 +112,7 @@ suite('Localize Manifest', () => {
 
 		// Everything else stays as a string.
 		assert.strictEqual(localizedManifest.contributes?.authentication?.[0].label, 'Testauthentifizierung');
-		assert.strictEqual((localizedManifest.contributes?.configuration as IConfiguration).title, 'Testkonfiguration');
+		assert.strictEqual((localizedManifest.contributes?.configuration as IConfigurationNode).title, 'Testkonfiguration');
 	});
 
 	test('replaces template strings - is best effort #164630', function () {
@@ -135,6 +142,7 @@ suite('Localize Manifest', () => {
 		};
 
 		const localizedManifest = localizeManifest(
+			store.add(new NullLogger()),
 			deepClone(manifestWithTypo),
 			{
 				'test.command.title': 'Test Command',

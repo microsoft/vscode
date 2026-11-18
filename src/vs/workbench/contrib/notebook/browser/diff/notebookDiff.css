@@ -25,6 +25,11 @@
 	flex-direction: row;
 }
 
+.notebook-text-diff-editor .cell-placeholder-body {
+	display: flex;
+	flex-direction: row;
+}
+
 .notebook-text-diff-editor .webview-cover {
 	user-select: initial;
 	-webkit-user-select: initial;
@@ -99,6 +104,7 @@
 	width: 50%;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 	display: flex;
@@ -107,13 +113,15 @@
 	cursor: default;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container .property-folding-indicator .codicon,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-folding-indicator .codicon,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-folding-indicator .codicon {
 	visibility: visible;
-	padding: 4px 0 0 10px;
+	padding: 4px 0 0 6px;
 	cursor: pointer;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 	display: flex;
@@ -121,22 +129,32 @@
 	align-items: center;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container,
+.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
+	cursor: pointer;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container .property-toolbar,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-toolbar,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-toolbar {
 	margin-left: auto;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container .property-status,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status {
 	font-size: 12px;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container .property-status span,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span {
-	margin: 0 0 0 8px;
+	margin: 0 0 0 5px;
 	line-height: 21px;
 }
 
+.notebook-text-diff-editor .cell-diff-editor-container .input-header-container .property-status span.property-description,
 .notebook-text-diff-editor .cell-diff-editor-container .output-header-container .property-status span.property-description,
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .property-status span.property-description {
 	font-style: italic;
@@ -292,7 +310,7 @@
 	width: 15px !important;
 }
 
-.monaco-workbench .notebook-text-diff-editor  > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
 	z-index: var(--z-index-notebook-scrollbar);
 	cursor: default;
 }
@@ -357,6 +375,7 @@
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .margin,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .monaco-editor-background,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .input-header-container,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container .monaco-editor .margin,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container .monaco-editor .monaco-editor-background,
@@ -374,6 +393,7 @@
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .margin,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .monaco-editor-background,
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .input-header-container,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container .monaco-editor .margin,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container .monaco-editor .monaco-editor-background,
@@ -389,4 +409,61 @@
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .source-container .monaco-editor .margin,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .source-container .monaco-editor .monaco-editor-background {
 	background: var(--vscode-notebook-cellEditorBackground, var(--vscode-editor-background));
+}
+
+/** Overlay to hide the unchanged cells */
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells {
+	position: absolute;
+	left: 0;
+
+	font-size: 13px;
+	line-height: 14px;
+}
+
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center {
+	color: var(--vscode-diffEditor-unchangedRegionForeground);
+	overflow: hidden;
+	display: block;
+	white-space: nowrap;
+
+	height: 24px;
+}
+
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center span.codicon {
+	vertical-align: middle;
+}
+
+.notebook-text-diff-editor .cell-body.full div.diff-hidden-cells .center a:hover .codicon {
+	cursor: pointer;
+}
+
+/** Overlay to unhide the unchanged cells */
+.notebook-text-diff-editor .cell-placeholder-body {
+	background: var(--vscode-diffEditor-unchangedRegionBackground);
+	color: var(--vscode-diffEditor-unchangedRegionForeground);
+	min-height: 24px;
+}
+
+.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center {
+	overflow: hidden;
+	display: block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+
+	height: 24px;
+}
+
+.notebook-text-diff-editor .cell-placeholder-body .text {
+	/** Add a gap between text and the unfold icon */
+	padding-left: 2px;
+}
+
+.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center span.codicon,
+.notebook-text-diff-editor .cell-placeholder-body .text {
+	vertical-align: middle;
+}
+
+.notebook-text-diff-editor .cell-placeholder-body div.diff-hidden-cells .center a:hover .codicon {
+	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
 }

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { CancellationError } from './errors.js';
+import { Emitter, Event } from './event.js';
+import { DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 
 export interface CancellationToken {
 
@@ -21,10 +22,10 @@ export interface CancellationToken {
 	 *
 	 * @event
 	 */
-	readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+	readonly onCancellationRequested: (listener: (e: void) => unknown, thisArgs?: unknown, disposables?: IDisposable[]) => IDisposable;
 }
 
-const shortcutEvent: Event<any> = Object.freeze(function (callback, context?): IDisposable {
+const shortcutEvent: Event<void> = Object.freeze(function (callback, context?): IDisposable {
 	const handle = setTimeout(callback.bind(context), 0);
 	return { dispose() { clearTimeout(handle); } };
 });
@@ -55,12 +56,72 @@ export namespace CancellationToken {
 		isCancellationRequested: true,
 		onCancellationRequested: shortcutEvent
 	});
+
+	export function throwIfCanceled(token: CancellationToken): void {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+	}
+
+	/**
+	 * Cancels when any input is cancelled; the lifetime owns the forwarding subscriptions.
+	 * A single distinct active input is returned directly and still reflects cancellation after lifetime disposal.
+	 */
+	export function any(tokens: readonly CancellationToken[], lifetime: DisposableStore): CancellationToken {
+		if (tokens.some(token => token.isCancellationRequested)) {
+			return Cancelled;
+		}
+		const active = [...new Set(tokens.filter(token => token !== None))];
+		if (active.length < 2) {
+			return active[0] ?? None;
+		}
+		const source = new CancellationTokenSource();
+		lifetime.add(toDisposable(() => {
+			// Cancellation owns emitter disposal until every listener has been notified.
+			if (!source.token.isCancellationRequested) {
+				source.dispose();
+			}
+		}));
+		const listeners = lifetime.add(new DisposableStore());
+		for (const token of active) {
+			listeners.add(token.onCancellationRequested(() => {
+				listeners.dispose();
+				source.cancel();
+			}));
+		}
+		return source.token;
+	}
+
+	/**
+	 * Creates a CancellationToken that is tied to the lifetime of the provided AbortSignal.
+	 */
+	export function fromAbortSignal(signal: AbortSignal, lifetime: DisposableStore): CancellationToken {
+		if (signal.aborted) {
+			return CancellationToken.Cancelled;
+		}
+		const token = lifetime.add(new MutableToken());
+		lifetime.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => token.cancel()));
+		return token;
+	}
+
+	/** Creates an AbortSignal that aborts with CancellationError when the token is cancelled. */
+	export const toAbortSignal = (token: CancellationToken, lifetime: DisposableStore): AbortSignal => {
+		if (token === CancellationToken.None) {
+			return new AbortController().signal;
+		}
+		if (token.isCancellationRequested) {
+			return AbortSignal.abort(new CancellationError());
+		}
+		const controller = new AbortController();
+		lifetime.add(token.onCancellationRequested(() => controller.abort(new CancellationError())));
+		return controller.signal;
+	};
 }
 
 class MutableToken implements CancellationToken {
 
 	private _isCancelled: boolean = false;
-	private _emitter: Emitter<any> | null = null;
+	private _emitter: Emitter<void> | null = null;
 
 	public cancel() {
 		if (!this._isCancelled) {
@@ -76,12 +137,12 @@ class MutableToken implements CancellationToken {
 		return this._isCancelled;
 	}
 
-	get onCancellationRequested(): Event<any> {
+	get onCancellationRequested(): Event<void> {
 		if (this._isCancelled) {
 			return shortcutEvent;
 		}
 		if (!this._emitter) {
-			this._emitter = new Emitter<any>();
+			this._emitter = new Emitter<void>();
 		}
 		return this._emitter.event;
 	}
@@ -138,5 +199,76 @@ export class CancellationTokenSource {
 			// actually dispose
 			this._token.dispose();
 		}
+	}
+}
+
+export function cancelOnDispose(store: DisposableStore): CancellationToken {
+	const source = new CancellationTokenSource();
+	store.add({ dispose() { source.cancel(); } });
+	return source.token;
+}
+
+/** Creates an AbortSignal that aborts with CancellationError when the store is disposed. */
+export function abortOnDispose(store: DisposableStore): AbortSignal {
+	const controller = new AbortController();
+	store.add({ dispose() { controller.abort(new CancellationError()); } });
+	return controller.signal;
+}
+
+/**
+ * A pool that aggregates multiple cancellation tokens. The pool's own token
+ * (accessible via `pool.token`) is cancelled only after every token added
+ * to the pool has been cancelled. Adding tokens after the pool token has
+ * been cancelled has no effect.
+ */
+export class CancellationTokenPool {
+
+	private readonly _source = new CancellationTokenSource();
+	private readonly _listeners = new DisposableStore();
+
+	private _total: number = 0;
+	private _cancelled: number = 0;
+	private _isDone: boolean = false;
+
+	get token(): CancellationToken {
+		return this._source.token;
+	}
+
+	/**
+	 * Add a token to the pool. If the token is already cancelled it is counted
+	 * immediately. Tokens added after the pool token has been cancelled are ignored.
+	 */
+	add(token: CancellationToken): void {
+		if (this._isDone) {
+			return;
+		}
+
+		this._total++;
+
+		if (token.isCancellationRequested) {
+			this._cancelled++;
+			this._check();
+			return;
+		}
+
+		const d = token.onCancellationRequested(() => {
+			d.dispose();
+			this._cancelled++;
+			this._check();
+		});
+		this._listeners.add(d);
+	}
+
+	private _check(): void {
+		if (!this._isDone && this._total > 0 && this._total === this._cancelled) {
+			this._isDone = true;
+			this._listeners.dispose();
+			this._source.cancel();
+		}
+	}
+
+	dispose(): void {
+		this._listeners.dispose();
+		this._source.dispose();
 	}
 }

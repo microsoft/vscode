@@ -1,0 +1,65 @@
+{
+	"scenario": "Scenario: Navigate between sessions and verify history loads",
+	"generatedAt": "2026-03-06T04:56:01.957Z",
+	"steps": [
+		{
+			"description": "Type \"explain the code\"",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"type \"explain the code\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify there is a chat response",
+			"commands": [
+				"# ASSERT_VISIBLE: This project has a simple structure with a main entry point and utility functions."
+			]
+		},
+		{
+			"description": "Click button \"New Session\"",
+			"commands": [
+				"click button \"New Session\""
+			]
+		},
+		{
+			"description": "Type \"build the project\" in the chat input",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"type \"build the project\""
+			]
+		},
+		{
+			"description": "Press Enter to submit",
+			"commands": [
+				"click textbox \"Chat input\"",
+				"press Enter"
+			]
+		},
+		{
+			"description": "Verify there is a chat response",
+			"commands": [
+				"# ASSERT_VISIBLE: I'll help you build the project. Here are the changes:"
+			]
+		},
+		{
+			"description": "Click on a different session in the sessions list",
+			"commands": [
+				"click listitem \"explain the code\""
+			]
+		},
+		{
+			"description": "Verify the session changed and the content in the chat is different",
+			"commands": [
+				"# ASSERT_VISIBLE: explain the code",
+				"# ASSERT_VISIBLE: This project has a simple structure with a main entry point and utility functions."
+			]
+		}
+	]
+}

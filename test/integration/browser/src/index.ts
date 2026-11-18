@@ -10,30 +10,68 @@ import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
-import * as optimistLib from 'optimist';
+import kill from 'tree-kill';
+import minimist from 'minimist';
 import { promisify } from 'util';
+import { promises } from 'fs';
 
-const optimist = optimistLib
-	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
-	.describe('extensionDevelopmentPath', 'path to the extension to test').string('extensionDevelopmentPath')
-	.describe('extensionTestsPath', 'path to the extension tests').string('extensionTestsPath')
-	.describe('debug', 'do not run browsers headless').boolean('debug')
-	.describe('browser', 'browser in which integration tests should run').string('browser').default('browser', 'chromium')
-	.describe('help', 'show the help').alias('help', 'h');
+const root = path.join(__dirname, '..', '..', '..', '..');
+const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
-if (optimist.argv.help) {
-	optimist.showHelp();
-	process.exit(0);
+// Set once the tests finished and the runner stops the server itself; any other server exit fails the run.
+let serverStopRequested = false;
+
+const args = minimist(process.argv.slice(2), {
+	string: [
+		// path to the workspace (folder or *.code-workspace file) to open in the test
+		'workspacePath',
+		// path to the extension to test
+		'extensionDevelopmentPath',
+		// path to the extension tests
+		'extensionTestsPath',
+		// browser in which integration tests should run
+		'browser',
+	],
+	boolean: [
+		'help',
+		// do not run browsers headless
+		'debug',
+	],
+	alias: {
+		h: 'help'
+	},
+	default: {
+		'browser': 'chromium'
+	}
+});
+
+if (args.help) {
+	console.error(`Integration test runner for VS Code in the browser
+	Usage: node integration-tests-browser/out/index.js [options]
+
+	--workspacePath <path>             Path to the workspace (folder or *.code-workspace file) to open in the test
+	--extensionDevelopmentPath <path>  Path to the extension to test
+	--extensionTestsPath <path>        Path to the extension tests
+	--browser <browser>                Browser in which integration tests should run. separate the channel with a dash, e.g. 'chromium-msedge' or 'chromium-chrome'
+	--debug                            Do not run browsers headless
+	--help                             Print this help message
+	`);
+
+	process.exit(1);
 }
 
-const width = 1200;
-const height = 800;
+const width = 1440;
+const height = 900;
 
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
+type BrowserChannel = 'msedge' | 'chrome';
 
-async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
+async function runTestsInBrowser(browserType: BrowserType, browserChannel: BrowserChannel, endpoint: URL, server: cp.ChildProcess, serverFamily: string | undefined): Promise<void> {
+	// The server listens on only one loopback address for `localhost` (::1 on Windows), but Firefox tries 127.0.0.1
+	// first. Each new connection then waits for a refused IPv4 attempt (about 2 s on Windows) and can fail outright
+	// with NS_ERROR_CONNECTION_REFUSED, so make Firefox try the family the server bound first.
+	const firefoxUserPrefs = browserType === 'firefox' && serverFamily ? { 'network.dns.preferIPv6': serverFamily === 'IPv6' } : undefined;
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), channel: browserChannel, firefoxUserPrefs });
 	const context = await browser.newContext();
 
 	const page = await context.newPage();
@@ -63,7 +101,22 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		console[type](...args);
 	});
 
-	await page.exposeFunction('codeAutomationExit', async (code: number) => {
+	await page.exposeFunction('codeAutomationExit', async (code: number, logs: Array<{ readonly relativePath: string; readonly contents: string }>) => {
+		try {
+			for (const log of logs) {
+				const absoluteLogsPath = path.join(logsPath, log.relativePath);
+
+				await promises.mkdir(path.dirname(absoluteLogsPath), { recursive: true });
+				await promises.writeFile(absoluteLogsPath, log.contents);
+			}
+		} catch (error) {
+			console.error(`Error saving web client logs (${error})`);
+		}
+
+		if (args.debug) {
+			return;
+		}
+
 		try {
 			await browser.close();
 		} catch (error) {
@@ -71,6 +124,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		}
 
 		try {
+			serverStopRequested = true;
 			await promisify(kill)(server.pid!);
 		} catch (error) {
 			console.error(`Error when killing server process tree (pid: ${server.pid}): ${error}`);
@@ -82,16 +136,38 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
 
-	const testWorkspacePath = URI.file(path.resolve(optimist.argv.workspacePath)).path;
-	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
-	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
+	const testWorkspacePath = URI.file(path.resolve(args.workspacePath)).path;
+	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(args.extensionDevelopmentPath)).path, protocol, host, slashes: true });
+	const testFilesUri = url.format({ pathname: URI.file(path.resolve(args.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","ef65ac1ba57f57f2a3961bfe94aa20481caca4c6"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspacePath) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
-	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
+	const targetUrl = path.extname(testWorkspacePath) === '.code-workspace'
+		? `${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`
+		: `${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`;
+
+	// The server prints "Web UI available at" before its HTTP listener is fully ready to
+	// accept connections on some platforms (notably Windows + Firefox). Retry the initial
+	// navigation a few times on connection-refused errors to avoid spurious test failures.
+	await gotoWithRetry(page, targetUrl);
+}
+
+async function gotoWithRetry(page: playwright.Page, targetUrl: string): Promise<void> {
+	const maxAttempts = 5;
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await page.goto(targetUrl);
+			return;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			const isConnectionRefused = /NS_ERROR_CONNECTION_REFUSED|net::ERR_CONNECTION_REFUSED|ECONNREFUSED/i.test(message);
+			if (!isConnectionRefused || attempt >= maxAttempts) {
+				throw error;
+			}
+			const delayMs = 500 * attempt;
+			console.log(`page.goto failed with connection refused (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`);
+			await new Promise(resolve => setTimeout(resolve, delayMs));
+		}
 	}
 }
 
@@ -109,7 +185,7 @@ function consoleLogFn(msg: playwright.ConsoleMessage) {
 	return console.log;
 }
 
-async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery; server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType, browserChannel: BrowserChannel): Promise<{ endpoint: URL; server: cp.ChildProcess; serverFamily: string | undefined }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -119,47 +195,77 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const userDataDir = path.join(testDataPath, 'd');
 
 	const env = {
-		VSCODE_BROWSER: browserType,
+		VSCODE_BROWSER: browserChannel ? `${browserType}-${browserChannel}` : browserType,
+		// The server records why it exits in server-exit-diagnostics.log in its logs directory.
+		VSCODE_SERVER_EXIT_DIAGNOSTICS: '1',
 		...process.env
 	};
 
-	const root = path.join(__dirname, '..', '..', '..', '..');
-	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
-
-	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--disable-experiments', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust', '--enable-smoke-test-driver', '--force-disable-user-env'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
 		const { serverApplicationName } = require(path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'product.json'));
 		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, 'bin', `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`);
 
-		if (optimist.argv.debug) {
+		if (args.debug) {
 			console.log(`Starting built server from '${serverLocation}'`);
 		}
 	} else {
 		serverLocation = path.join(root, `scripts/code-server.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		process.env.VSCODE_DEV = '1';
 
-		if (optimist.argv.debug) {
+		if (args.debug) {
 			console.log(`Starting server out of sources from '${serverLocation}'`);
 		}
 	}
 
-	console.log(`Storing log files into '${logsPath}'`);
-	serverArgs.push('--logsPath', logsPath);
+	const serverLogsPath = path.join(logsPath, 'server');
+	console.log(`Storing log files into '${serverLogsPath}'`);
+	serverArgs.push('--logsPath', serverLogsPath);
 
-	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
+	const maxServerStderr = 8 * 1024;
+	let serverStderr = '';
 
+	const stdio: cp.StdioOptions = args.debug ? 'pipe' : ['ignore', 'pipe', 'pipe'];
+	const shell: boolean = (process.platform === 'win32');
 	const serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
-		{ env, stdio }
+		{ env, stdio, shell }
 	);
 
-	if (optimist.argv.debug) {
+	if (args.debug) {
 		serverProcess.stderr!.on('data', error => console.log(`Server stderr: ${error}`));
 		serverProcess.stdout!.on('data', data => console.log(`Server stdout: ${data}`));
+	} else {
+		serverProcess.stderr!.on('data', data => {
+			serverStderr = (serverStderr + data.toString()).slice(-maxServerStderr);
+		});
 	}
+
+	// Without this, a server that dies during a run leaves the page waiting for it until the CI step times out.
+	serverProcess.on('exit', async (code, signal) => {
+		if (!serverStopRequested) {
+			// The last stderr output can arrive after 'exit'. Wait for the pipe to close, but not for long: a process the
+			// server started can keep it open.
+			if (serverProcess.stderr && !serverProcess.stderr.closed) {
+				const stderr = serverProcess.stderr;
+				await new Promise<void>(resolve => {
+					const timer = setTimeout(resolve, 2000);
+					stderr.once('close', () => {
+						clearTimeout(timer);
+						resolve();
+					});
+				});
+			}
+			console.error(`Server exited unexpectedly (code: ${code}, signal: ${signal}). See server-exit-diagnostics.log in '${serverLogsPath}'.`);
+			if (serverStderr) {
+				console.error(`Last server stderr output:\n${serverStderr}`);
+			}
+			process.exit(1);
+		}
+	});
 
 	process.on('exit', () => serverProcess.kill());
 	process.on('SIGINT', () => {
@@ -172,17 +278,27 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	});
 
 	return new Promise(c => {
+		// Both lines can be split across stdout chunks, so match them on the output so far.
+		let output: string | undefined = '';
 		serverProcess.stdout!.on('data', data => {
-			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
+			if (output === undefined) {
+				return;
+			}
+			output += data.toString('ascii');
+			const matches = output.match(/Web UI available at (.+)\r?\n/);
 			if (matches !== null) {
-				c({ endpoint: url.parse(matches[1]), server: serverProcess });
+				// Printed by server-main.ts when it starts listening, before the Web UI line.
+				const serverFamily = output.match(/Server bound to .+ \((IPv4|IPv6)\)/)?.[1];
+				output = undefined;
+				c({ endpoint: new URL(matches[1].trim()), server: serverProcess, serverFamily });
 			}
 		});
 	});
 }
 
-launchServer(optimist.argv.browser).then(async ({ endpoint, server }) => {
-	return runTestsInBrowser(optimist.argv.browser, endpoint, server);
+const [browserType, browserChannel] = args.browser.split('-');
+launchServer(browserType, browserChannel).then(async ({ endpoint, server, serverFamily }) => {
+	return runTestsInBrowser(browserType, browserChannel, endpoint, server, serverFamily);
 }, error => {
 	console.error(error);
 	process.exit(1);

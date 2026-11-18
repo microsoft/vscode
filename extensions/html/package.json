@@ -2,7 +2,7 @@
   "name": "html",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -11,6 +11,7 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammar.mjs"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {

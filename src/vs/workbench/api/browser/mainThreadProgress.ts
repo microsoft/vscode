@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from 'vs/platform/progress/common/progress';
-import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { Action } from 'vs/base/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { localize } from 'vs/nls';
-
-class ManageExtensionAction extends Action {
-	constructor(extensionId: string, label: string, commandService: ICommandService) {
-		super(extensionId, label, undefined, true, () => {
-			return commandService.executeCommand('_extensions.manage', extensionId);
-		});
-	}
-}
+import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgressOptions, IProgressNotificationOptions } from '../../../platform/progress/common/progress.js';
+import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext, IProgressOptionsDto, IProgressStepDto } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../platform/extensions/common/extensions.js';
+import { localize } from '../../../nls.js';
+import { onUnexpectedExternalError } from '../../../base/common/errors.js';
+import { toAction } from '../../../base/common/actions.js';
+import { NotificationPriority } from '../../../platform/notification/common/notification.js';
+import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
+import { extensionNotificationTelemetry, NotificationActionTelemetryId, withNotificationActionTelemetry } from '../../../platform/notification/common/notificationTelemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {
+
+	private static readonly URGENT_PROGRESS_SOURCES = [
+		'vscode.github-authentication',
+		'vscode.microsoft-authentication'
+	];
 
 	private readonly _progressService: IProgressService;
 	private _progress = new Map<number, { resolve: () => void; progress: IProgress<IProgressStep> }>();
@@ -39,23 +41,36 @@ export class MainThreadProgress implements MainThreadProgressShape {
 		this._progress.clear();
 	}
 
-	async $startProgress(handle: number, options: IProgressOptions, extensionId?: string): Promise<void> {
+	async $startProgress(handle: number, options: IProgressOptionsDto, extensionId?: string): Promise<void> {
 		const task = this._createTask(handle);
+		let progressOptions: IProgressOptions = { ...options, legacyExtensionLinkParsing, telemetry: options.telemetryId ?? extensionNotificationTelemetry(extensionId, 'progress', options.notificationId) };
 
 		if (options.location === ProgressLocation.Notification && extensionId) {
+			const sourceIsUrgent = MainThreadProgress.URGENT_PROGRESS_SOURCES.includes(extensionId);
 			const notificationOptions: IProgressNotificationOptions = {
-				...options,
+				...progressOptions,
+				priority: sourceIsUrgent ? NotificationPriority.URGENT : NotificationPriority.DEFAULT,
 				location: ProgressLocation.Notification,
-				secondaryActions: [new ManageExtensionAction(extensionId, localize('manageExtension', "Manage Extension"), this._commandService)]
+				secondaryActions: [withNotificationActionTelemetry(toAction({
+					id: extensionId,
+					label: localize('manageExtension', "Manage Extension"),
+					run: () => this._commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, extensionId)
+				}), NotificationActionTelemetryId.ManageExtension)]
 			};
 
-			options = notificationOptions;
+			progressOptions = notificationOptions;
 		}
 
-		this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+		try {
+			this._progressService.withProgress(progressOptions, task, () => this._proxy.$acceptProgressCanceled(handle));
+		} catch (err) {
+			// the withProgress-method will throw synchronously when invoked with bad options
+			// which is then an enternal/extension error
+			onUnexpectedExternalError(err);
+		}
 	}
 
-	$progressReport(handle: number, message: IProgressStep): void {
+	$progressReport(handle: number, message: IProgressStepDto): void {
 		const entry = this._progress.get(handle);
 		entry?.progress.report(message);
 	}

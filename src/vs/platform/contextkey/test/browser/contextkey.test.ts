@@ -2,26 +2,30 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { DeferredPromise } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ContextKeyService, setContext } from 'vs/platform/contextkey/browser/contextKeyService';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+import assert from 'assert';
+import sinon from 'sinon';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { ContextKeyService, setContext } from '../../browser/contextKeyService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../common/contextkey.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 
 suite('ContextKeyService', () => {
-	test('updateParent', () => {
-		const root = new ContextKeyService(new TestConfigurationService());
-		const parent1 = root.createScoped(document.createElement('div'));
-		const parent2 = root.createScoped(document.createElement('div'));
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-		const child = parent1.createScoped(document.createElement('div'));
+	test('updateParent', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const parent1 = testDisposables.add(root.createScoped(document.createElement('div')));
+		const parent2 = testDisposables.add(root.createScoped(document.createElement('div')));
+
+		const child = testDisposables.add(parent1.createScoped(document.createElement('div')));
 		parent1.createKey('testA', 1);
 		parent1.createKey('testB', 2);
 		parent1.createKey('testD', 0);
@@ -36,7 +40,7 @@ suite('ContextKeyService', () => {
 			complete = _complete;
 			reject = _reject;
 		});
-		child.onDidChangeContext(e => {
+		testDisposables.add(child.onDidChangeContext(e => {
 			try {
 				assert.ok(e.affectsSome(new Set(['testA'])), 'testA changed');
 				assert.ok(e.affectsSome(new Set(['testB'])), 'testB changed');
@@ -53,7 +57,7 @@ suite('ContextKeyService', () => {
 			}
 
 			complete();
-		});
+		}));
 
 		child.updateParent(parent2);
 
@@ -61,29 +65,82 @@ suite('ContextKeyService', () => {
 	});
 
 	test('updateParent to same service', () => {
-		const root = new ContextKeyService(new TestConfigurationService());
-		const parent1 = root.createScoped(document.createElement('div'));
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const parent1 = testDisposables.add(root.createScoped(document.createElement('div')));
 
-		const child = parent1.createScoped(document.createElement('div'));
+		const child = testDisposables.add(parent1.createScoped(document.createElement('div')));
 		parent1.createKey('testA', 1);
 		parent1.createKey('testB', 2);
 		parent1.createKey('testD', 0);
 
 		let eventFired = false;
-		child.onDidChangeContext(e => {
+		testDisposables.add(child.onDidChangeContext(e => {
 			eventFired = true;
-		});
+		}));
 
 		child.updateParent(parent1);
 
 		assert.strictEqual(eventFired, false);
 	});
 
+	test('updateParent reports exactly the keys whose value changed', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService({ editor: { fontSize: 12 } })));
+		root.getContextKeyValue('config.editor.fontSize');
+		root.createKey('rootOnly', 1);
+		root.createKey('shadowed', 'root');
+
+		const a = testDisposables.add(root.createScoped(document.createElement('div')));
+		a.createKey('shared', 'a');
+		a.createKey('shadowed', 'a');
+		a.createKey('onlyOld', 1);
+		a.createKey('same', { value: 5 });
+
+		const b = testDisposables.add(a.createScoped(document.createElement('div')));
+		b.createKey('inB', true);
+		b.createKey('ownedByChild', 'b');
+
+		const c = testDisposables.add(root.createScoped(document.createElement('div')));
+		c.createKey('shared', 'c');
+		c.createKey('same', { value: 5 });
+		c.createKey('onlyNew', 'c');
+
+		const child = testDisposables.add(b.createScoped(document.createElement('div')));
+		child.createKey('ownedByChild', 'child');
+
+		const allKeys = ['config.editor.fontSize', 'rootOnly', 'shadowed', 'shared', 'onlyOld', 'same', 'inB', 'ownedByChild', 'onlyNew'];
+		const affectedKeys: string[][] = [];
+		testDisposables.add(child.onDidChangeContext(e => affectedKeys.push(allKeys.filter(key => e.affectsSome(new Set([key]))))));
+
+		child.updateParent(c);
+		child.updateParent(b);
+
+		assert.deepStrictEqual(affectedKeys, [
+			['shadowed', 'shared', 'onlyOld', 'inB', 'onlyNew'],
+			['shadowed', 'shared', 'onlyOld', 'inB', 'onlyNew'],
+		]);
+	});
+
+	test('updateParent does not collect the values of the ancestors that the old and new parent share', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const parent1 = testDisposables.add(root.createScoped(document.createElement('div')));
+		const parent2 = testDisposables.add(root.createScoped(document.createElement('div')));
+		const child = testDisposables.add(parent1.createScoped(document.createElement('div')));
+		parent1.createKey('testA', 1);
+		parent2.createKey('testA', 2);
+
+		const collectAllValues = sinon.spy(root.getContextValuesContainer(root.contextId), 'collectAllValues');
+		try {
+			child.updateParent(parent2);
+			assert.strictEqual(collectAllValues.callCount, 0);
+		} finally {
+			collectAllValues.restore();
+		}
+	});
+
 	test('issue #147732: URIs as context values', () => {
-		const disposables = new DisposableStore();
 		const configurationService: IConfigurationService = new TestConfigurationService();
-		const contextKeyService: IContextKeyService = disposables.add(new ContextKeyService(configurationService));
-		const instantiationService = new TestInstantiationService(new ServiceCollection(
+		const contextKeyService: IContextKeyService = testDisposables.add(new ContextKeyService(configurationService));
+		const instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IConfigurationService, configurationService],
 			[IContextKeyService, contextKeyService],
 			[ITelemetryService, new class extends mock<ITelemetryService>() {
@@ -91,7 +148,7 @@ suite('ContextKeyService', () => {
 					//
 				}
 			}]
-		));
+		)));
 
 		const uri = URI.parse('test://abc');
 		contextKeyService.createKey<string>('notebookCellResource', undefined).set(uri.toString());
@@ -102,22 +159,22 @@ suite('ContextKeyService', () => {
 	});
 
 	test('suppress update event from parent when one key is overridden by child', () => {
-		const root = new ContextKeyService(new TestConfigurationService());
-		const child = root.createScoped(document.createElement('div'));
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const child = testDisposables.add(root.createScoped(document.createElement('div')));
 
 		root.createKey('testA', 1);
 		child.createKey('testA', 4);
 
 		let fired = false;
-		const event = child.onDidChangeContext(e => fired = true);
+		const event = testDisposables.add(child.onDidChangeContext(e => fired = true));
 		root.setContext('testA', 10);
 		assert.strictEqual(fired, false, 'Should not fire event when overridden key is updated in parent');
 		event.dispose();
 	});
 
 	test('suppress update event from parent when all keys are overridden by child', () => {
-		const root = new ContextKeyService(new TestConfigurationService());
-		const child = root.createScoped(document.createElement('div'));
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const child = testDisposables.add(root.createScoped(document.createElement('div')));
 
 		root.createKey('testA', 1);
 		root.createKey('testB', 2);
@@ -128,7 +185,7 @@ suite('ContextKeyService', () => {
 		child.createKey('testD', 6);
 
 		let fired = false;
-		const event = child.onDidChangeContext(e => fired = true);
+		const event = testDisposables.add(child.onDidChangeContext(e => fired = true));
 		root.bufferChangeEvents(() => {
 			root.setContext('testA', 10);
 			root.setContext('testB', 20);
@@ -140,8 +197,8 @@ suite('ContextKeyService', () => {
 	});
 
 	test('pass through update event from parent when one key is not overridden by child', () => {
-		const root = new ContextKeyService(new TestConfigurationService());
-		const child = root.createScoped(document.createElement('div'));
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const child = testDisposables.add(root.createScoped(document.createElement('div')));
 
 		root.createKey('testA', 1);
 		root.createKey('testB', 2);
@@ -152,7 +209,7 @@ suite('ContextKeyService', () => {
 		child.createKey('testD', 6);
 
 		const def = new DeferredPromise();
-		child.onDidChangeContext(e => {
+		testDisposables.add(child.onDidChangeContext(e => {
 			try {
 				assert.ok(e.affectsSome(new Set(['testA'])), 'testA changed');
 				assert.ok(e.affectsSome(new Set(['testB'])), 'testB changed');
@@ -163,7 +220,7 @@ suite('ContextKeyService', () => {
 			}
 
 			def.complete(undefined);
-		});
+		}));
 
 		root.bufferChangeEvents(() => {
 			root.setContext('testA', 10);
@@ -172,5 +229,151 @@ suite('ContextKeyService', () => {
 		});
 
 		return def.p;
+	});
+
+	test('setting identical array values should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', ['a', 'b', 'c']);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same array content (different reference)
+		key.set(['a', 'b', 'c']);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical array');
+	});
+
+	test('setting different array values should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', ['a', 'b', 'c']);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different array
+		key.set(['a', 'b', 'd']);
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different array');
+	});
+
+	test('setting identical complex object should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = { foo: 'bar', count: 42 };
+		const key = root.createKey<Record<string, string | number>>('testObject', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same object content (different reference)
+		key.set({ foo: 'bar', count: 42 });
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical object');
+	});
+
+	test('setting different complex object should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = { foo: 'bar', count: 42 };
+		const key = root.createKey<Record<string, string | number>>('testObject', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different object
+		key.set({ foo: 'bar', count: 43 });
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different object');
+	});
+
+	test('setting empty arrays should not fire change event when identical', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<string[]>('testArray', []);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set another empty array
+		key.set([]);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical empty array');
+	});
+
+	test('setting nested arrays should handle deep equality', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const initialValue = ['a:b', 'c:d'];
+		const key = root.createKey<string[]>('testComplexArray', initialValue);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same array content with colon-separated values
+		key.set(['a:b', 'c:d']);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical array with complex values');
+	});
+
+	test('setting same primitive values should not fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey('testString', 'hello');
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set the same string value
+		key.set('hello');
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when setting identical string');
+	});
+
+	test('setting different primitive values should fire change event', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const key = root.createKey<number>('testNumber', 42);
+
+		let eventFired = false;
+		testDisposables.add(root.onDidChangeContext(e => {
+			eventFired = true;
+		}));
+
+		// Set a different number value
+		key.set(43);
+
+		assert.strictEqual(eventFired, true, 'Should fire event when setting different number');
+	});
+
+	test('disposeContext forwards through disposed scoped service', () => {
+		const root = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+		const scoped = root.createScoped(document.createElement('div'));
+		const child = scoped.createScoped(document.createElement('div'));
+
+		// Set a value on the child so we can observe it
+		child.createKey('testKey', 'value');
+		assert.strictEqual(child.getContextKeyValue('testKey'), 'value');
+
+		// Dispose the intermediate scoped service first
+		scoped.dispose();
+
+		// Now dispose the child — this should still forward to root
+		// and clean up the child's context entry. Before the fix,
+		// ScopedContextKeyService.disposeContext bailed out when
+		// _isDisposed was true, leaking Context objects.
+		child.dispose();
+
+		// The child's context should no longer be accessible through root
+		assert.strictEqual(root.getContextKeyValue('testKey'), undefined,
+			'Child context should be cleaned up even when parent scoped service was disposed first');
 	});
 });

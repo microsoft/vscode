@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{ffi::OsStr, fmt, path::Path};
+use std::{fmt, path::Path};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
-	debug, log, options, spanf,
+	log, options,
 	util::{
-		errors::{AnyError, CodeError, UpdatesNotConfigured, WrappedError},
+		errors::{wrap, AnyError, CodeError, WrappedError},
 		http::{BoxedHttp, SimpleResponse},
 		io::ReportCopyProgress,
-		tar, zipper,
+		tar::{self, has_gzip_header},
+		zipper,
 	},
 };
 
 /// Implementation of the VS Code Update service for use in the CLI.
+#[derive(Clone)]
 pub struct UpdateService {
 	client: BoxedHttp,
 	log: log::Logger,
@@ -54,6 +56,17 @@ fn quality_download_segment(quality: options::Quality) -> &'static str {
 	}
 }
 
+fn get_update_endpoint() -> Result<String, CodeError> {
+	if let Ok(url) = std::env::var("VSCODE_CLI_UPDATE_URL") {
+		if !url.is_empty() {
+			return Ok(url);
+		}
+	}
+	VSCODE_CLI_UPDATE_ENDPOINT
+		.map(|s| s.to_string())
+		.ok_or(CodeError::UpdatesNotConfigured("no service url"))
+}
+
 impl UpdateService {
 	pub fn new(log: log::Logger, http: BoxedHttp) -> Self {
 		UpdateService { client: http, log }
@@ -66,8 +79,7 @@ impl UpdateService {
 		quality: options::Quality,
 		version: &str,
 	) -> Result<Release, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
@@ -79,11 +91,7 @@ impl UpdateService {
 			quality_download_segment(quality),
 		);
 
-		let mut response = spanf!(
-			self.log,
-			self.log.span("server.version.resolve"),
-			self.client.make_request("GET", download_url)
-		)?;
+		let mut response = self.client.make_request("GET", download_url).await?;
 
 		if !response.status_code.is_success() {
 			return Err(response.into_err().await.into());
@@ -108,8 +116,7 @@ impl UpdateService {
 		target: TargetKind,
 		quality: options::Quality,
 	) -> Result<Release, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
@@ -120,11 +127,7 @@ impl UpdateService {
 			quality_download_segment(quality),
 		);
 
-		let mut response = spanf!(
-			self.log,
-			self.log.span("server.version.resolve"),
-			self.client.make_request("GET", download_url)
-		)?;
+		let mut response = self.client.make_request("GET", download_url).await?;
 
 		if !response.status_code.is_success() {
 			return Err(response.into_err().await.into());
@@ -144,8 +147,7 @@ impl UpdateService {
 
 	/// Gets the download stream for the release.
 	pub async fn get_download_stream(&self, release: &Release) -> Result<SimpleResponse, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = release
 			.target
 			.download_segment(release.platform)
@@ -176,10 +178,56 @@ pub fn unzip_downloaded_release<T>(
 where
 	T: ReportCopyProgress,
 {
-	if compressed_file.extension() == Some(OsStr::new("zip")) {
-		zipper::unzip_file(compressed_file, target_dir, reporter)
-	} else {
-		tar::decompress_tarball(compressed_file, target_dir, reporter)
+	let mut reporter = OwnedCopyProgress(Some(reporter));
+	unzip_downloaded_release_core(compressed_file, target_dir, &mut reporter)
+}
+
+trait CopyProgressOwner {
+	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64);
+	fn finish(&mut self);
+}
+
+struct OwnedCopyProgress<T>(Option<T>);
+
+impl<T: ReportCopyProgress> CopyProgressOwner for OwnedCopyProgress<T> {
+	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
+		self.0
+			.as_mut()
+			.expect("copy progress already dropped")
+			.report_progress(bytes_so_far, total_bytes);
+	}
+
+	fn finish(&mut self) {
+		drop(self.0.take());
+	}
+}
+
+struct BorrowedCopyProgress<'a>(&'a mut dyn CopyProgressOwner);
+
+impl ReportCopyProgress for BorrowedCopyProgress<'_> {
+	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
+		self.0.report_progress(bytes_so_far, total_bytes);
+	}
+}
+
+impl Drop for BorrowedCopyProgress<'_> {
+	fn drop(&mut self) {
+		// Preserve the original reporter parameter's drop point, including early errors.
+		self.0.finish();
+	}
+}
+
+#[inline(never)]
+fn unzip_downloaded_release_core(
+	compressed_file: &Path,
+	target_dir: &Path,
+	reporter: &mut dyn CopyProgressOwner,
+) -> Result<(), WrappedError> {
+	let reporter = BorrowedCopyProgress(reporter);
+	match has_gzip_header(compressed_file) {
+		Ok((f, true)) => tar::decompress_tarball(f, target_dir, reporter),
+		Ok((f, false)) => zipper::unzip_file(f, target_dir, reporter),
+		Err(e) => Err(wrap(e, "error checking for gzip header")),
 	}
 }
 
@@ -194,9 +242,9 @@ pub enum TargetKind {
 impl TargetKind {
 	fn download_segment(&self, platform: Platform) -> Option<String> {
 		match *self {
-			TargetKind::Server => Some(platform.headless()),
+			TargetKind::Server => platform.headless(),
 			TargetKind::Archive => platform.archive(),
-			TargetKind::Web => Some(platform.web()),
+			TargetKind::Web => platform.web(),
 			TargetKind::Cli => Some(platform.cli()),
 		}
 	}
@@ -207,8 +255,11 @@ pub enum Platform {
 	LinuxAlpineX64,
 	LinuxAlpineARM64,
 	LinuxX64,
+	LinuxX64Legacy,
 	LinuxARM64,
+	LinuxARM64Legacy,
 	LinuxARM32,
+	LinuxARM32Legacy,
 	DarwinX64,
 	DarwinARM64,
 	WindowsX64,
@@ -230,20 +281,24 @@ impl Platform {
 			_ => None,
 		}
 	}
-	pub fn headless(&self) -> String {
-		match self {
+	pub fn headless(&self) -> Option<String> {
+		let name = match self {
 			Platform::LinuxAlpineARM64 => "server-alpine-arm64",
 			Platform::LinuxAlpineX64 => "server-linux-alpine",
 			Platform::LinuxX64 => "server-linux-x64",
+			Platform::LinuxX64Legacy => "server-linux-legacy-x64",
 			Platform::LinuxARM64 => "server-linux-arm64",
-			Platform::LinuxARM32 => "server-linux-armhf",
+			Platform::LinuxARM64Legacy => "server-linux-legacy-arm64",
+			// No remote server is built for arm32 since Node.js dropped
+			// 32-bit Linux on armv7 in v24.
+			Platform::LinuxARM32 | Platform::LinuxARM32Legacy => return None,
 			Platform::DarwinX64 => "server-darwin",
 			Platform::DarwinARM64 => "server-darwin-arm64",
 			Platform::WindowsX64 => "server-win32-x64",
 			Platform::WindowsX86 => "server-win32",
-			Platform::WindowsARM64 => "server-win32-x64", // we don't publish an arm64 server build yet
-		}
-		.to_owned()
+			Platform::WindowsARM64 => "server-win32-arm64",
+		};
+		Some(name.to_owned())
 	}
 
 	pub fn cli(&self) -> String {
@@ -251,8 +306,11 @@ impl Platform {
 			Platform::LinuxAlpineARM64 => "cli-alpine-arm64",
 			Platform::LinuxAlpineX64 => "cli-alpine-x64",
 			Platform::LinuxX64 => "cli-linux-x64",
+			Platform::LinuxX64Legacy => "cli-linux-x64",
 			Platform::LinuxARM64 => "cli-linux-arm64",
+			Platform::LinuxARM64Legacy => "cli-linux-arm64",
 			Platform::LinuxARM32 => "cli-linux-armhf",
+			Platform::LinuxARM32Legacy => "cli-linux-armhf",
 			Platform::DarwinX64 => "cli-darwin-x64",
 			Platform::DarwinARM64 => "cli-darwin-arm64",
 			Platform::WindowsARM64 => "cli-win32-arm64",
@@ -262,8 +320,8 @@ impl Platform {
 		.to_owned()
 	}
 
-	pub fn web(&self) -> String {
-		format!("{}-web", self.headless())
+	pub fn web(&self) -> Option<String> {
+		self.headless().map(|h| format!("{h}-web"))
 	}
 
 	pub fn env_default() -> Option<Platform> {
@@ -307,13 +365,106 @@ impl fmt::Display for Platform {
 			Platform::LinuxAlpineARM64 => "LinuxAlpineARM64",
 			Platform::LinuxAlpineX64 => "LinuxAlpineX64",
 			Platform::LinuxX64 => "LinuxX64",
+			Platform::LinuxX64Legacy => "LinuxX64Legacy",
 			Platform::LinuxARM64 => "LinuxARM64",
+			Platform::LinuxARM64Legacy => "LinuxARM64Legacy",
 			Platform::LinuxARM32 => "LinuxARM32",
+			Platform::LinuxARM32Legacy => "LinuxARM32Legacy",
 			Platform::DarwinX64 => "DarwinX64",
 			Platform::DarwinARM64 => "DarwinARM64",
 			Platform::WindowsX64 => "WindowsX64",
 			Platform::WindowsX86 => "WindowsX86",
 			Platform::WindowsARM64 => "WindowsARM64",
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::cell::RefCell;
+
+	#[derive(Debug, PartialEq, Eq)]
+	enum Event {
+		Progress(u64, u64),
+		FileDropped,
+		ReporterDropped,
+	}
+
+	struct FileMarker<'a>(&'a RefCell<Vec<Event>>);
+
+	impl Drop for FileMarker<'_> {
+		fn drop(&mut self) {
+			self.0.borrow_mut().push(Event::FileDropped);
+		}
+	}
+
+	struct Reporter<'a>(&'a RefCell<Vec<Event>>);
+
+	impl ReportCopyProgress for Reporter<'_> {
+		fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
+			self.0
+				.borrow_mut()
+				.push(Event::Progress(bytes_so_far, total_bytes));
+		}
+	}
+
+	impl Drop for Reporter<'_> {
+		fn drop(&mut self) {
+			self.0.borrow_mut().push(Event::ReporterDropped);
+		}
+	}
+
+	fn extract_fixture<T: ReportCopyProgress>(
+		file: FileMarker<'_>,
+		mut reporter: T,
+		archive_created: bool,
+		should_panic: bool,
+	) -> Result<(), ()> {
+		if archive_created {
+			let _archive = file;
+			reporter.report_progress(1, 2);
+			assert!(!should_panic, "fixture panic");
+			Ok(())
+		} else {
+			reporter.report_progress(1, 2);
+			assert!(!should_panic, "fixture panic");
+			Err(())
+		}
+	}
+
+	#[test]
+	fn erased_progress_preserves_callbacks_and_drop_order() {
+		for archive_created in [false, true] {
+			for should_panic in [false, true] {
+				let expected = RefCell::new(Vec::new());
+				let expected_result =
+					std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+						extract_fixture(
+							FileMarker(&expected),
+							Reporter(&expected),
+							archive_created,
+							should_panic,
+						)
+					}))
+					.map_err(|_| ());
+				let actual = RefCell::new(Vec::new());
+				let actual_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+					let mut owner = OwnedCopyProgress(Some(Reporter(&actual)));
+					extract_fixture(
+						FileMarker(&actual),
+						BorrowedCopyProgress(&mut owner),
+						archive_created,
+						should_panic,
+					)
+				}))
+				.map_err(|_| ());
+				assert_eq!(
+					(actual_result, actual.into_inner()),
+					(expected_result, expected.into_inner()),
+					"archive={archive_created}, panic={should_panic}"
+				);
+			}
+		}
 	}
 }

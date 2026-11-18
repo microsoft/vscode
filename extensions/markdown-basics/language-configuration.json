@@ -8,12 +8,20 @@
 	},
 	// symbols used as brackets
 	"brackets": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"]
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		]
 	],
-	"colorizedBracketPairs": [
-	],
+	"colorizedBracketPairs": [],
 	"autoClosingPairs": [
 		{
 			"open": "{",
@@ -33,24 +41,63 @@
 			"notIn": [
 				"string"
 			]
-		}
+		},
 	],
 	"surroundingPairs": [
-		["(", ")"],
-		["[", "]"],
-		["`", "`"],
-		["_", "_"],
-		["*", "*"],
-		["{", "}"],
-		["'", "'"],
-		["\"", "\""]
+		[
+			"(",
+			")"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"`",
+			"`"
+		],
+		[
+			"_",
+			"_"
+		],
+		[
+			"*",
+			"*"
+		],
+		[
+			"{",
+			"}"
+		],
+		[
+			"'",
+			"'"
+		],
+		[
+			"\"",
+			"\""
+		],
+		[
+			"<",
+			">"
+		],
+		[
+			"~",
+			"~"
+		],
+		[
+			"$",
+			"$"
+		]
 	],
 	"folding": {
 		"offSide": true,
 		"markers": {
-			"start": "^\\s*<!--\\s*#?region\\b.*-->",
+			"start": "^\\s*<!--\\s*#?region\\b\\s*(?<label>.*?)\\s*-->",
 			"end": "^\\s*<!--\\s*#?endregion\\b.*-->"
 		}
 	},
-	"wordPattern": { "pattern": "(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})(((\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})|[_])?(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark}))*", "flags": "ug" },
+	"wordPattern": {
+		"pattern": "(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})(((\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})|[_])?(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark}))*",
+		"flags": "ug"
+	},
 }

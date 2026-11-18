@@ -3,33 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { dirname, basename } from 'vs/base/common/resources';
-import { ITitleProperties } from 'vs/workbench/services/title/common/titleService';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { trim } from 'vs/base/common/strings';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { template } from 'vs/base/common/labels';
-import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
-import { Emitter } from 'vs/base/common/event';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { localize } from '../../../../nls.js';
+import { dirname, basename } from '../../../../base/common/resources.js';
+import { ITitleProperties, ITitleVariable } from './titlebarPart.js';
+import { IConfigurationService, IConfigurationChangeEvent, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { trim } from '../../../../base/common/strings.js';
+import { template } from '../../../../base/common/labels.js';
+import { ILabelService, Verbosity as LabelVerbosity } from '../../../../platform/label/common/label.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { getVirtualWorkspaceLocation } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
 	title = 'window.title',
 }
+
+export const defaultWindowTitle = (() => {
+	if (isMacintosh && isNative) {
+		return '${activeEditorShort}${separator}${rootName}${separator}${folderLocation}${separator}${profileName}'; // macOS has native dirty indicator
+	}
+
+	const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${folderLocation}${separator}${profileName}${separator}${appName}';
+	if (isWeb) {
+		return base + '${separator}${remoteName}'; // Web: always show remote name
+	}
+
+	return base;
+})();
+export const defaultWindowTitleSeparator = isMacintosh ? ' \u2014 ' : ' - ';
 
 export class WindowTitle extends Disposable {
 
@@ -38,34 +60,96 @@ export class WindowTitle extends Disposable {
 	private static readonly TITLE_DIRTY = '\u25cf ';
 
 	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false, prefix: undefined };
+	private readonly variables = new Map<string /* context key */, string /* name */>();
+
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	private readonly onDidChangeEmitter = this._register(new Emitter<void>());
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
+	get value() { return this.title ?? ''; }
+	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+
+	/** The label of the alternate folder location, or an empty string while the folder is at its primary location. */
+	get folderLocation(): string {
+		const folder = this.contextService.getWorkspace().folders[0];
+		return (folder && this.labelService.getFolderLocationLabel(folder.uri)) ?? '';
+	}
+
+	/** The alternate folder location the folder is at, or `undefined` while it is at its primary location. */
+	get folderLocationInfo() {
+		const folder = this.contextService.getWorkspace().folders[0];
+		return folder ? this.folderLocationService.getLocation(folder) : undefined;
+	}
+	get fileName() {
+		const activeEditor = this.editorService.activeEditor;
+		if (!activeEditor) {
+			return undefined;
+		}
+		const fileName = activeEditor.getTitle(Verbosity.SHORT);
+		const dirty = activeEditor?.isDirty() && !activeEditor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
+		return `${dirty}${fileName}`;
+	}
+
+	/**
+	 * The label of the command center. While the folder is at an alternate location it is always the
+	 * folder name, independent of the window title format and `showFileName`. With `fileNameAsFallback` the
+	 * file name is only used when there is no workspace name.
+	 */
+	getCommandCenterLabel(options: { showFileName: boolean; fileNameAsFallback?: boolean }): string {
+		const { prefix, suffix } = this.getTitleDecorations();
+		let label = this.workspaceName;
+		if (!this.folderLocationInfo) {
+			if (this.isCustomTitleFormat()) {
+				label = this.getWindowTitle();
+			} else if (options.showFileName && (!options.fileNameAsFallback || !label) && this.fileName !== undefined) {
+				label = this.fileName;
+			}
+		}
+		if (!label) {
+			label = localize('commandCenterLabel.search', "Search");
+		}
+		if (prefix) {
+			label = localize('commandCenterLabel.prefix', "{0} {1}", prefix, label);
+		}
+		if (suffix) {
+			label = localize('commandCenterLabel.suffix', "{0} {1}", label, suffix);
+		}
+
+		return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
+	}
+
 	private title: string | undefined;
+	private folderLocationKey = '';
+
+	private titleIncludesFocusedView: boolean = false;
+	private titleIncludesEditorState: boolean = false;
+
+	private readonly windowId: number;
 
 	constructor(
+		targetWindow: CodeWindow,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService
 	) {
 		super();
+
+		this.windowId = targetWindow.vscodeWindowId;
+
+		this.checkTitleVariables();
+
 		this.registerListeners();
-	}
-
-	get value() {
-		return this.title ?? '';
-	}
-
-	get workspaceName() {
-		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 	}
 
 	private registerListeners(): void {
@@ -73,15 +157,39 @@ export class WindowTitle extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.titleUpdater.schedule()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
-		this._register(this.userDataProfileService.onDidUpdateCurrentProfile(() => this.titleUpdater.schedule()));
+		this._register(this.viewsService.onDidChangeFocusedView(() => {
+			if (this.titleIncludesFocusedView) {
+				this.titleUpdater.schedule();
+			}
+		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(this.variables)) {
+				this.titleUpdater.schedule();
+			}
+		}));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration(WindowSettingNames.title) || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
+		const affectsTitleConfiguration = event.affectsConfiguration(WindowSettingNames.title);
+		if (affectsTitleConfiguration) {
+			this.checkTitleVariables();
+		}
+
+		if (affectsTitleConfiguration || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
 			this.titleUpdater.schedule();
+		}
+	}
+
+	private checkTitleVariables(): void {
+		const titleTemplate = this.configurationService.getValue<unknown>(WindowSettingNames.title);
+		if (typeof titleTemplate === 'string') {
+			this.titleIncludesFocusedView = titleTemplate.includes('${focusedView}');
+			this.titleIncludesEditorState = titleTemplate.includes('${activeEditorState}');
 		}
 	}
 
@@ -99,34 +207,83 @@ export class WindowTitle extends Disposable {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
+
+		// Apply listeners for tracking focused code editor
+		if (this.titleIncludesFocusedView) {
+			const activeTextEditorControl = this.editorService.activeTextEditorControl;
+			const textEditorControls: ICodeEditor[] = [];
+			if (isCodeEditor(activeTextEditorControl)) {
+				textEditorControls.push(activeTextEditorControl);
+			} else if (isDiffEditor(activeTextEditorControl)) {
+				textEditorControls.push(activeTextEditorControl.getOriginalEditor(), activeTextEditorControl.getModifiedEditor());
+			}
+
+			for (const textEditorControl of textEditorControls) {
+				this.activeEditorListeners.add(textEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
+				this.activeEditorListeners.add(textEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+			}
+		}
+
+		// Apply listener for decorations to track editor state
+		if (this.titleIncludesEditorState) {
+			this.activeEditorListeners.add(this.decorationsService.onDidChangeDecorations(() => this.titleUpdater.schedule()));
+		}
 	}
 
 	private doUpdateTitle(): void {
 		const title = this.getFullWindowTitle();
-		if (title !== this.title) {
+
+		// The command center renders the folder location itself, so it needs to refresh even if a custom title format leaves the title text unchanged
+		const folderLocation = this.folderLocationInfo;
+		const folderLocationKey = folderLocation ? `${folderLocation.uri.toString()}|${folderLocation.label}|${folderLocation.description ?? ''}|${folderLocation.icon?.id ?? ''}` : '';
+		const folderLocationChanged = folderLocationKey !== this.folderLocationKey;
+		this.folderLocationKey = folderLocationKey;
+
+		if (title === this.title) {
+			if (folderLocationChanged) {
+				this.onDidChangeEmitter.fire();
+			}
+		} else {
+
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
 			if (!trim(nativeTitle)) {
 				nativeTitle = this.productService.nameLong;
 			}
+
+			const window = getWindowById(this.windowId, true).window;
+			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+				// TODO@electron macOS: if we set a window title for
+				// the first time and it matches the one we set in
+				// `windowImpl.ts` somehow the window does not appear
+				// in the "Windows" menu. As such, we set the title
+				// briefly to something different to ensure macOS
+				// recognizes we have a window.
+				// See: https://github.com/microsoft/vscode/issues/191288
+				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
+			}
+
 			window.document.title = nativeTitle;
 			this.title = title;
+
 			this.onDidChangeEmitter.fire();
 		}
 	}
 
 	private getFullWindowTitle(): string {
-		let title = this.getWindowTitle() || this.productService.nameLong;
 		const { prefix, suffix } = this.getTitleDecorations();
+
+		let title = this.getWindowTitle() || this.productService.nameLong;
 		if (prefix) {
 			title = `${prefix} ${title}`;
 		}
+
 		if (suffix) {
 			title = `${title} ${suffix}`;
 		}
+
 		// Replace non-space whitespace
-		title = title.replace(/[^\S ]/g, ' ');
-		return title;
+		return title.replace(/[^\S ]/g, ' ');
 	}
 
 	getTitleDecorations() {
@@ -136,6 +293,7 @@ export class WindowTitle extends Disposable {
 		if (this.properties.prefix) {
 			prefix = this.properties.prefix;
 		}
+
 		if (this.environmentService.isExtensionDevelopment) {
 			prefix = !prefix
 				? WindowTitle.NLS_EXTENSION_HOST
@@ -145,6 +303,7 @@ export class WindowTitle extends Disposable {
 		if (this.properties.isAdmin) {
 			suffix = WindowTitle.NLS_USER_IS_ADMIN;
 		}
+
 		return { prefix, suffix };
 	}
 
@@ -162,12 +321,29 @@ export class WindowTitle extends Disposable {
 		}
 	}
 
+	registerVariables(variables: ITitleVariable[]): void {
+		let changed = false;
+
+		for (const { name, contextKey } of variables) {
+			if (!this.variables.has(contextKey)) {
+				this.variables.set(contextKey, name);
+
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			this.titleUpdater.schedule();
+		}
+	}
+
 	/**
 	 * Possible template values:
 	 *
 	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
 	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
+	 * {activeEditorLanguageId}: e.g. typescript
 	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
 	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
 	 * {activeFolderShort}: e.g. myFileFolder
@@ -175,10 +351,13 @@ export class WindowTitle extends Disposable {
 	 * {rootPath}: e.g. /Users/Development
 	 * {folderName}: e.g. myFolder
 	 * {folderPath}: e.g. /Users/Development/myFolder
+	 * {folderLocation}: e.g. my-location, only while the folder is at an alternate location
 	 * {appName}: e.g. VS Code
 	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
+	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
+	 * {activeEditorState}: e.g. Modified
 	 */
 	getWindowTitle(): string {
 		const editor = this.editorService.activeEditor;
@@ -189,7 +368,7 @@ export class WindowTitle extends Disposable {
 		if (workspace.configuration) {
 			root = workspace.configuration;
 		} else if (workspace.folders.length) {
-			root = workspace.folders[0].uri;
+			root = workspace.uri ?? workspace.folders[0].uri;
 		}
 
 		// Compute active editor folder
@@ -206,7 +385,7 @@ export class WindowTitle extends Disposable {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			folder = workspace.folders[0];
 		} else if (editorResource) {
-			folder = withNullAsUndefined(this.contextService.getWorkspaceFolder(editorResource));
+			folder = this.contextService.getWorkspaceFolder(editorResource) ?? undefined;
 		}
 
 		// Compute remote
@@ -234,16 +413,39 @@ export class WindowTitle extends Disposable {
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
+		const folderLocation = this.folderLocation;
 		const dirty = editor?.isDirty() && !editor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
-		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
-		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
+		const focusedView: string = this.viewsService.getFocusedViewName();
+		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
+		const activeEditorLanguageId = this.editorService.activeTextEditorLanguageId;
+
+		const variables: Record<string, string> = {};
+		for (const [contextKey, name] of this.variables) {
+			variables[name] = this.contextKeyService.getContextKeyValue(contextKey) ?? '';
+		}
+
+		let titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
+		if (typeof titleTemplate !== 'string') {
+			titleTemplate = defaultWindowTitle;
+		}
+
+		if (!this.titleIncludesEditorState && this.accessibilityService.isScreenReaderOptimized() && this.configurationService.getValue('accessibility.windowTitleOptimized')) {
+			titleTemplate += '${separator}${activeEditorState}';
+		}
+
+		let separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
+		if (typeof separator !== 'string') {
+			separator = defaultWindowTitleSeparator;
+		}
 
 		return template(titleTemplate, {
+			...variables,
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
+			activeEditorLanguageId,
 			activeFolderShort,
 			activeFolderMedium,
 			activeFolderLong,
@@ -252,17 +454,31 @@ export class WindowTitle extends Disposable {
 			rootNameShort,
 			folderName,
 			folderPath,
+			folderLocation,
 			dirty,
 			appName,
 			remoteName,
 			profileName,
+			focusedView,
+			activeEditorState,
 			separator: { label: separator }
 		});
 	}
 
 	isCustomTitleFormat(): boolean {
+		if (this.accessibilityService.isScreenReaderOptimized() || this.titleIncludesEditorState) {
+			return true;
+		}
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
-		return title.value !== title.defaultValue || titleSeparator.value !== titleSeparator.defaultValue;
+
+		if (isConfigured(title) || isConfigured(titleSeparator)) {
+			return true;
+		}
+
+		// Check if the default value is overridden from the configuration registry
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		return title.defaultValue !== configurationProperties[WindowSettingNames.title]?.defaultDefaultValue;
 	}
 }

@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { publishRepository } from './publish';
-import { API as GitAPI, RemoteSourcePublisher, Repository } from './typings/git';
+import { publishRepository } from './publish.js';
+import { GitHubService } from './auth.js';
+import type { API as GitAPI, RemoteSourcePublisher, Repository } from './typings/git.d.ts';
 
 export class GithubRemoteSourcePublisher implements RemoteSourcePublisher {
 	readonly name = 'GitHub';
 	readonly icon = 'github';
 
-	constructor(private gitAPI: GitAPI) { }
+	constructor(private gitAPI: GitAPI, private readonly githubService: GitHubService) { }
 
 	publishRepository(repository: Repository): Promise<void> {
-		return publishRepository(this.gitAPI, repository);
+		return publishRepository(this.gitAPI, this.githubService, repository);
 	}
 }

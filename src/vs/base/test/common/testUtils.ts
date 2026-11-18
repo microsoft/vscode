@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
 export function flakySuite(title: string, fn: () => void) /* Suite */ {
 	return suite(title, function () {
 
@@ -17,3 +18,17 @@ export function flakySuite(title: string, fn: () => void) /* Suite */ {
 		fn.call(this);
 	});
 }
+
+/**
+ * (pseudo)Random boolean generator.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * randomBoolean(); // generates either `true` or `false`
+ * ```
+ *
+ */
+export const randomBoolean = (): boolean => {
+	return Math.random() > 0.5;
+};

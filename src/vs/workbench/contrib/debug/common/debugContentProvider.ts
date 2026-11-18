@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { getMimeTypes } from '../../../../editor/common/services/languagesAssociations.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { DEBUG_SCHEME, IDebugService, IDebugSession } from './debug.js';
+import { Source } from './debugSource.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 /**
  * Debug URI format
@@ -33,7 +34,7 @@ import { ErrorNoTelemetry } from 'vs/base/common/errors';
  * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
  *
  */
-export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
+export class DebugContentProvider extends Disposable implements IWorkbenchContribution, ITextModelContentProvider {
 
 	private static INSTANCE: DebugContentProvider;
 
@@ -46,12 +47,15 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
 	) {
-		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
+		super();
+		this._store.add(textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this));
 		DebugContentProvider.INSTANCE = this;
 	}
 
-	dispose(): void {
-		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose());
+	override dispose(): void {
+		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose(true));
+		this.pendingUpdates.clear();
+		super.dispose();
 	}
 
 	provideTextContent(resource: uri): Promise<ITextModel> | null {
@@ -101,7 +105,17 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 			return this.modelService.createModel(message, languageSelection, resource);
 		};
 
+		const myToken = new CancellationTokenSource();
+		if (model) {
+			this.pendingUpdates.get(model.id)?.dispose(true);
+			this.pendingUpdates.set(model.id, myToken);
+		}
+		const isCurrent = () => !myToken.token.isCancellationRequested && !model?.isDisposed();
+
 		return session.loadSource(resource).then(response => {
+			if (model && !isCurrent()) {
+				return model;
+			}
 
 			if (response && response.body) {
 
@@ -109,21 +123,9 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 					const newContent = response.body.content;
 
-					// cancel and dispose an existing update
-					const cancellationSource = this.pendingUpdates.get(model.id);
-					cancellationSource?.cancel();
-
-					// create and keep update token
-					const myToken = new CancellationTokenSource();
-					this.pendingUpdates.set(model.id, myToken);
-
 					// update text model
 					return this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: newContent, range: model.getFullModelRange() }]).then(edits => {
-
-						// remove token
-						this.pendingUpdates.delete(model.id);
-
-						if (!myToken.token.isCancellationRequested && edits && edits.length > 0) {
+						if (isCurrent() && edits && edits.length > 0) {
 							// use the evil-edit as these models show in readonly-editor only
 							model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 						}
@@ -139,6 +141,11 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 			return createErrModel();
 
-		}, (err: DebugProtocol.ErrorResponse) => createErrModel(err.message));
+		}, (err: DebugProtocol.ErrorResponse) => model && !isCurrent() ? model : createErrModel(err.message)).finally(() => {
+			if (model && this.pendingUpdates.get(model.id) === myToken) {
+				this.pendingUpdates.delete(model.id);
+			}
+			myToken.dispose();
+		});
 	}
 }

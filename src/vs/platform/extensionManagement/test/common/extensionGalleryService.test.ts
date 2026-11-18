@@ -3,27 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { isUUID } from 'vs/base/common/uuid';
-import { mock } from 'vs/base/test/common/mock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IRawGalleryExtensionVersion, sortExtensionVersions } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import assert from 'assert';
+import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isUUID } from '../../../../base/common/uuid.js';
+import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { TargetPlatform } from '../../../extensions/common/extensions.js';
+import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
+import { IFileService } from '../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
+import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
+import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
+import { ExtensionBlockingOrigin, ExtensionBlockingScope, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
+import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, getGalleryLinkTemplate, sortExtensionVersions } from '../../common/extensionGalleryService.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -34,29 +42,455 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	}
 }
 
+const latestVersionUri = 'https://marketplace.test/_apis/public/gallery/publishers/{publisher}/extensions/{name}/latest';
+const queryServiceUri = 'https://marketplace.test/_apis/public/gallery/extensionquery';
+
+class RecordingRequestService implements IRequestService {
+	readonly _serviceBrand: undefined;
+	readonly onDidCompleteRequest = Event.None;
+	readonly requests: { readonly type: string | undefined; readonly url: string | undefined }[] = [];
+	readonly authorizationHeaders: (string | string[] | undefined)[] = [];
+
+	constructor(private readonly response: (options: IRequestOptions) => IRequestContext) { }
+
+	async request(options: IRequestOptions, _token: CancellationToken): Promise<IRequestContext> {
+		this.requests.push({ type: options.type, url: options.url });
+		this.authorizationHeaders.push(options.headers?.Authorization);
+		return this.response(options);
+	}
+
+	async resolveProxy(_url: string): Promise<string | undefined> { return undefined; }
+	async lookupAuthorization(_authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
+	async lookupKerberosAuthorization(_url: string): Promise<string | undefined> { return undefined; }
+	async loadCertificates(): Promise<string[]> { return []; }
+}
+
+class TestLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].join(' '));
+	}
+}
+
+function requestContext(statusCode: number, body: object): IRequestContext {
+	return {
+		res: { statusCode, headers: {} },
+		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
+	};
+}
+
+function galleryQueryResponse(extensions: object[]): object {
+	return {
+		results: [{
+			extensions,
+			resultMetadata: [{
+				metadataType: 'ResultCount',
+				metadataItems: [{ name: 'TotalCount', count: extensions.length }]
+			}]
+		}]
+	};
+}
+
+function rawVersion(version: string, flags?: string, preRelease = false) {
+	const date = '2026-01-01T00:00:00Z';
+	return {
+		version,
+		lastUpdated: date,
+		assetUri: `https://marketplace.test/assets/publisher/extension/${version}`,
+		fallbackAssetUri: `https://marketplace.test/fallback/publisher/extension/${version}`,
+		files: [],
+		properties: [
+			{ key: 'Microsoft.VisualStudio.Code.Engine', value: '*' },
+			...(preRelease ? [{ key: 'Microsoft.VisualStudio.Code.PreRelease', value: 'true' }] : [])
+		],
+		flags
+	};
+}
+
+function rawLatestExtension(versions = [rawVersion('1.0.0')]) {
+	const date = '2026-01-01T00:00:00Z';
+	return {
+		extensionId: 'extension-uuid',
+		extensionName: 'extension',
+		displayName: 'Extension',
+		shortDescription: 'Extension',
+		publisher: {
+			displayName: 'Publisher',
+			publisherId: 'publisher-id',
+			publisherName: 'publisher'
+		},
+		versions,
+		statistics: [],
+		tags: [],
+		releaseDate: date,
+		publishedDate: date,
+		lastUpdated: date,
+		categories: [],
+		flags: ''
+	};
+}
+
+class TestExtensionGalleryManifestService implements IExtensionGalleryManifestService {
+	declare readonly _serviceBrand: undefined;
+	readonly extensionGalleryManifestStatus = ExtensionGalleryManifestStatus.Available;
+	readonly onDidChangeExtensionGalleryManifestStatus = Event.None;
+	readonly onDidChangeExtensionGalleryManifest = Event.None;
+	private accessToken: string | undefined;
+	private serviceIndexUrl: string | undefined;
+
+	private readonly extensionGalleryManifest: IExtensionGalleryManifest = {
+		version: '1.0.0',
+		resources: [
+			{ id: latestVersionUri, type: ExtensionGalleryResourceType.ExtensionLatestVersionUri },
+			{ id: queryServiceUri, type: ExtensionGalleryResourceType.ExtensionQueryService },
+			{ id: 'https://marketplace.test/statistics/{publisher}/{name}/{version}/{statTypeName}', type: ExtensionGalleryResourceType.ExtensionStatisticsUri }
+		],
+		capabilities: { extensionQuery: {} }
+	};
+
+	setAuthorization(accessToken: string | undefined, serviceIndexUrl: string | undefined): void {
+		this.accessToken = accessToken;
+		this.serviceIndexUrl = serviceIndexUrl;
+	}
+
+	async getAccessToken(targetUrl: string): Promise<string | undefined> {
+		return this.accessToken && this.serviceIndexUrl && URI.parse(targetUrl).authority === URI.parse(this.serviceIndexUrl).authority
+			? this.accessToken
+			: undefined;
+	}
+
+	async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest> {
+		return this.extensionGalleryManifest;
+	}
+}
+
 suite('Extension Gallery Service', () => {
-	const disposables: DisposableStore = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService, productService: IProductService, configurationService: IConfigurationService;
 
 	setup(() => {
 		const serviceMachineIdResource = joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid');
 		environmentService = new EnvironmentServiceMock(serviceMachineIdResource);
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider);
-		storageService = new InMemoryStorageService();
+		fileService = createInMemoryFileService(disposables, serviceMachineIdResource.scheme);
+		storageService = disposables.add(new InMemoryStorageService());
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
-	teardown(() => disposables.clear());
+	function createExtensionGalleryService(requestService: IRequestService, logService = new NullLogService(), manifestService = new TestExtensionGalleryManifestService()): ExtensionGalleryServiceWithNoStorageService {
+		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
+		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, manifestService);
+	}
 
 	test('marketplace machine id', async () => {
 		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
+		assert.ok(headers['X-Market-User-Id']);
 		assert.ok(isUUID(headers['X-Market-User-Id']));
 		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
+	});
+
+	test('getExtensions uses query API for extension info without uuid', async () => {
+		const requestService = new RecordingRequestService(options => options.type === 'POST' ? requestContext(200, galleryQueryResponse([])) : requestContext(404, {}));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'ms-vscode.visualization-runner' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			extensions: extensions.map(extension => extension.identifier.id)
+		}, {
+			requests: [{ type: 'POST', url: queryServiceUri }],
+			extensions: []
+		});
+	});
+
+	test('getExtensions authenticates a same-origin query API', async () => {
+		const requestService = new RecordingRequestService(options => options.type === 'POST' ? requestContext(200, galleryQueryResponse([])) : requestContext(404, {}));
+		const manifestService = new TestExtensionGalleryManifestService();
+		manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+		const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+
+		await galleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
+
+		assert.deepStrictEqual(requestService.authorizationHeaders, ['Bearer resource-token']);
+	});
+
+	for (const [primaryOrigin, fallbackOrigin, expectedHeaders] of [
+		['https://marketplace.test', 'https://public.test', ['Bearer resource-token', undefined]],
+		['https://public.test', 'https://marketplace.test', [undefined, 'Bearer resource-token']],
+	] as const) {
+		test(`asset fallback scopes authorization from ${primaryOrigin} to ${fallbackOrigin}`, async () => {
+			const requestService = new RecordingRequestService(options => {
+				if (options.url?.includes('/latest')) {
+					return requestContext(200, rawLatestExtension());
+				}
+				return requestContext(options.url === `${primaryOrigin}/readme` ? 500 : 200, {});
+			});
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+			const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+			await galleryService.getReadme({
+				...extension,
+				assets: { ...extension.assets, readme: { uri: `${primaryOrigin}/readme`, fallbackUri: `${fallbackOrigin}/readme` } },
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual(requestService.authorizationHeaders, ['Bearer resource-token', ...expectedHeaders]);
+		});
+	}
+
+	test('VSIX fallback preserves request headers without forwarding the private token', async () => {
+		const downloadHeaders: IRequestOptions['headers'][] = [];
+		const requestService = new RecordingRequestService(options => {
+			if (options.url?.includes('/latest')) {
+				return requestContext(200, rawLatestExtension());
+			}
+			downloadHeaders.push(options.headers);
+			return requestContext(options.url?.startsWith('https://marketplace.test/') ? 500 : 200, {});
+		});
+		const manifestService = new TestExtensionGalleryManifestService();
+		manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+		const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		await galleryService.download({
+			...extension,
+			queryContext: { 'X-Market-Search-Activity-Id': 'activity-id' },
+			assets: { ...extension.assets, download: { uri: 'https://marketplace.test/vsix', fallbackUri: 'https://public.test/vsix' } },
+		}, joinPath(environmentService.serviceMachineIdResource, '..', 'extension.vsix'), InstallOperation.Install);
+
+		assert.deepStrictEqual(downloadHeaders.map(headers => ({
+			authorization: headers?.Authorization,
+			activityId: headers?.['X-Market-Search-Activity-Id'],
+			clientId: headers?.['X-Market-Client-Id'],
+		})), [
+			{ authorization: 'Bearer resource-token', activityId: 'activity-id', clientId: `VSCode ${productService.version}` },
+			{ authorization: undefined, activityId: 'activity-id', clientId: `VSCode ${productService.version}` },
+		]);
+	});
+
+	for (const [origin, expectedAuthorization] of [
+		['https://marketplace.test', 'Bearer resource-token'],
+		['https://public.test', undefined],
+	] as const) {
+		test(`control manifest scopes authorization to ${origin}`, async () => {
+			productService = {
+				...productService,
+				extensionsGallery: {
+					serviceUrl: 'https://marketplace.test',
+					controlUrl: `${origin}/control`,
+					extensionUrlTemplate: '',
+					resourceUrlTemplate: '',
+					nlsBaseUrl: '',
+				},
+			};
+			const requestService = new RecordingRequestService(() => requestContext(200, { malicious: [] }));
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+
+			await galleryService.getExtensionsControlManifest();
+
+			assert.deepStrictEqual(requestService.authorizationHeaders, [expectedAuthorization]);
+		});
+	}
+
+	if (!isWeb) {
+		test('statistics requests resolve authorization afresh for their target', async () => {
+			const requestService = new RecordingRequestService(() => requestContext(200, {}));
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+
+			await galleryService.reportStatistic('publisher', 'extension', '1.0.0', StatisticType.Install);
+			manifestService.setAuthorization('other-token', 'https://public.test');
+			await galleryService.reportStatistic('publisher', 'extension', '1.0.0', StatisticType.Install);
+
+			assert.deepStrictEqual(requestService.authorizationHeaders, ['Bearer resource-token', undefined]);
+		});
+	}
+
+	test('getExtensions uses latest resource API for extension info with uuid', async () => {
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawLatestExtension()) : requestContext(200, galleryQueryResponse([])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			extensions: extensions.map(extension => ({ id: extension.identifier.id, uuid: extension.identifier.uuid, version: extension.version }))
+		}, {
+			requests: [{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' }],
+			extensions: [{ id: 'publisher.extension', uuid: 'extension-uuid', version: '1.0.0' }]
+		});
+	});
+
+	test('getCompatibleExtension does not query all versions for an extension-level block', async () => {
+		const rawExtension = { ...rawLatestExtension(), flags: 'blocked', blocking: { origin: 'policy' } };
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawExtension) : requestContext(200, galleryQueryResponse([])));
+		const galleryService = createExtensionGalleryService(requestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		const compatibleExtension = await galleryService.getCompatibleExtension(extension, false, TargetPlatform.UNIVERSAL);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			blockingInfo: compatibleExtension?.blockingInfo,
+		}, {
+			requests: [{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' }],
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension },
+		});
+	});
+
+	test('getExtensions falls back to query API when latest resource response omits files', async () => {
+		const rawExtension = rawLatestExtension();
+		const invalidLatestExtension = {
+			...rawExtension,
+			versions: rawExtension.versions.map(version => ({ ...version, files: undefined }))
+		};
+		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, invalidLatestExtension) : requestContext(200, galleryQueryResponse([rawExtension])));
+		const logService = new TestLogService();
+		const galleryService = createExtensionGalleryService(requestService, logService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			extensions: extensions.map(extension => ({ id: extension.identifier.id, uuid: extension.identifier.uuid, version: extension.version })),
+			errors: logService.errors
+		}, {
+			requests: [
+				{ type: 'GET', url: 'https://marketplace.test/_apis/public/gallery/publishers/publisher/extensions/extension/latest' },
+				{ type: 'POST', url: queryServiceUri }
+			],
+			extensions: [{ id: 'publisher.extension', uuid: 'extension-uuid', version: '1.0.0' }],
+			errors: []
+		});
+	});
+
+	test('getExtensions skips a blocked latest version in display queries', async () => {
+		let request = 0;
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([
+			request++ === 0
+				? rawLatestExtension([rawVersion('2.0.0', 'blocked')])
+				: rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')])
+		])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension' }],
+			{ targetPlatform: TargetPlatform.UNIVERSAL },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			extensions: extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
+			requests: requestService.requests
+		}, {
+			extensions: [{ version: '1.0.0', blockingInfo: undefined }],
+			requests: [
+				{ type: 'POST', url: queryServiceUri },
+				{ type: 'POST', url: queryServiceUri }
+			]
+		});
+	});
+
+	test('getExtensions fallback skips a blocked latest version', async () => {
+		let request = 0;
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([
+			request++ === 0
+				? rawLatestExtension([rawVersion('2.0.0', 'blocked', true)])
+				: rawLatestExtension([rawVersion('2.0.0', 'blocked', true), rawVersion('1.0.0', undefined, true)])
+		])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			versions: extensions.map(extension => extension.version),
+			requests: requestService.requests
+		}, {
+			versions: ['1.0.0'],
+			requests: [
+				{ type: 'POST', url: queryServiceUri },
+				{ type: 'POST', url: queryServiceUri }
+			]
+		});
+	});
+
+	test('getExtensions skips a blocked latest version in compatible queries', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension' }],
+			{ compatible: true, targetPlatform: TargetPlatform.UNIVERSAL, productVersion: { version: product.version, date: product.date } },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(
+			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
+			[{ version: '1.0.0', blockingInfo: undefined }]
+		);
+	});
+
+	test('getExtensions returns no compatible extension when every version is blocked', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0', 'blocked')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension' }],
+			{ compatible: true, targetPlatform: TargetPlatform.UNIVERSAL, productVersion: { version: product.version, date: product.date } },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			extensions,
+			requests: requestService.requests
+		}, {
+			extensions: [],
+			requests: [
+				{ type: 'POST', url: queryServiceUri },
+				{ type: 'POST', url: queryServiceUri }
+			]
+		});
+	});
+
+	test('getExtensions returns no result for an explicitly requested blocked version', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension', version: '2.0.0' }],
+			{ targetPlatform: TargetPlatform.UNIVERSAL },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(extensions, []);
+	});
+
+	test('getExtensions can return blocking metadata for an explicitly requested version', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension', version: '2.0.0' }],
+			{ targetPlatform: TargetPlatform.UNIVERSAL, includeBlockedVersions: true },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(
+			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
+			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Version } }]
+		);
 	});
 
 	test('sorting single extension version without target platform', async () => {
@@ -73,51 +507,9 @@ suite('Extension Gallery Service', () => {
 		assert.deepStrictEqual(actual, expected);
 	});
 
-	test('sorting single extension version with fallback target platform', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
 	test('sorting single extension version with not compatible target platform', async () => {
 		const actual = [aExtensionVersion('1.1.2', TargetPlatform.DARWIN_ARM64)];
 		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2')];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first with no fallbacks', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.DARWIN_X64), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.DARWIN_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first and fallback at last', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [actual[0], actual[2], actual[1]];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred is not first', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2')];
-		const expected = [actual[1], actual[0], actual[2]];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred is at the end', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64)];
-		const expected = [actual[2], actual[0], actual[1]];
 		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
 		assert.deepStrictEqual(actual, expected);
 	});
@@ -144,8 +536,8 @@ suite('Extension Gallery Service', () => {
 	});
 
 	test('sorting multiple extension versions with target platforms - 3', async () => {
-		const actual = [aExtensionVersion('1.2.4'), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.1'), aExtensionVersion('1.0.0', TargetPlatform.DARWIN_ARM64), aExtensionVersion('1.0.0', TargetPlatform.WIN32_IA32), aExtensionVersion('1.0.0', TargetPlatform.WIN32_ARM64)];
-		const expected = [actual[0], actual[1], actual[2], actual[5], actual[4], actual[3]];
+		const actual = [aExtensionVersion('1.2.4'), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.1'), aExtensionVersion('1.0.0', TargetPlatform.DARWIN_ARM64), aExtensionVersion('1.0.0', TargetPlatform.WIN32_ARM64)];
+		const expected = [actual[0], actual[1], actual[2], actual[4], actual[3]];
 		sortExtensionVersions(actual, TargetPlatform.WIN32_ARM64);
 		assert.deepStrictEqual(actual, expected);
 	});
@@ -153,4 +545,436 @@ suite('Extension Gallery Service', () => {
 	function aExtensionVersion(version: string, targetPlatform?: TargetPlatform): IRawGalleryExtensionVersion {
 		return { version, targetPlatform } as IRawGalleryExtensionVersion;
 	}
+
+	function aPreReleaseExtensionVersion(version: string, targetPlatform?: TargetPlatform): IRawGalleryExtensionVersion {
+		return {
+			version,
+			targetPlatform,
+			properties: [{ key: 'Microsoft.VisualStudio.Code.PreRelease', value: 'true' }]
+		} as IRawGalleryExtensionVersion;
+	}
+
+	suite('filterLatestExtensionVersionsForTargetPlatform', () => {
+
+		test('should return empty array for empty input', () => {
+			const result = filterLatestExtensionVersionsForTargetPlatform([], TargetPlatform.WIN32_X64, [TargetPlatform.WIN32_X64]);
+			assert.deepStrictEqual(result, []);
+		});
+
+		test('should return single version when only one version provided', () => {
+			const versions = [aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64)];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+			assert.deepStrictEqual(result, versions);
+		});
+
+		test('should include latest release and latest pre-release versions for same platform', () => {
+			const release = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+			const prerelease = aPreReleaseExtensionVersion('0.9.0', TargetPlatform.WIN32_X64);
+			const versions = [release, prerelease];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should include both since they have different version numbers
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0], release);
+			assert.strictEqual(result[1], prerelease);
+		});
+
+		test('should include latest prerelease and latest release versions for same platform', () => {
+			const prerelease = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.WIN32_X64);
+			const release = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+			const versions = [prerelease, release];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should include both since they have different version numbers
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0], prerelease);
+			assert.strictEqual(result[1], release);
+		});
+
+		test('should include one version per target platform for release versions', () => {
+			const version1 = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+			const version2 = aExtensionVersion('1.0.0', TargetPlatform.DARWIN_X64);
+			const version3 = aExtensionVersion('1.0.0', TargetPlatform.LINUX_X64);
+			const versions = [version1, version2, version3];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64, TargetPlatform.LINUX_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should include all three versions: WIN32_X64 (compatible, first of type) + DARWIN_X64 & LINUX_X64 (non-compatible)
+			assert.strictEqual(result.length, 3);
+			assert.ok(result.includes(version1)); // Compatible with target platform
+			assert.ok(result.includes(version2)); // Non-compatible, included
+			assert.ok(result.includes(version3)); // Non-compatible, included
+		});
+
+
+		test('should handle versions without target platform (UNDEFINED)', () => {
+			const version1 = aExtensionVersion('1.0.0'); // No target platform specified
+			const version2 = aExtensionVersion('0.9.0'); // No target platform specified
+			const versions = [version1, version2];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should only include the first version since they both have UNDEFINED platform
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0], version1);
+		});
+
+		test('should handle mixed release and pre-release versions across multiple platforms', () => {
+			const releaseWin = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+			const releaseMac = aExtensionVersion('1.0.0', TargetPlatform.DARWIN_X64);
+			const preReleaseWin = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.WIN32_X64);
+			const preReleaseMac = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.DARWIN_X64);
+
+			const versions = [releaseWin, releaseMac, preReleaseWin, preReleaseMac];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should include: WIN32_X64 compatible (release + prerelease) + DARWIN_X64 non-compatible (all versions)
+			assert.strictEqual(result.length, 4);
+			assert.ok(result.includes(releaseWin)); // Compatible release
+			assert.ok(result.includes(releaseMac)); // Non-compatible, included
+			assert.ok(result.includes(preReleaseWin)); // Compatible pre-release
+			assert.ok(result.includes(preReleaseMac)); // Non-compatible, included
+		});
+
+		test('should handle complex scenario with multiple versions and platforms', () => {
+			const versions = [
+				aExtensionVersion('2.0.0', TargetPlatform.WIN32_X64),
+				aExtensionVersion('2.0.0', TargetPlatform.DARWIN_X64),
+				aPreReleaseExtensionVersion('2.1.0', TargetPlatform.WIN32_X64),
+				aPreReleaseExtensionVersion('2.1.0', TargetPlatform.LINUX_X64),
+				aExtensionVersion('2.0.0'), // No platform specified
+				aPreReleaseExtensionVersion('2.1.0'), // Pre-release, no platform specified
+			];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64, TargetPlatform.LINUX_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Expected for WIN32_X64 target platform:
+			// - Compatible (WIN32_X64 + UNDEFINED): release (2.0.0 WIN32_X64) and pre-release (2.1.0 WIN32_X64)
+			// - Non-compatible: DARWIN_X64 release, LINUX_X64 pre-release
+			// Total: 4 versions (1 compatible release + 1 compatible pre-release + 2 non-compatible)
+			assert.strictEqual(result.length, 4);
+
+			// Check specific versions are included
+			assert.ok(result.includes(versions[0])); // 2.0.0 WIN32_X64 (compatible release)
+			assert.ok(result.includes(versions[1])); // 2.0.0 DARWIN_X64 (non-compatible)
+			assert.ok(result.includes(versions[2])); // 2.1.0 WIN32_X64 (compatible pre-release)
+			assert.ok(result.includes(versions[3])); // 2.1.0 LINUX_X64 (non-compatible)
+		});
+
+		test('should keep only first compatible version when specific platform comes before undefined', () => {
+			// Test how UNDEFINED platform interacts with specific platforms
+			const versions = [
+				aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64),
+				aExtensionVersion('1.0.0'), // UNDEFINED platform - compatible with all
+			];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Both are compatible with WIN32_X64, first one should be included (specific platform preferred)
+			assert.strictEqual(result.length, 1);
+			assert.ok(result.includes(versions[0])); // WIN32_X64 should be included (specific platform)
+		});
+
+		test('should handle higher version with specific platform vs lower version with universal platform', () => {
+			// Scenario: newer version for specific platform vs older version with universal compatibility
+			const higherVersionSpecificPlatform = aExtensionVersion('2.0.0', TargetPlatform.WIN32_X64);
+			const lowerVersionUniversal = aExtensionVersion('1.5.0'); // UNDEFINED/universal platform
+
+			const versions = [higherVersionSpecificPlatform, lowerVersionUniversal];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Both are compatible with WIN32_X64, but only the first release version should be included
+			assert.strictEqual(result.length, 1);
+			assert.ok(result.includes(higherVersionSpecificPlatform)); // First compatible release
+			assert.ok(!result.includes(lowerVersionUniversal)); // Filtered (second compatible release)
+		});
+
+		test('should handle higher version with universal platform vs lower version with specific platform', () => {
+			// Scenario: higher universal version comes first, then lower platform-specific version
+			const higherVersionUniversal = aExtensionVersion('2.0.0'); // UNDEFINED/universal platform
+			const lowerVersionSpecificPlatform = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+
+			const versions = [higherVersionUniversal, lowerVersionSpecificPlatform];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Both are compatible with WIN32_X64, the first (higher) version should be kept
+			// Platform-specific version should NOT replace since it has a different (lower) version number
+			assert.strictEqual(result.length, 1);
+			assert.ok(result.includes(higherVersionUniversal)); // First compatible release (higher version)
+			assert.ok(!result.includes(lowerVersionSpecificPlatform)); // Filtered (lower version)
+		});
+
+		test('should handle multiple specific platforms vs universal platform with version differences', () => {
+			// Complex scenario with multiple platforms and universal compatibility
+			const versions = [
+				aExtensionVersion('2.0.0', TargetPlatform.WIN32_X64),    // Highest version, specific platform
+				aExtensionVersion('1.9.0', TargetPlatform.DARWIN_X64),  // Lower version, different specific platform
+				aExtensionVersion('1.8.0'),                             // Lowest version, universal platform
+			];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64, TargetPlatform.LINUX_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should include:
+			// - 2.0.0 WIN32_X64 (specific target platform match - replaces UNDEFINED if it came first)
+			// - 1.9.0 DARWIN_X64 (non-compatible, included)
+			assert.strictEqual(result.length, 2);
+			assert.ok(result.includes(versions[0])); // 2.0.0 WIN32_X64
+			assert.ok(result.includes(versions[1])); // 1.9.0 DARWIN_X64
+		});
+
+		test('should include universal platform when no specific platforms conflict', () => {
+			// Test where universal platform is included because no specific platforms conflict
+			const universalVersion = aExtensionVersion('1.0.0'); // UNDEFINED/universal platform
+			const specificVersion = aExtensionVersion('1.0.0', TargetPlatform.LINUX_ARM64);
+
+			const versions = [universalVersion, specificVersion];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64]; // Note: LINUX_ARM64 not in target platforms
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Universal is compatible with WIN32_X64, specific version is not compatible
+			// So we should get: universal (first compatible release) + specific (non-compatible)
+			assert.strictEqual(result.length, 2);
+			assert.ok(result.includes(universalVersion)); // Compatible with WIN32_X64
+			assert.ok(result.includes(specificVersion)); // Non-compatible, included
+		});
+
+		test('should include all non-compatible platform versions', () => {
+			const version1 = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+			const version2 = aExtensionVersion('1.0.0', TargetPlatform.DARWIN_X64);
+			const version3 = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.LINUX_X64);
+			const versions = [version1, version2, version3];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64, TargetPlatform.LINUX_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			assert.ok(result.includes(version2)); // Non-compatible, included
+			assert.ok(result.includes(version3)); // Non-compatible, included
+		});
+
+		test('should prefer specific target platform over undefined when same version exists for both', () => {
+			const undefinedVersion = aExtensionVersion('1.0.0'); // UNDEFINED platform, appears first
+			const specificVersion = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Specific platform, appears second
+
+			const versions = [undefinedVersion, specificVersion];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should return the specific platform version (WIN32_X64), not the undefined one
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0], specificVersion);
+			assert.ok(!result.includes(undefinedVersion));
+		});
+
+		test('should replace undefined pre-release with specific platform pre-release', () => {
+			const undefinedPreRelease = aPreReleaseExtensionVersion('1.0.0'); // UNDEFINED platform pre-release, appears first
+			const specificPreRelease = aPreReleaseExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Specific platform pre-release, appears second
+
+			const versions = [undefinedPreRelease, specificPreRelease];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should return the specific platform pre-release, not the undefined one
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0], specificPreRelease);
+			assert.ok(!result.includes(undefinedPreRelease));
+		});
+
+		test('should handle explicit UNIVERSAL platform', () => {
+			const universalVersion = aExtensionVersion('1.0.0', TargetPlatform.UNIVERSAL);
+			const specificVersion = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64);
+
+			const versions = [universalVersion, specificVersion];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should return the specific platform version, not the universal one
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0], specificVersion);
+			assert.ok(!result.includes(universalVersion));
+		});
+
+		test('should handle both release and pre-release with same version replacement', () => {
+			// Both release and pre-release with undefined platform, then specific platform with same versions
+			// Versions sorted by version descending (pre-release 1.1.0, release 1.0.0, then same versions with specific platform)
+			const undefinedPreRelease = aPreReleaseExtensionVersion('1.1.0'); // UNDEFINED pre-release
+			const specificPreRelease = aPreReleaseExtensionVersion('1.1.0', TargetPlatform.WIN32_X64); // Specific pre-release (same version)
+			const undefinedRelease = aExtensionVersion('1.0.0'); // UNDEFINED release
+			const specificRelease = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Specific release (same version)
+
+			const versions = [undefinedPreRelease, specificPreRelease, undefinedRelease, specificRelease];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should return both specific platform versions (they replaced the undefined ones)
+			assert.strictEqual(result.length, 2);
+			assert.ok(result.includes(specificRelease));
+			assert.ok(result.includes(specificPreRelease));
+			assert.ok(!result.includes(undefinedRelease));
+			assert.ok(!result.includes(undefinedPreRelease));
+		});
+
+		test('should not replace when specific platform is for different platform', () => {
+			const undefinedVersion = aExtensionVersion('1.0.0'); // UNDEFINED, compatible with WIN32_X64
+			const specificVersionDarwin = aExtensionVersion('1.0.0', TargetPlatform.DARWIN_X64); // Specific for DARWIN, not compatible with WIN32_X64
+
+			const versions = [undefinedVersion, specificVersionDarwin];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should return undefined version (compatible with WIN32_X64) and specific DARWIN version (non-compatible, always included)
+			assert.strictEqual(result.length, 2);
+			assert.ok(result.includes(undefinedVersion));
+			assert.ok(result.includes(specificVersionDarwin));
+		});
+
+		test('should handle replacement with non-compatible versions in between', () => {
+			// Versions sorted by version descending
+			const undefinedVersion = aExtensionVersion('1.0.0'); // UNDEFINED, compatible with WIN32_X64
+			const specificVersion = aExtensionVersion('1.0.0', TargetPlatform.WIN32_X64); // Specific for WIN32_X64 (same version)
+			const nonCompatibleVersion = aExtensionVersion('0.9.0', TargetPlatform.LINUX_ARM64); // Non-compatible platform (lower version)
+
+			const versions = [undefinedVersion, specificVersion, nonCompatibleVersion];
+			const allTargetPlatforms = [TargetPlatform.WIN32_X64, TargetPlatform.DARWIN_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.WIN32_X64, allTargetPlatforms);
+
+			// Should return specific WIN32_X64 version (replacing undefined since same version) and non-compatible LINUX_ARM64 version
+			assert.strictEqual(result.length, 2);
+			assert.ok(result.includes(specificVersion));
+			assert.ok(result.includes(nonCompatibleVersion));
+			assert.ok(!result.includes(undefinedVersion));
+		});
+
+		test('should filter versions for linux-x64 target platform with mixed universal and platform-specific versions', () => {
+			// Data from real extension versions (sorted by version descending, as returned by gallery API):
+			// 0.15.0 - pre-release, universal
+			// 0.14.0 - release, universal
+			// 0.6.0 - release, linux-x64
+			// 0.5.1 - pre-release, linux-x64
+			const versions = [
+				aPreReleaseExtensionVersion('0.15.0'),                              // pre-release, universal (highest version)
+				aExtensionVersion('0.14.0'),                                        // release, universal
+				aExtensionVersion('0.6.0', TargetPlatform.LINUX_X64),               // release, linux-x64
+				aPreReleaseExtensionVersion('0.5.1', TargetPlatform.LINUX_X64),     // pre-release, linux-x64 (lowest version)
+			];
+			const allTargetPlatforms = [TargetPlatform.LINUX_X64];
+
+			const result = filterLatestExtensionVersionsForTargetPlatform(versions, TargetPlatform.LINUX_X64, allTargetPlatforms);
+
+			// Expected:
+			// - 0.15.0 universal (first compatible pre-release, higher version than 0.5.1 linux-x64)
+			// - 0.14.0 universal (first compatible release, higher version than 0.6.0 linux-x64)
+			// Platform-specific versions are NOT preferred when they have lower version numbers
+			assert.strictEqual(result.length, 2);
+			assert.ok(result.includes(versions[0])); // 0.15.0 universal (pre-release)
+			assert.ok(result.includes(versions[1])); // 0.14.0 universal (release)
+		});
+
+	});
+
+	suite('getBlockingInfo', () => {
+
+		const notBlocked = { flags: 'public, validated' };
+
+		test('absent flag and object is not blocked', () => {
+			assert.strictEqual(getBlockingInfo(notBlocked, {}), undefined);
+		});
+
+		test('extension flag without object is blocked', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, validated, blocked' }, {}), {
+				origin: ExtensionBlockingOrigin.Service,
+				scope: ExtensionBlockingScope.Extension,
+			});
+		});
+
+		test('extension object without flag is blocked', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public', blocking: { origin: 'policy' } }, {}), {
+				origin: ExtensionBlockingOrigin.Policy,
+				scope: ExtensionBlockingScope.Extension,
+			});
+		});
+
+		test('a blocked version blocks the extension in hand, by flag or by object', () => {
+			assert.deepStrictEqual(
+				[{ flags: 'validated, blocked' }, { blocking: { origin: 'policy' } }]
+					.map(version => getBlockingInfo(notBlocked, version)),
+				[
+					{ origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Version },
+					{ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version },
+				]);
+		});
+
+		test('an extension block outranks a version block', () => {
+			assert.deepStrictEqual(
+				getBlockingInfo({ flags: 'blocked', blocking: { origin: 'service' } }, { flags: 'blocked', blocking: { origin: 'policy' } }),
+				{ origin: ExtensionBlockingOrigin.Service, scope: ExtensionBlockingScope.Extension });
+		});
+
+		test('unrecognized, absent, and wrong-typed origins degrade to service without failing', () => {
+			assert.deepStrictEqual(
+				[{ origin: 'tenant' }, {}, { origin: 5 }, { origin: null }, { origin: {} }]
+					.map(blocking => getBlockingInfo({ flags: 'blocked', blocking: blocking as IRawGalleryExtensionBlocking }, {})?.origin),
+				new Array(5).fill(ExtensionBlockingOrigin.Service));
+		});
+
+		test('unknown flag tokens do not fail parsing', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, quarantined, blocked, embargoed' }, {}), {
+				origin: ExtensionBlockingOrigin.Service,
+				scope: ExtensionBlockingScope.Extension,
+			});
+		});
+
+		test('blocked is matched as a whole token', () => {
+			assert.strictEqual(getBlockingInfo({ flags: 'public, unblocked' }, { flags: 'unblocked' }), undefined);
+		});
+	});
+
+	suite('getGalleryLinkTemplate', () => {
+		const manifest: IExtensionGalleryManifest = {
+			version: '',
+			resources: [
+				{ id: 'https://marketplace/items?itemName={publisher}.{name}', type: `${ExtensionGalleryResourceType.ExtensionDetailsViewUri}/1.0.0-preview` },
+				{ id: 'https://marketplace/public/items?itemName={publisher}.{name}', type: 'PublicExtensionDetailsViewUriTemplate/1.0.0-preview' },
+			],
+			capabilities: { extensionQuery: {} }
+		};
+
+		test('uses the default link type when none is given', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, undefined, ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/items?itemName={publisher}.{name}');
+		});
+
+		test('uses the given link type when the manifest defines it', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'PublicExtensionDetailsViewUriTemplate/1.0.0-preview', ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/public/items?itemName={publisher}.{name}');
+		});
+
+		test('falls back to the default link type when the manifest does not define the given one', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'UnknownExtensionDetailsViewUriTemplate/1.0.0-preview', ExtensionGalleryResourceType.ExtensionDetailsViewUri), 'https://marketplace/items?itemName={publisher}.{name}');
+		});
+
+		test('returns undefined when neither link type is defined', () => {
+			assert.strictEqual(getGalleryLinkTemplate(manifest, 'UnknownPublisherViewUriTemplate', ExtensionGalleryResourceType.PublisherViewUri), undefined);
+		});
+	});
 });

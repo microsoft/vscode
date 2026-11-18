@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { LinkedList } from 'vs/base/common/linkedList';
+import assert from 'assert';
+import { LinkedList } from '../../common/linkedList.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('LinkedList', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertElements<E>(list: LinkedList<E>, ...elements: E[]) {
 

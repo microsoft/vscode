@@ -1,0 +1,322 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-feedback-widget {
+	position: absolute;
+	width: 320px;
+	max-width: 100%;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.4;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.agent-feedback-widget.visible {
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+}
+
+.agent-feedback-widget:focus {
+	outline: none;
+}
+
+.agent-feedback-widget-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+}
+
+.agent-feedback-widget-body.scrollable {
+	position: relative;
+	overflow-y: auto;
+	overscroll-behavior-y: contain;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.agent-feedback-widget-body.scrollable:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-feedback-widget-item {
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	position: relative;
+	min-width: 0;
+	padding: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size60);
+	background-color: var(--vscode-agentFeedbackEditorWidget-background, var(--vscode-menu-background));
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentFeedbackEditorWidget-border, var(--vscode-editorWidget-border, var(--vscode-contrastBorder)));
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-lg);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.agent-feedback-widget-item.focused {
+	border-color: var(--vscode-focusBorder);
+}
+
+.agent-feedback-widget-item:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.hc-black .agent-feedback-widget-item,
+.hc-light .agent-feedback-widget-item {
+	background-color: var(--vscode-editorWidget-background);
+	border-color: var(--vscode-contrastBorder);
+	box-shadow: none;
+}
+
+.hc-black .agent-feedback-widget-item.focused,
+.hc-light .agent-feedback-widget-item.focused {
+	border-color: var(--vscode-focusBorder);
+}
+
+.agent-feedback-widget-item-header {
+	display: flex;
+	align-items: center;
+	min-height: 20px;
+	gap: var(--vscode-spacing-size60);
+}
+
+.agent-feedback-widget-author {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.agent-feedback-widget .codicon.agent-feedback-widget-review-icon {
+	flex-shrink: 0;
+	color: var(--vscode-charts-green);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.agent-feedback-widget-status {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.agent-feedback-widget-status:empty {
+	display: none;
+}
+
+.agent-feedback-widget-item-actions {
+	flex-shrink: 0;
+}
+
+.agent-feedback-widget .agent-feedback-widget-item-actions .actions-container {
+	gap: var(--vscode-spacing-size40);
+}
+
+.agent-feedback-widget .agent-feedback-widget-item-actions .action-label {
+	box-sizing: border-box;
+	width: 20px;
+	height: 20px;
+	padding: var(--vscode-spacing-size20);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.agent-feedback-widget .agent-feedback-widget-item-actions .action-label:hover {
+	color: var(--vscode-foreground);
+}
+
+.agent-feedback-widget-line-info {
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-feedback-widget .monaco-button.agent-feedback-widget-expand {
+	align-self: flex-start;
+	width: auto;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: none;
+	color: var(--vscode-textLink-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: inherit;
+	text-align: left;
+}
+
+.agent-feedback-widget .monaco-button.agent-feedback-widget-expand:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.agent-feedback-widget .agent-feedback-widget-expand[hidden] {
+	display: none;
+}
+
+.agent-feedback-widget-text {
+	color: var(--vscode-descriptionForeground);
+	overflow-wrap: anywhere;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.agent-feedback-widget-text.collapsed:not(.editing) {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	overflow: hidden;
+}
+
+.agent-feedback-widget-text .rendered-markdown p {
+	margin: 0;
+}
+
+.agent-feedback-widget-text .rendered-markdown > :first-child {
+	margin-top: 0;
+}
+
+.agent-feedback-widget-text .rendered-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+.agent-feedback-widget-text .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: inherit;
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
+}
+
+.agent-feedback-widget-suggestion {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	padding-left: var(--vscode-spacing-size80);
+}
+
+.agent-feedback-widget-item:not(.expanded) > .agent-feedback-widget-suggestion,
+.agent-feedback-widget-item:not(.expanded) > .agent-feedback-widget-replies {
+	display: none;
+}
+
+.agent-feedback-widget-suggestion {
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-charts-purple);
+}
+
+.agent-feedback-widget-suggestion-header {
+	font-size: var(--vscode-fontSize-label3);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-feedback-widget-suggestion-edit {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.agent-feedback-widget-suggestion-text {
+	margin: 0;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow-x: auto;
+	white-space: pre-wrap;
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 1.45;
+	background: var(--vscode-editorWidget-background);
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+/* Gutter decoration for range indicator on hover */
+.agent-feedback-widget-range-glyph {
+	margin-left: 8px;
+	z-index: 5;
+	border-left: 2px solid var(--vscode-editorGutter-modifiedBackground);
+}
+
+/* Inline edit textarea */
+.agent-feedback-widget-text.editing {
+	padding: 0;
+}
+
+.agent-feedback-widget-edit-textarea {
+	width: 100%;
+	min-height: 22px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font: inherit;
+	font-size: inherit;
+	line-height: 1.4;
+	resize: none;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.agent-feedback-widget-edit-textarea:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+/* Replies — visually grouped with the parent comment but with subtle separation */
+.agent-feedback-widget-replies {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
+.agent-feedback-widget-reply {
+	padding-top: var(--vscode-spacing-size40);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+}
+
+.agent-feedback-widget-reply-author {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+.agent-feedback-widget-reply-text {
+	color: var(--vscode-foreground);
+	overflow-wrap: anywhere;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.agent-feedback-widget-reply-text .rendered-markdown p {
+	margin: 0;
+}
+
+.agent-feedback-widget-reply-text .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: var(--vscode-fontSize-label3);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
+}
+
+/* Reply composer shown when adding to a comment */
+.agent-feedback-widget-add-reply {
+	padding-top: var(--vscode-spacing-size40);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+}
+
+.agent-feedback-widget-add-reply .agent-feedback-widget-edit-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 1;
+}

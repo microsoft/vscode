@@ -3,109 +3,224 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/review';
-import * as dom from 'vs/base/browser/dom';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as languages from 'vs/editor/common/languages';
-import { IMarkdownRendererOptions } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { CommentReply } from 'vs/workbench/contrib/comments/browser/commentReply';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
-import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
-import { CommentThreadAdditionalActions } from 'vs/workbench/contrib/comments/browser/commentThreadAdditionalActions';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { IRange } from 'vs/editor/common/core/range';
-import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import './media/review.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { IMarkdownRendererExtraOptions } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { CommentMenus } from './commentMenus.js';
+import { CommentReply } from './commentReply.js';
+import { ICommentService } from './commentService.js';
+import { CommentThreadBody } from './commentThreadBody.js';
+import { CommentThreadHeader, ICommentThreadCollapseActionPresentation } from './commentThreadHeader.js';
+import { CommentThreadAdditionalActions } from './commentThreadAdditionalActions.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { LayoutableEditor } from './simpleCommentEditor.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
+/**
+ * Options for how a comment thread widget presents the thread.
+ */
+export interface ICommentThreadWidgetOptions {
+	/** Overrides how the action that collapses the thread is presented. */
+	readonly collapseAction?: ICommentThreadCollapseActionPresentation;
+	/**
+	 * Lets only the comments scroll, within the height set by {@link CommentThreadWidget.layoutCommentsHeight}, so that
+	 * the reply and the additional actions below them stay in view. When the thread is too short even for those, such
+	 * as in a short editor, the whole body scrolls.
+	 */
+	readonly scrollableComments?: boolean;
+}
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
-	private _body!: CommentThreadBody<T>;
+	private _body: CommentThreadBody<T>;
 	private _commentReply?: CommentReply<T>;
 	private _additionalActions?: CommentThreadAdditionalActions<T>;
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
-	private _styleElement: HTMLStyleElement;
 	private _commentThreadContextValue: IContextKey<string | undefined>;
-	private _onDidResize = new Emitter<dom.Dimension>();
+	private _focusedContextKey: IContextKey<boolean>;
+	private _onDidResize = this._register(new Emitter<dom.Dimension>());
 	onDidResize = this._onDidResize.event;
+	private readonly _onDidChangeContentSize = this._register(new Emitter<void>());
+	/** Fires when the size that the thread's content needs changes. Only fires when the comments are scrollable. */
+	readonly onDidChangeContentSize = this._onDidChangeContentSize.event;
+	private _contentResizeObserver: dom.DisposableResizeObserver | undefined;
+	/** Scrolls the whole body when the comments are scrollable. */
+	private _bodyScrollable: DomScrollableElement | undefined;
+
+	private _commentThreadState: languages.CommentThreadState | undefined;
 
 	get commentThread() {
 		return this._commentThread;
 	}
 
+	get headerDomNode(): HTMLElement {
+		return this._header.domNode;
+	}
+
+	/**
+	 * Whether a reply is being written or a comment is being edited. The reply of a thread without comments is a new
+	 * comment, which is being written even before its editor opens.
+	 */
+	get isEditing(): boolean {
+		const isWritingReply = !!this._commentReply && (this._commentReply.isReplyExpanded || !this._commentThread.comments?.length);
+		return isWritingReply || this._body.hasCommentsInEditMode();
+	}
+
+	/**
+	 * Measures the width the thread needs to show its title actions, reply and additional actions in full, and the
+	 * width at which none of its content wraps or is cut off. Neither depends on the thread's width.
+	 */
+	measureWidths(): { minimum: number; natural: number } {
+		const header = this._header.measureWidths();
+		const reply = this._commentReply?.measureMinimumWidth() ?? 0;
+		const additionalActions = this._additionalActions?.measureWidth() ?? 0;
+		return {
+			minimum: Math.max(header.minimum, reply, additionalActions),
+			natural: Math.max(header.natural, reply, additionalActions, this._body.measureNaturalWidth())
+		};
+	}
+
+	/**
+	 * Measures, at the thread's current width, the height of everything but the comments, and the height of the comments.
+	 */
+	measureHeights(): { fixed: number; comments: number } {
+		const body = this._body.measureHeights();
+		const bodyScrollableNode = this._bodyScrollable?.getDomNode();
+		const bodyScrollableFrame = bodyScrollableNode ? bodyScrollableNode.offsetHeight - bodyScrollableNode.clientHeight : 0;
+		return { fixed: this._header.domNode.offsetHeight + bodyScrollableFrame + body.besideComments, comments: body.comments };
+	}
+
+	/**
+	 * Sets the height within which scrollable comments scroll.
+	 */
+	layoutCommentsHeight(height: number): void {
+		this._body.layoutCommentsHeight(height);
+	}
+
+	/**
+	 * Scrolls scrollable comments to the given comment.
+	 */
+	revealComment(commentUniqueId: number): void {
+		this._body.revealComment(commentUniqueId);
+	}
+
 	constructor(
 		readonly container: HTMLElement,
+		readonly _parentEditor: LayoutableEditor,
 		private _owner: string,
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,
-		private _scopedInstatiationService: IInstantiationService,
+		private _scopedInstantiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
-		private _markdownOptions: IMarkdownRendererOptions,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
+		private _markdownOptions: IMarkdownRendererExtraOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
 			actionRunner: (() => void) | null;
-			collapse: () => void;
+			collapse: () => Promise<boolean>;
 		},
-		@ICommentService private commentService: ICommentService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		private readonly _options: ICommentThreadWidgetOptions | undefined,
+		@ICommentService private readonly commentService: ICommentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
+		this._focusedContextKey = CommentContextKeys.commentFocused.bindTo(this._contextKeyService);
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._header = new CommentThreadHeader<T>(
+		this._register(this._header = this._scopedInstantiationService.createInstance(
+			CommentThreadHeader,
 			container,
 			{
-				collapse: this.collapse.bind(this)
+				collapse: this._containerDelegate.collapse.bind(this),
+				collapseAction: this._options?.collapseAction
 			},
 			this._commentMenus,
-			this._commentThread,
-			this._contextKeyService,
-			this._scopedInstatiationService,
-			contextMenuService
-		);
+			this._commentThread
+		));
 
 		this._header.updateCommentThread(this._commentThread);
 
-		const bodyElement = <HTMLDivElement>dom.$('.body');
-		container.appendChild(bodyElement);
+		const bodyElement = dom.$('.body');
+		let bodyDomNode = bodyElement;
+		if (this._options?.scrollableComments) {
+			const bodyScrollable = this._bodyScrollable = this._register(new DomScrollableElement(bodyElement, {
+				className: 'comment-thread-body-scrollable',
+				vertical: ScrollbarVisibility.Auto,
+				horizontal: ScrollbarVisibility.Hidden
+			}));
+			bodyDomNode = bodyScrollable.getDomNode();
+			// Focusing an element that is scrolled out of view scrolls the body natively.
+			this._register(dom.addDisposableListener(bodyElement, dom.EventType.SCROLL, () => bodyScrollable.scanDomNode()));
+		}
+		container.appendChild(bodyDomNode);
+		this._register(toDisposable(() => bodyDomNode.remove()));
 
-		this._body = this._scopedInstatiationService.createInstance(
+		const tracker = this._register(dom.trackFocus(bodyElement));
+		this._register(registerNavigableContainer({
+			name: 'commentThreadWidget',
+			focusNotifiers: [tracker],
+			focusNextWidget: () => {
+				if (!this._commentReply?.isCommentEditorFocused()) {
+					this._commentReply?.expandReplyAreaAndFocusCommentEditor();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (this._commentReply?.isCommentEditorFocused() && this._commentThread.comments?.length) {
+					this._body.focus();
+				}
+			}
+		}));
+		this._register(tracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this._register(tracker.onDidBlur(() => this._focusedContextKey.reset()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Comments)) {
+				this._setAriaLabel();
+			}
+		}));
+		this._body = this._scopedInstantiationService.createInstance(
 			CommentThreadBody,
+			this._parentEditor,
 			this._owner,
 			this._parentResourceUri,
 			bodyElement,
 			this._markdownOptions,
 			this._commentThread,
 			this._pendingEdits,
-			this._scopedInstatiationService,
-			this
+			this._scopedInstantiationService,
+			this,
+			!!this._options?.scrollableComments
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
-
-		this._styleElement = dom.createStyleSheet(this.container);
-
+		this._setAriaLabel();
 
 		this._commentThreadContextValue = CommentContextKeys.commentThreadContext.bindTo(this._contextKeyService);
 		this._commentThreadContextValue.set(_commentThread.contextValue);
@@ -120,6 +235,25 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this.currentThreadListeners();
 	}
 
+	get hasUnsubmittedComments(): boolean {
+		return !!this._commentReply?.commentEditor.getValue() || this._body.hasCommentsInEditMode();
+	}
+
+	private _setAriaLabel(): void {
+		let ariaLabel = localize('commentLabel', "Comment");
+		let keybinding: string | undefined;
+		const verbose = this.configurationService.getValue(AccessibilityVerbositySettingId.Comments);
+		if (verbose) {
+			keybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp, this._contextKeyService)?.getLabel() ?? undefined;
+		}
+		if (keybinding) {
+			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
+		} else if (verbose) {
+			ariaLabel = localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
+		}
+		this._body.container.ariaLabel = ariaLabel;
+	}
+
 	private updateCurrentThread(hasMouse: boolean, hasFocus: boolean) {
 		if (hasMouse || hasFocus) {
 			this.commentService.setCurrentCommentThread(this.commentThread);
@@ -132,13 +266,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		let hasMouse = false;
 		let hasFocus = false;
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_ENTER, (e) => {
-			if ((<any>e).toElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = true;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
 		}, true));
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_LEAVE, (e) => {
-			if ((<any>e).fromElement === this.container) {
+			if (e.relatedTarget === this.container) {
 				hasMouse = false;
 				this.updateCurrentThread(hasMouse, hasFocus);
 			}
@@ -153,13 +287,16 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}, true));
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>) {
+	async updateCommentThread(commentThread: languages.CommentThread<T>) {
+		const shouldCollapse = (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) && (this._commentThreadState === languages.CommentThreadState.Unresolved)
+			&& (commentThread.state === languages.CommentThreadState.Resolved);
+		this._commentThreadState = commentThread.state;
 		this._commentThread = commentThread;
 		dispose(this._commentThreadDisposables);
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
-		this._body.updateCommentThread(commentThread);
+		await this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
 		this._threadIsEmpty.set(!this._body.length);
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
@@ -169,17 +306,40 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		} else {
 			this._commentThreadContextValue.reset();
 		}
+
+		if (shouldCollapse && this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).collapseOnResolve) {
+			this.collapse();
+		}
 	}
 
-	display(lineHeight: number) {
-		const headHeight = Math.ceil(lineHeight * 1.2);
+	async display(lineHeight: number, focus: boolean) {
+		const headHeight = Math.max(23, Math.ceil(lineHeight * 1.2)); // 23 is the value of `Math.ceil(lineHeight * 1.2)` with the default editor font size
 		this._header.updateHeight(headHeight);
 
-		this._body.display();
+		await this._body.display();
+
+		const bodyScrollable = this._bodyScrollable;
+		if (bodyScrollable) {
+			const onDidChangeContentSize = () => {
+				this._onDidChangeContentSize.fire();
+				// The body scrolls when the space it gets is too short for its content.
+				bodyScrollable.scanDomNode();
+			};
+			this._register(this._body.onDidChangeCommentsSize(onDidChangeContentSize));
+			// The reply and the additional actions take up the space below the comments.
+			this._contentResizeObserver = this._register(new dom.DisposableResizeObserver('commentThreadWidget', entries => {
+				if (entries.some(entry => entry.target !== bodyScrollable.getDomNode())) {
+					onDidChangeContentSize();
+				} else {
+					bodyScrollable.scanDomNode();
+				}
+			}, dom.getWindow(this.container)));
+			this._register(this._contentResizeObserver.observe(bodyScrollable.getDomNode()));
+		}
 
 		// create comment thread only when it supports reply
 		if (this._commentThread.canReply) {
-			this._createCommentForm();
+			this._createCommentForm(focus);
 		}
 		this._createAdditionalActions();
 
@@ -201,8 +361,25 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._onDidResize.fire(dimension);
 	}
 
+	/**
+	 * Resolves once the reply has its final content, which can be after {@link display} resolves. Until then, the
+	 * thread can be shorter than it will be.
+	 */
+	async whenReplyInitialized(): Promise<void> {
+		await this._commentReply?.whenInitialized;
+	}
+
+	/**
+	 * Focuses the reply if it was to take focus before the thread was in the document, such as when the thread is shown
+	 * only once its reply is initialized.
+	 */
+	focusReplyIfPending(): void {
+		this._commentReply?.focusIfPending();
+	}
+
 	override dispose() {
 		super.dispose();
+		dispose(this._commentThreadDisposables);
 		this.updateCurrentThread(false, false);
 	}
 
@@ -212,7 +389,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 				this._commentReply.updateCanReply();
 			} else {
 				if (this._commentThread.canReply) {
-					this._createCommentForm();
+					this._createCommentForm(false);
 				}
 			}
 		}));
@@ -223,29 +400,37 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeLabel(_ => {
 			this._header.createThreadLabel();
+			if (this._options?.scrollableComments) {
+				this._onDidChangeContentSize.fire();
+			}
 		}));
 	}
 
-	private _createCommentForm() {
-		this._commentReply = this._scopedInstatiationService.createInstance(
+	private _createCommentForm(focus: boolean) {
+		this._commentReply = this._scopedInstantiationService.createInstance(
 			CommentReply,
 			this._owner,
 			this._body.container,
+			this._parentEditor,
 			this._commentThread,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			this._contextKeyService,
 			this._commentMenus,
 			this._commentOptions,
 			this._pendingComment,
 			this,
+			focus,
 			this._containerDelegate.actionRunner
 		);
 
 		this._register(this._commentReply);
+		if (this._contentResizeObserver) {
+			this._register(this._contentResizeObserver.observe(this._commentReply.domNode));
+		}
 	}
 
 	private _createAdditionalActions() {
-		this._additionalActions = this._scopedInstatiationService.createInstance(
+		this._additionalActions = this._scopedInstantiationService.createInstance(
 			CommentThreadAdditionalActions,
 			this._body.container,
 			this._commentThread,
@@ -255,17 +440,20 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		);
 
 		this._register(this._additionalActions);
+		if (this._contentResizeObserver && this._additionalActions.domNode) {
+			this._register(this._contentResizeObserver.observe(this._additionalActions.domNode));
+		}
 	}
 
 	getCommentCoords(commentUniqueId: number) {
 		return this._body.getCommentCoords(commentUniqueId);
 	}
 
-	getPendingEdits(): { [key: number]: string } {
+	getPendingEdits(): { [key: number]: languages.PendingComment } {
 		return this._body.getPendingEdits();
 	}
 
-	getPendingComment(): string | undefined {
+	getPendingComment(): languages.PendingComment | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
@@ -273,110 +461,57 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return undefined;
 	}
 
+	setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
+		this._commentReply?.setPendingComment(pending);
+	}
+
 	getDimensions() {
-		return this._body?.getDimensions();
+		return this._body.getDimensions();
 	}
 
 	layout(widthInPixel?: number) {
-		this._body.layout();
+		this._body.layout(widthInPixel);
 
 		if (widthInPixel !== undefined) {
 			this._commentReply?.layout(widthInPixel);
 		}
 	}
 
-	focusCommentEditor() {
-		this._commentReply?.focusCommentEditor();
+	ensureFocusIntoNewEditingComment() {
+		this._body.ensureFocusIntoNewEditingComment();
 	}
 
-	focus() {
-		this._body.focus();
+	focusCommentEditor() {
+		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
+	}
+
+	focus(commentUniqueId: number | undefined) {
+		this._body.focus(commentUniqueId);
 	}
 
 	async submitComment() {
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
-			activeComment.submitComment();
-		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
-			this._commentReply?.submitComment();
+			return activeComment.submitComment();
+		} else if ((this._commentReply?.getPendingComment()?.body.length ?? 0) > 0) {
+			return this._commentReply?.submitComment();
 		}
 	}
 
-	collapse() {
-		this._containerDelegate.collapse();
+	async collapse() {
+		if ((await this._containerDelegate.collapse()) && Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+			this._parentEditor.setSelection(this.commentThread.range);
+		}
+
 	}
 
-	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {
-		const content: string[] = [];
-
-		content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid var(${commentThreadStateColorVar}) }`);
-		content.push(`.monaco-editor .review-widget > .head { background-color: var(${commentThreadStateBackgroundColorVar}) }`);
-
-		const linkColor = theme.getColor(textLinkForeground);
-		if (linkColor) {
-			content.push(`.review-widget .body .comment-body a { color: ${linkColor} }`);
-		}
-
-		const linkActiveColor = theme.getColor(textLinkActiveForeground);
-		if (linkActiveColor) {
-			content.push(`.review-widget .body .comment-body a:hover, a:active { color: ${linkActiveColor} }`);
-		}
-
-		const focusColor = theme.getColor(focusBorder);
-		if (focusColor) {
-			content.push(`.review-widget .body .comment-body a:focus { outline: 1px solid ${focusColor}; }`);
-			content.push(`.review-widget .body .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
-		}
-
-		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
-		if (blockQuoteBackground) {
-			content.push(`.review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
-		}
-
-		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
-		if (blockQuoteBOrder) {
-			content.push(`.review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
-		}
-
-		const border = theme.getColor(PANEL_BORDER);
-		if (border) {
-			content.push(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label { border-color: ${border}; }`);
-		}
-
-		const hcBorder = theme.getColor(contrastBorder);
-		if (hcBorder) {
-			content.push(`.review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
-			content.push(`.review-widget .body .monaco-editor { outline: 1px solid ${hcBorder}; }`);
-		}
-
-		const errorBorder = theme.getColor(inputValidationErrorBorder);
-		if (errorBorder) {
-			content.push(`.review-widget .validation-error { border: 1px solid ${errorBorder}; }`);
-		}
-
-		const errorBackground = theme.getColor(inputValidationErrorBackground);
-		if (errorBackground) {
-			content.push(`.review-widget .validation-error { background: ${errorBackground}; }`);
-		}
-
-		const errorForeground = theme.getColor(inputValidationErrorForeground);
-		if (errorForeground) {
-			content.push(`.review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
-		}
-
+	applyTheme(fontInfo: FontInfo) {
 		const fontFamilyVar = '--comment-thread-editor-font-family';
-		const fontSizeVar = '--comment-thread-editor-font-size';
 		const fontWeightVar = '--comment-thread-editor-font-weight';
 		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
-		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
 		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
 
-		content.push(`.review-widget .body code {
-			font-family: var(${fontFamilyVar});
-			font-weight: var(${fontWeightVar});
-		}`);
-
-		this._styleElement.textContent = content.join('\n');
 		this._commentReply?.setCommentEditorDecorations();
 	}
 }

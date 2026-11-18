@@ -1,0 +1,108 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench.nocustomviewgrid .part.customviewgridpart {
+	display: none !important;
+	visibility: hidden !important;
+}
+
+.monaco-workbench .part.customviewgridpart > .content {
+	display: flex;
+}
+
+.custom-view-grid {
+	display: flex;
+	flex-direction: row;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
+.custom-view-node {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	position: relative;
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
+}
+
+/* Header: a centered, width-capped band matching the session header's measure
+	and side padding, so a custom view and a session view align. */
+.custom-view-header {
+	flex-shrink: 0;
+}
+
+.custom-view-header-band {
+	box-sizing: border-box;
+	margin: 0 auto;
+	padding: 6px 10px;
+	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--session-view-foreground) 12%, transparent);
+}
+
+.custom-view-header-title-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 26px;
+}
+
+.custom-view-header-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-heading3, 13px);
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+}
+
+.custom-view-header-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.custom-view-header-actions.custom-view-header-actions-buttons .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size60, 6px);
+}
+
+.custom-view-header-description {
+	margin-top: 2px;
+	font-size: var(--vscode-fontSize-body2, 12px);
+	opacity: 0.8;
+}
+
+.custom-view-header-description.hidden {
+	display: none;
+}
+
+/* The scroll container is scrolled natively by DomScrollableElement, so it must
+	fill the body and clip; the content keeps its natural height. */
+.custom-view-body {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.custom-view-scroll-content {
+	width: 100%;
+	height: 100%;
+	min-height: 100%;
+	overflow: hidden;
+}
+
+.custom-view-content {
+	box-sizing: border-box;
+	margin: 0 auto;
+	padding: 10px;
+}
+
+/* The content is the focus fallback when a view does not focus a child of its own. */
+.custom-view-content:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

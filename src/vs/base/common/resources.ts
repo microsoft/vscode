@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as extpath from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import * as paths from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { compare as strCompare, equalsIgnoreCase } from 'vs/base/common/strings';
-import { URI, uriToFsPath } from 'vs/base/common/uri';
+import { CharCode } from './charCode.js';
+import * as extpath from './extpath.js';
+import { Schemas } from './network.js';
+import * as paths from './path.js';
+import { isLinux, isWindows } from './platform.js';
+import { compare as strCompare, equalsIgnoreCase } from './strings.js';
+import { URI, uriToFsPath } from './uri.js';
 
 export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);
@@ -41,12 +41,14 @@ export interface IExtUri {
 
 	/**
 	 * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
+	 * Non-file URIs must be contained with both POSIX and Windows path semantics by default.
 	 *
 	 * @param base A uri which is "longer" or at least same length as `parentCandidate`
 	 * @param parentCandidate A uri which is "shorter" or up to same length as `base`
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 * @param forcePosixSemantics Use only POSIX semantics for non-file URIs whose provider is known to use POSIX paths.
 	 */
-	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean): boolean;
+	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean, forcePosixSemantics?: boolean): boolean;
 
 	/**
 	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
@@ -168,13 +170,25 @@ export class ExtUri implements IExtUri {
 		return this._ignorePathCasing(uri);
 	}
 
-	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
+	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false, forcePosixSemantics: boolean = false): boolean {
 		if (base.scheme === parentCandidate.scheme) {
 			if (base.scheme === Schemas.file) {
 				return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), this._ignorePathCasing(base)) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 			}
 			if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-				return extpath.isEqualOrParent(base.path, parentCandidate.path, this._ignorePathCasing(base), '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+				const ignoreCase = this._ignorePathCasing(base);
+				if (!extpath.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, true)) {
+					return false;
+				}
+				// Non-file URIs can still be backed by a Windows filesystem.
+				if (!forcePosixSemantics && (base.path.includes('\\') || parentCandidate.path.includes('\\'))) {
+					const basePath = extpath.toSlashes(paths.win32.normalize(originalFSPath(base)));
+					const parentPath = extpath.toSlashes(paths.win32.normalize(originalFSPath(parentCandidate)));
+					if (!extpath.isEqualOrParent(basePath, parentPath, ignoreCase, true)) {
+						return false;
+					}
+				}
+				return base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 			}
 		}
 		return false;
@@ -190,8 +204,8 @@ export class ExtUri implements IExtUri {
 		return basename(resource) || resource.authority;
 	}
 
-	basename(resource: URI): string {
-		return paths.posix.basename(resource.path);
+	basename(resource: URI, suffix?: string): string {
+		return paths.posix.basename(resource.path, suffix);
 	}
 
 	extname(resource: URI): string {

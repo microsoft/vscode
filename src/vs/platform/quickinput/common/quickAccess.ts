@@ -3,51 +3,90 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { coalesce } from '../../../base/common/arrays.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ContextKeyExpression, IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickItem, IQuickPickSeparator } from './quickInput.js';
+import { Registry } from '../../registry/common/platform.js';
 
 /**
  * Provider specific options for this particular showing of the
  * quick access.
  */
 export interface IQuickAccessProviderRunOptions {
-	from?: string;
+	readonly from?: string;
+	readonly placeholder?: string;
+	/**
+	 * A handler to invoke when an item is accepted for
+	 * this particular showing of the quick access.
+	 * @param item The item that was accepted.
+	 */
+	readonly handleAccept?: (item: IQuickPickItem, isBackgroundAccept: boolean) => void;
 }
 
 /**
  * The specific options for the AnythingQuickAccessProvider. Put here to share between layers.
  */
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
-	includeHelp?: boolean;
+	readonly includeHelp?: boolean;
+	readonly filter?: (item: IQuickPickItem | IQuickPickSeparator) => boolean;
+	/**
+	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
+	 * Useful for adding items to the top of the list that might contain actions.
+	 */
+	readonly additionPicks?: QuickPickItem[];
 }
 
 export interface IQuickAccessOptions {
+	/**
+	 * The prefix of the provider to use regardless of the input value.
+	 */
+	readonly providerPrefix?: string;
+
+	/**
+	 * An optional anchor for the picker.
+	 */
+	readonly anchor?: unknown /* HTMLElement */ | { x: number; y: number };
+
+	/**
+	 * Placement of the picker relative to {@link anchor}.
+	 */
+	readonly anchorPosition?: 'above' | 'below' | 'overlay';
 
 	/**
 	 * Allows to enable quick navigate support in quick input.
 	 */
-	quickNavigateConfiguration?: IQuickNavigateConfiguration;
+	readonly quickNavigateConfiguration?: IQuickNavigateConfiguration;
 
 	/**
 	 * Allows to configure a different item activation strategy.
 	 * By default the first item in the list will get activated.
 	 */
-	itemActivation?: ItemActivation;
+	readonly itemActivation?: ItemActivation;
 
 	/**
 	 * Whether to take the input value as is and not restore it
 	 * from any existing value if quick access is visible.
 	 */
-	preserveValue?: boolean;
+	readonly preserveValue?: boolean;
 
 	/**
 	 * Provider specific options for this particular showing of the
 	 * quick access.
 	 */
-	providerOptions?: IQuickAccessProviderRunOptions;
+	readonly providerOptions?: IQuickAccessProviderRunOptions;
+
+	/**
+	 * An array of provider prefixes to enable for this
+	 * particular showing of the quick access.
+	 */
+	readonly enabledProviderPrefixes?: string[];
+
+	/**
+	 * A placeholder to use for this particular showing of the quick access.
+	*/
+	readonly placeholder?: string;
 }
 
 export interface IQuickAccessController {
@@ -105,7 +144,7 @@ export interface IQuickAccessProvider {
 	 * @return a disposable that will automatically be disposed when the picker
 	 * closes or is replaced by another picker.
 	 */
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
+	provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
 }
 
 export interface IQuickAccessProviderHelp {
@@ -114,17 +153,30 @@ export interface IQuickAccessProviderHelp {
 	 * The prefix to show for the help entry. If not provided,
 	 * the prefix used for registration will be taken.
 	 */
-	prefix?: string;
+	readonly prefix?: string;
 
 	/**
 	 * A description text to help understand the intent of the provider.
 	 */
-	description: string;
+	readonly description: string;
 
 	/**
 	 * The command to bring up this quick access provider.
 	 */
 	readonly commandId?: string;
+
+	/**
+	 * The order of help entries in the Command Center.
+	 * Lower values will be placed above higher values.
+	 * No value will hide this help entry from the Command Center.
+	 */
+	readonly commandCenterOrder?: number;
+
+	/**
+	 * An optional label to use for the Command Center entry. If not set
+	 * the description will be used instead.
+	 */
+	readonly commandCenterLabel?: string;
 }
 
 export interface IQuickAccessProviderDescriptor {
@@ -132,6 +184,7 @@ export interface IQuickAccessProviderDescriptor {
 	/**
 	 * The actual provider that will be instantiated as needed.
 	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly ctor: { new(...services: any /* TS BrandedService but no clue how to type this properly */[]): IQuickAccessProvider };
 
 	/**
@@ -156,6 +209,12 @@ export interface IQuickAccessProviderDescriptor {
 	 * picker for the provider is showing.
 	 */
 	readonly contextKey?: string;
+
+	/**
+	 * A context key expression that must evaluate to true for the
+	 * provider to be considered in the registry.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 export const Extensions = {
@@ -172,15 +231,16 @@ export interface IQuickAccessRegistry {
 	/**
 	 * Get all registered quick access providers.
 	 */
-	getQuickAccessProviders(): IQuickAccessProviderDescriptor[];
+	getQuickAccessProviders(contextKeyService: IContextKeyService): IQuickAccessProviderDescriptor[];
 
 	/**
 	 * Get a specific quick access provider for a given prefix.
 	 */
-	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined;
+	getQuickAccessProvider(prefix: string, contextKeyService: IContextKeyService): IQuickAccessProviderDescriptor | undefined;
 }
 
 export class QuickAccessRegistry implements IQuickAccessRegistry {
+
 	private providers: IQuickAccessProviderDescriptor[] = [];
 	private defaultProvider: IQuickAccessProviderDescriptor | undefined = undefined;
 
@@ -206,12 +266,15 @@ export class QuickAccessRegistry implements IQuickAccessRegistry {
 		});
 	}
 
-	getQuickAccessProviders(): IQuickAccessProviderDescriptor[] {
-		return coalesce([this.defaultProvider, ...this.providers]);
+	getQuickAccessProviders(contextKeyService: IContextKeyService): IQuickAccessProviderDescriptor[] {
+		return coalesce([this.defaultProvider, ...this.providers])
+			.filter(provider => !provider.when || contextKeyService.contextMatchesRules(provider.when));
 	}
 
-	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined {
-		const result = prefix ? (this.providers.find(provider => prefix.startsWith(provider.prefix)) || undefined) : undefined;
+	getQuickAccessProvider(prefix: string, contextKeyService: IContextKeyService): IQuickAccessProviderDescriptor | undefined {
+		const result = prefix
+			? this.providers.find(provider => prefix.startsWith(provider.prefix) && (!provider.when || contextKeyService.contextMatchesRules(provider.when)))
+			: undefined;
 
 		return result || this.defaultProvider;
 	}

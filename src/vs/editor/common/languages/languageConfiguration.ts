@@ -3,18 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { CharCode } from '../../../base/common/charCode.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { ScopedLineTokens } from './supports.js';
+
+/**
+ * Configuration for line comments.
+ */
+export interface LineCommentConfig {
+	/**
+	 * The line comment token, like `//`
+	 */
+	comment: string;
+	/**
+	 * Whether the comment token should not be indented and placed at the first column.
+	 * Defaults to false.
+	 */
+	noIndent?: boolean;
+}
 
 /**
  * Describes how comments for a language work.
  */
 export interface CommentRule {
 	/**
-	 * The line comment token, like `// this is a comment`
+	 * The line comment token, like `// this is a comment`.
+	 * Can be a string or an object with comment and optional noIndent properties.
 	 */
-	lineComment?: string | null;
+	lineComment?: string | LineCommentConfig | null;
 	/**
 	 * The block comment character pair, like `/* block comment *&#47;`
 	 */
@@ -126,7 +142,6 @@ export interface IndentationRule {
  * Describes language specific folding markers such as '#region' and '#endregion'.
  * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
  * - the regex should start with '^'
- * - regexp flags (i, g) are ignored
  */
 export interface FoldingMarkers {
 	start: RegExp;
@@ -200,6 +215,7 @@ export interface IAutoClosingPair {
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
+	beforeText?: RegExp;
 }
 
 /**
@@ -273,6 +289,7 @@ export class StandardAutoClosingPairConditional {
 
 	readonly open: string;
 	readonly close: string;
+	readonly beforeText: RegExp | undefined;
 	private readonly _inString: boolean;
 	private readonly _inComment: boolean;
 	private readonly _inRegEx: boolean;
@@ -282,6 +299,7 @@ export class StandardAutoClosingPairConditional {
 	constructor(source: IAutoClosingPairConditional) {
 		this.open = source.open;
 		this.close = source.close;
+		this.beforeText = source.beforeText;
 
 		// initially allowed in all tokens
 		this._inString = true;
@@ -304,6 +322,14 @@ export class StandardAutoClosingPairConditional {
 				}
 			}
 		}
+	}
+
+	public shouldAutoCloseBefore(text: string): boolean {
+		if (!this.beforeText) {
+			return true;
+		}
+		this.beforeText.lastIndex = 0;
+		return this.beforeText.test(text);
 	}
 
 	public isOK(standardToken: StandardTokenType): boolean {

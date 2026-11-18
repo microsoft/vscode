@@ -1,0 +1,563 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { LazyStatefulPromise, raceTimeout } from '../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { BugIndicatingError, CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { parse } from '../../../../base/common/marshalling.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { IObservable, ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isDefined, isObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
+import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
+import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { ConfirmResult } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../services/textfile/common/textfiles.js';
+import { MultiDiffEditorIcon } from './icons.contribution.js';
+import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
+
+function isBinaryTextFileOperationError(error: unknown): error is TextFileOperationError {
+	return TextFileOperationError.isTextFileOperationError(error)
+		&& error.textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY;
+}
+
+export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
+	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
+		if (!input.multiDiffSource && !input.resources) {
+			throw new BugIndicatingError('MultiDiffEditorInput requires either multiDiffSource or resources');
+		}
+		const multiDiffSource = input.multiDiffSource ?? URI.parse(`multi-diff-editor:${new Date().getMilliseconds().toString() + Math.random().toString()}`);
+		const editorInput = instantiationService.createInstance(
+			MultiDiffEditorInput,
+			multiDiffSource,
+			input.label,
+			input.resources?.map(resource => {
+				return new MultiDiffEditorItem(
+					resource.original.resource,
+					resource.modified.resource,
+					resource.goToFileResource,
+				);
+			}),
+			input.isTransient ?? false
+		);
+		editorInput._showFileList = input.showFileList ?? true;
+		return editorInput;
+	}
+
+	public static fromSerialized(data: ISerializedMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
+		const editorInput = instantiationService.createInstance(
+			MultiDiffEditorInput,
+			URI.parse(data.multiDiffSourceUri),
+			data.label,
+			data.resources?.map(resource => new MultiDiffEditorItem(
+				resource.originalUri ? URI.parse(resource.originalUri) : undefined,
+				resource.modifiedUri ? URI.parse(resource.modifiedUri) : undefined,
+				resource.goToFileUri ? URI.parse(resource.goToFileUri) : undefined,
+			)),
+			false
+		);
+		editorInput._showFileList = data.showFileList ?? true;
+		return editorInput;
+	}
+
+	static readonly ID: string = 'workbench.input.multiDiffEditor';
+
+	get resource(): URI | undefined { return this.multiDiffSource; }
+
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly; }
+	override get typeId(): string { return MultiDiffEditorInput.ID; }
+
+	private _name: string;
+	override getName(): string { return this._name; }
+
+	override get editorId(): string { return DEFAULT_EDITOR_ASSOCIATION.id; }
+	override getIcon(): ThemeIcon { return MultiDiffEditorIcon; }
+
+	private _showFileList = true;
+	/** Whether the editor offers a list of the changed files alongside the diffs, see {@link IResourceMultiDiffEditorInput.showFileList}. */
+	get showFileList(): boolean { return this._showFileList; }
+
+	constructor(
+		public readonly multiDiffSource: URI,
+		public readonly label: string | undefined,
+		public readonly initialResources: readonly MultiDiffEditorItem[] | undefined,
+		public readonly isTransient: boolean = false,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMultiDiffSourceResolverService private readonly _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+	) {
+		super();
+		this._name = '';
+		this._viewModel = new LazyStatefulPromise(async () => {
+			const store = new DisposableStore();
+			try {
+				const model = store.add(await this._createModel());
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+
+				const vm = store.add(this._instantiationService.createInstance(MultiDiffEditorViewModel, model));
+				await raceTimeout(vm.waitForDiffOr1s(), 1000);
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+
+				this._register(store);
+				return vm;
+			} catch (error) {
+				store.dispose();
+				throw error;
+			}
+		});
+		this._resolvedSource = new ObservableLazyPromise(async () => {
+			const source: IResolvedMultiDiffSource | undefined = this.initialResources
+				? { resources: ValueWithChangeEvent.const(this.initialResources) }
+				: await this._multiDiffSourceResolverService.resolve(this.multiDiffSource);
+			return {
+				source,
+				resources: source ? observableFromValueWithChangeEvent(this, source.resources) : constObservable([]),
+				label: source?.label ? observableFromValueWithChangeEvent(this, source.label) : undefined,
+			};
+		});
+		this.resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
+		this.textFileServiceOnDidChange = new FastEventDispatcher<ITextFileEditorModel, URI>(
+			this._textFileService.files.onDidChangeDirty,
+			item => item.resource.toString(),
+			uri => uri.toString()
+		);
+		this._isDirtyObservables = mapObservableArrayCached(this, this.resources.map(r => r ?? []), res => {
+			const isModifiedDirty = res.modifiedUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.modifiedUri) : constObservable(false);
+			const isOriginalDirty = res.originalUri ? isUriDirty(this.textFileServiceOnDidChange, this._textFileService, res.originalUri) : constObservable(false);
+			return derived(reader => /** @description modifiedDirty||originalDirty */ isModifiedDirty.read(reader) || isOriginalDirty.read(reader));
+		}, i => i.getKey());
+		this._isDirtyObservable = derived(this, reader => this._isDirtyObservables.read(reader).some(isDirty => isDirty.read(reader)))
+			.keepObserved(this._store);
+		this.onDidChangeDirty = Event.fromObservableLight(this._isDirtyObservable);
+		this.closeHandler = {
+
+			// This is a workaround for not having a better way
+			// to figure out if the editors this input wraps
+			// around are opened or not
+
+			async confirm() {
+				return ConfirmResult.DONT_SAVE;
+			},
+			showConfirm() {
+				return false;
+			}
+		};
+
+		this._register(autorun((reader) => {
+			/** @description Updates name */
+			const resources = this.resources.read(reader);
+			const resolvedSource = this._resolvedSource.cachedPromiseResult.read(reader)?.data;
+			const label = resolvedSource?.label?.read(reader) ?? this.label ?? localize('name', "Multi Diff Editor");
+			if (resources && resources.length === 1) {
+				this._name = localize({ key: 'nameWithOneFile', comment: ['{0} is the name of the editor'] }, "{0} (1 file)", label);
+			} else if (resources) {
+				this._name = localize({ key: 'nameWithFiles', comment: ['{0} is the name of the editor', '{1} is the number of files being shown'] }, "{0} ({1} files)", label, resources.length);
+			} else {
+				this._name = label;
+			}
+			this._onDidChangeLabel.fire();
+		}));
+	}
+
+	public serialize(): ISerializedMultiDiffEditorInput {
+		return {
+			label: this.label,
+			multiDiffSourceUri: this.multiDiffSource.toString(),
+			resources: this.initialResources?.map(resource => ({
+				originalUri: resource.originalUri?.toString(),
+				modifiedUri: resource.modifiedUri?.toString(),
+				goToFileUri: resource.goToFileUri?.toString(),
+			})),
+			showFileList: this.showFileList,
+		};
+	}
+
+	public setLanguageId(languageId: string, source?: string | undefined): void {
+		const activeDiffItem = this._viewModel.requireValue().activeDiffItem.get();
+		const value = activeDiffItem?.documentDiffItem;
+		if (!value) { return; }
+		const target = (value.modified ?? value.original)?.textModel;
+		if (!target) { return; }
+		target.setLanguage(languageId, source);
+	}
+
+	public async getViewModel(): Promise<MultiDiffEditorViewModel> {
+		const viewModel = this._viewModel.currentValue;
+		if (viewModel && this._resourceOrder.get()) {
+			await raceTimeout(viewModel.waitForDiffOr1s(), 1000);
+		}
+		return this._viewModel.getPromise();
+	}
+
+	private readonly _viewModel;
+
+	private readonly _resourceOrder = observableValue<((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined>(this, undefined);
+
+	/** Orders resolved resources before their diffs are created, and reorders them when the order changes. */
+	public setResourceOrder(order: ((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined): void {
+		this._resourceOrder.set(order, undefined);
+	}
+
+	private readonly _resolvingDocuments = observableValue<IObservable<boolean> | undefined>(this, undefined);
+
+	/**
+	 * Whether the documents of the resources are resolving: from a change of the resources until the documents of all of
+	 * them resolved or failed to, during which the view model keeps the documents of before.
+	 */
+	public readonly isResolvingDocuments: IObservable<boolean> = derived(this, reader => this._resolvingDocuments.read(reader)?.read(reader) ?? false);
+
+	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
+		const source = await this._resolvedSource.getPromise();
+		const textResourceConfigurationService = this._textResourceConfigurationService;
+
+		const documentsWithPromises = mapObservableArrayCached(this, source.resources, async (r, store) => {
+			/** @description documentsWithPromises */
+			let original: IReference<IResolvedTextEditorModel> | undefined;
+			let modified: IReference<IResolvedTextEditorModel> | undefined;
+
+			const multiDiffItemStore = new DisposableStore();
+			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
+
+			const [originalResult, modifiedResult] = await Promise.allSettled([
+				createModelReference(r.originalUri),
+				createModelReference(r.modifiedUri),
+			]);
+
+			if (originalResult.status === 'fulfilled') {
+				original = originalResult.value;
+				if (original) { multiDiffItemStore.add(original); }
+			}
+			if (modifiedResult.status === 'fulfilled') {
+				modified = modifiedResult.value;
+				if (modified) { multiDiffItemStore.add(modified); }
+			}
+
+			if (store.isDisposed) {
+				multiDiffItemStore.dispose();
+				return undefined;
+			}
+
+			const errorResults = [originalResult, modifiedResult].filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+			const errorResult = errorResults.find(result => !isBinaryTextFileOperationError(result.reason));
+			if (errorResult) {
+				multiDiffItemStore.dispose();
+				onUnexpectedError(errorResult.reason);
+				return undefined;
+			}
+
+			const isBinary = errorResults.length > 0;
+			if (isBinary) {
+				multiDiffItemStore.clear();
+				original = undefined;
+				modified = undefined;
+			}
+
+			const uri = (r.modifiedUri ?? r.originalUri)!;
+			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
+				multiDiffEditorItem: r,
+				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel) : undefined,
+				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel) : undefined,
+				contextKeys: r.contextKeys,
+				get options() {
+					return {
+						...getReadonlyConfiguration(modified?.object.isReadonly() ?? true),
+						...computeOptions(textResourceConfigurationService.getValue(uri)),
+					} satisfies IDiffEditorOptions;
+				},
+				onOptionsDidChange: h => this._textResourceConfigurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration(uri, 'editor') || e.affectsConfiguration(uri, 'diffEditor')) {
+						h();
+					}
+				}),
+			};
+			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
+		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
+
+		const documents = observableValue<readonly RefCounted<IDocumentDiffItemWithMultiDiffEditorItem>[] | 'loading'>('documents', 'loading');
+		const orderedDocuments = derived(this, reader => {
+			const resolvedDocuments = documents.read(reader);
+			const order = this._resourceOrder.read(reader);
+			if (resolvedDocuments === 'loading' || !order) {
+				return resolvedDocuments;
+			}
+			const documentsByResource = new Map(resolvedDocuments.map(document => [document.object.multiDiffEditorItem, document]));
+			return order(resolvedDocuments.map(document => document.object.multiDiffEditorItem))
+				.map(resource => documentsByResource.get(resource)!);
+		});
+
+		// The resolution of the documents of these resources settled, whether they resolved or failed to.
+		const settledDocumentsPromises = observableValue<readonly Promise<RefCounted<IDocumentDiffItemWithMultiDiffEditorItem> | undefined>[] | undefined>('settledDocumentsPromises', undefined);
+		const updateDocuments = derived(async reader => {
+			/** @description Update documents */
+			const cancellationToken = cancelOnDispose(reader.store);
+			const docsPromises = documentsWithPromises.read(reader);
+			const docs = await Promise.all(docsPromises);
+			if (cancellationToken.isCancellationRequested) {
+				return;
+			}
+			const newDocuments = docs.filter(isDefined);
+			transaction(tx => {
+				documents.set(newDocuments, tx);
+				settledDocumentsPromises.set(docsPromises, tx);
+			});
+		});
+
+		const a = recomputeInitiallyAndOnChange(updateDocuments);
+		this._resolvingDocuments.set(derived(reader => documentsWithPromises.read(reader) !== settledDocumentsPromises.read(reader)), undefined);
+		await updateDocuments.get();
+
+		const result: IMultiDiffEditorModel & IDisposable = {
+			dispose: () => {
+				a.dispose();
+				this._resolvingDocuments.set(undefined, undefined);
+			},
+			documents: new ValueWithChangeEventFromObservable(orderedDocuments),
+			contextKeys: source.source?.contextKeys,
+		};
+		return result;
+	}
+
+	private readonly _resolvedSource;
+
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
+			return true;
+		}
+
+		if (otherInput instanceof MultiDiffEditorInput) {
+			return this.multiDiffSource.toString() === otherInput.multiDiffSource.toString();
+		}
+
+		return false;
+	}
+
+	public readonly resources;
+
+	private readonly textFileServiceOnDidChange;
+
+	private readonly _isDirtyObservables;
+	private readonly _isDirtyObservable;
+
+	override readonly onDidChangeDirty;
+	override isDirty() { return this._isDirtyObservable.get(); }
+
+	override async save(group: number, options?: ISaveOptions | undefined): Promise<EditorInput> {
+		await this.doSaveOrRevert('save', group, options);
+		return this;
+	}
+
+	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		return this.doSaveOrRevert('revert', group, options);
+	}
+
+	private async doSaveOrRevert(mode: 'save', group: GroupIdentifier, options?: ISaveOptions): Promise<void>;
+	private async doSaveOrRevert(mode: 'revert', group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
+	private async doSaveOrRevert(mode: 'save' | 'revert', group: GroupIdentifier, options?: ISaveOptions | IRevertOptions): Promise<void> {
+		const items = this._viewModel.currentValue?.items.get();
+		if (items) {
+			await Promise.all(items.map(async item => {
+				if (item.isBinary) {
+					return;
+				}
+				const model = item.diffEditorViewModel.model;
+				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behaviour
+
+				await Promise.all([
+					handleOriginal ? mode === 'save' ? this._textFileService.save(model.original.uri, options) : this._textFileService.revert(model.original.uri, options) : Promise.resolve(),
+					mode === 'save' ? this._textFileService.save(model.modified.uri, options) : this._textFileService.revert(model.modified.uri, options),
+				]);
+			}));
+		}
+		return undefined;
+	}
+
+	override readonly closeHandler: IEditorCloseHandler;
+}
+
+export interface IDocumentDiffItemWithMultiDiffEditorItem extends IDocumentDiffItem {
+	multiDiffEditorItem: MultiDiffEditorItem;
+}
+
+/**
+ * Uses a map to efficiently dispatch events to listeners that are interested in a specific key.
+*/
+class FastEventDispatcher<T, TKey> {
+	private _count = 0;
+	private readonly _buckets = new Map<string, Set<(value: T) => void>>();
+
+	private _eventSubscription: IDisposable | undefined;
+
+	constructor(
+		private readonly _event: Event<T>,
+		private readonly _getEventArgsKey: (item: T) => string,
+		private readonly _keyToString: (key: TKey) => string,
+	) {
+	}
+
+	public filteredEvent(filter: TKey): (listener: (e: T) => unknown) => IDisposable {
+		return listener => {
+			const key = this._keyToString(filter);
+			let bucket = this._buckets.get(key);
+			if (!bucket) {
+				bucket = new Set();
+				this._buckets.set(key, bucket);
+			}
+			bucket.add(listener);
+
+			this._count++;
+			if (this._count === 1) {
+				this._eventSubscription = this._event(this._handleEventChange);
+			}
+
+			return {
+				dispose: () => {
+					bucket!.delete(listener);
+					if (bucket!.size === 0) {
+						this._buckets.delete(key);
+					}
+					this._count--;
+
+					if (this._count === 0) {
+						this._eventSubscription?.dispose();
+						this._eventSubscription = undefined;
+					}
+				}
+			};
+		};
+	}
+
+	private readonly _handleEventChange = (e: T) => {
+		const key = this._getEventArgsKey(e);
+		const bucket = this._buckets.get(key);
+		if (bucket) {
+			for (const listener of bucket) {
+				listener(e);
+			}
+		}
+	};
+}
+
+function isUriDirty(onDidChangeDirty: FastEventDispatcher<ITextFileEditorModel, URI>, textFileService: ITextFileService, uri: URI) {
+	return observableFromEvent(onDidChangeDirty.filteredEvent(uri), () => textFileService.isDirty(uri));
+}
+
+function getReadonlyConfiguration(isReadonly: boolean | IMarkdownString | undefined): { readOnly: boolean; readOnlyMessage: IMarkdownString | undefined } {
+	return {
+		readOnly: !!isReadonly,
+		readOnlyMessage: typeof isReadonly !== 'boolean' ? isReadonly : undefined
+	};
+}
+
+function computeOptions(configuration: IEditorConfiguration): IDiffEditorOptions {
+	const editorConfiguration = deepClone(configuration.editor);
+
+	// Handle diff editor specially by merging in diffEditor configuration
+	if (isObject(configuration.diffEditor)) {
+		const diffEditorConfiguration: IDiffEditorOptions = deepClone(configuration.diffEditor);
+
+		if (diffEditorConfiguration.hideOriginalLineNumbers === null) {
+			delete diffEditorConfiguration.hideOriginalLineNumbers;
+		}
+
+		// User settings defines `diffEditor.codeLens`, but here we rename that to `diffEditor.diffCodeLens` to avoid collisions with `editor.codeLens`.
+		diffEditorConfiguration.diffCodeLens = diffEditorConfiguration.codeLens;
+		delete diffEditorConfiguration.codeLens;
+
+		// User settings defines `diffEditor.wordWrap`, but here we rename that to `diffEditor.diffWordWrap` to avoid collisions with `editor.wordWrap`.
+		diffEditorConfiguration.diffWordWrap = <'off' | 'on' | 'inherit' | undefined>diffEditorConfiguration.wordWrap;
+		delete diffEditorConfiguration.wordWrap;
+
+		Object.assign(editorConfiguration, diffEditorConfiguration);
+	}
+	return editorConfiguration;
+}
+
+export class MultiDiffEditorResolverContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.multiDiffEditorResolver';
+
+	constructor(
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this._register(editorResolverService.registerEditor(
+			`*`,
+			{
+				id: DEFAULT_EDITOR_ASSOCIATION.id,
+				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
+				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+				priority: RegisteredEditorPriority.builtin
+			},
+			{},
+			{
+				createMultiDiffEditorInput: (multiDiffEditor: IResourceMultiDiffEditorInput): EditorInputWithOptions => {
+					return {
+						editor: MultiDiffEditorInput.fromResourceMultiDiffEditorInput(multiDiffEditor, instantiationService),
+					};
+				},
+			}
+		));
+	}
+}
+
+interface ISerializedMultiDiffEditorInput {
+	multiDiffSourceUri: string;
+	label: string | undefined;
+	resources: {
+		originalUri: string | undefined;
+		modifiedUri: string | undefined;
+		goToFileUri: string | undefined;
+	}[] | undefined;
+	/** Missing in editors serialized before the option existed. */
+	showFileList?: boolean;
+}
+
+export class MultiDiffEditorSerializer implements IEditorSerializer {
+
+	canSerialize(editor: EditorInput): editor is MultiDiffEditorInput {
+		return editor instanceof MultiDiffEditorInput && !editor.isTransient;
+	}
+
+	serialize(editor: MultiDiffEditorInput): string | undefined {
+		if (!this.canSerialize(editor)) {
+			return undefined;
+		}
+
+		return JSON.stringify(editor.serialize());
+	}
+
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+		try {
+			const data = parse(serializedEditor) as ISerializedMultiDiffEditorInput;
+			return MultiDiffEditorInput.fromSerialized(data, instantiationService);
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
+	}
+}

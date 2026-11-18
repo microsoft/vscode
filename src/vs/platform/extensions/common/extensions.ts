@@ -3,35 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import Severity from '../../../base/common/severity.js';
+import * as strings from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILocalizedString } from '../../action/common/action.js';
+import { ExtensionKind } from '../../environment/common/environment.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { getRemoteName } from '../../remote/common/remoteHosts.js';
 
-export const USER_MANIFEST_CACHE_FILE = 'extensions.user.cache';
-export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
+const USER_MANIFEST_CACHE_FILE_PREFIX = 'extensions.user';
+const BUILTIN_MANIFEST_CACHE_FILE_PREFIX = 'extensions.builtin';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
+
+/**
+ * A language as `platform.language` provides it: a lower case locale such as `de` or `zh-cn`.
+ * Scan languages also reach a remote server over a channel, so a value that is not one of these
+ * is not trusted to be safe or short enough to put in a file name.
+ */
+const SCAN_LANGUAGE_PATTERN = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
+
+function getManifestCacheFilePrefix(type: ExtensionType): string {
+	return type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE_PREFIX : USER_MANIFEST_CACHE_FILE_PREFIX;
+}
+
+/**
+ * Returns the name of the manifest cache file for the given extension type and scan language.
+ * Scan results are localized, so each language needs its own file or scans that use different
+ * languages overwrite each other's entry and neither ever gets a cache hit. A language that is
+ * not well formed shares the unsuffixed file, which only ever costs a cache miss because
+ * `ExtensionScannerInput` re-checks the language of an entry before it is used.
+ */
+export function getManifestCacheFileName(type: ExtensionType, language: string | undefined): string {
+	const prefix = getManifestCacheFilePrefix(type);
+	const normalized = language?.toLowerCase();
+	if (!normalized || !SCAN_LANGUAGE_PATTERN.test(normalized)) {
+		return `${prefix}.cache`;
+	}
+	return `${prefix}.${normalized}.cache`;
+}
+
+/**
+ * Whether `name` is a manifest cache file of the given extension type, for any scan language.
+ * Pass the `ignorePathCasing` of the containing location so that a differently cased name is
+ * recognized on file systems where it refers to the same file.
+ */
+export function isManifestCacheFileName(name: string, type: ExtensionType, ignorePathCasing: boolean): boolean {
+	const candidate = ignorePathCasing ? name.toLowerCase() : name;
+	return candidate.startsWith(`${getManifestCacheFilePrefix(type)}.`) && candidate.endsWith('.cache');
+}
 
 export interface ICommand {
 	command: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-}
-
-export interface IConfigurationProperty {
-	description: string;
-	type: string | string[];
-	default?: any;
-}
-
-export interface IConfiguration {
-	id?: string;
-	order?: number;
-	title?: string;
-	properties: { [key: string]: IConfigurationProperty };
 }
 
 export interface IDebugger {
@@ -41,11 +65,15 @@ export interface IDebugger {
 }
 
 export interface IGrammar {
-	language: string;
+	language?: string;
 }
 
 export interface IJSONValidation {
 	fileMatch: string | string[];
+	url: string;
+}
+
+export interface IJSONValidationRegistry {
 	url: string;
 }
 
@@ -117,6 +145,7 @@ export interface ICodeActionContribution {
 export interface IAuthenticationContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly authorizationServerGlobs?: string[];
 }
 
 export interface IWalkthroughStep {
@@ -124,9 +153,10 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never }
-	| { markdown: string; image?: never; svg?: never }
-	| { svg: string; altText: string; markdown?: never; image?: never };
+	| { image: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; svg?: never; video?: never }
+	| { markdown: string; image?: never; svg?: never; video?: never }
+	| { svg: string; altText: string; markdown?: never; image?: never; video?: never }
+	| { video: string | { dark: string; light: string; hc: string }; poster: string | { dark: string; light: string; hc: string }; altText: string; markdown?: never; image?: never; svg?: never };
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
@@ -162,6 +192,11 @@ export interface INotebookRendererContribution {
 	readonly mimeTypes: string[];
 }
 
+export interface IDebugVisualizationContribution {
+	readonly id: string;
+	readonly when: string;
+}
+
 export interface ITranslation {
 	id: string;
 	path: string;
@@ -175,12 +210,52 @@ export interface ILocalizationContribution {
 	minimalTranslations?: { [key: string]: string };
 }
 
+export interface IChatParticipantContribution {
+	id: string;
+	name: string;
+	fullName: string;
+	description?: string;
+	isDefault?: boolean;
+	commands?: { name: string }[];
+}
+
+export interface IToolContribution {
+	name: string;
+	displayName: string;
+	modelDescription: string;
+	userDescription?: string;
+}
+
+export interface IToolSetContribution {
+	name: string;
+	referenceName: string;
+	description: string;
+	icon?: string;
+	tools: string[];
+}
+
+export interface IMcpCollectionContribution {
+	readonly id: string;
+	readonly label: string;
+	readonly when?: string;
+}
+
+export interface IChatFileContribution {
+	readonly path: string;
+	readonly name?: string;
+	readonly description?: string;
+	readonly when?: string;
+	readonly sessionTypes?: readonly string[];
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration | IConfiguration[];
+	configuration?: any;
+	configurationDefaults?: any;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
+	jsonValidationRegistry?: IJSONValidationRegistry[];
 	keybindings?: IKeyBinding[];
 	languages?: ILanguage[];
 	menus?: { [context: string]: IMenu[] };
@@ -199,13 +274,50 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
+	readonly debugVisualizers?: IDebugVisualizationContribution[];
+	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
+	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
+	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
+	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
+	readonly chatPlugins?: ReadonlyArray<IChatFileContribution>;
+	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
+	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
+	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
 }
 
 export interface IExtensionCapabilities {
 	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
 	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+	readonly agentsWindow?: { readonly supported: boolean };
 }
 
+/**
+ * Lets users choose which extensions run in the Agents window. When disabled, extensions that do not
+ * support the Agents window stay disabled there and saved choices are ignored.
+ */
+export const EXTENSIONS_AGENTS_WINDOW_MANAGEMENT = 'extensions.experimental.agentsWindowManagement';
+
+/**
+ * Enables extensions in the Agents window automatically. When `true`, enables extensions that contribute something
+ * useful there and nothing that relies on features the Agents window lacks. When an array of extension identifiers,
+ * enables only the listed extensions. Users can still disable them. Requires {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
+ */
+export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE = 'extensions.experimental.agentsWindowAutoEnable';
+
+/**
+ * The command that shows an extension's page, which the Manage Extension action of notifications and status bar items
+ * runs. Editor windows open the Extensions editor; the Agents window opens the Extensions section of Agent
+ * Customizations, or says it can't when it doesn't manage extensions.
+ */
+export const MANAGE_EXTENSION_COMMAND_ID = '_extensions.manage';
+
+/**
+ * Controls for each extension, by its identifier, whether it is enabled in the Agents window automatically, overriding
+ * {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} for that extension. A keyed experiment-controlled setting, so that each
+ * extension can be tested in its own experiment. Requires {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
+ */
+export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS = 'extensions.experimental.agentsWindowAutoEnableExtensions';
 
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 
@@ -232,7 +344,9 @@ export interface IExtensionIdentifier {
 }
 
 export const EXTENSION_CATEGORIES = [
+	'AI',
 	'Azure',
+	'Chat',
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
@@ -260,6 +374,7 @@ export interface IRelaxedExtensionManifest {
 	engines: { readonly vscode: string };
 	description?: string;
 	main?: string;
+	type?: string;
 	browser?: string;
 	preview?: boolean;
 	// For now this only supports pointing to l10n bundle files
@@ -268,13 +383,15 @@ export interface IRelaxedExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
-	activationEvents?: string[];
+	activationEvents?: readonly string[];
 	extensionDependencies?: string[];
+	extensionAffinity?: string[];
 	extensionPack?: string[];
 	extensionKind?: ExtensionKind | ExtensionKind[];
 	contributes?: IExtensionContributions;
 	repository?: { url: string };
 	bugs?: { url: string };
+	originalEnabledApiProposals?: readonly string[];
 	enabledApiProposals?: readonly string[];
 	api?: string;
 	scripts?: { [key: string]: string };
@@ -290,7 +407,6 @@ export const enum ExtensionType {
 
 export const enum TargetPlatform {
 	WIN32_X64 = 'win32-x64',
-	WIN32_IA32 = 'win32-ia32',
 	WIN32_ARM64 = 'win32-arm64',
 
 	LINUX_X64 = 'linux-x64',
@@ -317,10 +433,12 @@ export interface IExtension {
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
 	readonly targetPlatform: TargetPlatform;
+	readonly publisherDisplayName?: string;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
 	readonly validations: readonly [Severity, string][];
+	readonly preRelease: boolean;
 }
 
 /**
@@ -341,7 +459,12 @@ export interface IExtension {
  */
 export class ExtensionIdentifier {
 	public readonly value: string;
-	private readonly _lower: string;
+
+	/**
+	 * Do not use directly. This is public to avoid mangling and thus
+	 * allow compatibility between running from source and a built version.
+	 */
+	readonly _lower: string;
 
 	constructor(value: string) {
 		this.value = value;
@@ -444,15 +567,38 @@ export class ExtensionIdentifierMap<T> {
 	}
 }
 
+/**
+ * An error that is clearly from an extension, identified by the `ExtensionIdentifier`
+ */
+export class ExtensionError extends Error {
+
+	readonly extension: ExtensionIdentifier;
+
+	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
+		const detail = message && cause?.message ? `${message}: ${cause.message}` : (message ?? cause?.message);
+		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${detail}`, { cause });
+		this.name = 'ExtensionError';
+		this.extension = extensionIdentifier;
+		// Adopt the underlying cause's stack so error telemetry buckets by the real
+		// failure site inside the extension instead of the generic event-dispatch
+		// frames. Extension attribution relies on `this.extension`, not this stack.
+		if (cause?.stack) {
+			this.stack = cause.stack;
+		}
+	}
+}
+
 export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	id?: string;
 	identifier: ExtensionIdentifier;
 	uuid?: string;
+	publisherDisplayName?: string;
 	targetPlatform: TargetPlatform;
 	isBuiltin: boolean;
 	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
+	preRelease: boolean;
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
@@ -475,6 +621,10 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
+}
+
+export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {
+	return enabledApiProposals.map(proposal => proposal.split('@')[0]);
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');

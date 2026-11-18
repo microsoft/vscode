@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import type { IGrammar, Registry, StateStack, IOnigLib, IRawTheme } from 'vscode-textmate';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { TMScopeRegistry, IValidGrammarDefinition, IValidEmbeddedLanguagesMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, TMScopeRegistry } from './TMScopeRegistry.js';
+import type { IGrammar, IOnigLib, IRawTheme, Registry, StateStack } from 'vscode-textmate';
 
 interface ITMGrammarFactoryHost {
 	logTrace(msg: string): void;
@@ -19,6 +19,7 @@ export interface ICreateGrammarResult {
 	grammar: IGrammar | null;
 	initialState: StateStack;
 	containsEmbeddedLanguages: boolean;
+	sourceExtensionId?: string;
 }
 
 export const missingTMGrammarErrorMessage = 'No TM Grammar registered for this language.';
@@ -143,6 +144,7 @@ export class TMGrammarFactory extends Disposable {
 				encodedLanguageId,
 				{
 					embeddedLanguages,
+					// eslint-disable-next-line local/code-no-any-casts
 					tokenTypes: <any>grammarDefinition.tokenTypes,
 					balancedBracketSelectors: grammarDefinition.balancedBracketSelectors,
 					unbalancedBracketSelectors: grammarDefinition.unbalancedBracketSelectors,
@@ -160,7 +162,8 @@ export class TMGrammarFactory extends Disposable {
 			languageId: languageId,
 			grammar: grammar,
 			initialState: this._initialState,
-			containsEmbeddedLanguages: containsEmbeddedLanguages
+			containsEmbeddedLanguages: containsEmbeddedLanguages,
+			sourceExtensionId: grammarDefinition.sourceExtensionId,
 		};
 	}
 }

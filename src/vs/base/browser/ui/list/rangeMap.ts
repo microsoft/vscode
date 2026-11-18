@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange, Range } from 'vs/base/common/range';
+import { IRange, Range } from '../../../common/range.js';
 
 export interface IItem {
 	size: number;
@@ -87,10 +87,35 @@ function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
 	return consolidate(groups.reduce((r, g) => r.concat(g), []));
 }
 
-export class RangeMap {
+export interface IRangeMap {
+	readonly size: number;
+	readonly count: number;
+	paddingTop: number;
+	splice(index: number, deleteCount: number, items?: IItem[]): void;
+	indexAt(position: number): number;
+	indexAfter(position: number): number;
+	positionAt(index: number): number;
+}
+
+export class RangeMap implements IRangeMap {
 
 	private groups: IRangedGroup[] = [];
 	private _size = 0;
+	private _paddingTop = 0;
+
+	get paddingTop() {
+		return this._paddingTop;
+	}
+
+	set paddingTop(paddingTop: number) {
+		this._size = this._size + paddingTop - this._paddingTop;
+		this._paddingTop = paddingTop;
+	}
+
+	constructor(topPadding?: number) {
+		this._paddingTop = topPadding ?? 0;
+		this._size = this._paddingTop;
+	}
 
 	splice(index: number, deleteCount: number, items: IItem[] = []): void {
 		const diff = items.length - deleteCount;
@@ -104,7 +129,7 @@ export class RangeMap {
 		}));
 
 		this.groups = concat(before, middle, after);
-		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+		this._size = this._paddingTop + this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
 	}
 
 	/**
@@ -135,8 +160,12 @@ export class RangeMap {
 			return -1;
 		}
 
+		if (position < this._paddingTop) {
+			return 0;
+		}
+
 		let index = 0;
-		let size = 0;
+		let size = this._paddingTop;
 
 		for (const group of this.groups) {
 			const count = group.range.end - group.range.start;
@@ -177,7 +206,7 @@ export class RangeMap {
 			const newCount = count + groupCount;
 
 			if (index < newCount) {
-				return position + ((index - count) * group.size);
+				return this._paddingTop + position + ((index - count) * group.size);
 			}
 
 			position += groupCount * group.size;

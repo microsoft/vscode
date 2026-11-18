@@ -3,26 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as picomatch from 'picomatch';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabInputTextDiff, TabInputNotebookDiff, RelativePattern, CancellationTokenSource, LogOutputChannel, LogLevel, CancellationError, l10n } from 'vscode';
+import { cp } from '@vscode/fs-copyfile';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, Remote, Status, CommitOptions, BranchQuery, FetchOptions, RefQuery, RefType } from './api/git';
+import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
+import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+import picomatch from 'picomatch';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, CustomExecution, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProcessExecution, ProgressLocation, ProgressOptions, RelativePattern, scm, ShellExecution, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, Task, TaskPanelKind, TaskRevealKind, TaskRunOn, tasks, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit, WorkspaceFolder } from 'vscode';
+import { ActionButton } from './actionButton';
+import { ApiRepository } from './api/api1';
+import type { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, LogOptions, Ref, Remote, RepositoryKind } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
 import { AutoFetcher } from './autofetch';
-import { debounce, memoize, throttle } from './decorators';
-import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions, PullOptions } from './git';
+import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
+import { debounce, memoize, sequentialize, throttle } from './decorators';
+import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, IDotGit, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
+import { GitHistoryProvider } from './historyProvider';
+import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
+import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
+import { IPushErrorHandlerRegistry } from './pushError';
+import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktreeFolder, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
-import { IPushErrorHandlerRegistry } from './pushError';
-import { ApiRepository } from './api/api1';
-import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { ActionButtonCommand } from './actionButton';
-import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
-import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
-import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
+import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
+import { GitArtifactProvider } from './artifactProvider';
+import { RepositoryCache } from './repositoryCache';
+import { getSafeNotificationMessage } from './notification';
+import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
+import { resolveWorktreeIncludePaths, sanitizeWorktreeIncludePatterns } from './worktreeInclude';
+import { createWorktreeSymlink, filterWorktreeSymlinkFolders, getWorktreeSymlinkFolderCandidates, type WorktreeSymlinkStatus } from './worktreeSymlink';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -46,6 +59,41 @@ export const enum ResourceGroupType {
 
 export class Resource implements SourceControlResourceState {
 
+	static getStatusLetter(type: Status): string {
+		switch (type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return 'M';
+			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_ADD:
+				return 'A';
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return 'D';
+			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
+				return 'R';
+			case Status.TYPE_CHANGED:
+				return 'T';
+			case Status.UNTRACKED:
+				return 'U';
+			case Status.IGNORED:
+				return 'I';
+			case Status.INDEX_COPIED:
+				return 'C';
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
+			default:
+				throw new Error('Unknown git status: ' + type);
+		}
+	}
+
 	static getStatusText(type: Status) {
 		switch (type) {
 			case Status.INDEX_MODIFIED: return l10n.t('Index Modified');
@@ -58,6 +106,8 @@ export class Resource implements SourceControlResourceState {
 			case Status.UNTRACKED: return l10n.t('Untracked');
 			case Status.IGNORED: return l10n.t('Ignored');
 			case Status.INTENT_TO_ADD: return l10n.t('Intent to Add');
+			case Status.INTENT_TO_RENAME: return l10n.t('Intent to Rename');
+			case Status.TYPE_CHANGED: return l10n.t('Type Changed');
 			case Status.BOTH_DELETED: return l10n.t('Conflict: Both Deleted');
 			case Status.ADDED_BY_US: return l10n.t('Conflict: Added By Us');
 			case Status.DELETED_BY_THEM: return l10n.t('Conflict: Deleted By Them');
@@ -69,9 +119,44 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
+	static getStatusColor(type: Status): ThemeColor {
+		switch (type) {
+			case Status.INDEX_MODIFIED:
+				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
+			case Status.MODIFIED:
+			case Status.TYPE_CHANGED:
+				return new ThemeColor('gitDecoration.modifiedResourceForeground');
+			case Status.INDEX_DELETED:
+				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
+			case Status.DELETED:
+				return new ThemeColor('gitDecoration.deletedResourceForeground');
+			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_ADD:
+				return new ThemeColor('gitDecoration.addedResourceForeground');
+			case Status.INDEX_COPIED:
+			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
+				return new ThemeColor('gitDecoration.renamedResourceForeground');
+			case Status.UNTRACKED:
+				return new ThemeColor('gitDecoration.untrackedResourceForeground');
+			case Status.IGNORED:
+				return new ThemeColor('gitDecoration.ignoredResourceForeground');
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return new ThemeColor('gitDecoration.conflictingResourceForeground');
+			default:
+				throw new Error('Unknown git status: ' + type);
+		}
+	}
+
 	@memoize
 	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED || this._type === Status.INTENT_TO_RENAME)) {
 			return this.renameResourceUri;
 		}
 
@@ -79,11 +164,19 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get leftUri(): Uri | undefined {
-		return this.resources[0];
+		return this.resources.left;
 	}
 
 	get rightUri(): Uri | undefined {
-		return this.resources[1];
+		return this.resources.right;
+	}
+
+	get multiDiffEditorOriginalUri(): Uri | undefined {
+		return this.resources.original;
+	}
+
+	get multiFileDiffEditorModifiedUri(): Uri | undefined {
+		return this.resources.modified;
 	}
 
 	@memoize
@@ -92,7 +185,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	@memoize
-	private get resources(): [Uri | undefined, Uri | undefined] {
+	private get resources(): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {
 		return this._commandResolver.getResources(this);
 	}
 
@@ -100,8 +193,9 @@ export class Resource implements SourceControlResourceState {
 	get type(): Status { return this._type; }
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
+	get contextValue(): string | undefined { return this._repositoryKind; }
 
-	private static Icons: any = {
+	private static Icons = {
 		light: {
 			Modified: getIconUri('status-modified', 'light'),
 			Added: getIconUri('status-added', 'light'),
@@ -111,6 +205,7 @@ export class Resource implements SourceControlResourceState {
 			Untracked: getIconUri('status-untracked', 'light'),
 			Ignored: getIconUri('status-ignored', 'light'),
 			Conflict: getIconUri('status-conflict', 'light'),
+			TypeChanged: getIconUri('status-type-changed', 'light')
 		},
 		dark: {
 			Modified: getIconUri('status-modified', 'dark'),
@@ -120,11 +215,12 @@ export class Resource implements SourceControlResourceState {
 			Copied: getIconUri('status-copied', 'dark'),
 			Untracked: getIconUri('status-untracked', 'dark'),
 			Ignored: getIconUri('status-ignored', 'dark'),
-			Conflict: getIconUri('status-conflict', 'dark')
+			Conflict: getIconUri('status-conflict', 'dark'),
+			TypeChanged: getIconUri('status-type-changed', 'dark')
 		}
 	};
 
-	private getIconPath(theme: string): Uri {
+	private getIconPath(theme: 'light' | 'dark'): Uri {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED: return Resource.Icons[theme].Modified;
 			case Status.MODIFIED: return Resource.Icons[theme].Modified;
@@ -136,6 +232,8 @@ export class Resource implements SourceControlResourceState {
 			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
 			case Status.IGNORED: return Resource.Icons[theme].Ignored;
 			case Status.INTENT_TO_ADD: return Resource.Icons[theme].Added;
+			case Status.INTENT_TO_RENAME: return Resource.Icons[theme].Renamed;
+			case Status.TYPE_CHANGED: return Resource.Icons[theme].TypeChanged;
 			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
 			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
@@ -182,70 +280,11 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get letter(): string {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.MODIFIED:
-				return 'M';
-			case Status.INDEX_ADDED:
-			case Status.INTENT_TO_ADD:
-				return 'A';
-			case Status.INDEX_DELETED:
-			case Status.DELETED:
-				return 'D';
-			case Status.INDEX_RENAMED:
-				return 'R';
-			case Status.UNTRACKED:
-				return 'U';
-			case Status.IGNORED:
-				return 'I';
-			case Status.DELETED_BY_THEM:
-				return 'D';
-			case Status.DELETED_BY_US:
-				return 'D';
-			case Status.INDEX_COPIED:
-				return 'C';
-			case Status.BOTH_DELETED:
-			case Status.ADDED_BY_US:
-			case Status.ADDED_BY_THEM:
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
-			default:
-				throw new Error('Unknown git status: ' + this.type);
-		}
+		return Resource.getStatusLetter(this.type);
 	}
 
 	get color(): ThemeColor {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED:
-				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
-			case Status.MODIFIED:
-				return new ThemeColor('gitDecoration.modifiedResourceForeground');
-			case Status.INDEX_DELETED:
-				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
-			case Status.DELETED:
-				return new ThemeColor('gitDecoration.deletedResourceForeground');
-			case Status.INDEX_ADDED:
-			case Status.INTENT_TO_ADD:
-				return new ThemeColor('gitDecoration.addedResourceForeground');
-			case Status.INDEX_COPIED:
-			case Status.INDEX_RENAMED:
-				return new ThemeColor('gitDecoration.renamedResourceForeground');
-			case Status.UNTRACKED:
-				return new ThemeColor('gitDecoration.untrackedResourceForeground');
-			case Status.IGNORED:
-				return new ThemeColor('gitDecoration.ignoredResourceForeground');
-			case Status.BOTH_DELETED:
-			case Status.ADDED_BY_US:
-			case Status.DELETED_BY_THEM:
-			case Status.ADDED_BY_THEM:
-			case Status.DELETED_BY_US:
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return new ThemeColor('gitDecoration.conflictingResourceForeground');
-			default:
-				throw new Error('Unknown git status: ' + this.type);
-		}
+		return Resource.getStatusColor(this.type);
 	}
 
 	get priority(): number {
@@ -253,6 +292,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
 			case Status.INDEX_COPIED:
+			case Status.TYPE_CHANGED:
 				return 2;
 			case Status.IGNORED:
 				return 3;
@@ -282,6 +322,7 @@ export class Resource implements SourceControlResourceState {
 		private _type: Status,
 		private _useIcons: boolean,
 		private _renameResourceUri?: Uri,
+		private _repositoryKind?: 'repository' | 'submodule' | 'worktree',
 	) { }
 
 	async open(): Promise<void> {
@@ -299,8 +340,13 @@ export class Resource implements SourceControlResourceState {
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
 
+	async compareWithWorkspace(): Promise<void> {
+		const command = this._commandResolver.resolveCompareWithWorkspaceCommand(this);
+		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+	}
+
 	clone(resourceGroupType?: ResourceGroupType) {
-		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri);
+		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind);
 	}
 }
 
@@ -319,22 +365,26 @@ class ProgressManager {
 
 	private enabled = false;
 	private disposable: IDisposable = EmptyDisposable;
+	private readonly disposables: IDisposable[] = [];
 
 	constructor(private repository: Repository) {
 		const onDidChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git', Uri.file(this.repository.root)));
-		onDidChange(_ => this.updateEnablement());
+		onDidChange(_ => this.updateEnablement(), null, this.disposables);
 		this.updateEnablement();
 
-		this.repository.onDidChangeOperations(() => {
-			// Disable input box when the commit operation is running
-			this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
-		});
+		if (!workspace.isAgentSessionsWorkspace) {
+			this.repository.onDidChangeOperations(() => {
+				// Disable input box when the commit operation is running
+				this.repository.sourceControl.inputBox.enabled = !this.repository.operations.isRunning(OperationKind.Commit);
+			}, null, this.disposables);
+		}
 	}
 
 	private updateEnablement(): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const showProgress = config.get<boolean>('showProgress') === true && !workspace.isAgentSessionsWorkspace;
 
-		if (config.get<boolean>('showProgress')) {
+		if (showProgress) {
 			this.enable();
 		} else {
 			this.disable();
@@ -372,6 +422,7 @@ class ProgressManager {
 
 	dispose(): void {
 		this.disable();
+		dispose(this.disposables);
 	}
 }
 
@@ -397,8 +448,8 @@ class FileEventLogger {
 		}
 
 		this.eventDisposable = combinedDisposable([
-			this.onWorkspaceWorkingTreeFileChange(uri => this.logger.debug(`[wt] Change: ${uri.fsPath}`)),
-			this.onDotGitFileChange(uri => this.logger.debug(`[.git] Change: ${uri.fsPath}`))
+			this.onWorkspaceWorkingTreeFileChange(uri => this.logger.debug(`[FileEventLogger][onWorkspaceWorkingTreeFileChange] ${uri.fsPath}`)),
+			this.onDotGitFileChange(uri => this.logger.debug(`[FileEventLogger][onDotGitFileChange] ${uri.fsPath}`))
 		]);
 	}
 
@@ -423,9 +474,9 @@ class DotGitWatcher implements IFileWatcher {
 		const rootWatcher = watch(repository.dotGit.path);
 		this.disposables.push(rootWatcher);
 
-		// Ignore changes to the "index.lock" file, and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
+		// Ignore changes to the "index.lock" file (including worktree index.lock files), and watchman fsmonitor hook (https://git-scm.com/docs/githooks#_fsmonitor_watchman) cookie files.
 		// Watchman creates a cookie file inside the git directory whenever a query is run (https://facebook.github.io/watchman/docs/cookies.html).
-		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
+		const filteredRootWatcher = filterEvent(rootWatcher.event, uri => uri.scheme === 'file' && !/\/\.git(\/index\.lock|\/worktrees\/[^/]+\/index\.lock)?$|\/\.watchman-cookie-/.test(uri.path));
 		this.event = anyEvent(filteredRootWatcher, this.emitter.event);
 
 		repository.onDidRunGitStatus(this.updateTransientWatchers, this, this.disposables);
@@ -449,7 +500,7 @@ class DotGitWatcher implements IFileWatcher {
 			this.transientDisposables.push(upstreamWatcher);
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
-			this.logger.warn(`Failed to watch ref '${upstreamPath}', is most likely packed.`);
+			this.logger.warn(`[DotGitWatcher][updateTransientWatchers] Failed to watch ref '${upstreamPath}', is most likely packed.`);
 		}
 	}
 
@@ -478,14 +529,19 @@ class ResourceCommandResolver {
 		};
 	}
 
-	resolveChangeCommand(resource: Resource): Command {
+	resolveChangeCommand(resource: Resource, compareWithWorkspace?: boolean, leftUri?: Uri): Command {
+		if (!compareWithWorkspace) {
+			leftUri = resource.leftUri;
+		}
+
 		const title = this.getTitle(resource);
 
-		if (!resource.leftUri) {
+		if (!leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
 			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
+				const command = this.repository.isWorktreeMigrating ? 'git.openWorktreeMergeEditor' : 'git.openMergeEditor';
 				return {
-					command: 'git.openMergeEditor',
+					command,
 					title: l10n.t('Open Merge'),
 					arguments: [resource.rightUri]
 				};
@@ -500,76 +556,104 @@ class ResourceCommandResolver {
 			return {
 				command: 'vscode.diff',
 				title: l10n.t('Open'),
-				arguments: [resource.leftUri, resource.rightUri, title]
+				arguments: [leftUri, resource.rightUri, title]
 			};
 		}
 	}
 
-	getResources(resource: Resource): [Uri | undefined, Uri | undefined] {
+	resolveCompareWithWorkspaceCommand(resource: Resource): Command {
+		// Resource is not a worktree
+		if (!this.repository.dotGit.commonPath) {
+			return this.resolveChangeCommand(resource);
+		}
+
+		const parentRepoRoot = path.dirname(this.repository.dotGit.commonPath);
+		const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
+		const candidateFsPath = path.join(parentRepoRoot, relPath);
+
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: make compareWithWorkspace await this probe before constructing the diff command; otherwise a missing worktree path produces the wrong left-hand resource.
+		const leftUri = fs.existsSync(candidateFsPath) ? Uri.file(candidateFsPath) : undefined;
+
+		return this.resolveChangeCommand(resource, true, leftUri);
+	}
+
+	getResources(resource: Resource): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {
 		for (const submodule of this.repository.submodules) {
 			if (path.join(this.repository.root, submodule.path) === resource.resourceUri.fsPath) {
-				return [undefined, toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: this.repository.root })];
+				const original = undefined;
+				const modified = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: this.repository.root });
+				return { left: original, right: modified, original, modified };
 			}
 		}
 
-		return [this.getLeftResource(resource), this.getRightResource(resource)];
+		const left = this.getLeftResource(resource);
+		const right = this.getRightResource(resource);
+
+		return {
+			left: left.original ?? left.modified,
+			right: right.original ?? right.modified,
+			original: left.original ?? right.original,
+			modified: left.modified ?? right.modified,
+		};
 	}
 
-	private getLeftResource(resource: Resource): Uri | undefined {
+	private getLeftResource(resource: Resource): ModifiedOrOriginal {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-			case Status.INDEX_ADDED:
-				return toGitUri(resource.original, 'HEAD');
+			case Status.INTENT_TO_RENAME:
+			case Status.TYPE_CHANGED:
+				return { original: toGitUri(resource.original, 'HEAD') };
 
 			case Status.MODIFIED:
-			case Status.UNTRACKED:
-				return toGitUri(resource.resourceUri, '~');
+				return { original: toGitUri(resource.resourceUri, '~') };
 
 			case Status.DELETED_BY_US:
 			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '~1');
+				return { original: toGitUri(resource.resourceUri, '~1') };
 		}
-		return undefined;
+		return {};
 	}
 
-	private getRightResource(resource: Resource): Uri | undefined {
+	private getRightResource(resource: Resource): ModifiedOrOriginal {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
-				return toGitUri(resource.resourceUri, '');
+				return { modified: toGitUri(resource.resourceUri, '') };
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return toGitUri(resource.resourceUri, 'HEAD');
+				return { original: toGitUri(resource.resourceUri, 'HEAD') };
 
 			case Status.DELETED_BY_US:
-				return toGitUri(resource.resourceUri, '~3');
+				return { original: toGitUri(resource.resourceUri, '~3') };
 
 			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '~2');
+				return { original: toGitUri(resource.resourceUri, '~2') };
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-			case Status.INTENT_TO_ADD: {
+			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_RENAME:
+			case Status.TYPE_CHANGED: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
 				if (indexStatus && indexStatus.renameResourceUri) {
-					return indexStatus.renameResourceUri;
+					return { modified: indexStatus.renameResourceUri };
 				}
 
-				return resource.resourceUri;
+				return { modified: resource.resourceUri };
 			}
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return resource.resourceUri;
+				return { modified: resource.resourceUri };
 		}
 
-		return undefined;
+		return {};
 	}
 
 	private getTitle(resource: Resource): string {
@@ -599,13 +683,35 @@ class ResourceCommandResolver {
 			case Status.UNTRACKED:
 				return l10n.t('{0} (Untracked)', basename);
 
+			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_RENAME:
+				return l10n.t('{0} (Intent to add)', basename);
+
+			case Status.TYPE_CHANGED:
+				return l10n.t('{0} (Type changed)', basename);
+
 			default:
 				return '';
 		}
 	}
 }
 
+interface ModifiedOrOriginal {
+	modified?: Uri | undefined;
+	original?: Uri | undefined;
+}
+
+interface BranchProtectionMatcher {
+	include?: picomatch.Matcher;
+	exclude?: picomatch.Matcher;
+}
+
+export interface IRepositoryResolver {
+	getRepository(hint: SourceControl | SourceControlResourceGroup | Uri | string): Repository | undefined;
+}
+
 export class Repository implements Disposable {
+	static readonly WORKTREE_ROOT_STORAGE_KEY = 'worktreeRoot';
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
@@ -630,7 +736,9 @@ export class Repository implements Disposable {
 
 	@memoize
 	get onDidChangeOperations(): Event<void> {
-		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
+		return anyEvent(
+			this.onRunOperation as Event<unknown>,
+			this.onDidRunOperation as Event<unknown>) as Event<void>;
 	}
 
 	private _sourceControl: SourceControl;
@@ -650,9 +758,16 @@ export class Repository implements Disposable {
 	private _untrackedGroup: SourceControlResourceGroup;
 	get untrackedGroup(): GitResourceGroup { return this._untrackedGroup as GitResourceGroup; }
 
+	private _EMPTY_TREE: string | undefined;
+
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
 		return this._HEAD;
+	}
+
+	private _refs: Ref[] = [];
+	get refs(): Ref[] {
+		return this._refs;
 	}
 
 	get headShortName(): string | undefined {
@@ -677,6 +792,11 @@ export class Repository implements Disposable {
 	private _submodules: Submodule[] = [];
 	get submodules(): Submodule[] {
 		return this._submodules;
+	}
+
+	private _worktrees: Worktree[] = [];
+	get worktrees(): Worktree[] {
+		return this._worktrees;
 	}
 
 	private _rebaseCommit: Commit | undefined = undefined;
@@ -715,7 +835,26 @@ export class Repository implements Disposable {
 		return this._mergeInProgress;
 	}
 
-	private _operations = new OperationManager(this.logger);
+	private _cherryPickInProgress: boolean = false;
+
+	set cherryPickInProgress(value: boolean) {
+		if (this._cherryPickInProgress === value) {
+			return;
+		}
+
+		this._cherryPickInProgress = value;
+		commands.executeCommand('setContext', 'gitCherryPickInProgress', value);
+	}
+
+	get cherryPickInProgress() {
+		return this._cherryPickInProgress;
+	}
+
+	private _isWorktreeMigrating: boolean = false;
+	get isWorktreeMigrating(): boolean { return this._isWorktreeMigrating; }
+	set isWorktreeMigrating(value: boolean) { this._isWorktreeMigrating = value; }
+
+	private readonly _operations: OperationManager;
 	get operations(): OperationManager { return this._operations; }
 
 	private _state = RepositoryState.Idle;
@@ -737,14 +876,37 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
-	get dotGit(): { path: string; commonPath?: string } {
+	get rootRealPath(): string | undefined {
+		return this.repository.rootRealPath;
+	}
+
+	get dotGit(): IDotGit {
 		return this.repository.dotGit;
 	}
+
+	get kind(): RepositoryKind {
+		return this.repository.kind;
+	}
+
+	private _isUsingVirtualFileSystem: boolean | undefined = undefined;
+	get isUsingVirtualFileSystem(): boolean {
+		return this._isUsingVirtualFileSystem === true;
+	}
+
+	private _artifactProvider: GitArtifactProvider;
+	get artifactProvider(): GitArtifactProvider { return this._artifactProvider; }
+
+	private _historyProvider: GitHistoryProvider;
+	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
+
+	private _isHidden: boolean;
+	get isHidden(): boolean { return this._isHidden; }
 
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
-	private branchProtection = new Map<string, picomatch.Matcher | undefined>();
+	private unpublishedCommits: Set<string> | undefined = undefined;
+	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
@@ -752,19 +914,24 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
+		private readonly repositoryResolver: IRepositoryResolver,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
-		globalState: Memento,
+		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
+		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
-		private telemetryReporter: TelemetryReporter
+		private telemetryReporter: TelemetryReporter,
+		private readonly repositoryCache: RepositoryCache
 	) {
+		this._operations = new OperationManager(this.logger);
+
 		const repositoryWatcher = workspace.createFileSystemWatcher(new RelativePattern(Uri.file(repository.root), '**'));
 		this.disposables.push(repositoryWatcher);
 
 		const onRepositoryFileChange = anyEvent(repositoryWatcher.onDidChange, repositoryWatcher.onDidCreate, repositoryWatcher.onDidDelete);
-		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\/)/.test(relativePath(repository.root, uri.fsPath)));
+		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\\|\/)/.test(relativePath(repository.root, uri.fsPath)));
 
 		let onRepositoryDotGitFileChange: Event<Uri>;
 
@@ -775,12 +942,12 @@ export class Repository implements Disposable {
 		} catch (err) {
 			logger.error(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 
-			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\/)/.test(uri.path));
+			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\\|\/)/.test(uri.path));
 		}
 
 		// FS changes should trigger `git status`:
 		// 	- any change inside the repository working tree
-		//	- any change whithin the first level of the `.git` folder, except the folder itself and `index.lock`
+		//	- any change within the first level of the `.git` folder, except the folder itself and `index.lock` (repository and worktree)
 		const onFileChange = anyEvent(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange);
 		onFileChange(this.onFileChange, this, this.disposables);
 
@@ -789,21 +956,71 @@ export class Repository implements Disposable {
 
 		this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, logger));
 
+		// Parent source control. Repositories opened in the Sessions app
+		// don't use the parent/child relationship and it is expected for
+		// a worktree repository to be opened while the main repository
+		// is closed.
+		const parentRoot = workspace.isAgentSessionsWorkspace
+			? undefined
+			: repository.kind === 'submodule'
+				? repository.dotGit.superProjectPath
+				: repository.kind === 'worktree' && repository.dotGit.commonPath
+					? path.dirname(repository.dotGit.commonPath)
+					: undefined;
+		const parent = parentRoot
+			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
+			: undefined;
+
+		// Icon
+		const icon = repository.kind === 'submodule'
+			? new ThemeIcon('archive')
+			: repository.kind === 'worktree'
+				? isCopilotWorktreeFolder(repository.root)
+					? new ThemeIcon('chat-sparkle')
+					: new ThemeIcon('worktree')
+				: new ThemeIcon('repo');
+
+		// Hidden
+		// This is a temporary solution to hide:
+		// * repositories in the empty window
+		// * worktrees created by Copilot when the main repository
+		//   is opened. Users can still manually open the worktree
+		//   from the Repositories view.
+		this._isHidden = workspace.workspaceFolders === undefined ||
+			(repository.kind === 'worktree' &&
+				isCopilotWorktreeFolder(repository.root) && parent !== undefined);
+
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
+		this._sourceControl.contextValue = repository.kind;
+		const activeRepositoryRoot = repository.dotGit.isBare ? repository.dotGit.commonPath : parentRoot;
+		this._sourceControl.activeRepositoryName = repository.kind === 'worktree' && activeRepositoryRoot
+			? path.basename(activeRepositoryRoot) || undefined
+			: undefined;
+
+		this._sourceControl.quickDiffProvider = new GitQuickDiffProvider(this, this.repositoryResolver, logger);
+		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
+
+		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
+		this._sourceControl.historyProvider = this._historyProvider;
+		this.disposables.push(this._historyProvider);
+
+		this._artifactProvider = new GitArtifactProvider(this, logger);
+		this._sourceControl.artifactProvider = this._artifactProvider;
+		this.disposables.push(this._artifactProvider);
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
-		this._sourceControl.quickDiffProvider = this;
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
+
 		this.disposables.push(this._sourceControl);
 
 		this.updateInputBoxPlaceholder();
 		this.disposables.push(this.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
 
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', l10n.t('Merge Changes'));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', l10n.t('Staged Changes'));
-		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', l10n.t('Changes'));
-		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'));
+		this._indexGroup = this._sourceControl.createResourceGroup('index', l10n.t('Staged Changes'), { multiDiffEditorEnableViewChanges: true });
+		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', l10n.t('Changes'), { multiDiffEditorEnableViewChanges: true });
+		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'), { multiDiffEditorEnableViewChanges: true });
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -826,6 +1043,7 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
+			|| e.affectsConfiguration('git.similarityThreshold', root)
 		)(() => this.updateModelState(), this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
@@ -869,7 +1087,9 @@ export class Repository implements Disposable {
 		// Default branch protection provider
 		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
 		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
-		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root)));
+		const branchProtectionProvider = new GitBranchProtectionProvider(root, this.logger);
+		this.disposables.push(branchProtectionProvider);
+		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, branchProtectionProvider));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
@@ -879,9 +1099,9 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		const actionButton = new ActionButtonCommand(this, this.commitCommandCenter);
+		const actionButton = new ActionButton(this, this.commitCommandCenter, this.logger);
 		this.disposables.push(actionButton);
-		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button, this, this.disposables);
 		this._sourceControl.actionButton = actionButton.button;
 
 		const progressManager = new ProgressManager(this);
@@ -892,10 +1112,9 @@ export class Repository implements Disposable {
 		this.setCountBadge();
 	}
 
-	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
-		let tooManyChangesWarning: SourceControlInputBoxValidation | undefined;
+	validateInput(text: string, _: number): SourceControlInputBoxValidation | undefined {
 		if (this.isRepositoryHuge) {
-			tooManyChangesWarning = {
+			return {
 				message: l10n.t('Too many changes were detected. Only the first {0} changes will be shown below.', this.isRepositoryHuge.limit),
 				type: SourceControlInputBoxValidationType.Warning
 			};
@@ -910,84 +1129,7 @@ export class Repository implements Disposable {
 			}
 		}
 
-		const config = workspace.getConfiguration('git');
-		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
-
-		if (setting === 'off') {
-			return tooManyChangesWarning;
-		}
-
-		if (/^\s+$/.test(text)) {
-			return {
-				message: l10n.t('Current commit message only contains whitespace characters'),
-				type: SourceControlInputBoxValidationType.Warning
-			};
-		}
-
-		let lineNumber = 0;
-		let start = 0;
-		let match: RegExpExecArray | null;
-		const regex = /\r?\n/g;
-
-		while ((match = regex.exec(text)) && position > match.index) {
-			start = match.index + match[0].length;
-			lineNumber++;
-		}
-
-		const end = match ? match.index : text.length;
-
-		const line = text.substring(start, end);
-
-		let threshold = config.get<number>('inputValidationLength', 50);
-
-		if (lineNumber === 0) {
-			const inputValidationSubjectLength = config.get<number | null>('inputValidationSubjectLength', null);
-
-			if (inputValidationSubjectLength !== null) {
-				threshold = inputValidationSubjectLength;
-			}
-		}
-
-		if (line.length <= threshold) {
-			if (setting !== 'always') {
-				return tooManyChangesWarning;
-			}
-
-			return {
-				message: l10n.t('{0} characters left in current line', threshold - line.length),
-				type: SourceControlInputBoxValidationType.Information
-			};
-		} else {
-			return {
-				message: l10n.t('{0} characters over {1} in current line', line.length - threshold, threshold),
-				type: SourceControlInputBoxValidationType.Warning
-			};
-		}
-	}
-
-	/**
-	 * Quick diff label
-	 */
-	get label(): string {
-		return l10n.t('Git local working changes');
-	}
-
-	provideOriginalResource(uri: Uri): Uri | undefined {
-		if (uri.scheme !== 'file') {
-			return;
-		}
-
-		// Ignore path that is inside a merge group
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
-			return undefined;
-		}
-
-		// Ignore path that is inside a submodule
-		if (this.submodules.some(s => isDescendant(path.join(this.repository.root, s.path), uri.path))) {
-			return undefined;
-		}
-
-		return toGitUri(uri, '', { replaceFileExtension: true });
+		return undefined;
 	}
 
 	async getInputTemplate(): Promise<string> {
@@ -1001,33 +1143,43 @@ export class Repository implements Disposable {
 	}
 
 	getConfigs(): Promise<{ key: string; value: string }[]> {
-		return this.run(Operation.Config, () => this.repository.getConfigs('local'));
+		return this.run(Operation.Config(true), () => this.repository.getConfigs('local'));
 	}
 
 	getConfig(key: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('local', key));
+		return this.run(Operation.Config(true), () => this.repository.config('get', 'local', key));
 	}
 
 	getGlobalConfig(key: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('global', key));
+		return this.run(Operation.Config(true), () => this.repository.config('get', 'global', key));
 	}
 
 	setConfig(key: string, value: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('local', key, value));
+		return this.run(Operation.Config(false), () => this.repository.config('add', 'local', key, value));
 	}
 
-	log(options?: LogOptions): Promise<Commit[]> {
-		return this.run(Operation.Log, () => this.repository.log(options));
+	unsetConfig(key: string): Promise<string> {
+		return this.run(Operation.Config(false), () => this.repository.config('unset', 'local', key));
 	}
 
-	logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
+	log(options?: LogOptions & { silent?: boolean }, cancellationToken?: CancellationToken): Promise<Commit[]> {
+		const showProgress = !options || options.silent !== true;
+		return this.run(Operation.Log(showProgress), () => this.repository.log(options, cancellationToken));
+	}
+
+	logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		// TODO: This probably needs per-uri granularity
-		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options));
+		return this.run(Operation.LogFile, () => this.repository.logFile(uri, options, cancellationToken));
 	}
 
 	@throttle
 	async status(): Promise<void> {
 		await this.run(Operation.Status);
+	}
+
+	@throttle
+	async refresh(): Promise<void> {
+		await this.run(Operation.Refresh);
 	}
 
 	diff(cached?: boolean): Promise<string> {
@@ -1039,6 +1191,10 @@ export class Repository implements Disposable {
 	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
 	diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffWithHEAD(path));
+	}
+
+	diffWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.run(Operation.Diff, () => this.repository.diffWithHEADShortStats(path));
 	}
 
 	diffWith(ref: string): Promise<Change[]>;
@@ -1053,6 +1209,10 @@ export class Repository implements Disposable {
 	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
 	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEAD(path));
+	}
+
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.run(Operation.Diff, () => this.repository.diffIndexWithHEADShortStats(path));
 	}
 
 	diffIndexWith(ref: string): Promise<Change[]>;
@@ -1073,8 +1233,42 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
-		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
+	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string> {
+		return this.run(Operation.Diff, () =>
+			this.repository.diffBetweenPatch(`${ref1}...${ref2}`, { path }));
+	}
+
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]> {
+		if (ref1 === this._EMPTY_TREE) {
+			// Use git diff-tree to get the
+			// changes in the first commit
+			return this.diffTrees(ref1, ref2);
+		}
+
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.root));
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
+
+		return this.run(Operation.Diff, () =>
+			this.repository.diffBetweenWithStats(`${ref1}...${ref2}`, { path, similarityThreshold }));
+	}
+
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]> {
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.root));
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
+
+		return this.run(Operation.Diff, () =>
+			this.repository.diffBetweenWithStats(ref, { path, similarityThreshold }));
+	}
+
+	diffTrees(treeish1: string, treeish2?: string): Promise<DiffChange[]> {
+		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.root));
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
+
+		return this.run(Operation.Diff, () => this.repository.diffTrees(treeish1, treeish2, { similarityThreshold }));
+	}
+
+	getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
+		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2, ...refs));
 	}
 
 	async hashObject(data: string): Promise<string> {
@@ -1087,6 +1281,9 @@ export class Repository implements Disposable {
 			async () => {
 				await this.repository.add(resources.map(r => r.fsPath), opts);
 				this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
+
+				// Accept working set changes across all chat sessions
+				commands.executeCommand('_chat.editSessions.accept', resources);
 			},
 			() => {
 				const resourcePaths = resources.map(r => r.fsPath);
@@ -1123,13 +1320,14 @@ export class Repository implements Disposable {
 		await this.run(Operation.Remove, () => this.repository.rm(resources.map(r => r.fsPath)));
 	}
 
-	async stage(resource: Uri, contents: string): Promise<void> {
-		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
+	async stage(resource: Uri, contents: string, encoding: string): Promise<void> {
 		await this.run(Operation.Stage, async () => {
-			await this.repository.stage(path, contents);
+			const data = await workspace.encode(contents, { encoding });
+			await this.repository.stage(resource.fsPath, data);
+
+			this._onDidChangeOriginalResource.fire(resource);
 			this.closeDiffEditors([], [...resource.fsPath]);
 		});
-		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
@@ -1137,9 +1335,18 @@ export class Repository implements Disposable {
 			Operation.RevertFiles(!this.optimisticUpdateEnabled()),
 			async () => {
 				await this.repository.revert('HEAD', resources.map(r => r.fsPath));
+				for (const resource of resources) {
+					this._onDidChangeOriginalResource.fire(resource);
+				}
 				this.closeDiffEditors([...resources.length !== 0 ?
 					resources.map(r => r.fsPath) :
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
+
+				// Clear AI contribution tracking for reverted resources
+				const uris = resources.length !== 0
+					? resources
+					: this.indexGroup.resourceStates.map(r => r.resourceUri);
+				commands.executeCommand('_aiEdits.clearAiContributions', uris);
 			},
 			() => {
 				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
@@ -1179,7 +1386,59 @@ export class Repository implements Disposable {
 			});
 	}
 
+	async restore(resources: Uri[], options?: { staged?: boolean; ref?: string }): Promise<void> {
+		await this.run(
+			Operation.Restore(!this.optimisticUpdateEnabled()),
+			async () => {
+				const toClean: string[] = [];
+				const toRestore: string[] = [];
+
+				const resourceStates = [
+					...this.indexGroup.resourceStates,
+					...this.workingTreeGroup.resourceStates,
+					...this.untrackedGroup.resourceStates
+				];
+
+				for (const resource of resources) {
+					const scmResource = find(resourceStates, r => r.resourceUri.toString() === resource.toString());
+
+					if (!scmResource) {
+						toRestore.push(resource.fsPath);
+						continue;
+					}
+
+					switch (scmResource.type) {
+						case Status.UNTRACKED:
+						case Status.IGNORED:
+							toClean.push(resource.fsPath);
+							break;
+
+						default:
+							toRestore.push(resource.fsPath);
+							break;
+					}
+				}
+
+				if (toClean.length > 0) {
+					await this._clean(toClean);
+				}
+
+				if (toRestore.length > 0) {
+					await this.repository.restore(toRestore, options);
+				}
+
+				this.closeDiffEditors([], [...toClean, ...toRestore]);
+
+				// Clear AI contribution tracking for discarded resources
+				commands.executeCommand('_aiEdits.clearAiContributions', resources);
+			});
+	}
+
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
+			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+
 		if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
@@ -1190,7 +1449,7 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.rebaseContinue();
-					await this.commitOperationCleanup(message, opts);
+					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
 				},
 				() => this.commitOperationGetOptimisticResourceGroups(opts));
 		} else {
@@ -1212,8 +1471,11 @@ export class Repository implements Disposable {
 						opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
 					}
 
+					// Add AI co-author trailer if applicable
+					message = await this.appendAICoAuthorTrailer(message, indexResources, workingGroupResources);
+
 					await this.repository.commit(message, opts);
-					await this.commitOperationCleanup(message, opts);
+					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
 				},
 				() => this.commitOperationGetOptimisticResourceGroups(opts));
 
@@ -1224,16 +1486,71 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async commitOperationCleanup(message: string | undefined, opts: CommitOptions) {
+	private async commitOperationCleanup(message: string | undefined, indexResources: string[], workingGroupResources: string[]) {
 		if (message) {
 			this.inputBox.value = await this.getInputTemplate();
 		}
-
-		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
-		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
-
 		this.closeDiffEditors(indexResources, workingGroupResources);
+
+		// Accept working set changes across all chat sessions
+		const resources = indexResources.length !== 0
+			? indexResources.map(r => Uri.file(r))
+			: workingGroupResources.map(r => Uri.file(r));
+		commands.executeCommand('_chat.editSessions.accept', resources);
+
+		// Clear AI contribution tracking for committed resources
+		commands.executeCommand('_aiEdits.clearAiContributions', resources);
+	}
+
+	private static readonly AI_CO_AUTHOR_TRAILER = 'Co-authored-by: Copilot <copilot@github.com>';
+
+	private async appendAICoAuthorTrailer(
+		message: string | undefined,
+		indexResources: string[],
+		workingGroupResources: string[]
+	): Promise<string | undefined> {
+		if (!message) {
+			return message;
+		}
+
+		const chatConfig = workspace.getConfiguration('chat');
+		if (chatConfig.get<boolean>('disableAIFeatures', false)) {
+			return message;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'off');
+
+		if (addAICoAuthor === 'off') {
+			return message;
+		}
+
+		// Don't add if trailer is already present
+		if (message.includes(Repository.AI_CO_AUTHOR_TRAILER)) {
+			return message;
+		}
+
+		const resources = indexResources.length !== 0
+			? indexResources.map(r => Uri.file(r))
+			: workingGroupResources.map(r => Uri.file(r));
+
+		if (resources.length === 0) {
+			return message;
+		}
+
+		try {
+			const level = addAICoAuthor === 'all' ? 'all' : 'chatAndAgent';
+			const hasAiContributions = await commands.executeCommand<boolean>('_aiEdits.hasAiContributions', resources, level);
+			if (hasAiContributions) {
+				// Ensure proper trailer formatting: blank line before trailers
+				const trimmed = message.trimEnd();
+				return `${trimmed}\n\n${Repository.AI_CO_AUTHOR_TRAILER}`;
+			}
+		} catch {
+			// Command may not be available (e.g., in web environment)
+		}
+
+		return message;
 	}
 
 	private commitOperationGetOptimisticResourceGroups(opts: CommitOptions): GitResourceGroups {
@@ -1288,17 +1605,28 @@ export class Repository implements Disposable {
 					}
 				});
 
-				await this.repository.clean(toClean);
-				try {
-					await this.repository.checkout('', toCheckout);
-				} catch (err) {
-					if (err.gitErrorCode !== GitErrorCodes.BranchNotYetBorn) {
-						throw err;
+				if (toClean.length > 0) {
+					await this._clean(toClean);
+				}
+
+				if (toCheckout.length > 0) {
+					try {
+						await this.repository.checkout('', toCheckout);
+					} catch (err) {
+						if (err.gitErrorCode !== GitErrorCodes.BranchNotYetBorn) {
+							throw err;
+						}
 					}
 				}
-				await this.repository.updateSubmodules(submodulesToUpdate);
+
+				if (submodulesToUpdate.length > 0) {
+					await this.repository.updateSubmodules(submodulesToUpdate);
+				}
 
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
+
+				// Clear AI contribution tracking for discarded resources
+				commands.executeCommand('_aiEdits.clearAiContributions', resources);
 			},
 			() => {
 				const resourcePaths = resources.map(r => r.fsPath);
@@ -1315,25 +1643,69 @@ export class Repository implements Disposable {
 			});
 	}
 
+	async _clean(resources: string[]): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
+
+		if (resources.length === 0) {
+			return;
+		}
+
+		if (discardUntrackedChangesToTrash) {
+			try {
+				// Attempt to move the first resource to the recycle bin/trash to check
+				// if it is supported. If it fails, we show a confirmation dialog and
+				// fall back to deletion.
+				await workspace.fs.delete(Uri.file(resources[0]), { useTrash: true });
+
+				const limiter = new Limiter<void>(5);
+				await Promise.all(resources.slice(1).map(fsPath => limiter.queue(
+					async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+			} catch {
+				const message = isWindows
+					? l10n.t('Failed to delete using the Recycle Bin. Do you want to permanently delete instead?')
+					: l10n.t('Failed to delete using the Trash. Do you want to permanently delete instead?');
+				const primaryAction = resources.length === 1
+					? l10n.t('Delete File')
+					: l10n.t('Delete All {0} Files', resources.length);
+
+				const result = await window.showWarningMessage(message, { modal: true }, primaryAction);
+				if (result === primaryAction) {
+					// Delete permanently
+					await this.repository.clean(resources);
+				}
+			}
+		} else {
+			await this.repository.clean(resources);
+		}
+	}
+
 	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting = false): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
-		const diffEditorTabsToClose: Tab[] = [];
-
-		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
-			const { input } = tab;
-			if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
-				if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
-					// Index
-					diffEditorTabsToClose.push(tab);
-				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
-					// Working Tree
-					diffEditorTabsToClose.push(tab);
-				}
+		function checkTabShouldClose(input: TabInputTextDiff | TabInputNotebookDiff) {
+			if (input.modified.scheme === 'git' && (indexResources === undefined || indexResources.some(r => pathEquals(r, input.modified.fsPath)))) {
+				// Index
+				return true;
 			}
+			if (input.modified.scheme === 'file' && input.original.scheme === 'git' && (workingTreeResources === undefined || workingTreeResources.some(r => pathEquals(r, input.modified.fsPath)))) {
+				// Working Tree
+				return true;
+			}
+			return false;
 		}
+
+		const diffEditorTabsToClose = window.tabGroups.all
+			.flatMap(g => g.tabs)
+			.filter(({ input }) => {
+				if (input instanceof TabInputTextDiff || input instanceof TabInputNotebookDiff) {
+					return checkTabShouldClose(input);
+				} else if (input instanceof TabInputTextMultiDiff) {
+					return input.textDiffs.every(checkTabShouldClose);
+				}
+				return false;
+			});
 
 		// Close editors
 		window.tabGroups.close(diffEditorTabsToClose, true);
@@ -1344,7 +1716,10 @@ export class Repository implements Disposable {
 	}
 
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
-		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
+		return this.run(Operation.DeleteBranch, async () => {
+			await this.repository.deleteBranch(name, force);
+			await this.repository.config('unset', 'local', `branch.${name}.vscode-merge-base`);
+		});
 	}
 
 	async renameBranch(name: string): Promise<void> {
@@ -1376,6 +1751,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
 	}
 
+	async cherryPickAbort(): Promise<void> {
+		await this.run(Operation.CherryPick, () => this.repository.cherryPickAbort());
+	}
+
 	async move(from: string, to: string): Promise<void> {
 		await this.run(Operation.Move, () => this.repository.move(from, to));
 	}
@@ -1387,11 +1766,117 @@ export class Repository implements Disposable {
 	async getBranches(query: BranchQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return await this.run(Operation.GetBranches, async () => {
 			const refs = await this.getRefs(query, cancellationToken);
-			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
+			return refs.filter(value => value.type === RefType.Head || (value.type === RefType.RemoteHead && query.remote));
 		});
 	}
 
-	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
+	@sequentialize
+	async getBranchBase(ref: string): Promise<Branch | undefined> {
+		const branch = await this.getBranch(ref);
+
+		// Git config
+		const mergeBaseConfigKey = `branch.${branch.name}.vscode-merge-base`;
+
+		try {
+			const mergeBase = await this.getConfig(mergeBaseConfigKey);
+			const branchFromConfig = mergeBase !== '' ? await this.getBranch(mergeBase) : undefined;
+
+			// There was a brief period of time when we would consider local branches as a valid
+			// merge base. Since then we have fixed the issue and only remote branches can be used
+			// as a merge base so we are adding an additional check.
+			if (branchFromConfig && branchFromConfig.remote) {
+				return branchFromConfig;
+			}
+		} catch (err) { }
+
+		// Reflog
+		const branchFromReflog = await this.getBranchBaseFromReflog(ref);
+
+		let branchFromReflogUpstream: Branch | undefined = undefined;
+
+		if (branchFromReflog?.type === RefType.RemoteHead) {
+			branchFromReflogUpstream = branchFromReflog;
+		} else if (branchFromReflog?.type === RefType.Head) {
+			branchFromReflogUpstream = await this.getUpstreamBranch(branchFromReflog);
+		}
+
+		if (branchFromReflogUpstream) {
+			await this.setConfig(mergeBaseConfigKey, `${branchFromReflogUpstream.remote}/${branchFromReflogUpstream.name}`);
+			return branchFromReflogUpstream;
+		}
+
+		// Default branch
+		const defaultBranch = await this.getDefaultBranch();
+		if (defaultBranch) {
+			await this.setConfig(mergeBaseConfigKey, `${defaultBranch.remote}/${defaultBranch.name}`);
+			return defaultBranch;
+		}
+
+		return undefined;
+	}
+
+	private async getBranchBaseFromReflog(ref: string): Promise<Branch | undefined> {
+		try {
+			const reflogEntries = await this.repository.reflog(ref, 'branch: Created from *.');
+			if (reflogEntries.length !== 1) {
+				return undefined;
+			}
+
+			// Branch created from an explicit branch
+			const match = reflogEntries[0].match(/branch: Created from (?<name>.*)$/);
+			if (match && match.length === 2 && match[1] !== 'HEAD') {
+				return await this.getBranch(match[1]);
+			}
+
+			// Branch created from HEAD
+			const headReflogEntries = await this.repository.reflog('HEAD', `checkout: moving from .* to ${ref.replace('refs/heads/', '')}`);
+			if (headReflogEntries.length === 0) {
+				return undefined;
+			}
+
+			const match2 = headReflogEntries[headReflogEntries.length - 1].match(/checkout: moving from ([^\s]+)\s/);
+			if (match2 && match2.length === 2) {
+				return await this.getBranch(match2[1]);
+			}
+
+		}
+		catch (err) { }
+
+		return undefined;
+	}
+
+	private async getDefaultBranch(): Promise<Branch | undefined> {
+		const defaultRemote = this.getDefaultRemote();
+		if (!defaultRemote) {
+			return undefined;
+		}
+
+		try {
+			const defaultBranch = await this.repository.getDefaultBranch(defaultRemote.name);
+			return defaultBranch;
+		}
+		catch (err) {
+			this.logger.warn(`[Repository][getDefaultBranch] Failed to get default branch details: ${err.message}.`);
+			return undefined;
+		}
+	}
+
+	private async getUpstreamBranch(branch: Branch): Promise<Branch | undefined> {
+		if (!branch.upstream) {
+			return undefined;
+		}
+
+		try {
+			const upstreamBranch = await this.getBranch(`refs/remotes/${branch.upstream.remote}/${branch.upstream.name}`);
+			return upstreamBranch;
+		}
+		catch (err) {
+			this.logger.warn(`[Repository][getUpstreamBranch] Failed to get branch details for 'refs/remotes/${branch.upstream.remote}/${branch.upstream.name}': ${err.message}.`);
+			return undefined;
+		}
+	}
+
+	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<(Ref | Branch)[]> {
 		const config = workspace.getConfiguration('git');
 		let defaultSort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder');
 		if (defaultSort !== 'alphabetically' && defaultSort !== 'committerdate') {
@@ -1400,6 +1885,40 @@ export class Repository implements Disposable {
 
 		query = { ...query, sort: query?.sort ?? defaultSort };
 		return await this.run(Operation.GetRefs, () => this.repository.getRefs(query, cancellationToken));
+	}
+
+	async getWorktrees(): Promise<Worktree[]> {
+		return await this.run(Operation.Worktree(true), () => this.repository.getWorktrees());
+	}
+
+	async getWorktreeDetails(): Promise<Worktree[]> {
+		return this.run(Operation.Worktree(true), async () => {
+			const worktrees = await this.repository.getWorktrees();
+			if (worktrees.length === 0) {
+				return [];
+			}
+
+			// Get refs for worktrees that point to a ref
+			const worktreeRefs = worktrees
+				.filter(worktree => !worktree.detached)
+				.map(worktree => worktree.ref);
+
+			// Get the commit details for worktrees that point to a ref
+			const refs = await this.getRefs({ pattern: worktreeRefs, includeCommitDetails: true });
+
+			// Get the commit details for detached worktrees
+			const commits = await Promise.all(worktrees
+				.filter(worktree => worktree.detached)
+				.map(worktree => this.repository.getCommit(worktree.ref)));
+
+			return worktrees.map(worktree => {
+				const commitDetails = worktree.detached
+					? commits.find(commit => commit.hash === worktree.ref)
+					: refs.find(ref => `refs/heads/${ref.name}` === worktree.ref)?.commitDetails;
+
+				return { ...worktree, commitDetails } satisfies Worktree;
+			});
+		});
 	}
 
 	async getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
@@ -1418,24 +1937,363 @@ export class Repository implements Disposable {
 		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}
 
-	async rebase(branch: string): Promise<void> {
-		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
+	async rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void> {
+		await this.run(Operation.Rebase, () => this.repository.rebase(branch, options));
 	}
 
-	async tag(name: string, message?: string): Promise<void> {
-		await this.run(Operation.Tag, () => this.repository.tag(name, message));
+	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
+		await this.run(Operation.Tag, () => this.repository.tag(options));
 	}
 
 	async deleteTag(name: string): Promise<void> {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
-		await this.run(Operation.DeleteRemoteTag, () => this.repository.deleteRemoteTag(remoteName, tagName));
+	async createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
+		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const branchPrefix = config.get<string>('branchPrefix', '');
+
+		return await this.run(Operation.Worktree(false), async () => {
+			let worktreeName: string | undefined;
+			let { path: worktreePath, commitish, branch, noTrack } = options || {};
+
+			// Create worktree path based on the branch name
+			if (worktreePath === undefined && branch !== undefined) {
+				worktreeName = branch.startsWith(branchPrefix)
+					? branch.substring(branchPrefix.length).replace(/\//g, '-')
+					: branch.replace(/\//g, '-');
+
+				worktreePath = defaultWorktreeRoot
+					? path.join(defaultWorktreeRoot, worktreeName)
+					: path.join(path.dirname(this.root), `${path.basename(this.root)}.worktrees`, worktreeName);
+			}
+
+			// Ensure that the worktree path is unique
+			if (this.worktrees.some(worktree => pathEquals(path.normalize(worktree.path), path.normalize(worktreePath!)))) {
+				let counter = 0, uniqueWorktreePath: string;
+				do {
+					uniqueWorktreePath = `${worktreePath}-${++counter}`;
+				} while (this.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniqueWorktreePath))));
+
+				worktreePath = uniqueWorktreePath;
+			}
+
+			// Create the worktree
+			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
+
+			// Worktree setup is best effort and must not delay or fail creation.
+			this._setupWorktree(worktreePath!).then(undefined, err => {
+				this.logger.warn(`[Repository][createWorktree] Failed to set up worktree '${worktreePath}': ${err}`);
+			});
+
+			return worktreePath!;
+		});
+	}
+
+	private async _setupWorktree(worktreePath: string): Promise<void> {
+		// Set up shared and copied worktree files before running any
+		// worktree-created tasks.
+		const symlinkFolders = await this._symlinkWorktreeFolders(worktreePath);
+		await this._copyWorktreeIncludeFiles(worktreePath, symlinkFolders);
+		await this._runWorktreeCreatedTasks(worktreePath);
+	}
+
+	private async _symlinkWorktreeFolders(worktreePath: string): Promise<string[]> {
+		try {
+			const directories = await this._getWorktreeSymlinkFolders();
+			if (directories.length === 0) {
+				return [];
+			}
+
+			const startTime = performance.now();
+			const statuses = new Map<WorktreeSymlinkStatus, number>();
+			const createdDirectories: string[] = [];
+			const errors: { directory: string; error: string }[] = [];
+
+			for (const directory of directories) {
+				try {
+					const status = await createWorktreeSymlink(this.root, worktreePath, directory);
+					statuses.set(status, (statuses.get(status) ?? 0) + 1);
+					if (status === 'created') {
+						createdDirectories.push(directory);
+					}
+				} catch (err) {
+					errors.push({ directory, error: String(err) });
+				}
+			}
+
+			const created = statuses.get('created') ?? 0;
+			this.logger.info(`[Repository][_symlinkWorktreeFolders] Symlinked ${created}/${directories.length} folder(s) to worktree. [${(performance.now() - startTime).toFixed(2)}ms]`);
+
+			const skippedStatuses: WorktreeSymlinkStatus[] = ['sourceContainsWorktree', 'targetExists'];
+			for (const status of skippedStatuses) {
+				const count = statuses.get(status) ?? 0;
+				if (count > 0) {
+					this.logger.info(`[Repository][_symlinkWorktreeFolders] Skipped ${count} folder(s) (${status}).`);
+				}
+			}
+
+			if (errors.length > 0) {
+				window.showWarningMessage(l10n.t('Failed to create {0} worktree folder symlink(s).', errors.length));
+
+				this.logger.warn(`[Repository][_symlinkWorktreeFolders] Failed to create ${errors.length} worktree folder symlink(s).`);
+				for (const error of errors) {
+					this.logger.warn(`  - ${error.directory}: ${error.error}`);
+				}
+			}
+			return createdDirectories;
+		} catch (err) {
+			this.logger.warn(`[Repository][_symlinkWorktreeFolders] Failed to symlink folders to worktree: ${err}`);
+			return [];
+		}
+	}
+
+	private async _getWorktreeSymlinkFolders(): Promise<string[]> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const worktreeSymlinkFolders = config.get<string[]>('worktreeSymlinkFolders', []);
+
+		const patterns = sanitizeWorktreeIncludePatterns(worktreeSymlinkFolders);
+		if (patterns.length !== worktreeSymlinkFolders.length) {
+			this.logger.warn(`[Repository][_getWorktreeSymlinkFolders] Ignoring ${worktreeSymlinkFolders.length - patterns.length} pattern(s) containing line breaks.`);
+		}
+		if (patterns.length === 0) {
+			return [];
+		}
+
+		const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-worktree-symlink-'));
+		const patternsFile = path.join(tempDir, 'patterns');
+
+		try {
+			await fsPromises.writeFile(patternsFile, patterns.join('\n') + '\n', 'utf8');
+
+			const tryExec = async (cwd: string, args: string[], input?: string, allowNoMatches = false): Promise<string | undefined> => {
+				try {
+					return (await this.repository.git.exec(cwd, args, { input })).stdout;
+				} catch (err) {
+					if (allowNoMatches && err instanceof GitError && err.exitCode === 1) {
+						return '';
+					}
+					this.logger.warn(`[Repository][_getWorktreeSymlinkFolders] Failed to execute 'git ${args.join(' ')}': ${err}`);
+					return undefined;
+				}
+			};
+
+			const baseArgs = ['ls-files', '--others', '--ignored', '-z'];
+			const [ignoredOutput, matchedOutput, directoryOutput] = await Promise.all([
+				tryExec(this.root, [...baseArgs, '--exclude-standard']),
+				tryExec(this.root, [...baseArgs, `--exclude-from=${patternsFile}`]),
+				tryExec(this.root, [...baseArgs, '--exclude-standard', '--directory'])
+			]);
+			if (ignoredOutput === undefined || matchedOutput === undefined || directoryOutput === undefined) {
+				return [];
+			}
+
+			const candidates = getWorktreeSymlinkFolderCandidates(ignoredOutput, matchedOutput);
+			if (candidates.length === 0) {
+				return [];
+			}
+
+			const matcherRoot = path.join(tempDir, 'matcher');
+			await fsPromises.mkdir(matcherRoot);
+			if (await tryExec(matcherRoot, ['init', '--quiet']) === undefined) {
+				return [];
+			}
+
+			const candidateInput = candidates.map(candidate => `${candidate}/`).join('\0');
+			const [ignoredDirectoriesOutput, matchedDirectoriesOutput] = await Promise.all([
+				tryExec(this.root, ['check-ignore', '--no-index', '-z', '--stdin'], candidateInput, true),
+				tryExec(matcherRoot, ['-c', `core.excludesFile=${patternsFile}`, 'check-ignore', '--no-index', '-z', '--stdin'], candidateInput, true)
+			]);
+			if (ignoredDirectoriesOutput === undefined || matchedDirectoriesOutput === undefined) {
+				return [];
+			}
+
+			return filterWorktreeSymlinkFolders(candidates, ignoredDirectoriesOutput, matchedDirectoriesOutput, directoryOutput);
+		} finally {
+			try {
+				await fsPromises.rm(tempDir, { recursive: true, force: true });
+			} catch {
+				// best-effort
+			}
+		}
+	}
+
+	private async _runWorktreeCreatedTasks(worktreePath: string): Promise<void> {
+		try {
+			const allTasks = await tasks.fetchTasks();
+			const worktreeTasks = allTasks.filter(task => task.runOptions.runOn === TaskRunOn.WorktreeCreated);
+
+			for (const task of worktreeTasks) {
+				const worktreeTask = retargetTaskToWorktree(task, worktreePath);
+				if (!worktreeTask) {
+					this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Skipped task '${task.name}' because it could not be retargeted to worktree '${worktreePath}'.`);
+					continue;
+				}
+
+				tasks.executeTask(worktreeTask).then(undefined, err => {
+					this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Failed to execute worktree-created task '${task.name}' for '${worktreePath}': ${err}`);
+				});
+			}
+		} catch (err) {
+			this.logger.warn(`[Repository][_runWorktreeCreatedTasks] Failed to execute worktree-created tasks for '${worktreePath}': ${err}`);
+		}
+	}
+
+	/**
+	 * Resolves the git-ignored paths to copy into a worktree. The
+	 * `git.worktreeIncludeFiles` patterns are matched by git using
+	 * `.gitignore` semantics.
+	 */
+	private async _getWorktreeIncludePaths(worktreePath: string, excludedFolders: readonly string[]): Promise<string[]> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
+
+		const includePatterns = sanitizeWorktreeIncludePatterns(worktreeIncludeFiles);
+		if (includePatterns.length !== worktreeIncludeFiles.length) {
+			this.logger.warn(`[Repository][_getWorktreeIncludePaths] Ignoring ${worktreeIncludeFiles.length - includePatterns.length} pattern(s) containing line breaks.`);
+		}
+		if (includePatterns.length === 0) {
+			return [];
+		}
+
+		// Git reads the patterns from a file so that they are parsed exactly
+		// like a `.gitignore` file (comments, blank lines, trailing spaces).
+		const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-worktree-include-'));
+		const includePatternsFile = path.join(tempDir, 'patterns');
+
+		try {
+			await fsPromises.writeFile(includePatternsFile, includePatterns.join('\n') + '\n', 'utf8');
+
+			const tryExec = async (cwd: string, args: string[]): Promise<string | undefined> => {
+				try {
+					return (await this.repository.git.exec(cwd, args)).stdout;
+				} catch (err) {
+					this.logger.warn(`[Repository][_getWorktreeIncludePaths] Failed to execute 'git ${args.join(' ')}': ${err}`);
+					return undefined;
+				}
+			};
+
+			// List the git-ignored (but untracked) files: `--others` selects
+			// untracked files, `--ignored` restricts to those matched by an exclude
+			// source, and `--exclude-standard` uses the standard sources (.gitignore,
+			// .git/info/exclude, core.excludesFile). `-z` NUL-separates entries so
+			// paths containing spaces or other special characters survive intact.
+			//
+			// The `--directory` variant additionally collapses a *wholly*-ignored
+			// directory (one containing no tracked files) into a single `dir/`
+			// entry. It is used to copy such directories as one recursive unit
+			// rather than file-by-file.
+			//
+			// The `--exclude-from` variant uses *only* the include patterns as the
+			// exclude source (no standard sources), so it lists the untracked files
+			// matching `git.worktreeIncludeFiles`. Passing both sources to a single
+			// invocation would yield their union, hence the separate call.
+			const baseArgs = ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'];
+			const [ignoredOutput, directoryOutput, includedOutput, worktreeOutput] = await Promise.all([
+				tryExec(this.root, baseArgs),
+				tryExec(this.root, [...baseArgs, '--directory', '--no-empty-directory']),
+				tryExec(this.root, ['ls-files', '--others', '--ignored', `--exclude-from=${includePatternsFile}`, '-z']),
+				tryExec(worktreePath, ['ls-files', '-z'])
+			]);
+			if (ignoredOutput === undefined || includedOutput === undefined || worktreeOutput === undefined) {
+				return [];
+			}
+
+			return resolveWorktreeIncludePaths(ignoredOutput, includedOutput, directoryOutput, worktreeOutput, excludedFolders);
+		} finally {
+			try {
+				await fsPromises.rm(tempDir, { recursive: true, force: true });
+			} catch {
+				// best-effort
+			}
+		}
+	}
+
+	private async _copyWorktreeIncludeFiles(worktreePath: string, excludedFolders: readonly string[]): Promise<void> {
+		try {
+			const files = await this._getWorktreeIncludePaths(worktreePath, excludedFolders);
+			if (files.length === 0) {
+				return;
+			}
+
+			const startTime = performance.now();
+			const limiter = new Limiter<boolean>(15);
+
+			// Copy files and folders
+			const results = await Promise.allSettled(files.map(file => {
+				return limiter.queue(async () => {
+					const sourcePath = path.join(this.root, file);
+					const targetPath = path.join(worktreePath, file);
+
+					try {
+						await fsPromises.lstat(targetPath);
+						return false;
+					} catch (err) {
+						if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+							throw err;
+						}
+					}
+
+					await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
+					await cp(sourcePath, targetPath, { force: true, recursive: true, verbatimSymlinks: true });
+					return true;
+				});
+			}));
+
+			// Log any failed operations
+			const failedOperations = results.filter(r => r.status === 'rejected');
+			const copiedFiles = results.filter(r => r.status === 'fulfilled' && r.value).length;
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${copiedFiles}/${files.length} folder(s)/file(s) to worktree. [${(performance.now() - startTime).toFixed(2)}ms]`);
+
+			if (failedOperations.length > 0) {
+				window.showWarningMessage(l10n.t('Failed to copy {0} folder(s)/file(s) to the worktree.', failedOperations.length));
+
+				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} folder(s)/file(s) to worktree.`);
+				for (const error of failedOperations) {
+					this.logger.warn(`  - ${(error as PromiseRejectedResult).reason}`);
+				}
+			}
+		} catch (err) {
+			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy folder(s)/file(s) to worktree: ${err}`);
+		}
+	}
+
+	async deleteWorktree(path: string, options?: { force?: boolean; label?: string }): Promise<void> {
+		await this.run(Operation.Worktree(false), async () => {
+			const worktree = this.repositoryResolver.getRepository(path);
+
+			const deleteWorktree = async (options?: { force?: boolean }): Promise<void> => {
+				await this.repository.deleteWorktree(path, options);
+				worktree?.dispose();
+			};
+
+			try {
+				await deleteWorktree(options);
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+					const forceDelete = l10n.t('Force Delete');
+					const message = options?.label
+						? l10n.t('The worktree for session "{0}" contains modified or untracked files. Do you want to force delete?', options.label)
+						: l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+					const choice = await window.showWarningMessage(message, { modal: true, detail: l10n.t('Worktree: {0}', path) }, forceDelete);
+					if (choice === forceDelete) {
+						await deleteWorktree({ ...options, force: true });
+					}
+					return;
+				}
+
+				throw err;
+			}
+		});
+	}
+
+	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
+		await this.run(Operation.DeleteRemoteRef, () => this.repository.deleteRemoteRef(remoteName, refName, options));
 	}
 
 	async checkout(treeish: string, opts?: { detached?: boolean; pullBeforeCheckout?: boolean }): Promise<void> {
-		const refLabel = opts?.detached ? treeish.substring(0, 8) : treeish;
+		const refLabel = opts?.detached ? getCommitShortHash(Uri.file(this.root), treeish) : treeish;
 
 		await this.run(Operation.Checkout(refLabel),
 			async () => {
@@ -1449,12 +2307,20 @@ export class Repository implements Disposable {
 				}
 
 				await this.repository.checkout(treeish, [], opts);
+
+				// Clear all AI contribution tracking on branch switch
+				commands.executeCommand('_aiEdits.clearAllAiContributions');
 			});
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
-		const refLabel = opts.detached ? treeish.substring(0, 8) : treeish;
-		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
+		const refLabel = opts.detached ? getCommitShortHash(Uri.file(this.root), treeish) : treeish;
+		await this.run(Operation.CheckoutTracking(refLabel), async () => {
+			await this.repository.checkout(treeish, [], { ...opts, track: true });
+
+			// Clear all AI contribution tracking on branch switch
+			commands.executeCommand('_aiEdits.clearAllAiContributions');
+		});
 	}
 
 	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
@@ -1465,20 +2331,72 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
+	async showChanges(ref: string): Promise<string> {
+		return await this.run(Operation.Log(false), () => this.repository.showChanges(ref));
+	}
+
+	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
+		return await this.run(Operation.Log(false), () => this.repository.showChangesBetween(ref1, ref2, path));
+	}
+
+	async getEmptyTree(): Promise<string> {
+		if (!this._EMPTY_TREE) {
+			const result = await this.repository.exec(['hash-object', '-t', 'tree', '/dev/null']);
+			this._EMPTY_TREE = result.stdout.trim();
+		}
+
+		return this._EMPTY_TREE;
+	}
+
 	async reset(treeish: string, hard?: boolean): Promise<void> {
-		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
+		await this.run(Operation.Reset, async () => {
+			await this.repository.reset(treeish, hard);
+
+			if (hard) {
+				// Clear all AI contribution tracking on hard reset
+				commands.executeCommand('_aiEdits.clearAllAiContributions');
+			}
+		});
+	}
+
+	async resetKeep(ref: string): Promise<void> {
+		await this.run(Operation.Reset, () => this.repository.resetKeep(ref));
+	}
+
+	async updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		await this.run(Operation.Branch, () => this.repository.updateRef(ref, newSha, oldSha));
 	}
 
 	async deleteRef(ref: string): Promise<void> {
 		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
 	}
 
+	getDefaultRemote(): Remote | undefined {
+		if (this.remotes.length === 0) {
+			return undefined;
+		}
+
+		return this.remotes.find(r => r.name === 'origin') ?? this.remotes[0];
+	}
+
 	async addRemote(name: string, url: string): Promise<void> {
-		await this.run(Operation.Remote, () => this.repository.addRemote(name, url));
+		await this.run(Operation.Remote, async () => {
+			const result = await this.repository.addRemote(name, url);
+			this.repositoryCache.update(this.remotes, [], this.root);
+			return result;
+		});
 	}
 
 	async removeRemote(name: string): Promise<void> {
-		await this.run(Operation.Remote, () => this.repository.removeRemote(name));
+		await this.run(Operation.Remote, async () => {
+			const result = this.repository.removeRemote(name);
+			const remote = this.remotes.find(remote => remote.name === name);
+			if (remote) {
+				this.repositoryCache.update([], [remote], this.root);
+			}
+			return result;
+		});
+
 	}
 
 	async renameRemote(name: string, newName: string): Promise<void> {
@@ -1544,6 +2462,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Pull, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const autoStash = config.get<boolean>('autoStash');
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 
@@ -1553,7 +2472,7 @@ export class Repository implements Disposable {
 				}
 
 				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags });
+					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags, autoStash });
 				}
 			});
 		});
@@ -1592,6 +2511,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
+	async pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.pushRefWithLease(remote, branch, newSha, expectedSha));
+	}
+
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this._push(remote, undefined, false, true, forcePushMode));
 	}
@@ -1601,7 +2524,15 @@ export class Repository implements Disposable {
 	}
 
 	async blame(path: string): Promise<string> {
-		return await this.run(Operation.Blame, () => this.repository.blame(path));
+		return await this.run(Operation.Blame(true), () => this.repository.blame(path));
+	}
+
+	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		return await this.run(Operation.Blame(false), () => {
+			const config = workspace.getConfiguration('git', Uri.file(this.root));
+			const ignoreWhitespace = config.get<boolean>('blame.ignoreWhitespace', false);
+			return this.repository.blame2(path, ref, ignoreWhitespace);
+		});
 	}
 
 	@throttle
@@ -1623,6 +2554,7 @@ export class Repository implements Disposable {
 		await this.run(Operation.Sync, async () => {
 			await this.maybeAutoStash(async () => {
 				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const autoStash = config.get<boolean>('autoStash');
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 				const followTags = config.get<boolean>('followTagsWhenSync');
@@ -1635,7 +2567,7 @@ export class Repository implements Disposable {
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken });
+						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken, autoStash });
 					}
 				};
 
@@ -1674,7 +2606,7 @@ export class Repository implements Disposable {
 			return true;
 		}
 
-		const maybeRebased = await this.run(Operation.Log, async () => {
+		const maybeRebased = await this.run(Operation.Log(true), async () => {
 			try {
 				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
 				if (result.exitCode) {
@@ -1716,17 +2648,14 @@ export class Repository implements Disposable {
 
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
-			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
-			const defaultEncoding = configFiles.get<string>('encoding');
-			const autoGuessEncoding = configFiles.get<boolean>('autoGuessEncoding');
-
 			try {
-				return await this.repository.bufferString(`${ref}:${path}`, defaultEncoding, autoGuessEncoding);
+				const content = await this.repository.buffer(ref, filePath);
+				return await workspace.decode(content, { uri: Uri.file(filePath) });
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.WrongCase) {
-					const gitRelativePath = await this.repository.getGitRelativePath(ref, path);
-					return await this.repository.bufferString(`${ref}:${gitRelativePath}`, defaultEncoding, autoGuessEncoding);
+					const gitFilePath = await this.repository.getGitFilePath(ref, filePath);
+					const content = await this.repository.buffer(ref, gitFilePath);
+					return await workspace.decode(content, { uri: Uri.file(filePath) });
 				}
 
 				throw err;
@@ -1735,26 +2664,27 @@ export class Repository implements Disposable {
 	}
 
 	async buffer(ref: string, filePath: string): Promise<Buffer> {
-		return this.run(Operation.Show, () => {
-			const path = relativePath(this.repository.root, filePath).replace(/\\/g, '/');
-			return this.repository.buffer(`${ref}:${path}`);
-		});
+		return this.run(Operation.Show, () => this.repository.buffer(ref, filePath));
 	}
 
-	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
-		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
+	getObjectFiles(ref: string): Promise<LsTreeElement[]> {
+		return this.run(Operation.GetObjectFiles, () => this.repository.lstree(ref));
+	}
+
+	getObjectDetails(ref: string, path: string): Promise<{ mode: string; object: string; size: number }> {
+		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, path));
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
-		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
+	async apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void> {
+		return await this.run(Operation.Apply, () => this.repository.apply(patch, options));
 	}
 
 	async getStashes(): Promise<Stash[]> {
-		return await this.repository.getStashes();
+		return this.run(Operation.Stash(true), () => this.repository.getStashes());
 	}
 
 	async createStash(message?: string, includeUntracked?: boolean, staged?: boolean): Promise<void> {
@@ -1763,22 +2693,26 @@ export class Repository implements Disposable {
 			...!staged ? this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath) : [],
 			...includeUntracked ? this.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath) : []];
 
-		return await this.run(Operation.Stash, async () => {
+		return await this.run(Operation.Stash(false), async () => {
 			await this.repository.createStash(message, includeUntracked, staged);
 			this.closeDiffEditors(indexResources, workingGroupResources);
 		});
 	}
 
-	async popStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.popStash(index));
+	async popStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
+		return await this.run(Operation.Stash(false), () => this.repository.popStash(index, options));
 	}
 
 	async dropStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.dropStash(index));
+		return await this.run(Operation.Stash(false), () => this.repository.dropStash(index));
 	}
 
-	async applyStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
+	async applyStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
+		return await this.run(Operation.Stash(false), () => this.repository.applyStash(index, options));
+	}
+
+	async showStash(index: number): Promise<Change[] | undefined> {
+		return await this.run(Operation.Stash(true), () => this.repository.showStash(index));
 	}
 
 	async getCommitTemplate(): Promise<string> {
@@ -1789,7 +2723,8 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Ignore, async () => {
 			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
 			const textToAppend = files
-				.map(uri => relativePath(this.repository.root, uri.fsPath).replace(/\\/g, '/'))
+				.map(uri => relativePath(this.repository.root, uri.fsPath)
+					.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
 				.join('\n');
 
 			const document = await new Promise(c => fs.exists(ignoreFile, c))
@@ -1812,6 +2747,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.RebaseAbort, async () => await this.repository.rebaseAbort());
 	}
 
+	async rebaseContinue(): Promise<void> {
+		await this.run(Operation.RebaseContinue, () => this.repository.rebaseContinue());
+	}
+
 	checkIgnore(filePaths: string[]): Promise<Set<string>> {
 		return this.run(Operation.CheckIgnore, () => {
 			return new Promise<Set<string>>((resolve, reject) => {
@@ -1826,7 +2765,15 @@ export class Repository implements Disposable {
 
 				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
 				const child = this.repository.stream(['check-ignore', '-v', '-z', '--stdin'], { stdio: [null, null, null] });
-				child.stdin!.end(filePaths.join('\0'), 'utf8');
+
+				if (!child.stdin) {
+					return reject(new GitError({
+						message: 'Failed to spawn git process',
+						exitCode: -1
+					}));
+				}
+
+				child.stdin.end(filePaths.join('\0'), 'utf8');
 
 				const onExit = (exitCode: number) => {
 					if (exitCode === 1) {
@@ -1848,12 +2795,16 @@ export class Repository implements Disposable {
 					data += raw;
 				};
 
-				child.stdout!.setEncoding('utf8');
-				child.stdout!.on('data', onStdoutData);
+				if (child.stdout) {
+					child.stdout.setEncoding('utf8');
+					child.stdout.on('data', onStdoutData);
+				}
 
 				let stderr: string = '';
-				child.stderr!.setEncoding('utf8');
-				child.stderr!.on('data', raw => stderr += raw);
+				if (child.stderr) {
+					child.stderr.setEncoding('utf8');
+					child.stderr.on('data', raw => stderr += raw);
+				}
 
 				child.on('error', reject);
 				child.on('exit', onExit);
@@ -1905,14 +2856,15 @@ export class Repository implements Disposable {
 
 	private async run<T>(
 		operation: Operation,
-		runOperation: () => Promise<T> = () => Promise.resolve<any>(null),
-		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined): Promise<T> {
+		runOperation: () => Promise<T> = () => Promise.resolve(null) as Promise<T>,
+		getOptimisticResourceGroups: () => GitResourceGroups | undefined = () => undefined
+	): Promise<T> {
 
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
 
-		let error: any = null;
+		let error: unknown = null;
 
 		this._operations.start(operation);
 		this._onRunOperation.fire(operation.kind);
@@ -1928,7 +2880,7 @@ export class Repository implements Disposable {
 		} catch (err) {
 			error = err;
 
-			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
 				this.state = RepositoryState.Disposed;
 			}
 
@@ -1943,7 +2895,90 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async retryRun<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
+	async migrateChanges(sourceRepositoryRoot: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
+		const sourceRepository = this.repositoryResolver.getRepository(sourceRepositoryRoot);
+		if (!sourceRepository) {
+			window.showWarningMessage(l10n.t('The source repository could not be found.'));
+			return;
+		}
+
+		if (sourceRepository.indexGroup.resourceStates.length === 0 &&
+			sourceRepository.workingTreeGroup.resourceStates.length === 0 &&
+			sourceRepository.untrackedGroup.resourceStates.length === 0) {
+			await window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
+			return;
+		}
+
+		const sourceFilePaths = [
+			...sourceRepository.indexGroup.resourceStates,
+			...sourceRepository.workingTreeGroup.resourceStates,
+			...sourceRepository.untrackedGroup.resourceStates
+		].map(resource => path.relative(sourceRepository.root, resource.resourceUri.fsPath));
+
+		const targetFilePaths = [
+			...this.workingTreeGroup.resourceStates,
+			...this.untrackedGroup.resourceStates
+		].map(resource => path.relative(this.root, resource.resourceUri.fsPath));
+
+		// Detect overlapping unstaged files in worktree stash and target repository
+		const conflicts = sourceFilePaths.filter(path => targetFilePaths.includes(path));
+
+		if (conflicts.length > 0) {
+			const maxFilesShown = 5;
+			const filesToShow = conflicts.slice(0, maxFilesShown);
+			const remainingCount = conflicts.length - maxFilesShown;
+
+			const fileList = filesToShow.join('\n ') +
+				(remainingCount > 0 ? l10n.t('\n and {0} more file{1}...', remainingCount, remainingCount > 1 ? 's' : '') : '');
+
+			const message = l10n.t('Your local changes to the following files would be overwritten by merge:\n {0}\n\nPlease stage, commit, or stash your changes in the repository before migrating changes.', fileList);
+			await window.showErrorMessage(message, { modal: true });
+			return;
+		}
+
+		if (options?.confirmation) {
+			// Non-interactive migration, do not show confirmation dialog
+			const message = l10n.t('Proceed with migrating changes to the current repository?');
+			const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
+			const proceed = l10n.t('Proceed');
+			const pick = await window.showWarningMessage(message, { modal: true, detail }, proceed);
+			if (pick !== proceed) {
+				return;
+			}
+		}
+
+		const stashName = `migration:${sourceRepository.HEAD?.name ?? sourceRepository.HEAD?.commit}-${this.HEAD?.name ?? this.HEAD?.commit}`;
+		await sourceRepository.createStash(stashName, options?.untracked);
+		const stashes = await sourceRepository.getStashes();
+
+		try {
+			if (options?.deleteFromSource) {
+				await this.popStash(stashes[0].index);
+			} else {
+				await this.applyStash(stashes[0].index);
+				await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
+			}
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.StashConflict) {
+				this.isWorktreeMigrating = true;
+
+				const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
+				const show = l10n.t('Show Changes');
+				const choice = await window.showWarningMessage(message, show);
+				if (choice === show) {
+					await commands.executeCommand('workbench.view.scm');
+				}
+
+				await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
+				return;
+			}
+
+			await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
+			throw err;
+		}
+	}
+
+	private async retryRun<T>(operation: Operation, runOperation: () => Promise<T>): Promise<T> {
 		let attempt = 0;
 
 		while (true) {
@@ -1998,25 +3033,46 @@ export class Repository implements Disposable {
 				this._updateResourceGroupsState(optimisticResourcesGroups);
 			}
 
-			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
+			const [HEAD, remotes, submodules, worktrees, rebaseCommit, mergeInProgress, cherryPickInProgress, commitTemplate] =
 				await Promise.all([
 					this.repository.getHEADRef(),
 					this.repository.getRemotes(),
 					this.repository.getSubmodules(),
+					this.repository.getWorktrees(),
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
-					this.getInputTemplate()]);
+					this.isCherryPickInProgress(),
+					this.getInputTemplate(),
+					this.initIsUsingVirtualFileSystem()]);
+
+			// Reset the list of unpublished commits if HEAD has
+			// changed (ex: checkout, fetch, pull, push, publish, etc.).
+			// The list of unpublished commits will be computed lazily
+			// on demand.
+			if (this.HEAD?.name !== HEAD?.name ||
+				this.HEAD?.commit !== HEAD?.commit ||
+				this.HEAD?.ahead !== HEAD?.ahead ||
+				this.HEAD?.upstream !== HEAD?.upstream) {
+				this.unpublishedCommits = undefined;
+			}
 
 			this._HEAD = HEAD;
 			this._remotes = remotes!;
 			this._submodules = submodules!;
+			this._worktrees = worktrees!;
 			this.rebaseCommit = rebaseCommit;
 			this.mergeInProgress = mergeInProgress;
+			this.cherryPickInProgress = cherryPickInProgress;
 
 			this._sourceControl.commitTemplate = commitTemplate;
 
 			// Execute cancellable long-running operation
-			const resourceGroups = await this.getStatus(cancellationToken);
+			const [resourceGroups, refs] =
+				await Promise.all([
+					this.getStatus(cancellationToken),
+					this.getRefs({}, cancellationToken)]);
+
+			this._refs = refs;
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
@@ -2037,6 +3093,11 @@ export class Repository implements Disposable {
 		if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
 		if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
 
+		// clear worktree migrating flag once all conflicts are resolved
+		if (this._isWorktreeMigrating && resourcesGroups.mergeGroup && resourcesGroups.mergeGroup.length === 0) {
+			this._isWorktreeMigrating = false;
+		}
+
 		// set count badge
 		this.setCountBadge();
 	}
@@ -2051,9 +3112,10 @@ export class Repository implements Disposable {
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
 
 		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, similarityThreshold, untrackedChanges, cancellationToken });
 		const totalTime = new Date().getTime() - start;
 
 		this.isRepositoryHuge = didHitLimit ? { limit } : false;
@@ -2096,35 +3158,43 @@ export class Repository implements Disposable {
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
-			const gitWarn = l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root);
+			const gitWarn = getSafeNotificationMessage(
+				l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root),
+				l10n.t('The git repository has too many active changes, only a subset of Git features will be enabled.'),
+			);
 			const neverAgain = { title: l10n.t('Don\'t Show Again') };
 
 			if (knownHugeFolderPaths.length > 0) {
 				const folderPath = knownHugeFolderPaths[0];
 				const folderName = path.basename(folderPath);
 
-				const addKnown = l10n.t('Would you like to add "{0}" to .gitignore?', folderName);
+				const addKnown = getSafeNotificationMessage(
+					l10n.t('Would you like to add "{0}" to .gitignore?', folderName),
+					l10n.t('Would you like to add the large folder to .gitignore?'),
+				);
 				const yes = { title: l10n.t('Yes') };
 				const no = { title: l10n.t('No') };
 
-				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, no, neverAgain);
-				if (result === yes) {
-					this.ignore([Uri.file(folderPath)]);
-				} else {
+				window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, no, neverAgain).then(result => {
+					if (result === yes) {
+						this.ignore([Uri.file(folderPath)]);
+					} else {
+						if (result === neverAgain) {
+							config.update('ignoreLimitWarning', true, false);
+						}
+
+						this.didWarnAboutLimit = true;
+					}
+				});
+			} else {
+				const ok = { title: l10n.t('OK') };
+				window.showWarningMessage(gitWarn, ok, neverAgain).then(result => {
 					if (result === neverAgain) {
 						config.update('ignoreLimitWarning', true, false);
 					}
 
 					this.didWarnAboutLimit = true;
-				}
-			} else {
-				const ok = { title: l10n.t('OK') };
-				const result = await window.showWarningMessage(gitWarn, ok, neverAgain);
-				if (result === neverAgain) {
-					config.update('ignoreLimitWarning', true, false);
-				}
-
-				this.didWarnAboutLimit = true;
+				});
 			}
 		}
 
@@ -2141,12 +3211,12 @@ export class Repository implements Disposable {
 
 			switch (raw.x + raw.y) {
 				case '??': switch (untrackedChanges) {
-					case 'mixed': return workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+					case 'mixed': return workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons, undefined, this.kind));
 					case 'separate': return untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.UNTRACKED, useIcons));
 					default: return undefined;
 				}
 				case '!!': switch (untrackedChanges) {
-					case 'mixed': return workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+					case 'mixed': return workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons, undefined, this.kind));
 					case 'separate': return untrackedGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Untracked, uri, Status.IGNORED, useIcons));
 					default: return undefined;
 				}
@@ -2160,17 +3230,19 @@ export class Repository implements Disposable {
 			}
 
 			switch (raw.x) {
-				case 'M': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
-				case 'A': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
-				case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
-				case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
-				case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri)); break;
+				case 'M': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons, undefined, this.kind)); break;
+				case 'A': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons, undefined, this.kind)); break;
+				case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons, undefined, this.kind)); break;
+				case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri, this.kind)); break;
+				case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri, this.kind)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
-				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
-				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
+				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri, this.kind)); break;
+				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri, this.kind)); break;
+				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri, this.kind)); break;
+				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_RENAME, useIcons, renameUri, this.kind)); break;
+				case 'T': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.TYPE_CHANGED, useIcons, renameUri, this.kind)); break;
 			}
 
 			return undefined;
@@ -2207,9 +3279,10 @@ export class Repository implements Disposable {
 	}
 
 	private async getRebaseCommit(): Promise<Commit | undefined> {
-		const rebaseHeadPath = path.join(this.repository.root, '.git', 'REBASE_HEAD');
-		const rebaseApplyPath = path.join(this.repository.root, '.git', 'rebase-apply');
-		const rebaseMergePath = path.join(this.repository.root, '.git', 'rebase-merge');
+		// Linked worktrees and submodules keep their rebase state in their own git directory, not in <root>/.git.
+		const rebaseHeadPath = path.join(this.repository.dotGit.path, 'REBASE_HEAD');
+		const rebaseApplyPath = path.join(this.repository.dotGit.path, 'rebase-apply');
+		const rebaseMergePath = path.join(this.repository.dotGit.path, 'rebase-merge');
 
 		try {
 			const [rebaseApplyExists, rebaseMergePathExists, rebaseHead] = await Promise.all([
@@ -2227,24 +3300,34 @@ export class Repository implements Disposable {
 	}
 
 	private isMergeInProgress(): Promise<boolean> {
-		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_HEAD');
+		const mergeHeadPath = path.join(this.repository.dotGit.path, 'MERGE_HEAD');
 		return new Promise<boolean>(resolve => fs.exists(mergeHeadPath, resolve));
+	}
+
+	private isCherryPickInProgress(): Promise<boolean> {
+		const cherryPickHeadPath = path.join(this.repository.dotGit.path, 'CHERRY_PICK_HEAD');
+		return new Promise<boolean>(resolve => fs.exists(cherryPickHeadPath, resolve));
 	}
 
 	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const shouldAutoStash = config.get<boolean>('autoStash')
-			&& this.workingTreeGroup.resourceStates.some(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+			&& this.repository.git.compareGitVersionTo('2.27.0') < 0
+			&& (this.indexGroup.resourceStates.length > 0
+				|| this.workingTreeGroup.resourceStates.some(
+					r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED));
 
 		if (!shouldAutoStash) {
 			return await runOperation();
 		}
 
 		await this.repository.createStash(undefined, true);
-		const result = await runOperation();
-		await this.repository.popStash();
-
-		return result;
+		try {
+			const result = await runOperation();
+			return result;
+		} finally {
+			await this.repository.popStash(undefined, { reinstateStagedChanges: true });
+		}
 	}
 
 	private onFileChange(_uri: Uri): void {
@@ -2252,14 +3335,17 @@ export class Repository implements Disposable {
 		const autorefresh = config.get<boolean>('autorefresh');
 
 		if (!autorefresh) {
+			this.logger.trace('[Repository][onFileChange] Skip running git status because autorefresh setting is disabled.');
 			return;
 		}
 
 		if (this.isRepositoryHuge) {
+			this.logger.trace('[Repository][onFileChange] Skip running git status because repository is huge.');
 			return;
 		}
 
 		if (!this.operations.isIdle()) {
+			this.logger.trace('[Repository][onFileChange] Skip running git status because an operation is running.');
 			return;
 		}
 
@@ -2307,7 +3393,7 @@ export class Repository implements Disposable {
 		return head
 			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
 			+ (this.indexGroup.resourceStates.length > 0 ? '+' : '')
-			+ (this.mergeGroup.resourceStates.length > 0 ? '!' : '');
+			+ (this.mergeInProgress || !!this.rebaseCommit ? '!' : '');
 	}
 
 	get syncLabel(): string {
@@ -2367,8 +3453,21 @@ export class Repository implements Disposable {
 		this.branchProtection.clear();
 
 		for (const provider of this.branchProtectionProviderRegistry.getBranchProtectionProviders(root)) {
-			for (const { remote, branches } of provider.provideBranchProtection()) {
-				this.branchProtection.set(remote, branches.length !== 0 ? picomatch(branches) : undefined);
+			for (const { remote, rules } of provider.provideBranchProtection()) {
+				const matchers: BranchProtectionMatcher[] = [];
+
+				for (const rule of rules) {
+					const include = rule.include && rule.include.length !== 0 ? picomatch(rule.include) : undefined;
+					const exclude = rule.exclude && rule.exclude.length !== 0 ? picomatch(rule.exclude) : undefined;
+
+					if (include || exclude) {
+						matchers.push({ include, exclude });
+					}
+				}
+
+				if (matchers.length !== 0) {
+					this.branchProtection.set(remote, matchers);
+				}
 			}
 		}
 
@@ -2398,13 +3497,26 @@ export class Repository implements Disposable {
 			throw new Error(`Unable to extract tag names from error message: ${raw}`);
 		}
 
-		// Notification
-		const replaceLocalTags = l10n.t('Replace Local Tag(s)');
-		const message = l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '));
-		const choice = await window.showErrorMessage(message, { modal: true }, replaceLocalTags);
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const replaceTagsWhenPull = config.get<boolean>('replaceTagsWhenPull', false) === true;
 
-		if (choice !== replaceLocalTags) {
-			return false;
+		if (!replaceTagsWhenPull) {
+			// Notification
+			const replaceLocalTags = l10n.t('Replace Local Tag(s)');
+			const replaceLocalTagsAlways = l10n.t('Always Replace Local Tag(s)');
+			const maxTags = 5;
+			const message = tags.length <= maxTags
+				? l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0}. Would you like to resolve the conflict by replacing the local tag(s)?', tags.join(', '))
+				: l10n.t('Unable to pull from remote repository due to conflicting tag(s): {0} and {1} more. Would you like to resolve the conflict by replacing the local tag(s)?', tags.slice(0, maxTags).join(', '), tags.length - maxTags);
+			const choice = await window.showErrorMessage(message, { modal: true }, replaceLocalTags, replaceLocalTagsAlways);
+
+			if (choice !== replaceLocalTags && choice !== replaceLocalTagsAlways) {
+				return false;
+			}
+
+			if (choice === replaceLocalTagsAlways) {
+				await config.update('replaceTagsWhenPull', true, true);
+			}
 		}
 
 		// Force fetch tags
@@ -2416,21 +3528,182 @@ export class Repository implements Disposable {
 		if (branch?.name) {
 			// Default branch protection (settings)
 			const defaultBranchProtectionMatcher = this.branchProtection.get('');
-			if (defaultBranchProtectionMatcher && defaultBranchProtectionMatcher(branch.name)) {
+			if (defaultBranchProtectionMatcher?.length === 1 &&
+				defaultBranchProtectionMatcher[0].include &&
+				defaultBranchProtectionMatcher[0].include(branch.name)) {
 				return true;
 			}
 
 			if (branch.upstream?.remote) {
 				// Branch protection (contributed)
 				const remoteBranchProtectionMatcher = this.branchProtection.get(branch.upstream.remote);
-				return remoteBranchProtectionMatcher ? remoteBranchProtectionMatcher(branch.name) : false;
+				if (remoteBranchProtectionMatcher && remoteBranchProtectionMatcher?.length !== 0) {
+					return remoteBranchProtectionMatcher.some(matcher => {
+						const include = matcher.include ? matcher.include(branch.name!) : true;
+						const exclude = matcher.exclude ? matcher.exclude(branch.name!) : false;
+
+						return include && !exclude;
+					});
+				}
 			}
 		}
 
 		return false;
 	}
 
+	async getUnpublishedCommits(): Promise<Set<string>> {
+		if (this.unpublishedCommits) {
+			return this.unpublishedCommits;
+		}
+
+		if (!this.HEAD?.name) {
+			this.unpublishedCommits = new Set<string>();
+			return this.unpublishedCommits;
+		}
+
+		if (this.HEAD.upstream) {
+			// Upstream
+			if (this.HEAD.ahead === 0) {
+				this.unpublishedCommits = new Set<string>();
+			} else {
+				const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+				const ref2 = this.HEAD.name;
+
+				const revList = await this.repository.revList(ref1, ref2);
+				this.unpublishedCommits = new Set<string>(revList);
+			}
+		} else if (this.historyProvider.currentHistoryItemBaseRef) {
+			// Base
+			const ref1 = this.historyProvider.currentHistoryItemBaseRef.id;
+			const ref2 = this.HEAD.name;
+
+			const revList = await this.repository.revList(ref1, ref2);
+			this.unpublishedCommits = new Set<string>(revList);
+		} else {
+			this.unpublishedCommits = new Set<string>();
+		}
+
+		return this.unpublishedCommits;
+	}
+
+	async generateRandomBranchName(): Promise<string | undefined> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+
+		if (!branchRandomNameEnabled) {
+			return undefined;
+		}
+
+		const branchPrefix = config.get<string>('branchPrefix', '');
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
+
+		const dictionaries: string[][] = [];
+		for (const dictionary of branchRandomNameDictionary) {
+			if (dictionary.toLowerCase() === 'adjectives') {
+				dictionaries.push(adjectives);
+			}
+			if (dictionary.toLowerCase() === 'animals') {
+				dictionaries.push(animals);
+			}
+			if (dictionary.toLowerCase() === 'colors') {
+				dictionaries.push(colors);
+			}
+			if (dictionary.toLowerCase() === 'numbers') {
+				dictionaries.push(NumberDictionary.generate({ length: 3 }));
+			}
+		}
+
+		if (dictionaries.length === 0) {
+			return undefined;
+		}
+
+		// 5 attempts to generate a random branch name
+		for (let index = 0; index < 5; index++) {
+			const randomName = uniqueNamesGenerator({
+				dictionaries,
+				length: dictionaries.length,
+				separator: branchWhitespaceChar
+			});
+
+			// Check for local ref conflict
+			const refs = await this.getRefs({ pattern: `refs/heads/${branchPrefix}${randomName}` });
+			if (refs.length === 0) {
+				return `${branchPrefix}${randomName}`;
+			}
+		}
+
+		return undefined;
+	}
+
+	private async initIsUsingVirtualFileSystem(): Promise<void> {
+		if (this._isUsingVirtualFileSystem !== undefined) {
+			return;
+		}
+
+		try {
+			const result = await this.getConfig('core.virtualfilesystem');
+			this._isUsingVirtualFileSystem = result.length > 0;
+		} catch (error) {
+			this._isUsingVirtualFileSystem = false;
+			return;
+		}
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
+}
+
+function retargetTaskToWorktree(task: Task, worktreePath: string): Task | undefined {
+	const execution = retargetTaskExecution(task.execution, worktreePath);
+	if (!execution) {
+		return undefined;
+	}
+
+	const worktreeFolder: WorkspaceFolder = {
+		uri: Uri.file(worktreePath),
+		name: path.basename(worktreePath),
+		index: workspace.workspaceFolders?.length ?? 0
+	};
+
+	const worktreeTask = new Task({ ...task.definition }, worktreeFolder, task.name, task.source, execution, task.problemMatchers);
+	worktreeTask.detail = task.detail;
+	worktreeTask.group = task.group;
+	worktreeTask.isBackground = task.isBackground;
+	worktreeTask.presentationOptions = { ...task.presentationOptions, reveal: TaskRevealKind.Never, panel: TaskPanelKind.New };
+	worktreeTask.runOptions = { ...task.runOptions };
+
+	return worktreeTask;
+}
+
+function retargetTaskExecution(execution: ProcessExecution | ShellExecution | CustomExecution | undefined, worktreePath: string): ProcessExecution | ShellExecution | CustomExecution | undefined {
+	if (!execution) {
+		return undefined;
+	}
+
+	if (execution instanceof ProcessExecution) {
+		return new ProcessExecution(execution.process, execution.args, {
+			...execution.options,
+			cwd: worktreePath
+		});
+	}
+
+	if (execution instanceof ShellExecution) {
+		if (execution.commandLine !== undefined) {
+			return new ShellExecution(execution.commandLine, {
+				...execution.options,
+				cwd: worktreePath
+			});
+		}
+
+		if (execution.command !== undefined) {
+			return new ShellExecution(execution.command, execution.args ?? [], {
+				...execution.options,
+				cwd: worktreePath
+			});
+		}
+	}
+
+	return execution;
 }

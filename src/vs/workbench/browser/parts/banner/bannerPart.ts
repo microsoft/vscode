@@ -3,31 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/bannerpart';
-import { localize } from 'vs/nls';
-import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Part } from 'vs/workbench/browser/part';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Action } from 'vs/base/common/actions';
-import { Link } from 'vs/platform/opener/browser/link';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Emitter } from 'vs/base/common/event';
-import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { BannerFocused } from 'vs/workbench/common/contextkeys';
+import './media/bannerpart.css';
+import { localize, localize2 } from '../../../../nls.js';
+import { $, addDisposableListener, append, clearNode, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../../base/browser/cssValue.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Part } from '../../part.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IBannerItem, IBannerService } from '../../../services/banner/browser/bannerService.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../base/common/uri.js';
+import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
+import { BannerFocused } from '../../../common/contextkeys.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 // Banner Part
 
@@ -55,7 +57,8 @@ export class BannerPart extends Part implements IBannerService {
 	//#endregion
 
 	private item: IBannerItem | undefined;
-	private readonly markdownRenderer: MarkdownRenderer;
+	private readonly items = new Map<string, IBannerItem>();
+	private readonly itemDisposables = this._register(new DisposableStore());
 	private visible = false;
 
 	private actionBar: ActionBar | undefined;
@@ -68,10 +71,9 @@ export class BannerPart extends Part implements IBannerService {
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
-
-		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -86,25 +88,19 @@ export class BannerPart extends Part implements IBannerService {
 		}));
 
 		// Track focus
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		BannerFocused.bindTo(scopedContextKeyService).set(true);
 
 		return this.element;
 	}
 
 	private close(item: IBannerItem): void {
-		// Hide banner
-		this.setVisibility(false);
-
-		// Remove from document
-		clearNode(this.element);
+		this.hide(item.id);
 
 		// Remember choice
 		if (typeof item.onClose === 'function') {
 			item.onClose();
 		}
-
-		this.item = undefined;
 	}
 
 	private focusActionLink(): void {
@@ -112,7 +108,7 @@ export class BannerPart extends Part implements IBannerService {
 
 		if (this.focusedActionIndex < length) {
 			const actionLink = this.messageActionsContainer?.children[this.focusedActionIndex];
-			if (actionLink instanceof HTMLElement) {
+			if (isHTMLElement(actionLink)) {
 				this.actionBar?.setFocusable(false);
 				actionLink.focus();
 			}
@@ -135,11 +131,11 @@ export class BannerPart extends Part implements IBannerService {
 	private getBannerMessage(message: MarkdownString | string): HTMLElement {
 		if (typeof message === 'string') {
 			const element = $('span');
-			element.innerText = message;
+			element.textContent = message;
 			return element;
 		}
 
-		return this.markdownRenderer.render(message).element;
+		return this.itemDisposables.add(this.markdownRendererService.render(message)).element;
 	}
 
 	private setVisibility(visible: boolean): void {
@@ -172,26 +168,47 @@ export class BannerPart extends Part implements IBannerService {
 	}
 
 	hide(id: string): void {
-		if (this.item?.id !== id) {
-			return;
-		}
-
-		this.setVisibility(false);
+		this.items.delete(id);
+		this.renderActiveItem();
 	}
 
 	show(item: IBannerItem): void {
-		if (item.id === this.item?.id) {
-			this.setVisibility(true);
+		this.items.delete(item.id);
+		this.items.set(item.id, item);
+		this.renderActiveItem();
+	}
+
+	private renderActiveItem(): void {
+		let item: IBannerItem | undefined;
+		for (const candidate of this.items.values()) {
+			if (!item || (candidate.priority ?? 0) >= (item.priority ?? 0)) {
+				item = candidate;
+			}
+		}
+		if (item === this.item) {
 			return;
 		}
 
-		// Clear previous item
+		const hadFocus = this.element.contains(this.element.ownerDocument.activeElement);
+		this.itemDisposables.clear();
 		clearNode(this.element);
+		this.item = item;
+		this.actionBar = undefined;
+		this.messageActionsContainer = undefined;
+		this.focusedActionIndex = -1;
+		if (!item) {
+			this.element.removeAttribute('aria-label');
+			this.setVisibility(false);
+			return;
+		}
+		this.element.classList.toggle('neutral', !!item.neutral);
 
 		// Banner aria label
 		const ariaLabel = this.getAriaLabel(item);
 		if (ariaLabel) {
 			this.element.setAttribute('aria-label', ariaLabel);
+		} else {
+			this.element.removeAttribute('aria-label');
 		}
 
 		// Icon
@@ -217,19 +234,23 @@ export class BannerPart extends Part implements IBannerService {
 		this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
 		if (item.actions) {
 			for (const action of item.actions) {
-				this._register(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
+				this.itemDisposables.add(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
 			}
 		}
 
 		// Action
 		const actionBarContainer = append(this.element, $('div.action-container'));
-		this.actionBar = this._register(new ActionBar(actionBarContainer));
-		const closeAction = this._register(new Action('banner.close', 'Close Banner', ThemeIcon.asClassName(widgetClose), true, () => this.close(item)));
+		this.actionBar = this.itemDisposables.add(new ActionBar(actionBarContainer));
+		const label = item.closeLabel ?? localize('closeBanner', "Close Banner");
+		const activeItem = item;
+		const closeAction = this.itemDisposables.add(new Action('banner.close', label, ThemeIcon.asClassName(widgetClose), true, () => this.close(activeItem)));
 		this.actionBar.push(closeAction, { icon: true, label: false });
 		this.actionBar.setFocusable(false);
 
 		this.setVisibility(true);
-		this.item = item;
+		if (hadFocus) {
+			this.focus();
+		}
 	}
 
 	toJSON(): object {
@@ -285,12 +306,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 class FocusBannerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.focusBanner';
-	static readonly LABEL = localize('focusBanner', "Focus Banner");
+	static readonly LABEL = localize2('focusBanner', "Focus Banner");
 
 	constructor() {
 		super({
 			id: FocusBannerAction.ID,
-			title: { value: FocusBannerAction.LABEL, original: 'Focus Banner' },
+			title: FocusBannerAction.LABEL,
 			category: Categories.View,
 			f1: true
 		});

@@ -3,43 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { debounce, throttle } from 'vs/base/common/decorators';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
-import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { debounce, throttle } from '../../../../base/common/decorators.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { MergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariableCollection.js';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection, serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariableShared.js';
+import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from './environmentVariable.js';
+import { TerminalStorageKeys } from './terminalStorageKeys.js';
+import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
 	collection: ISerializableEnvironmentVariableCollection;
+	description?: ISerializableEnvironmentDescriptionMap;
+	remoteAuthority?: string | null;
 }
 
 /**
  * Tracks and persists environment variable collections as defined by extensions.
  */
-export class EnvironmentVariableService implements IEnvironmentVariableService {
+export class EnvironmentVariableService extends Disposable implements IEnvironmentVariableService {
 	declare readonly _serviceBrand: undefined;
 
 	collections: Map<string, IEnvironmentVariableCollectionWithPersistence> = new Map();
 	mergedCollection: IMergedEnvironmentVariableCollection;
+	private readonly _mergedCollectionsByAuthority = new Map<OperatingSystem, Map<string | null, IMergedEnvironmentVariableCollection>>();
 
-	private readonly _onDidChangeCollections = new Emitter<IMergedEnvironmentVariableCollection>();
+	private readonly _onDidChangeCollections = this._register(new Emitter<IMergedEnvironmentVariableCollection>());
 	get onDidChangeCollections(): Event<IMergedEnvironmentVariableCollection> { return this._onDidChangeCollections.event; }
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService
 	) {
+		super();
+
+		this._storageService.remove(TerminalStorageKeys.DeprecatedEnvironmentVariableCollections, StorageScope.WORKSPACE);
 		const serializedPersistedCollections = this._storageService.get(TerminalStorageKeys.EnvironmentVariableCollections, StorageScope.WORKSPACE);
 		if (serializedPersistedCollections) {
 			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
 			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, {
 				persistent: true,
-				map: deserializeEnvironmentVariableCollection(c.collection)
+				map: deserializeEnvironmentVariableCollection(c.collection),
+				descriptionMap: deserializeEnvironmentDescriptionMap(c.description),
+				remoteAuthority: c.remoteAuthority
 			}));
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
@@ -50,7 +62,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		this.mergedCollection = this._resolveMergedCollection();
 
 		// Listen for uninstalled/disabled extensions
-		this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections());
+		this._register(this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections()));
 	}
 
 	set(extensionIdentifier: string, collection: IEnvironmentVariableCollectionWithPersistence): void {
@@ -63,8 +75,50 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		this._updateCollections();
 	}
 
+	getMergedCollection(remoteAuthority: string | null | undefined, os: OperatingSystem): IMergedEnvironmentVariableCollection {
+		const targetAuthority = remoteAuthority?.toLowerCase() ?? null;
+		let targetCollections = this._mergedCollectionsByAuthority.get(os);
+		if (!targetCollections) {
+			targetCollections = new Map();
+			this._mergedCollectionsByAuthority.set(os, targetCollections);
+		}
+		let mergedCollection = targetCollections.get(targetAuthority);
+		if (!mergedCollection) {
+			const collections = new Map<string, IEnvironmentVariableCollectionWithPersistence>();
+			this.collections.forEach((collection, extensionIdentifier) => {
+				const isKnownOrigin = collection.remoteAuthority === null || (typeof collection.remoteAuthority === 'string' && collection.remoteAuthority.length > 0);
+				if (!isKnownOrigin && collection.remoteAuthority !== undefined) {
+					this._logService.warn(`Ignoring terminal PATH contributions with an invalid origin for extension '${extensionIdentifier}'.`);
+				}
+				const originAuthority = typeof collection.remoteAuthority === 'string' ? collection.remoteAuthority.toLowerCase() : collection.remoteAuthority;
+				const map = new Map(collection.map);
+				let filteredPath = false;
+				for (const [key, mutator] of map) {
+					const isPath = os === OperatingSystem.Windows ? mutator.variable.toLowerCase() === 'path' : mutator.variable === 'PATH';
+					if (isPath && (!isKnownOrigin || originAuthority !== targetAuthority)) {
+						map.delete(key);
+						filteredPath = true;
+					}
+				}
+				if (filteredPath && map.size === 0) {
+					return;
+				}
+				if (filteredPath && collection.descriptionMap) {
+					// PATH-specific descriptions are not truthful after filtering.
+					collections.set(extensionIdentifier, { ...collection, map, descriptionMap: undefined });
+				} else {
+					collections.set(extensionIdentifier, { ...collection, map });
+				}
+			});
+			mergedCollection = new MergedEnvironmentVariableCollection(collections);
+			targetCollections.set(targetAuthority, mergedCollection);
+		}
+		return mergedCollection;
+	}
+
 	private _updateCollections(): void {
 		this._persistCollectionsEventually();
+		this._mergedCollectionsByAuthority.clear();
 		this.mergedCollection = this._resolveMergedCollection();
 		this._notifyCollectionUpdatesEventually();
 	}
@@ -80,7 +134,9 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 			if (collection.persistent) {
 				collectionsJson.push({
 					extensionIdentifier,
-					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map)
+					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map),
+					description: serializeEnvironmentDescriptionMap(collection.descriptionMap),
+					remoteAuthority: collection.remoteAuthority
 				});
 			}
 		});

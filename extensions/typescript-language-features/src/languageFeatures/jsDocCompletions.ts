@@ -8,6 +8,7 @@ import { DocumentSelector } from '../configuration/documentSelector';
 import { LanguageDescription } from '../configuration/languageDescription';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { readUnifiedConfig } from '../utils/configuration';
 import FileConfigurationManager from './fileConfigurationManager';
 
 
@@ -45,7 +46,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.CompletionItem[] | undefined> {
-		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.completeJSDocs')) {
+		if (!readUnifiedConfig<boolean>('suggest.jsdoc.enabled', true, { scope: document, fallbackSection: this.language.id, fallbackSubSectionNameOverride: 'suggest.completeJSDocs' })) {
 			return undefined;
 		}
 
@@ -103,7 +104,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 export function templateToSnippet(template: string): vscode.SnippetString {
 	// TODO: use append placeholder
 	let snippetIndex = 1;
-	template = template.replace(/\$/g, '\\$');
+	template = template.replace(/\$/g, '\\$'); // CodeQL [SM02383] This is only used for text which is put into the editor. It is not for rendered html
 	template = template.replace(/^[ \t]*(?=(\/|[ ]\*))/gm, '');
 	template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
 	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)[ \t]*$/gm, (_param, type, post) => {

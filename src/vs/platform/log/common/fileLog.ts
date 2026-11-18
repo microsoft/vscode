@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { basename, dirname, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { BufferLogger } from 'vs/platform/log/common/bufferLog';
-import { AbstractLoggerService, AbstractMessageLogger, ILogger, ILoggerOptions, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { basename, dirname, joinPath } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from '../../files/common/files.js';
+import { BufferLogger } from './bufferLog.js';
+import { AbstractLoggerService, AbstractMessageLogger, ILogger, ILoggerOptions, ILoggerService, LogLevel } from './log.js';
 
 const MAX_FILE_SIZE = 5 * ByteSize.MB;
 
