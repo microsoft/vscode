@@ -514,6 +514,8 @@ interface ICopilotEarlyLaunch extends IDisposable {
 	extend(): void;
 	/** Cancelled when the launch is claimed, discarded or torn down, which ends its background warm-up. */
 	readonly warmUpToken: CancellationToken;
+	/** Whether a background check of its draft-scoped customizations is running. */
+	customizationCheckRunning?: boolean;
 }
 
 /**
@@ -647,7 +649,7 @@ interface IRuntimeProxyCredentials {
 
 /** What a configuration check runs for, and how it may wait. */
 interface ICopilotSessionRefreshCheckOptions {
-	/** `warmChat` checks only state already observed in memory, and reports nothing while the chat's customizations settle, so composing never waits on a sync. */
+	/** `warmChat` checks in the background, outside the chat queue, against state already observed in memory, and reports nothing while the chat's customizations settle. */
 	readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer' | 'openCanvas' | 'warmChat';
 	readonly token?: CancellationToken;
 	readonly launchedForTurn?: boolean;
@@ -8215,15 +8217,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				: { model: provisional.model, agent: provisional.agent };
 			const existing = this._getEarlyLaunch(provisional);
 			if (existing) {
+				// Only in-memory checks here: the chat queue is held, and a send must never wait behind I/O started by composing.
 				const staleReason = this._earlyLaunchSelectionStaleReason(existing, selection)
-					?? (existing.launch.session.isWorkingDirectoryTrustCurrent(this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)) ? undefined : 'workspaceTrustChanged')
-					// A draft-scoped customization change, such as disabling an MCP server, would also start the first send cold.
-					?? await this._sessionRefreshReason(current, existing.launch.session, provisional.workingDirectories, { operation: 'warmChat' });
-				if (this._isShuttingDown || this._getEarlyLaunch(provisional) !== existing) {
-					return false;
-				}
+					?? (existing.launch.session.isWorkingDirectoryTrustCurrent(this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey)) ? undefined : 'workspaceTrustChanged');
 				if (!staleReason) {
 					existing.extend();
+					this._checkEarlyLaunchCustomizations(chat, context, requested, provisional, existing, current);
 					return true;
 				}
 				await this._discardEarlyLaunch(provisional, staleReason);
@@ -8287,6 +8286,45 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 		early.extend();
 		return early;
+	}
+
+	/**
+	 * Replaces an early launch whose draft-scoped customizations (such as a disabled MCP server)
+	 * changed while the user composed, which would otherwise start the first send cold. Reads
+	 * the database and the runtime, so it runs outside the chat queue: a send never waits for
+	 * it, and claiming the launch cancels it. Composing again while a check runs does not
+	 * start another; the next composer change checks again.
+	 */
+	private _checkEarlyLaunchCustomizations(chat: URI, context: IAgentChatContext, requested: IAgentWarmChatSelection | undefined, provisional: IProvisionalSession, early: ICopilotEarlyLaunch, current: IResolvedCopilotChatContext): void {
+		if (early.customizationCheckRunning) {
+			return;
+		}
+		early.customizationCheckRunning = true;
+		const token = early.warmUpToken;
+		void (async () => {
+			try {
+				const reason = await this._sessionRefreshReason(current, early.launch.session, provisional.workingDirectories, { operation: 'warmChat', token });
+				if (!reason || token.isCancellationRequested) {
+					return;
+				}
+				const replaced = await this._queueChat(current.lifetimeId, current.sequencerKey, 'warmChat', async () => {
+					if (this._isShuttingDown || token.isCancellationRequested || this._getEarlyLaunch(provisional) !== early) {
+						return false;
+					}
+					await this._discardEarlyLaunch(provisional, reason);
+					return true;
+				});
+				if (replaced) {
+					await this._warmChat(chat, context, requested);
+				}
+			} finally {
+				early.customizationCheckRunning = false;
+			}
+		})().catch(error => {
+			if (!isCancellationError(error)) {
+				this._logService.trace(`[Copilot] [warm] Could not check the pre-warmed session's customizations; the first send validates it: chat=${chat.toString()}`, error);
+			}
+		});
 	}
 
 	/**

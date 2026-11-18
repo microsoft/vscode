@@ -23316,6 +23316,24 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({ warmSteps: h.warmSteps, prewarm: h.state().prewarm }, { warmSteps: ['mcpList'], prewarm: ['used'] });
 		});
 
+		test('composing does not hold the chat behind the runtime reads that check the warm session\'s customizations', async () => {
+			const h = await createWarmableAgent('warm-check-off-queue');
+			afterTest(() => disposeAgent(h.agent));
+			await h.agent.chats.warmChat!(h.chat, h.context);
+			const configRead = new DeferredPromise<void>();
+			const list = h.client.rpc.mcp.config.list;
+			h.client.rpc.mcp.config.list = async () => {
+				await configRead.p;
+				return list();
+			};
+			// The composer changed only its text: the matching launch is kept without waiting for the runtime.
+			const kept = await h.agent.chats.warmChat!(h.chat, h.context, { model: undefined, agent: undefined });
+			configRead.complete();
+			await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+			assert.deepStrictEqual({ kept, creates: h.state().creates, prewarm: h.state().prewarm }, { kept: true, creates: 1, prewarm: ['used'] });
+		});
+
 		test('warming again with another model replaces the warm launch, and a first send with that model claims it', async () => {
 			const h = await createWarmableAgent('warm-rewarm-model', undefined, { model: { id: 'claude-sonnet' }, models: [{ id: 'claude-sonnet', name: 'Claude Sonnet' }, { id: 'gpt-x', name: 'GPT X' }] });
 			afterTest(() => disposeAgent(h.agent));
