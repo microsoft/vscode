@@ -274,12 +274,14 @@ class QuickPickSeparatorElement extends BaseQuickPickItemElement {
 }
 
 class QuickInputItemDelegate implements IListVirtualDelegate<IQuickPickElement> {
+	constructor(private readonly minimumItemHeight: number) { }
+
 	getHeight(element: IQuickPickElement): number {
 
 		if (element instanceof QuickPickSeparatorElement) {
-			return 30;
+			return Math.max(30, this.minimumItemHeight);
 		}
-		return element.saneDetail ? 44 : 22;
+		return Math.max(element.saneDetail ? 44 : 22, this.minimumItemHeight);
 	}
 
 	getTemplateId(element: IQuickPickElement): string {
@@ -777,6 +779,7 @@ export class QuickInputList extends Disposable {
 		private linkOpenerDelegate: (content: string) => void,
 		id: string,
 		private styles: IQuickInputStyles,
+		minimumItemHeight = 0,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
@@ -788,7 +791,7 @@ export class QuickInputList extends Disposable {
 			WorkbenchObjectTree<IQuickPickElement, void>,
 			'QuickInput',
 			this._container,
-			new QuickInputItemDelegate(),
+			new QuickInputItemDelegate(minimumItemHeight),
 			[this._itemRenderer, this._separatorRenderer],
 			{
 				filter: {
