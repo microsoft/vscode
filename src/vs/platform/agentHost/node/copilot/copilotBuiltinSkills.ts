@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SkillProvider } from '@microsoft/copilot-sdk';
-import { joinPath } from '../../../../base/common/resources.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../common/agentHostCustomizationUri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME, AGENT_BUILTIN_SKILL_SCHEME } from '../../common/agentHostCustomizationUri.js';
 import { MODEL_ROUTER_FOLDER } from '../../common/modelRouter.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
+import { AhpErrorCodes, ContentEncoding, ProtocolError, type ResourceReadResult } from '../../common/state/sessionProtocol.js';
+import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
 
 const troubleshootName = 'troubleshoot';
 const modelRouterName = 'model-router';
 const skillsDirectory = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skills' });
-const troubleshootUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' });
-const modelRouterUri = URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/model-router' });
+const troubleshootUri = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/troubleshoot/SKILL.md' });
+const modelRouterUri = URI.from({ scheme: AGENT_BUILTIN_SKILL_SCHEME, path: '/model-router/SKILL.md' });
 
 function troubleshootDescriptor() {
 	return {
@@ -85,6 +88,27 @@ export function createCopilotSkillProvider(sdkConversationId: string, copilotHom
 			return troubleshootSkillContent.replace('{{COPILOT_SESSION_LOG_CONTEXT}}', () => context);
 		},
 	};
+}
+
+/** Serves the source templates without binding them to an arbitrary SDK conversation. */
+export class CopilotBuiltinSkillResourceProvider implements IAgentHostResourceProvider {
+	async read(uri: URI, encoding: ContentEncoding): Promise<ResourceReadResult> {
+		let source: string | undefined;
+		if (isEqual(uri, troubleshootUri, true) || isEqual(uri, URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/troubleshoot' }), true)) {
+			source = troubleshootSkillContent;
+		} else if (isEqual(uri, modelRouterUri, true) || isEqual(uri, URI.from({ scheme: AGENT_BUILTIN_CUSTOMIZATION_SCHEME, path: '/skill/model-router' }), true)) {
+			source = modelRouterSkillContent;
+		}
+		if (source === undefined) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Built-in skill not found: ${uri.toString()}`);
+		}
+		const content = `${localize('copilot.builtinSkill.source', "> Built-in skill source. Host and conversation paths are filled in when the skill is loaded.")}\n\n${source}`;
+		return {
+			data: encoding === ContentEncoding.Base64 ? encodeBase64(VSBuffer.fromString(content)) : content,
+			encoding,
+			contentType: 'text/markdown',
+		};
+	}
 }
 
 const troubleshootSkillContent = `# Troubleshoot
