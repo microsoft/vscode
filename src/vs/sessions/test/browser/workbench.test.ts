@@ -747,6 +747,30 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('draws the compact separator between the cards and the Session Activity Bar column', () => {
+		const root = append(document.body, $('div'));
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-agentsPanel-border: rgb(1, 2, 3); --vscode-agentsActivityBar-border: transparent;';
+		const activityBar = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		const strip = append(activityBar, $('.menu-activity-bar.session-activity-bar.docked'));
+		store.add(toDisposable(() => root.remove()));
+		const separator = (classes: string) => {
+			root.className = `monaco-workbench agent-sessions-workbench ${classes}`;
+			return mainWindow.getComputedStyle(strip).borderLeft;
+		};
+
+		assert.deepStrictEqual({
+			compact: separator('modern-ui-compact'),
+			compactHighContrastDark: separator('modern-ui-compact hc-black'),
+			compactHighContrastLight: separator('modern-ui-compact hc-light'),
+			defaultDensity: separator(''),
+		}, {
+			compact: '1px solid rgb(1, 2, 3)',
+			compactHighContrastDark: '1px solid rgba(0, 0, 0, 0)',
+			compactHighContrastLight: '1px solid rgba(0, 0, 0, 0)',
+			defaultDensity: '1px solid rgba(0, 0, 0, 0)',
+		});
+	});
+
 	test('keeps Agents window corner geometry native-only and zoom-aware', () => {
 		const root = document.createElement('div');
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px;';
