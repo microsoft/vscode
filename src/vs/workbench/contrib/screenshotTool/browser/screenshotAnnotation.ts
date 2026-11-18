@@ -319,7 +319,15 @@ export class ScreenshotAnnotationEditor {
 
 	/** Whether the image differs from how it was when the markup started, which cancelling discards. */
 	get hasChanges(): boolean {
-		return !this.disposed && (!!this.textEditState?.text.trim() || !equals(this.actions, this.savedActions));
+		return !this.disposed && (this.hasPendingChange || !equals(this.actions, this.savedActions));
+	}
+
+	/** Whether typed text or a gesture that the pointer has not released yet, such as a stroke, changes the image. */
+	private get hasPendingChange(): boolean {
+		return !!this.textEditState?.text.trim()
+			|| (this.isDrawing && !!this.currentAction)
+			|| this.pendingEraseActions.length > 0
+			|| (!!this.pendingMove && !moveSnapshotsEqual(this.pendingMove.before, captureMoveSnapshot(this.pendingMove.target)));
 	}
 
 	focus(): void {
@@ -1235,18 +1243,42 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private onPointerUp(e: PointerEvent): void {
+		if (this.canvas.hasPointerCapture(e.pointerId)) {
+			this.canvas.releasePointerCapture(e.pointerId);
+		}
+
+		if (this.textPlacementState) {
+			const { start, current } = this.textPlacementState;
+			const dx = current.x - start.x;
+			const didDrag = Math.abs(dx) >= TEXT_DRAG_THRESHOLD;
+			const x = didDrag ? Math.min(start.x, current.x) : start.x;
+			const rawWidth = didDrag ? Math.abs(dx) : this.getMaxTextWidthFrom(start.x);
+			const width = didDrag
+				? Math.max(1, Math.min(rawWidth, this.getTextImageRight() - x))
+				: rawWidth;
+			const y = start.y;
+			this.textPlacementState = null;
+			this.startTextEdit({ x, y }, width, didDrag);
+			return;
+		}
+
+		this.endPointerGesture();
+	}
+
+	/** Ends a pointer gesture as releasing the pointer does, so that what it changed becomes an action that can be undone. */
+	private endPointerGesture(): void {
+		this.cancelTextPlacement();
+
 		// Crop mode: end handle drag
 		if (this.cropMode && this.cropDragHandle) {
 			this.cropDragHandle = null;
 			this.cropRegionStart = null;
-			this.canvas.releasePointerCapture(e.pointerId);
 			return;
 		}
 
 		// Select tool: end drag
 		if (this.isResizingSelectedText) {
 			this.isResizingSelectedText = false;
-			this.canvas.releasePointerCapture(e.pointerId);
 			this.canvas.style.cursor = 'default';
 			this.commitPendingMove();
 			return;
@@ -1255,7 +1287,6 @@ export class ScreenshotAnnotationEditor {
 		// Select tool: end drag
 		if (this.isDraggingSelected) {
 			this.isDraggingSelected = false;
-			this.canvas.releasePointerCapture(e.pointerId);
 			this.canvas.style.cursor = 'default';
 			this.commitPendingMove();
 			return;
@@ -1264,14 +1295,12 @@ export class ScreenshotAnnotationEditor {
 		// Pan
 		if (this.isPanning) {
 			this.isPanning = false;
-			this.canvas.releasePointerCapture(e.pointerId);
 			this.canvas.style.cursor = this.activeTool === AnnotationTool.Pan ? 'grab' : 'crosshair';
 			return;
 		}
 
 		if (this.isErasing) {
 			this.isErasing = false;
-			this.canvas.releasePointerCapture(e.pointerId);
 			if (this.pendingEraseActions.length > 0) {
 				this.actions.push({
 					type: AnnotationTool.Eraser,
@@ -1289,28 +1318,9 @@ export class ScreenshotAnnotationEditor {
 			return;
 		}
 
-		if (this.textPlacementState) {
-			const { start, current, pointerId } = this.textPlacementState;
-			if (pointerId === e.pointerId) {
-				this.canvas.releasePointerCapture(e.pointerId);
-			}
-			const dx = current.x - start.x;
-			const didDrag = Math.abs(dx) >= TEXT_DRAG_THRESHOLD;
-			const x = didDrag ? Math.min(start.x, current.x) : start.x;
-			const rawWidth = didDrag ? Math.abs(dx) : this.getMaxTextWidthFrom(start.x);
-			const width = didDrag
-				? Math.max(1, Math.min(rawWidth, this.getTextImageRight() - x))
-				: rawWidth;
-			const y = start.y;
-			this.textPlacementState = null;
-			this.startTextEdit({ x, y }, width, didDrag);
-			return;
-		}
-
 		if (!this.isDrawing) {
 			return;
 		}
-		this.canvas.releasePointerCapture(e.pointerId);
 		this.isDrawing = false;
 
 		if (this.currentAction) {
@@ -2466,7 +2476,7 @@ export class ScreenshotAnnotationEditor {
 		if (this.disposed) {
 			return;
 		}
-		this.cancelTextPlacement();
+		this.endPointerGesture();
 		this.commitTextEdit();
 		if (this.cropMode) {
 			this.cancelCrop();
@@ -2498,6 +2508,11 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private async doCancel(): Promise<boolean> {
+		if (this.disposed) {
+			return true;
+		}
+		// The user may keep the markup, which then must not keep drawing behind the confirmation.
+		this.endPointerGesture();
 		if (this.hasChanges && !await this.confirmDiscard()) {
 			return false;
 		}

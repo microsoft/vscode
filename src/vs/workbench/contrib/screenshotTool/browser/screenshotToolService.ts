@@ -22,7 +22,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { KeybindingResolver, ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -41,8 +41,42 @@ const REPAINT_DELAY = 100;
 /** How many screenshots attached to chat stay editable, which bounds the memory their originals take. */
 const MAX_EDITABLE_ATTACHMENTS = 10;
 
+/** How long a markup waits for the next chord of a keybinding such as Ctrl+K Ctrl+Z, as long as the workbench waits. */
+const CHORD_TIMEOUT = 5000;
+
 interface ISession extends IDisposable {
 	surface: { focus(): void } | undefined;
+}
+
+/**
+ * Resolves the keys pressed in a markup to the commands of their keybindings, without running them. A markup keeps its keys
+ * from the workbench, which therefore can't follow the chords of keybindings such as Ctrl+K Ctrl+Z, so this follows them.
+ */
+class MarkUpKeybindingResolver {
+
+	private chords: string[] = [];
+	private lastChordTime = 0;
+
+	constructor(
+		private readonly keybindingService: IKeybindingService,
+		private readonly contextKeyService: IContextKeyService,
+	) { }
+
+	/** Returns the command of the keybinding that a key completes where it was pressed, if any. */
+	resolve(event: StandardKeyboardEvent): string | undefined {
+		const [chord] = this.keybindingService.resolveKeyboardEvent(event).getDispatchChords();
+		if (!chord) {
+			return undefined; // a modifier on its own, which doesn't end the chords
+		}
+		const chords = Date.now() - this.lastChordTime > CHORD_TIMEOUT ? [] : this.chords;
+		// Only keybindings that start with the first chord can match.
+		const firstChord = chords[0] ?? chord;
+		const keybindings = this.keybindingService.getKeybindings().filter(keybinding => keybinding.chords[0] === firstChord);
+		const result = new KeybindingResolver(keybindings, [], () => { }).resolve(this.contextKeyService.getContext(event.target), chords, chord);
+		this.chords = result.kind === ResultKind.MoreChordsNeeded ? [...chords, chord] : [];
+		this.lastChordTime = Date.now();
+		return result.kind === ResultKind.KbFound ? result.commandId ?? undefined : undefined;
+	}
 }
 
 type ScreenshotToolCaptureClassification = {
@@ -91,7 +125,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -284,21 +318,22 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 			editable = loaded;
 			const annotationEditor = editor = new ScreenshotAnnotationEditor(loaded.original, container, () => this.confirmDiscardMarkUp(), loaded.annotationState);
 			store.add(toDisposable(() => annotationEditor.dispose()));
+			const keybindings = new MarkUpKeybindingResolver(this.keybindingService, this.contextKeyService);
 			for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
 				// Workbench shortcuts would act on what is underneath the markup and take focus from it, so the markup runs Undo and Redo itself.
 				store.add(addDisposableListener(annotationEditor.element, type, (e: KeyboardEvent) => {
-					const commandId = this.resolveCommand(new StandardKeyboardEvent(e));
-					if (commandId === AccessibilityCommandId.OpenAccessibilityHelp) {
+					const event = new StandardKeyboardEvent(e);
+					if (this.isAccessibilityHelpKey(event)) {
 						return;
 					}
 					e.stopPropagation();
-					if (type === EventType.KEY_DOWN && (commandId === UndoCommand.id || commandId === RedoCommand.id)) {
+					const commandId = type === EventType.KEY_DOWN ? keybindings.resolve(event) : undefined;
+					if (commandId === UndoCommand.id) {
 						e.preventDefault();
-						if (commandId === UndoCommand.id) {
-							annotationEditor.undo();
-						} else {
-							annotationEditor.redo();
-						}
+						annotationEditor.undo();
+					} else if (commandId === RedoCommand.id) {
+						e.preventDefault();
+						annotationEditor.redo();
 					}
 				}));
 			}
@@ -400,13 +435,8 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 	}
 
 	private isAccessibilityHelpKey(event: StandardKeyboardEvent): boolean {
-		return this.resolveCommand(event) === AccessibilityCommandId.OpenAccessibilityHelp;
-	}
-
-	/** Returns the command that a key runs where it was pressed. */
-	private resolveCommand(event: StandardKeyboardEvent): string | undefined {
 		const result = this.keybindingService.softDispatch(event, event.target);
-		return result.kind === ResultKind.KbFound ? result.commandId ?? undefined : undefined;
+		return result.kind === ResultKind.KbFound && result.commandId === AccessibilityCommandId.OpenAccessibilityHelp;
 	}
 
 	/** Asks the user whether to discard the changes of a markup that is cancelled. */
