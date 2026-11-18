@@ -104,6 +104,7 @@ import {
 } from '../common/state/sessionProtocol.js';
 import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
 import { ROOT_STATE_URI, isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, isAhpChatChannel, withSessionStatusFlag, type ISessionWithDefaultChat, type Message, type ModelSelection, type RootState, type SessionState, type SessionConfigState, type SessionSummary } from '../common/state/sessionState.js';
+import { getArtifactChangeOwner } from './shared/sessionArtifacts.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -3642,9 +3643,26 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'artifactId must be a non-empty string'));
 		}
 		try {
-			return this._agentService.removeSessionArtifact(this._parseSessionUri(sessionParam), artifactId);
+			return this._removeSessionArtifact(this._parseSessionUri(sessionParam), artifactId);
 		} catch (error) {
 			return Promise.reject(error);
+		}
+	}
+
+	private async _removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		// Reported from the entry the serialized removal found, so a concurrent removal or promotion is not misreported.
+		const removed = await this._agentService.removeSessionArtifact?.(session, artifactId);
+		if (removed) {
+			this._telemetryReporter.artifactRemoved({
+				...getArtifactChangeOwner(this._stateManager, removed.chat ?? session.toString(), session.toString()),
+				chat: undefined,
+				turnId: undefined,
+				toolCallId: undefined,
+				initiator: 'user',
+				kind: removed.type,
+				isArtifact: removed.isArtifact,
+				isGitHub: removed.isGitHub === true,
+			});
 		}
 	}
 

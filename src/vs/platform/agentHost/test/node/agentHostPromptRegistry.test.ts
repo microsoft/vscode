@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
+import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@microsoft/copilot-sdk';
 import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';

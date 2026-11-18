@@ -10,7 +10,7 @@
  */
 
 import assert from 'assert';
-import { CopilotClient } from '@github/copilot-sdk';
+import { RuntimeConnection, CopilotClient } from '@microsoft/copilot-sdk';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
@@ -696,7 +696,7 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 	 * 1. Client/host-supplied — the client forwards a `ClientPluginCustomization`
 	 *    (or the host discovers a plugin in the workspace); the agent host parses
 	 *    it and *tells* the SDK about it via `pluginDirectories` & friends on
-	 *    `SessionConfig`. The plugin tests above cover this.
+	 *    `CreateSessionOptions`. The plugin tests above cover this.
 	 * 2. Runtime-native — the user installed a plugin with the Copilot CLI, which
 	 *    records it in `<COPILOT_HOME>/config.json`. The agent host never passes
 	 *    these to the SDK; the runtime loads them itself, and the host only learns
@@ -746,13 +746,20 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		let consumerSessionUri: string | undefined;
 		try {
 			const sdkClient = new CopilotClient({
-				gitHubToken: COPILOT_CONFIG.githubToken,
-				useLoggedInUser: false,
-				logLevel: 'error',
-				// No `baseDirectory`: production also relies on COPILOT_HOME. Using the
-				// same `pluginHomeDir` for this client and the server below makes the
-				// installed plugin visible to both — a mismatch fails the test loudly.
-				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(pluginHomeDir)),
+				mode: 'coding-agent',
+				github: {
+					token: COPILOT_CONFIG.githubToken,
+					useLoggedInUser: false,
+				},
+				observability: {
+					logLevel: 'error',
+				},
+				runtime: RuntimeConnection.forSpawnedStdio({
+					// No `baseDirectory`: production also relies on COPILOT_HOME. Using the
+					// same `pluginHomeDir` for this client and the server below makes the
+					// installed plugin visible to both — a mismatch fails the test loudly.
+					env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(pluginHomeDir)),
+				}),
 			});
 			let sdkClientStarted = false;
 			let installedPluginName: string;

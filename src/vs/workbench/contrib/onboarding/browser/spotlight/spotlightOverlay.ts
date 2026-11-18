@@ -8,6 +8,8 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -15,6 +17,7 @@ import { IMarkdownString, isMarkdownString } from '../../../../../base/common/ht
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../../../base/common/layout.js';
 import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../../nls.js';
 import { IOnboardingFocusTarget } from './onboardingTarget.js';
@@ -41,7 +44,12 @@ export interface ISpotlightContent {
 	readonly description: string | IMarkdownString;
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
-	/** Localized label of the button that ends the tour, replacing End Tour. */
+	/**
+	 * Localized label of the footer button that ends the tour, replacing End Tour. With the
+	 * title close button, the footer button only shows for such a label, for steps where
+	 * ending the tour is a choice such as "Continue in Folder", and the close button hides,
+	 * since closing would take that choice.
+	 */
 	readonly endTourLabel?: string;
 	/** Zero-based index of the current step. */
 	readonly stepIndex: number;
@@ -53,7 +61,7 @@ export interface ISpotlightContent {
 	readonly isLastStep: boolean;
 	/** Keeps cancellation available when the final primary button performs an action. */
 	readonly showEndTour?: boolean;
-	/** Focuses the end tour button instead of the primary button. */
+	/** Focuses the end tour button, or the title close button when no end tour button shows, instead of the primary button. */
 	readonly focusEndTour?: boolean;
 }
 
@@ -87,11 +95,15 @@ export class SpotlightOverlay extends Disposable {
 	private readonly _pointer: HTMLElement;
 	private readonly _callout: HTMLElement;
 
+	private readonly _header: HTMLElement;
 	private readonly _title: HTMLElement;
 	private readonly _description: HTMLElement;
 	private readonly _counter: HTMLElement;
 	private readonly _descriptionRenderStore = this._register(new DisposableStore());
 
+	/** Created on first use, so the default footer layout renders as before. */
+	private _closeButton: Button | undefined;
+	private _titleCloseButton = false;
 	private readonly _backButton: Button;
 	private readonly _nextButton: Button;
 	private readonly _skipButton: Button;
@@ -142,8 +154,8 @@ export class SpotlightOverlay extends Disposable {
 		this._callout.setAttribute('aria-modal', 'true');
 		this._callout.tabIndex = -1;
 
-		const header = append(this._callout, $('.spotlight-callout-header'));
-		this._title = append(header, $('h2.spotlight-callout-title'));
+		this._header = append(this._callout, $('.spotlight-callout-header'));
+		this._title = append(this._header, $('h2.spotlight-callout-title'));
 		this._title.id = 'spotlight-callout-title';
 		this._callout.setAttribute('aria-labelledby', this._title.id);
 
@@ -303,12 +315,47 @@ export class SpotlightOverlay extends Disposable {
 		// Move focus to the spotlighted control (so keyboard users can activate it
 		// to advance) or, otherwise, into the callout's primary action. An explicit
 		// focusEndTour wins, as the target may not be focusable.
-		this._focus(content.focusEndTour ? this._skipButton.element : hideNext ? focusElement : this._nextButton.element);
+		const closeButton = this._titleCloseButton && content.endTourLabel === undefined ? this._closeButton : undefined;
+		this._focus(content.focusEndTour ? (closeButton ?? this._skipButton).element : hideNext ? focusElement : this._nextButton.element);
 	}
 
 	/** Prevents duplicate activation while waiting for an action to be accepted. */
 	setPrimaryActionEnabled(enabled: boolean): void {
 		this._nextButton.enabled = enabled;
+	}
+
+	/** Shows or hides the dim backdrop around the highlight. The highlight ring and callout are unaffected. */
+	setBackdropVisible(visible: boolean): void {
+		this._root.classList.toggle('no-backdrop', !visible);
+	}
+
+	/**
+	 * Ends the tour with a compact close button at the end of the title's first line instead of
+	 * the End Tour footer button, which then only shows for a custom {@link ISpotlightContent.endTourLabel}.
+	 * Steps with such a label show no close button. Takes effect the next time a step is shown.
+	 */
+	setTitleCloseButton(enabled: boolean): void {
+		this._titleCloseButton = enabled;
+		this._root.classList.toggle('title-close-button', enabled);
+		if (enabled && !this._closeButton) {
+			// Hosted in the callout, the hover renders above the spotlight rather than under it.
+			const elementHoverDelegate = getDefaultHoverDelegate('element');
+			const hoverDelegate: IHoverDelegate = {
+				get delay() { return elementHoverDelegate.delay; },
+				placement: elementHoverDelegate.placement,
+				showHover: (options, focus) => elementHoverDelegate.showHover({ ...options, container: this._callout }, focus),
+				onDidHideHover: () => elementHoverDelegate.onDidHideHover?.(),
+			};
+			const closeButton = this._closeButton = this._register(new Button(this._header, {
+				ariaLabel: localize('spotlight.endTour', "End Tour"),
+				title: localize('spotlight.endTour.tooltip', "End Tour (Esc)"),
+				hoverDelegate,
+			}));
+			closeButton.element.classList.add('spotlight-callout-close');
+			closeButton.icon = Codicon.closeCompact;
+			this._register(closeButton.onDidClick(() => this._onDidSkip.fire(OnboardingDismissReason.SkipButton)));
+			this._register(closeButton.onDidEscape(() => this._onDidSkip.fire(OnboardingDismissReason.EscapeKey)));
+		}
 	}
 
 	/** Hide the current step while another target is being resolved. */
@@ -497,11 +544,18 @@ export class SpotlightOverlay extends Disposable {
 			? localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount)
 			: '';
 
-		this._skipButton.element.style.display = content.isLastStep && !content.showEndTour ? 'none' : '';
-		this._skipButton.label = content.endTourLabel ?? localize('spotlight.endTour', "End Tour");
-		this._skipButton.setTitle(content.endTourLabel
-			? localize('spotlight.endTour.customTooltip', "{0} (Esc)", content.endTourLabel)
-			: localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
+		const endTourLabel = content.endTourLabel ?? (this._titleCloseButton ? undefined : localize('spotlight.endTour', "End Tour"));
+		this._skipButton.element.style.display = endTourLabel === undefined || (content.isLastStep && !content.showEndTour) ? 'none' : '';
+		// A custom label makes ending the tour a choice, which the close button must not take.
+		if (this._closeButton) {
+			this._closeButton.element.style.display = content.endTourLabel === undefined ? '' : 'none';
+		}
+		if (endTourLabel !== undefined) {
+			this._skipButton.label = endTourLabel;
+			this._skipButton.setTitle(content.endTourLabel
+				? localize('spotlight.endTour.customTooltip', "{0} (Esc)", content.endTourLabel)
+				: localize('spotlight.endTour.tooltip', "End Tour (Esc)"));
+		}
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
 		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")
@@ -576,7 +630,8 @@ export class SpotlightOverlay extends Disposable {
 		const buttons = [this._skipButton, this._backButton, this._nextButton]
 			.filter(button => button.element.style.display !== 'none')
 			.map(button => button.element);
-		return [...targetFocusables, ...descriptionFocusables, ...buttons].filter(element => this._isTabbable(element));
+		const closeButton = this._closeButton ? [this._closeButton.element] : [];
+		return [...targetFocusables, ...closeButton, ...descriptionFocusables, ...buttons].filter(element => this._isTabbable(element));
 	}
 
 	private _isTabbable(element: HTMLElement): boolean {
