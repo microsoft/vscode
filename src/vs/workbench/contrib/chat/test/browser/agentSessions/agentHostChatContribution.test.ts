@@ -58,6 +58,7 @@ import { TestThemeService } from '../../../../../../platform/theme/test/common/t
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -1112,6 +1113,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		onDidChangeWorkbenchState: Event.None
 	});
 	const trustController: { result: boolean | undefined; workspaceTrusted: boolean; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string>; setUrisTrustCalls: string[][] } = { result: true, workspaceTrusted: false, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>(), setUrisTrustCalls: [] };
+	// The marketplace install provider of each registered agent listens for the MCP registry being replaced.
+	instantiationService.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+		override readonly onDidChangeMcpGalleryManifest = Event.None;
+	}());
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust(): Promise<boolean | undefined> {
 			trustController.workspaceTrustCalls++;
