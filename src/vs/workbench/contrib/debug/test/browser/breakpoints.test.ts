@@ -307,6 +307,20 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(instructionBreakpoints[0].offset, 0);
 		assert.strictEqual(instructionBreakpoints[1].instructionReference, '0xCCCCEEEE');
 		assert.strictEqual(instructionBreakpoints[1].offset, 1);
+
+		// test instruction breakpoint with resolved address and address-based removal
+		model.addInstructionBreakpoint({ instructionReference: '0x180001950', offset: 4, address: 0x180001954n, canPersist: false });
+		assert.strictEqual(eventCount, 3);
+		instructionBreakpoints = model.getInstructionBreakpoints();
+		assert.strictEqual(instructionBreakpoints.length, 3);
+		assert.strictEqual(instructionBreakpoints[2].address, 0x180001954n);
+
+		// remove by address even when instruction reference has changed
+		model.removeInstructionBreakpoints(undefined, undefined, 0x180001954n);
+		assert.strictEqual(eventCount, 4);
+		instructionBreakpoints = model.getInstructionBreakpoints();
+		assert.strictEqual(instructionBreakpoints.length, 2);
+		assert.strictEqual(instructionBreakpoints.some(bp => bp.address === 0x180001954n), false);
 	});
 
 	test('data breakpoints', () => {
