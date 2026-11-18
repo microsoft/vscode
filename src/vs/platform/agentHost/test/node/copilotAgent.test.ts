@@ -151,6 +151,7 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
+import { TurnInteractionCorrelation } from '../../node/copilot/turnInteractionCorrelation.js';
 import type { CompactionTurnCorrelation, ICompactionTurnCorrelationResult } from '../../node/copilot/compactionTurnCorrelation.js';
 import { addCopilotSandboxPath, createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copilotFailureTelemetry.js';
@@ -334,6 +335,7 @@ function chatScopes(agent: CopilotAgent) {
 
 function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknown, chatUri?: URI): void {
 	const chatSession = stub as CopilotAgentSession;
+	Object.assign(chatSession, { turnInteractionCorrelation: chatSession.turnInteractionCorrelation ?? new TurnInteractionCorrelation(sdkSessionId, new TestDataTelemetryService()) });
 	chatSession.refreshModelConfiguration ??= () => { };
 	chatSession.clientToolsRequireRestart ??= () => false;
 	(chatSession as { canvasRuntimeEnabled?: boolean }).canvasRuntimeEnabled ??= false;
@@ -7040,6 +7042,7 @@ suite('CopilotAgent', () => {
 
 	test('keeps host-remapped correlation for both event orders when the active turn changes', async () => {
 		const events: ITelemetryData[] = [];
+		const interactionTelemetry = new TestDataTelemetryService();
 		let received = new DeferredPromise<void>();
 		const telemetryService = new class extends RecordingTelemetryService {
 			override publicLog(eventName?: string, data?: ITelemetryData): void {
@@ -7060,11 +7063,12 @@ suite('CopilotAgent', () => {
 			sessionId: 'sdk-session',
 			get currentTurnId() { return activeTurn; },
 			modelCallTurnCorrelation: new ModelCallTurnCorrelation(),
+			turnInteractionCorrelation: new TurnInteractionCorrelation('sdk-session', interactionTelemetry),
 			isDisposed: false,
 		}, chat);
 		const notification = (call: string): GitHubTelemetryNotification => ({
 			sessionId: 'sdk-session', restricted: false,
-			event: { kind: 'response.success', model_call_id: call, properties: { initiatorType: 'agent' }, metrics: {} },
+			event: { kind: 'response.success', model_call_id: call, properties: { initiatorType: 'agent', interaction_id: 'interaction' }, metrics: {} },
 		});
 		agent.recordModelCallTurnCorrelation(chat, 'cached-call', 'subagent-turn');
 		await forward(notification('cached-call'));
@@ -7082,6 +7086,7 @@ suite('CopilotAgent', () => {
 			{ turn: 'subagent-turn', diagnostics: { ahCorrelationOutcome: 'mappingAvailable' } },
 			{ turn: 'original-logical-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: true } },
 		]);
+		assert.deepStrictEqual(interactionTelemetry.events, []);
 	});
 
 	test('reads turn usage from the exact provider chat with explicit child ownership', async () => {
@@ -23241,7 +23246,7 @@ suite('CopilotAgent', () => {
 				const guidanceOf = (config: { readonly systemMessage?: { readonly content?: string } } | undefined) => /How the user wants the work done:\n(?<guidance>.*)\n/.exec(config?.systemMessage?.content ?? '')?.groups?.guidance;
 				/** The guidance each session was launched with: those created, then those resumed. */
 				const launched = () => ({ created: h.launchConfigs.map(guidanceOf), resumed: resumeConfigs.map(guidanceOf) });
-				return { ...h, send, launched };
+				return { ...h, send, launched, fileService };
 			}
 
 			test('a warm session is replaced once when the first message is routed to a route with guidance', async () => {
@@ -23279,6 +23284,14 @@ suite('CopilotAgent', () => {
 					later: { kept: true, notices: [] },
 					launched: { created: [undefined], resumed: ['Plan first.'] },
 				});
+			});
+
+			test('a router picked with a custom agent that names a model routes, as a model picked with that agent runs', async () => {
+				const h = await createRoutedAgent('router-agent-model');
+				const agentFile = joinPath(userHome, 'agents', 'reviewer.agent.md');
+				await h.fileService.writeFile(agentFile, VSBuffer.fromString('---\nname: Reviewer\nmodel: gpt-5\n---\nReview.'));
+				const resolution = await h.agent.resolveTurnModel(h.chat, { turnId: 'turn-1', selection: { id: 'model-router:team' }, text: 'build it', previousTurns: [], agent: { uri: agentFile.toString() } }, h.context, CancellationToken.None);
+				assert.deepStrictEqual({ model: resolution.selection?.id, route: resolution.routed?.routeName, notices: resolution.notices }, { model: 'claude-sonnet', route: 'feature', notices: [] });
 			});
 
 			test('a chat that is routed to a route with other guidance is relaunched with it', async () => {
