@@ -940,6 +940,52 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
+	test('opens a changeset of the Changes editor scrolled to the change of the first file it lists', () => {
+		const { instantiationService } = createServices();
+		const file = URI.file('/repo/changed.ts');
+		const change = upcastPartial<ISessionFileChange>({ originalUri: URI.parse('git:/repo/changed.ts'), modifiedUri: file, insertions: 1, deletions: 0 });
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			workspace,
+			changesets: constObservable([upcastPartial<ISessionChangeset>({ id: SESSION_CHANGES_CHANGESET_ID, changes: constObservable([change]) })]),
+			changes: constObservable([change]),
+		});
+		const session = upcastPartial<ITestSessionWithChat>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: false }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([]),
+			workspace,
+		});
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ parent: undefined }));
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			getContainer: window => window.document.body,
+			revealEditorPartExplicitly: () => { },
+		}));
+		stubSessionsHostLayout(instantiationService);
+		const opened: (ISessionChangesEditorOptions | undefined)[] = [];
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+			openChangesEditor: async (_resource, options) => {
+				opened.push(options);
+				return undefined;
+			},
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined, undefined));
+		toolbar.setSession(session, chat);
+
+		toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [URI.file('/repo/other.ts'), file]);
+		toolbar.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, [URI.file('/repo/other.ts')]);
+		toolbar.openChangesEditor(BRANCH_CHANGES_CHANGESET_ID, [file]);
+
+		assert.deepStrictEqual(opened, [
+			{ changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID }, chatResource: undefined, viewState: { revealData: { resource: { original: change.originalUri, modified: file } } } },
+			{ changesetSelection: { kind: 'id', id: SESSION_CHANGES_CHANGESET_ID }, chatResource: undefined },
+			{ changesetSelection: { kind: 'id', id: BRANCH_CHANGES_CHANGESET_ID }, chatResource: undefined },
+		]);
+	});
+
 	for (const activation of ['click', 'Enter', 'Space'] as const) {
 		test(`shows, labels and opens Session Changes in a cloud sandbox worktree with ${activation}`, () => {
 			const { instantiationService } = createServices();

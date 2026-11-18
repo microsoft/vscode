@@ -75,7 +75,7 @@ import { createSessionPullRequestPillData } from '../../../browser/sessionPullRe
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatWidget, chatPersistentContentVisibleClass } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import type { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
+import type { IChatSessionWorkingSetKeep, IChatSessionWorkingSetOpenChanges, IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
 import { CustomizationIndex, CustomizationRefKind, createCustomizationIndexObservable } from '../../../common/agentHostSessionCustomizations.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
@@ -331,7 +331,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService; nativeHost?: boolean; workingSetOnly?: boolean }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper; telemetryService?: ITelemetryService; nativeHost?: boolean; workingSetOnly?: boolean; openChanges?: IChatSessionWorkingSetOpenChanges }) {
 		const instantiationService = createInstantiationService();
 		if (options?.telemetryService) {
 			instantiationService.stub(ITelemetryService, options.telemetryService);
@@ -378,6 +378,7 @@ suite('AgentHostSessionInputPills', () => {
 		let workingSetChanges: readonly IEditSessionEntryDiff[] | undefined;
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
 		let workingSetKeep: IChatSessionWorkingSetKeep | undefined;
+		let workingSetOpenChanges: IChatSessionWorkingSetOpenChanges | undefined;
 		let workingSetRegistrations = 0;
 		// What the input's working set shows: the registered changes without the files the input kept itself
 		const registeredChanges = observableValue<IObservable<readonly IEditSessionEntryDiff[] | undefined> | undefined>('registeredChanges', undefined);
@@ -394,7 +395,7 @@ suite('AgentHostSessionInputPills', () => {
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 				supportsSessionWorkingSet: options?.supportsSessionWorkingSet ?? true,
 				sessionWorkingSetDiffs,
-				registerSessionFileChanges: (changes, undo, keep) => {
+				registerSessionFileChanges: (changes, undo, keep, openChanges) => {
 					workingSetRegistrations++;
 					registeredChanges.set(changes, undefined);
 					return combinedDisposable(
@@ -403,11 +404,13 @@ suite('AgentHostSessionInputPills', () => {
 							workingSetChanges = changes.read(reader);
 							workingSetUndo = undo?.read(reader);
 							workingSetKeep = keep?.read(reader);
+							workingSetOpenChanges = openChanges?.read(reader);
 						}),
 						toDisposable(() => {
 							workingSetChanges = undefined;
 							workingSetUndo = undefined;
 							workingSetKeep = undefined;
+							workingSetOpenChanges = undefined;
 						}),
 					);
 				},
@@ -507,7 +510,7 @@ suite('AgentHostSessionInputPills', () => {
 			return createInstance(ctor, ...args);
 		}) as typeof instantiationService.createInstance;
 		const pills = options?.workingSetOnly
-			? store.add(instantiationService.createInstance(AgentHostSessionWorkingSet, widget, { workingSetOnly: true }))
+			? store.add(instantiationService.createInstance(AgentHostSessionWorkingSet, widget, { workingSetOnly: true, openChanges: options.openChanges }))
 			: store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
 		return {
 			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
@@ -517,6 +520,7 @@ suite('AgentHostSessionInputPills', () => {
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
 			workingSetKeep: () => workingSetKeep,
+			workingSetOpenChanges: () => workingSetOpenChanges,
 			workingSetRegistrations: () => workingSetRegistrations,
 			/** Keeps files in the input itself, as its working set does for a host without Accept Changes. */
 			keepInInput: (diffs: readonly IEditSessionEntryDiff[]) => keptInInput.set(new Set([...keptInInput.get(), ...diffs.map(diff => diff.modifiedURI.toString())]), undefined),
@@ -3209,7 +3213,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	function createSessionWorkingSetPills(options?: { connectionAuthority?: string; resourceUris?: IAgentHostResourceUriMapper; workingSetOnly?: boolean; withoutWorkingSet?: boolean }) {
+	function createSessionWorkingSetPills(options?: { connectionAuthority?: string; resourceUris?: IAgentHostResourceUriMapper; workingSetOnly?: boolean; withoutWorkingSet?: boolean; openChanges?: IChatSessionWorkingSetOpenChanges }) {
 		const errors: string[] = [];
 		const confirmations: Pick<IConfirmation, 'title' | 'message' | 'primaryButton' | 'type'>[] = [];
 		let confirmed = false;
@@ -3229,6 +3233,7 @@ suite('AgentHostSessionInputPills', () => {
 			getUriLabel: labelService.getUriLabel,
 			resourceUris: options?.resourceUris,
 			workingSetOnly: options?.workingSetOnly,
+			openChanges: options?.openChanges,
 			dialogService: upcastPartial<IDialogService>({
 				confirm: async ({ title, message, primaryButton, type }) => {
 					confirmations.push({ title, message, primaryButton, type });
@@ -3389,6 +3394,26 @@ suite('AgentHostSessionInputPills', () => {
 			changesPillHidden: true,
 			pills: 0,
 		});
+	});
+
+	test('opens the working set\'s changes in the Changes editor only while chat.editorWindow.openWorkingSetInChangesEditor is on', async () => {
+		const openChanges: IChatSessionWorkingSetOpenChanges = { open: () => { } };
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true, openChanges });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+		const setOpenInChangesEditor = async (enabled: boolean) => {
+			await configurationService.setUserConfiguration(ChatConfiguration.EditorWindowOpenWorkingSetInChangesEditor, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: key => key === ChatConfiguration.EditorWindowOpenWorkingSetInChangesEditor,
+			}));
+		};
+		const off = harness.workingSetOpenChanges();
+		await setOpenInChangesEditor(true);
+		const on = harness.workingSetOpenChanges();
+		await setOpenInChangesEditor(false);
+
+		assert.deepStrictEqual({ off, on: on === openChanges, offAgain: harness.workingSetOpenChanges() }, { off: undefined, on: true, offAgain: undefined });
 	});
 
 	test('an input that shows only the working set creates none of the pills\' sources, only the working set\'s binding', async () => {

@@ -84,7 +84,7 @@ import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
-import { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
+import { IChatSessionWorkingSetKeep, IChatSessionWorkingSetOpenChanges, IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
 import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
 import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
@@ -1297,6 +1297,11 @@ export interface IAgentHostSessionWorkingSetOptions {
 	readonly workingSetOnly?: boolean;
 	/** Whether Session Changes offers Undo, which it does once Undo ships; the session's Working Set always does. */
 	readonly undoEnabled?: boolean;
+	/**
+	 * Opens the working set's changes in the session's Changes editor, such as of a chat outside the Agents window, while
+	 * `chat.editorWindow.openWorkingSetInChangesEditor` is on; otherwise they open as diffs.
+	 */
+	readonly openChanges?: IChatSessionWorkingSetOpenChanges;
 }
 
 /**
@@ -1615,11 +1620,13 @@ export class AgentHostSessionWorkingSet extends Disposable {
 				keep: (diffs, automatic) => this._keepWorkingSetChanges(currentResolution, channel, workingSetAccept, acceptsInFlight, diffs, automatic),
 			};
 		});
+		const openInChangesEditor = observableConfigValue(ChatConfiguration.EditorWindowOpenWorkingSetInChangesEditor, false, this._configurationService);
+		const openChanges = derived(this, reader => openInChangesEditor.read(reader) ? this._options.openChanges : undefined);
 		// The session's Working Set tracks what was kept, so it also offers Undo; Session Changes only once Undo ships.
 		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {
 				const undo = !!this._options.undoEnabled || isSessionWorkingSet.read(reader) ? workingSetUndo : undefined;
-				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep));
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep, openChanges));
 			}
 		}));
 		// The Changes pill, also the one an input that shows only the working set shows, offers to show the working set again

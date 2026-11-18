@@ -61,7 +61,7 @@ import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.j
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewBackgroundReplica, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission, INewSessionViewOptions } from '../parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../common/contextkeys.js';
-import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SESSION_CHANGES_CHANGESET_ID, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
@@ -704,7 +704,11 @@ export class ChatView extends AbstractChatView {
 
 		// Floating status pills above the input.
 		// Beside an input that shows the session's changes as its working set, the Changes pill hides while it shows them
-		const workingSet = options.input?.workingSet ? this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, { workingSetOnly: true })) : undefined;
+		// Its changes can open the session's Changes editor, on Session Changes, as the pills do
+		const workingSet = options.input?.workingSet ? this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, {
+			workingSetOnly: true,
+			openChanges: { open: diff => this._chatPills.openChangesEditor(SESSION_CHANGES_CHANGESET_ID, diff && [diff.modifiedURI, diff.originalURI]) },
+		})) : undefined;
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session,
 			workingSet && { hidden: workingSet.changesPillHidden, contextMenuActions: workingSet.getChangesPillContextMenuActions }));
 		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));

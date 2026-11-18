@@ -110,7 +110,7 @@ import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } fro
 import { IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
-import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from './chatSessionWorkingSet.js';
+import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetKeep, IChatSessionWorkingSetOpenChanges, IChatSessionWorkingSetUndo } from './chatSessionWorkingSet.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostAutoTierScope.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
@@ -509,6 +509,8 @@ interface ISessionFileChanges {
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
 	/** Keeps changes in the session, or `undefined` to remember kept changes in the workbench. */
 	readonly keep: IObservable<IChatSessionWorkingSetKeep | undefined>;
+	/** Opens the changes in the session's Changes editor, or `undefined` to open them as diffs. */
+	readonly openChanges: IObservable<IChatSessionWorkingSetOpenChanges | undefined>;
 }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -5544,11 +5546,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Provides the session's file changes to the session working set, `undo`
-	 * when the session can undo its changes to single files, and `keep` when
-	 * the session keeps changes itself.
+	 * when the session can undo its changes to single files, `keep` when
+	 * the session keeps changes itself, and `openChanges` when its changes
+	 * open in the session's Changes editor.
 	 */
-	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined)): IDisposable {
-		const source: ISessionFileChanges = { changes, undo, keep };
+	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined), openChanges: IObservable<IChatSessionWorkingSetOpenChanges | undefined> = constObservable(undefined)): IDisposable {
+		const source: ISessionFileChanges = { changes, undo, keep, openChanges };
 		this._sessionFileChanges.set(source, undefined);
 		return toDisposable(() => {
 			if (this._sessionFileChanges.get() === source) {
@@ -5722,6 +5725,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						},
 						keepEnabled: derived(r => sessionKeep.read(r)?.enabled.read(r) ?? true),
 						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
+						openChanges: derived(r => this._sessionFileChanges.read(r)?.openChanges.read(r)),
 					}, () => this.focus()));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					this._sessionWorkingSet = workingSet;

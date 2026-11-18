@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../../../services/editor/common/editorS
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
-import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetUndo } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
+import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetOpenChanges, IChatSessionWorkingSetUndo } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { AgentChatAccessibilityHelp } from '../../../../browser/actions/chatAccessibilityHelp.js';
 import '../../../../browser/chatEditing/chatEditingActions.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
@@ -43,7 +43,7 @@ import { IChatViewModel } from '../../../../common/model/chatViewModel.js';
 suite('ChatSessionWorkingSet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined, openedPane?: ITextDiffEditorPane) {
+	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>, editingSession?: () => IChatEditingSession | undefined, openedPane?: ITextDiffEditorPane, openChanges?: IObservable<IChatSessionWorkingSetOpenChanges | undefined>) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor, [ChatConfiguration.EditorWorkingSetEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -99,6 +99,7 @@ suite('ChatSessionWorkingSet', () => {
 			keepEnabled,
 			undo,
 			editingSession,
+			openChanges,
 		}, () => { inputFocusCalls++; }));
 		document.body.appendChild(workingSet.domNode);
 		store.add(toDisposable(() => workingSet.domNode.remove()));
@@ -655,6 +656,32 @@ suite('ChatSessionWorkingSet', () => {
 		const { rows, opened } = createWorkingSet([diff], true);
 		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, altKey: true }));
 		assert.deepStrictEqual(opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined), ['file:///changed.ts']);
+	});
+
+	test('opens the Changes editor from rows, diff actions and View All Edits while the session gives one, and the file with Alt', async () => {
+		const diff = emptySessionEntryDiff(URI.parse('snapshot:/before/changed.ts'), URI.file('/changed.ts'));
+		const changesEditor: string[] = [];
+		const openChanges = observableValue<IChatSessionWorkingSetOpenChanges | undefined>('openChanges', { open: opened => changesEditor.push(opened?.modifiedURI.path ?? 'all') });
+		const { rows, fileAction, headerButton, opened } = createWorkingSet([diff], true, undefined, undefined, undefined, undefined, undefined, openChanges);
+		const openedEditors = () => opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : isResourceDiffEditorInput(input) ? 'diff' : isResourceMultiDiffEditorInput(input) ? 'multi-diff' : undefined);
+
+		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, altKey: true }));
+		fileAction(rows()[0], 'Open Changes in Diff Editor').click();
+		headerButton('View All Edits').click();
+		await timeout(0);
+		const withChangesEditor = { changesEditor: [...changesEditor], opened: openedEditors() };
+
+		openChanges.set(undefined, undefined);
+		rows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		fileAction(rows()[0], 'Open Changes in Diff Editor').click();
+		headerButton('View All Edits').click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ withChangesEditor, without: { changesEditor, opened: openedEditors() } }, {
+			withChangesEditor: { changesEditor: ['/changed.ts', '/changed.ts', 'all'], opened: ['file:///changed.ts'] },
+			without: { changesEditor: ['/changed.ts', '/changed.ts', 'all'], opened: ['file:///changed.ts', 'file:///changed.ts', 'diff', 'multi-diff'] },
+		});
 	});
 
 	test('Right Arrow reaches Undo in the file action bar and Enter invokes it', async () => {

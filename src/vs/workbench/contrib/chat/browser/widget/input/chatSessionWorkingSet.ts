@@ -71,6 +71,12 @@ export interface IChatSessionWorkingSetKeep {
 	keep(diffs: readonly IEditSessionEntryDiff[], automatic: boolean): Promise<boolean>;
 }
 
+/** Opens a session's changes in its Changes editor, in place of the diff editors the working set opens otherwise. */
+export interface IChatSessionWorkingSetOpenChanges {
+	/** Opens the Changes editor, scrolled to the file of `diff` where given. */
+	open(diff: IEditSessionEntryDiff | undefined): void;
+}
+
 /** What a {@link ChatSessionWorkingSet} can do with the files it lists. */
 export interface IChatSessionWorkingSetFileActions {
 	/**
@@ -84,6 +90,8 @@ export interface IChatSessionWorkingSetFileActions {
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
 	/** The current session, resolved at invocation time because this widget survives session switches. */
 	readonly editingSession?: () => IChatEditingSession | undefined;
+	/** Opens the changes in the session's Changes editor, where given: View All Edits, and a file's changes. */
+	readonly openChanges?: IObservable<IChatSessionWorkingSetOpenChanges | undefined>;
 }
 
 const VIEW_ALL_EDITS_ACTION_ID = 'chat.sessionWorkingSet.viewAll';
@@ -220,6 +228,10 @@ export class ChatSessionWorkingSet extends Disposable {
 					label: localize('chat.sessionWorkingSet.viewAll', "View All Edits"),
 					class: ThemeIcon.asClassName(Codicon.diffMultiple),
 					run: () => {
+						const openChanges = this._fileActions.openChanges?.read(undefined);
+						if (openChanges) {
+							return openChanges.open(undefined);
+						}
 						const session = this._fileActions.editingSession?.();
 						const diffs = this._diffs.read(undefined);
 						const reviewFiles = session?.additionalReviewFiles?.read(undefined);
@@ -256,7 +268,13 @@ export class ChatSessionWorkingSet extends Disposable {
 		const fileMenu = this._register(menuService.createMenu(MenuId.ChatEditingWidgetModifiedFilesToolbar, scopedContextKeyService, { eventDebounceDelay: 0 }));
 		const fileMenuChanged = observableSignalFromEvent(this, fileMenu.onDidChange);
 		this._fileList = this._register(renderChangesSummaryFileList(listContainer, this._diffs, scopedInstantiationService, {
-			openEditor: (diff, _inDiffEditor, options, sideBySide) => {
+			openEditor: (diff, inDiffEditor, options, sideBySide) => {
+				// Opening the file's changes, rather than the file, as a click does by default and Alt the opposite
+				const openChanges = inDiffEditor ? this._fileActions.openChanges?.read(undefined) : undefined;
+				if (openChanges) {
+					openChanges.open(diff);
+					return;
+				}
 				void this._openFile(diff, options, sideBySide).catch(onUnexpectedError);
 			},
 			ariaLabel: localize('chat.sessionWorkingSet.list', "Session changes"),
@@ -337,6 +355,15 @@ export class ChatSessionWorkingSet extends Disposable {
 
 	/** Opens the diffs of the changes to the listed files of `resources`. */
 	openFileChanges(resources: readonly URI[]): void {
+		const openChanges = this._fileActions.openChanges?.get();
+		if (openChanges) {
+			// The Changes editor shows all of them: scrolled to the first
+			const first = this._getDiffs(resources).at(0);
+			if (first) {
+				openChanges.open(first);
+			}
+			return;
+		}
 		for (const diff of this._getDiffs(resources)) {
 			void this._openFileDiff(diff).catch(onUnexpectedError);
 		}

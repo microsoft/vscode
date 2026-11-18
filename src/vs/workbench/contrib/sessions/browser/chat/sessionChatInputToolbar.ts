@@ -49,6 +49,7 @@ import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChat
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, getNestedChatDefaultChangesetId, IChat, ISession, isWorkspacelessQuickChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { isChangesFileResource } from '../../../sessionChanges/browser/changesViewRenderer.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../common/sessionsTelemetry.js';
@@ -479,6 +480,12 @@ export class SessionChatInputToolbar extends Disposable {
 	/** Customization sections shown in the customizations pill. */
 	private readonly _customizationSections: IObservable<readonly IChatPillSection[]>;
 
+	/**
+	 * Opens the session's Changes editor where the chat's editors show, on the changeset `changesetId`, by default the one
+	 * the Changes pill opens, scrolled to the change of the first of `files` it lists.
+	 */
+	readonly openChangesEditor: (changesetId?: string, files?: readonly URI[]) => void;
+
 	/** The chat the pills act on, with its session, which a host of the main window outside its panes activates the pane of. */
 	private _actionTarget(): IActionTarget {
 		return { session: this._session.get(), chatResource: this._chat.get()?.resource };
@@ -788,31 +795,34 @@ export class SessionChatInputToolbar extends Disposable {
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
 				: localize('sessionChatPills.allChanges', "All Changes");
 		});
+		this.openChangesEditor = (changesetId, files) => {
+			const session = this._session.get();
+			if (!session || this._debugData.get()) {
+				return;
+			}
+			const chat = this._chat.get();
+			const workspace = chat?.workspace?.get() ?? session.workspace.get();
+			const target = getEditorTarget(chatWindowService, this._sessionHost);
+			if (!target) {
+				logService.trace('[SessionChatInputToolbar] The chat window of the chat is not available, not opening its changes');
+				return;
+			}
+			const id = changesetId ?? getChangesPillChangesetId(session, chat, workspace, undefined);
+			// The editor scrolls to a change by its diff's resources, which only the changeset knows
+			const changes = files?.length ? (chat ?? session.mainChat.get())?.changesets.get()?.find(changeset => changeset.id === id)?.changes.get() : undefined;
+			const change = changes && coalesce(files?.map(file => changes.find(candidate => isChangesFileResource(candidate, file))) ?? []).at(0);
+			revealEditorTarget(hostLayoutService, target);
+			void sessionChangesService.openChangesEditor(session.resource, {
+				changesetSelection: { kind: 'id', id },
+				chatResource: target !== 'main' ? chat?.resource : undefined,
+				...(change ? { viewState: { revealData: { resource: { original: change.originalUri, modified: change.modifiedUri } } } } : {}),
+			}, target !== 'main' ? target.mainPart.activeGroup : undefined);
+		};
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
 			changes: {
 				stats: this._diffStats,
 				label: changesLabel,
-				open: () => {
-					const session = this._session.get();
-					if (!session || this._debugData.get()) {
-						return;
-					}
-					const chat = this._chat.get();
-					const workspace = chat?.workspace?.get() ?? session.workspace.get();
-					const target = getEditorTarget(chatWindowService, this._sessionHost);
-					if (!target) {
-						logService.trace('[SessionChatInputToolbar] The chat window of the chat is not available, not opening its changes');
-						return;
-					}
-					revealEditorTarget(hostLayoutService, target);
-					void sessionChangesService.openChangesEditor(session.resource, {
-						changesetSelection: {
-							kind: 'id',
-							id: getChangesPillChangesetId(session, chat, workspace, undefined),
-						},
-						chatResource: target !== 'main' ? chat?.resource : undefined,
-					}, target !== 'main' ? target.mainPart.activeGroup : undefined);
-				},
+				open: () => this.openChangesEditor(),
 				getContextMenuPrimaryActions: () => changesOptions?.contextMenuActions?.() ?? [],
 			},
 			pullRequests: pullRequestData,

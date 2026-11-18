@@ -84,6 +84,7 @@ export enum ChatConfiguration {
 	 * host sessions work in, following the chat that the user opens.
 	 */
 	EditorWindowEnableWorktree = 'chat.editorWindow.enableWorktree',
+	EditorWindowOpenWorkingSetInChangesEditor = 'chat.editorWindow.openWorkingSetInChangesEditor',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',

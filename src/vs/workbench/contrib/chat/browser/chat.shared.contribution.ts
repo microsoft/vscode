@@ -619,6 +619,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
+		[ChatConfiguration.EditorWindowOpenWorkingSetInChangesEditor]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editorWindow.openWorkingSetInChangesEditor', "Controls whether the working set of an Agent Host session's chat in the chat area or a chat editor of the editor window opens the session's Changes editor: View All Edits opens it, and a file opens it at that file. Otherwise they open diff editors and the file, as the Chat view does. Requires {0}.", `\`#${ChatConfiguration.EditorWorkingSetEnabled}#\``),
+			default: false,
+			tags: ['experimental'],
+			agentsWindow: { default: false, readOnly: true },
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
