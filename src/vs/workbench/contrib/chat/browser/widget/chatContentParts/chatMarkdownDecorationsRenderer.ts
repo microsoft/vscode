@@ -94,6 +94,11 @@ export interface IDecorationWidgetArgs {
  */
 export type ChatInlineAttachmentRenderer = (partIndex: number, store: DisposableStore) => HTMLElement | undefined;
 
+/** Whether the transcript offers `href` (a link that isn't a chat widget, a file widget or a command) to the rich link decorator. */
+export function decoratesAsRichLink(href: string, richLinksEnabled: boolean): boolean {
+	return richLinksEnabled || href.toLowerCase().startsWith(`${AGENT_HOST_SESSION_LINK_SCHEME}:`);
+}
+
 export class ChatMarkdownDecorationsRenderer extends Disposable {
 	private readonly richLinkDecorator: Lazy<ChatRichLinkDecorator>;
 
@@ -216,7 +221,7 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {
 					this.injectKeybindingHint(a, href, this.keybindingService);
-				} else if (richLinksEnabled || href.toLowerCase().startsWith(`${AGENT_HOST_SESSION_LINK_SCHEME}:`)) {
+				} else if (decoratesAsRichLink(href, richLinksEnabled)) {
 					this.richLinkDecorator.value.decorate(a, href, store);
 				}
 			}

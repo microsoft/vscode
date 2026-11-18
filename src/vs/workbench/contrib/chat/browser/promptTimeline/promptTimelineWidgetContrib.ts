@@ -6,17 +6,19 @@
 import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { IMouseWheelEvent, StandardWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IChatSessionAnnotation, IChatSessionAnnotationService } from '../../common/sessionObserver/chatSessionObserver.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IChatWidget } from '../chat.js';
 import { IChatWidgetContrib, ChatWidget } from '../widget/chatWidget.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
-import { MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
+import { IPromptTimelineReveal, MIN_RAIL_PROMPTS, PromptTimelineRailStyle, PROMPT_TIMELINE_CONTRIB_ID, PROMPT_TIMELINE_DISPLAY_SETTING, PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { PromptTimelineModel } from './promptTimelineModel.js';
 import { PromptTimelineGutterRail } from './promptTimelineGutterRail.js';
-import { IPromptTimelineRail } from './promptTimelineRail.js';
+import { annotationSlots, IPromptTimelineAnnotation, IPromptTimelineRail } from './promptTimelineRail.js';
 import { PromptTimelineRulerRail } from './promptTimelineRulerRail.js';
 import { PromptTimelineStickyHeader } from './promptTimelineStickyHeader.js';
 
@@ -59,19 +61,23 @@ export function isStickyPromptHeaderShown(widget: IChatWidget, configurationServ
  * (`sessions.chatTimeline.display`, Agents window only), and is torn down and re-created when a relevant
  * setting changes.
  */
-export class PromptTimelineWidgetContrib extends Disposable implements IChatWidgetContrib {
+export class PromptTimelineWidgetContrib extends Disposable implements IChatWidgetContrib, IPromptTimelineReveal {
 
 	static readonly ID = PROMPT_TIMELINE_CONTRIB_ID;
 	readonly id = PromptTimelineWidgetContrib.ID;
 
 	/** Holds the model and every surface's wiring while at least one surface is enabled. */
 	private readonly _enablement = this._register(new DisposableStore());
+	/** The model both surfaces share, while one is enabled. */
+	private _model: PromptTimelineModel | undefined;
 
 	constructor(
 		private readonly widget: IChatWidget,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IChatSessionAnnotationService private readonly annotationService: IChatSessionAnnotationService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
@@ -112,6 +118,8 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		// CONTRIBS always constructs contribs with the concrete widget.
 		const concreteWidget = this.widget as ChatWidget;
 		const model = this._enablement.add(this.instantiationService.createInstance(PromptTimelineModel, concreteWidget));
+		this._model = model;
+		this._enablement.add(toDisposable(() => this._model = undefined));
 
 		// The host class provides the positioning context and layout variables both surfaces anchor to.
 		const host = this.widget.domNode;
@@ -124,6 +132,18 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		if (stickyEnabled) {
 			this._createStickyHeader(model);
 		}
+	}
+
+	revealPromptAt(timestamp: number): boolean {
+		const model = this._model;
+		const prompts = model?.promptTicks.get() ?? [];
+		if (!model || !prompts.length) {
+			return false;
+		}
+		// The slot the rail draws a note at, among every prompt; then the path choosing that prompt's mark takes.
+		const [slot] = annotationSlots(prompts.map(p => p.timestamp), [{ timestamp }]);
+		model.reveal(prompts[Math.max(0, slot)].requestId);
+		return true;
 	}
 
 	private _createRail(model: PromptTimelineModel, host: HTMLElement, railStyle: PromptTimelineRailStyle): void {
@@ -163,12 +183,29 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		const ticksObs = railStyle === 'gutter' ? model.promptTicks : model.ticks;
 		const activeObs = railStyle === 'gutter' ? model.activePromptId : model.activeRequestId;
 
+		// The session's annotations (proposed API `chatSessionAnnotations`), for the session this widget shows.
+		const annotations = observableValue<readonly IPromptTimelineAnnotation[]>(this, []);
+		const refreshAnnotations = () => {
+			const session = this.widget.viewModel?.sessionResource;
+			annotations.set(session ? this.annotationService.getAnnotations(session).map(a => this._toRailAnnotation(a)) : [], undefined);
+		};
+		this._enablement.add(this.annotationService.onDidChangeAnnotations(session => {
+			if (session.toString() === this.widget.viewModel?.sessionResource.toString()) {
+				refreshAnnotations();
+			}
+		}));
+		this._enablement.add(this.widget.onDidChangeViewModel(() => refreshAnnotations()));
+		refreshAnnotations();
+
 		this._enablement.add(autorun(reader => {
 			const ticks = ticksObs.read(reader);
+			const notes = annotations.read(reader);
 			// Toggle visibility before rendering so the rail's fit measurement in
-			// setTicks runs against the displayed (non-zero height) element.
-			rail.domNode.classList.toggle('hidden', ticks.length < MIN_RAIL_PROMPTS);
+			// setTicks runs against the displayed (non-zero height) element. A session with notes
+			// shows its timeline from its first prompt.
+			rail.domNode.classList.toggle('hidden', ticks.length < (notes.length ? 1 : MIN_RAIL_PROMPTS));
 			rail.setTicks(ticks);
+			rail.setAnnotations(notes);
 		}));
 
 		this._enablement.add(autorun(reader => {
@@ -182,6 +219,15 @@ export class PromptTimelineWidgetContrib extends Disposable implements IChatWidg
 		}));
 
 		rail.setHostWidth(host.clientWidth);
+	}
+
+	private _toRailAnnotation(a: IChatSessionAnnotation): IPromptTimelineAnnotation {
+		const detail = a.detail;
+		return {
+			id: a.id, timestamp: a.timestamp, label: a.label,
+			...(a.icon ? { icon: a.icon } : {}),
+			...(detail ? { renderDetail: (container: HTMLElement) => this.markdownRendererService.render(detail, {}, container) } : {}),
+		};
 	}
 
 	/**

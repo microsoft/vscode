@@ -702,3 +702,16 @@
 .interactive-session .chat-question-carousel-container .chat-question-submit-button-content {
 	display: inline-block;
 }
+
+/* A suggested option (proposed API chatInputSuggestion): outlined with a sparkle, never pre-selected. */
+.interactive-session .chat-question-carousel-container .chat-question-list-item.chat-question-list-item-suggested {
+	outline: 1px dashed var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.interactive-session .chat-question-carousel-container .chat-question-list-item .chat-question-suggested-marker {
+	color: var(--vscode-focusBorder);
+	margin-left: 4px;
+	font-size: 12px;
+	flex-shrink: 0;
+}

@@ -53,6 +53,20 @@
 		}
 	}
 
+	/* The session's latest note (e.g. a progress digest) on one line: its headline gives way first. */
+	.agent-session-hover-latest-update {
+		flex-wrap: nowrap;
+		margin-top: 2px;
+	}
+
+	.agent-session-hover-latest-update-label {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--vscode-foreground);
+	}
+
 	.agent-session-hover-details .separator {
 		opacity: 0.5;
 	}

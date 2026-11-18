@@ -383,3 +383,13 @@
 .interactive-session .chat-plan-review-container.chat-plan-review-used > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons {
 	display: none;
 }
+
+/* A suggested decision (proposed API chatInputSuggestion): a sparkle and a dashed outline, never chosen for the user. */
+.interactive-session .chat-plan-review-container .chat-plan-review-suggested-action {
+	outline: 1px dashed var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-textarea.chat-plan-review-feedback-suggested::placeholder {
+	font-style: italic;
+}

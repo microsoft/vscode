@@ -38,7 +38,7 @@ suite('AgentSessionHoverWidget', () => {
 				model: upcastPartial<IAgentSessionsModel>({ observeSession: () => constObservable(session) }),
 			});
 			instantiationService.stub(IChatService, { acquireOrLoadSession: async () => undefined });
-			const widget = store.add(instantiationService.createInstance(AgentSessionHoverWidget, session));
+			const widget = store.add(instantiationService.createInstance(AgentSessionHoverWidget, session, undefined));
 			const details = widget.domNode.querySelector('.agent-session-hover-details');
 			const header = {
 				label: details?.querySelector('span:not(.codicon)')?.textContent,

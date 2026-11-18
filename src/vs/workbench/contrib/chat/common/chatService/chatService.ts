@@ -2069,7 +2069,9 @@ export const enum ChatRequestQueueKind {
 	/** Request is queued to be sent after current request completes */
 	Queued = 'queued',
 	/** Request is queued and signals the active request to yield */
-	Steering = 'steering'
+	Steering = 'steering',
+	/** A suggested message (proposed API `chatDraftRequests`): shown in the pending list, never sent on its own */
+	Draft = 'draft'
 }
 
 /**
@@ -2206,6 +2208,10 @@ export interface IChatRequestAcceptedEvent {
 	readonly modeInfo?: IChatRequestModeInfo;
 	/** Actor that produced an Agent Host message, e.g. an agent delegating to another session. Absent for direct sends. */
 	readonly agentHostMessageOrigin?: MessageOrigin;
+	/** The submitted text, as the user sent it. */
+	readonly text?: string;
+	/** Set when the submission was queued or sent as a steering message rather than sent at once. */
+	readonly queue?: ChatRequestQueueKind;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

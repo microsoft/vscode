@@ -20,6 +20,12 @@ import { InlineCompletionEditorType } from '../../browser/model/provideInlineCom
 import { InlineEditTabAction } from '../../browser/view/inlineEdits/inlineEditsViewInterface.js';
 import { InlineEditsInsertionView } from '../../browser/view/inlineEdits/inlineEditsViews/inlineEditsInsertionView.js';
 import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
+import { LineData, wrapGhostTextRows } from '../../browser/view/ghostText/ghostTextView.js';
+import { ModelLineProjectionData } from '../../../../common/modelLineProjectionData.js';
+import { LanguageIdCodec } from '../../../../common/services/languagesRegistry.js';
+import { LineTokens } from '../../../../common/tokens/lineTokens.js';
+import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
+import { InlineDecorationType } from '../../../../common/viewModel/inlineDecorations.js';
 
 suite('InlineSuggestionsView font family', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -200,3 +206,29 @@ async function createInsertionViewContext(store: Pick<DisposableStore, 'add'>) {
 function nextAnimationFrame(targetWindow: Window): Promise<void> {
 	return new Promise(resolve => targetWindow.requestAnimationFrame(() => resolve()));
 }
+
+suite('GhostTextView: wrapping the lines after the first', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const lineData = (text: string) => new LineData(LineTokens.createEmpty(text, new LanguageIdCodec()), [new LineDecoration(1, text.length + 1, 'ghost-text', InlineDecorationType.Regular)]);
+	const breaksAt = (offsets: number[], indent = 0) => new ModelLineProjectionData(null, null, offsets, offsets.map(() => 0), indent);
+
+	test('splits a line at its break offsets, each row keeping the ghost text decoration', () => {
+		const rows = wrapGhostTextRows([lineData('Didn\'t the README also need step 2 updated?')], [breaksAt([18, 43])]);
+		assert.deepStrictEqual(rows.map(r => r.text), ['Didn\'t the README ', 'also need step 2 updated?']);
+		assert.deepStrictEqual(rows.map(r => r.tokens.getLineContent()), ['Didn\'t the README ', 'also need step 2 updated?']);
+		assert.deepStrictEqual(rows.map(r => r.decorations.map(d => [d.startColumn, d.endColumn])), [[[1, 19]], [[1, 26]]]);
+	});
+
+	test('indents a continuation row by the wrapped-text indent, shifting its decorations', () => {
+		const rows = wrapGhostTextRows([lineData('abcdefgh')], [breaksAt([4, 8], 2)]);
+		assert.deepStrictEqual(rows.map(r => r.text), ['abcd', '  efgh']);
+		assert.deepStrictEqual(rows.map(r => r.decorations.map(d => [d.startColumn, d.endColumn])), [[[1, 5]], [[3, 7]]]);
+	});
+
+	test('keeps lines that fit, and lines with no wrapping, as they are', () => {
+		const rows = wrapGhostTextRows([lineData('short'), lineData(''), lineData('also short')], [breaksAt([5]), null, null]);
+		assert.deepStrictEqual(rows.map(r => r.text), ['short', '', 'also short']);
+	});
+});
+

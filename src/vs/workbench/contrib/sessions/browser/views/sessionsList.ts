@@ -77,6 +77,7 @@ import { ISessionChangesStats, readChatChangesStats } from '../../../../services
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage } from '../../../chat/common/chat.js';
 import { IVoicePlaybackService } from '../../../chat/common/voicePlaybackService.js';
+import { chatSessionAttentionRegistry, getLatestChatSessionAnnotation, IChatSessionAnnotationService } from '../../../chat/common/sessionObserver/chatSessionObserver.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -132,6 +133,7 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { getScheduledRequestsCardKey, renderScheduledRequestsCard } from './sessionScheduledRequestsCard.js';
 import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
+import type { ISessionSummaryHoverData } from '../../../chat/browser/agentSessions/sessionSummaryHover.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -1668,6 +1670,8 @@ interface ISessionItemTemplate {
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
 	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
+	/** An extension's call to the session (proposed API `chatSessionAttention`), e.g. a draft to review. */
+	readonly attentionIndicator: HTMLElement;
 	readonly comparisonAttemptStatus: HTMLElement;
 	readonly comparisonAttemptStatusLabel: HTMLElement;
 	readonly detailsRow: HTMLElement;
@@ -1803,6 +1807,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	) {
 	}
 
+	/** The session's newest note (proposed API `chatSessionAnnotations`), e.g. its latest progress digest, for its hover: just the headline. */
+	private _latestUpdateHoverData(session: ISession): Pick<ISessionSummaryHoverData, 'latestUpdate'> {
+		const annotations = this.instantiationService.invokeFunction(accessor => accessor.get(IChatSessionAnnotationService) as IChatSessionAnnotationService | undefined);
+		const latest = getLatestChatSessionAnnotation(annotations, session.resource, session.mainChat.get().resource);
+		return latest ? { latestUpdate: { label: latest.label, at: new Date(latest.timestamp), ...(latest.icon ? { icon: latest.icon } : {}) } } : {};
+	}
+
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
@@ -1839,6 +1850,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Shown when a voice response arrived while this session was unfocused and
 		// is held until it is (mirrors the main window's sessions viewer).
 		const pendingVoiceIndicator = DOM.append(titleRow, $('.session-pending-voice-indicator'));
+		const attentionIndicator = DOM.append(titleRow, $('.session-attention-indicator'));
 		const comparisonAttemptStatus = DOM.append(titleRow, $('span.session-comparison-attempt-status'));
 		const comparisonAttemptStatusLabel = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-label'));
 		// The list opens a session on click and on Gesture `tap` (touch).
@@ -1921,7 +1933,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleSearchHint, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleSearchHint, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, attentionIndicator, comparisonAttemptStatus, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -2099,7 +2111,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				const hover = createSessionSummaryHover(
 					element,
 					// Observed Branch Changes are read from memory; reading unobserved ones would load the chat from its backend.
-					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
+					{
+						...getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
+						...this._latestUpdateHoverData(element),
+					},
 					this.openerService,
 				);
 				const triage = this.options.getTriageDescription?.(element, undefined);
@@ -2133,6 +2148,25 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			this._voicePlaybackService.pendingResponseVersion.read(reader);
 			template.pendingVoiceIndicator.classList.toggle('visible', this._voicePlaybackService.hasPendingResponse(pendingVoiceResource));
+		}));
+
+		// An extension calling the user to the session (e.g. a draft to review), until it clears it.
+		const attentionResources = [element.resource, element.mainChat.get().resource];
+		const renderAttention = () => {
+			const attention = chatSessionAttentionRegistry.get(...attentionResources);
+			template.attentionIndicator.className = 'session-attention-indicator' + (attention ? ` visible ${ThemeIcon.asClassName(attention.icon)}` : '');
+			template.attentionIndicator.setAttribute('aria-label', attention?.tooltip ?? '');
+		};
+		renderAttention();
+		template.elementDisposables.add(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			template.attentionIndicator,
+			() => chatSessionAttentionRegistry.get(...attentionResources)?.tooltip ?? '',
+		));
+		template.elementDisposables.add(chatSessionAttentionRegistry.onDidChange(resource => {
+			if (attentionResources.some(r => isEqual(r, resource))) {
+				renderAttention();
+			}
 		}));
 
 		// Toolbar context

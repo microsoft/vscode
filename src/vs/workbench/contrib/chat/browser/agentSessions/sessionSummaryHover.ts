@@ -73,6 +73,8 @@ export interface ISessionSummaryHoverWorkspace {
  */
 export interface ISessionSummaryHoverData {
 	readonly title: string;
+	/** The newest note an extension left on the session (proposed API `chatSessionAnnotations`), e.g. its latest progress digest: one line. */
+	readonly latestUpdate?: { readonly label: string; readonly at: Date; readonly icon?: ThemeIcon };
 	/** When the session was last updated. */
 	readonly updatedAt?: Date;
 	readonly location?: ISessionSummaryHoverLocation;
@@ -120,6 +122,7 @@ export class SessionSummaryHoverWidget {
 	readonly domNode: HTMLElement;
 
 	private readonly _title: HTMLElement;
+	private readonly _latestUpdate: HTMLElement;
 	private readonly _location: HTMLElement;
 	private readonly _pullRequests: HTMLElement;
 	private readonly _createdBy: HTMLElement;
@@ -129,6 +132,7 @@ export class SessionSummaryHoverWidget {
 	constructor(data?: ISessionSummaryHoverData) {
 		this.domNode = dom.$('.session-summary-hover');
 		this._title = dom.append(this.domNode, dom.$('.session-summary-hover-title'));
+		this._latestUpdate = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-latest-update'));
 		this._location = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-location'));
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
 		this._createdBy = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-created-by'));
@@ -156,6 +160,17 @@ export class SessionSummaryHoverWidget {
 			appendSeparator(this._title);
 			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, fromNow(data.updatedAt, true)));
 		}
+
+		dom.clearNode(this._latestUpdate);
+		if (data.latestUpdate) {
+			// The age goes before the headline, so a long headline wraps at its end, not the age's.
+			const text = this._appendRow(this._latestUpdate, data.latestUpdate.icon ?? Codicon.pulse, localize('sessionSummaryHover.latestUpdate', "Latest update"));
+			appendSeparator(text);
+			dom.append(text, dom.$('span.session-summary-hover-detail.session-summary-hover-age', undefined, fromNow(data.latestUpdate.at, true)));
+			appendSeparator(text);
+			dom.append(text, dom.$('span.session-summary-hover-detail', undefined, data.latestUpdate.label));
+		}
+		this._latestUpdate.classList.toggle('hidden', !this._latestUpdate.hasChildNodes());
 
 		dom.clearNode(this._location);
 		this._renderLocation(data.location);

@@ -28,6 +28,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { CHAT_CARD_LARGE_CLASS, chatCardButtonStyles } from '../chatCard.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -38,6 +39,7 @@ import { ITextFileService } from '../../../../../services/textfile/common/textfi
 import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from '../../../common/chatService/chatService.js';
 import { IPlanReviewFeedbackItem, IPlanReviewFeedbackService } from '../../planReviewFeedback/planReviewFeedbackService.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { IChatInputSuggestionService } from '../../../common/sessionObserver/chatSessionObserver.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
@@ -88,6 +90,11 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	private readonly _planReviewRegistration = this._register(new MutableDisposable());
 	private readonly _commentRowDisposables = this._register(new DisposableStore());
 
+	/** Pushed answer suggestions (proposed API `chatInputSuggestion`), when the service exists. */
+	private readonly _suggestions: IChatInputSuggestionService | undefined;
+	private readonly _answerClaim = this._register(new MutableDisposable());
+	private readonly _sessionResource: URI;
+
 	constructor(
 		public readonly review: IChatPlanReview,
 		context: { readonly element: { readonly sessionResource: URI; readonly isComplete?: boolean } },
@@ -103,8 +110,18 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		@IModelService private readonly _modelService: IModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._sessionResource = context.element.sessionResource;
+		this._suggestions = (() => {
+			try {
+				return instantiationService.invokeFunction(accessor => accessor.get(IChatInputSuggestionService));
+			} catch {
+				return undefined;
+			}
+		})();
 
 		this._selectedAction = review.actions.find(a => a.default) ?? review.actions[0];
 
@@ -114,6 +131,15 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 		const isResponseComplete = context.element.isComplete === true;
 		this._isSubmitted = !!review.isUsed || isResponseComplete;
+		if (this._suggestions && !this._isSubmitted) {
+			this._answerClaim.value = this._suggestions.claimAnswerSurface(this._sessionResource);
+			this._register(this._suggestions.onDidChangeSuggestions(uri => {
+				if (isEqual(uri, this._sessionResource) && this._answerClaim.value && !this._isSubmitted) {
+					this.updateCollapsedPresentation();
+					this.updateFeedbackPlaceholder();
+				}
+			}));
+		}
 		if (review instanceof ChatPlanReviewData) {
 			this._register(review.onDidDismiss(() => {
 				if (this.updatePlanContentFromModel()) {
@@ -379,8 +405,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 		const textarea = dom.append(section, dom.$<HTMLTextAreaElement>('textarea.chat-plan-review-feedback-textarea'));
 		textarea.rows = 1;
-		textarea.placeholder = localize('chat.planReview.feedbackPlaceholder', 'Add an overall comment for the agent...');
 		this._feedbackTextarea = textarea;
+		this.updateFeedbackPlaceholder();
 
 		// Matches the behaviour of the question carousel freeform textarea:
 		// grow to fit content, capped via CSS `max-height`.
@@ -406,6 +432,19 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this.updateFeedbackActionButtonState();
 		}));
 
+		// Tab on an empty box takes in the suggested feedback; it is never sent for the user.
+		this._register(dom.addDisposableListener(textarea, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const ev = new StandardKeyboardEvent(e);
+			const suggested = this.suggestedAnswer?.freeform;
+			if (ev.keyCode === KeyCode.Tab && !ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey && suggested && !textarea.value) {
+				e.preventDefault();
+				e.stopPropagation();
+				textarea.value = suggested;
+				textarea.dispatchEvent(new (dom.getWindow(textarea).Event)(dom.EventType.INPUT));
+				this._suggestions?.reportAnswerInteraction(this._sessionResource, 'accepted', suggested.length);
+			}
+		}));
+
 		// Enter submits feedback; Shift+Enter inserts a newline. Only wired
 		// up in plan-mode (where Submit Feedback is the primary action).
 		// In the no-planUri textarea-only flow the user must explicitly pick
@@ -420,6 +459,39 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 					void this.submitFeedback();
 				}
 			}));
+		}
+	}
+
+	/** The suggested decision for this session, while the review takes answers. */
+	private get suggestedAnswer() {
+		return this._answerClaim.value ? this._suggestions?.getSuggestion(this._sessionResource)?.answer : undefined;
+	}
+
+	private isSuggestedAction(label: string): boolean {
+		return !!this.suggestedAnswer?.selectedOptions?.some(o => o.toLowerCase() === label.toLowerCase());
+	}
+
+	/** Suggested feedback shows as the box's placeholder; Tab takes it in. */
+	private updateFeedbackPlaceholder(): void {
+		const textarea = this._feedbackTextarea;
+		if (!textarea) {
+			return;
+		}
+		const suggested = this.suggestedAnswer?.freeform;
+		textarea.placeholder = suggested
+			? localize('chat.planReview.suggestedFeedbackPlaceholder', "{0} (Tab to insert)", suggested)
+			: localize('chat.planReview.feedbackPlaceholder', 'Add an overall comment for the agent...');
+		textarea.classList.toggle('chat-plan-review-feedback-suggested', !!suggested);
+		if (suggested && this._isFeedbackMode) {
+			this._suggestions?.reportAnswerInteraction(this._sessionResource, 'shown');
+		}
+	}
+
+	/** Reports the decision, so a suggestion it matches counts as accepted. */
+	private reportDecision(selected: string[], text: string | undefined): void {
+		if (this._suggestions && this._answerClaim.value) {
+			this._answerClaim.clear();
+			this._suggestions.reportAnswer(this._sessionResource, { kind: 'planDecision', selected, text: text ?? '' });
 		}
 	}
 
@@ -606,7 +678,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				actions: moreActions.map(action => {
 					const button = new Action(
 						action.label,
-						action.label,
+						this.isSuggestedAction(action.label) ? localize('chat.planReview.suggestedAction', "{0} (suggested)", action.label) : action.label,
 						undefined,
 						true,
 						() => {
@@ -627,6 +699,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (primary.description) {
 			approveButton.element.title = primary.description;
 		}
+		this.markSuggestedButton(approveButton, primary.label);
 		approveButton.enabled = !this.review.planUri || !this.canSubmitFeedback();
 		this._buttonStore.add(approveButton.onDidClick(() => this.submitApproval(primary)));
 
@@ -634,11 +707,23 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		// chatToolConfirmationCarouselPart which only surfaces the primary
 		// action when collapsed).
 		if (includeReject) {
-			const rejectButton = new Button(container, { ...defaultButtonStyles, secondary: true });
+			const rejectButton = new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true });
 			rejectButton.label = localize('chat.planReview.reject', 'Reject');
+			this.markSuggestedButton(rejectButton, rejectButton.label);
 			this._buttonStore.add(rejectButton);
 			this._buttonStore.add(rejectButton.onDidClick(() => this.submitRejection()));
 		}
+	}
+
+	/** A sparkle on the suggested decision; it is never chosen for the user. */
+	private markSuggestedButton(button: IButton, label: string): void {
+		if (!this.isSuggestedAction(label)) {
+			return;
+		}
+		button.label = `$(${Codicon.sparkle.id}) ${label}`;
+		button.element.classList.add('chat-plan-review-suggested-action');
+		button.element.setAttribute('aria-label', localize('chat.planReview.suggestedAria', "{0} (suggested)", label));
+		this._suggestions?.reportAnswerInteraction(this._sessionResource, 'shown');
 	}
 
 	private canSubmitFeedback(): boolean {
@@ -721,6 +806,13 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 					tooltip = localize('chat.planReview.openTooltip', 'Open {0}', fileName);
 				}
 			}
+			// Suggested feedback waits in the feedback box; the sparkle points the way there.
+			const suggestedFeedback = this.review.canProvideFeedback && !this._isFeedbackMode ? this.suggestedAnswer?.freeform : undefined;
+			if (suggestedFeedback) {
+				label = isIconOnly ? `$(${Codicon.sparkle.id})` : `$(${Codicon.sparkle.id}) ${label}`;
+				tooltip = localize('chat.planReview.suggestedFeedbackTooltip', "{0}. Suggested feedback: {1}", tooltip, suggestedFeedback);
+			}
+			this._reviewButton.element.classList.toggle('chat-plan-review-suggested-action', !!suggestedFeedback);
 			this._reviewButton.label = label;
 			this._reviewButton.element.setAttribute('aria-label', tooltip);
 			this._reviewButton.setTitle(tooltip);
@@ -770,6 +862,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			// Only the textarea-only flow (no planUri) attaches a draft to the action click.
 			const ridesAlong = !this.review.planUri;
 			const textareaFeedback = ridesAlong ? this.getOverallFeedback() : undefined;
+			this.reportDecision([action.label], textareaFeedback);
 			this._options.onSubmit({
 				action: action.label,
 				...(action.id ? { actionId: action.id } : {}),
@@ -798,6 +891,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			}
 			const ridesAlong = !this.review.planUri;
 			const textareaFeedback = ridesAlong ? this.getOverallFeedback() : undefined;
+			this.reportDecision([localize('chat.planReview.reject', 'Reject')], textareaFeedback);
 			this._options.onSubmit({
 				rejected: true,
 				...(textareaFeedback ? { feedback: textareaFeedback, feedbackOverall: textareaFeedback } : {}),
@@ -952,6 +1046,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			}
 
 			const feedback = sections.join('\n\n');
+			this.reportDecision([], feedback);
 			this._options.onSubmit({
 				rejected: false,
 				feedback,
@@ -1002,6 +1097,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	}
 
 	private async markUsed(): Promise<void> {
+		this._answerClaim.clear();
 		this.domNode.classList.add('chat-plan-review-used');
 		this._buttonStore.clear();
 		this._submitButton = undefined;

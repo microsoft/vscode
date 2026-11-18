@@ -7,7 +7,8 @@ import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover
 import { createPixelSpinner, IPixelSpinner } from '../../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, type IReader } from '../../../../../../base/common/observable.js';
+import { raceTimeout } from '../../../../../../base/common/async.js';
+import { autorun, waitForState, type IReader } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationStatus, ILinkPresentationWatcher, LinkPresentationKind, LinkPresentationStatusKind } from '../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -166,14 +167,36 @@ export class ChatRichLinkDecorator extends Disposable {
 	}
 
 	private _getLinkPresentationWatcher(href: string): ILinkPresentationWatcher | undefined {
-		let resource: URI;
-		try {
-			resource = URI.parse(href);
-		} catch {
-			return undefined;
-		}
-		const rule = this._linkPresentationService.getLinkPresentationRule(resource);
-		return rule ? this._linkPresentationService.createLinkPresentationWatcher(rule.id, resource) : undefined;
+		return createChatLinkPresentationWatcher(this._linkPresentationService, href);
+	}
+}
+
+/** The presentation the chat transcript gives a link to `href`, when a link presentation provider claims it. */
+export function createChatLinkPresentationWatcher(linkPresentationService: ILinkPresentationService, href: string): ILinkPresentationWatcher | undefined {
+	let resource: URI;
+	try {
+		resource = URI.parse(href);
+	} catch {
+		return undefined;
+	}
+	const rule = linkPresentationService.getLinkPresentationRule(resource);
+	return rule ? linkPresentationService.createLinkPresentationWatcher(rule.id, resource) : undefined;
+}
+
+/**
+ * The tooltip a rich link to `href` shows in the chat transcript once its presentation has
+ * loaded (as {@link ChatRichLinkDecorator} shows it), or undefined when no provider claims it.
+ */
+export async function getChatRichLinkTooltip(linkPresentationService: ILinkPresentationService, href: string, timeoutMs: number, token: CancellationToken): Promise<string | undefined> {
+	const watcher = createChatLinkPresentationWatcher(linkPresentationService, href);
+	if (!watcher) {
+		return undefined;
+	}
+	try {
+		const loaded = await raceTimeout(waitForState(watcher.presentation, p => !!p && !p.isLoading, undefined, token).catch(() => undefined), timeoutMs);
+		return loaded?.tooltip ?? watcher.presentation.get()?.tooltip ?? href;
+	} finally {
+		watcher.dispose();
 	}
 }
 

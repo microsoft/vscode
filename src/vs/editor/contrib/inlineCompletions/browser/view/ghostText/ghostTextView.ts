@@ -21,7 +21,7 @@ import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
 import { IconPath, InlineCompletionWarning } from '../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../common/languages/language.js';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from '../../../../../common/model.js';
-import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
+import { IViewLineTokens, LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
@@ -34,6 +34,7 @@ import { CodeEditorWidget } from '../../../../../browser/widget/codeEditor/codeE
 import { TokenWithTextArray } from '../../../../../common/tokens/tokenWithTextArray.js';
 import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterface.js';
 import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
+import { ModelLineProjectionData } from '../../../../../common/modelLineProjectionData.js';
 import { equals, sum } from '../../../../../../base/common/arrays.js';
 import { equalsIfDefinedC, IEquatable, thisEqualsC } from '../../../../../../base/common/equals.js';
 
@@ -494,6 +495,7 @@ export class AdditionalLinesWidget extends Disposable {
 				|| e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
 				|| e.hasChanged(EditorOption.effectiveFullwidthCharacterWidth)
+				|| e.hasChanged(EditorOption.wrappingInfo)
 		));
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
 		this.onDidClick = this._onDidClick.event;
@@ -549,10 +551,11 @@ export class AdditionalLinesWidget extends Disposable {
 
 				this.removeActiveViewZone(changeAccessor);
 
-				const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
+				const rows = this.wrapRows(additionalLines);
+				const heightInLines = Math.max(rows.length, minReservedLineCount);
 				if (heightInLines > 0) {
 					const domNode = document.createElement('div');
-					renderLines(domNode, tabSize, additionalLines, this._editor.getOptions(), this._isClickable);
+					renderLines(domNode, tabSize, rows, this._editor.getOptions(), this._isClickable);
 
 					if (this._isClickable) {
 						store.add(addDisposableListener(domNode, 'mousedown', (e) => {
@@ -571,6 +574,25 @@ export class AdditionalLinesWidget extends Disposable {
 				this._viewZoneListener.value = store;
 			});
 		});
+	}
+
+	/**
+	 * In an editor that wraps (a chat input, a word-wrapped document), the lines after the first wrap
+	 * where the editor would wrap them once accepted, instead of running past its edge.
+	 */
+	private wrapRows(lines: readonly LineData[]): readonly IGhostTextRow[] {
+		const viewModel = this._editor._getViewModel();
+		if (lines.length === 0 || !viewModel || this._editor.getOption(EditorOption.wrappingInfo).wrappingColumn === -1) {
+			return lines.map(rowOf);
+		}
+		const computer = viewModel.createLineBreaksComputer({
+			getLineContent: lineNumber => lines[lineNumber - 1].content.getLineContent(),
+			getLineInjectedText: () => null,
+		});
+		for (let i = 0; i < lines.length; i++) {
+			computer.addRequest(i + 1, null);
+		}
+		return wrapGhostTextRows(lines, computer.finalize());
 	}
 
 	private addViewZone(changeAccessor: IViewZoneChangeAccessor, afterLineNumber: number, heightInLines: number, domNode: HTMLElement): void {
@@ -632,7 +654,44 @@ export class LineData implements IEquatable<LineData> {
 	}
 }
 
-function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly LineData[], opts: IComputedEditorOptions, isClickable: boolean): void {
+/** One rendered row of ghost text: a whole line, or one piece of a wrapped line. */
+export interface IGhostTextRow {
+	readonly text: string;
+	readonly tokens: IViewLineTokens;
+	readonly decorations: readonly LineDecoration[];
+}
+
+const rowOf = (l: LineData): IGhostTextRow => ({ text: l.content.getLineContent(), tokens: l.content, decorations: l.decorations });
+
+/**
+ * Splits each line at its break offsets into rows, the way the view model renders a wrapped line:
+ * a continuation row is indented by the projection's wrapped-text indent, with its tokens and
+ * decorations shifted to match.
+ */
+export function wrapGhostTextRows(lines: readonly LineData[], breaks: readonly (ModelLineProjectionData | null)[]): IGhostTextRow[] {
+	const rows: IGhostTextRow[] = [];
+	lines.forEach((line, i) => {
+		const projection = breaks[i];
+		if (!projection || projection.breakOffsets.length <= 1) {
+			rows.push(rowOf(line));
+			return;
+		}
+		const content = line.content.getLineContent();
+		let start = 0;
+		projection.breakOffsets.forEach((end, k) => {
+			const indent = k > 0 ? projection.wrappedTextIndentLength : 0;
+			rows.push({
+				text: ' '.repeat(indent) + content.substring(start, end),
+				tokens: line.content.sliceAndInflate(start, end, indent),
+				decorations: LineDecoration.extractWrapped(line.decorations.slice(), start, end).map(d => indent ? new LineDecoration(d.startColumn + indent, d.endColumn + indent, d.className, d.type) : d),
+			});
+			start = end;
+		});
+	});
+	return rows;
+}
+
+function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly IGhostTextRow[], opts: IComputedEditorOptions, isClickable: boolean): void {
 	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
 	// To avoid visual confusion, we don't want to render visible whitespace
@@ -653,13 +712,13 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: readonly Line
 
 	for (let i = 0, len = lines.length; i < len; i++) {
 		const lineData = lines[i];
-		const lineTokens = lineData.content;
+		const lineTokens = lineData.tokens;
 		sb.appendString('<div class="view-line');
 		sb.appendString('" style="top:');
 		sb.appendString(String(i * lineHeight));
 		sb.appendString('px;width:1000000px;">');
 
-		const line = lineTokens.getLineContent();
+		const line = lineData.text;
 		const isBasicASCII = strings.isBasicASCII(line);
 		const containsRTL = strings.containsRTL(line);
 

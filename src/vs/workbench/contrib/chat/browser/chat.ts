@@ -569,7 +569,8 @@ export interface IChatWidget {
 	readonly supportsChangingModes: boolean;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
-	reveal(item: ChatTreeItem): void;
+	/** Scrolls the transcript to an item; with `relativeTop` (0 = top of the view), aligns it there. */
+	reveal(item: ChatTreeItem, relativeTop?: number): void;
 	focus(item: ChatTreeItem): void;
 	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined;
 	getFocus(): ChatTreeItem | undefined;

@@ -133,6 +133,7 @@ import './services/textMate/browser/textMateTokenizationFeature.contribution.js'
 import './services/treeSitter/browser/treeSitter.contribution.js';
 import './services/userActivity/common/userActivityService.js';
 import './services/userActivity/browser/userActivityBrowser.js';
+import './services/userActivity/browser/userActivityCaptureService.js';
 import './services/lifecycle/common/unattendedRestart.js';
 import './services/userAttention/browser/userAttentionBrowser.js';
 import './services/editor/browser/editorPaneService.js';
@@ -353,6 +354,9 @@ import './contrib/output/browser/outputView.js';
 
 // Terminal
 import './contrib/terminal/terminal.all.js';
+
+// User activity (proposed API userActivity)
+import './contrib/userActivity/browser/userActivity.contribution.js';
 
 // External terminal
 import './contrib/externalTerminal/browser/externalTerminal.contribution.js';

@@ -2064,7 +2064,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		ChatContextKeys.itemId.bindTo(templateData.contextKeyService).set(element.id);
 		ChatContextKeys.isRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && !element.isPendingRequestHandoff);
 		ChatContextKeys.isFirstRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && this.viewModel?.model.getRequests()[0]?.id === element.id);
-		ChatContextKeys.isPendingRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && !!element.pendingKind && !element.isPendingRequestHandoff);
+		const isDraft = isRequestVM(element) && element.pendingKind === ChatRequestQueueKind.Draft;
+		ChatContextKeys.isPendingRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && !!element.pendingKind && !element.isPendingRequestHandoff && !isDraft);
+		ChatContextKeys.isDraftRequest.bindTo(templateData.contextKeyService).set(isDraft);
 		ChatContextKeys.responseDetectedAgentCommand.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
 		if (isResponseVM(element)) {
 			ChatContextKeys.responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
@@ -2541,6 +2543,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		if (element.dividerKind === 'scheduled') {
 			label.textContent = localize('scheduledDivider', "Scheduled");
+		} else if (element.dividerKind === ChatRequestQueueKind.Draft && element.draft) {
+			dividerContent.classList.add('pending-divider-draft');
+			dom.prepend(dividerContent, dom.$(`span${ThemeIcon.asCSSSelector(Codicon.sparkle)}`));
+			label.textContent = element.draft.label;
+			label.title = localize('draftDividerTooltip', "A suggested message: edit it, steer with it or queue it. It is never sent on its own.");
+			if (element.draft.detail) {
+				const detail = dom.append(dividerContent, dom.$('span.pending-divider-detail'));
+				detail.textContent = element.draft.detail;
+				detail.title = element.draft.detail;
+			}
+			if (element.draft.warning) {
+				const warning = dom.append(dividerContent, dom.$(`span.pending-divider-warning${ThemeIcon.asCSSSelector(Codicon.warning)}`));
+				warning.title = element.draft.warning;
+				warning.setAttribute('aria-label', element.draft.warning);
+			}
 		} else if (element.dividerKind === ChatRequestQueueKind.Steering) {
 			if (element.isSystemInitiated) {
 				label.textContent = localize('systemNotificationDivider', "System notification");
@@ -3149,6 +3166,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.stickyScrollSource = undefined;
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 		templateData.rowContainer.classList.toggle('pending-request', !!element.pendingKind);
+		templateData.rowContainer.classList.toggle('draft-request', element.pendingKind === ChatRequestQueueKind.Draft);
 		templateData.rowContainer.classList.toggle('system-initiated-request', !!element.isSystemInitiated);
 		templateData.rowContainer.classList.toggle('terminal-command-request', !element.isSystemInitiated && element.isTerminalCommand);
 
@@ -3158,7 +3176,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		if (element.pendingKind && !element.isPendingRequestHandoff && this._pendingDragController) {
+		if (element.pendingKind && element.pendingKind !== ChatRequestQueueKind.Draft && !element.isPendingRequestHandoff && this._pendingDragController) {
 			templateData.rowContainer.dataset.pendingRequestId = element.id;
 			templateData.rowContainer.dataset.pendingKind = element.pendingKind;
 

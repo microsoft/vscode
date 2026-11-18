@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CHAT_SESSION_PANEL_EDITOR_INPUT_ID } from '../../../chatSessionPanels/common/chatSessionPanels.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
@@ -93,6 +94,7 @@ export function getFloatingMarkdownDetailsState(editor: EditorInput, workspace: 
 /** Whether `editor` owns its full presentation and must hide the docked Details panel. */
 export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
 	return editor instanceof BrowserEditorInput
+		|| editor.typeId === CHAT_SESSION_PANEL_EDITOR_INPUT_ID
 		|| editor instanceof CanvasInput
 		|| editor instanceof WindowCanvasInput
 		|| (editor instanceof CustomEditorInput && editor.resource?.scheme !== Schemas.untitled)

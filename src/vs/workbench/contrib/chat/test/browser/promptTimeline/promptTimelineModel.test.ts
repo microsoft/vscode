@@ -52,6 +52,14 @@ suite('PromptTimelineModel', () => {
 			viewportHeight,
 			scrollHeight,
 			getElementTop: item => tops.get(item),
+			// Like the list: scrolls the item to the top, as far as the content allows.
+			reveal: (item: ChatTreeItem) => {
+				const next = Math.min(tops.get(item) ?? 0, scrollHeight - viewportHeight);
+				if (next !== scrollTop) {
+					scrollTop = next;
+					onDidScroll.fire();
+				}
+			},
 		});
 		const model = store.add(new PromptTimelineModel(widget,
 			upcastPartial<IChatEditingService>({
@@ -306,6 +314,36 @@ suite('PromptTimelineModel', () => {
 			active: { text: 'Second prompt', index: 2, total: 3 },
 			pinned: true,
 		});
+	});
+
+	test('a prompt jumped to that cannot reach the top stays active at the bottom, until the user scrolls away', () => {
+		const { model, scrollTo } = createModel([
+			{ item: request('request-1', 'First prompt', 1), top: 0 },
+			{ item: request('request-2', 'Second prompt', 2), top: 500 },
+			{ item: request('request-3', 'Third prompt', 3), top: 1000 },
+		], 800, 1400);
+		const active = () => model.activePrompt.get()?.text;
+
+		// Already at the bottom: the jump doesn't scroll, and still selects the last prompt.
+		scrollTo(600);
+		assert.strictEqual(active(), 'Second prompt');
+		model.reveal('request-3');
+		assert.deepStrictEqual(state(model), { active: { text: 'Third prompt', index: 3, total: 3 }, pinned: false });
+
+		// Scrolling away lets the viewport top decide again, back at the bottom too.
+		scrollTo(300);
+		assert.strictEqual(active(), 'First prompt');
+		scrollTo(600);
+		assert.strictEqual(active(), 'Second prompt');
+
+		// From the top, the jump scrolls to the bottom and selects it.
+		scrollTo(0);
+		model.reveal('request-3');
+		assert.strictEqual(active(), 'Third prompt');
+
+		// A prompt that can reach the top is selected by the viewport top, as before.
+		model.reveal('request-1');
+		assert.strictEqual(active(), 'First prompt');
 	});
 
 	test('does not count system-initiated requests as prompts', () => {

@@ -5466,6 +5466,42 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+/* A pushed input suggestion (proposed API chatInputSuggestion) replaces the placeholder while it shows */
+.interactive-input-part .monaco-editor:has(.ghost-text-decoration, .ghost-text) .editorPlaceholder {
+	display: none;
+}
+
+/* Suggested drafts (proposed API chatDraftRequests): dashed, muted, never sent on their own */
+.interactive-item-container.draft-request .value {
+	border: 1px dashed var(--vscode-focusBorder);
+	border-radius: 6px;
+	padding: 4px 8px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-item-container.pending-divider .pending-divider-content.pending-divider-draft {
+	min-width: 0;
+}
+
+.interactive-item-container.pending-divider .pending-divider-draft > .codicon-sparkle {
+	color: var(--vscode-focusBorder);
+	font-size: 12px;
+}
+
+.interactive-item-container.pending-divider .pending-divider-detail {
+	font-size: var(--vscode-chat-font-size-body-xs);
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.interactive-item-container.pending-divider .pending-divider-warning {
+	color: var(--vscode-editorWarning-foreground);
+	font-size: 12px;
+}
+
 /* Outline removal except for HC themes */
 .monaco-workbench:not(.hc-black):not(.hc-light) .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.response {
 	outline: none !important;

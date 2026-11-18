@@ -8,11 +8,14 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { fromNow } from '../../../../../base/common/date.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { MIN_HOST_WIDTH } from './promptTimelineLayout.js';
 import { PromptDiffStat, PromptFileDiff, PromptTick, IPromptScrollLayout, promptTickEquals } from './promptTimelineModel.js';
-import { IPromptReviewFileEvent, IPromptTimelineRail } from './promptTimelineRail.js';
+import { annotationSlots, IPromptReviewFileEvent, IPromptTimelineAnnotation, IPromptTimelineRail } from './promptTimelineRail.js';
 import './media/promptTimeline.css';
 
 /**
@@ -130,6 +133,17 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 	private _focusRow = 0;
 	/** Which of that row's two buttons holds it. */
 	private _focusColumn: RowColumn = 'jump';
+
+	/** Notes between the prompts (e.g. progress digests), oldest first. */
+	private _annotations: readonly IPromptTimelineAnnotation[] = [];
+	private readonly _annotationDisposables = this._register(new DisposableStore());
+	/** The marks and rows drawn for the annotations, removed on each redraw. */
+	private readonly _annotationElements: HTMLElement[] = [];
+	/** Each handle mark with the dot it follows, and each flyout row with the prompt it follows. */
+	private readonly _annotationMarks: { readonly element: HTMLElement; readonly dot: number }[] = [];
+	private readonly _annotationRows: { readonly element: HTMLElement; readonly slot: number }[] = [];
+	/** Annotations the user expanded or collapsed; the others follow the default (the newest expanded). */
+	private readonly _annotationToggled = new Map<string, boolean>();
 
 	private readonly _onDidSelect = this._register(new Emitter<string>());
 	readonly onDidSelect: Event<string> = this._onDidSelect.event;
@@ -287,6 +301,8 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			append(this._rest, $('.prompt-timeline-gutter-dot-more'));
 		}
 		this._updateDotHighlights();
+		// Redrawn dots drop the dashes placed between them.
+		this._renderAnnotations();
 	}
 
 	/**
@@ -356,6 +372,18 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			this._dots[i].classList.toggle('active', i === activeDot);
 			this._dots[i].classList.toggle('preview', i === previewDot);
 		}
+		this._updateAnnotationHighlights();
+	}
+
+	/** The notes after the active ("you are here") prompt take its accent, as its dot does; the rest stay grey. */
+	private _updateAnnotationHighlights(): void {
+		const activeDot = this._findNearestDotIndex(this._activeIndex);
+		for (const mark of this._annotationMarks) {
+			mark.element.classList.toggle('current', this._activeIndex >= 0 && mark.dot === activeDot);
+		}
+		for (const row of this._annotationRows) {
+			row.element.classList.toggle('current', this._activeIndex >= 0 && row.slot === this._activeIndex);
+		}
 	}
 
 	private _findNearestDotIndex(tickIndex: number): number {
@@ -392,6 +420,111 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		} else if (bottom > viewBottom) {
 			this._list.scrollTop = bottom - this._list.clientHeight;
 		}
+	}
+
+	setAnnotations(annotations: readonly IPromptTimelineAnnotation[]): void {
+		this._annotations = annotations;
+		this._renderAnnotations();
+	}
+
+	/**
+	 * Draws the annotations where they happened: a short dash between the resting dots, and a row
+	 * between the prompt rows in the flyout, the newest expanded so the flyout reads as the session's
+	 * story. Those after the active prompt take its accent (see `_updateAnnotationHighlights`).
+	 */
+	private _renderAnnotations(): void {
+		this._annotationDisposables.clear();
+		for (const el of this._annotationElements.splice(0)) {
+			el.remove();
+		}
+		this._annotationMarks.length = 0;
+		this._annotationRows.length = 0;
+		const annotations = this._annotations;
+		if (!annotations.length) {
+			this._domNode.classList.remove('has-annotations');
+			return;
+		}
+		this._domNode.classList.add('has-annotations');
+		const slots = annotationSlots(this._rows.map(r => r.tick.timestamp), annotations);
+		const newest = annotations.length - 1;
+
+		// Resting handle: one dash per gap between dots that holds any annotation.
+		const dashAfterDot = new Set<number>();
+		for (const slot of slots) {
+			let dot = -1;
+			for (let d = 0; d < this._dotTicks.length && this._dotTicks[d] <= slot; d++) {
+				dot = d;
+			}
+			dashAfterDot.add(dot);
+		}
+		for (const dot of dashAfterDot) {
+			const mark = $('.prompt-timeline-gutter-mark');
+			this._annotationElements.push(mark);
+			this._annotationMarks.push({ element: mark, dot });
+			if (dot < 0) {
+				this._rest.prepend(mark);
+			} else {
+				this._dots[dot]?.after(mark);
+			}
+		}
+
+		// Flyout: a row after the prompt it follows, in order.
+		const insertAfter = new Map<number, HTMLElement>();
+		annotations.forEach((a, i) => {
+			const row = $('.prompt-timeline-gutter-annotation');
+			this._annotationElements.push(row);
+			this._annotationRows.push({ element: row, slot: slots[i] });
+			row.classList.toggle('newest', i === newest);
+			const head = append(row, $<HTMLButtonElement>('button.prompt-timeline-gutter-annotation-head'));
+			const icon = a.icon ?? Codicon.pulse;
+			append(head, $(`span.prompt-timeline-gutter-annotation-icon${ThemeIcon.asCSSSelector(icon)}`));
+			const label = append(head, $('span.prompt-timeline-gutter-annotation-label'));
+			label.textContent = a.label;
+			const age = append(head, $('span.prompt-timeline-gutter-annotation-age'));
+			age.textContent = fromNow(a.timestamp, true);
+			head.title = `${a.label} · ${new Date(a.timestamp).toLocaleString()}`;
+			const detail = append(row, $('.prompt-timeline-gutter-annotation-detail'));
+			let rendered = false;
+			const setExpanded = (expanded: boolean) => {
+				row.classList.toggle('expanded', expanded);
+				head.setAttribute('aria-expanded', String(expanded));
+				if (expanded && !rendered && a.renderDetail) {
+					rendered = true;
+					this._annotationDisposables.add(a.renderDetail(detail));
+				}
+			};
+			setExpanded(this._annotationToggled.get(a.id) ?? i === newest);
+			if (!a.renderDetail) {
+				head.removeAttribute('aria-expanded');
+			}
+			this._annotationDisposables.add(addDisposableListener(head, EventType.CLICK, e => {
+				e.preventDefault();
+				const expanded = !row.classList.contains('expanded');
+				this._annotationToggled.set(a.id, expanded);
+				setExpanded(expanded);
+			}));
+			this._annotationDisposables.add(addDisposableListener(head, EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				const target = event.keyCode === KeyCode.DownArrow ? slots[i] + 1 : event.keyCode === KeyCode.UpArrow ? slots[i] : -2;
+				if (event.keyCode === KeyCode.Escape) {
+					event.preventDefault();
+					event.stopPropagation();
+					this._close();
+				} else if (target >= 0 && target < this._rows.length) {
+					event.preventDefault();
+					event.stopPropagation();
+					this._focusCell(target, 'jump');
+				}
+			}));
+			const anchor = insertAfter.get(slots[i]) ?? (slots[i] >= 0 ? this._rows[slots[i]]?.container : undefined);
+			if (anchor) {
+				anchor.after(row);
+			} else {
+				this._list.prepend(row);
+			}
+			insertAfter.set(slots[i], row);
+		});
+		this._updateAnnotationHighlights();
 	}
 
 	setTicks(ticks: readonly PromptTick[]): void {
@@ -472,6 +605,7 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		const activeIndex = this._rows.findIndex(r => r.tick.requestId === this._activeRequestId);
 		this._updateTabStops(activeIndex >= 0 ? activeIndex : 0, 'jump');
 		this._updateActiveClasses();
+		this._renderAnnotations();
 	}
 
 	private _renderRow(entry: IRowEntry, tick: PromptTick): void {
