@@ -367,6 +367,11 @@
 	z-index: 9;
 }
 
+/* The sticky add tab button would cover the drop indicator after the last tab. */
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.has-add-tab:not(.wrapping) .tabs-container > .tab.last-tab.drop-target-left {
+	z-index: 10;
+}
+
 /* Keep 24px fills inside 32px hit targets while avoiding an 8px double gutter
  * between separate pinned and unpinned rows. */
 .modern-ui-tabs.monaco-workbench .part.editor .title.two-tab-bars > .tabs-and-actions-container:first-child .tabs-container > .tab {
@@ -804,7 +809,8 @@
 	pointer-events: none;
 }
 
-.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left:not(.last-in-row):not(:last-child)::after {
+/* Between two tabs, the indicator of the tab after it shows; the add tab button can follow the last tab. */
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left:not(.last-in-row):not(.last-tab)::after {
 	display: none;
 }
 

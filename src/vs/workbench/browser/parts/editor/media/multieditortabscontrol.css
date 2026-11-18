@@ -623,6 +623,6 @@
 	right: -2px; /* -2 to connect with drop-target-right */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(:last-child)::after {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(.last-tab)::after {
 	right: 0;
 }

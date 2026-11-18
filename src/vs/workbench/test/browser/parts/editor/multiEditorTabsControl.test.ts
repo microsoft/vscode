@@ -4928,6 +4928,39 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('dragging a tab after the last tab shows the drop indicator on the last tab, with and without the add tab button', async () => {
+		const group = connectedGroup();
+		const dropTargetsAfterLastTab = async (withAddTab: boolean) => {
+			control.dispose();
+			reset(container);
+			control = createControl(withAddTab ? { tabsBarAddTab: MenuId.for('test.addTab.dropTarget') } : undefined);
+			await layoutConnectedGroup(group, 2000);
+			const tabsContainer = container.querySelector<HTMLElement>('.tabs-container')!;
+			const tabs = [...tabsContainer.querySelectorAll<HTMLElement>(':scope > .tab')];
+			const dropTargets = () => [...tabsContainer.children].filter(child => child.classList.contains('drop-target-left')).map(child => child.classList.contains('tab')
+				? `tab ${tabs.indexOf(child as HTMLElement)}${mainWindow.getComputedStyle(child, '::after').display === 'none' ? ' (hidden)' : ''}`
+				: child.className);
+			const dragOver = (target: HTMLElement) => {
+				target.dispatchEvent(new DragEvent(EventType.DRAG_ENTER, { dataTransfer: new DataTransfer(), bubbles: true }));
+				const result = dropTargets();
+				target.dispatchEvent(new DragEvent(EventType.DRAG_LEAVE, { dataTransfer: new DataTransfer(), bubbles: true }));
+				return result;
+			};
+			tabs[0].dispatchEvent(new DragEvent(EventType.DRAG_START, { dataTransfer: new DataTransfer(), bubbles: true }));
+			const result = {
+				emptySpace: dragOver(tabsContainer),
+				addTabButton: withAddTab ? dragOver(container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!) : undefined,
+			};
+			tabs[0].dispatchEvent(new DragEvent(EventType.DRAG_END, { dataTransfer: new DataTransfer(), bubbles: true }));
+			return result;
+		};
+
+		assert.deepStrictEqual({ without: await dropTargetsAfterLastTab(false), with: await dropTargetsAfterLastTab(true) }, {
+			without: { emptySpace: [`tab ${model.count - 1}`], addTabButton: undefined },
+			with: { emptySpace: [`tab ${model.count - 1}`], addTabButton: [`tab ${model.count - 1}`] },
+		});
+	});
+
 	test('the new tab button lists the entry picked last above its entries, as its default entry that a second press picks', async () => {
 		const executed: string[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {

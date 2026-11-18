@@ -509,7 +509,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabsContainer.classList.add('scroll');
 
 				// Return if the target is not on the tabs container
-				if (e.target !== tabsContainer) {
+				if (!this.isDropAfterLastTabTarget(e, tabsContainer)) {
 					return;
 				}
 
@@ -549,7 +549,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tabsContainer, false, e);
 				tabsContainer.classList.remove('scroll');
 
-				if (e.target === tabsContainer) {
+				if (this.isDropAfterLastTabTarget(e, tabsContainer)) {
 					const isGroupTransfer = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 					this.onDrop(e, isGroupTransfer ? this.groupView.count : this.tabsModel.count, tabsContainer);
 				}
@@ -1442,6 +1442,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return false;
 	}
 
+	/**
+	 * Whether dragging over the event's target drops after the last tab: the empty space of the tabs container and the
+	 * add tab button after the last tab.
+	 */
+	private isDropAfterLastTabTarget(e: DragEvent, tabsContainer: HTMLElement): boolean {
+		return e.target === tabsContainer || (!!this.addTabContainer && isHTMLElement(e.target) && this.addTabContainer.contains(e.target));
+	}
+
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, e: DragEvent, tabIndex?: number): void {
 		const isTab = (typeof tabIndex === 'number');
 
@@ -1450,7 +1458,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (isTab) {
 				dropTarget = this.computeDropTarget(e, tabIndex, element);
 			} else {
-				dropTarget = { leftElement: element.lastElementChild as HTMLElement, rightElement: undefined };
+				// The add tab button follows the last tab in the container
+				dropTarget = { leftElement: this.getLastTab(), rightElement: undefined };
 			}
 		} else {
 			dropTarget = undefined;
